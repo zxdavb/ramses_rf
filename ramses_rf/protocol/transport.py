@@ -835,40 +835,39 @@ class PacketProtocolQos(PacketProtocolPort):
 
         def logger_rcvd(message: str, wanted: Packet = None) -> None:
             # Reserve the use of _LOGGER.info() for RF Tx/Rx logging
-            if wanted:
+            if wanted:  # self._qos_cmd is not None
                 logger = _LOGGER.warning if DEV_MODE else _LOGGER.debug
-            elif message:
-                logger = _LOGGER.error if DEV_MODE else _LOGGER.warning
+                timeout = self._timeout_full.isoformat(timespec="milliseconds")
             else:
-                logger = _LOGGER.debug if DEV_MODE else _LOGGER.debug
-                message = "not wanting any pkt"
+                logger = _LOGGER.debug if DEV_MODE else _LOGGER.info
+                timeout = None
 
             logger(
                 "PktProtocolQos.data_rcvd(rcvd=%s): boff=%s, want=%s, tout=%s: %s",
                 pkt._hdr or str(pkt),
                 self._backoff,
                 wanted,
-                self._timeout_full.isoformat(timespec="milliseconds"),
+                timeout,
                 f"QoS: {message}",
             )
 
         if self._qos_cmd is None:
-            wanted, msg = None, None  # = None, "not looking for any pkt"
+            wanted, msg = None, "not wanting any pkt"
 
         elif self._tx_hdr:  # expected an echo of the Tx'd pkt
-            wanted, msg = self._tx_hdr, "wanting Tx (RQ) pkt: "
+            wanted, msg = self._tx_hdr, "wanting Tx (usu. RQ) pkt: "
 
             if pkt._hdr != self._tx_hdr:
-                msg += "NOT MATCHED (still waiting for the Tx (RQ) pkt)"
+                msg += "NOT MATCHED (still waiting for the Tx pkt)"
             elif self._rx_hdr:  # is the Tx pkt, and a response *is* expected
-                msg += "was MATCHED (now waiting for the corresponding Rx (RP) pkt)"
+                msg += "was MATCHED (now waiting for the corresponding Rx pkt)"
                 self._tx_hdr = None
             else:  # is the Tx pkt, and a response *is not* expected
-                msg += "was MATCHED (not wanting a corresponding Rx (RP) pkt, now done)"
+                msg += "was MATCHED (not wanting a corresponding Rx pkt, now done)"
                 self._qos_set_cmd(None)
 
         elif self._rx_hdr:  # expecting a Rx to the Tx'd pkt
-            wanted, msg = self._rx_hdr, "wanting Rx (RP) pkt: "
+            wanted, msg = self._rx_hdr, "wanting Rx (usu. RP) pkt: "
 
             if pkt._hdr == self._rx_hdr:  # is the Rx pkt, is (expected) response
                 msg += "was MATCHED (now done)"
@@ -876,12 +875,12 @@ class PacketProtocolQos(PacketProtocolPort):
                     entity._qos_function(self._qos_cmd, reset=True)
                 self._qos_set_cmd(None)
             elif pkt._hdr == self._tx_hdr:  # is the Tx pkt, so increase backoff?
-                msg += "was MATCHED duplicate Tx (RQ) pkt (now backing off)"
+                msg += "was MATCHED duplicate Tx pkt (now backing off)"
             else:
-                msg += "NOT MATCHED (still waiting for the Rx (RP) pkt)"
+                msg += "NOT MATCHED (still waiting for the Rx pkt)"
 
         else:  # we shouldn't ever reach here!
-            wanted, msg = None, f"Woops! cmd = {self._qos_cmd}"
+            # wanted, msg = None, f"Woops! cmd = {self._qos_cmd}"
             raise RuntimeError(f"QoS: {msg}")
 
         logger_rcvd(msg, wanted=wanted)
