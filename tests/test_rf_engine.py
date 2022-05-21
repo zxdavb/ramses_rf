@@ -13,7 +13,7 @@ from serial.tools import list_ports
 from ramses_rf import Gateway
 from tests.common import TEST_DIR
 
-WORK_DIR = f"{TEST_DIR}/engine"
+WORK_DIR = f"{TEST_DIR}/rf_engine"
 
 SERIAL_PORT = "/dev/ttyUSB0"
 
@@ -21,11 +21,8 @@ SERIAL_PORT = "/dev/ttyUSB0"
 async def load_test_system(ser_name, config: dict = None) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    try:
-        with open(f"{WORK_DIR}/config.json") as f:
-            kwargs = json.load(f)
-    except FileNotFoundError:
-        kwargs = {"config": {}}
+    with open(f"{WORK_DIR}/config.json") as f:
+        kwargs = json.load(f)
 
     if config:
         kwargs.update(config)
@@ -40,7 +37,6 @@ async def test_get_0006():
         return
 
     gwy = await load_test_system(SERIAL_PORT)
-
     await gwy.start(start_discovery=False)  # may: SerialException
 
     version = await gwy.tcs.get_schedule_version()  # RQ|0006, may: TimeoutError
@@ -51,5 +47,20 @@ async def test_get_0006():
     assert await gwy.tcs.get_schedule_version() == await gwy.tcs.get_schedule_version(
         force_update=True
     )
+
+    await gwy.stop()
+
+
+async def test_get_0404():
+
+    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
+        return
+
+    gwy = await load_test_system(SERIAL_PORT)
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    schedule = await gwy.tcs.zones[0].get_schedule()  # RQ|0404, may: TimeoutError
+
+    assert isinstance(schedule, dict)
 
     await gwy.stop()
