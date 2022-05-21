@@ -339,7 +339,7 @@ class SerTransportBase(asyncio.ReadTransport):
             poller.cancel()
 
     async def _polling_loop(self):
-        self._protocol.connection_made(self)
+        raise NotImplementedError
 
 
 class SerTransportRead(SerTransportBase):
@@ -356,7 +356,7 @@ class SerTransportRead(SerTransportBase):
         self._startup()
 
     async def _polling_loop(self):  # TODO: harden with try
-        await super()._polling_loop()
+        self._protocol.connection_made(self)
 
         if isinstance(self._packets, dict):  # can assume dtm_str is OK
             for dtm_str, pkt_line in self._packets.items():
@@ -394,7 +394,7 @@ class SerTransportPoll(SerTransportBase):
         self._startup()
 
     async def _polling_loop(self):
-        await super()._polling_loop()
+        self._protocol.connection_made(self)
 
         while self.serial.is_open:
             await asyncio.sleep(0.001)

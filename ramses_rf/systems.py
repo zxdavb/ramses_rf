@@ -868,7 +868,7 @@ class Logbook(SystemBase):  # 0418
 
         if discover_flag & Discover.FAULTS:  # check the latest log entry
             self._send_cmd(Command.get_system_log_entry(self.ctl.id, 0))
-            # self._gwy._tasks.append(self._loop.create_task(self.get_faultlog()))
+            # self._gwy.add_task(self._loop.create_task(self.get_faultlog()))
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)

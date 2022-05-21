@@ -538,7 +538,7 @@ async def main(command, lib_kwargs, **kwargs):
             state = json.load(kwargs["restore_cache"])
             await gwy._set_state(**state["data"]["restore_cache"])
 
-        gwy_task = asyncio.create_task(gwy.start())
+        await gwy.start()
 
         if command == EXECUTE:
             tasks = spawn_scripts(gwy, **kwargs)
@@ -549,10 +549,10 @@ async def main(command, lib_kwargs, **kwargs):
             # await asyncio.sleep(5)
             # gwy.device_by_id["17:145039"].temperature = 19
             # gwy.device_by_id["34:145039"].temperature = 21.3
-            await gwy_task
+            await gwy.pkt_source
 
         else:  # elif command in (LISTEN, PARSE):
-            await gwy_task
+            await gwy.pkt_source
 
     except asyncio.CancelledError:
         msg = " - ended via: CancelledError (e.g. SIGINT)"
@@ -564,6 +564,8 @@ async def main(command, lib_kwargs, **kwargs):
         msg = f" - ended via: EvohomeError: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing
         msg = " - ended without error (e.g. EOF)"
+
+    # await gwy.stop()
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
 

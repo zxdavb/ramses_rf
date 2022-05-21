@@ -1130,7 +1130,9 @@ class Command(PacketBase):
         else:
             addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
 
-        return cls.packet(verb, code, payload, *addrs, seqn=seqn, **kwargs)
+        addrs = {f"addr{k}": v for k, v in enumerate(addrs)}
+
+        return cls.packet(verb, code, payload, **addrs, seqn=seqn, **kwargs)
 
 
 # A convenience dict
