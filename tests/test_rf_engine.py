@@ -36,7 +36,7 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
 
 async def test_get_0006():
 
-    if not (c for c in list_ports.comports() if c.device == SERIAL_PORT):
+    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
         return
 
     gwy = await load_test_system(SERIAL_PORT)
