@@ -158,11 +158,7 @@ class Engine:
     async def stop(self) -> None:
         self._stop()
 
-        if (
-            (t := self.msg_transport)
-            and (task := t.get_extra_info(t.WRITER))
-            and (not task.done())
-        ):
+        if (task := self.pkt_source) and not task.done():
             try:
                 await task
             except asyncio.CancelledError:
@@ -221,6 +217,11 @@ class Engine:
 
         if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
             return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
+
+    @property
+    def pkt_source(self) -> asyncio.Task:
+        if t := self.msg_transport:
+            return t.get_extra_info(t.WRITER)
 
 
 class Gateway(Engine):
@@ -313,7 +314,7 @@ class Gateway(Engine):
         await super().start()
 
         if not self.ser_name:  # wait until have processed the entire packet log...
-            await self.pkt_transport._extra[SZ_POLLER_TASK]
+            await self.pkt_transport.get_extra_info(SZ_POLLER_TASK)
 
         elif start_discovery:  # source of packets is a serial port
             initiate_discovery(self.devices, self.systems)
@@ -585,7 +586,7 @@ class Gateway(Engine):
             self._loop,
         )
 
-        # TODO: add this future somewhere
+        self._tasks = [t for t in self._tasks if not t.done()]
         self._tasks.append(future)
         return future
 
@@ -615,7 +616,7 @@ class Gateway(Engine):
                 result = fut.result(timeout=0.01)
 
             except futures.TimeoutError:
-                pass
+                pass  # raise TimeoutError(f"The cmd has not yet completed ({cmd})")
 
             except TimeoutError:  # 3 seconds
                 fut.cancel()
@@ -627,7 +628,7 @@ class Gateway(Engine):
                 # NOTE: dont then: raise ExpiredCallbackError(exc)
 
             else:
-                _LOGGER.error(f"The cmd returned: {result!r} ({type(result)})")
+                _LOGGER.debug(f"Success: the cmd returned: {result!r} ({type(result)})")
                 return result
 
     def fake_device(
@@ -656,6 +657,7 @@ class Gateway(Engine):
 
     def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> None:
         """Start a task after delay seconds and then repeat it every period seconds."""
+        self._tasks = [t for t in self._tasks if not t.done()]
         self._tasks.append(
             schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
         )
