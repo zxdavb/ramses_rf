@@ -561,7 +561,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
         self.childs.append(child)
         self.child_by_id[child.id] = child
 
-        if True or DEV_MODE:
+        if DEV_MODE:
             _LOGGER.warning(
                 "parent.set_child(), Parent: %s_%s, %s: %s",
                 self.id,
@@ -785,7 +785,7 @@ class Child:  # A Zone, Device or a UfhCircuit
         self.ctl = ctl
         self.tcs = ctl.tcs
 
-        if True or DEV_MODE:
+        if DEV_MODE:
             _LOGGER.warning(
                 "child.set_parent(), Parent: %s_%s, %s: %s",
                 parent.id,
