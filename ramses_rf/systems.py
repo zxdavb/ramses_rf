@@ -758,10 +758,10 @@ class ScheduleSync(SystemBase):  # 0006
             )
             self._msg_0006 = msg
 
-    async def get_schedule_version(self, *, force_update: bool = False) -> int:
+    async def get_schedule_version(self, *, force_refresh: bool = False) -> int:
         """Return the latest schedule version number (global change counter).
 
-        If it hasn't been doen very recently, or if `force_update`, then RQ the latest
+        If it hasn't been doen very recently, or if `force_refresh`, then RQ the latest
         change counter from the TCS.
         """
 
@@ -769,7 +769,7 @@ class ScheduleSync(SystemBase):  # 0006
         # RP --- 01:037519 30:185469 --:------ 0006 004 000500E6
 
         if (
-            not force_update
+            not force_refresh
             and self._msg_0006
             and self._msg_0006.dtm > dt.now() - td(minutes=3)
         ):

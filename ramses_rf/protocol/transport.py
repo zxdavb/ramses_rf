@@ -23,7 +23,6 @@ import asyncio
 import logging
 import os
 import re
-import signal
 from collections import deque
 from datetime import datetime as dt
 from datetime import timedelta as td
@@ -331,8 +330,8 @@ class SerTransportBase(asyncio.ReadTransport):
         self._loop = loop
         self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            self._loop.add_signal_handler(sig, self._shutdown)
+        # for sig in (signal.SIGINT, signal.SIGTERM):
+        #     self._loop.add_signal_handler(sig, self._shutdown)
 
     def _shutdown(self):
         if poller := self._extra.get(SZ_POLLER_TASK):
@@ -714,8 +713,8 @@ class PacketProtocolPort(PacketProtocolBase):
         self._sem = asyncio.BoundedSemaphore()
         self._leaker = self._loop.create_task(self._leak_sem())
 
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            self._loop.add_signal_handler(sig, self._shutdown)
+        # for sig in (signal.SIGINT, signal.SIGTERM):
+        #     self._loop.add_signal_handler(sig, self._shutdown)
 
     def _shutdown(self):
         self.pause_writing()

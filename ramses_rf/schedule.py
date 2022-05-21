@@ -168,6 +168,7 @@ class Schedule:  # 0404
         # new
         self._fragments: dict = {}
         self._outdated: bool = True
+        self._version: int = None
 
         self._clear_fragments()
 
@@ -252,7 +253,7 @@ class Schedule:  # 0404
 
         return self._schedule
 
-    async def is_dated(self, *, force_update: bool = False) -> bool:
+    async def is_dated(self, *, force_refresh: bool = False) -> bool:
         """Return True if the schedule is out of date (a newer version is available).
 
         If required, retreive the latest global change counter (version number) from
@@ -263,7 +264,7 @@ class Schedule:  # 0404
         schedule was changed only very recently.
         """
 
-        if not force_update:
+        if not force_refresh:
 
             if self._outdated is True:
                 return self._outdated
@@ -273,12 +274,12 @@ class Schedule:  # 0404
                 return self._outdated
 
         old_ver = self._version
-        self._version = await self.tcs.get_schedule_version(force_update=force_update)
+        self._version = await self.tcs.get_schedule_version(force_refresh=force_refresh)
 
         self._outdated = self._version > old_ver
         return self._outdated
 
-    async def get_schedule(self, *, force_update: bool = False) -> dict:
+    async def get_schedule(self, *, force_refresh: bool = False) -> dict:
         """Get the up-to-date schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
@@ -286,12 +287,16 @@ class Schedule:  # 0404
         Otherwise, RQ the latest schedule from the controller and return that.
         """
 
-        if self._schedule and not await self.is_dated(force_update=force_update):
+        if force_refresh:
+            await self.is_dated(force_refresh=True)
+
+        if self._schedule and not await self.is_dated():
             return self._schedule
 
+        self._version = await self.tcs.get_schedule_version()
         self._clear_fragments()
 
-        if not await self._obtain_lock(self.idx):  # TODO: should raise a TimeOut
+        if not await self.tcs._obtain_lock(self.idx):  # TODO: should raise a TimeOut
             return
 
         self._rq_fragment(frag_cnt=0)  # calls loop.create_task()
@@ -302,11 +307,12 @@ class Schedule:  # 0404
         while not self._schedule_done:
             await asyncio.sleep(TIMER_SHORT_SLEEP)
             if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                self._release_lock()
+                self.tcs._release_lock()
                 raise ExpiredCallbackError(f"{self}: failed to get schedule")
 
-        self._release_lock()
+        self.tcs._release_lock()
 
+        self._outdated = False
         return self.schedule
 
     def _rq_fragment(self, *, frag_cnt=0) -> None:
@@ -359,7 +365,7 @@ class Schedule:  # 0404
     async def set_schedule(self, schedule) -> None:
         """Set the schedule of a zone."""
 
-        if not await self._obtain_lock(self.idx):  # TODO: should raise a TimeOut
+        if not await self.tcs._obtain_lock(self.idx):  # TODO: should raise a TimeOut
             return
 
         self._schedule_done = None
@@ -371,10 +377,10 @@ class Schedule:  # 0404
         while not self._schedule_done:
             await asyncio.sleep(TIMER_SHORT_SLEEP)
             if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                self._release_lock()
+                self.tcs._release_lock()
                 raise ExpiredCallbackError(f"{self}: failed to set schedule")
 
-        self._release_lock()
+        self.tcs._release_lock()
 
     def _tx_fragment(self, frag_idx=0) -> None:
         """Send the next fragment (index starts at 0)."""
