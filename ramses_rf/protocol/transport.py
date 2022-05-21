@@ -323,12 +323,12 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60) -> Callable:
 
 
 class SerTransportBase(asyncio.ReadTransport):
+    """Interface for a packet transport."""
+
     def __init__(self, loop, extra=None):
         super().__init__(extra=extra)
 
         self._loop = loop
-
-    def _startup(self):
         self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -352,8 +352,6 @@ class SerTransportRead(SerTransportBase):
         self._packets = packet_source
 
         self._protocol.pause_writing()
-
-        self._startup()
 
     async def _polling_loop(self):  # TODO: harden with try
         self._protocol.connection_made(self)
@@ -390,8 +388,6 @@ class SerTransportPoll(SerTransportBase):
 
         self._is_closing = None
         self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
-
-        self._startup()
 
     async def _polling_loop(self):
         self._protocol.connection_made(self)
@@ -716,9 +712,6 @@ class PacketProtocolPort(PacketProtocolBase):
         super().__init__(gwy, pkt_handler)
 
         self._sem = asyncio.BoundedSemaphore()
-        self._leaker = None
-
-    def _startup(self):
         self._leaker = self._loop.create_task(self._leak_sem())
 
         for sig in (signal.SIGINT, signal.SIGTERM):
