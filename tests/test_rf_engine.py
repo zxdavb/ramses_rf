@@ -31,7 +31,12 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
     return gwy
 
 
-async def test_get_0006():
+async def test_rq_0006():
+    def validate_result(version):
+        assert isinstance(version, int)
+        assert version == gwy.tcs._msgs["0006"].payload["change_counter"]
+
+        return version
 
     if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
         return
@@ -40,18 +45,35 @@ async def test_get_0006():
     await gwy.start(start_discovery=False)  # may: SerialException
 
     version = await gwy.tcs.get_schedule_version()  # RQ|0006, may: TimeoutError
+    version = validate_result(version)
 
-    assert isinstance(version, int)
-    assert version == gwy.tcs._msgs["0006"].payload["change_counter"]
+    gwy.config.disable_sending = True
+    assert version == await gwy.tcs.get_schedule_version(force_refresh=False)
 
-    assert await gwy.tcs.get_schedule_version() == await gwy.tcs.get_schedule_version(
-        force_update=True
-    )
+    try:
+        await gwy.tcs.get_schedule_version(force_refresh=True)
+    except RuntimeError:  # sending is disabled
+        assert True
+    else:
+        assert False
 
     await gwy.stop()
 
 
-async def test_get_0404():
+async def test_rq_0404():
+    def validate_result(schedule):
+        assert isinstance(schedule, list)
+        assert len(schedule) == 7
+
+        for idx, day_of_week in enumerate(schedule):
+            assert isinstance(day_of_week, dict)
+            assert day_of_week["day_of_week"] == idx
+
+            for switchpoint in day_of_week["switchpoints"]:
+                assert "time_of_day" in switchpoint
+                assert "heat_setpoint" in switchpoint
+
+        return schedule
 
     if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
         return
@@ -60,7 +82,16 @@ async def test_get_0404():
     await gwy.start(start_discovery=False)  # may: SerialException
 
     schedule = await gwy.tcs.zones[0].get_schedule()  # RQ|0404, may: TimeoutError
+    schedule = validate_result(schedule)
 
-    assert isinstance(schedule, dict)
+    gwy.config.disable_sending = True
+    assert schedule == await gwy.tcs.zones[0].get_schedule(force_refresh=False)
+
+    try:
+        await gwy.tcs.zones[0].get_schedule(force_refresh=True)
+    except RuntimeError:  # sending is disabled
+        assert True
+    else:
+        assert False
 
     await gwy.stop()
