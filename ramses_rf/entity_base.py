@@ -574,7 +574,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
 class Child:  # A Zone, Device or a UfhCircuit
     """A Device can be the Child of a Parent (a System, a heating Zone, or a DHW Zone).
 
-    A Device may/may not have a Parent, but all devices will also have the gateway as a
+    A Device may/may not have a Parent, but all devices will have the gateway as a
     parent, so that they can always be found via `gwy.child_by_id[device_id]`.
 
     In addition, the gateway has `system_by_id`, the Systems have `zone_by_id`, and the
