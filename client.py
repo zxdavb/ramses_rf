@@ -551,7 +551,7 @@ async def main(command, lib_kwargs, **kwargs):
             # gwy.device_by_id["34:145039"].temperature = 21.3
             await gwy.pkt_source
 
-        else:  # elif command in (LISTEN, PARSE):
+        elif gwy.pkt_source:  # else:  # elif command in (LISTEN, PARSE):
             await gwy.pkt_source
 
     except asyncio.CancelledError:
