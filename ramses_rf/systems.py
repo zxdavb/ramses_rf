@@ -1089,7 +1089,7 @@ class Datetime(SystemBase):  # 313F
         super()._handle_msg(msg)
 
         if msg.code == _313F and msg.verb in (I_, RP):  # NOTE: beware I/W/I loop, below
-            if self._gwy.serial_port and (diff := abs(self._datetime - dt.now())) > td(
+            if self._gwy.ser_name and (diff := abs(self._datetime - dt.now())) > td(
                 minutes=5
             ):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")

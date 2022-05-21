@@ -7,7 +7,6 @@ The serial to RF gateway (HGI80, not RFG100).
 """
 
 import asyncio
-import json
 import logging
 import os
 import signal
@@ -77,9 +76,8 @@ class Engine:
     def __init__(self, serial_port, loop=None) -> None:
 
         self._loop = loop or asyncio.get_running_loop()
-        self._tasks: list = []
 
-        self.serial_port = serial_port
+        self.ser_name = serial_port
         self._input_file = None
 
         self.pkt_protocol, self.pkt_transport = None, None
@@ -87,6 +85,9 @@ class Engine:
 
         self._engine_lock = Lock()
         self._engine_state = None
+
+    def __str__(self) -> str:
+        return (self.hgi or HGI_DEV_ADDR).id + f" ({self.ser_name})"
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         def handle_exception(loop, context):
@@ -109,24 +110,22 @@ class Engine:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
-    def start(self) -> None:
+    def _start(self) -> None:
         """Initiate ad-hoc sending, and (polled) receiving."""
 
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
 
-        if self.serial_port:  # source of packets is a serial port
+        if self.ser_name:  # source of packets is a serial port
             pkt_receiver = (
                 self.msg_transport.get_extra_info(self.msg_transport.READER)
                 if self.msg_transport
                 else None
             )
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, pkt_receiver, ser_port=self.serial_port
+                self, pkt_receiver, ser_port=self.ser_name
             )  # TODO: can raise SerialException
             if self.msg_transport:
-                self._tasks.append(
-                    self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
-                )
+                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
 
         else:  # if self._input_file:
             pkt_receiver = (
@@ -140,10 +139,36 @@ class Engine:
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
-        if self.pkt_transport.get_extra_info(SZ_POLLER_TASK):
-            self._tasks.append(self.pkt_transport.get_extra_info(SZ_POLLER_TASK))
+    async def start(self) -> None:
+        self._start()
 
-    def pause(self, *args) -> None:  # FIXME: not atomic
+    def _stop(self) -> None:
+        """Cancel all outstanding tasks."""
+
+        if self.msg_protocol:
+            self.msg_protocol.pause_writing()
+        if self.msg_transport:
+            self.msg_transport.close()  # ? .abort()
+
+        if self.pkt_protocol:
+            self.pkt_protocol._shutdown()
+        if self.pkt_transport:
+            self.pkt_transport.close()  # ? .abort()
+
+    async def stop(self) -> None:
+        self._stop()
+
+        if (
+            (t := self.msg_transport)
+            and (task := t.get_extra_info(t.WRITER))
+            and (not task.done())
+        ):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    def pause(self, *args) -> None:
         """Pause the (unpaused) engine or raise a RuntimeError."""
 
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
@@ -169,7 +194,7 @@ class Engine:
 
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Resuming engine...")
 
-        # if not self.serial_port:
+        # if not self.ser_name:
         #     raise RuntimeError("Unable to resume engine, no serial port configured")
 
         if not self._engine_lock.acquire(timeout=0.1):
@@ -190,6 +215,13 @@ class Engine:
 
         return args
 
+    @property
+    def hgi(self) -> Optional[Device]:
+        """Return the HGI80-compatible gateway device."""
+
+        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
+            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
+
 
 class Gateway(Engine):
     """The gateway class."""
@@ -202,13 +234,15 @@ class Gateway(Engine):
 
         super().__init__(serial_port, loop=loop)
 
+        self._tasks: list = []
+
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
         self._include: dict = {}  # the provided known_list (?and used as an allow_list)
         self._exclude: dict = {}  # the provided block_list
 
         (self.config, self._schema, self._include, self._exclude) = load_config(
-            self.serial_port, self._input_file, **kwargs
+            self.ser_name, self._input_file, **kwargs
         )
         self._unwanted = [NON_DEV_ADDR.id, NUL_DEV_ADDR.id, "01:000001"]
 
@@ -230,11 +264,9 @@ class Gateway(Engine):
         load_schema(self, **self._schema)
 
     def __repr__(self) -> str:
-        """Return an unambiguous string representation of this object."""
-        return json.dumps(self.schema)
+        return super().__str__()
 
     def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
         return (self.hgi or HGI_DEV_ADDR).id
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
@@ -263,7 +295,7 @@ class Gateway(Engine):
         else:  # unsupported
             raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
-    async def start(self, start_discovery=True) -> None:
+    async def start(self, *, start_discovery=True) -> None:
         def initiate_discovery(dev_list, sys_list) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
@@ -278,15 +310,23 @@ class Gateway(Engine):
                 if system.dhw:
                     system.dhw._start_discovery()
 
-        super().start()
+        await super().start()
 
-        if self.serial_port and start_discovery:  # source of packets is a serial port
+        if not self.ser_name:  # wait until have processed the entire packet log...
+            await self.pkt_transport._extra[SZ_POLLER_TASK]
+
+        elif start_discovery:  # source of packets is a serial port
             initiate_discovery(self.devices, self.systems)
 
-            # while not self._tasks:
-            #     await asyncio.sleep(60)
+    async def stop(self) -> None:
+        """Cancel all outstanding tasks."""
+        # if self._engine_state is None:
+        #     self.pause()
 
-        await asyncio.gather(*self._tasks)
+        if tasks := [t.cancel() for t in self._tasks if not t.done()]:
+            await asyncio.gather(*tasks)  # TODO: try: / except asyncio.CancelledError:
+
+        await super().stop()
 
     def pause(self, *args) -> None:
         """Pause the (unpaused) gateway."""
@@ -427,13 +467,6 @@ class Gateway(Engine):
         if self._tcs is None and self.systems:
             self._tcs = self.systems[0]
         return self._tcs
-
-    @property
-    def hgi(self) -> Optional[Device]:
-        """Return the HGI80-compatible gateway device."""
-
-        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
-            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
 
     @property
     def known_list(self) -> dict:
@@ -585,16 +618,16 @@ class Gateway(Engine):
                 pass
 
             except TimeoutError:  # 3 seconds
-                _LOGGER.warning(f"The cmd timed out, cancelling the task ({cmd})")
                 fut.cancel()
+                raise TimeoutError(f"The cmd timed out, cancelling the task ({cmd})")
                 # NOTE: dont then: raise ExpiredCallbackError(exc)
 
             except Exception as exc:
-                _LOGGER.warning(f"The cmd raised an exception ({cmd}): {exc!r}")
+                _LOGGER.error(f"The cmd raised an exception ({cmd}): {exc!r}")
                 # NOTE: dont then: raise ExpiredCallbackError(exc)
 
             else:
-                _LOGGER.debug(f"The command returned: {result!r} ({type(result)})")
+                _LOGGER.error(f"The cmd returned: {result!r} ({type(result)})")
                 return result
 
     def fake_device(

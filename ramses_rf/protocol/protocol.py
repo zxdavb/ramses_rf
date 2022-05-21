@@ -8,6 +8,7 @@ Operates at the msg layer of: app - msg - pkt - h/w
 
 import asyncio
 import logging
+import signal
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
@@ -19,6 +20,8 @@ from .exceptions import CorruptStateError, InvalidPacketError
 from .message import Message
 
 DONT_CREATE_MESSAGES = 3  # duplicate
+
+SZ_WRITER_TASK = "writer_task"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -75,7 +78,7 @@ class MessageTransport(asyncio.Transport):
     MAX_SUBSCRIBERS = 3
 
     READER = "receiver_callback"
-    WRITER = "writer_task"
+    WRITER = SZ_WRITER_TASK
 
     def __init__(self, gwy, protocol, extra=None) -> None:
         super().__init__(extra=extra)
@@ -101,6 +104,18 @@ class MessageTransport(asyncio.Transport):
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self.set_write_buffer_limits()
 
+        self._startup()
+
+    def _startup(self):
+        # self._extra[self.WRITER] = self._loop.create_task(self._polling_loop())
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self._loop.add_signal_handler(sig, self._shutdown)
+
+    def _shutdown(self):
+        if task := self._extra.get(self.WRITER):
+            task.cancel()
+
     def _set_dispatcher(self, dispatcher: Callable):
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
 
@@ -115,6 +130,7 @@ class MessageTransport(asyncio.Transport):
                 _LOGGER.info("sent: %s", cmd)
 
         async def pkt_dispatcher():
+            """Poll the queue and send any command packets to the lower layer."""
             while True:
                 try:
                     cmd = self._que.get_nowait()
@@ -154,7 +170,8 @@ class MessageTransport(asyncio.Transport):
         self._callbacks[header] = callback
 
     def _pkt_receiver(self, pkt):
-        # _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
+        _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
+
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("rcvd: %s", pkt)
 
@@ -227,9 +244,9 @@ class MessageTransport(asyncio.Transport):
         After all buffered data is flushed, the protocol's connection_lost() method will
         (eventually) be called with None as its argument.
         """
-        _LOGGER.debug("MsgTransport.close()")
 
         self._is_closing = True
+        self._shutdown()
 
     def abort(self):
         """Close the transport immediately.
@@ -237,20 +254,18 @@ class MessageTransport(asyncio.Transport):
         Buffered data will be lost. No more data will be received. The protocol's
         connection_lost() method will (eventually) be called with None as its argument.
         """
-        _LOGGER.debug("MsgTransport.abort(): clearing buffered data")
 
-        self._is_closing = True
         self._que = None
+        self._is_closing = True
+        self._shutdown()
 
     def is_closing(self) -> Optional[bool]:
         """Return True if the transport is closing or closed."""
-        _LOGGER.debug("MsgTransport.is_closing()")
 
         return self._is_closing
 
     def get_extra_info(self, name, default=None):
         """Get optional transport information."""
-        _LOGGER.debug("MsgTransport.get_extra_info(%s, %s)", name, default)
 
         return self._extra.get(name, default)
 
@@ -259,7 +274,6 @@ class MessageTransport(asyncio.Transport):
 
         Allow multiple protocols per transport.
         """
-        _LOGGER.debug("MsgTransport.add_protocol(%s)", protocol)
 
         if protocol not in self._protocols:
             if len(self._protocols) > self.MAX_SUBSCRIBERS - 1:
@@ -273,13 +287,11 @@ class MessageTransport(asyncio.Transport):
 
         There can be multiple protocols per transport.
         """
-        _LOGGER.debug("MsgTransport.get_protocol()")
 
         return self._protocols
 
     def is_reading(self) -> bool:
         """Return True if the transport is receiving new data."""
-        _LOGGER.debug("MsgTransport.is_reading()")
 
         raise NotImplementedError
 
@@ -289,7 +301,6 @@ class MessageTransport(asyncio.Transport):
         No data will be passed to the protocol's data_received() method until
         resume_reading() is called.
         """
-        _LOGGER.debug("MsgTransport.pause_reading()")
 
         raise NotImplementedError
 
@@ -299,7 +310,6 @@ class MessageTransport(asyncio.Transport):
         Data received will once again be passed to the protocol's data_received()
         method.
         """
-        _LOGGER.debug("MsgTransport.resume_reading()")
 
         raise NotImplementedError
 
@@ -351,7 +361,6 @@ class MessageTransport(asyncio.Transport):
         empty. Use of zero for either limit is generally sub-optimal as it reduces
         opportunities for doing I/O and computation concurrently.
         """
-        _LOGGER.debug("MsgTransport.set_write_buffer_limits()")
 
         self._write_buffer_limit_high = int(
             self.MAX_BUFFER_SIZE
@@ -368,7 +377,6 @@ class MessageTransport(asyncio.Transport):
 
     def get_write_buffer_size(self) -> int:
         """Return the current size of the write buffer."""
-        _LOGGER.debug("MsgTransport.get_write_buffer_size()")
 
         qsize = self._que.qsize()
 
@@ -414,7 +422,6 @@ class MessageTransport(asyncio.Transport):
         The default implementation concatenates the arguments and calls write() on the
         result.list_of_cmds
         """
-        _LOGGER.debug("MsgTransport.writelines(%s)", list_of_cmds)
 
         for cmd in list_of_cmds:
             self.write(cmd)
@@ -425,13 +432,11 @@ class MessageTransport(asyncio.Transport):
         This is like typing ^D into a UNIX program reading from stdin. Data may still be
         received.
         """
-        _LOGGER.debug("MsgTransport.write_eof()")
 
         raise NotImplementedError
 
     def can_write_eof(self) -> bool:
         """Return True if this transport supports write_eof(), False if not."""
-        _LOGGER.debug("MsgTransport.can_write_eof()")
 
         return False
 
@@ -475,11 +480,11 @@ class MessageProtocol(asyncio.Protocol):
 
     def connection_made(self, transport: MessageTransport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("MsgProtocol.connection_made(%s)", transport)
         self._transport = transport
 
     def data_received(self, msg: Message) -> None:
         """Called by the transport when a message is received."""
+        _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 
         self._this_msg, self._prev_msg = msg, self._this_msg
         self._callback(self._this_msg, prev_msg=self._prev_msg)
@@ -509,18 +514,15 @@ class MessageProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
-        _LOGGER.debug("MsgProtocol.connection_lost(%s)", exc)
         if exc is not None:
             raise exc
 
     def pause_writing(self) -> None:
         """Called by the transport when it's buffer goes over the high-water mark."""
-        _LOGGER.debug("MsgProtocol.pause_writing()")
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called by the transport when it's buffer drains below the low-water mark."""
-        _LOGGER.debug("MsgProtocol.resume_writing()")
         self._pause_writing = False
 
 

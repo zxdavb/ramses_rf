@@ -33,14 +33,14 @@ async def test_schema_discover_from_log(f_name):
     with open(f"{WORK_DIR}/log_files/{f_name}.json") as f:
         schema = json.load(f)
 
-    assert shrink(gwy.schema) == shrink(schema)
+        assert shrink(gwy.schema) == shrink(schema)
 
-    gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
-    schema, packets = gwy._get_state(include_expired=True)
-    packets = shuffle_dict(packets)
-    await gwy._set_state(packets)
+        gwy.ser_name = "/dev/null"  # HACK: needed to pause engine
+        schema, packets = gwy._get_state(include_expired=True)
+        packets = shuffle_dict(packets)
+        await gwy._set_state(packets)
 
-    assert shrink(gwy.schema) == shrink(schema)
+        assert shrink(gwy.schema) == shrink(schema)
 
 
 @pytest.mark.parametrize(

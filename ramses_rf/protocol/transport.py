@@ -23,15 +23,15 @@ import asyncio
 import logging
 import os
 import re
+import signal
 from collections import deque
 from datetime import datetime as dt
 from datetime import timedelta as td
 from functools import wraps
 from io import TextIOWrapper
-from multiprocessing import Process
 from queue import Queue
 from string import printable  # ascii_letters, digits
-from threading import Lock, Thread
+from threading import Lock
 from time import perf_counter
 from types import SimpleNamespace
 from typing import Awaitable, Callable, Iterable, Optional
@@ -322,25 +322,41 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60) -> Callable:
     return decorator
 
 
-class SerTransportRead(asyncio.ReadTransport):
-    """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
-
-    def __init__(self, loop, protocol, packet_source, extra=None):
+class SerTransportBase(asyncio.ReadTransport):
+    def __init__(self, loop, extra=None):
         super().__init__(extra=extra)
 
         self._loop = loop
+
+    def _startup(self):
+        self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self._loop.add_signal_handler(sig, self._shutdown)
+
+    def _shutdown(self):
+        if poller := self._extra.get(SZ_POLLER_TASK):
+            poller.cancel()
+
+    async def _polling_loop(self):
+        self._protocol.connection_made(self)
+
+
+class SerTransportRead(SerTransportBase):
+    """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
+
+    def __init__(self, loop, protocol, packet_source, extra=None):
+        super().__init__(loop, extra=extra)
+
         self._protocol = protocol
         self._packets = packet_source
 
         self._protocol.pause_writing()
 
-        self._start()
-
-    def _start(self):
-        self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
+        self._startup()
 
     async def _polling_loop(self):  # TODO: harden with try
-        self._protocol.connection_made(self)
+        await super()._polling_loop()
 
         if isinstance(self._packets, dict):  # can assume dtm_str is OK
             for dtm_str, pkt_line in self._packets.items():
@@ -357,30 +373,28 @@ class SerTransportRead(asyncio.ReadTransport):
 
         self._protocol.connection_lost(exc=None)
 
+    def write(self, *args, **kwargs) -> None:
+        raise NotImplementedError
 
-class SerTransportPoll(asyncio.Transport):
+
+class SerTransportPoll(SerTransportBase):
     """Interface for a packet transport using polling."""
 
     MAX_BUFFER_SIZE = 500
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
-        super().__init__(extra=extra)
+        super().__init__(loop, extra=extra)
 
-        self._loop = loop
         self._protocol = protocol
         self.serial = ser_instance
 
         self._is_closing = None
-        self._write_queue = None
-
-        self._start()
-
-    def _start(self):
         self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
-        self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
+
+        self._startup()
 
     async def _polling_loop(self):
-        self._protocol.connection_made(self)
+        await super()._polling_loop()
 
         while self.serial.is_open:
             await asyncio.sleep(0.001)
@@ -391,68 +405,6 @@ class SerTransportPoll(asyncio.Transport):
                 continue
 
             if getattr(self.serial, "out_waiting", False):
-                # NOTE: rfc2217 ports have no out_waiting attr!
-                continue
-
-            if not self._write_queue.empty():
-                self.serial.write(self._write_queue.get())
-                self._write_queue.task_done()
-
-        self._protocol.connection_lost(exc=None)
-
-    def write(self, cmd):
-        """Write some data bytes to the transport.
-
-        This does not block; it buffers the data and arranges for it to be sent out
-        asynchronously.
-        """
-
-        self._write_queue.put_nowait(cmd)
-
-
-class _SerTransportProc(Process):  # TODO: WIP
-    """Interface for a packet transport using a process - WIP."""
-
-    def __init__(self, loop, protocol, ser_port, extra=None):
-        self._loop = loop
-        self._protocol = protocol
-        self._ser_port = ser_port
-        self._extra = {} if extra is None else extra
-
-        self.serial = None
-
-        self._is_closing = None
-        self._poller = None
-        self._write_queue = None
-
-        self._start()
-
-    def _start(self):
-
-        if DEV_MODE:
-            _LOGGER.debug("SerTransProc._start() STARTING loop")
-        self._write_queue = Queue(maxsize=200)
-
-        self.serial = serial_for_url(self._ser_port[0], **self._ser_port[1])
-        self.serial.timeout = 0
-
-        self._poller = Thread(target=self._polling_loop, daemon=True)
-        self._poller.start()
-
-        self._protocol.connection_made(self)
-
-    def _polling_loop(self):
-        self._protocol.connection_made(self)
-
-        while self.serial.is_open:
-            # time.sleep(0.001)
-
-            if self.serial.in_waiting:
-                # NOTE: cant use readline(), as it blocks until a newline is received
-                self._protocol.data_received(self.serial.read(self.serial.in_waiting))
-                continue
-
-            if self.serial and getattr(self.serial, "out_waiting", False):
                 # NOTE: rfc2217 ports have no out_waiting attr!
                 continue
 
@@ -689,7 +641,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
                 continue
 
-            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._gwy.serial_port:  # dex
+            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._gwy.ser_name:  # dex
                 (_LOGGER.debug if dev_id in self._exclude else _LOGGER.warning)(
                     f"Blocking {dev_id} (is a foreign gateway){TIP}"
                 )
@@ -764,10 +716,22 @@ class PacketProtocolPort(PacketProtocolBase):
         super().__init__(gwy, pkt_handler)
 
         self._sem = asyncio.BoundedSemaphore()
-        self._loop.create_task(self._leak_sem())
+        self._leaker = None
+
+    def _startup(self):
+        self._leaker = self._loop.create_task(self._leak_sem())
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self._loop.add_signal_handler(sig, self._shutdown)
+
+    def _shutdown(self):
+        self.pause_writing()
+
+        if self._leaker:
+            self._leaker.cancel()
 
     async def _leak_sem(self):
-        """Used to enforce a minimum time between calls to self._transport.write()."""
+        """Used to enforce a minimum time between calls to `self._transport.write()`."""
         while True:
             await asyncio.sleep(_MIN_GAP_BETWEEN_WRITES)
             try:
@@ -785,8 +749,8 @@ class PacketProtocolPort(PacketProtocolBase):
         self._transport.write(bytes("!V\r\n".encode("ascii")))
 
         # add this to start of the pkt log, if any
-        if not self._disable_sending:  # TODO: use a callback
-            self._loop.create_task(self.send_data(Command._puzzle()))
+        if False and not self._disable_sending:
+            self._transport.write(bytes(str(Command._puzzle()), "ascii") + b"\r\n")
 
         self.resume_writing()
 

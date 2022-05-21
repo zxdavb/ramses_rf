@@ -459,7 +459,7 @@ async def main(lib_kwargs, **kwargs):
         gwy.pkt_protocol, gwy.pkt_transport = create_pkt_stack(
             gwy,
             gwy.msg_transport._pkt_receiver,
-            serial_port=gwy.serial_port,
+            serial_port=gwy.ser_name,
             protocol_factory=protocol_factory,
         )
         gwy._tasks.append(gwy.msg_transport._set_dispatcher(gwy.pkt_protocol.send_data))
