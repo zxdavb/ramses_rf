@@ -48,4 +48,8 @@ async def test_get_0006():
     assert isinstance(version, int)
     assert version == gwy.tcs._msgs["0006"].payload["change_counter"]
 
+    assert await gwy.tcs.get_schedule_version() == await gwy.tcs.get_schedule_version(
+        force_update=True
+    )
+
     await gwy.stop()
