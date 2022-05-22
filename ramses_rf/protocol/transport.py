@@ -754,24 +754,27 @@ class PacketProtocolPort(PacketProtocolBase):
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
 
-        if self._disable_sending or self._pause_writing:
-            raise RuntimeError("Sending is disabled or writing is paused")
+        if self._disable_sending:
+            raise RuntimeError("Sending is disabled")
 
         if cmd.src.id != HGI_DEV_ADDR.id:
-            if self._hgi80[IS_EVOFW3]:
-                _LOGGER.info(
-                    "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header
-                )
-            else:
-                _LOGGER.warning(
-                    "Impersonating device: %s, for pkt: %s"
-                    ", NB: standard HGI80s dont support this feature, it needs evofw3!",
-                    cmd.src.id,
-                    cmd.tx_header,
-                )
-            await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
+            self._handle_impersonation(cmd)
 
         await self._send_data(str(cmd))
+
+    async def _handle_impersonation(self, cmd: Command) -> None:
+        if self._hgi80[IS_EVOFW3]:
+            _LOGGER.info(
+                "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header
+            )
+        else:
+            _LOGGER.warning(
+                "Impersonating device: %s, for pkt: %s"
+                ", NB: standard HGI80s dont support this feature, it needs evofw3!",
+                cmd.src.id,
+                cmd.tx_header,
+            )
+        await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
     @avoid_system_syncs
     @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
@@ -887,10 +890,14 @@ class PacketProtocolQos(PacketProtocolPort):
     async def send_data(self, cmd: Command) -> None:
         """Called when packets are to be sent (not a callback)."""
 
+        if self._disable_sending:
+            raise RuntimeError("Sending is disabled")
+
         while self._qos_cmd is not None:
             await asyncio.sleep(_QOS_POLL_INTERVAL)
 
-        await super().send_data(cmd)
+        if cmd.src.id != HGI_DEV_ADDR.id:
+            self._handle_impersonation(cmd)
 
         return await self._qos_send_data(cmd)
 
@@ -939,7 +946,7 @@ class PacketProtocolQos(PacketProtocolPort):
             if self._timeout_half >= self._dt_now():
                 self._backoff = max(self._backoff - 1, 0)
 
-    def _qos_set_cmd(self, cmd) -> None:
+    def _qos_set_cmd(self, cmd: Command) -> None:
         """Set the QoS command for sending, or clear it when sent OK/timed out."""
 
         self._qos_lock.acquire()
@@ -979,7 +986,7 @@ class PacketProtocolQos(PacketProtocolPort):
         # self._timeout_half = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout
 
     @staticmethod
-    def _qos_expire_cmd(cmd) -> None:
+    def _qos_expire_cmd(cmd: Command) -> None:
         """Handle an expired cmd, such as invoking its callbacks."""
 
         if cmd._source_entity:  # HACK - should be using a callback
