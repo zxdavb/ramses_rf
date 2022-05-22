@@ -688,7 +688,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         First, use the schema to create/update it, then pass it any msg to handle.
 
-        Heating zones are uniquely identified by a controller ID|zone_idx pair.
+        Heating zones are uniquely identified by a tcs_id|zone_idx pair.
         If a zone is created, attach it to this TCS.
         """
 
