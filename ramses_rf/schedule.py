@@ -7,7 +7,6 @@ Construct a command (packet that is to be sent).
 """
 
 import asyncio
-import json
 import logging
 import struct
 import zlib
@@ -170,46 +169,56 @@ class Schedule:  # 0404
         self._outdated: bool = True
         self._version: int = None
 
-        self._clear_fragments()
-
     def __repr__(self) -> str:
-        return json.dumps(self.schedule) if self._schedule_done else None
+        return f"{self._zone} (schedule) (outdated={self._outdated})"
 
     def __str__(self) -> str:
         return f"{self._zone} (schedule)"
 
     def _handle_msg(self, msg) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
-        if msg.payload[SZ_FRAG_TOTAL] == 255:
-            return
+        assert msg.code == _0404
 
-        if msg.payload[SZ_FRAG_TOTAL] != self._frag_total:
-            self._clear_fragments()  # assume schedule has changed
-
-        self._add_fragment(msg=msg)
+        if msg.payload[SZ_FRAG_TOTAL] != 255:
+            self._add_fragment(msg=msg)
 
     def _add_fragment(self, *, msg) -> None:
-        """Add a valid fragment to the fragments table.
+        """Add a fragment to the fragment table.
 
-        If possible, check for a vaild schedule.
+        If the latest fragment has a different `frag_total` to those of the existing
+        fragments, treat them as invalid (i.e. the schedule must have changed).
+
+        Whenever the fragment table is full, check for a valid set of fragments (i.e.
+        a schedule).
+
+        When refreshing the table (e.g. the global `change_counter` increased), stop
+        retrieving fragements if the first fragment (along with the existing fragments)
+        still provides a valid schedule (i.e. the schedule has not changed).
         """
+
+        if msg.payload[SZ_FRAG_TOTAL] != self._frag_total:  # schedule has changed
+            self._fragments = {}
 
         self._fragments[msg.payload[SZ_FRAG_INDEX]] = msg
 
-        if len(self._fragments) == self._frag_total:
-            try:
-                self._schedule = self._frags_to_sched(
-                    [v.payload[SZ_FRAGMENT] for k, v in sorted(self._fragments.items())]
-                )
-            except zlib.error:
-                self._clear_fragments()  # schedule has changed
-                if msg.payload[SZ_FRAG_TOTAL] != 1:  # msg likely part of new schedule
-                    self._fragments[msg.payload[SZ_FRAG_INDEX]] = msg
+        if len(self._fragments) != self._frag_total:
+            return
 
-    def _clear_fragments(self):
-        """Clear the fragment DB, and optionally start with a new fragment."""
-        self._fragments = {}
-        self._schedule = None
+        try:
+            self._schedule = self._frags_to_sched(
+                [v.payload[SZ_FRAGMENT] for k, v in sorted(self._fragments.items())]
+            )
+
+        except zlib.error:
+            self._schedule = None
+
+            self._fragments = {}  # schedule is corrupt/has changed
+            if msg.payload[SZ_FRAG_TOTAL] != 1:  # msg likely part of new schedule
+                self._fragments[msg.payload[SZ_FRAG_INDEX]] = msg
+
+        else:
+            # dont RQ remaining frags if sched unchanged despite inc. change_counter
+            self._schedule_done = True
 
     @property
     def _frag_total(self) -> Optional[int]:
@@ -222,36 +231,6 @@ class Schedule:  # 0404
         """Return the cached schedule without checking if it is the latest version."""
         if self._schedule is not None:  # and not self._outdated:
             return self._schedule
-        return
-
-        # TODO: WIP from here...
-
-        if not self._schedule_done or None in self._rx_frags:
-            return
-        if self._schedule:
-            return self._schedule
-
-        if self._rx_frags[0][MSG].payload[SZ_FRAG_TOTAL] == 255:
-            return {}
-
-        try:
-            self._schedule = self._frags_to_sched(
-                [v for d in self._rx_frags for k, v in d.items() if k == SZ_FRAGMENT]
-            )
-        except zlib.error:
-            self._clear_fragments()
-            _LOGGER.exception("Invalid schedule fragments: %s", self._rx_frags)
-            return
-
-        # if len(self._fragments) == self._frag_total:
-        #     try:
-        #         self._schedule = self._frags_to_sched(
-        #             [v.payload[SZ_FRAGMENT] for k, v in sorted(self._fragments.items())]
-        #         )
-        #     except zlib.error:
-        #         self._clear_fragments(msg=msg)  # delete all fragments except this one
-
-        return self._schedule
 
     async def is_dated(self, *, force_refresh: bool = False) -> bool:
         """Return True if the schedule is out of date (a newer version is available).
@@ -280,7 +259,7 @@ class Schedule:  # 0404
         return self._outdated
 
     async def get_schedule(self, *, force_refresh: bool = False) -> dict:
-        """Get the up-to-date schedule of a zone.
+        """Return the schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
         global change counter has not increased.
@@ -294,10 +273,12 @@ class Schedule:  # 0404
             return self._schedule
 
         self._version = await self.tcs.get_schedule_version()
-        self._clear_fragments()
 
         if not await self.tcs._obtain_lock(self.idx):  # TODO: should raise a TimeOut
             return
+
+        self._fragments.pop(0, None)
+        self._schedule = None
 
         self._rq_fragment(frag_cnt=0)  # calls loop.create_task()
 
@@ -313,7 +294,7 @@ class Schedule:  # 0404
         self.tcs._release_lock()
 
         self._outdated = False
-        return self.schedule
+        return self._schedule
 
     def _rq_fragment(self, *, frag_cnt=0) -> None:
         """Request the next missing fragment (index starts at 1, not 0)."""
