@@ -763,16 +763,12 @@ class PacketProtocolPort(PacketProtocolBase):
         await self._send_data(str(cmd))
 
     async def _handle_impersonation(self, cmd: Command) -> None:
+        msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
         if self._hgi80[IS_EVOFW3]:
-            _LOGGER.info(
-                "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header
-            )
+            _LOGGER.info(msg)
         else:
             _LOGGER.warning(
-                "Impersonating device: %s, for pkt: %s"
-                ", NB: standard HGI80s dont support this feature, it needs evofw3!",
-                cmd.src.id,
-                cmd.tx_header,
+                "%s, NB: HGI80s dont support impersonation, it requires evofw3!", msg
             )
         await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
