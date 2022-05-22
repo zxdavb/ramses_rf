@@ -166,6 +166,8 @@ class ZoneBase(Child, Parent, Entity):
     """The Zone/DHW base class."""
 
     _SLUG: str = None
+    _ROLE_ACTUATORS: str = None
+    _ROLE_SENSORS: str = None
 
     def __init__(self, tcs, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
@@ -224,44 +226,34 @@ class ZoneBase(Child, Parent, Entity):
         return self._child_id
 
 
-class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
+class ZoneSchedule:  # 0404
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._schedule = None
+        self._schedule = Schedule(self)
 
-    # def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-    #    super()._discover(discover_flag=discover_flag)
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
+        super()._discover(discover_flag=discover_flag)
 
-    #     if discover_flag & Discover.STATUS:  # TODO: add back in
-    #         self._loop.create_task(self.get_schedule())  # 0404
-    pass
+        if discover_flag & Discover.SCHEDULE:
+            self._loop.create_task(self.get_schedule())  # 0404
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _0404:
+        if msg.code in (_0006, _0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
+    async def get_schedule(self, *, force_refresh=None) -> Optional[dict]:
         await self._schedule.get_schedule(force_refresh=force_refresh)
         return self.schedule
 
     async def set_schedule(self, schedule) -> None:
-        schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
         await self._schedule.set_schedule(schedule)
 
     @property
     def schedule(self) -> dict:
-        if self._schedule is None:
-            try:
-                if packets := self._msgz[_0404][RP]:
-                    self._schedule = Schedule.create_from_pkts(self, packets.values())
-            except KeyError:
-                self._schedule = Schedule(self)
-
-        if self._schedule.schedule:
-            return self._schedule.schedule.get(SZ_SCHEDULE)
+        return self._schedule.schedule
 
     @property
     def status(self) -> dict:
@@ -271,27 +263,12 @@ class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
         }
 
 
-class RelayDemand(ZoneBase):  # 0008
-    """Not all zones call for heat."""
-
-    @property
-    def relay_demand(self) -> Optional[float]:  # 0008 (NOTE: CTLs wont RP|0008)
-        # if _0008 in self._msgs:
-        #     return self._msgs[_0008].payload[SZ_RELAY_DEMAND]
-        return self._msg_value(_0008, key=SZ_RELAY_DEMAND)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            SZ_RELAY_DEMAND: self.relay_demand,
-        }
-
-
 class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
     _SLUG: str = ZON_ROLE.DHW
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.HTG
+    _ROLE_SENSORS: str = DEV_ROLE_MAP.DHW
 
     def __init__(self, tcs, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
@@ -322,15 +299,15 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id))
 
         if discover_flag & Discover.SCHEMA:
-            for dev_type in (
-                f"00{DEV_ROLE_MAP.DHW}",
-                f"00{DEV_ROLE_MAP.HTG}",
-                f"01{DEV_ROLE_MAP.HTG}",
+            for dev_role in (
+                f"00{self._ROLE_SENSORS}",
+                f"00{self._ROLE_ACTUATORS}",
+                f"01{self._ROLE_ACTUATORS}",
             ):
                 try:
-                    _ = self._msgz[_000C][RP][dev_type]
+                    _ = self._msgz[_000C][RP][dev_role]
                 except KeyError:
-                    self._make_cmd(_000C, payload=dev_type)
+                    self._make_cmd(_000C, payload=dev_role)
 
         if discover_flag & Discover.PARAMS:
             # self._send_cmd(Command.get_dhw_params(self.ctl.id))
@@ -550,6 +527,8 @@ class Zone(ZoneSchedule, ZoneBase):
     """The Zone class for all zone types (but not DHW)."""
 
     _SLUG: str = None  # Unknown
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
+    _ROLE_SENSORS: str = DEV_ROLE_MAP.SEN
 
     def __init__(self, tcs, zone_idx: str) -> None:
         """Create a heating zone.
@@ -616,7 +595,9 @@ class Zone(ZoneSchedule, ZoneBase):
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
-            self._discover(discover_flag=Discover.SCHEMA)  # TODO: tidyup (ref #67)
+            # TODO: needs work...
+            # self._discover(discover_flag=Discover.SCHEMA)  # TODO: tidyup (ref #67)
+            self._make_cmd(_000C, payload=f"{self.idx}{self._ROLE_ACTUATORS}")
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
@@ -645,9 +626,8 @@ class Zone(ZoneSchedule, ZoneBase):
             ):
                 self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id, self.idx))
 
-        # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & Discover.SCHEMA:
-            for dev_role in (DEV_ROLE_MAP.ACT, DEV_ROLE_MAP.SEN):
+            for dev_role in (self._ROLE_ACTUATORS, self._ROLE_SENSORS):
                 try:
                     _ = self._msgz[_000C][RP][f"{self.idx}{dev_role}"]
                 except KeyError:
@@ -886,23 +866,13 @@ class Zone(ZoneSchedule, ZoneBase):
         }
 
 
-class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
+class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
+    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
+
     _SLUG: str = ZON_ROLE.ELE
-
-    # def __init__(self, *args, **kwargs) -> None:  # can't use this here
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super() initially
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{ZON_ROLE_MAP.ELE}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{ZON_ROLE_MAP.ELE}")
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ELE
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -919,6 +889,19 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         """Return 0 as the zone's heat demand, as electric zones don't call for heat."""
         return 0
 
+    @property
+    def relay_demand(self) -> Optional[float]:  # 0008 (NOTE: CTLs wont RP|0008)
+        # if _0008 in self._msgs:
+        #     return self._msgs[_0008].payload[SZ_RELAY_DEMAND]
+        return self._msg_value(_0008, key=SZ_RELAY_DEMAND)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            SZ_RELAY_DEMAND: self.relay_demand,
+        }
+
 
 class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     """For a modulating valve controlled by a HM80 (will also call for heat).
@@ -926,20 +909,15 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
-    _SLUG: str = ZON_ROLE.MIX
+    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
-    # def __init__(self, *args, **kwargs) -> None:  # can't use this here
+    _SLUG: str = ZON_ROLE.MIX
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.MIX
 
     @discover_decorator
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super() initially
         super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.MIX}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.MIX}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_mix_valve_params(self.ctl.id, self.idx))
@@ -959,39 +937,19 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
+    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
+
     _SLUG: str = ZON_ROLE.RAD
-
-    # def __init__(self, *args, **kwargs) -> None:  # can't use this here
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super() initially
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.RAD}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.RAD}")
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.RAD
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
 
+    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
+
     _SLUG: str = ZON_ROLE.UFH
-
-    # def __init__(self, *args, **kwargs) -> None:  # can't use this here
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super() initially
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.UFH}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.UFH
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -1003,20 +961,10 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
+    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
+
     _SLUG: str = ZON_ROLE.VAL
-
-    # def __init__(self, *args, **kwargs) -> None:  # can't use this here
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super() initially
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.VAL}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.VAL}")
+    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.VAL
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)

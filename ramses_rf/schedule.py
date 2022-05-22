@@ -140,6 +140,61 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def fragments_to_schedule(frags: list) -> dict:
+    """Convert a set of fragments (a blob) into a schedule.
+
+    May raise a `zlib.error` exception.
+    """
+
+    raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
+
+    zone_idx, schedule = None, []
+    old_day, switchpoints = 0, []
+
+    for i in range(0, len(raw_schedule), 20):
+        zone_idx, day, time, temp, _ = struct.unpack(
+            "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
+        )
+        if day > old_day:
+            schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+            old_day, switchpoints = day, []
+        switchpoints.append(
+            {
+                TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
+                HEAT_SETPOINT: temp / 100,
+            }
+        )
+
+    schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+
+    return {SZ_ZONE_IDX: f"{zone_idx:02X}", SZ_SCHEDULE: schedule}
+
+
+def schedule_to_fragments(schedule: dict) -> list:
+    """Convert a schedule into a set of fragments (a blob).
+
+    May raise `KeyError`, `zlib.error` exceptions.
+    """
+
+    frags = [
+        (
+            int(schedule[SZ_ZONE_IDX], 16),
+            int(week_day[DAY_OF_WEEK]),
+            int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
+            int(setpoint[HEAT_SETPOINT] * 100),
+        )
+        for week_day in schedule[SZ_SCHEDULE]
+        for setpoint in week_day[SWITCHPOINTS]
+    ]
+    frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
+
+    cobj = zlib.compressobj(level=9, wbits=14)
+    blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
+    blob = blob.hex().upper()
+
+    return [blob[i : i + 82] for i in range(0, len(blob), 82)]
+
+
 class Schedule:  # 0404
     """The schedule of a zone."""
 
@@ -205,18 +260,25 @@ class Schedule:  # 0404
             return
 
         try:
-            self._schedule = self._frags_to_sched(
+            self._schedule = fragments_to_schedule(
                 [v.payload[SZ_FRAGMENT] for k, v in sorted(self._fragments.items())]
             )
+            if self._schedule[SZ_ZONE_IDX] != self.idx:
+                raise KeyError
 
         except zlib.error:
             self._schedule = None
-
             self._fragments = {}  # schedule is corrupt/has changed
+
             if msg.payload[SZ_FRAG_TOTAL] != 1:  # msg likely part of new schedule
                 self._fragments[msg.payload[SZ_FRAG_INDEX]] = msg
 
+        except KeyError:
+            self._schedule = None
+            self._fragments = {}  # schedule is corrupt/has changed
+
         else:
+            #
             # dont RQ remaining frags if sched unchanged despite inc. change_counter
             self._schedule_done = True
 
@@ -230,7 +292,7 @@ class Schedule:  # 0404
     def schedule(self) -> Optional[dict]:
         """Return the cached schedule without checking if it is the latest version."""
         if self._schedule is not None:  # and not self._outdated:
-            return self._schedule
+            return self._schedule[SZ_SCHEDULE]
 
     async def is_dated(self, *, force_refresh: bool = False) -> bool:
         """Return True if the schedule is out of date (a newer version is available).
@@ -294,7 +356,7 @@ class Schedule:  # 0404
         self.tcs._release_lock()
 
         self._outdated = False
-        return self._schedule
+        return self.schedule  # note self._schedule
 
     def _rq_fragment(self, *, frag_cnt=0) -> None:
         """Request the next missing fragment (index starts at 1, not 0)."""
@@ -346,12 +408,17 @@ class Schedule:  # 0404
     async def set_schedule(self, schedule) -> None:
         """Set the schedule of a zone."""
 
+        schedule = {
+            SZ_ZONE_IDX: self.idx,
+            SZ_SCHEDULE: schedule,
+        }
+
         if not await self.tcs._obtain_lock(self.idx):  # TODO: should raise a TimeOut
             return
 
         self._schedule_done = None
 
-        self._tx_frags = self._sched_to_frags(schedule)
+        self._tx_frags = schedule_to_fragments(schedule)
         self._tx_fragment(frag_idx=0)
 
         time_start = dt.now()
@@ -362,6 +429,8 @@ class Schedule:  # 0404
                 raise ExpiredCallbackError(f"{self}: failed to set schedule")
 
         self.tcs._release_lock()
+
+        self._schedule = schedule
 
     def _tx_fragment(self, frag_idx=0) -> None:
         """Send the next fragment (index starts at 0)."""
@@ -394,57 +463,6 @@ class Schedule:  # 0404
             callback=tx_callback,
         )
         self._gwy.send_cmd(cmd)
-
-    @staticmethod
-    def _frags_to_sched(frags: list) -> dict:
-        """Convert a set of fragments (a blob) into a schedule.
-
-        May raise a `zlib.error` exception.
-        """
-        # _LOGGER.debug(f"Sched({self})._frags_to_sched: array is: %s", frags)
-        raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
-
-        zone_idx, schedule = None, []
-        old_day, switchpoints = 0, []
-
-        for i in range(0, len(raw_schedule), 20):
-            zone_idx, day, time, temp, _ = struct.unpack(
-                "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
-            )
-            if day > old_day:
-                schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-                old_day, switchpoints = day, []
-            switchpoints.append(
-                {
-                    TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
-                    HEAT_SETPOINT: temp / 100,
-                }
-            )
-
-        schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-
-        return {SZ_ZONE_IDX: f"{zone_idx:02X}", SZ_SCHEDULE: schedule}
-
-    @staticmethod
-    def _sched_to_frags(schedule: dict) -> list:
-        # _LOGGER.debug(f"Sched({self})._sched_to_frags: array is: %s", schedule)
-        frags = [
-            (
-                int(schedule[SZ_ZONE_IDX], 16),
-                int(week_day[DAY_OF_WEEK]),
-                int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
-                int(setpoint[HEAT_SETPOINT] * 100),
-            )
-            for week_day in schedule[SZ_SCHEDULE]
-            for setpoint in week_day[SWITCHPOINTS]
-        ]
-        frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
-
-        cobj = zlib.compressobj(level=9, wbits=14)
-        blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
-        blob = blob.hex().upper()
-
-        return [blob[i : i + 82] for i in range(0, len(blob), 82)]
 
     @classmethod  # constructor using RP/0404 tuple
     def create_from_pkts(cls, zone, packets, **kwargs):
