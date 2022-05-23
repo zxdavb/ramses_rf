@@ -11,6 +11,8 @@ import json
 from serial.tools import list_ports
 
 from ramses_rf import Gateway
+from ramses_rf.const import SZ_FRAG_TOTAL, SZ_SCHEDULE, SZ_ZONE_IDX, _0006, _0404
+from ramses_rf.schedule import DAY_OF_WEEK, HEAT_SETPOINT, SWITCHPOINTS, TIME_OF_DAY
 from tests.common import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
@@ -38,7 +40,7 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
 async def test_rq_0006():
     def validate_result(version):
         assert isinstance(version, int)
-        assert version == gwy.tcs._msgs["0006"].payload["change_counter"]
+        assert version == gwy.tcs._msgs[_0006].payload["change_counter"]
 
         return version
 
@@ -66,7 +68,8 @@ async def test_rq_0006():
 
 async def test_rq_0404():
     def validate_result(schedule):
-        if schedule is None and True:
+        if schedule is None:
+            # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
             return
 
         # assert isinstance(schedule, list)
@@ -74,12 +77,12 @@ async def test_rq_0404():
 
         for idx, day_of_week in enumerate(schedule):
             # assert isinstance(day_of_week, dict)
-            assert day_of_week["day_of_week"] == idx
+            assert day_of_week[DAY_OF_WEEK] == idx
 
-            # assert isinstance(day_of_week["switchpoints"], dict)
-            for switchpoint in day_of_week["switchpoints"]:
-                assert isinstance(switchpoint["time_of_day"], str)
-                assert isinstance(switchpoint["heat_setpoint"], float)
+            # assert isinstance(day_of_week[SWITCHPOINTS], dict)
+            for switchpoint in day_of_week[SWITCHPOINTS]:
+                assert isinstance(switchpoint[TIME_OF_DAY], str)
+                assert isinstance(switchpoint[HEAT_SETPOINT], float)
 
         return schedule
 
@@ -98,8 +101,13 @@ async def test_rq_0404():
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
     schedule = validate_result(schedule)
 
-    # assert zone._schedule._schedule["zone_idx"] == zone.idx == zone_idx
-    assert zone._schedule._schedule["schedule"] == zone.schedule == schedule
+    if schedule is None:
+        assert zone._msgs[_0404].payload[SZ_FRAG_TOTAL] == 255
+        await gwy.stop()
+        return
+
+    assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx == zone_idx
+    assert zone._schedule._schedule[SZ_SCHEDULE] == zone.schedule == schedule
 
     gwy.config.disable_sending = True
     assert schedule == await zone.get_schedule(force_refresh=False)
