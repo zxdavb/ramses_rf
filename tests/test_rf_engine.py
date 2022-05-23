@@ -38,7 +38,7 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
 
 
 async def test_rq_0006():
-    def validate_result(version):
+    def assert_version(version):
         assert isinstance(version, int)
         assert version == gwy.tcs._msgs[_0006].payload["change_counter"]
 
@@ -50,8 +50,9 @@ async def test_rq_0006():
     gwy = await load_test_system(SERIAL_PORT)
     await gwy.start(start_discovery=False)  # may: SerialException
 
+    # gwy.config.disable_sending = False
     version = await gwy.tcs.get_schedule_version()  # RQ|0006, may: TimeoutError
-    version = validate_result(version)
+    version = assert_version(version)
 
     gwy.config.disable_sending = True
     assert version == await gwy.tcs.get_schedule_version(force_refresh=False)
@@ -66,44 +67,35 @@ async def test_rq_0006():
     await gwy.stop()
 
 
-async def test_rq_0404():
-    def validate_result(schedule):
-        if schedule is None:
-            # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
-            return
-
-        # assert isinstance(schedule, list)
-        assert len(schedule) == 7
-
-        for idx, day_of_week in enumerate(schedule):
-            # assert isinstance(day_of_week, dict)
-            assert day_of_week[DAY_OF_WEEK] == idx
-
-            # assert isinstance(day_of_week[SWITCHPOINTS], dict)
-            for switchpoint in day_of_week[SWITCHPOINTS]:
-                assert isinstance(switchpoint[TIME_OF_DAY], str)
-                assert isinstance(switchpoint[HEAT_SETPOINT], float)
-
-        return schedule
-
-    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
+def assert_schedule(schedule):
+    if schedule is None:
+        # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
         return
 
-    gwy = await load_test_system(SERIAL_PORT)
-    await gwy.start(start_discovery=False)  # may: SerialException
+    # assert isinstance(schedule, list)
+    assert len(schedule) == 7
 
-    zone_idx = "01"
-    zone = gwy.tcs.zone_by_idx[zone_idx]
+    for idx, day_of_week in enumerate(schedule):
+        # assert isinstance(day_of_week, dict)
+        assert day_of_week[DAY_OF_WEEK] == idx
 
-    # zone_idx = "HW"
-    # zone = gwy.tcs.dhw
+        # assert isinstance(day_of_week[SWITCHPOINTS], dict)
+        for switchpoint in day_of_week[SWITCHPOINTS]:
+            assert isinstance(switchpoint[TIME_OF_DAY], str)
+            assert isinstance(switchpoint[HEAT_SETPOINT], float)
 
+    return schedule
+
+
+async def assert_zone_schedule(gwy, zone_idx):
+    zone = gwy.tcs.dhw if zone_idx == "HW" else gwy.tcs.zone_by_idx[zone_idx]
+
+    # gwy.config.disable_sending = False
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
-    schedule = validate_result(schedule)
+    schedule = assert_schedule(schedule)
 
-    if schedule is None:
+    if schedule is None:  # TODO: remove?
         assert zone._msgs[_0404].payload[SZ_FRAG_TOTAL] == 255
-        await gwy.stop()
         return
 
     assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx == zone_idx
@@ -118,5 +110,29 @@ async def test_rq_0404():
         assert True
     else:
         assert False
+
+
+async def test_rq_0404_zone():
+    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
+        return
+
+    gwy = await load_test_system(SERIAL_PORT)
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    if gwy.tcs.zones:
+        await assert_zone_schedule(gwy, gwy.tcs.zones[0].idx)
+
+    await gwy.stop()
+
+
+async def test_rq_0404_dhw():
+    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
+        return
+
+    gwy = await load_test_system(SERIAL_PORT)
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    if gwy.tcs.dhw:
+        await assert_zone_schedule(gwy, "HW")
 
     await gwy.stop()
