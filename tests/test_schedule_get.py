@@ -7,10 +7,17 @@ Test the Schedule functions.
 """
 
 import json
+from copy import deepcopy
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE
+from ramses_rf.schedule import (
+    HEAT_SETPOINT,
+    SWITCHPOINTS,
+    fragments_to_schedule,
+    schedule_to_fragments,
+)
 from tests.common import gwy  # noqa: F401
 from tests.common import TEST_DIR, load_test_system
 
@@ -36,3 +43,16 @@ async def test_schedule_get(dir_name):
 
     zone = gwy.tcs.zones[0]
     assert zone.schedule == schedule[SZ_SCHEDULE]
+
+    assert schedule == fragments_to_schedule(schedule_to_fragments(schedule))
+
+    new_schedule = deepcopy(schedule)
+    new_schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] = (
+        schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] + 1
+    )
+
+    # the schedule code relies upon the following inequality...
+    # i.e. if the schedule has changed, then the first fragment will be different
+    assert schedule_to_fragments(new_schedule)[0] != (
+        schedule_to_fragments(schedule)[0]
+    )
