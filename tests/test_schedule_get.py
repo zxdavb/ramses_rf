@@ -44,6 +44,13 @@ async def test_schedule_get(dir_name):
     zone = gwy.tcs.zones[0]
     assert zone.schedule == schedule[SZ_SCHEDULE]
 
+
+async def test_schedule_helpers(dir_name):
+    """Compare the schedule helpers."""
+
+    with open(f"{dir_name}/schedule.json") as f:
+        schedule = json.load(f)
+
     assert schedule == fragments_to_schedule(schedule_to_fragments(schedule))
 
     new_schedule = deepcopy(schedule)
