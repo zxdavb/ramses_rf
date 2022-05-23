@@ -477,6 +477,11 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     self._make_cmd(_0005, payload=f"00{zone_type}")
 
     def _handle_msg(self, msg) -> None:
+        """Process any relevant message.
+
+        If `zone_idx` in payload, route any messages to the corresponding zone.
+        """
+
         def eavesdrop_zones(this, *, prev=None) -> None:
             [
                 self.get_htg_zone(v)
@@ -664,7 +669,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         ):
             eavesdrop_zones(msg)
 
-        # Route all messages to their zones, incl. 000C, others
+        # Route all messages to their zones, incl. 000C, 0404, others
         if isinstance(msg.payload, dict):
             if zone_idx := msg.payload.get(SZ_ZONE_IDX):
                 handle_msg_by_zone_idx(zone_idx, msg)
@@ -731,7 +736,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         }
 
 
-class ScheduleSync(SystemBase):  # 0006
+class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -978,8 +983,15 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
         # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
 
+        # Route all messages to their zones, incl. 000C, 0404, others
         if msg.code in (_10A0, _1260, _1F41):
             # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != FA:
+            self.get_dhw_zone(msg=msg)
+
+        elif isinstance(msg.payload, dict) and (
+            msg.payload.get(SZ_DOMAIN_ID) in (F9, FA)
+        ):
+            assert msg.code in (_0404,), f"unexpected code fro DHW: {msg.code}"
             self.get_dhw_zone(msg=msg)
 
     def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
@@ -1159,8 +1171,8 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 self._relay_failsafes[idx] = msg
             elif msg.code == _3150:
                 self._heat_demands[idx] = msg
-            elif msg.code not in (_0001, _000C, _0418, _1100, _3B00):
-                assert False, msg.code
+            elif msg.code not in (_0001, _000C, _0404, _0418, _1100, _3B00):
+                assert False, f"Unexpected code with a domain_id: {msg.code}"
 
     @property
     def heat_demands(self) -> Optional[dict]:  # 3150

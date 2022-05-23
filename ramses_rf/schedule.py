@@ -140,13 +140,13 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def fragments_to_schedule(frags: list) -> dict:
+def fragments_to_schedule(fragments: list) -> dict:
     """Convert a set of fragments (a blob) into a schedule.
 
     May raise a `zlib.error` exception.
     """
 
-    raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
+    raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
 
     zone_idx, schedule = None, []
     old_day, switchpoints = 0, []
@@ -232,10 +232,16 @@ class Schedule:  # 0404
 
     def _handle_msg(self, msg) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
-        assert msg.code == _0404
 
+        # RP --- 01:145038 18:013393 --:------ 0404 007 002300080001FF  # 0404|RP|01:145038|FA01
         if msg.payload[SZ_FRAG_TOTAL] != 255:
             self._add_fragment(msg=msg)
+
+        # elif msg.payload[SZ_FRAG_INDEX] == 1:  # Doesn't have a schedule...
+        #     self._schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: []}
+        #     for i in range(7):
+        #         self._schedule[SZ_SCHEDULE].append({DAY_OF_WEEK: i, SWITCHPOINTS: []})
+        #     self._schedule_done = True
 
     def _add_fragment(self, *, msg) -> None:
         """Add a fragment to the fragment table.
@@ -278,7 +284,6 @@ class Schedule:  # 0404
             self._fragments = {}  # schedule is corrupt/has changed
 
         else:
-            #
             # dont RQ remaining frags if sched unchanged despite inc. change_counter
             self._schedule_done = True
 
@@ -384,8 +389,10 @@ class Schedule:  # 0404
 
             if msg.payload[SZ_FRAG_TOTAL] == 255:  # no schedule (i.e. no zone)
                 _LOGGER.warning(f"Schedule({self.id}): No schedule")
+                self._schedule_done = True
+                return
 
-            elif msg.payload[SZ_FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
+            if msg.payload[SZ_FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
                 self._rx_frags = [None] * msg.payload[SZ_FRAG_TOTAL]
 
             self._rx_frags[msg.payload[SZ_FRAG_INDEX] - 1] = msg
@@ -454,7 +461,7 @@ class Schedule:  # 0404
                 self._schedule_done = True
 
         tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
-        cmd = Command.put_schedule_fragment(
+        cmd = Command.set_schedule_fragment(
             self.ctl.id,
             self.idx,
             frag_idx,

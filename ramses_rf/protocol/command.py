@@ -624,6 +624,28 @@ class Command(PacketBase):
         payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, _0404, payload, ctl_id, **kwargs)
 
+    @classmethod  # constructor for W/0404
+    @validate_api_params(has_zone=True)
+    def set_schedule_fragment(
+        cls,
+        ctl_id: str,
+        zone_idx: Union[int, str],
+        frag_idx: int,
+        frag_cnt: int,
+        fragment: str,
+        **kwargs,
+    ):
+        """Constructor to set a zone schedule fragment (c.f. parser_0404).
+
+        Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
+        """
+
+        header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
+        frag_length = int(len(fragment) / 2)
+
+        payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}{fragment}"
+        return cls(W_, _0404, payload, ctl_id, **kwargs)
+
     @classmethod  # constructor for RQ/0100
     @validate_api_params()
     def get_system_language(cls, ctl_id: str, **kwargs):
@@ -1014,28 +1036,6 @@ class Command(PacketBase):
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for W/0404
-    @validate_api_params(has_zone=True)
-    def put_schedule_fragment(
-        cls,
-        ctl_id: str,
-        zone_idx: Union[int, str],
-        frag_idx: int,
-        frag_cnt: int,
-        fragment: str,
-        **kwargs,
-    ):
-        """Constructor to put a zone schedule fragment (c.f. parser_0404).
-
-        Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
-        """
-
-        header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
-        frag_length = int(len(fragment) / 2)
-
-        payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}{fragment}"
-        return cls(W_, _0404, payload, ctl_id, **kwargs)
-
     @classmethod  # constructor for internal use only
     def _puzzle(cls, msg_type=None, message="", **kwargs):
 
@@ -1145,7 +1145,7 @@ CODE_API_MAP = {
     f"{W_}/{_000A}": Command.set_zone_config,
     f"{RQ}/{_0100}": Command.get_system_language,
     f"{RQ}/{_0404}": Command.get_schedule_fragment,
-    f"{W_}/{_0404}": Command.put_schedule_fragment,
+    f"{W_}/{_0404}": Command.set_schedule_fragment,
     f"{RQ}/{_0418}": Command.get_system_log_entry,
     f"{RQ}/{_1030}": Command.get_mix_valve_params,
     f"{W_}/{_1030}": Command.set_mix_valve_params,

@@ -377,7 +377,7 @@ class PacketBase:
             if self.code in (_0005, _000C):  # zone_idx, zone_type (device_role)
                 self._ctx_ = self.payload[:4]
             elif self.code == _0404:  # zone_idx, frag_idx
-                self._ctx_ = self.payload[:2] + self.payload[10:12]
+                self._ctx_ = self._idx + self.payload[10:12]
             else:
                 self._ctx_ = self._idx
         return self._ctx_
@@ -437,7 +437,8 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
             return FA
         return pkt.payload[:2]
 
-    # if pkt.code == _0404:  # TODO: is entry needed here, esp. for DHW?
+    if pkt.code == _0404:
+        return FA if pkt.payload[2:4] == "23" else pkt.payload[:2]
 
     if pkt.code == _0418:  # log_idx (payload[4:6])
         return pkt.payload[4:6]
