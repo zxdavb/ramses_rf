@@ -957,7 +957,7 @@ class Command(PacketBase):
         )
         return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for 1F09 (rf_bind) 3-way handshake
+    @classmethod  # constructor for 1FC9 (rf_bind) 3-way handshake
     def put_bind(cls, verb, codes, src_id, *, idx="00", dst_id=None, **kwargs):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
