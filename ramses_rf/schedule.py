@@ -14,6 +14,8 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Optional
 
+import voluptuous as vol
+
 from .const import (
     SZ_FRAG_INDEX,
     SZ_FRAG_TOTAL,
@@ -131,6 +133,36 @@ SWITCHPOINTS = "switchpoints"
 TIME_OF_DAY = "time_of_day"
 
 FIVE_MINS = td(minutes=5)
+
+REGEX_TIME_OF_DAY = r"^([0-1][0-9]|2[0-3]):[0-5][05]$"
+
+SCHEMA_SWITCHPOINT = vol.Schema(
+    {
+        vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
+        vol.Required(HEAT_SETPOINT): vol.All(
+            vol.Coerce(float), vol.Range(min=5, max=35)
+        ),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+SCHEMA_SCHED_DAY = vol.Schema(
+    {
+        vol.Required(DAY_OF_WEEK): int,
+        vol.Required(SWITCHPOINTS): vol.All([SCHEMA_SWITCHPOINT], vol.Length(min=1)),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+SCHEMA_SCHEDULE = vol.Schema(
+    vol.Schema([SCHEMA_SCHED_DAY], vol.Length(min=7, max=7)),
+    extra=vol.PREVENT_EXTRA,
+)
+SCHEMA_SCHED_FULL = vol.Schema(
+    {
+        vol.Required(SZ_ZONE_IDX): vol.Match(r"(0[0-F]|FA)"),
+        vol.Required(SZ_SCHEDULE): SCHEMA_SCHEDULE,
+    },
+    extra=vol.PREVENT_EXTRA,
+)
 
 
 DEV_MODE = __dev_mode__ and False
@@ -414,6 +446,11 @@ class Schedule:  # 0404
 
     async def set_schedule(self, schedule) -> None:
         """Set the schedule of a zone."""
+
+        try:
+            schedule = SCHEMA_SCHEDULE(schedule)
+        except vol.MultipleInvalid as exc:
+            raise TypeError(f"{self}: not a valid schedule: {exc}")
 
         schedule = {
             SZ_ZONE_IDX: self.idx,

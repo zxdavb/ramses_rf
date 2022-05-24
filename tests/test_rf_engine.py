@@ -12,7 +12,13 @@ from serial.tools import list_ports
 
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_FRAG_TOTAL, SZ_SCHEDULE, SZ_ZONE_IDX, _0006, _0404
-from ramses_rf.schedule import DAY_OF_WEEK, HEAT_SETPOINT, SWITCHPOINTS, TIME_OF_DAY
+from ramses_rf.schedule import (
+    DAY_OF_WEEK,
+    HEAT_SETPOINT,
+    SCHEMA_SCHEDULE,
+    SWITCHPOINTS,
+    TIME_OF_DAY,
+)
 from tests.common import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
@@ -71,6 +77,8 @@ def assert_schedule(schedule):
     if schedule is None:
         # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
         return
+
+    _ = SCHEMA_SCHEDULE(schedule)
 
     # assert isinstance(schedule, list)
     assert len(schedule) == 7
