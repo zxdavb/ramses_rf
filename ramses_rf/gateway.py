@@ -223,6 +223,77 @@ class Engine:
         if t := self.msg_transport:
             return t.get_extra_info(t.WRITER)
 
+    @staticmethod
+    def create_cmd(verb, device_id, code, payload, **kwargs) -> Command:
+        """Make a command addressed to device_id."""
+
+        try:
+            return Command(verb, code, payload, device_id)
+        except (
+            AssertionError,
+            AttributeError,
+            LookupError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            _LOGGER.exception(f"create_cmd(): {exc}")
+
+    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
+        """Send a command with the option to return any response via callback.
+
+        Response packets, if any (an RP/I will follow an RQ/W), and have the same code.
+        This routine is thread safe.
+        """
+
+        if not self.msg_protocol:
+            raise RuntimeError("there is no message protocol")
+
+        return asyncio.run_coroutine_threadsafe(
+            self.msg_protocol.send_data(cmd, callback=callback, **kwargs),
+            self._loop,
+        )
+
+    async def async_send_cmd(
+        self, cmd: Command, awaitable: bool = True, **kwargs
+    ) -> Optional[Message]:
+        """Send a command with the option to not wait for a response (awaitable=False).
+
+        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        This routine is thread safe.
+        """
+
+        def callback(fut):
+            print(fut.result())
+
+        awaitable = awaitable or awaitable is None
+
+        fut = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
+        # fut.add_done_callback(callback)
+
+        from concurrent import futures
+
+        while not fut.done():
+            await asyncio.sleep(0.05)
+
+            try:
+                result = fut.result(timeout=0.01)
+
+            except futures.TimeoutError:
+                pass  # raise TimeoutError(f"The cmd has not yet completed ({cmd})")
+
+            except TimeoutError:  # 3 seconds
+                fut.cancel()
+                # NOTE: dont then: raise ExpiredCallbackError(exc)
+                raise TimeoutError(f"The cmd timed out, cancelling the task ({cmd})")
+
+            except Exception as exc:
+                # NOTE: dont then: raise ExpiredCallbackError(exc)
+                _LOGGER.error(f"The cmd raised an exception ({cmd}): {exc!r}")
+
+            else:
+                _LOGGER.debug(f"Success: the cmd returned: {result!r} ({type(result)})")
+                return result
+
 
 class Gateway(Engine):
     """The gateway class."""
@@ -348,7 +419,6 @@ class Gateway(Engine):
         return args
 
     def _get_state(self, include_expired=None) -> tuple[dict, dict]:
-        #
 
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
         self.pause()
@@ -555,81 +625,17 @@ class Gateway(Engine):
     def status(self) -> dict:
         return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
-    @staticmethod
-    def create_cmd(verb, device_id, code, payload, **kwargs) -> Command:
-        """Make a command addressed to device_id."""
-        try:
-            return Command(verb, code, payload, device_id)
-        except (
-            AssertionError,
-            AttributeError,
-            LookupError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            _LOGGER.exception(f"create_cmd(): {exc}")
-
     def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
-        """Send a command with the option to return any response via callback.
+        """Send a command with the option to return any response via callback."""
 
-        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
-        This routine is thread safe.
-        """
-
-        if not self.msg_protocol:
-            raise RuntimeError("there is no message protocol")
         if self.config.disable_sending:
             raise RuntimeError("sending is disabled")
 
-        future = asyncio.run_coroutine_threadsafe(
-            self.msg_protocol.send_data(cmd, callback=callback, **kwargs),
-            self._loop,
-        )
+        future = super().send_cmd(cmd, callback, **kwargs)
 
         self._tasks = [t for t in self._tasks if not t.done()]
         self._tasks.append(future)
         return future
-
-    async def async_send_cmd(
-        self, cmd: Command, awaitable: bool = True, **kwargs
-    ) -> Optional[Message]:
-        """Send a command with the option to not wait for a response (awaitable=False).
-
-        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
-        This routine is thread safe.
-        """
-
-        def callback(fut):
-            print(fut.result())
-
-        awaitable = awaitable or awaitable is None
-
-        fut = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
-        # fut.add_done_callback(callback)
-
-        from concurrent import futures
-
-        while not fut.done():
-            await asyncio.sleep(0.05)
-
-            try:
-                result = fut.result(timeout=0.01)
-
-            except futures.TimeoutError:
-                pass  # raise TimeoutError(f"The cmd has not yet completed ({cmd})")
-
-            except TimeoutError:  # 3 seconds
-                fut.cancel()
-                raise TimeoutError(f"The cmd timed out, cancelling the task ({cmd})")
-                # NOTE: dont then: raise ExpiredCallbackError(exc)
-
-            except Exception as exc:
-                _LOGGER.error(f"The cmd raised an exception ({cmd}): {exc!r}")
-                # NOTE: dont then: raise ExpiredCallbackError(exc)
-
-            else:
-                _LOGGER.debug(f"Success: the cmd returned: {result!r} ({type(result)})")
-                return result
 
     def fake_device(
         self, device_id, create_device=False, start_binding=False
