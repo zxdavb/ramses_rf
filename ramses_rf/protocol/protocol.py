@@ -90,7 +90,7 @@ class MessageTransport(asyncio.Transport):
         self.add_protocol(protocol)
 
         self._extra.update({self.READER: self._pkt_receiver})
-        self._is_closing = None
+        self._is_closing = False
 
         self._write_buffer_limit_high = None
         self._write_buffer_limit_low = None
@@ -242,7 +242,7 @@ class MessageTransport(asyncio.Transport):
         if task := self._extra.get(self.WRITER):
             task.cancel()
 
-        [p.connection_lost(None) for p in self._protocols]
+        [self._loop.call_soon(p.connection_lost, None) for p in self._protocols]
 
     def abort(self):
         """Close the transport immediately.
@@ -251,13 +251,14 @@ class MessageTransport(asyncio.Transport):
         connection_lost() method will (eventually) be called with None as its argument.
         """
 
+        self._is_closing = True
         self._clear_write_buffer()
         self.close()
 
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
 
-        return bool(self._is_closing)
+        return self._is_closing
 
     def get_extra_info(self, name, default=None):
         """Get optional transport information."""
