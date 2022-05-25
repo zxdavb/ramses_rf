@@ -238,7 +238,7 @@ class ZoneSchedule:  # 0404
         if discover_flag & Discover.SCHEDULE:
             self._loop.create_task(self.get_schedule())  # 0404
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if msg.code in (_0006, _0404):
@@ -322,7 +322,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_dhw_sensor(this, *, prev=None) -> None:
             """Eavesdrop packets, or pairs of packets, to maintain the system state.
 
@@ -597,7 +597,8 @@ class Zone(ZoneSchedule, ZoneBase):
 
             # TODO: needs work...
             # self._discover(discover_flag=Discover.SCHEMA)  # TODO: tidyup (ref #67)
-            self._make_cmd(_000C, payload=f"{self.idx}{self._ROLE_ACTUATORS}")
+            if not self._gwy.config.disable_discovery:
+                self._make_cmd(_000C, payload=f"{self.idx}{self._ROLE_ACTUATORS}")
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
@@ -627,6 +628,8 @@ class Zone(ZoneSchedule, ZoneBase):
                 self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id, self.idx))
 
         if discover_flag & Discover.SCHEMA:
+            assert self._gwy.config.disable_discovery is False  # TODO: remove
+
             for dev_role in (self._ROLE_ACTUATORS, self._ROLE_SENSORS):
                 try:
                     _ = self._msgz[_000C][RP][f"{self.idx}{dev_role}"]
@@ -650,7 +653,7 @@ class Zone(ZoneSchedule, ZoneBase):
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_zone_type(this, *, prev=None) -> None:
             """TODO.
 
@@ -874,7 +877,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     _SLUG: str = ZON_ROLE.ELE
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ELE
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         # if msg.code == _0008:  # ZON zones are ELE zones that also call for heat

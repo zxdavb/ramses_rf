@@ -273,7 +273,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         #     for domain_id in range(0xF8, 0x100):
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_appliance_control(this, *, prev=None) -> None:
             """Discover the heat relay (10: or 13:) for this system.
 
@@ -476,7 +476,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 except KeyError:
                     self._make_cmd(_0005, payload=f"00{zone_type}")
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         """Process any relevant message.
 
         If `zone_idx` in payload, route any messages to the corresponding zone.
@@ -752,12 +752,12 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         if discover_flag & Discover.SCHEDS:  # check the latest schedule delta
             self._make_cmd(_0006)
 
-    def _handle_msg(self, msg) -> None:  # NOTE: active
+    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retreive the latest global change counter."""
         super()._handle_msg(msg)
 
         if msg.code == _0006:
-            self._sched_dated = self._msg_0006 is None or (
+            self._sched_dated = (self._msg_0006 is None) or (
                 msg.payload[SZ_CHANGE_COUNTER]
                 > self._msg_0006.payload[SZ_CHANGE_COUNTER]
             )
@@ -785,6 +785,9 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self._msg_0006 = await self._gwy.async_send_cmd(
             Command.get_schedule_version(self.ctl.id)
         )
+        assert isinstance(
+            self._msg_0006, Message
+        ), f"get_schedule_version(): {self._msg_0006} (is not a message)"
 
         self._sched_dated = old_0006 is None or (
             self._msg_0006.payload[SZ_CHANGE_COUNTER]
@@ -875,7 +878,7 @@ class Logbook(SystemBase):  # 0418
             self._send_cmd(Command.get_system_log_entry(self.ctl.id, 0))
             # self._gwy.add_task(self._loop.create_task(self.get_faultlog()))
 
-    def _handle_msg(self, msg) -> None:  # NOTE: active
+    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
         if msg.code != _0418:
@@ -968,7 +971,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             except KeyError:
                 self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.DHW}")
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
 
         super()._handle_msg(msg)
 
@@ -1097,7 +1100,7 @@ class Datetime(SystemBase):  # 313F
         # NOTE: used for testing
         # run_coroutine_threadsafe(self.get_datetime(), self._gwy._loop)
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if msg.code == _313F and msg.verb in (I_, RP):  # NOTE: beware I/W/I loop, below
@@ -1160,7 +1163,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         self._relay_demands = {}
         self._relay_failsafes = {}
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if SZ_DOMAIN_ID in msg.payload:

@@ -164,7 +164,7 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
     ACTUATOR_STATE = "actuator_state"
     MODULATION_LEVEL = "modulation_level"  # percentage (0.0-1.0)
 
-    def _handle_msg(self, msg) -> None:  # NOTE: active
+    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
         if isinstance(self, OtbGateway):
@@ -310,7 +310,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
                 Command.get_relay_demand(self.id), priority=Priority.LOW, retries=1
             )
 
-    def _handle_msg(self, msg) -> None:  # NOTE: active
+    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         if msg.src.id == self.id:
             super()._handle_msg(msg)
             return
@@ -471,7 +471,7 @@ class Controller(DeviceHeat):  # CTL (01):
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:  # TODO: remove
         pass
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         self.tcs._handle_msg(msg)
@@ -574,7 +574,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         # if discover_flag & Discover.STATUS:  # only 2309 has any potential?
         #     [self._make_cmd(_2309, payload=ufh_idx)for ufh_idx in self._circuits_alt]
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if msg.code == _0005:  # system_zones
@@ -743,7 +743,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
 
         self._child_id = FA  # NOTE: domain_id
 
-    def _handle_msg(self, msg) -> None:  # NOTE: active
+    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
         # The following is required, as CTLs don't send such every sync_cycle
@@ -892,7 +892,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             ):
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if msg.code == _3220 and msg.payload[MSG_TYPE] != OtMsgType.RESERVED:
@@ -900,7 +900,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         elif msg.code in self.OT_TO_RAMSES.values():
             self._handle_code(msg)
 
-    def _handle_3220(self, msg) -> None:
+    def _handle_3220(self, msg: Message) -> None:
         msg_id = f"{msg.payload[MSG_ID]:02X}"
         self._msgs_ot[msg_id] = msg
 
@@ -931,7 +931,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 "OUT-reserved-",  # TODO: remove
             )
 
-    def _handle_code(self, msg) -> None:
+    def _handle_code(self, msg: Message) -> None:
         if DEV_MODE:  # here to follow state changes
             self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # unknown
             if msg.code != _2401:
@@ -1258,7 +1258,7 @@ class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
 
     _STATE_ATTR = SZ_TEMPERATURE
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if msg.verb != I_ or self._iz_controller is not None:
@@ -1345,7 +1345,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
             # NOTE: 13: wont RP to an RQ/3EF0
             self._make_cmd(_3EF1)
 
-    # def _handle_msg(self, msg) -> None:
+    # def _handle_msg(self, msg: Message) -> None:
     #     super()._handle_msg(msg)
 
     #     if msg.code == _1FC9 and msg.verb == RP:
@@ -1466,7 +1466,7 @@ class UfhCircuit(Entity):
     def __str__(self) -> str:
         return f"{self.id} ({self._zone and self._zone._child_id})"
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         # FIXME:

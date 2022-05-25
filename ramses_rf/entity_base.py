@@ -172,7 +172,7 @@ class MessageDB:
         self._msgs = {}  # code, should be code/ctx? ?deprecate
         self._msgz = {}  # code/verb/ctx, should be code/ctx/verb?
 
-    def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
+    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
 
         if msg.verb in (I_, RP):
@@ -336,7 +336,7 @@ class Entity(MessageDB):
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         pass
 
-    def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
+    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
 
         super()._handle_msg(msg)  # store the message in the database

@@ -19,6 +19,7 @@ from .helpers import shrink
 from .protocol import Command
 from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
+from .protocol.message import Message
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
 
@@ -244,7 +245,7 @@ class Device(Entity):
 
         super()._send_cmd(cmd, **kwargs)
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         assert msg.src is self, f"msg from {msg.src} inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -515,7 +516,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
         # of no value for a HGI80-compatible device
         return
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         def fake_addrs(msg, faked_dev):
             msg.src = faked_dev if msg.src is self else self
             msg.dst = faked_dev if msg.dst is self else self
@@ -631,7 +632,7 @@ class DeviceHeat(
 
         self._iz_controller = None  # TODO: deprecate
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
         if msg.verb != I_ or self._iz_controller is not None:
@@ -695,7 +696,7 @@ class DeviceHvac(Child, DeviceInfo):  # HVAC (ventilation, PIV, MV/HR)
     #             if isinstance(d, HvacVentilator) and d is not self
     #         ]
 
-    # def _handle_msg(self, msg) -> None:
+    # def _handle_msg(self, msg: Message) -> None:
     #     super()._handle_msg(msg)
 
     #     # if type(self) is DeviceHvac:

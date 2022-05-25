@@ -32,6 +32,7 @@ from .protocol.command import (
     Command,
 )
 from .protocol.exceptions import ExpiredCallbackError
+from .protocol.message import Message
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -262,7 +263,7 @@ class Schedule:  # 0404
     def __str__(self) -> str:
         return f"{self._zone} (schedule)"
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
 
         # RP --- 01:145038 18:013393 --:------ 0404 007 002300080001FF  # 0404|RP|01:145038|FA01
