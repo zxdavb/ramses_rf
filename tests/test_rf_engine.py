@@ -20,6 +20,7 @@ from ramses_rf.schedule import (
     TIME_OF_DAY,
 )
 from tests.common import TEST_DIR
+from tests.mock_gateway import MockGateway
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
@@ -39,41 +40,15 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
     if config:
         kwargs.update(config)
 
-    gwy = Gateway(ser_name, **kwargs)
+    if [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
+        gwy = Gateway(ser_name, **kwargs)
+    else:
+        gwy = MockGateway(ser_name, **kwargs)
+
     return gwy
 
 
-async def test_rq_0006():
-    def assert_version(version):
-        assert isinstance(version, int)
-        assert version == gwy.tcs._msgs[_0006].payload["change_counter"]
-
-        return version
-
-    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
-        return
-
-    gwy = await load_test_system(SERIAL_PORT)
-    await gwy.start(start_discovery=False)  # may: SerialException
-
-    # gwy.config.disable_sending = False
-    version = await gwy.tcs.get_schedule_version()  # RQ|0006, may: TimeoutError
-    version = assert_version(version)
-
-    gwy.config.disable_sending = True
-    assert version == await gwy.tcs.get_schedule_version(force_refresh=False)
-
-    try:
-        await gwy.tcs.get_schedule_version(force_refresh=True)
-    except RuntimeError:  # sending is disabled
-        assert True
-    else:
-        assert False
-
-    await gwy.stop()
-
-
-def assert_schedule(schedule):
+def assert_schedule_dict(schedule):
     if schedule is None:
         # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
         return
@@ -95,12 +70,12 @@ def assert_schedule(schedule):
     return schedule
 
 
-async def assert_zone_schedule(gwy, zone_idx):
+async def assert_schedule(gwy, zone_idx):
     zone = gwy.tcs.dhw if zone_idx == "HW" else gwy.tcs.zone_by_idx[zone_idx]
 
     # gwy.config.disable_sending = False
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
-    schedule = assert_schedule(schedule)
+    schedule = assert_schedule_dict(schedule)
 
     if schedule is None:  # TODO: remove?
         assert zone._msgs[_0404].payload[SZ_FRAG_TOTAL] == 255
@@ -120,27 +95,50 @@ async def assert_zone_schedule(gwy, zone_idx):
         assert False
 
 
-async def test_rq_0404_zone():
-    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
-        return
+async def test_rq_0006():
+    def assert_version(version):
+        assert isinstance(version, int)
+        assert version == gwy.tcs._msgs[_0006].payload["change_counter"]
 
-    gwy = await load_test_system(SERIAL_PORT)
+        return version
+
+    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
-    if gwy.tcs.zones:
-        await assert_zone_schedule(gwy, gwy.tcs.zones[0].idx)
+    # gwy.config.disable_sending = False
+    version = await gwy.tcs.get_schedule_version()  # RQ|0006, may: TimeoutError
+    version = assert_version(version)
+
+    gwy.config.disable_sending = True
+    assert version == await gwy.tcs.get_schedule_version(force_refresh=False)
+
+    try:
+        await gwy.tcs.get_schedule_version(force_refresh=True)
+    except RuntimeError:  # sending is disabled
+        assert True
+    else:
+        assert False
 
     await gwy.stop()
 
 
-async def test_rq_0404_dhw():
-    if not [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
-        return
+async def _test_rq_0404_dhw():
 
-    gwy = await load_test_system(SERIAL_PORT)
+    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
     if gwy.tcs.dhw:
-        await assert_zone_schedule(gwy, "HW")
+        await assert_schedule(gwy, "HW")
+
+    await gwy.stop()
+
+
+async def test_rq_0404_zone():
+
+    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    if gwy.tcs.zones:
+        await assert_schedule(gwy, gwy.tcs.zones[0].idx)
 
     await gwy.stop()
