@@ -173,61 +173,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def fragments_to_schedule(fragments: list) -> dict:
-    """Convert a set of fragments (a blob) into a schedule.
-
-    May raise a `zlib.error` exception.
-    """
-
-    raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
-
-    zone_idx, schedule = None, []
-    old_day, switchpoints = 0, []
-
-    for i in range(0, len(raw_schedule), 20):
-        zone_idx, day, time, temp, _ = struct.unpack(
-            "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
-        )
-        if day > old_day:
-            schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-            old_day, switchpoints = day, []
-        switchpoints.append(
-            {
-                TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
-                HEAT_SETPOINT: temp / 100,
-            }
-        )
-
-    schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-
-    return {SZ_ZONE_IDX: f"{zone_idx:02X}", SZ_SCHEDULE: schedule}
-
-
-def schedule_to_fragments(schedule: dict) -> list:
-    """Convert a schedule into a set of fragments (a blob).
-
-    May raise `KeyError`, `zlib.error` exceptions.
-    """
-
-    frags = [
-        (
-            int(schedule[SZ_ZONE_IDX], 16),
-            int(week_day[DAY_OF_WEEK]),
-            int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
-            int(setpoint[HEAT_SETPOINT] * 100),
-        )
-        for week_day in schedule[SZ_SCHEDULE]
-        for setpoint in week_day[SWITCHPOINTS]
-    ]
-    frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
-
-    cobj = zlib.compressobj(level=9, wbits=14)
-    blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
-    blob = blob.hex().upper()
-
-    return [blob[i : i + 82] for i in range(0, len(blob), 82)]
-
-
 class Schedule:  # 0404
     """The schedule of a zone."""
 
@@ -524,3 +469,58 @@ class Schedule:  # 0404
         self._schedule_done = True
 
         return self if self.schedule else cls(zone, **kwargs)
+
+
+def fragments_to_schedule(fragments: list) -> dict:
+    """Convert a set of fragments (a blob) into a schedule.
+
+    May raise a `zlib.error` exception.
+    """
+
+    raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
+
+    zone_idx, schedule = None, []
+    old_day, switchpoints = 0, []
+
+    for i in range(0, len(raw_schedule), 20):
+        zone_idx, day, time, temp, _ = struct.unpack(
+            "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
+        )
+        if day > old_day:
+            schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+            old_day, switchpoints = day, []
+        switchpoints.append(
+            {
+                TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
+                HEAT_SETPOINT: temp / 100,
+            }
+        )
+
+    schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+
+    return {SZ_ZONE_IDX: f"{zone_idx:02X}", SZ_SCHEDULE: schedule}
+
+
+def schedule_to_fragments(schedule: dict) -> list:
+    """Convert a schedule into a set of fragments (a blob).
+
+    May raise `KeyError`, `zlib.error` exceptions.
+    """
+
+    frags = [
+        (
+            int(schedule[SZ_ZONE_IDX], 16),
+            int(week_day[DAY_OF_WEEK]),
+            int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
+            int(setpoint[HEAT_SETPOINT] * 100),
+        )
+        for week_day in schedule[SZ_SCHEDULE]
+        for setpoint in week_day[SWITCHPOINTS]
+    ]
+    frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
+
+    cobj = zlib.compressobj(level=9, wbits=14)
+    blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
+    blob = blob.hex().upper()
+
+    return [blob[i : i + 82] for i in range(0, len(blob), 82)]
