@@ -330,12 +330,23 @@ class SerTransportBase(asyncio.ReadTransport):
         self._loop = loop
         self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
+        self._closing = False
+
         # for sig in (signal.SIGINT, signal.SIGTERM):
         #     self._loop.add_signal_handler(sig, self.abort)
 
+    def is_closing(self) -> bool:
+        """Return True if the transport is closing or closed."""
+        return self._closing
+
     def close(self):
+        if self._closing:
+            return
+
         if poller := self._extra.get(SZ_POLLER_TASK):
             poller.cancel()
+
+        self._loop.call_soon(self._protocol.connection_lost, None)
 
     async def _polling_loop(self):
         raise NotImplementedError
@@ -495,14 +506,10 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug(f"{self}.connection_lost(exc)")
         # serial.serialutil.SerialException: device reports error (poll)
 
-        self.pause_writing()
-        self._shutdown()
+        self._pause_writing = True
 
         if exc is not None:
             raise exc
-
-    def _shutdown(self):
-        self.pause_writing()
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
@@ -722,12 +729,6 @@ class PacketProtocolPort(PacketProtocolBase):
         # for sig in (signal.SIGINT, signal.SIGTERM):
         #     self._loop.add_signal_handler(sig, self._shutdown)
 
-    def _shutdown(self):
-        super()._shutdown()
-
-        if self._leaker:
-            self._leaker.cancel()
-
     async def _leak_sem(self):
         """Used to enforce a minimum time between calls to `self._transport.write()`."""
         while True:
@@ -740,7 +741,6 @@ class PacketProtocolPort(PacketProtocolBase):
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
 
-        self.pause_writing()
         if self._leaker:
             self._leaker.cancel()
 

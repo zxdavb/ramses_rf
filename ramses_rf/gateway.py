@@ -145,13 +145,9 @@ class Engine:
     def _stop(self) -> None:
         """Cancel all outstanding tasks."""
 
-        # if self.msg_protocol:
-        #     self.msg_protocol.pause_writing()
         if self.msg_transport:
             self.msg_transport.close()  # ? .abort()
 
-        if self.pkt_protocol:  # TODO: handle this via pkt_transport.close()
-            self.pkt_protocol._shutdown()
         if self.pkt_transport:
             self.pkt_transport.close()  # ? .abort()
 
