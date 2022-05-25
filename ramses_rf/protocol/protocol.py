@@ -89,9 +89,7 @@ class MessageTransport(asyncio.Transport):
         self._protocols = []
         self.add_protocol(protocol)
 
-        self._extra = {self.READER: self._pkt_receiver}
-        if extra is not None:
-            self._extra.update(extra)
+        self._extra.update({self.READER: self._pkt_receiver})
         self._is_closing = None
 
         self._write_buffer_limit_high = None
@@ -104,17 +102,10 @@ class MessageTransport(asyncio.Transport):
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self.set_write_buffer_limits()
 
-        self._startup()
-
-    def _startup(self):
         # self._extra[self.WRITER] = self._loop.create_task(self._polling_loop())
 
         for sig in (signal.SIGINT, signal.SIGTERM):
-            self._loop.add_signal_handler(sig, self._shutdown)
-
-    def _shutdown(self):
-        if task := self._extra.get(self.WRITER):
-            task.cancel()
+            self._loop.add_signal_handler(sig, self.abort)
 
     def _set_dispatcher(self, dispatcher: Callable):
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
@@ -246,7 +237,12 @@ class MessageTransport(asyncio.Transport):
         """
 
         self._is_closing = True
-        self._shutdown()
+        self._pause_protocols()
+
+        if task := self._extra.get(self.WRITER):
+            task.cancel()
+
+        [p.connection_lost(None) for p in self._protocols]
 
     def abort(self):
         """Close the transport immediately.
@@ -255,14 +251,13 @@ class MessageTransport(asyncio.Transport):
         connection_lost() method will (eventually) be called with None as its argument.
         """
 
-        self._que = None
-        self._is_closing = True
-        self._shutdown()
+        self._clear_write_buffer()
+        self.close()
 
-    def is_closing(self) -> Optional[bool]:
+    def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
 
-        return self._is_closing
+        return bool(self._is_closing)
 
     def get_extra_info(self, name, default=None):
         """Get optional transport information."""
@@ -314,16 +309,17 @@ class MessageTransport(asyncio.Transport):
         raise NotImplementedError
 
     def _clear_write_buffer(self):
-        """Empty the dispatch queue."""
+        """Empty the dispatch queue.
 
-        self._pause_protocols()
+        Should not call `get_write_buffer_size()`.
+        """
+
         while not self._que.empty():
             try:
                 self._que.get_nowait()
             except Empty:
                 continue
             self._que.task_done()
-        self.get_write_buffer_size()
 
     def _pause_protocols(self, force=None):
         """Pause the other end."""
@@ -376,7 +372,10 @@ class MessageTransport(asyncio.Transport):
         self.get_write_buffer_size()
 
     def get_write_buffer_size(self) -> int:
-        """Return the current size of the write buffer."""
+        """Return the current size of the write buffer.
+
+        If required, pause or resume the protocols.
+        """
 
         qsize = self._que.qsize()
 

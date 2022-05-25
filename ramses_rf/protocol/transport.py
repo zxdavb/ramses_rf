@@ -331,9 +331,9 @@ class SerTransportBase(asyncio.ReadTransport):
         self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
         # for sig in (signal.SIGINT, signal.SIGTERM):
-        #     self._loop.add_signal_handler(sig, self._shutdown)
+        #     self._loop.add_signal_handler(sig, self.abort)
 
-    def _shutdown(self):
+    def close(self):
         if poller := self._extra.get(SZ_POLLER_TASK):
             poller.cancel()
 
@@ -368,7 +368,7 @@ class SerTransportRead(SerTransportBase):
         else:
             raise TypeError(f"Wrong type of packet source: {type(self._packets)}")
 
-        self._protocol.connection_lost(exc=None)
+        self._protocol.connection_lost(None)
 
     def write(self, *args, **kwargs) -> None:
         raise NotImplementedError
@@ -396,10 +396,10 @@ class SerTransportPoll(SerTransportBase):
 
             if self.serial.in_waiting:
                 # NOTE: cant use readline(), as it blocks until a newline is received
-                self._protocol.data_received(self.serial.read(self.serial.in_waiting))
+                self._protocol.data_received(self.serial.read_all())
                 continue
 
-            if getattr(self.serial, "out_waiting", False):
+            if getattr(self.serial, "out_waiting", 0):
                 # NOTE: rfc2217 ports have no out_waiting attr!
                 continue
 
@@ -407,7 +407,7 @@ class SerTransportPoll(SerTransportBase):
                 self.serial.write(self._write_queue.get())
                 self._write_queue.task_done()
 
-        self._protocol.connection_lost(exc=None)
+        self._protocol.connection_lost(None)
 
     def write(self, cmd):
         """Write some data bytes to the transport.
@@ -495,8 +495,14 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug(f"{self}.connection_lost(exc)")
         # serial.serialutil.SerialException: device reports error (poll)
 
+        self.pause_writing()
+        self._shutdown()
+
         if exc is not None:
             raise exc
+
+    def _shutdown(self):
+        self.pause_writing()
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
@@ -711,13 +717,13 @@ class PacketProtocolPort(PacketProtocolBase):
         super().__init__(gwy, pkt_handler)
 
         self._sem = asyncio.BoundedSemaphore()
-        self._leaker = self._loop.create_task(self._leak_sem())
+        self._leaker = None
 
         # for sig in (signal.SIGINT, signal.SIGTERM):
         #     self._loop.add_signal_handler(sig, self._shutdown)
 
     def _shutdown(self):
-        self.pause_writing()
+        super()._shutdown()
 
         if self._leaker:
             self._leaker.cancel()
@@ -731,8 +737,20 @@ class PacketProtocolPort(PacketProtocolBase):
             except ValueError:
                 pass
 
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        """Called when the connection is lost or closed."""
+
+        self.pause_writing()
+        if self._leaker:
+            self._leaker.cancel()
+
+        super().connection_lost(exc)
+
     def connection_made(self, transport: asyncio.Transport) -> None:  # type: ignore[override]
         """Called when a connection is made."""
+
+        if not self._leaker:
+            self._leaker = self._loop.create_task(self._leak_sem())
 
         super().connection_made(transport)  # self._transport = transport
         # self._transport.serial.rts = False

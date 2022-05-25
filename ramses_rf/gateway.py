@@ -145,12 +145,12 @@ class Engine:
     def _stop(self) -> None:
         """Cancel all outstanding tasks."""
 
-        if self.msg_protocol:
-            self.msg_protocol.pause_writing()
+        # if self.msg_protocol:
+        #     self.msg_protocol.pause_writing()
         if self.msg_transport:
             self.msg_transport.close()  # ? .abort()
 
-        if self.pkt_protocol:
+        if self.pkt_protocol:  # TODO: handle this via pkt_transport.close()
             self.pkt_protocol._shutdown()
         if self.pkt_transport:
             self.pkt_transport.close()  # ? .abort()
@@ -631,11 +631,11 @@ class Gateway(Engine):
         if self.config.disable_sending:
             raise RuntimeError("sending is disabled")
 
-        future = super().send_cmd(cmd, callback, **kwargs)
+        fut = super().send_cmd(cmd, callback, **kwargs)
 
         self._tasks = [t for t in self._tasks if not t.done()]
-        self._tasks.append(future)
-        return future
+        self._tasks.append(fut)
+        return fut
 
     def fake_device(
         self, device_id, create_device=False, start_binding=False
