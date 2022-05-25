@@ -251,15 +251,15 @@ class Engine:
 
     async def async_send_cmd(
         self, cmd: Command, awaitable: bool = True, **kwargs
-    ) -> Optional[Message]:
+    ) -> Message:
         """Send a command with the option to not wait for a response (awaitable=False).
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         This routine is thread safe.
         """
 
-        def callback(fut):
-            print(fut.result())
+        # def callback(fut):
+        #     print(fut.result())
 
         awaitable = awaitable or awaitable is None
 
@@ -275,19 +275,19 @@ class Engine:
                 result = fut.result(timeout=0.01)
 
             except futures.TimeoutError:
-                pass  # raise TimeoutError(f"The cmd has not yet completed ({cmd})")
+                _LOGGER.debug(f"Success: cmd ({cmd}) has not yet completed")
+                pass  # should be a pass
 
             except TimeoutError:  # 3 seconds
                 fut.cancel()
-                # NOTE: dont then: raise ExpiredCallbackError(exc)
-                raise TimeoutError(f"The cmd timed out, cancelling the task ({cmd})")
+                raise TimeoutError(f"Failure: cmd ({cmd}) has timed out, cancelling it")
 
             except Exception as exc:
-                # NOTE: dont then: raise ExpiredCallbackError(exc)
-                _LOGGER.error(f"The cmd raised an exception ({cmd}): {exc!r}")
+                _LOGGER.error(f"Failure: cmd ({cmd}) raised an exception: {exc!r}")
+                raise exc
 
             else:
-                _LOGGER.debug(f"Success: the cmd returned: {result!r} ({type(result)})")
+                _LOGGER.debug(f"Success: cmd ({cmd}) returned: {result!r})")
                 return result
 
 
