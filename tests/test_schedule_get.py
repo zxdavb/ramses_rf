@@ -43,6 +43,7 @@ async def test_schedule_get(dir_name):
 
     zone = gwy.tcs.zones[0]
     assert zone.schedule == schedule[SZ_SCHEDULE]
+    assert zone._schedule._schedule == schedule
 
 
 async def test_schedule_helpers(dir_name):

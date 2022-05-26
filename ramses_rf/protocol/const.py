@@ -11,9 +11,10 @@ DEV_MODE = __dev_mode__
 
 
 SZ_FRAGMENT = "fragment"
-SZ_FRAG_INDEX = "frag_index"
+SZ_FRAG_NUMBER = "frag_number"
 SZ_FRAG_LENGTH = "frag_length"
-SZ_FRAG_TOTAL = "frag_total"
+SZ_TOTAL_FRAGS = "total_frags"
+
 SZ_SCHEDULE = "schedule"
 SZ_CHANGE_COUNTER = "change_counter"
 

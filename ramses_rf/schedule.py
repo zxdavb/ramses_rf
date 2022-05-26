@@ -12,15 +12,17 @@ import struct
 import zlib
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Optional
+from typing import Tuple
 
 import voluptuous as vol
 
+from ramses_rf.protocol.const import SZ_CHANGE_COUNTER
+
 from .const import (
-    SZ_FRAG_INDEX,
-    SZ_FRAG_TOTAL,
+    SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
     SZ_SCHEDULE,
+    SZ_TOTAL_FRAGS,
     SZ_ZONE_IDX,
     __dev_mode__,
 )
@@ -189,21 +191,13 @@ class Schedule:  # 0404
         self._gwy = zone._gwy
 
         self._schedule = None
-        self._schedule_done = None
+        self._schedule_done = None  # TODO: deprecate
 
-        self._num_frags = None
-        self._rx_frags = None
-        self._tx_frags = None
+        self._rx_frags = _init_set()
+        self._tx_frags = _init_set()
 
-        self._msg_0006 = None
-
-        # new
-        self._fragments: dict = {}
-        self._outdated: bool = True
-        self._version: int = None
-
-    def __repr__(self) -> str:
-        return f"{self._zone} (schedule) (outdated={self._outdated})"
+        self._global_ver: int = None
+        self._sched_ver: int = 0
 
     def __str__(self) -> str:
         return f"{self._zone} (schedule)"
@@ -211,184 +205,126 @@ class Schedule:  # 0404
     def _handle_msg(self, msg: Message) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
 
-        # RP --- 01:145038 18:013393 --:------ 0404 007 002300080001FF  # 0404|RP|01:145038|FA01
-        if msg.payload[SZ_FRAG_TOTAL] != 255:
-            self._add_fragment(msg=msg)
-
-        # elif msg.payload[SZ_FRAG_INDEX] == 1:  # Doesn't have a schedule...
-        #     self._schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: []}
-        #     for i in range(7):
-        #         self._schedule[SZ_SCHEDULE].append({DAY_OF_WEEK: i, SWITCHPOINTS: []})
-        #     self._schedule_done = True
-
-    def _add_fragment(self, *, msg) -> None:
-        """Add a fragment to the fragment table.
-
-        If the latest fragment has a different `frag_total` to those of the existing
-        fragments, treat them as invalid (i.e. the schedule must have changed).
-
-        Whenever the fragment table is full, check for a valid set of fragments (i.e.
-        a schedule).
-
-        When refreshing the table (e.g. the global `change_counter` increased), stop
-        retrieving fragements if the first fragment (along with the existing fragments)
-        still provides a valid schedule (i.e. the schedule has not changed).
-        """
-
-        if msg.payload[SZ_FRAG_TOTAL] != self._frag_total:  # schedule has changed
-            self._fragments = {}
-
-        self._fragments[msg.payload[SZ_FRAG_INDEX]] = msg
-
-        if len(self._fragments) != self._frag_total:
+        if msg.code == _0006:
+            self._global_ver = msg.payload[SZ_CHANGE_COUNTER]
             return
 
-        try:
-            self._schedule = fragments_to_schedule(
-                [v.payload[SZ_FRAGMENT] for k, v in sorted(self._fragments.items())]
-            )
-            if self._schedule[SZ_ZONE_IDX] != self.idx:
-                raise KeyError
+        # RP --- 01:145038 18:013393 --:------ 0404 007 002300080001FF  # 0404|RP|01:145038|FA01
+        if msg.payload[SZ_TOTAL_FRAGS] != 255:
+            self._rx_frags = self._add_fragment(self._rx_frags, msg.payload)
 
-        except zlib.error:
-            self._schedule = None
-            self._fragments = {}  # schedule is corrupt/has changed
+    def _add_fragment(self, frag_set, fragment) -> list:
+        """Return a valid fragment set, after adding a fragment.
 
-            if msg.payload[SZ_FRAG_TOTAL] != 1:  # msg likely part of new schedule
-                self._fragments[msg.payload[SZ_FRAG_INDEX]] = msg
+        Whenever the fragment table is full, check for a valid schedule.
+        If required, start a new fragment set with the fragment.
+        """
 
-        except KeyError:
-            self._schedule = None
-            self._fragments = {}  # schedule is corrupt/has changed
+        if fragment[SZ_TOTAL_FRAGS] != _size_set(frag_set):  # schedule has changed
+            return _init_set(fragment)
 
-        else:
-            # dont RQ remaining frags if sched unchanged despite inc. change_counter
-            self._schedule_done = True
+        frag_set[fragment[SZ_FRAG_NUMBER] - 1] = fragment
 
-    @property
-    def _frag_total(self) -> Optional[int]:
-        """Return the expected number of fragments."""
-        for frag in self._fragments.values():  # they will all match
-            return frag.payload[SZ_FRAG_TOTAL]
+        if None in frag_set or self._test_set(frag_set):
+            return frag_set
 
-    @property
-    def schedule(self) -> Optional[dict]:
-        """Return the cached schedule without checking if it is the latest version."""
-        if self._schedule is not None:  # and not self._outdated:
-            return self._schedule[SZ_SCHEDULE]
+        return _init_set(fragment)
 
-    async def is_dated(self, *, force_refresh: bool = False) -> bool:
-        """Return True if the schedule is out of date (a newer version is available).
+    async def _is_dated(self, *, force_io: bool = False) -> Tuple[bool, bool]:
+        """Indicate if it is possible that a more recent schedule is available.
 
-        If required, retreive the latest global change counter (version number) from
-        the TCS (which may necessitate an RQ).
+        If required, retrieve the latest global version (change counter) from the
+        TCS.
 
         There may be a false positive if another zone's schedule is changed when
         this zone's schedule has not. There may be a false negative if this zone's
-        schedule was changed only very recently.
+        schedule was changed only very recently and a cached global version was
+        used.
+
+        If `force_io`, then a true negative is guaranteed (it forces an RQ).
         """
 
-        if not force_refresh:
+        # this will not cause an I/O...
+        if (
+            not force_io
+            and not self._sched_ver
+            or (self._global_ver and self._global_ver > self._sched_ver)
+        ):
+            return True, False  # is_dated, did_io
 
-            if self._outdated is True:
-                return self._outdated
+        # this may cause an I/O...
+        self._global_ver, did_io = await self.tcs._schedule_version()
+        if did_io or self._global_ver > self._sched_ver:
+            return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
-            if self._version is None or self._schedule is None:
-                self._outdated = True
-                return self._outdated
+        if force_io:  # this will cause an I/O...
+            self._global_ver, did_io = await self.tcs._schedule_version(
+                force_io=force_io
+            )
 
-        old_ver = self._version
-        self._version = await self.tcs.get_schedule_version(force_refresh=force_refresh)
+        return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
-        self._outdated = self._version > old_ver
-        return self._outdated
-
-    async def get_schedule(self, *, force_refresh: bool = False) -> dict:
+    async def get_schedule(self, *, force_io: bool = False) -> dict:
         """Return the schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
         global change counter has not increased.
         Otherwise, RQ the latest schedule from the controller and return that.
+
+        If `force_io`, then the latest schedule is guaranteed (it forces an RQ).
         """
 
-        if force_refresh:
-            await self.is_dated(force_refresh=True)
+        async def get_fragment(frag_idx: int):  # may: TimeoutError?
+            """Retreive a schedule fragment from the controller."""
 
-        if self._schedule and not await self.is_dated():
+            frag_set_size = 0 if frag_idx == 0 else _size_set(self._rx_frags)
+            cmd = Command.get_schedule_fragment(
+                self.ctl.id, self.idx, frag_idx + 1, frag_set_size
+            )
+            return (await self._gwy.async_send_cmd(cmd)).payload  # may: TimeoutError?
+
+        async def tst_fragments(frag_idx):
+            self._rx_frags[frag_idx] = await get_fragment(frag_idx)
+            if self._test_set(self._rx_frags):
+                self._sched_ver = self._global_ver
+                self.tcs._release_lock()
+                return self._schedule
+
+        is_dated, did_io = await self._is_dated(force_io=force_io)
+        if is_dated:
+            self._schedule = None  # keep fragments, maybe not this sched that changed
+        if self._schedule:
             return self._schedule
 
-        self._version = await self.tcs.get_schedule_version()
+        await self.tcs._obtain_lock(self.idx)  # TODO: should raise a TimeOutError
 
-        if not await self.tcs._obtain_lock(self.idx):  # TODO: should raise a TimeOut
-            return
+        if not did_io:  # must know the version of the schedule about to be RQ'd
+            self._global_ver, _ = await self.tcs._schedule_version(force_io=True)
 
-        self._fragments.pop(0, None)
-        self._schedule = None
+        # if the 1st fragment is unchanged, then this schedule very likely unchanged
+        if schedule := await tst_fragments(0):
+            return schedule
 
-        self._rq_fragment(frag_cnt=0)  # calls loop.create_task()
+        self._rx_frags = _init_set(self._rx_frags[0])
+        while frag_idx := next(i for i, f in enumerate(self._rx_frags) if f is None):
+            if schedule := await tst_fragments(frag_idx):
+                return schedule
 
-        self._schedule_done = None
-        time_start = dt.now()
+        return self._schedule
 
-        while not self._schedule_done:
-            await asyncio.sleep(TIMER_SHORT_SLEEP)
-            if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                self.tcs._release_lock()
-                raise ExpiredCallbackError(f"{self}: failed to get schedule")
+    def _test_set(self, frag_set: list) -> bool:
+        """Test a fragment set, and cache any valid schedule as the `_schedule` attr."""
 
-        self.tcs._release_lock()
-
-        self._outdated = False
-        return self.schedule  # note self._schedule
-
-    def _rq_fragment(self, *, frag_cnt=0) -> None:
-        """Request the next missing fragment (index starts at 1, not 0)."""
-        _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
-
-        # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0100
-        # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0104 688...
-        # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0204
-        # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0204 4AE...
-        # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
-        # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
-
-        def rq_callback(msg) -> None:
-            if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
-                # TODO: remove any callbacks from self._gwy.msg_transport._callbacks
-                _LOGGER.warning(f"Schedule({self.id}): Callback timed out")
-                self._schedule_done = True
-                return
-
-            _LOGGER.debug(
-                f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get(SZ_FRAG_INDEX),
-                msg.payload.get(SZ_FRAG_TOTAL),
-            )
-
-            if msg.payload[SZ_FRAG_TOTAL] == 255:  # no schedule (i.e. no zone)
-                _LOGGER.warning(f"Schedule({self.id}): No schedule")
-                self._schedule_done = True
-                return
-
-            if msg.payload[SZ_FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
-                self._rx_frags = [None] * msg.payload[SZ_FRAG_TOTAL]
-
-            self._rx_frags[msg.payload[SZ_FRAG_INDEX] - 1] = msg
-
-            if None in self._rx_frags:  # there are still frags to get
-                self._rq_fragment(frag_cnt=msg.payload[SZ_FRAG_TOTAL])
+        if None not in frag_set:
+            try:
+                self._schedule = fragments_to_schedule(
+                    [frag[SZ_FRAGMENT] for frag in frag_set]
+                )
+            except zlib.error:
+                self._schedule = None  # needed?
             else:
-                self._schedule_done = True
-
-        if frag_cnt == 0:
-            self._rx_frags = [None]  # and: frag_idx = 0
-        frag_idx = next(i for i, f in enumerate(self._rx_frags) if f is None)
-
-        rq_callback = {FUNC: rq_callback, TIMEOUT: 1}
-        cmd = Command.get_schedule_fragment(
-            self.ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
-        )
-        self._gwy.send_cmd(cmd)
+                return True
+        return False
 
     async def set_schedule(self, schedule) -> None:
         """Set the schedule of a zone."""
@@ -434,12 +370,12 @@ class Schedule:  # 0404
         def tx_callback(msg) -> None:
             _LOGGER.debug(
                 f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get(SZ_FRAG_INDEX),
-                msg.payload.get(SZ_FRAG_TOTAL),
+                msg.payload.get(SZ_FRAG_NUMBER),
+                msg.payload.get(SZ_TOTAL_FRAGS),
             )
 
-            if msg.payload[SZ_FRAG_INDEX] < msg.payload[SZ_FRAG_TOTAL]:
-                self._tx_fragment(frag_idx=msg.payload.get(SZ_FRAG_INDEX))
+            if msg.payload[SZ_FRAG_NUMBER] < msg.payload[SZ_TOTAL_FRAGS]:
+                self._tx_fragment(frag_idx=msg.payload.get(SZ_FRAG_NUMBER))
             else:
                 self._schedule_done = True
 
@@ -454,21 +390,21 @@ class Schedule:  # 0404
         )
         self._gwy.send_cmd(cmd)
 
-    @classmethod  # constructor using RP/0404 tuple
-    def create_from_pkts(cls, zone, packets, **kwargs):
-        """Constructor to initiate with a tuple of schedule fragments."""
-        self = cls(zone, **kwargs)
 
-        self._rx_frags = [None] * len(packets)
-        for msg in packets:
-            self._rx_frags[msg.payload[SZ_FRAG_INDEX] - 1] = {
-                SZ_FRAGMENT: msg.payload[SZ_FRAGMENT],
-                MSG: msg,
-            }
+def _init_set(fragment: dict = None) -> list:
+    """Return a new fragment set, initialize it with a fragment if one is provided."""
+    if fragment is None:
+        return [None]
+    frags = [None] * fragment[SZ_TOTAL_FRAGS]
+    frags[fragment[SZ_FRAG_NUMBER] - 1] = fragment
+    return frags
 
-        self._schedule_done = True
 
-        return self if self.schedule else cls(zone, **kwargs)
+def _size_set(frag_set: list) -> int:
+    """Return the number of fragments in the set or 0 if it is unknown."""
+    for frag in (f for f in frag_set if f is not None):  # they will all match
+        return frag[SZ_TOTAL_FRAGS]
+    return 0  # sentinel value as per RAMSES protocol
 
 
 def fragments_to_schedule(fragments: list) -> dict:
@@ -524,3 +460,10 @@ def schedule_to_fragments(schedule: dict) -> list:
     blob = blob.hex().upper()
 
     return [blob[i : i + 82] for i in range(0, len(blob), 82)]
+
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0100
+    # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0104 688...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0204
+    # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0204 4AE...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
+    # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...

@@ -5,14 +5,14 @@
 
 # TODO: refactor packet routing (filter *before* routing)
 
+import asyncio
 import logging
-from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
 from symtable import Class
 from threading import Lock
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Tuple
 
 from .const import (
     SYS_MODE_MAP,
@@ -741,7 +741,6 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         super().__init__(*args, **kwargs)
 
         self._msg_0006: Message = None
-        self._sched_dated: bool = True
 
         self.zone_lock = Lock()  # used to stop concurrent get_schedules
         self.zone_lock_idx = None
@@ -757,43 +756,37 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         super()._handle_msg(msg)
 
         if msg.code == _0006:
-            self._sched_dated = (self._msg_0006 is None) or (
-                msg.payload[SZ_CHANGE_COUNTER]
-                > self._msg_0006.payload[SZ_CHANGE_COUNTER]
-            )
             self._msg_0006 = msg
 
-    async def get_schedule_version(self, *, force_refresh: bool = False) -> int:
-        """Return the latest schedule version number (global change counter).
+    async def _schedule_version(self, *, force_io: bool = False) -> Tuple[int, bool]:
+        """Return the global schedule version number, and an indication if I/O was done.
 
-        If it hasn't been doen very recently, or if `force_refresh`, then RQ the latest
-        change counter from the TCS.
+        If `force_io`, then RQ the latest change counter from the TCS rather than
+        rely upon a recent (cached) value.
         """
 
         # RQ --- 30:185469 01:037519 --:------ 0006 001 00
         # RP --- 01:037519 30:185469 --:------ 0006 004 000500E6
 
         if (
-            not force_refresh
+            not force_io
             and self._msg_0006
             and self._msg_0006.dtm > dt.now() - td(minutes=3)
         ):
-            self._sched_dated = False
-            return self._msg_0006.payload[SZ_CHANGE_COUNTER]
+            return (
+                self._msg_0006.payload[SZ_CHANGE_COUNTER],
+                False,
+            )  # global_ver, did_io
 
-        old_0006 = self._msg_0006
         self._msg_0006 = await self._gwy.async_send_cmd(
             Command.get_schedule_version(self.ctl.id)
         )
-        assert isinstance(
-            self._msg_0006, Message
-        ), f"get_schedule_version(): {self._msg_0006} (is not a message)"
 
-        self._sched_dated = old_0006 is None or (
-            self._msg_0006.payload[SZ_CHANGE_COUNTER]
-            > old_0006.payload[SZ_CHANGE_COUNTER]
-        )
-        return self._msg_0006.payload[SZ_CHANGE_COUNTER]
+        assert isinstance(  # TODO: remove me
+            self._msg_0006, Message
+        ), f"_schedule_version(): {self._msg_0006} (is not a message)"
+
+        return self._msg_0006.payload[SZ_CHANGE_COUNTER], True  # global_ver, did_io
 
     def _refresh_schedules(self) -> None:
         if self._gwy.config.disable_sending:
@@ -801,12 +794,14 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
         # schedules based upon 'active' (not most recent) 0006 pkt
         for zone in getattr(self, SZ_ZONES, []):
-            self._gwy._loop.create_task(zone.get_schedule(force_refresh=True))
+            self._gwy._loop.create_task(zone.get_schedule(force_io=True))
         if dhw := getattr(self, "dhw", None):
-            self._gwy._loop.create_task(dhw.get_schedule(force_refresh=True))
+            self._gwy._loop.create_task(dhw.get_schedule(force_io=True))
 
-    async def _obtain_lock(self, zone_idx) -> bool:
-        while True:
+    async def _obtain_lock(self, zone_idx) -> None:
+
+        timeout_dtm = dt.now() + td(minutes=3)
+        while dt.now() < timeout_dtm:
 
             self.zone_lock.acquire()
             if self.zone_lock_idx is None:
@@ -815,12 +810,15 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
             if self.zone_lock_idx == zone_idx:
                 break
+            await asyncio.sleep(0.005)  # gives the other zone enough time
 
-            # await asyncio.sleep(0.1)  # gives the other zone enough time
-
-        return True
+        else:
+            raise TimeoutError(
+                f"Unable to obtain lock for {zone_idx} (used by {self.zone_lock_idx})"
+            )
 
     def _release_lock(self) -> None:
+
         self.zone_lock.acquire()
         self.zone_lock_idx = None
         self.zone_lock.release()
@@ -830,13 +828,6 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         return {
             **super().params,
             SZ_CHANGE_COUNTER: self._msg_value(_0006, SZ_CHANGE_COUNTER),
-        }
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "schedule_outdated": self._sched_dated,
         }
 
 
@@ -904,15 +895,15 @@ class Logbook(SystemBase):  # 0418
 
         # TODO: if self._faultlog_outdated:
         #     if not self._gwy.config.disable_sending:
-        #         self._loop.create_task(self.get_faultlog(force_refresh=True))
+        #         self._loop.create_task(self.get_faultlog(force_io=True))
 
-    async def get_faultlog(self, *, start=None, limit=None, force_refresh=None) -> dict:
+    async def get_faultlog(self, *, start=None, limit=None, force_io=None) -> dict:
         if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
 
         try:
             return await self._faultlog.get_faultlog(
-                start=start, limit=limit, force_refresh=force_refresh
+                start=start, limit=limit, force_io=force_io
             )
         except (ExpiredCallbackError, RuntimeError):
             return
@@ -1069,17 +1060,17 @@ class SysMode(SystemBase):  # 2E04
     def system_mode(self) -> Optional[dict]:  # 2E04
         return self._msg_value(_2E04)
 
-    def set_mode(self, *, system_mode=None, until=None) -> Task:
+    def set_mode(self, *, system_mode=None, until=None) -> asyncio.Task:
         """Set a system mode for a specified duration, or indefinitely."""
         return self._send_cmd(
             Command.set_system_mode(self.id, system_mode=system_mode, until=until)
         )
 
-    def set_auto(self) -> Task:
+    def set_auto(self) -> asyncio.Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
         return self.set_mode(SYS_MODE_MAP.AUTO)
 
-    def reset_mode(self) -> Task:
+    def reset_mode(self) -> asyncio.Task:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
         return self.set_mode(SYS_MODE_MAP.AUTO_WITH_RESET)
 

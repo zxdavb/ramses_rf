@@ -11,7 +11,7 @@ import json
 from serial.tools import list_ports
 
 from ramses_rf import Gateway
-from ramses_rf.const import SZ_FRAG_TOTAL, SZ_SCHEDULE, SZ_ZONE_IDX, _0006, _0404
+from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, _0006, _0404
 from ramses_rf.schedule import (
     DAY_OF_WEEK,
     HEAT_SETPOINT,
@@ -78,17 +78,17 @@ async def assert_schedule(gwy, zone_idx):
     schedule = assert_schedule_dict(schedule)
 
     if schedule is None:  # TODO: remove?
-        assert zone._msgs[_0404].payload[SZ_FRAG_TOTAL] == 255
+        assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] == 255
         return
 
     assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx == zone_idx
     assert zone._schedule._schedule[SZ_SCHEDULE] == zone.schedule == schedule
 
     gwy.config.disable_sending = True
-    assert schedule == await zone.get_schedule(force_refresh=False)
+    assert schedule == await zone.get_schedule(force_io=False)
 
     try:
-        await zone.get_schedule(force_refresh=True)
+        await zone.get_schedule(force_io=True)
     except RuntimeError:  # sending is disabled
         assert True
     else:
@@ -106,14 +106,14 @@ async def test_rq_0006():
     await gwy.start(start_discovery=False)  # may: SerialException
 
     # gwy.config.disable_sending = False
-    version = await gwy.tcs.get_schedule_version()  # RQ|0006, may: TimeoutError
+    version, _ = await gwy.tcs._schedule_version()  # RQ|0006, may: TimeoutError
     version = assert_version(version)
 
     gwy.config.disable_sending = True
-    assert version == await gwy.tcs.get_schedule_version(force_refresh=False)
+    assert version == (await gwy.tcs._schedule_version(force_io=False))[0]
 
     try:
-        await gwy.tcs.get_schedule_version(force_refresh=True)
+        await gwy.tcs._schedule_version(force_io=True)
     except RuntimeError:  # sending is disabled
         assert True
     else:

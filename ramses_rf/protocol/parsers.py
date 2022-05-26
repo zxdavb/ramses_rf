@@ -37,9 +37,8 @@ from .const import (
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_DURATION,
-    SZ_FRAG_INDEX,
     SZ_FRAG_LENGTH,
-    SZ_FRAG_TOTAL,
+    SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
     SZ_LANGUAGE,
     SZ_MODE,
@@ -50,6 +49,7 @@ from .const import (
     SZ_SETPOINT,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
+    SZ_TOTAL_FRAGS,
     SZ_UFH_IDX,
     SZ_UNKNOWN,
     SZ_UNTIL,
@@ -513,8 +513,8 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
     def _context(seqx) -> dict:
         return {
-            SZ_FRAG_INDEX: int(seqx[10:12], 16),
-            SZ_FRAG_TOTAL: int(seqx[12:], 16),
+            SZ_FRAG_NUMBER: int(seqx[10:12], 16),
+            SZ_TOTAL_FRAGS: int(seqx[12:], 16),
             SZ_FRAG_LENGTH: int(seqx[8:10], 16),
         }
 

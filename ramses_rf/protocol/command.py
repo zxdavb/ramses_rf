@@ -609,7 +609,7 @@ class Command(PacketBase):
         cls,
         ctl_id: str,
         zone_idx: Union[int, str],
-        frag_idx: int,
+        frag_num: int,
         frag_cnt: int,
         **kwargs,
     ):
@@ -618,10 +618,17 @@ class Command(PacketBase):
         Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
         """
 
-        header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
-        frag_length = 0
+        # TODO: check the following rules
+        if frag_num == 0:
+            raise ValueError(f"frag_num={frag_num}, but it is 1-indexed")
+        elif frag_num == 1 and frag_cnt != 0:
+            raise ValueError(f"frag_cnt={frag_cnt}, but must be 0 when frag_num=1")
+        elif frag_num > frag_cnt and frag_cnt != 0:
+            raise ValueError(f"frag_num={frag_num}, but must be <= frag_cnt={frag_cnt}")
 
-        payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}"
+        header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
+
+        payload = f"{header}00{frag_num:02X}{frag_cnt:02X}"
         return cls(RQ, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for W/0404
@@ -630,7 +637,7 @@ class Command(PacketBase):
         cls,
         ctl_id: str,
         zone_idx: Union[int, str],
-        frag_idx: int,
+        frag_num: int,
         frag_cnt: int,
         fragment: str,
         **kwargs,
@@ -640,10 +647,16 @@ class Command(PacketBase):
         Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
         """
 
+        # TODO: check the following rules
+        if frag_num == 0:
+            raise ValueError(f"frag_num={frag_num}, but it is 1-indexed")
+        elif frag_num > frag_cnt:
+            raise ValueError(f"frag_num={frag_num}, but must be <= frag_cnt={frag_cnt}")
+
         header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
         frag_length = int(len(fragment) / 2)
 
-        payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}{fragment}"
+        payload = f"{header}{frag_length:02X}{frag_num:02X}{frag_cnt:02X}{fragment}"
         return cls(W_, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0100

@@ -244,8 +244,8 @@ class ZoneSchedule:  # 0404
         if msg.code in (_0006, _0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_refresh=None) -> Optional[dict]:
-        await self._schedule.get_schedule(force_refresh=force_refresh)
+    async def get_schedule(self, *, force_io=None) -> Optional[dict]:
+        await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
     async def set_schedule(self, schedule) -> None:
@@ -253,7 +253,9 @@ class ZoneSchedule:  # 0404
 
     @property
     def schedule(self) -> dict:
-        return self._schedule.schedule
+        """Return the latest known schedule (not guaranteed to be up to date)."""
+        if self._schedule._schedule:
+            return self._schedule._schedule[SZ_SCHEDULE]
 
     @property
     def status(self) -> dict:
