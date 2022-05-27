@@ -70,10 +70,14 @@ def assert_schedule_dict(schedule):
     return schedule
 
 
-async def assert_schedule(gwy, zone_idx):
-    zone = gwy.tcs.dhw if zone_idx == "HW" else gwy.tcs.zone_by_idx[zone_idx]
+async def write_schedule(zone, schedule) -> None:
+    zone._gwy.config.disable_sending = False
+    _ = await zone.set_schedule(schedule)  # RQ|0404, may: TimeoutError
 
-    # gwy.config.disable_sending = False
+
+async def read_schedule(zone) -> dict:
+
+    zone._gwy.config.disable_sending = False
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
     schedule = assert_schedule_dict(schedule)
 
@@ -81,10 +85,10 @@ async def assert_schedule(gwy, zone_idx):
         assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] == 255
         return
 
-    assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx == zone_idx
+    assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx
     assert zone._schedule._schedule[SZ_SCHEDULE] == zone.schedule == schedule
 
-    gwy.config.disable_sending = True
+    zone._gwy.config.disable_sending = True
     assert schedule == await zone.get_schedule(force_io=False)
 
     try:
@@ -93,6 +97,8 @@ async def assert_schedule(gwy, zone_idx):
         assert True
     else:
         assert False
+
+    return schedule
 
 
 async def test_rq_0006():
@@ -128,7 +134,7 @@ async def _test_rq_0404_dhw():
     await gwy.start(start_discovery=False)  # may: SerialException
 
     if gwy.tcs.dhw:
-        await assert_schedule(gwy, "HW")
+        await read_schedule(gwy.tcs.dhw)
 
     await gwy.stop()
 
@@ -138,7 +144,19 @@ async def test_rq_0404_zone():
     gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
+    # if gwy.tcs.zones:
+    #     schedule = await read_schedule(gwy.tcs.zones[0])
+    #     await write_schedule(gwy.tcs.zones[0], schedule)
+
+    await gwy.stop()
+
+
+async def _test_w_0404_zone():
+
+    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
+    await gwy.start(start_discovery=False)  # may: SerialException
+
     if gwy.tcs.zones:
-        await assert_schedule(gwy, gwy.tcs.zones[0].idx)
+        await write_schedule(gwy.tcs.zones[0])
 
     await gwy.stop()
