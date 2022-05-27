@@ -582,20 +582,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
-        try:
-            self._pkt_received(pkt)
-
-        except (  # protect the code that invoked the callback from this layer
-            ArithmeticError,  # incl. ZeroDivisionError,
-            AssertionError,
-            AttributeError,
-            LookupError,  # incl. IndexError, KeyError
-            # NameError,  # incl. UnboundLocalError
-            RuntimeError,  # incl. RecursionError
-            TypeError,
-            ValueError,
-        ) as exc:  # noqa: E722, broad-except
-            _LOGGER.exception("%s < exception from pkt layer: %s", pkt, exc)
+        self._pkt_received(pkt)
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
@@ -607,14 +594,14 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
 
             except (  # protect this code from the upper-layer callback
-                ArithmeticError,  # incl. ZeroDivisionError,
+                # ArithmeticError,  # incl. ZeroDivisionError,
                 AssertionError,
-                AttributeError,
-                LookupError,  # incl. IndexError, KeyError
-                # NameError,  # incl. UnboundLocalError
-                RuntimeError,  # incl. RecursionError
-                TypeError,
-                ValueError,
+                # AttributeError,
+                # LookupError,  # incl. IndexError, KeyError
+                # # NameError,  # incl. UnboundLocalError
+                # RuntimeError,  # incl. RecursionError
+                # TypeError,
+                # ValueError,
             ) as exc:  # noqa: E722, broad-except
                 _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
@@ -766,7 +753,6 @@ class PacketProtocolPort(PacketProtocolBase):
 
     @track_system_syncs
     def _pkt_received(self, pkt: Packet) -> None:
-
         super()._pkt_received(pkt)
 
     async def send_data(self, cmd: Command) -> None:
@@ -843,7 +829,6 @@ class PacketProtocolQos(PacketProtocolPort):
         """
 
         self._qos_received(pkt)
-
         super()._pkt_received(pkt)
 
     def _qos_received(self, pkt: Packet) -> None:

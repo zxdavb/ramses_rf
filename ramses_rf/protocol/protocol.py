@@ -215,15 +215,21 @@ class MessageTransport(asyncio.Transport):
                 _LOGGER.error("%s < %s", pkt, exc)
 
             except (  # protect this code from the upper-layer callback
-                ArithmeticError,  # incl. ZeroDivisionError,
                 AssertionError,
+            ) as exc:
+                if p is not self._protocols[0]:
+                    raise
+                _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
+
+            except (  # protect this code from the upper-layer callback
+                ArithmeticError,  # incl. ZeroDivisionError,
                 AttributeError,
                 LookupError,  # incl. IndexError, KeyError
                 NameError,  # incl. UnboundLocalError
                 RuntimeError,  # incl. RecursionError
                 TypeError,
                 ValueError,
-            ) as exc:  # noqa: E722, broad-except
+            ) as exc:
                 if p is self._protocols[0]:
                     raise
                 _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
