@@ -144,8 +144,8 @@ async def test_rq_0404_zone():
     gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
-    # if gwy.tcs.zones:
-    #     schedule = await read_schedule(gwy.tcs.zones[0])
+    if gwy.tcs.zones:
+        await read_schedule(gwy.tcs.zones[0])
     #     await write_schedule(gwy.tcs.zones[0], schedule)
 
     await gwy.stop()
