@@ -498,9 +498,9 @@ async def main(command, lib_kwargs, **kwargs):
 
         # if kwargs["long_format"]:  # HACK for test/dev
         #     print(
-        #         f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # {msg.payload}'
+        #         f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
         #     )
-        #     # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # ("{msg._pkt.src!r}", "{msg._pkt.dst!r}")')
+        #     # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # ("{msg.src!r}", "{msg.dst!r}")')
         #     return
 
         if kwargs["long_format"]:
