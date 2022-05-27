@@ -681,9 +681,10 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
 
         # If some zones still don't have a sensor, maybe eavesdrop?
-        if (
+        if (  # TODO: edge case: 1 zone with CTL as SEN
             self._gwy.config.enable_eavesdrop
             and msg.code == _30C9
+            and (msg._has_array or len(self.zones) == 1)
             and any(z for z in self.zones if not z.sensor)
         ):
             eavesdrop_zone_sensors(msg)
@@ -985,7 +986,10 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         elif isinstance(msg.payload, dict) and (
             msg.payload.get(SZ_DOMAIN_ID) in (F9, FA)
         ):
-            assert msg.code in (_0404,), f"unexpected code fro DHW: {msg.code}"
+            assert msg.code in (
+                _0008,
+                _0404,
+            ), f"{msg!r} < unexpected code for DHW: {msg.code}"
             self.get_dhw_zone(msg=msg)
 
     def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
