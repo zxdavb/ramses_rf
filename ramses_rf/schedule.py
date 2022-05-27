@@ -6,11 +6,9 @@
 Construct a command (packet that is to be sent).
 """
 
-import asyncio
 import logging
 import struct
 import zlib
-from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Tuple
 
@@ -26,14 +24,7 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .protocol.command import (
-    FUNC,
-    TIMEOUT,
-    TIMER_LONG_TIMEOUT,
-    TIMER_SHORT_SLEEP,
-    Command,
-)
-from .protocol.exceptions import ExpiredCallbackError
+from .protocol.command import Command
 from .protocol.message import Message
 
 # skipcq: PY-W2000
@@ -283,7 +274,7 @@ class Schedule:  # 0404
             )
             return (await self._gwy.async_send_cmd(cmd)).payload  # may: TimeoutError?
 
-        async def tst_fragments(frag_idx):
+        async def get_tst_fragment(frag_idx):
             self._rx_frags[frag_idx] = await get_fragment(frag_idx)
             if self._test_set(self._rx_frags):
                 self._sched_ver = self._global_ver
@@ -296,18 +287,18 @@ class Schedule:  # 0404
         if self._schedule:
             return self._schedule
 
-        await self.tcs._obtain_lock(self.idx)  # TODO: should raise a TimeOutError
+        await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
 
         if not did_io:  # must know the version of the schedule about to be RQ'd
             self._global_ver, _ = await self.tcs._schedule_version(force_io=True)
 
         # if the 1st fragment is unchanged, then this schedule very likely unchanged
-        if schedule := await tst_fragments(0):
+        if schedule := await get_tst_fragment(0):
             return schedule
 
         self._rx_frags = _init_set(self._rx_frags[0])
         while frag_idx := next(i for i, f in enumerate(self._rx_frags) if f is None):
-            if schedule := await tst_fragments(frag_idx):
+            if schedule := await get_tst_fragment(frag_idx):
                 return schedule
 
         return self._schedule
@@ -326,69 +317,43 @@ class Schedule:  # 0404
                 return True
         return False
 
-    async def set_schedule(self, schedule) -> None:
+    async def set_schedule(self, schedule, force_refresh=False) -> None:
         """Set the schedule of a zone."""
+
+        async def set_fragment(frag_num, frag_cnt, fragment) -> None:
+            cmd = Command.set_schedule_fragment(
+                self.ctl.id, self.idx, frag_num, frag_cnt, fragment
+            )
+            await self._gwy.async_send_cmd(cmd)
 
         try:
             schedule = SCHEMA_SCHEDULE(schedule)
         except vol.MultipleInvalid as exc:
-            raise TypeError(f"{self}: not a valid schedule: {exc}")
+            raise TypeError(f"failed to set schedule: {exc}")
 
-        schedule = {
-            SZ_ZONE_IDX: self.idx,
-            SZ_SCHEDULE: schedule,
-        }
-
-        if not await self.tcs._obtain_lock(self.idx):  # TODO: should raise a TimeOut
-            return
-
-        self._schedule_done = None
-
-        self._tx_frags = schedule_to_fragments(schedule)
-        self._tx_fragment(frag_idx=0)
-
-        time_start = dt.now()
-        while not self._schedule_done:
-            await asyncio.sleep(TIMER_SHORT_SLEEP)
-            if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                self.tcs._release_lock()
-                raise ExpiredCallbackError(f"{self}: failed to set schedule")
-
-        self.tcs._release_lock()
-
-        self._schedule = schedule
-
-    def _tx_fragment(self, frag_idx=0) -> None:
-        """Send the next fragment (index starts at 0)."""
-        _LOGGER.debug(
-            "Schedule(%s)._tx_fragment(%s/%s)",
-            self.id,
-            frag_idx + 1,
-            len(self._tx_frags),
+        self._tx_frags = schedule_to_fragments(
+            {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
         )
 
-        def tx_callback(msg) -> None:
-            _LOGGER.debug(
-                f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get(SZ_FRAG_NUMBER),
-                msg.payload.get(SZ_TOTAL_FRAGS),
-            )
+        await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
 
-            if msg.payload[SZ_FRAG_NUMBER] < msg.payload[SZ_TOTAL_FRAGS]:
-                self._tx_fragment(frag_idx=msg.payload.get(SZ_FRAG_NUMBER))
-            else:
-                self._schedule_done = True
+        try:
+            for num, frag in enumerate(self._tx_frags, 1):
+                await set_fragment(num, len(self._tx_frags), frag)
+        except TimeoutError as exc:
+            raise TimeoutError(f"failed to set schedule: {exc}")
+        else:
+            if not force_refresh:
+                self._global_ver, _ = await self.tcs._schedule_version(force_io=True)
+                assert self._global_ver > self._sched_ver
+                self._sched_ver = self._global_ver
+        finally:
+            self.tcs._release_lock()
 
-        tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
-        cmd = Command.set_schedule_fragment(
-            self.ctl.id,
-            self.idx,
-            frag_idx,
-            len(self._tx_frags),
-            self._tx_frags[frag_idx],
-            callback=tx_callback,
-        )
-        self._gwy.send_cmd(cmd)
+        if force_refresh:
+            self._schedule = await self.get_schedule(force_io=True)
+        else:
+            self._schedule = schedule
 
 
 def _init_set(fragment: dict = None) -> list:
