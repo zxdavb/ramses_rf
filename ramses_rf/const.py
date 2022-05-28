@@ -174,6 +174,8 @@ DONT_UPDATE_ENTITIES = 1
 
 SZ_FAKED = "faked"
 
+SCHED_REFRESH_INTERVAL = 3  # minutes
+
 # Status codes for Worcester Bosch boilers - OT|OEM diagnostic code
 WB_STATUS_CODES = {
     "200": "CH system is being heated.",
