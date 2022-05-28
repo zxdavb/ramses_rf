@@ -31,6 +31,57 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+class AwaitableCallback:
+    """Create an pair of functions so that the callback can be awaited.
+
+    The awaitable (getter) starts its `timeout` timer only when it is invoked.
+    It may raise a `TimeoutError` or a `TypeError`.
+
+    The callback (putter) may put the message in the queue before the getter is invoked.
+    """
+
+    HAS_TIMED_OUT = None
+    SHORT_WAIT = 0.001  # seconds
+
+    def __init__(self, loop) -> None:
+        self._loop = loop or asyncio.get_event_loop()
+
+        self.expires = None
+        self._queue = SimpleQueue()  # is unbounded, but we'll use only 1 entry...
+
+    async def getter(self, timeout: float = None) -> tuple:  # awaitable
+        """Poll the queue until the message arrives, or the timer expires."""
+
+        self.expires = dt.now() + td(seconds=3 if timeout <= 0 else timeout)
+
+        while dt.now() < self.expires:
+            try:
+                msg = self._queue.get_nowait()
+                break
+            except Empty:
+                await asyncio.sleep(self.SHORT_WAIT)
+        else:
+            raise TimeoutError("outer timer expired")
+
+        if msg is self.HAS_TIMED_OUT:
+            raise TimeoutError("inner timer expired")
+        if not isinstance(msg, Message):
+            raise TypeError
+        return msg
+
+    def putter(self, msg: Message):  # callback
+        """Put the message in the queue (when invoked)."""
+
+        # self._queue.put_nowait(msg)  # ...so should not raise Full
+        self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
+
+
+def awaitable_callback(loop) -> tuple[Callable, Callable]:
+    """Create a pair of functions, so that a callback can be awaited."""
+    obj = AwaitableCallback(loop)
+    return obj.getter, obj.putter  # awaitable, callback
+
+
 class MakeCallbackAwaitable:
     DEFAULT_TIMEOUT = td(seconds=3)
 
