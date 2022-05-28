@@ -236,7 +236,7 @@ class Engine:
             _LOGGER.exception(f"create_cmd(): {exc}")
 
     def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
-        """Send a command with the option to return any response via callback.
+        """Send a command with the option to return any response message via callback.
 
         Response packets, if any (an RP/I will follow an RQ/W), and have the same code.
         This routine is thread safe.
@@ -253,7 +253,7 @@ class Engine:
     async def async_send_cmd(
         self, cmd: Command, awaitable: bool = True, **kwargs
     ) -> Message:
-        """Send a command with the option to not wait for a response (awaitable=False).
+        """Send a command with the option to not wait for a response message.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         This routine is thread safe.
