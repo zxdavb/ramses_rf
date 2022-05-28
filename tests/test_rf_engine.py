@@ -125,6 +125,10 @@ async def test_rq_0006():
     else:
         assert False
 
+    gwy.config.disable_sending = False
+    version, _ = await gwy.tcs._schedule_version()  # RQ|0006, may: TimeoutError
+    version = assert_version(version)
+
     await gwy.stop()
 
 
