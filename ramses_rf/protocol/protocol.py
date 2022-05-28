@@ -32,7 +32,7 @@ if DEV_MODE:
 
 
 class MakeCallbackAwaitable:
-    DEFAULT_TIMEOUT = 3  # in seconds
+    DEFAULT_TIMEOUT = td(seconds=3)
 
     def __init__(self, loop) -> None:
         self._loop = loop or asyncio.get_event_loop()
@@ -42,16 +42,20 @@ class MakeCallbackAwaitable:
         self._queue = SimpleQueue()  # maxsize=1)
 
         def putter(*args):  # callback
-            self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
+            # self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
+            self._queue.put_nowait(args)
 
-        async def getter(timeout=self.DEFAULT_TIMEOUT) -> tuple:
-            timeout = self.DEFAULT_TIMEOUT if timeout is None else timeout
-            dt_expired = dt.now() + td(seconds=timeout)
+        async def getter(timeout=None) -> tuple:
+            timeout = self.DEFAULT_TIMEOUT if timeout is None else td(seconds=timeout)
+            dt_expired = dt.now() + timeout
             while dt.now() < dt_expired:
                 try:
-                    return self._queue.get_nowait()
+                    msg = self._queue.get_nowait()
+                    if msg is False:
+                        raise TimeoutError
+                    return msg
                 except Empty:
-                    await asyncio.sleep(0.005)
+                    await asyncio.sleep(0.001)
             raise TimeoutError
 
         return getter, putter  # awaitable, callback
@@ -504,7 +508,7 @@ class MessageProtocol(asyncio.Protocol):
         if awaitable is not None and callback is not None:
             raise ValueError("only one of `awaitable` and `callback` can be provided")
 
-        if awaitable:
+        if awaitable:  # and callback is None:
             awaitable, callback = MakeCallbackAwaitable(self._loop).create_pair()
         if callback:  # func, args, daemon, timeout (& expired)
             cmd.callback = {FUNC: callback, TIMEOUT: 3}
