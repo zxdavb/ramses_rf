@@ -11,6 +11,7 @@ import logging
 import os
 import signal
 from asyncio.futures import Future
+from concurrent import futures
 from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Optional
@@ -266,16 +267,13 @@ class Engine:
         fut = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
         # fut.add_done_callback(callback)
 
-        from concurrent import futures
-
+        await asyncio.sleep(0.005)
         while not fut.done():
-            await asyncio.sleep(0.05)
 
             try:
-                result = fut.result(timeout=0.01)
+                result = fut.result(timeout=0.001)
 
-            except futures.TimeoutError:
-                _LOGGER.debug(f"Success: cmd ({cmd}) has not yet completed")
+            except futures.TimeoutError:  # cmd has not yet completed
                 pass  # should be a pass
 
             except TimeoutError:  # 3 seconds
