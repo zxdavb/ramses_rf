@@ -269,6 +269,7 @@ class Engine:
 
         await asyncio.sleep(0.005)
         while not fut.done():
+            await asyncio.sleep(0.001)
 
             try:
                 result = fut.result(timeout=0.001)
