@@ -1113,6 +1113,25 @@ class Command(PacketBase):
         return cmd
 
     @classmethod  # constructor for internal use only
+    def from_raw_str(cls, frame: str, **kwargs):
+        """Create a command from a frame (a raw string) (no RSSI)."""
+
+        raw = frame.split()
+        cmd = cls.packet(
+            raw[0], raw[5], raw[7], addr0=raw[2], addr1=raw[3], addr2=raw[4], **kwargs
+        )  # may: raise InvalidPacketError
+
+        try:
+            raw[1] == "---" or int(raw[1])
+        except ValueError:
+            raise InvalidPacketError(f"invalid seqn: {raw[1]}")
+
+        if raw[6] != f"{cmd._len:03d}":
+            raise InvalidPacketError(f"invalid length: {cmd[6]}")
+
+        return cmd
+
+    @classmethod  # constructor for internal use only
     def from_str(cls, cmd_str: str, **kwargs):
         """Create a command from a string.
 
