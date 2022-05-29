@@ -354,7 +354,7 @@ async def script_scan_001(gwy, dev_id: str):
 async def script_scan_002(gwy, dev_id: str):
     _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
 
-    # Two modes, I and W & Two headers zz00 and zz
+    # Two modes, I & W, and Two contexts, zz & zz00
     message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
 
     [
