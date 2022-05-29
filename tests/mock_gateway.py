@@ -83,23 +83,14 @@ class MockSerialBase:  # all the 'mocking' is done here
         if data[7:16] == b"18:000730":
             data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
-            cmd = self.validate_frame(data.decode("ascii"))
+            self._tx_request(data, Command.from_frame(data.decode("ascii")))
         except InvalidPacketError:
-            return 0
-
-        self._tx_request(data, cmd)
+            pass
         return 0
 
     def _rx_frame_by_header(self, rp_header: str) -> None:
         """Find an encoded frame (via its header), and queue it for the gwy to Rx."""
         pass
-
-    @staticmethod
-    def validate_frame(frame: str) -> Command:
-        """Return a valid Command, or raise InvalidPacketError."""
-        cmd = Command.from_raw_str(frame)  # may: raise InvalidPacketError
-        assert str(cmd) == frame[:-2], "Command doesn't match Frame (?invalid Frame)"
-        return cmd
 
     async def _rx_next_bytes(self) -> bytes:
         """Poll the queue and add bytes to the Rx buffer."""
@@ -149,7 +140,7 @@ class MockSerial(MockSerialBase):
 
         def tx_response(frame: str):
             try:
-                cmd = self.validate_frame(frame)
+                cmd = Command.from_frame(frame)
             except InvalidPacketError as exc:
                 raise InvalidPacketError(f"Invalid entry the response table: {exc}")
             self._que.put_nowait((2, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))

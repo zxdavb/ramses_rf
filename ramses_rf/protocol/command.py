@@ -1113,7 +1113,7 @@ class Command(PacketBase):
         return cmd
 
     @classmethod  # constructor for internal use only
-    def from_raw_str(cls, frame: str, **kwargs):
+    def from_frame(cls, frame: str, **kwargs):
         """Create a command from a frame (a raw string) (no RSSI)."""
 
         raw = frame.split()
