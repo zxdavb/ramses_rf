@@ -272,14 +272,13 @@ class Engine:
                 result = fut.result(timeout=0)
 
             # except futures.CancelledError:  # fut maybe cancelled by a higher layer
-            #     break  # should be a break
+            #     break
 
             except futures.TimeoutError:  # fut/cmd has not yet completed
                 pass  # should be a pass
 
             except TimeoutError:  # raised by send_cmd()
-                fut.cancel()
-                raise TimeoutError(f"Failure: cmd ({cmd.tx_header}) has timed out")
+                raise TimeoutError(f"cmd ({cmd.tx_header}) has timed out")
 
             except Exception as exc:
                 _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
