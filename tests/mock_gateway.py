@@ -11,13 +11,13 @@ Will provide a fixed Tx for a given Rx.
 import asyncio
 import logging
 from datetime import datetime as dt
+from datetime import timedelta as td
 from queue import Empty, PriorityQueue
-from typing import Tuple
 
 from ramses_rf import Gateway
 from ramses_rf.protocol import InvalidPacketError
 from ramses_rf.protocol.command import Command
-from ramses_rf.protocol.const import _1F09, _30C9, I_, _2309, __dev_mode__
+from ramses_rf.protocol.const import _1F09, _30C9, I_, RP, _2309, __dev_mode__
 from ramses_rf.protocol.transport import PacketProtocolPort, SerTransportPoll
 
 RUNNING = True
@@ -33,7 +33,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class MockSerial:  # all the 'mocking' is done here
+class MockSerialBase:  # all the 'mocking' is done here
 
     """A pseudo-mocked serial port used for testing.
 
@@ -52,7 +52,6 @@ class MockSerial:  # all the 'mocking' is done here
 
         self._out_waiting = 0
 
-        self._sync_cycle = self._loop.create_task(self._tx_sync_cycle())
         self._next_bytes = self._loop.create_task(self._rx_next_bytes())
 
         self.is_open = True
@@ -79,25 +78,28 @@ class MockSerial:  # all the 'mocking' is done here
     def write(self, data: bytes) -> int:
         """Output the given byte string over the serial port."""
 
-        data = data.decode("ascii")
-        if data[:1] == "!":
+        if data[:1] == b"!":
             return 0
-
+        if data[7:16] == b"18:000730":
+            data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
-            _, hdr = self._validate_raw_pkt(data)
+            cmd = self.validate_frame(data.decode("ascii"))
         except InvalidPacketError:
             return 0
 
-        self._tx_request(data, hdr)
+        self._tx_request(data, cmd)
         return 0
 
+    def _rx_frame_by_header(self, rp_header: str) -> None:
+        """Find an encoded frame (via its header), and queue it for the gwy to Rx."""
+        pass
+
     @staticmethod
-    def _validate_raw_pkt(data) -> Tuple[str, str]:
-        cmd = data.split()
-        cmd = Command.packet(
-            cmd[0], cmd[5], cmd[7], addr0=cmd[2], addr1=cmd[3], addr2=cmd[4]
-        )  # may raise InvalidPacketError:
-        return str(cmd), str(cmd.tx_header)
+    def validate_frame(frame: str) -> Command:
+        """Return a valid Command, or raise InvalidPacketError."""
+        cmd = Command.from_raw_str(frame)  # may: raise InvalidPacketError
+        assert str(cmd) == frame[:-2], "Command doesn't match Frame (?invalid Frame)"
+        return cmd
 
     async def _rx_next_bytes(self) -> bytes:
         """Poll the queue and add bytes to the Rx buffer."""
@@ -106,57 +108,75 @@ class MockSerial:  # all the 'mocking' is done here
             await asyncio.sleep(0.001)
 
             try:
-                _, _, data, header = self._que.get_nowait()
+                klass, _, data, rp_header = self._que.get_nowait()
             except Empty:
                 continue
 
-            self._rx_buffer += b"000 " + bytes(data, "ascii")  # + b"\r\n"
-
-            if header:
+            if klass == 3:
                 self._out_waiting -= len(data)
-                self._tx_response(header)
+            self._rx_buffer += b"000 " + data
+
+            if rp_header:
+                self._rx_frame_by_header(rp_header)
 
             self._que.task_done()
 
-    def _tx_request(self, data: str, header: str) -> None:
+    def _tx_request(self, data: str, cmd: Command) -> None:
         """Transmit a packet from the gateway, usually an RQ."""
 
-        assert data[-2:] == "\r\n", f"_tx_request({data})"
-
-        if data[7:16] == "18:000730":
-            data = data[:7] + GWY_ID + data[16:]
-
-        self._que.put_nowait((3, dt.now(), data, header))
+        self._que.put_nowait((3, dt.now(), data, cmd.rx_header))
         self._out_waiting += len(data)
 
-    def _tx_response(self, header: str) -> None:
-        """Transmit a response packet, if any, from a device."""
 
-        data = RESPONSES.get(header)
-        if not data:
-            return
+class MockSerial(MockSerialBase):
+    """A pseudo-mocked controller used for testing.
 
-        try:
-            self._validate_raw_pkt(data)
-        except InvalidPacketError as exc:
-            raise InvalidPacketError(f"Invalid pkt in the response table: {exc}")
+    Will periodically Rx a sync_cycle set that will be available via `read()`.
+    Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
+    """
 
-        assert data[-2:] != "\r\n", f"_tx_response({data})"
-        self._que.put_nowait((2, dt.now(), f"{data}\r\n", None))
+    SYNC_INTERVAL = 60  # sync_cycle interval, in seconds
+    # SYNC_PACKETS = sync_cycle_pkts(CTL_ID, SYNC_INTERVAL)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self.next_cycle = dt.now() + td(seconds=10)
+        self._sync_cycle = self._loop.create_task(self._tx_sync_cycle())
+
+    def _rx_frame_by_header(self, rp_header: str) -> None:
+        """Find an encoded frame (via its header), and queue it for the gwy to Rx."""
+
+        def tx_response(frame: str):
+            try:
+                cmd = self.validate_frame(frame)
+            except InvalidPacketError as exc:
+                raise InvalidPacketError(f"Invalid entry the response table: {exc}")
+            self._que.put_nowait((2, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))
+
+        def tx_response_1f09():
+            seconds = (self.next_cycle - dt.now()).total_seconds()
+            cmd = Command.packet(
+                RP, _1F09, f"00{seconds * 10:04X}", addr0=CTL_ID, addr2=CTL_ID
+            )
+            self._que.put_nowait((1, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))
+
+        if rp_header == f"{_1F09}|{RP}|{CTL_ID}":
+            tx_response_1f09()
+        elif frame := RESPONSES.get(rp_header):
+            tx_response(frame + "\r\n")
 
     async def _tx_sync_cycle(self) -> None:
         """Periodically transmit sync_cycle packets from the controller."""
 
-        INTERVAL = 60  # sync_cycle interval, in seconds
-
-        await asyncio.sleep(5)
         while RUNNING:
-            for data, _ in sync_cycle_pkts(CTL_ID, INTERVAL):
-                assert data[-2:] != "\r\n", f"_tx_sync_cycle({data})"
-                self._que.put_nowait((0, dt.now(), f"{data}\r\n", None))
-                await asyncio.sleep(0.02)
+            dt_now = dt.now()
+            await asyncio.sleep((self.next_cycle - dt_now).total_seconds())
+            self.next_cycle = dt_now + td(seconds=self.SYNC_INTERVAL)
 
-            await asyncio.sleep(INTERVAL - 0.06)
+            for cmd in sync_cycle_pkts(CTL_ID, self.SYNC_INTERVAL):
+                self._que.put_nowait((0, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))
+                await asyncio.sleep(0.02)
 
 
 class SerTransportMock(SerTransportPoll):  # only to gracefully close the mocked port
@@ -203,7 +223,7 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     return (pkt_protocol, pkt_transport)
 
 
-def sync_cycle_pkts(ctl_id, seconds) -> Tuple[Command, Command, Command]:
+def sync_cycle_pkts(ctl_id, seconds) -> tuple[Command, Command, Command]:
     """Return a sync_cycle set of packets as from a controller."""
     #  I --- 01:087939 --:------ 01:087939 1F09 003 FF0532
     #  I --- 01:087939 --:------ 01:087939 2309 009 0007D0-010640-0201F4
@@ -219,21 +239,21 @@ def sync_cycle_pkts(ctl_id, seconds) -> Tuple[Command, Command, Command]:
         I_, _30C9, "0007A0010634020656", addr0=ctl_id, addr2=ctl_id
     )
 
-    return ((str(cmd), str(cmd.tx_header)) for cmd in (cmd_1f09, cmd_2309, cmd_30c9))
+    return cmd_1f09, cmd_2309, cmd_30c9
 
 
 RESPONSES = {
-    f"0006|RQ|{CTL_ID}": f"RP --- {CTL_ID} --:------ {GWY_ID} 0006 004 00050008",
+    f"0006|RP|{CTL_ID}": f"RP --- {CTL_ID} --:------ {GWY_ID} 0006 004 00050008",
     #
-    f"0404|RQ|{CTL_ID}|0101": f"RP --- {CTL_ID} --:------ {GWY_ID} 0404 048 0120000829010368816DCCC91183301005D1D93428200E1C7D720C04402C0442640E82000C851701ADD3AFAED1131151",
-    f"0404|RQ|{CTL_ID}|0102": f"RP --- {CTL_ID} --:------ {GWY_ID} 0404 048 0120000829020339DEBC8DBE1EFBDB5EDBA8DDB92DBEDFADDAB6671179E4FF4EC153F0143C05CFC033F00C3C03CFC173",
-    f"0404|RQ|{CTL_ID}|0103": f"RP --- {CTL_ID} --:------ {GWY_ID} 0404 046 01200008270303F01C3C072FC00BF002BC00AF7CFEB6DEDE46BBB721EE6DBA78095E8297E0E5CF5BF50DA0291B9C",
+    f"0404|RP|{CTL_ID}|0101": f"RP --- {CTL_ID} --:------ {GWY_ID} 0404 048 0120000829010368816DCCC91183301005D1D93428200E1C7D720C04402C0442640E82000C851701ADD3AFAED1131151",
+    f"0404|RP|{CTL_ID}|0102": f"RP --- {CTL_ID} --:------ {GWY_ID} 0404 048 0120000829020339DEBC8DBE1EFBDB5EDBA8DDB92DBEDFADDAB6671179E4FF4EC153F0143C05CFC033F00C3C03CFC173",
+    f"0404|RP|{CTL_ID}|0103": f"RP --- {CTL_ID} --:------ {GWY_ID} 0404 046 01200008270303F01C3C072FC00BF002BC00AF7CFEB6DEDE46BBB721EE6DBA78095E8297E0E5CF5BF50DA0291B9C",
     #
-    f"2309|RQ|{CTL_ID}|00": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 0007D0",
-    f"2309|RQ|{CTL_ID}|01": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 010640",
-    f"2309|RQ|{CTL_ID}|02": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 0201F4",
+    f"2309|RP|{CTL_ID}|00": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 0007D0",
+    f"2309|RP|{CTL_ID}|01": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 010640",
+    f"2309|RP|{CTL_ID}|02": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 0201F4",
     #
-    f"30C9|RQ|{CTL_ID}|00": f"RP --- {CTL_ID} --:------ {GWY_ID} 30C9 003 0007A0",
-    f"30C9|RQ|{CTL_ID}|01": f"RP --- {CTL_ID} --:------ {GWY_ID} 30C9 003 010634",
-    f"30C9|RQ|{CTL_ID}|02": f"RP --- {CTL_ID} --:------ {GWY_ID} 30C9 003 020656",
+    f"30C9|RP|{CTL_ID}|00": f"RP --- {CTL_ID} --:------ {GWY_ID} 30C9 003 0007A0",
+    f"30C9|RP|{CTL_ID}|01": f"RP --- {CTL_ID} --:------ {GWY_ID} 30C9 003 010634",
+    f"30C9|RP|{CTL_ID}|02": f"RP --- {CTL_ID} --:------ {GWY_ID} 30C9 003 020656",
 }  # "pkt_header": "response_pkt"
