@@ -9,12 +9,11 @@ Decode/process a packet (packet that was received).
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
-from .address import Address, pkt_addrs
-from .const import MESSAGE_REGEX, __dev_mode__
+from .const import __dev_mode__
 from .exceptions import InvalidPacketError
-from .frame import PacketBase
+from .frame import Frame
 from .logger import getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
 from .ramses import CODES_SCHEMA, EXPIRES
@@ -132,43 +131,68 @@ def fraction_expired(age, age_limit) -> float:
     return (age - _TD_SECONDS_003) / age_limit
 
 
-class Packet(PacketBase):
+class Packet(Frame):
     """The packet class; should trap/log all invalid PKTs appropriately."""
 
+    _dtm: dt
+    _rssi: str
+
     def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
-        """Create a packet from a valid frame.
+        """Create a packet from a valid frame (actually from a f"{RSSI} {frame}").
 
         Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
-        """
-        super().__init__()
+
+        \# 065 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000  # ...
+        """  # noqa: W605
+
+        super().__init__(frame[4:])
 
         self._gwy = gwy
         self._dtm: dt = dtm
-        self._frame: str = frame
 
         self.comment: str = kwargs.get("comment", "")
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
 
         self._rssi: str = frame[0:3]
-        self._verb: str = frame[4:6]
-        self._seqn: str = frame[7:10]
-        # self._src: Address = None
-        # self._dst: Address = None
-        # self._addrs: list[Address]
-        self._code: str = frame[41:45]
-        # self._len = None
-        self._payload: str = frame[50:]
-
-        self._timeout: Union[bool, float] = None
-
-        self._src, self._dst, self._addrs, self._len = self._validate(
-            self._frame[11:40]
-        )  # ? raise InvalidPacketError
+        self._validate(frame[11:40])  # ? raise InvalidPacketError
 
         # if DEV_MODE:  # TODO: remove (is for testing only)
         #     _ = self._has_array
         #     _ = self._has_ctl
+
+        self._timeout: Union[bool, float] = None  # track pkt expiry
+
+    def _validate(self, addr_set, *, strict_checking=None) -> None:
+        """Validate the packet, and parse the addresses if so (will log all packets).
+
+        Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
+        """
+
+        try:
+            if self.error_text:
+                raise InvalidPacketError(self.error_text)
+
+            if not self._frame and self.comment:  # log null pkts only if has a comment
+                raise InvalidPacketError("Null packet")
+
+            # if not MESSAGE_REGEX.match(self._frame):
+            #     raise InvalidPacketError("Invalid packet structure")
+
+            # length = int(self._frame[46:49])
+            # if len(self._frame[50:]) != length * 2:
+            #     raise InvalidPacketError("Invalid payload length")
+
+            # src, dst, addrs = pkt_addrs(addr_set)  # self._frame[11:40]
+
+            super()._validate(addr_set, strict_checking=strict_checking)  # no RSSI
+
+            _PKT_LOGGER.info("", extra=self.__dict__)
+
+        except InvalidPacketError as exc:  # incl. InvalidAddrSetError
+            if self._frame or self.error_text:
+                _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
+            raise exc
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -181,6 +205,10 @@ class Packet(PacketBase):
         except AttributeError:
             dtm = dt.min.isoformat(timespec="microseconds")
         return f"{dtm} ... {self}{hdr}"
+
+    def __str__(self) -> str:
+        """Return an brief readable string representation of this object."""
+        return super().__repr__()
 
     @property
     def dtm(self) -> dt:
@@ -221,36 +249,6 @@ class Packet(PacketBase):
             return False
 
         return fraction_expired(self._gwy._dt_now() - self.dtm, self._timeout)
-
-    def _validate(self, addr_frag) -> tuple[Address, Address, Tuple[Address, ...], int]:
-        """Validate the packet, and parse the addresses if so (will log all packets).
-
-        Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
-        """
-
-        try:
-            if self.error_text:
-                raise InvalidPacketError(self.error_text)
-
-            if not self._frame and self.comment:  # log null pkts only if has a comment
-                raise InvalidPacketError("Null packet")
-
-            if not MESSAGE_REGEX.match(self._frame):
-                raise InvalidPacketError("Invalid packet structure")
-
-            length = int(self._frame[46:49])
-            if len(self._frame[50:]) != length * 2:
-                raise InvalidPacketError("Invalid payload length")
-
-            src, dst, addrs = pkt_addrs(addr_frag)  # self._frame[11:40]
-
-            _PKT_LOGGER.info("", extra=self.__dict__)
-            return src, dst, tuple(addrs), length
-
-        except InvalidPacketError as exc:  # incl. InvalidAddrSetError
-            if self._frame or self.error_text:
-                _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
-            raise exc
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):

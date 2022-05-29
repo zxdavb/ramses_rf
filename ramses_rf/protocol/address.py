@@ -4,7 +4,6 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 from functools import lru_cache
-from typing import List
 
 from .const import DEV_TYPE, DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
 from .exceptions import InvalidAddrSetError
@@ -183,7 +182,7 @@ def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
 @typechecked
-def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, List[Address]]:
+def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, Address, Address, Address]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
 
     Will raise an InvalidAddrSetError is the address fields are not valid.
@@ -226,4 +225,4 @@ def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, List[Address]]:
     if src_addr.id == dst_addr.id:  # incl. HGI_DEV_ADDR == HGI_DEV_ADDR
         src_addr = dst_addr
 
-    return src_addr, dst_addr, addrs
+    return src_addr, dst_addr, *addrs

@@ -27,7 +27,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError, InvalidPacketError
-from .frame import PacketBase, pkt_header
+from .frame import Frame, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ
@@ -280,7 +280,7 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     return until, duration
 
 
-class Qos(PacketBase):
+class Qos(Frame):
     """The QoS class.
 
     This is a mess - it is the first step in cleaning up QoS.
@@ -339,7 +339,7 @@ class Qos(PacketBase):
 
 
 @functools.total_ordering
-class Command(PacketBase):
+class Command(Frame):
     """The command class."""
 
     def __init__(
@@ -349,23 +349,23 @@ class Command(PacketBase):
 
         Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
         """
-        super().__init__()
 
-        self._rssi = "..."
-        self._verb = f"{verb:>2}"[:2]
-        self._seqn = "---"
-        self._code = code
-        self._payload = payload
+        addr_set = " ".join(
+            (kwargs.get("from_id", HGI_DEV_ADDR.id), dest_id, NON_DEV_ADDR.id)
+        )
+        frame = " ".join(
+            (verb, "---", addr_set, code, f"{int(len(payload) / 2):03X}", payload)
+        )
 
-        self._validate(
-            f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
-        )  # self._frame, _src, _dst, _addrs, _len
+        super().__init__(frame)
+
+        self._validate(addr_set)
 
         # callback used by app layer (protocol.py)
         self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
 
         # qos used by pkt layer (transport.py, backoff, priority, retries, timeout)
-        self.qos = qos if qos else Qos.verb_code(self._verb, self._code, **kwargs)
+        self.qos = qos if qos else Qos.verb_code(self.verb, self.code, **kwargs)
 
         # priority used by msg layer for next cmd to send (protocol.py)
         self._priority = self.qos.priority  # TODO: should only be a QoS attr?
@@ -376,10 +376,36 @@ class Command(PacketBase):
 
         self._source_entity = None
 
+    def _validate(self, addr_set) -> None:
+        """Validate the command, and construct the frame if so.
+
+        Raise an exception (InvalidPacketError, InvalidAddrSetError) if it is not valid.
+        """
+
+        self._len = int(len(self.payload) / 2)
+        if len(self.payload) != self._len * 2 or 1 > self._len > 48:
+            raise InvalidPacketError("Invalid payload length")
+
+        self._frame = COMMAND_FORMAT.format(
+            self.verb,
+            self.seqn,
+            *(a.id for a in self._addrs),
+            self.code,
+            self.len,
+            self.payload,
+        )
+
+        if not COMMAND_REGEX.match(self._frame):
+            raise InvalidPacketError(f"{self._frame} < Invalid packet structure")
+
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
         hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         return f"... {self}{hdr}"
+
+    def __str__(self) -> str:
+        """Return an brief readable string representation of this object."""
+        return super().__repr__()
 
     def __eq__(self, other) -> bool:
         if not self._is_valid_operand(other):
@@ -408,36 +434,6 @@ class Command(PacketBase):
         if self.tx_header and self._rx_header is None:
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
-
-    def _validate(self, addr_frag) -> None:
-        """Validate the command, and construct the frame if so.
-
-        Raise an exception (InvalidPacketError, InvalidAddrSetError) if it is not valid.
-        """
-
-        self._src, self._dst, self._addrs = pkt_addrs(addr_frag)
-
-        self._len = int(len(self.payload) / 2)
-        if len(self.payload) != self._len * 2 or 1 > self._len > 48:
-            raise InvalidPacketError("Invalid payload length")
-
-        self._frame = (
-            self._rssi
-            + " "
-            + COMMAND_FORMAT.format(
-                self.verb,
-                self.seqn,
-                self.addrs[0].id,
-                self.addrs[1].id,
-                self.addrs[2].id,
-                self.code,
-                self.len,
-                self.payload,
-            )
-        )
-
-        if not COMMAND_REGEX.match(self._frame[4:]):
-            raise InvalidPacketError(f"{self._frame[4:]} < Invalid packet structure")
 
     @classmethod  # constructor for RQ/1F41
     @validate_api_params()
@@ -1103,31 +1099,14 @@ class Command(PacketBase):
         addr1 = addr1 or NON_DEV_ADDR.id
         addr2 = addr2 or NON_DEV_ADDR.id
 
+        cmd.src, cmd.dst, *cmd._addrs = pkt_addrs(" ".join((addr0, addr1, addr2)))
+
         if seqn in ("", "-", "--", "---"):
             cmd._seqn = "---"
         elif seqn is not None:
             cmd._seqn = f"{int(seqn):03d}"
 
         cmd._validate(f"{addr0} {addr1} {addr2}")
-
-        return cmd
-
-    @classmethod  # constructor for internal use only
-    def from_frame(cls, frame: str, **kwargs):
-        """Create a command from a frame (a raw string) (no RSSI)."""
-
-        raw = frame.split()
-        cmd = cls.packet(
-            raw[0], raw[5], raw[7], addr0=raw[2], addr1=raw[3], addr2=raw[4], **kwargs
-        )  # may: raise InvalidPacketError
-
-        try:
-            raw[1] == "---" or int(raw[1])
-        except ValueError:
-            raise InvalidPacketError(f"invalid seqn: {raw[1]}")
-
-        if raw[6] != f"{cmd._len:03d}":
-            raise InvalidPacketError(f"invalid length: {cmd[6]}")
 
         return cmd
 
@@ -1165,6 +1144,25 @@ class Command(PacketBase):
         addrs = {f"addr{k}": v for k, v in enumerate(addrs)}
 
         return cls.packet(verb, code, payload, **addrs, seqn=seqn, **kwargs)
+
+    @classmethod  # constructor for internal use only
+    def from_frame(cls, frame: str, **kwargs):
+        """Create a command from a frame (a raw string) (no RSSI)."""
+
+        raw = frame.split()
+        cmd = cls.packet(
+            raw[0], raw[5], raw[7], addr0=raw[2], addr1=raw[3], addr2=raw[4], **kwargs
+        )  # may: raise InvalidPacketError
+
+        try:
+            raw[1] == "---" or int(raw[1])
+        except ValueError:
+            raise InvalidPacketError(f"invalid seqn: {raw[1]}")
+
+        if raw[6] != f"{cmd._len:03d}":
+            raise InvalidPacketError(f"invalid length: {cmd[6]}")
+
+        return cmd
 
 
 # A convenience dict

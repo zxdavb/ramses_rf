@@ -24,8 +24,8 @@ RUNNING = True
 
 DEV_MODE = __dev_mode__ and False
 
-GWY_ID = "18:123456"
-CTL_ID = "01:145038"
+GWY_ID = "18:181818"
+CTL_ID = "01:123456"
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)

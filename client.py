@@ -525,7 +525,12 @@ async def main(command, lib_kwargs, **kwargs):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     serial_port, lib_kwargs = normalise_config_schema(lib_kwargs)
-    gwy = Gateway(serial_port, **lib_kwargs)
+    if serial_port == "/dev/mock":
+        from tests.mock_gateway import MockGateway
+
+        gwy = MockGateway(serial_port, **lib_kwargs)
+    else:
+        gwy = Gateway(serial_port, **lib_kwargs)
 
     if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead

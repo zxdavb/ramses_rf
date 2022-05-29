@@ -7,9 +7,9 @@
         "use_aliases": false
     },
 
-    "main_controller": "01:145038",
+    "main_controller": "01:123456",
 
-    "01:145038": {
+    "01:123456": {
         "system": {
             "appliance_control": "10:048122"
         },

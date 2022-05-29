@@ -156,7 +156,7 @@ class Message:
 
         self.src = pkt.src
         self.dst = pkt.dst
-        self._addrs = pkt.addrs
+        self._addrs = pkt._addrs
 
         self.dtm: dt = pkt.dtm
 

@@ -9,12 +9,11 @@ Provide the base class for commands (constructed/sent packets) and packets.
 # TODO: add _has_idx (ass func return only one type, or raise)
 
 import logging
-from datetime import datetime as dt
 from typing import Optional, Union
 
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address
-from .const import DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
-from .exceptions import InvalidPayloadError
+from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
+from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
+from .exceptions import InvalidPacketError, InvalidPayloadError
 from .ramses import (
     CODE_IDX_COMPLEX,
     CODE_IDX_DOMAIN,
@@ -129,74 +128,113 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class PacketBase:
+class Frame:
     """The packet base - used by Command and Packet classes."""
 
-    def __init__(self) -> None:
-        """Create a frame."""
-        self._dtm: dt
-        self._frame: str
+    _frame: str
 
-        self._rssi: str
-        self._verb: str
-        self._seqn: str  # TODO: or, better as int?
-        self._src: Address
-        self._dst: Address
-        self._addrs: tuple[Address, Address, Address]
-        self._code: str
-        self._len: int
-        self._payload: str
+    verb: str
+    seqn: str  # TODO: or, better as int?
+    code: str
+    _len: str
+    payload: str
 
-        self._has_array_: bool = None  # type: ignore[assignment]
-        self._has_ctl_: bool = None  # type: ignore[assignment]
-        self._has_payload_: bool = None  # type: ignore[assignment]
+    src: Address
+    dst: Address
+    _addrs: tuple[Address, Address, Address]
+
+    def __init__(self, frame: str) -> None:
+        """Create a frame.
+
+        Frames do not have dtm, RSSI fields (i.e. they were never Tx/Rx).
+
+        \# RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
+        """  # noqa: W605
+
+        if not isinstance(frame, str):
+            raise InvalidPacketError(f"invalid frame (not a string): {type(frame)}")
+
+        self._frame = frame
+
+        self.verb = frame[:2]
+        self.seqn = frame[3:6]
+        self.code = frame[37:41]
+        self._len = frame[42:45]
+        self.payload = frame[46:].split(" ")[0]
+
+        self.src, self.dst, *self._addrs = pkt_addrs(frame[7:36])  # ?InvalidPacketError
+
+        # self._validate(frame[7:36], strict_checking=False)
+
         self._ctx_: Union[str, bool] = None  # type: ignore[assignment]
         self._hdr_: str = None  # type: ignore[assignment]
         self._idx_: Union[str, bool] = None  # type: ignore[assignment]
 
+        self._has_array_: bool = None  # type: ignore[assignment]
+        self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
+        self._has_payload_: bool = None  # type: ignore[assignment]
+
+    def _validate(self, addr_set, *, strict_checking: bool = None) -> None:
+        """Validate the frame: it may be a cmd or a (response) pkt.
+
+        Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
+        """
+
+        if not COMMAND_REGEX.match(self._frame):
+            raise InvalidPacketError("Invalid packet structure")
+
+        # try:  # handled by COMMAND_REGEX
+        #     self.seqn == "---" or int(self.seqn)
+        # except ValueError:
+        #     raise InvalidPacketError(f"Invalid seqn: {self.seqn}")
+
+        # if len(self.payload) % 2 != 0:  # handled by COMMAND_REGEX
+        #     raise InvalidPayloadError(f"Invalid payload length: {self.payload}")
+
+        if int(self.len) * 2 != (len_ := len(self.payload)):
+            raise InvalidPacketError(f"Invalid len: {self.len} (should be {len_})")
+
+        if not strict_checking:
+            return
+
+        if self.seqn == "...":
+            raise InvalidPacketError(f"Invalid seqn: {self.seqn} ('...' deprecated)")
+
+        if self.code not in CODES_SCHEMA:
+            raise InvalidPacketError(f"Unknown code: {self.code}")
+
+    @classmethod  # constructor for internal use only
+    def _from_vars(
+        cls,
+        self,
+        verb,
+        code,
+        payload,
+        addr0=NUL_DEV_ADDR,
+        addr1=NUL_DEV_ADDR,
+        addr2=NUL_DEV_ADDR,
+        seqn="---",
+    ):
+        """Create a command from a frame (a raw string) (NB: no RSSI).
+
+        \# RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
+        """  # noqa: W605
+
+        vars = (verb, seqn, addr0, addr1, addr2, code, int(len(payload) / 2), payload)
+        return cls(" ".join(vars))
+
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
-        return "" if self._frame is None else str(self._frame)
+        return self._frame
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return "" if self._frame is None else str(self._frame)[4:]
+        return self._hdr  # code|ver|device_id|context
 
     @property
-    def rssi(self) -> Optional[str]:
-        return self._rssi
-
-    @property
-    def verb(self) -> str:
-        return self._verb
-
-    @property
-    def seqn(self) -> str:
-        return self._seqn
-
-    @property
-    def src(self) -> Address:
-        return self._src
-
-    @property
-    def dst(self) -> Address:
-        return self._dst
-
-    @property
-    def addrs(self) -> tuple[Address, Address, Address]:
-        return self._addrs
-
-    @property
-    def code(self) -> str:
-        return self._code
-
-    @property
-    def len(self) -> int:  # payload length in 2-char bytes
-        return self._len
-
-    @property
-    def payload(self) -> str:
-        return self._payload
+    def len(self) -> int:
+        """Return the payload length in two-byte chunks."""
+        return int(self._len)  # == len(payload) / 2
 
     @property
     def _has_array(self) -> Optional[bool]:
@@ -234,10 +272,10 @@ class PacketBase:
                 self._has_array_ = True
 
         else:
-            _len = CODES_WITH_ARRAYS[self.code][0]
+            len_ = CODES_WITH_ARRAYS[self.code][0]
             assert (
-                self.len % _len == 0
-            ), f"{self} < array has length ({self.len}) that is not multiple of {_len}"
+                self.len % len_ == 0
+            ), f"{self} < array has length ({self.len}) that is not multiple of {len_}"
             assert (
                 self.src.type in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2)
                 or self.src == self.dst  # DEX
@@ -269,14 +307,6 @@ class PacketBase:
             return self._has_ctl_
 
         # TODO: handle RQ/RP to/from HGI/RFG, handle HVAC
-
-        # TODO: Not needed? Relies upon MSG layer in any case
-        # if getattr(self.src, "_is_controller", False):
-        #     # _LOGGER.info("HAS Controller (00)")
-        #     return True
-        # if getattr(self.dst, "_is_controller", False):
-        #     # _LOGGER.info("HAS controller (01)")
-        #     return True
 
         if {self.src.type, self.dst.type} & {
             DEV_TYPE_MAP.CTL,
@@ -390,6 +420,7 @@ class PacketBase:
         """
 
         if self._hdr_ is None:
+            self._hdr_ = "|".join((self.code, self.verb))  # HACK: RecursionError
             self._hdr_ = pkt_header(self)
         return self._hdr_
 

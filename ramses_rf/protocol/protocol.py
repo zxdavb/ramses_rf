@@ -14,7 +14,7 @@ from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
 from typing import Callable, Optional
 
-from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
+from .command import DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
 from .exceptions import CorruptStateError, InvalidPacketError
 from .message import Message
@@ -201,7 +201,7 @@ class MessageTransport(asyncio.Transport):
             if callback.get(EXPIRES, dt.max) < pkt.dtm and not callback.get("expired"):
                 # see  also: PktProtocolQos.send_data()
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback[FUNC](False, *callback.get(ARGS, ()))
+                callback[FUNC](None)  # ZX: 1/3
                 callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
         self._callbacks = {  # 2nd, discard any expired callbacks
@@ -211,13 +211,12 @@ class MessageTransport(asyncio.Transport):
             or (callback[EXPIRES] >= pkt.dtm and not callback.get("expired"))
         }
 
-        if len(self._protocols) == 0:
+        if len(self._protocols) == 0 or (
+            self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES
+        ):
             return
 
-        if self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
-            return
-
-        # BUG: all InvalidPacketErrors are not being caught below
+        # BUG: all InvalidPacketErrors are not being raised here (see below)
         try:
             msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
         except InvalidPacketError:
@@ -226,7 +225,7 @@ class MessageTransport(asyncio.Transport):
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and msg._pkt._hdr in self._callbacks:
             callback = self._callbacks[msg._pkt._hdr]  # 3rd, invoke any callback
-            callback[FUNC](msg, *callback.get(ARGS, ()))
+            callback[FUNC](msg)  # ZX: 2/3
             if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._hdr]
 
@@ -533,7 +532,7 @@ class MessageProtocol(asyncio.Protocol):
             raise ValueError("only one of `awaitable` and `callback` can be provided")
 
         if _make_awaitable:  # and callback is None:
-            awaitable, callback = awaitable_callback(self._loop)
+            awaitable, callback = awaitable_callback(self._loop)  # ZX: 3/3
         if callback:  # func, args, daemon, timeout (& expired)
             cmd.callback = {FUNC: callback, TIMEOUT: 3}
 
