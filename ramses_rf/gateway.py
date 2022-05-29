@@ -250,9 +250,7 @@ class Engine:
             self._loop,
         )
 
-    async def async_send_cmd(
-        self, cmd: Command, awaitable: bool = True, **kwargs
-    ) -> Message:
+    async def async_send_cmd(self, cmd: Command, **kwargs) -> Message:
         """Send a command with the option to not wait for a response message.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
@@ -262,9 +260,7 @@ class Engine:
         # def callback(fut):
         #     print(fut.result())
 
-        awaitable = awaitable or awaitable is None
-
-        fut = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
+        fut = self.send_cmd(cmd, _make_awaitable=True, **kwargs)
         # fut.add_done_callback(callback)
 
         while True:

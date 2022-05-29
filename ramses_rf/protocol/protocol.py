@@ -524,15 +524,15 @@ class MessageProtocol(asyncio.Protocol):
         self._callback(self._this_msg, prev_msg=self._prev_msg)
 
     async def send_data(
-        self, cmd: Command, awaitable=None, callback=None, **kwargs
+        self, cmd: Command, callback=None, _make_awaitable=None, **kwargs
     ) -> Optional[Message]:
         """Called when a command is to be sent."""
         _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
 
-        if awaitable is not None and callback is not None:
+        if _make_awaitable and callback is not None:
             raise ValueError("only one of `awaitable` and `callback` can be provided")
 
-        if awaitable:  # and callback is None:
+        if _make_awaitable:  # and callback is None:
             awaitable, callback = awaitable_callback(self._loop)
         if callback:  # func, args, daemon, timeout (& expired)
             cmd.callback = {FUNC: callback, TIMEOUT: 3}
@@ -542,7 +542,7 @@ class MessageProtocol(asyncio.Protocol):
 
         self._transport.write(cmd)
 
-        if awaitable:
+        if _make_awaitable:
             msg = await awaitable(timeout=kwargs.get(TIMEOUT))  # may: TimeoutError
             return msg  # always a Message (or raises TypeError)
 
