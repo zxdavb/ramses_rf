@@ -267,27 +267,29 @@ class Engine:
         fut = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
         # fut.add_done_callback(callback)
 
-        await asyncio.sleep(0.005)
-        while not fut.done():
-            await asyncio.sleep(0.001)
-
+        while True:
             try:
-                result = fut.result(timeout=0.001)
+                result = fut.result(timeout=0)
 
-            except futures.TimeoutError:  # cmd has not yet completed
+            # except futures.CancelledError:  # fut maybe cancelled by a higher layer
+            #     break  # should be a break
+
+            except futures.TimeoutError:  # fut/cmd has not yet completed
                 pass  # should be a pass
 
-            except TimeoutError:  # 3 seconds
+            except TimeoutError:  # raised by send_cmd()
                 fut.cancel()
-                raise TimeoutError(f"Failure: cmd ({cmd}) has timed out, cancelling it")
+                raise TimeoutError(f"Failure: cmd ({cmd.tx_header}) has timed out")
 
             except Exception as exc:
-                _LOGGER.error(f"Failure: cmd ({cmd}) raised an exception: {exc!r}")
+                _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
                 raise exc
 
             else:
-                _LOGGER.debug(f"Success: cmd ({cmd}) returned: {result!r})")
+                _LOGGER.debug(f"cmd ({cmd.tx_header}) returned: {result!r})")
                 return result
+
+            await asyncio.sleep(0.001)
 
 
 class Gateway(Engine):
