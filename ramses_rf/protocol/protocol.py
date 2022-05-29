@@ -40,6 +40,7 @@ class AwaitableCallback:
     The callback (putter) may put the message in the queue before the getter is invoked.
     """
 
+    DEFAULT_TIMEOUT = 3
     HAS_TIMED_OUT = None
     SHORT_WAIT = 0.001  # seconds
 
@@ -49,10 +50,12 @@ class AwaitableCallback:
         self.expires = None
         self._queue = SimpleQueue()  # is unbounded, but we'll use only 1 entry...
 
-    async def getter(self, timeout: float = None) -> tuple:  # awaitable
+    async def getter(self, timeout: float = DEFAULT_TIMEOUT) -> tuple:  # awaitable
         """Poll the queue until the message arrives, or the timer expires."""
 
-        self.expires = dt.now() + td(seconds=3 if timeout <= 0 else timeout)
+        if timeout is None or timeout <= 0:
+            timeout = self.DEFAULT_TIMEOUT
+        self.expires = dt.now() + td(seconds=timeout)
 
         while dt.now() < self.expires:
             try:
@@ -80,36 +83,6 @@ def awaitable_callback(loop) -> tuple[Callable, Callable]:
     """Create a pair of functions, so that a callback can be awaited."""
     obj = AwaitableCallback(loop)
     return obj.getter, obj.putter  # awaitable, callback
-
-
-class MakeCallbackAwaitable:
-    DEFAULT_TIMEOUT = td(seconds=3)
-
-    def __init__(self, loop) -> None:
-        self._loop = loop or asyncio.get_event_loop()
-        self._queue = None
-
-    def create_pair(self) -> tuple[Callable, Callable]:
-        self._queue = SimpleQueue()  # maxsize=1)
-
-        def putter(*args):  # callback
-            # self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
-            self._queue.put_nowait(args)
-
-        async def getter(timeout=None) -> tuple:
-            timeout = self.DEFAULT_TIMEOUT if timeout is None else td(seconds=timeout)
-            dt_expired = dt.now() + timeout
-            while dt.now() < dt_expired:
-                try:
-                    msg = self._queue.get_nowait()
-                    if msg is False:
-                        raise TimeoutError
-                    return msg
-                except Empty:
-                    await asyncio.sleep(0.001)
-            raise TimeoutError
-
-        return getter, putter  # awaitable, callback
 
 
 class MessageTransport(asyncio.Transport):
@@ -560,7 +533,7 @@ class MessageProtocol(asyncio.Protocol):
             raise ValueError("only one of `awaitable` and `callback` can be provided")
 
         if awaitable:  # and callback is None:
-            awaitable, callback = MakeCallbackAwaitable(self._loop).create_pair()
+            awaitable, callback = awaitable_callback(self._loop)
         if callback:  # func, args, daemon, timeout (& expired)
             cmd.callback = {FUNC: callback, TIMEOUT: 3}
 
@@ -570,8 +543,8 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if awaitable:
-            result = await awaitable(timeout=kwargs.get(TIMEOUT))  # may: TimeoutError
-            return result[0]  # a Message (or None/False?)
+            msg = await awaitable(timeout=kwargs.get(TIMEOUT))  # may: TimeoutError
+            return msg  # always a Message (or raises TypeError)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
