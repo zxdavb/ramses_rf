@@ -572,7 +572,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             if testable_sensors:  # the main matching algorithm...
                 for zone_idx, temp in testable_zones.items():
-                    # TODO: when sensors announce temp, ?also includes it's parent zone
+                    # TODO: when sensors announce temp, ?also includes its parent zone
                     matching_sensors = match_sensors(testable_sensors, zone_idx, temp)
                     _LOGGER.debug("Testing zone %s, temp: %s", zone_idx, temp)
                     _LOGGER.debug(

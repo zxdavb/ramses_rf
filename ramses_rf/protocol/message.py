@@ -463,7 +463,7 @@ class Message:
 @lru_cache(maxsize=256)
 def re_compile_re_match(regex, string) -> bool:  # Optional[Match[Any]]
     # TODO: confirm this does speed things up
-    # Python has it's own caching of re.complile, _MAXCACHE = 512
+    # Python has its own caching of re.complile, _MAXCACHE = 512
     # https://github.com/python/cpython/blob/3.10/Lib/re.py
     return re.compile(regex).match(string)  # type: ignore[return-value]
 

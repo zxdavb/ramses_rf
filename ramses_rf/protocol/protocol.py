@@ -552,11 +552,11 @@ class MessageProtocol(asyncio.Protocol):
             raise exc
 
     def pause_writing(self) -> None:
-        """Called by the transport when it's buffer goes over the high-water mark."""
+        """Called by the transport when its buffer goes over the high-water mark."""
         self._pause_writing = True
 
     def resume_writing(self) -> None:
-        """Called by the transport when it's buffer drains below the low-water mark."""
+        """Called by the transport when its buffer drains below the low-water mark."""
         self._pause_writing = False
 
 
