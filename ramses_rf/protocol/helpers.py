@@ -174,13 +174,24 @@ def dts_to_hex(dtm: Union[str, dt, None]) -> str:  # TODO: WIP
 
 
 @typechecked
-def flag8(byte: str, lsb: bool = False) -> list:
-    """Split a byte (as a hex str) into a list of 8 bits, MSB first by default."""
+def flag8(byte: str, lsb: bool = False) -> list:  # TODO: should be tuple
+    """Split a hex str (a byte) into a list of 8 bits, MSB as first bit by default.
+
+    The `lsb` boolean is used so that flag[0] is `zone_idx["00]`, etc.
+    """
+    # the following might need to be 02X, 04X, etc.
+    # assert "61" == f"{sum(b<<i for i, b in enumerate(flag8('61', lsb=True))):02X}"
+    # assert "61" == f"{sum(b<<i for i, b in enumerate(reversed(flag8('61')))):02X}"
     if not isinstance(byte, str) or len(byte) != 2:
-        raise ValueError(f"Invalid value: {byte}, is not a 2-char hex string")
-    if lsb:
-        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
-    return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
+        raise ValueError(f"Invalid value: '{byte}', is not a 2-char hex string")
+    # bits = len(byte) * 4  # TODO: use 2, 4 (or more) char next strings
+    if lsb:  # LSB is first bit
+        # [(int("C001", 16) & (1 << x)) >> x for x in range(16)]
+        # [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]
+        return list((int(byte, 16) & (1 << x)) >> x for x in range(8))
+    # [(int("C001", 16) & (1 << x)) >> x for x in reversed(range(16))]
+    # [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+    return list((int(byte, 16) & (1 << x)) >> x for x in reversed(range(8)))
 
 
 # TODO: add a wrapper for EF, & 0xF0
