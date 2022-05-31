@@ -12,12 +12,24 @@ import asyncio
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from queue import Empty, PriorityQueue
+from queue import Empty, Full, PriorityQueue
+from typing import Optional, Union
 
 from ramses_rf import Gateway
+from ramses_rf.const import SZ_ACTUATORS, SZ_CLASS, SZ_ZONES, ZON_ROLE_MAP
 from ramses_rf.protocol import InvalidPacketError
-from ramses_rf.protocol.command import Command
-from ramses_rf.protocol.const import _1F09, _30C9, I_, RP, _2309, __dev_mode__
+from ramses_rf.protocol.command import Command as CommandBase
+from ramses_rf.protocol.command import validate_api_params
+from ramses_rf.protocol.const import (
+    _000C,
+    _1F09,
+    _30C9,
+    I_,
+    RP,
+    _0005,
+    _2309,
+    __dev_mode__,
+)
 from ramses_rf.protocol.transport import PacketProtocolPort, SerTransportPoll
 
 RUNNING = True
@@ -33,6 +45,42 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+class Command(CommandBase):
+    @classmethod  # constructor for RP/0005
+    @validate_api_params()
+    def put_zone_types(
+        cls,
+        src_id: str,
+        dst_id: str,
+        zone_type: str,
+        zone_mask: tuple,
+        *,
+        sub_idx: str = "00",
+    ):
+        """Constructor for RP/0005."""
+
+        zones = f"{sum(b<<i for i, b in enumerate(zone_mask)):04X}"
+        payload = f"{sub_idx}{zone_type}{zones[2:]}{zones[:2]}"  # swap order
+
+        return cls.packet(RP, _0005, payload, addr0=src_id, addr1=dst_id)
+
+    @classmethod  # constructor for RP/000C
+    @validate_api_params(has_zone=True)
+    def put_zone_devices(
+        cls,
+        src_id: str,
+        dst_id: str,
+        zone_idx: Union[int, str],
+        zone_type: str,
+        devices: tuple[str],
+    ):
+        """Constructor for RP/000C."""
+
+        payload = f"{zone_idx}{zone_type}..."
+
+        return cls.packet(RP, _000C, payload, addr0=src_id, addr1=dst_id)
+
+
 class MockSerialBase:  # all the 'mocking' is done here
 
     """A pseudo-mocked serial port used for testing.
@@ -41,59 +89,51 @@ class MockSerialBase:  # all the 'mocking' is done here
     Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
     """
 
+    DEV_ID = GWY_ID
+
     def __init__(self, gwy, port=None, **kwargs) -> None:
-        self._gwy = gwy
         self._loop = gwy._loop
 
         self.port = port
-
-        self._que = PriorityQueue(maxsize=5)
         self._rx_buffer = bytes()
-
         self._out_waiting = 0
+        self.is_open = None
 
-        self._next_bytes = self._loop.create_task(self._rx_next_bytes())
+        self._devices = []
 
-        self.is_open = True
+        self._que = PriorityQueue(maxsize=24)
+        self._next_bytes = self._loop.create_task(self._rx_buffer_bytes())
+
+    def close(self, exc=None):
+        """Close the por."""
+        if not self.is_open:
+            return
+        self.is_open = False
+
+        for device in self._devices:
+            for task in device._tasks:
+                task.cancel()
+        if task := self._next_bytes:
+            task.cancel()
 
     @property
     def in_waiting(self) -> int:
         """Return the number of bytes currently in the input buffer."""
         return len(self._rx_buffer)
 
-    @property
-    def out_waiting(self) -> int:
-        """Return the number of bytes currently in the output buffer."""
-        return self._out_waiting
+    def read_all(self) -> bytes:
+        """Read max size bytes from the serial port."""
+        return self.read(size=self.in_waiting)
 
     def read(self, size: int = 1) -> bytes:
         """Read max size bytes from the serial port."""
         data, self._rx_buffer = self._rx_buffer[:size], self._rx_buffer[size:]
         return data
 
-    def read_all(self) -> bytes:
-        """Read max size bytes from the serial port."""
-        return self.read(size=self.in_waiting)
-
-    def write(self, data: bytes) -> int:
-        """Output the given byte string over the serial port."""
-
-        if data[:1] == b"!":
-            return 0
-        if data[7:16] == b"18:000730":
-            data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
-        try:
-            self._tx_request(data, Command.from_frame(data.decode("ascii")))
-        except InvalidPacketError:
-            pass
-        return 0
-
-    def _rx_frame_by_header(self, rp_header: str) -> None:
-        """Find an encoded frame (via its header), and queue it for the gwy to Rx."""
-        pass
-
-    async def _rx_next_bytes(self) -> bytes:
+    async def _rx_buffer_bytes(self) -> None:
         """Poll the queue and add bytes to the Rx buffer."""
+
+        self.is_open = True
 
         while RUNNING:
             await asyncio.sleep(0.001)
@@ -108,75 +148,179 @@ class MockSerialBase:  # all the 'mocking' is done here
             self._rx_buffer += b"000 " + data
 
             if rp_header:
-                self._rx_frame_by_header(rp_header)
+                for device in self._devices:
+                    device.rx_frame_by_header(rp_header)
 
             self._que.task_done()
 
-    def _tx_request(self, data: str, cmd: Command) -> None:
+    @property
+    def out_waiting(self) -> int:
+        """Return the number of bytes currently in the output buffer."""
+        return self._out_waiting
+
+    def write(self, data: bytes) -> int:
+        """Output the given byte string over the serial port."""
+
+        if data[:1] == b"!":  # an evofw3 flag
+            return 0
+        if data[7:16] == b"18:000730":
+            data = data[:7] + bytes(self.DEV_ID, "ascii") + data[16:]
+        try:
+            self._tx_data(data, Command.from_frame(data.decode("ascii")))
+        except InvalidPacketError:
+            pass
+        return 0
+
+    def _tx_data(self, data: str, cmd: Command) -> None:
         """Transmit a packet from the gateway, usually an RQ."""
 
-        self._que.put_nowait((3, dt.now(), data, cmd.rx_header))
+        try:
+            self._que.put_nowait((3, dt.now(), data, cmd.rx_header))
+        except Full:
+            return
         self._out_waiting += len(data)
 
 
 class MockSerial(MockSerialBase):
+    def __init__(self, gwy, *args, **kwargs) -> None:
+        super().__init__(gwy, *args, **kwargs)
+
+        self._devices = [MockController(self, gwy)]
+
+
+class MockController:
     """A pseudo-mocked controller used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
     Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
     """
 
-    SYNC_INTERVAL = 60  # sync_cycle interval, in seconds
-    # SYNC_PACKETS = sync_cycle_pkts(CTL_ID, SYNC_INTERVAL)
+    DEV_ID = CTL_ID
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    SYNC_CYCLE_INTERVAL = 60  # sync_cycle interval, in seconds
+    SYNC_CYCLE_REMANING = 5
+    # SYNC_CYCLE_PACKETS = sync_cycle_pkts(DEV_ID, SYNC_CYCLE_INTERVAL)
 
-        self.next_cycle = dt.now() + td(seconds=10)
-        self._sync_cycle = self._loop.create_task(self._tx_sync_cycle())
+    def __init__(self, ser, gwy, schema=None) -> None:
 
-    def _rx_frame_by_header(self, rp_header: str) -> None:
-        """Find an encoded frame (via its header), and queue it for the gwy to Rx."""
+        self._ser = ser
+        self._que = ser._que  # this entity will only put
 
-        def tx_response(frame: str):
-            try:
-                cmd = Command.from_frame(frame)
-            except InvalidPacketError as exc:
-                raise InvalidPacketError(f"Invalid entry the response table: {exc}")
-            self._que.put_nowait((2, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))
+        self._gwy = gwy
+        self._loop = gwy._loop
 
-        def tx_response_1f09():
-            seconds = (self.next_cycle - dt.now()).total_seconds()
-            cmd = Command.packet(
-                RP, _1F09, f"00{seconds * 10:04X}", addr0=CTL_ID, addr2=CTL_ID
-            )
-            self._que.put_nowait((1, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))
+        self._tcs = None  # load_system(gwy, self.DEV_ID, schema or {})
+
+        self.next_cycle = dt.now() + td(seconds=self.SYNC_CYCLE_REMANING)
+        self._tasks = [self._loop.create_task(self.tx_sync_cycle())]
+
+    def rx_frame_by_header(self, rp_header: str) -> None:
+        """Find an encoded frame (via its header), and queue it for the gwy to Rx.
+
+        The rp_header is the sent cmd's rx_header (the header of teh packet the gwy is
+        waiting for).
+        """
 
         if rp_header == f"{_1F09}|{RP}|{CTL_ID}":
-            tx_response_1f09()
-        elif frame := RESPONSES.get(rp_header):
-            tx_response(frame + "\r\n")
+            pkts = self.tx_response_1f09()
+        elif rp_header[:17] == f"{_0005}|{RP}|{CTL_ID}":
+            pkts = self.tx_response_0005(rp_header[18:])
+        elif rp_header[:17] == f"{_000C}|{RP}|{CTL_ID}":
+            pkts = self.tx_response_000c(rp_header[18:])
+        elif response := RESPONSES.get(rp_header):
+            pkts = self.tx_response_pkt(response + "\r\n")
+        else:
+            pkts = None
 
-    async def _tx_sync_cycle(self) -> None:
+        if not pkts:
+            return
+        if isinstance(pkts[0], int):
+            pkts = ((pkts),)
+
+        for (priority, cmd) in pkts:
+            try:
+                self._que.put_nowait(
+                    (priority, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None)
+                )
+            except Full:
+                pass
+
+    async def tx_sync_cycle(self) -> None:
         """Periodically transmit sync_cycle packets from the controller."""
 
         while RUNNING:
-            dt_now = dt.now()
-            await asyncio.sleep((self.next_cycle - dt_now).total_seconds())
-            self.next_cycle = dt_now + td(seconds=self.SYNC_INTERVAL)
+            await asyncio.sleep((self.next_cycle - dt.now()).total_seconds())
 
-            for cmd in sync_cycle_pkts(CTL_ID, self.SYNC_INTERVAL):
-                self._que.put_nowait((0, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None))
+            for cmd in sync_cycle_pkts(CTL_ID, self.SYNC_CYCLE_INTERVAL):
+                try:
+                    self._que.put_nowait(
+                        (0, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None)
+                    )
+                except Full:
+                    pass
                 await asyncio.sleep(0.02)
+
+            self.next_cycle = dt.now() + td(seconds=self.SYNC_CYCLE_INTERVAL - 0.06)
+
+    def tx_response_pkt(self, frame: str) -> Optional[tuple]:
+        try:
+            return 2, Command.from_frame(frame)
+        except InvalidPacketError as exc:
+            raise InvalidPacketError(f"Invalid entry the response table: {exc}")
+
+    def tx_response_1f09(self) -> Optional[tuple]:
+        interval = int((self.next_cycle - dt.now()).total_seconds() * 10)
+        return 1, Command.packet(
+            RP, _1F09, f"00{interval:04X}", addr0=self.DEV_ID, addr1=GWY_ID
+        )
+
+    def tx_response_0005(self, context: str) -> Optional[tuple]:
+        def is_type(idx, zone_type):
+            return zones.get(f"{idx:02X}", {}).get(SZ_CLASS) == (
+                ZON_ROLE_MAP[zone_type]
+            )
+
+        zone_type = context[2:]
+        if not self._tcs or zone_type not in ZON_ROLE_MAP.HEAT_ZONES:
+            return
+
+        zones = self._tcs.schema[SZ_ZONES]
+        zone_mask = (is_type(idx, zone_type) for idx in range(0x10))
+
+        return 1, Command.put_zone_types(
+            self.DEV_ID, GWY_ID, zone_type, zone_mask, sub_idx=context[:2]
+        )
+
+    def tx_response_000c(self, context: str) -> Optional[tuple]:
+        zone_idx, zone_type = context[:2], context[2:]
+
+        if context == "000D":  # 01|DEV_ROLE_MAP.HTG
+            pass
+        elif context == "010D":  # 00|DEV_ROLE_MAP.HTG
+            pass
+        elif context == "000E":  # 00|DEV_ROLE_MAP.DHW
+            pass
+        elif context[2:] not in ZON_ROLE_MAP.HEAT_ZONES:
+            return
+
+        zone = self._tcs.zone_by_idx.get(zone_idx) if self._tcs else None
+        if not zone:
+            return
+
+        if zone_type == (SZ_ACTUATORS, zone.schema[SZ_CLASS]):
+            pass
+        if zone_type == (SZ_ACTUATORS, zone.schema[SZ_CLASS]):
+            pass
+
+        return
 
 
 class SerTransportMock(SerTransportPoll):  # only to gracefully close the mocked port
     def close(self) -> None:
         super().close()
 
-        for task in (self.serial._sync_cycle, self.serial._next_bytes):
-            if task:
-                task.cancel()
+        if self.serial:
+            self.serial.close()
 
 
 class MockGateway(Gateway):  # to use a bespoke create_pkt_stack()
