@@ -388,8 +388,10 @@ class Gateway(Engine):
         #     self.pause()
 
         if tasks := [t.cancel() for t in self._tasks if not t.done()]:
-            await asyncio.gather(*tasks)  # TODO: try: / except asyncio.CancelledError:
-
+            try:  # TODO: except asyncio.CancelledError:
+                await asyncio.gather(*tasks)
+            except TypeError:  # HACK
+                pass
         await super().stop()
 
     def pause(self, *args) -> None:
