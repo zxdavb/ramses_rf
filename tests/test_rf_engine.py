@@ -108,7 +108,7 @@ async def test_rq_0006():
 
         return version
 
-    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
+    gwy = await load_test_system(SERIAL_PORT, config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
     # gwy.config.disable_sending = False
@@ -129,12 +129,13 @@ async def test_rq_0006():
     version, _ = await gwy.tcs._schedule_version()  # RQ|0006, may: TimeoutError
     version = assert_version(version)
 
+    # await asyncio.sleep(30)
     await gwy.stop()
 
 
 async def _test_rq_0404_dhw():
 
-    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
+    gwy = await load_test_system(SERIAL_PORT, config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
     if gwy.tcs.dhw:
