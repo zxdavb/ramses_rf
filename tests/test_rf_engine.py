@@ -14,8 +14,10 @@ from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, _0006, _0404
 from ramses_rf.schedule import (
     DAY_OF_WEEK,
+    ENABLED,
     HEAT_SETPOINT,
-    SCHEMA_SCHEDULE,
+    SCHEMA_SCHEDULE_DHW,
+    SCHEMA_SCHEDULE_ZON,
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
@@ -24,7 +26,7 @@ from tests.mock_gateway import MockGateway
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
-SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_PORT = "/dev/ttyACM0"
 
 
 # import tracemalloc
@@ -48,13 +50,17 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
     return gwy
 
 
-def assert_schedule_dict(schedule):
-    if schedule is None:
+def assert_schedule_dict(schedule_full):
+    if schedule_full is None:
         # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
         return
 
-    _ = SCHEMA_SCHEDULE(schedule)
+    if schedule_full[SZ_ZONE_IDX] == "HW":
+        SCHEMA_SCHEDULE_DHW(schedule_full)
+    else:
+        SCHEMA_SCHEDULE_ZON(schedule_full)
 
+    schedule = schedule_full[SZ_SCHEDULE]
     # assert isinstance(schedule, list)
     assert len(schedule) == 7
 
@@ -65,8 +71,10 @@ def assert_schedule_dict(schedule):
         # assert isinstance(day_of_week[SWITCHPOINTS], dict)
         for switchpoint in day_of_week[SWITCHPOINTS]:
             assert isinstance(switchpoint[TIME_OF_DAY], str)
-            assert isinstance(switchpoint[HEAT_SETPOINT], float)
-
+            if HEAT_SETPOINT in switchpoint:
+                assert isinstance(switchpoint[HEAT_SETPOINT], float)
+            else:
+                assert isinstance(switchpoint[ENABLED], bool)
     return schedule
 
 
@@ -79,7 +87,7 @@ async def read_schedule(zone) -> dict:
 
     zone._gwy.config.disable_sending = False
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
-    schedule = assert_schedule_dict(schedule)
+    schedule = assert_schedule_dict(zone._schedule._schedule)
 
     if schedule is None:  # TODO: remove?
         assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] == 255
@@ -133,7 +141,7 @@ async def test_rq_0006():
     await gwy.stop()
 
 
-async def _test_rq_0404_dhw():
+async def test_rq_0404_dhw():
 
     gwy = await load_test_system(SERIAL_PORT, config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException

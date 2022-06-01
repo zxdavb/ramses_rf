@@ -11,9 +11,12 @@ from copy import deepcopy
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
-from ramses_rf.const import SZ_SCHEDULE
+from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.schedule import (
+    ENABLED,
     HEAT_SETPOINT,
+    SCHEMA_SCHEDULE_DHW,
+    SCHEMA_SCHEDULE_ZON,
     SWITCHPOINTS,
     fragments_to_schedule,
     schedule_to_fragments,
@@ -41,7 +44,7 @@ async def test_schedule_get(dir_name):
 
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
-    zone = gwy.tcs.zones[0]
+    zone = gwy.tcs.zones[0] if gwy.tcs.zones else gwy.tcs.dhw
     assert zone.schedule == schedule[SZ_SCHEDULE]
     assert zone._schedule._schedule == schedule
 
@@ -52,12 +55,25 @@ async def test_schedule_helpers(dir_name):
     with open(f"{dir_name}/schedule.json") as f:
         schedule = json.load(f)
 
+    new_schedule = deepcopy(schedule)
+
+    if schedule[SZ_ZONE_IDX] == "HW":
+        SCHEMA_SCHEDULE_DHW(schedule)
+        schedule[SZ_ZONE_IDX] = "00"
+    else:
+        SCHEMA_SCHEDULE_ZON(schedule)
+
     assert schedule == fragments_to_schedule(schedule_to_fragments(schedule))
 
-    new_schedule = deepcopy(schedule)
-    new_schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] = (
-        schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] + 1
-    )
+    if new_schedule[SZ_ZONE_IDX] == "HW":
+        new_schedule[SZ_ZONE_IDX] = "00"
+        new_schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][ENABLED] = not (
+            schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][ENABLED]
+        )
+    else:
+        new_schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] = (
+            schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] + 1
+        )
 
     # the schedule code relies upon the following inequality...
     # i.e. if the schedule has changed, then the first fragment will be different

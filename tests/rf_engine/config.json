@@ -7,16 +7,19 @@
         "use_aliases": false
     },
 
-    "main_controller": "01:123456",
+    "main_controller": "01:145038",
 
-    "01:123456": {
+    "01:145038": {
         "system": {
             "appliance_control": "10:048122"
         },
+
         "stored_hotwater": {
-            "sensor": "07:333333",
-            "hotwater_valve": "13:333333"
+            "sensor": "07:045960",
+            "hotwater_valve": "13:111111",
+            "heating_valve": "13:222222"
         },
+
         "zones": {
             "01": {
                 "_name": "Main room",
