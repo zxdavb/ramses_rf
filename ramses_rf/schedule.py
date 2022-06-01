@@ -125,12 +125,37 @@ DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"
 SWITCHPOINTS = "switchpoints"
 TIME_OF_DAY = "time_of_day"
+ENABLED = "enabled"
 
 FIVE_MINS = td(minutes=5)
 
 REGEX_TIME_OF_DAY = r"^([0-1][0-9]|2[0-3]):[0-5][05]$"
 
-SCHEMA_SWITCHPOINT = vol.Schema(
+
+def schema_sched(schema_switchpoint: vol.Schema) -> vol.Schema:
+    schema_sched_day = vol.Schema(
+        {
+            vol.Required(DAY_OF_WEEK): int,
+            vol.Required(SWITCHPOINTS): vol.All(
+                [schema_switchpoint], vol.Length(min=1)
+            ),
+        },
+        extra=vol.PREVENT_EXTRA,
+    )
+    return vol.Schema(
+        vol.Schema([schema_sched_day], vol.Length(min=7, max=7)),
+        extra=vol.PREVENT_EXTRA,
+    )
+
+
+SCHEMA_SWITCHPOINT_DHW = vol.Schema(
+    {
+        vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
+        vol.Required(ENABLED): bool,
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+SCHEMA_SWITCHPOINT_ZON = vol.Schema(
     {
         vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
         vol.Required(HEAT_SETPOINT): vol.All(
@@ -139,25 +164,23 @@ SCHEMA_SWITCHPOINT = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCHEMA_SCHED_DAY = vol.Schema(
+SCHEMA_SCHEDULE_DHW = vol.Schema(
     {
-        vol.Required(DAY_OF_WEEK): int,
-        vol.Required(SWITCHPOINTS): vol.All([SCHEMA_SWITCHPOINT], vol.Length(min=1)),
+        vol.Required(SZ_ZONE_IDX): "HW",
+        vol.Required(SZ_SCHEDULE): schema_sched(SCHEMA_SWITCHPOINT_DHW),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+SCHEMA_SCHEDULE_ZON = vol.Schema(
+    {
+        vol.Required(SZ_ZONE_IDX): vol.Match(r"0[0-F]"),
+        vol.Required(SZ_SCHEDULE): schema_sched(SCHEMA_SWITCHPOINT_ZON),
     },
     extra=vol.PREVENT_EXTRA,
 )
 SCHEMA_SCHEDULE = vol.Schema(
-    vol.Schema([SCHEMA_SCHED_DAY], vol.Length(min=7, max=7)),
-    extra=vol.PREVENT_EXTRA,
+    vol.Any(SCHEMA_SCHEDULE_DHW, SCHEMA_SCHEDULE_ZON), extra=vol.PREVENT_EXTRA
 )
-SCHEMA_SCHED_FULL = vol.Schema(
-    {
-        vol.Required(SZ_ZONE_IDX): vol.Match(r"(0[0-F]|FA)"),
-        vol.Required(SZ_SCHEDULE): SCHEMA_SCHEDULE,
-    },
-    extra=vol.PREVENT_EXTRA,
-)
-
 
 DEV_MODE = __dev_mode__ and False
 
@@ -306,16 +329,20 @@ class Schedule:  # 0404
     def _test_set(self, frag_set: list) -> bool:
         """Test a fragment set, and cache any valid schedule as the `_schedule` attr."""
 
-        if None not in frag_set:
-            try:
-                self._schedule = fragments_to_schedule(
-                    [frag[SZ_FRAGMENT] for frag in frag_set]
-                )
-            except zlib.error:
-                self._schedule = None  # needed?
-            else:
-                return True
-        return False
+        if None in frag_set:
+            return False
+
+        try:
+            self._schedule = fragments_to_schedule(
+                [frag[SZ_FRAGMENT] for frag in frag_set]
+            )
+        except zlib.error:
+            self._schedule = None  # needed?
+            return False
+
+        if self.idx == "HW":
+            self._schedule[SZ_ZONE_IDX] = "HW"
+        return True
 
     async def set_schedule(self, schedule, force_refresh=False) -> None:
         """Set the schedule of a zone."""
@@ -330,6 +357,9 @@ class Schedule:  # 0404
             schedule = SCHEMA_SCHEDULE(schedule)
         except vol.MultipleInvalid as exc:
             raise TypeError(f"failed to set schedule: {exc}")
+
+        if self.idx == "HW":
+            self._schedule[SZ_ZONE_IDX] = "00"
 
         self._tx_frags = schedule_to_fragments(
             {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
@@ -393,7 +423,11 @@ def fragments_to_schedule(fragments: list) -> dict:
         switchpoints.append(
             {
                 TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
-                HEAT_SETPOINT: temp / 100,
+                **(
+                    {ENABLED: bool(temp)}
+                    if temp in (0, 1)
+                    else {HEAT_SETPOINT: temp / 100}
+                ),
             }
         )
 
@@ -413,7 +447,11 @@ def schedule_to_fragments(schedule: dict) -> list:
             int(schedule[SZ_ZONE_IDX], 16),
             int(week_day[DAY_OF_WEEK]),
             int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
-            int(setpoint[HEAT_SETPOINT] * 100),
+            int(
+                (setpoint[HEAT_SETPOINT] * 100)
+                if setpoint.get(HEAT_SETPOINT)
+                else setpoint[ENABLED]
+            ),
         )
         for week_day in schedule[SZ_SCHEDULE]
         for setpoint in week_day[SWITCHPOINTS]
