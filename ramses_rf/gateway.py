@@ -111,6 +111,9 @@ class Engine:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
+    async def start(self) -> None:
+        self._start()
+
     def _start(self) -> None:
         """Initiate ad-hoc sending, and (polled) receiving."""
 
@@ -140,8 +143,14 @@ class Engine:
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
-    async def start(self) -> None:
-        self._start()
+    async def stop(self) -> None:
+        self._stop()
+
+        if (task := self.pkt_source) and not task.done():
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     def _stop(self) -> None:
         """Cancel all outstanding tasks."""
@@ -152,16 +161,7 @@ class Engine:
         if self.pkt_transport:
             self.pkt_transport.close()  # ? .abort()
 
-    async def stop(self) -> None:
-        self._stop()
-
-        if (task := self.pkt_source) and not task.done():
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    def pause(self, *args) -> None:
+    def _pause(self, *args) -> None:
         """Pause the (unpaused) engine or raise a RuntimeError."""
 
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
@@ -182,7 +182,7 @@ class Engine:
 
         self._engine_state = (callback, args)
 
-    def resume(self) -> tuple:  # FIXME: not atomic
+    def _resume(self) -> tuple:  # FIXME: not atomic
         """Resume the (paused) engine or raise a RuntimeError."""
 
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Resuming engine...")
@@ -327,6 +327,9 @@ class Gateway(Engine):
 
         load_schema(self, **self._schema)
 
+        self._db = None
+        self._cur = None
+
     def __repr__(self) -> str:
         return super().__str__()
 
@@ -385,7 +388,7 @@ class Gateway(Engine):
     async def stop(self) -> None:
         """Cancel all outstanding tasks."""
         # if self._engine_state is None:
-        #     self.pause()
+        #     self._pause()
 
         if tasks := [t.cancel() for t in self._tasks if not t.done()]:
             try:  # TODO: except asyncio.CancelledError:
@@ -394,28 +397,49 @@ class Gateway(Engine):
                 pass
         await super().stop()
 
-    def pause(self, *args) -> None:
+    def _pause(self, *args, clear_state=False) -> None:
         """Pause the (unpaused) gateway."""
 
-        super().pause(self.config.disable_discovery, self.config.disable_sending, *args)
+        super()._pause(
+            self.config.disable_discovery, self.config.disable_sending, *args
+        )
         self.config.disable_discovery = True
         self.config.disable_sending = True
 
-    def resume(self) -> tuple:
+        if clear_state:
+            self._clear_state()
+
+    def _resume(self) -> tuple:
         """Resume the (paused) gateway."""
 
         (
             self.config.disable_discovery,
             self.config.disable_sending,
             *args,
-        ) = super().resume()
+        ) = super()._resume()
 
         return args
 
-    def _get_state(self, include_expired=None) -> tuple[dict, dict]:
+    def _clear_state(self) -> None:
+        _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
+
+        self._tcs = None
+        self.devices = []
+        self.device_by_id = {}
+
+    def get_state(self, include_expired=None) -> tuple[dict, dict]:
 
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
-        self.pause()
+        self._pause()
+
+        result = self._get_state(include_expired=include_expired)
+
+        self._resume()
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Got schema/state.")
+
+        return result
+
+    def _get_state(self, include_expired=None) -> tuple[dict, dict]:
 
         msgs = [m for device in self.devices for m in device._msg_db]
 
@@ -431,26 +455,23 @@ class Gateway(Engine):
             if msg.verb in (I_, RP) and (include_expired or not msg._expired)
         }  # BUG: assumes pkts have unique dtms
 
-        self.resume()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Got schema/state.")
-
         return self.schema, dict(sorted(pkts.items()))
 
-    async def _set_state(self, packets, *, schema=None) -> None:
-        def clear_state() -> None:
-            _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
-
-            self._tcs = None
-            self.devices = []
-            self.device_by_id = {}
-
+    async def set_state(self, packets, *, schema=None) -> None:
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
-        self.pause()
 
         if schema is None:  # TODO: also for known_list (device traits)?
             schema = shrink(self.schema)
-        clear_state()
+
+        self._pause(clear_state=True)
+
         load_schema(self, **schema)
+        self._set_state(packets, schema=schema)
+
+        self._resume()
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
+
+    async def _set_state(self, packets, *, schema=None) -> None:
 
         pkt_receiver = (
             self.msg_transport.get_extra_info(self.msg_transport.READER)
@@ -462,9 +483,6 @@ class Gateway(Engine):
 
         # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed
         self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
-
-        self.resume()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
     def get_device(
         self, dev_id, *, msg=None, parent=None, child_id=None, is_sensor=None
@@ -661,3 +679,24 @@ class Gateway(Engine):
         self._tasks.append(
             schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
         )
+
+
+class GatewayWithSql(Gateway):
+    def __init__(self, *args, **kwargs) -> None:
+
+        import sqlite3
+
+        self._db = sqlite3.connect("file::memory:?cache=shared")
+        self._cur = self._db.cursor()
+
+    async def start(self, *, start_discovery=True) -> None:
+        super().start(start_discovery=start_discovery)
+
+    async def stop(self) -> None:
+        super().stop()
+
+    def _get_state(self, include_expired=None) -> tuple[dict, dict]:
+        pass
+
+    async def _set_state(self, packets, *, schema=None) -> None:
+        pass

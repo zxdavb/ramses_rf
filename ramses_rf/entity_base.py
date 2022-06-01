@@ -7,7 +7,6 @@ Entity is the base of all RAMSES-II objects: devices and also system/zone constr
 """
 
 import logging
-import sqlite3
 from inspect import getmembers, isclass
 from sys import modules
 from typing import Any, Dict, List, Optional, Tuple
@@ -167,8 +166,6 @@ class MessageDB:
     """Maintain/utilize an entity's state database."""
 
     def __init__(self, gwy) -> None:
-        self.db = sqlite3.connect("file::memory:?cache=shared")
-
         self._msgs = {}  # code, should be code/ctx? ?deprecate
         self._msgz = {}  # code/verb/ctx, should be code/ctx/verb?
 
@@ -291,6 +288,45 @@ class MessageDB:
             for k, v in msg_dict.items()
             if k not in ("dhw_idx", SZ_DOMAIN_ID, SZ_ZONE_IDX) and k[:1] != "_"
         }
+
+
+class MessageDatabaseSql:
+    """Maintain/utilize an entity's state database."""
+
+    CREATE_TABLE = """
+        CREATE TABLE msgs (
+            hdr data_type PRIMARY KEY,
+            ctx data_type DEFAULT "",
+            dtm data_type NOT NULL UNIQUE,
+            msg data_type NOT NULL,
+        ) [WITHOUT ROWID];
+    """
+
+    def __init__(self, gwy) -> None:
+        self._cur = gwy._cur  # gwy._db.cursor()
+
+    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
+        pass
+
+    @property
+    def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
+        pass
+
+    def _get_msg_by_hdr(self, hdr) -> Optional[Message]:
+        pass
+
+    def _msg_flag(self, code, key, idx) -> Optional[bool]:
+        pass
+
+    def _msg_value(self, code, *args, **kwargs):
+        pass
+
+    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> Optional[dict]:
+        pass
+
+    @staticmethod  # FIXME: messy (uses msg, others use code - move to Message?)
+    def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> Optional[dict]:
+        pass
 
 
 class Entity(MessageDB):
