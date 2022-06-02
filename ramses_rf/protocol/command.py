@@ -304,7 +304,7 @@ class Qos(Frame):
         f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
         f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # both short Tx,
         f"{RQ}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
-        f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # but long Rx
+        f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),  # but long Rx
         f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
         f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
         f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),

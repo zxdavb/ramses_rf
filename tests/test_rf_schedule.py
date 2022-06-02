@@ -58,9 +58,6 @@ async def load_test_system(config: dict = None) -> Gateway:
 
 
 def assert_schedule_dict(schedule_full):
-    if schedule_full is None:
-        # schedule = [{DAY_OF_WEEK: i, SWITCHPOINTS: []} for i in range(7)]
-        return
 
     if schedule_full[SZ_ZONE_IDX] == "HW":
         SCHEMA_SCHEDULE_DHW(schedule_full)
@@ -87,35 +84,46 @@ def assert_schedule_dict(schedule_full):
 
 async def write_schedule(zone) -> None:
 
-    zone._gwy.config.disable_sending = False
-    schedule_0 = await zone.get_schedule()  # RQ|0404, may: TimeoutError
+    # zone._gwy.config.disable_sending = False
 
-    schedule_1 = deepcopy(schedule_0)
+    ver_old, _ = await zone.tcs._schedule_version(force_io=True)
+    sch_old = await zone.get_schedule()
+
+    sch_new = deepcopy(sch_old)
 
     if zone.idx == "HW":
-        schedule_1[0][SWITCHPOINTS][0][ENABLED] = not (
-            schedule_1[0][SWITCHPOINTS][0][ENABLED]
+        sch_new[0][SWITCHPOINTS][0][ENABLED] = not (
+            sch_new[0][SWITCHPOINTS][0][ENABLED]
         )
     else:
-        schedule_1[0][SWITCHPOINTS][0][HEAT_SETPOINT] = (
-            schedule_1[0][SWITCHPOINTS][0][HEAT_SETPOINT] + 1
-        )
+        sch_new[0][SWITCHPOINTS][0][HEAT_SETPOINT] = (
+            sch_new[0][SWITCHPOINTS][0][HEAT_SETPOINT] + 1
+        ) % 5 + 6
 
-    _ = await zone.set_schedule(schedule_1)  # RQ|0404, may: TimeoutError
-    schedule_3 = await zone.get_schedule()
+    _ = await zone.set_schedule(sch_new)  # check zone._schedule._schedule
 
-    assert schedule_1 == schedule_3
+    ver_tst, _ = await zone.tcs._schedule_version(force_io=True)
+    sch_tst = await zone.get_schedule()
+
+    assert sch_new == sch_tst
+    assert ver_old < ver_tst
+
+    sch_new = await zone.set_schedule(sch_old)  # put things back
+
+    assert zone._gwy.pkt_transport.serial.port == "/dev/ttyMOCK" or (sch_new == sch_old)
 
 
 async def read_schedule(zone) -> dict:
 
-    zone._gwy.config.disable_sending = False
+    # zone._gwy.config.disable_sending = False
+
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
-    schedule = assert_schedule_dict(zone._schedule._schedule)
 
     if schedule is None:  # TODO: remove?
         assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] == 255
         return
+
+    schedule = assert_schedule_dict(zone._schedule._schedule)
 
     assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx
     assert zone._schedule._schedule[SZ_SCHEDULE] == zone.schedule == schedule
@@ -182,6 +190,17 @@ async def test_rq_0404_zone():
 
     if tcs.zones:
         await read_schedule(tcs.zones[0])
+
+    await gwy.stop()
+
+
+async def _test_ww_0404_dhw():
+
+    gwy, tcs = await load_test_system(config={"disable_dicovery": True})
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    if tcs.dhw:
+        await write_schedule(tcs.dhw)
 
     await gwy.stop()
 

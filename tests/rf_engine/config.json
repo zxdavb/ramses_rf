@@ -15,20 +15,7 @@
         },
         "stored_hotwater": {
             "sensor": "07:045960"
-        }
-    },
-
-    "01:000730": {
-        "system": {
-            "appliance_control": "10:000730"
         },
-
-        "stored_hotwater": {
-            "sensor": "07:000730",
-            "hotwater_valve": "13:111111",
-            "heating_valve": "13:222222"
-        },
-
         "zones": {
             "01": {
                 "_name": "Main room",
@@ -71,6 +58,45 @@
                 "class": "radiator_valve",
                 "sensor": "34:205645",
                 "actuators": ["04:056061"]
+            }
+        }
+    },
+
+    "01:000730": {
+        "system": {
+            "appliance_control": "10:000730"
+        },
+
+        "stored_hotwater": {
+            "sensor": "07:000730",
+            "hotwater_valve": "13:111111",
+            "heating_valve": "13:222222"
+        },
+
+        "zones": {
+            "01": {
+                "_name": "Main room",
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:111111"]
+            },
+            "02": {
+                "_name": "Front room",
+                "class": "radiator_valve",
+                "sensor": "34:222222",
+                "actuators": ["04:222222"]
+            },
+            "03": {
+                "_name": "Kitchen",
+                "class": "radiator_valve",
+                "sensor": "12:333333",
+                "actuators": ["04:333333"]
+            },
+            "04": {
+                "_name": "Bathroom",
+                "class": "radiator_valve",
+                "sensor": "04:444444",
+                "actuators": ["04:444444", "04:444445"]
             }
         }
     },

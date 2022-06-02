@@ -27,6 +27,8 @@ from ramses_rf.protocol.const import (
     I_,
     RP,
     _0005,
+    _0006,
+    _0404,
     _2309,
     __dev_mode__,
 )
@@ -211,7 +213,9 @@ class MockController:
 
         self._tcs = None  # load_system(gwy, self.DEV_ID, schema or {})
 
+        self._change_counter = 8
         self.next_cycle = dt.now() + td(seconds=self.SYNC_CYCLE_REMANING)
+
         self._tasks = [self._loop.create_task(self.tx_sync_cycle())]
 
     def rx_frame_by_header(self, rp_header: str) -> None:
@@ -223,11 +227,19 @@ class MockController:
 
         if rp_header == f"{_1F09}|{RP}|{CTL_ID}":
             pkts = self.tx_response_1f09()
+
         elif rp_header[:17] == f"{_0005}|{RP}|{CTL_ID}":
             pkts = self.tx_response_0005(rp_header[18:])
+
+        elif rp_header[:17] == f"{_0006}|{RP}|{CTL_ID}":
+            pkts = self.tx_response_0006(rp_header)
+
         elif rp_header[:17] == f"{_000C}|{RP}|{CTL_ID}":
             pkts = self.tx_response_000c(rp_header[18:])
+
         elif response := RESPONSES.get(rp_header):
+            if rp_header[:17] == f"{_0404}|{I_}|{CTL_ID}":
+                self._change_counter += 2
             pkts = self.tx_response_pkt(response + "\r\n")
         else:
             pkts = None
@@ -290,6 +302,10 @@ class MockController:
         return 1, Command.put_zone_types(
             self.DEV_ID, GWY_ID, zone_type, zone_mask, sub_idx=context[:2]
         )
+
+    def tx_response_0006(self, rp_header) -> Optional[tuple]:
+        payload = f"0005{self._change_counter:04X}"
+        return 1, Command.packet(RP, _0006, payload, addr0=self.DEV_ID, addr1=GWY_ID)
 
     def tx_response_000c(self, context: str) -> Optional[tuple]:
         zone_idx, zone_type = context[:2], context[2:]
@@ -379,15 +395,24 @@ def sync_cycle_pkts(ctl_id, seconds) -> tuple[Command, Command, Command]:
 
 RESPONSES = {
     f"0006|RP|{CTL_ID}": f"RP --- {CTL_ID} {GWY_ID} --:------ 0006 004 00050008",
-    # schedule for zone 01
+    # RQ schedule for zone 01
     f"0404|RP|{CTL_ID}|0101": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 0120000829010368816DCCC91183301005D1D93428200E1C7D720C04402C0442640E82000C851701ADD3AFAED1131151",
     f"0404|RP|{CTL_ID}|0102": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 0120000829020339DEBC8DBE1EFBDB5EDBA8DDB92DBEDFADDAB6671179E4FF4EC153F0143C05CFC033F00C3C03CFC173",
     f"0404|RP|{CTL_ID}|0103": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 046 01200008270303F01C3C072FC00BF002BC00AF7CFEB6DEDE46BBB721EE6DBA78095E8297E0E5CF5BF50DA0291B9C",
-    # schedule for DHW
+    # RQ schedule for DHW
     f"0404|RP|{CTL_ID}|FA01": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 0023000829010468816DCDD10980300C45D1BE24CD9713398093388BF33981A3882842B5BDE9571F178E4ABB4DA5E879",
     f"0404|RP|{CTL_ID}|FA02": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 00230008290204EDCEF7F3DD761BBBC9C7EEF0B15BEABF13B80257E00A5C812B700D5C03D7C035700D5C03D7C175701D",
     f"0404|RP|{CTL_ID}|FA03": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 002300082903045C07D7C1757003DC0037C00D7003DC00B7827B6FB38D5DEF56702BB8F7B6766E829BE026B8096E829B",
     f"0404|RP|{CTL_ID}|FA04": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 014 002300080704041FF702BAC2188E",
+    # W schedule for zone 01
+    f"0404| I|{CTL_ID}|0101": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290103",
+    f"0404| I|{CTL_ID}|0102": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290203",
+    f"0404| I|{CTL_ID}|0103": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280300",
+    # W schedule for DHW
+    f"0404| I|{CTL_ID}|FA01": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290104",
+    f"0404| I|{CTL_ID}|FA02": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290204",
+    f"0404| I|{CTL_ID}|FA03": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280304",
+    f"0404| I|{CTL_ID}|FA04": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280400",
     #
     f"2309|RP|{CTL_ID}|00": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 0007D0",
     f"2309|RP|{CTL_ID}|01": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 010640",
