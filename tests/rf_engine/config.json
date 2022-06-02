@@ -7,15 +7,24 @@
         "use_aliases": false
     },
 
-    "main_controller": "01:145038",
+    "main_controller": "01:000730",
 
     "01:145038": {
         "system": {
             "appliance_control": "10:048122"
         },
+        "stored_hotwater": {
+            "sensor": "07:045960"
+        }
+    },
+
+    "01:000730": {
+        "system": {
+            "appliance_control": "10:000730"
+        },
 
         "stored_hotwater": {
-            "sensor": "07:045960",
+            "sensor": "07:000730",
             "hotwater_valve": "13:111111",
             "heating_valve": "13:222222"
         },

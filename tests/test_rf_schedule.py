@@ -7,10 +7,10 @@ Test the payload parsers and corresponding output (schema, traits, params, statu
 """
 
 import json
+from copy import deepcopy
 
 from serial.tools import list_ports
 
-from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, _0006, _0404
 from ramses_rf.schedule import (
     DAY_OF_WEEK,
@@ -22,18 +22,28 @@ from ramses_rf.schedule import (
     TIME_OF_DAY,
 )
 from tests.common import TEST_DIR
-from tests.mock_gateway import MockGateway
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
-SERIAL_PORT = "/dev/ttyACM0"
+
+if ports := [c for c in list_ports.comports() if c.device[-7:-1] == "ttyACM"]:
+    from ramses_rf import Gateway
+
+    SERIAL_PORT = ports[0].device
+    GWY_ID = "01:145038"
+
+else:
+    from tests.mock_gateway import MockGateway as Gateway
+
+    SERIAL_PORT = "/dev/ttyMOCK"
+    GWY_ID = "01:000730"
 
 
 # import tracemalloc
 # tracemalloc.start()
 
 
-async def load_test_system(ser_name, config: dict = None) -> Gateway:
+async def load_test_system(config: dict = None) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     with open(f"{WORK_DIR}/config.json") as f:
@@ -42,12 +52,9 @@ async def load_test_system(ser_name, config: dict = None) -> Gateway:
     if config:
         kwargs.update(config)
 
-    if [c for c in list_ports.comports() if c.device == SERIAL_PORT]:
-        gwy = Gateway(ser_name, **kwargs)
-    else:
-        gwy = MockGateway(ser_name, **kwargs)
+    gwy = Gateway(SERIAL_PORT, **kwargs)
 
-    return gwy
+    return gwy, gwy.system_by_id[GWY_ID]
 
 
 def assert_schedule_dict(schedule_full):
@@ -78,9 +85,26 @@ def assert_schedule_dict(schedule_full):
     return schedule
 
 
-async def write_schedule(zone, schedule) -> None:
+async def write_schedule(zone) -> None:
+
     zone._gwy.config.disable_sending = False
-    _ = await zone.set_schedule(schedule)  # RQ|0404, may: TimeoutError
+    schedule_0 = await zone.get_schedule()  # RQ|0404, may: TimeoutError
+
+    schedule_1 = deepcopy(schedule_0)
+
+    if zone.idx == "HW":
+        schedule_1[0][SWITCHPOINTS][0][ENABLED] = not (
+            schedule_1[0][SWITCHPOINTS][0][ENABLED]
+        )
+    else:
+        schedule_1[0][SWITCHPOINTS][0][HEAT_SETPOINT] = (
+            schedule_1[0][SWITCHPOINTS][0][HEAT_SETPOINT] + 1
+        )
+
+    _ = await zone.set_schedule(schedule_1)  # RQ|0404, may: TimeoutError
+    schedule_3 = await zone.get_schedule()
+
+    assert schedule_1 == schedule_3
 
 
 async def read_schedule(zone) -> dict:
@@ -112,29 +136,28 @@ async def read_schedule(zone) -> dict:
 async def test_rq_0006():
     def assert_version(version):
         assert isinstance(version, int)
-        assert version == gwy.tcs._msgs[_0006].payload["change_counter"]
-
+        assert version == tcs._msgs[_0006].payload["change_counter"]
         return version
 
-    gwy = await load_test_system(SERIAL_PORT, config={"disable_discovery": True})
+    gwy, tcs = await load_test_system(config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
     # gwy.config.disable_sending = False
-    version, _ = await gwy.tcs._schedule_version()  # RQ|0006, may: TimeoutError
+    version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
     version = assert_version(version)
 
     gwy.config.disable_sending = True
-    assert version == (await gwy.tcs._schedule_version(force_io=False))[0]
+    assert version == (await tcs._schedule_version(force_io=False))[0]
 
     try:
-        await gwy.tcs._schedule_version(force_io=True)
+        await tcs._schedule_version(force_io=True)
     except RuntimeError:  # sending is disabled
         assert True
     else:
         assert False
 
     gwy.config.disable_sending = False
-    version, _ = await gwy.tcs._schedule_version()  # RQ|0006, may: TimeoutError
+    version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
     version = assert_version(version)
 
     # await asyncio.sleep(30)
@@ -143,33 +166,32 @@ async def test_rq_0006():
 
 async def test_rq_0404_dhw():
 
-    gwy = await load_test_system(SERIAL_PORT, config={"disable_discovery": True})
+    gwy, tcs = await load_test_system(config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
-    if gwy.tcs.dhw:
-        await read_schedule(gwy.tcs.dhw)
+    if tcs.dhw:
+        await read_schedule(tcs.dhw)
 
     await gwy.stop()
 
 
 async def test_rq_0404_zone():
 
-    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
+    gwy, tcs = await load_test_system(config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
-    if gwy.tcs.zones:
-        await read_schedule(gwy.tcs.zones[0])
-    #     await write_schedule(gwy.tcs.zones[0], schedule)
+    if tcs.zones:
+        await read_schedule(tcs.zones[0])
 
     await gwy.stop()
 
 
-async def _test_w_0404_zone():
+async def test_ww_0404_zone():
 
-    gwy = await load_test_system(SERIAL_PORT, config={"disable_dicovery": True})
+    gwy, tcs = await load_test_system(config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
 
-    if gwy.tcs.zones:
-        await write_schedule(gwy.tcs.zones[0])
+    if tcs.zones:
+        await write_schedule(tcs.zones[0])
 
     await gwy.stop()

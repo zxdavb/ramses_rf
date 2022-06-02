@@ -279,7 +279,7 @@ class Schedule:  # 0404
         return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
     async def get_schedule(self, *, force_io: bool = False) -> dict:
-        """Return the schedule of a zone.
+        """Get the schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
         global change counter has not increased.
@@ -347,29 +347,34 @@ class Schedule:  # 0404
     async def set_schedule(self, schedule, force_refresh=False) -> None:
         """Set the schedule of a zone."""
 
-        async def set_fragment(frag_num, frag_cnt, fragment) -> None:
+        async def put_fragment(frag_num, frag_cnt, fragment) -> None:
+            """Send a schedule fragment to the controller."""
+
+            #
             cmd = Command.set_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_cnt, fragment
             )
             await self._gwy.async_send_cmd(cmd)
 
+        if self.idx == "HW":
+            schedule = {SZ_ZONE_IDX: "00", SZ_SCHEDULE: schedule}
+            schema_schedule = SCHEMA_SCHEDULE_DHW
+        else:
+            schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
+            schema_schedule = SCHEMA_SCHEDULE_ZON
+
         try:
-            schedule = SCHEMA_SCHEDULE(schedule)
+            schedule = schema_schedule(schedule)
         except vol.MultipleInvalid as exc:
             raise TypeError(f"failed to set schedule: {exc}")
 
-        if self.idx == "HW":
-            self._schedule[SZ_ZONE_IDX] = "00"
-
-        self._tx_frags = schedule_to_fragments(
-            {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
-        )
+        self._tx_frags = schedule_to_fragments(schedule)
 
         await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
 
         try:
             for num, frag in enumerate(self._tx_frags, 1):
-                await set_fragment(num, len(self._tx_frags), frag)
+                await put_fragment(num, len(self._tx_frags), frag)
         except TimeoutError as exc:
             raise TimeoutError(f"failed to set schedule: {exc}")
         else:
@@ -383,7 +388,16 @@ class Schedule:  # 0404
         if force_refresh:
             self._schedule = await self.get_schedule(force_io=True)
         else:
-            self._schedule = schedule
+            self._schedule = schedule[SZ_SCHEDULE]
+
+        return self._schedule
+
+    # @property
+    # def schedule(self) -> dict:
+    #     return {
+    #         SZ_ZONE_IDX: "00" if self.idx == "HW" else self.idx,
+    #         SZ_SCHEDULE: self._schedule
+    #     }
 
 
 def _init_set(fragment: dict = None) -> list:
