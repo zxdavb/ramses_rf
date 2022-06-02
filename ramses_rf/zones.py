@@ -248,8 +248,9 @@ class ZoneSchedule:  # 0404
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
-    async def set_schedule(self, schedule) -> None:
+    async def set_schedule(self, schedule) -> Optional[dict]:
         await self._schedule.set_schedule(schedule)
+        return self.schedule
 
     @property
     def schedule(self) -> dict:

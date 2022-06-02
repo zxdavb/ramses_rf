@@ -105,12 +105,14 @@ async def write_schedule(zone) -> None:
     ver_tst, _ = await zone.tcs._schedule_version(force_io=True)
     sch_tst = await zone.get_schedule()
 
-    assert sch_new == sch_tst
     assert ver_old < ver_tst
 
-    sch_new = await zone.set_schedule(sch_old)  # put things back
+    assert sch_tst != sch_old
+    assert sch_tst == sch_new
 
-    assert zone._gwy.pkt_transport.serial.port == "/dev/ttyMOCK" or (sch_new == sch_old)
+    sch_end = await zone.set_schedule(sch_old)  # put things back
+
+    assert zone._gwy.pkt_transport.serial.port == "/dev/ttyMOCK" or (sch_end == sch_old)
 
 
 async def read_schedule(zone) -> dict:
