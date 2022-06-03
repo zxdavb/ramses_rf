@@ -1094,7 +1094,7 @@ def parser_1fc9(payload, msg) -> list:
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
     if payload == "00":
-        return {}
+        return []
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
