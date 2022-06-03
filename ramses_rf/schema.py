@@ -57,7 +57,7 @@ SZ_MAIN_CONTROLLER = "main_controller"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
 SZ_TCS_SYSTEM = "system"
-SZ_APP_CNTRL = DEV_ROLE_MAP[DEV_ROLE.APP]
+SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DEV_ROLE.APP]
 SZ_ORPHANS = "orphans"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
@@ -69,7 +69,7 @@ SZ_SENSOR_FAKED = "sensor_faked"
 
 
 SZ_UFH_SYSTEM = "underfloor_heating"
-SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]
+SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]  # ufh_controller
 SZ_CIRCUITS = "circuits"
 
 DEV_REGEX_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
@@ -155,8 +155,8 @@ SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 SCHEMA_TCS = vol.Schema(
     {
-        vol.Required(SZ_APP_CNTRL, default=None): vol.Any(None, DEV_REGEX_APP),
-        vol.Optional("heating_control"): renamed(SZ_APP_CNTRL),
+        vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(None, DEV_REGEX_APP),
+        vol.Optional("heating_control"): renamed(SZ_APPLIANCE_CONTROL),
         vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     extra=vol.PREVENT_EXTRA,

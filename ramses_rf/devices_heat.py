@@ -1463,8 +1463,8 @@ class UfhCircuit(Entity):
         self._ctl: Controller = None
         self._zone = None
 
-    def __str__(self) -> str:
-        return f"{self.id} ({self._zone and self._zone._child_id})"
+    # def __str__(self) -> str:
+    #     return f"{self.id} ({self._zone and self._zone._child_id})"
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)

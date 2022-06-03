@@ -57,7 +57,7 @@ from .schema import (
     SCHEMA_DHW,
     SCHEMA_SYS,
     SCHEMA_ZON,
-    SZ_APP_CNTRL,
+    SZ_APPLIANCE_CONTROL,
     SZ_CLASS,
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
@@ -209,7 +209,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         schema = shrink(SCHEMA_SYS(schema))
 
         if schema.get(SZ_TCS_SYSTEM) and (
-            dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APP_CNTRL)
+            dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APPLIANCE_CONTROL)
         ):
             self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
 
@@ -391,7 +391,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         schema = {SZ_TCS_SYSTEM: {}}
         # hema = {SZ_CONTROLLER: self.ctl.id, SZ_TCS_SYSTEM: {}}
 
-        schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL] = (
+        schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL] = (
             self.appliance_control.id if self.appliance_control else None
         )
 
@@ -413,12 +413,14 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         result = {SZ_CONTROLLER: self.id}
 
         try:
-            if schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL][:2] == DEV_TYPE_MAP.OTB:  # DEX
+            if (
+                schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL][:2] == DEV_TYPE_MAP.OTB
+            ):  # DEX
                 result[SZ_TCS_SYSTEM] = {
-                    SZ_APP_CNTRL: schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL]
+                    SZ_APPLIANCE_CONTROL: schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL]
                 }
         except (IndexError, TypeError):
-            result[SZ_TCS_SYSTEM] = {SZ_APP_CNTRL: None}
+            result[SZ_TCS_SYSTEM] = {SZ_APPLIANCE_CONTROL: None}
 
         zones = {}
         for idx, zone in schema[SZ_ZONES].items():

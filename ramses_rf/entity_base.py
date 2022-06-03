@@ -351,7 +351,7 @@ class Entity(MessageDB):
         ):  # TODO: here, or in get_xxx()?
             gwy._loop.call_soon_threadsafe(self._start_discovery)
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
     def _qos_function(self, pkt, reset=False) -> None:

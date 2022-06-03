@@ -177,7 +177,7 @@ class Device(Entity):
 
         self._faked: bool = None
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         if self._STATE_ATTR:
             return f"{self.id} ({self._child_id}): {getattr(self, self._STATE_ATTR)}"
         return f"{self.id} ({self._child_id})"
