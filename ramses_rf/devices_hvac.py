@@ -251,21 +251,77 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
     _SLUG: str = DEV_TYPE.FAN
 
     @property
+    def fan_rate(self) -> Optional[float]:
+        return self._msg_value((_31D9, _31DA), key="exhaust_fan_speed")
+
+    @property
+    def exhaust_fan_speed(self) -> Optional[float]:
+        return self._msg_value((_31DA), key="exhaust_fan_speed")
+        
+    @property
     def boost_timer(self) -> Optional[int]:
         return self._msg_value(_31DA, key="remaining_time")
 
     @property
     def co2_level(self) -> Optional[int]:
-        return self._msg_value(_31DA, key="co2_level")
-
-    @property
-    def fan_rate(self) -> Optional[float]:
-        return self._msg_value((_31D9, _31DA), key="exhaust_fan_speed")
+        return self._msg_value(_31DA, key="co2_level")    
 
     @property
     def indoor_humidity(self) -> Optional[float]:
         return self._msg_value(_31DA, key="indoor_humidity")
 
+    @property
+    def air_quality(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="air_quality")
+
+    @property
+    def air_quality_base(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="air_quality_base")
+
+    @property
+    def outdoor_humidity(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="outdoor_humidity")
+
+    @property
+    def exhaust_temperature(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="exhaust_temperature")
+
+    @property
+    def supply_temperature(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="supply_temperature")
+
+    @property
+    def speed_cap(self) -> Optional[int]:
+        return self._msg_value(_31DA, key="speed_cap")
+    
+    @property
+    def bypass_pos(self) -> Optional[int]:
+        return self._msg_value(_31DA, key="bypass_pos")
+    
+    @property
+    def fan_info(self) -> Optional[str]:
+        return self._msg_value(_31DA, key="fan_info")
+    
+    @property
+    def supply_fan_speed(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="supply_fan_speed")
+    
+    @property
+    def post_heat(self) -> Optional[int]:
+        return self._msg_value(_31DA, key="post_heat")
+    
+    @property
+    def pre_heat(self) -> Optional[int]:
+        return self._msg_value(_31DA, key="pre_heat")
+    
+    @property
+    def supply_flow(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="supply_flow")
+    
+    @property
+    def exhaust_flow(self) -> Optional[float]:
+        return self._msg_value(_31DA, key="exhaust_flow")
+    
     @property
     def status(self) -> dict:
         return {
