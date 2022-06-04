@@ -1203,9 +1203,14 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # fan_speed (switch_mode), HVAC
 def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
+    #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
     #  I 016 --:------ --:------ 39:159057 22F1 003 000304 # medium
     #  I 017 --:------ --:------ 39:159057 22F1 003 000404 # high
-    #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
+
+    # Scheme x: 0|x standby/off, 1|x min, 2+|x rate as % of max (Itho?)
+    # Scheme 4: 0|4 standby/off, 1|4 auto, 2|4 low, 3|4 med, 4|4 high/boost
+    # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
+    # Scheme A: only seen 000[239A]0A -- ? off, auto, rate x/x, and?
 
     try:
         assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"

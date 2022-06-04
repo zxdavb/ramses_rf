@@ -11,9 +11,10 @@ from symtable import Class
 from typing import Optional
 
 from .const import BOOST_TIMER, DEV_TYPE, FAN_MODE, SZ_TEMPERATURE, __dev_mode__
-from .devices_base import BatteryState, DeviceHvac
+from .devices_base import BatteryState, DeviceHvac, Fakeable
 from .entity_base import class_by_attr
 from .protocol import Address, Message
+from .protocol.command import Command
 from .protocol.ramses import CODES_HVAC_ONLY
 
 # skipcq: PY-W2000
@@ -186,7 +187,7 @@ class HvacCarbonDioxide(DeviceHvac):  # CO2: I/1298
         }
 
 
-class HvacSwitch(BatteryState, DeviceHvac):  # SWI: I/22F[13]
+class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
@@ -206,6 +207,15 @@ class HvacSwitch(BatteryState, DeviceHvac):  # SWI: I/22F[13]
     @property
     def fan_rate(self) -> Optional[str]:
         return self._msg_value(_22F1, key="rate")
+
+    @fan_rate.setter
+    def fan_rate(self, rate) -> None:
+        if not self._faked:
+            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
+        for _ in range(3):
+            self._send_cmd(
+                Command.set_fan_rate(self._ctl, int(4 * rate), 4, src_id=self.id)
+            )
 
     @property
     def fan_mode(self) -> Optional[str]:
@@ -233,6 +243,7 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
     # Itho Daalderop (NL)
     # Heatrae Sadia (UK)
     # Nuaire (UK), e.g. DRI-ECO-PIV
+    # Orcon/Ventilaire
 
     # every /30
     # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000

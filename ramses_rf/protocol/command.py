@@ -435,6 +435,58 @@ class Command(Frame):
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
+    @classmethod  # constructor for I/22F1
+    @validate_api_params()
+    def set_fan_rate(
+        cls,
+        fan_id: str,
+        step_idx: int,
+        step_max: int,
+        *,
+        seqn: int = None,
+        src_id: str = None,
+        idx: str = "00",
+        **kwargs,
+    ):
+        """Constructor to get the fan speed (c.f. parser_22f1).
+
+        There are two types of this packet (with seqn, with src_id):
+         - I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
+         - I --- 21:039407 28:126495 --:------ 22F1 003 000407
+        """
+
+        # Type 1: --:------ --:------ 39:159057
+        #  - are cast as a triplet, 0.1s apart?, with a seqn (000-255) and no src_id
+        #  - triplet has same seqn, increased monotonically mod 256 after every triplet
+        #  - only payloads seen: '(00|63)0[234]04'
+        #  I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
+
+        # Type 2: 21:038634 18:126620 --:------ (less common)
+        #  - are cast as a triplet, 0.085s apart, with a no seqn (---)
+        #  - only payloads seen: '000.0[47A]'
+        #  I --- 21:038634 18:126620 --:------ 22F1 003 000507
+
+        step_idx &= 0b00001111
+        step_max &= 0b00001111
+        if step_idx > step_max or step_max < 4:
+            raise ValueError(
+                f"step_idx ({step_idx}) must not exceed step_max {step_max}"
+            )
+
+        payload = f"{idx}{step_idx:02X}{step_max:02X}"
+        if seqn and not src_id:
+            cmd = cls.packet(
+                I_, _22F1, payload, fan_id, addr2=fan_id, seqn=seqn, **kwargs
+            )
+        elif src_id and not seqn:
+            cmd = cls.packet(
+                I_, _22F1, payload, fan_id, addr0=src_id, addr1=fan_id, **kwargs
+            )
+        else:
+            raise TypeError("seqn and src_id are mutally exclusive, one is required")
+
+        return cmd
+
     @classmethod  # constructor for RQ/1F41
     @validate_api_params()
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
