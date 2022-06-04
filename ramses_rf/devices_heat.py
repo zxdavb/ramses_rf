@@ -1460,7 +1460,7 @@ class UfhCircuit(Entity):
         self.ufc: UfhController = ufc
         self._child_id = ufh_idx
 
-        self._ctl: Controller = None
+        self._ctl: Controller = None  # TODO: should be: .ufc? .ctl?
         self._zone = None
 
     # def __str__(self) -> str:
