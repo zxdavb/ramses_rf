@@ -462,7 +462,7 @@ class Command(Frame):
         #  I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
 
         # Type 2: 21:038634 18:126620 --:------ (less common)
-        #  - are cast as a triplet, 0.085s apart, with a no seqn (---)
+        #  - are cast as a triplet, 0.085s apart, without a seqn (---)
         #  - only payloads seen: '000.0[47A]'
         #  I --- 21:038634 18:126620 --:------ 22F1 003 000507
 
