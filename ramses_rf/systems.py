@@ -16,6 +16,7 @@ from typing import Optional, Tuple
 
 from .const import (
     SYS_MODE_MAP,
+    SZ_ACTUATORS,
     SZ_CHANGE_COUNTER,
     SZ_DATETIME,
     SZ_DEVICES,
@@ -428,9 +429,9 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             if zone[SZ_SENSOR] and zone[SZ_SENSOR][:2] == DEV_TYPE_MAP.CTL:  # DEX
                 _zone = {SZ_SENSOR: zone[SZ_SENSOR]}
             if devices := [
-                d for d in zone[SZ_DEVICES] if d[:2] == DEV_TYPE_MAP.TR0
+                d for d in zone[SZ_ACTUATORS] if d[:2] == DEV_TYPE_MAP.TR0
             ]:  # DEX
-                _zone.update({SZ_DEVICES: devices})
+                _zone.update({SZ_ACTUATORS: devices})
             if _zone:
                 zones[idx] = _zone
         if zones:
