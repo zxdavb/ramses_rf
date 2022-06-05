@@ -321,7 +321,7 @@ class Qos(Frame):
 
         self.priority = priority or self.DEFAULT[0]
         self.retries = retries or self.DEFAULT[1]
-        self.timeout = timeout or self.DEFAULT[3]
+        self.timeout = timeout or self.DEFAULT[2]
         self.backoff = backoff or self.DEFAULT[3]
 
     @classmethod  # constructor from verb|code pair
