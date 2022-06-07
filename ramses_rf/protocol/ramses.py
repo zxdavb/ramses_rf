@@ -60,6 +60,7 @@ from .const import (  # isort: skip
     _12C8,
     _12F0,
     _1300,
+    _1470,
     _1F09,
     _1F41,
     _1FC9,
@@ -72,6 +73,7 @@ from .const import (  # isort: skip
     _22D9,
     _22F1,
     _22F3,
+    _22F7,
     _2309,
     _2349,
     _2389,
@@ -125,6 +127,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
     _0001: {
         SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
+        RQ: r"^00([28A]0)00(0[0-9A-F])(FF|04)$",  # HVAC
+        RP: r"^00([28A]0)00(0[0-9A-F])",  # HVAC
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     _0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
@@ -382,6 +386,11 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
+    _1470: {  # HVAC - something to do with date/time? is RQ|1470 after RQ|313F
+        SZ_NAME: "message_1470",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{14}$",
+    },
     _1F09: {  # system_sync - FF (I), 00 (RP), F8 (W, after 1FC9)
         SZ_NAME: "system_sync",
         I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
@@ -442,9 +451,15 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _22F1: {  # switch_speed - TODO - change name - Sent by an UFC
+    _22F1: {  # switch_speed, HVAC
         SZ_NAME: "switch_speed",
         I_: r"^(00|63)(0[0-9A-F]){2}$",
+    },
+    _22F7: {  # bypass on/off, HVAC
+        SZ_NAME: "bypass_mode",
+        I_: r"^00(00|C8|FF)(00|C8)$",  # RP is the same
+        RQ: r"^00$",
+        W_: r"^00(00|C8|FF)EF$",
     },
     _22F3: {  # switch_duration
         SZ_NAME: "switch_duration",
@@ -490,7 +505,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _2411: {  # unknown_2411, HVAC
         SZ_NAME: "message_2411",
-        RQ: r"^0000[0-9A-F]{2}(00){19}$",
+        I_: r"^0000[0-9A-F]{42}$",
+        RQ: r"^0000[0-9A-F]{2}((00){19})?$",
+        W_: r"^0000[0-9A-F]{42}$",
     },
     _2420: {  # unknown_2420, from OTB
         SZ_NAME: "message_2420",

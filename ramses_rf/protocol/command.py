@@ -321,7 +321,7 @@ class Qos(Frame):
 
         self.priority = priority or self.DEFAULT[0]
         self.retries = retries or self.DEFAULT[1]
-        self.timeout = timeout or self.DEFAULT[3]
+        self.timeout = timeout or self.DEFAULT[2]
         self.backoff = backoff or self.DEFAULT[3]
 
     @classmethod  # constructor from verb|code pair
@@ -462,7 +462,7 @@ class Command(Frame):
         #  I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
 
         # Type 2: 21:038634 18:126620 --:------ (less common)
-        #  - are cast as a triplet, 0.085s apart, with a no seqn (---)
+        #  - are cast as a triplet, 0.085s apart, without a seqn (---)
         #  - only payloads seen: '000.0[47A]'
         #  I --- 21:038634 18:126620 --:------ 22F1 003 000507
 

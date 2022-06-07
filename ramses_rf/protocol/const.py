@@ -9,7 +9,20 @@ from types import SimpleNamespace
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
+# used by tansport QoS...
+SZ_BACKOFF = "backoff"
+SZ_PRIORITY = "priority"
+SZ_RETRIES = "retries"
+SZ_TIMEOUT = "timeout"
 
+SZ_CALLBACK = "callback"
+SZ_DAEMON = "daemon"
+SZ_EXPIRED = "expired"
+SZ_EXPIRES = "expires"
+SZ_FUNC = "func"
+SZ_ARGS = "args"
+
+# used by schedule.py...
 SZ_FRAGMENT = "fragment"
 SZ_FRAG_NUMBER = "frag_number"
 SZ_FRAG_LENGTH = "frag_length"
@@ -17,6 +30,8 @@ SZ_TOTAL_FRAGS = "total_frags"
 
 SZ_SCHEDULE = "schedule"
 SZ_CHANGE_COUNTER = "change_counter"
+
+Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
 
 def slug(string: str) -> str:
@@ -539,6 +554,7 @@ _12C0 = "12C0"
 _12C8 = "12C8"
 _12F0 = "12F0"
 _1300 = "1300"
+_1470 = "1470"
 _1F09 = "1F09"
 _1F41 = "1F41"
 _1FC9 = "1FC9"
@@ -551,6 +567,7 @@ _22D0 = "22D0"
 _22D9 = "22D9"
 _22F1 = "22F1"
 _22F3 = "22F3"
+_22F7 = "22F7"
 _2309 = "2309"
 _2349 = "2349"
 _2389 = "2389"

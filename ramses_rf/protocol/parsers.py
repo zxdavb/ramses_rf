@@ -1202,7 +1202,7 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # fan_speed (switch_mode), HVAC
-def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
+def parser_22f1(payload, msg) -> Optional[dict]:
     #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
     #  I 016 --:------ --:------ 39:159057 22F1 003 000304 # medium
     #  I 017 --:------ --:------ 39:159057 22F1 003 000404 # high
@@ -1287,6 +1287,27 @@ def parser_22f3(payload, msg) -> Optional[dict]:
 
     if msg.len >= 7:  # fallback speed?
         result.update({f"_{SZ_UNKNOWN}_5": payload[10:]})
+
+    return result
+
+
+@parser_decorator  # bypass_mode, HVAC
+def parser_22f7(payload, msg) -> Optional[dict]:
+    # RQ --- 37:171871 32:155617 --:------ 22F7 001 00
+    # RP --- 32:155617 37:171871 --:------ 22F7 003 00FF00  # alse: 000000, 00C8C8
+
+    #  W --- 37:171871 32:155617 --:------ 22F7 003 0000EF  # bypass off
+    #  I --- 32:155617 37:171871 --:------ 22F7 003 000000
+    #  W --- 37:171871 32:155617 --:------ 22F7 003 00C8EF  # bypass on
+    #  I --- 32:155617 37:171871 --:------ 22F7 003 00C800
+    #  W --- 37:171871 32:155617 --:------ 22F7 003 00FFEF  # bypass auto
+    #  I --- 32:155617 37:171871 --:------ 22F7 003 00FFC8
+
+    result = {
+        "bypass_mode": {"00": "off", "C8": "on", "FF": "auto"}.get(payload[2:4]),
+    }
+    if msg.verb != W_ or payload[4:] != "EF":
+        result["bypass_state"] = {"00": "off", "C8": "on"}.get(payload[4:])
 
     return result
 
@@ -1398,10 +1419,11 @@ def parser_2410(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2411, HVAC
 def parser_2411(payload, msg) -> Optional[dict]:
 
-    assert payload[:4] == "0000" and payload[6:] == "00" * 19, _INFORM_DEV_MSG
+    assert payload[:4] == "0000", _INFORM_DEV_MSG
 
     return {
-        f"{SZ_VALUE}_1": int(payload[4:6], 16),
+        f"{SZ_VALUE}_1": payload[4:6],
+        f"{SZ_VALUE}_2": payload[6:],
     }
 
 
@@ -1508,7 +1530,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
         assert payload[4:6] == "B0", f"byte 2: {payload[4:6]}"
         assert payload[6:8] in ("00", "01"), f"byte 3: {payload[6:8]}"
         assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
-        assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
+        assert payload[10:12] in ("00", "03", "0A", "9C"), f"byte 5: {payload[10:12]}"
         assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")

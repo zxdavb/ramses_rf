@@ -6,7 +6,10 @@
 Entity is the base of all RAMSES-II objects: devices and also system/zone constructs.
 """
 
+import asyncio
 import logging
+from datetime import datetime as dt
+from datetime import timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
 from typing import Any, Dict, List, Optional, Tuple
@@ -329,7 +332,113 @@ class MessageDatabaseSql:
         pass
 
 
-class Entity(MessageDB):
+class Discovery(MessageDB):
+    def __init__(self, gwy, *args, **kwargs) -> None:
+        super().__init__(gwy, *args, **kwargs)
+
+        self._disc_tasks = {}
+        self._disc_tasks_poller = None
+
+        gwy._loop.call_soon_threadsafe(self._config_discovery)
+
+        if not gwy.config.disable_discovery and isinstance(
+            gwy.pkt_protocol, PacketProtocolPort
+        ):  # TODO: here, or in get_xxx()?
+            gwy._loop.call_soon_threadsafe(self._start_discovery)
+
+    def _config_discovery(self) -> None:
+        raise NotImplementedError
+
+    def _start_discovery(self) -> None:
+        if not self._disc_tasks_poller or self._disc_tasks_poller.done():
+            self._disc_tasks_poller = self._gwy.add_task(self._poll_disc_tasks)
+
+    def _stop_discovery(self) -> None:
+        if self._disc_tasks_poller and not self._disc_tasks_poller.done():
+            self._disc_tasks_poller.cancel()
+
+    def _add_disc_task(self, cmd, interval, *, delay: float = 0, timeout: float = None):
+        """Schedule a command to run periodically."""
+
+        if cmd.rx_header in self._disc_tasks:
+            raise ValueError
+
+        timeout = timeout or (cmd.qos.retries + 1) * cmd.qos.timeout.total_seconds()
+
+        self._disc_tasks[cmd.rx_header] = {
+            "command": cmd,
+            "interval": td(seconds=interval),
+            "last_msg": None,
+            "last_ran": None,
+            "next_due": dt.now() + td(seconds=delay),
+            "timeout": timeout,
+        }
+
+    async def _poll_disc_tasks(self) -> None:
+        """Send any outstanding commands that are past due.
+
+        If a relevant message was received recently enough, reschedule the corresponding
+        command for later.
+        """
+        MAX_CYCLE_SECS = 10
+        MIN_CYCLE_SECS = 3
+
+        while True:
+            if self._gwy.config.disable_discovery:
+                await asyncio.sleep(MIN_CYCLE_SECS)
+                continue
+
+            for hdr, task in self._disc_tasks.items():
+                msgs = [self._get_msg_by_hdr(I_ + hdr[2:]) for v in (I_, RP)]
+
+                dt_now = dt.now()
+
+                if (
+                    (msgs := [m for m in msgs if m is not None])
+                    and (msg := max(msgs))
+                    and (task["next_due"] < msg.dtm + task["interval"])
+                ):
+                    task["last_msg"] = msg
+
+                elif task["next_due"] <= dt_now and (
+                    msg := await self._send_disc_task(task)
+                ):
+                    task["last_msg"] = msg
+
+                else:
+                    continue
+
+                task["last_ran"] = task["last_msg"].dtm
+                task["next_due"] = task["last_ran"] + task["interval"]
+
+            if self._disc_tasks:
+                seconds = (
+                    min(t["next_due"] for t in self._disc_tasks.values()) - dt.now()
+                ).total_seconds()
+                await asyncio.sleep(min(max(seconds, MIN_CYCLE_SECS), MAX_CYCLE_SECS))
+            else:
+                await asyncio.sleep(MAX_CYCLE_SECS)
+
+    async def _send_disc_task(self, task) -> Message:
+        """Send a scheduled command and wait for/return the reponse."""
+        try:
+            return await asyncio.wait_for(
+                self._gwy.async_send_cmd(task["command"]), timeout=task["timeout"] * 5
+            )
+
+        except asyncio.TimeoutError:
+            return  # task["last_msg"] = None?
+
+        except TypeError as exc:
+            print(exc)
+
+        # except Exception as exc:
+        #     _LOGGER.exception(exc)
+        #     raise exc
+        pass
+
+
+class Entity(Discovery):
     """The ultimate base class for Devices/Zones/Systems.
 
     This class is mainly concerned with:
@@ -346,11 +455,6 @@ class Entity(MessageDB):
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
-        if not self._gwy.config.disable_discovery and isinstance(
-            self._gwy.pkt_protocol, PacketProtocolPort
-        ):  # TODO: here, or in get_xxx()?
-            gwy._loop.call_soon_threadsafe(self._start_discovery)
-
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
@@ -365,12 +469,6 @@ class Entity(MessageDB):
                 f"{pkt} < Sending now deprecated for {self} "
                 "(consider adjusting device_id filters)"
             )  # TODO: take whitelist into account
-
-    def _start_discovery(self) -> None:
-        pass
-
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        pass
 
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
