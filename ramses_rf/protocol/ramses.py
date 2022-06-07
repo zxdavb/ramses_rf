@@ -490,7 +490,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _2411: {  # unknown_2411, HVAC
         SZ_NAME: "message_2411",
+        I_: r"^0000[0-9A-F]{42}$",
         RQ: r"^0000[0-9A-F]{2}(00){19}$",
+        W_: r"^0000[0-9A-F]{42}$",
     },
     _2420: {  # unknown_2420, from OTB
         SZ_NAME: "message_2420",

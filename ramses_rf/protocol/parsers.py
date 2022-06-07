@@ -1398,10 +1398,11 @@ def parser_2410(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2411, HVAC
 def parser_2411(payload, msg) -> Optional[dict]:
 
-    assert payload[:4] == "0000" and payload[6:] == "00" * 19, _INFORM_DEV_MSG
+    assert payload[:4] == "0000", _INFORM_DEV_MSG
 
     return {
-        f"{SZ_VALUE}_1": int(payload[4:6], 16),
+        f"{SZ_VALUE}_1": payload[4:6],
+        f"{SZ_VALUE}_2": payload[6:],
     }
 
 
