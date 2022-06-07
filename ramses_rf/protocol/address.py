@@ -182,7 +182,7 @@ def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
 @typechecked
-def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, Address, Address, Address]:
+def pkt_addrs(addr_fragment: str) -> tuple[Address, Address, Address, Address, Address]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
 
     Will raise an InvalidAddrSetError is the address fields are not valid.
@@ -190,9 +190,9 @@ def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, Address, Address, Ad
     # for debug: print(pkt_addrs.cache_info())
 
     try:
-        addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
+        addrs = [id_to_address(addr_fragment[i : i + 9]) for i in range(0, 30, 10)]
     except ValueError as exc:
-        raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment}: {exc}")
+        raise InvalidAddrSetError(f"Invalid addr set: {addr_fragment}: {exc}")
 
     if (
         not (
@@ -216,7 +216,7 @@ def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, Address, Address, Ad
             and addrs[1] == NON_DEV_ADDR
         )
     ):
-        raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment}")
+        raise InvalidAddrSetError(f"Invalid addr set: {addr_fragment}")
 
     device_addrs = list(filter(lambda a: a.type != "--", addrs))  # dex
     src_addr = device_addrs[0]
