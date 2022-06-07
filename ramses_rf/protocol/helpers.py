@@ -121,17 +121,23 @@ def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
 
 
 @typechecked
-def dtm_to_hex(dtm: Union[str, dt, None]) -> str:
-    """Convert a datetime (isoformat string, or object) to a 12-char hex string."""
+def dtm_to_hex(dtm: Union[str, dt, None], is_dst=False, incl_seconds=False) -> str:
+    """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
-    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, *args):
-        return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
+    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
+        return (
+            f"{tm_sec:02X}{tm_min:02X}{tm_hour:02X}"
+            f"{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
+        )
 
     if dtm is None:
-        return "FF" * 6
+        return "FF" * (7 if incl_seconds else 6)
     if isinstance(dtm, str):
         dtm = dt.fromisoformat(dtm)
-    return _dtm_to_hex(*dtm.timetuple())
+    dtm_str = _dtm_to_hex(*dtm.timetuple())  # TODO: add DST for tm_isdst
+    if is_dst:
+        dtm_str = f"{int(dtm_str[:2], 16) | 0x80:02X}" + dtm_str[2:]
+    return dtm_str if incl_seconds else dtm_str[2:]
 
 
 @typechecked
@@ -154,6 +160,7 @@ def dts_from_hex(value: str) -> Optional[str]:
 
 @typechecked
 def dts_to_hex(dtm: Union[str, dt, None]) -> str:  # TODO: WIP
+    """Convert a datetime (isoformat str, or dtm) to a packed 12-char hex str."""
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
         return "00000000007F"
