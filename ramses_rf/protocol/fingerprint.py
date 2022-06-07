@@ -60,7 +60,7 @@ __DEVICE_INFO_DB: Dict[str, Tuple[str, str, str, str]] = {
     "0001C827090167FFFF": ("SWI", "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
     "0001C85A01016CFFFF": ("SWI", "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
     # SWI (display)
-    "0001C894030167FFFF": ("SWI", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, ?22F3
+    "0001C894030167FFFF": ("SWI", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, ?22F3 (HRC Display recessed 15RF)
     # RFS...
     "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
     "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
