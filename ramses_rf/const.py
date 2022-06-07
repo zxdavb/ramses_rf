@@ -193,3 +193,25 @@ WB_STATUS_CODES = {
     "357": "Appliance in air purge mode. Primary heat exchanger air venting program active - approximately 100 seconds.",
     "358": "Three way valve kick. If the 3-way valve hasn't moved in within 48 hours, the valve will operate once to prevent seizure",
 }
+
+# used by 31DA
+EXHAUST_FAN_SPEED   = "exhaust_fan_speed"
+BOOST_TIMER         = "remaining_time"
+REMAINING_TIME      = "remaining_time"
+CO2_LEVEL           = "co2_level"
+INDOOR_HUMIDITY     = "indoor_humidity"
+AIR_QUALITY         = "air_quality"
+AIR_QUALITY_BASE    = "air_quality_base"
+OUTDOOR_HUMIDITY    = "outdoor_humidity"
+EXHAUST_TEMPERATURE = "exhaust_temperature"
+SUPPLY_TEMPERATURE  = "supply_temperature"
+SPEED_CAP           = "speed_cap"
+BYPASS_POS          = "bypass_pos"
+FAN_INFO            = "fan_info"
+SUPPLY_FAN_SPEED    = "supply_fan_speed"
+POST_HEAT           = "post_heat"
+PRE_HEAT            = "pre_heat"
+SUPPLY_FLOW         = "supply_flow"
+EXHAUST_FLOW        = "exhaust_flow"
+OUTDOOR_TEMPERATURE = "outdoor_temperature"
+INDOOR_TEMPERATURE = "indoor_temperature"
