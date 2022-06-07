@@ -31,7 +31,7 @@ SZ_TOTAL_FRAGS = "total_frags"
 SZ_SCHEDULE = "schedule"
 SZ_CHANGE_COUNTER = "change_counter"
 
-Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
+Priority = SimpleNamespace(LOWEST=4, LOW=2, DEFAULT=0, HIGH=-2, HIGHEST=-4)
 
 
 def slug(string: str) -> str:
@@ -392,9 +392,11 @@ SZ_DEVICE_CLASS = "device_class"  # used in 0418 only?
 SZ_DEVICE_ID = "device_id"
 SZ_DEVICE_ROLE = "device_role"
 SZ_DEVICES = "devices"
+SZ_DHW_IDX = "dhw_idx"
 SZ_DOMAIN_ID = "domain_id"
 SZ_DURATION = "duration"
 SZ_HEAT_DEMAND = "heat_demand"
+SZ_IS_DST = "is_dst"
 SZ_LANGUAGE = "language"
 SZ_MODE = "mode"
 SZ_NAME = "name"
