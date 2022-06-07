@@ -1203,6 +1203,14 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # fan_speed (switch_mode), HVAC
 def parser_22f1(payload, msg) -> Optional[dict]:
+    # Orcon wireless remote 15RF
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000307  # Mode 3: High // Stand 3 (position high)
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000207  # Mode 2: Med  // Stand 2 (position med)
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000107  # Mode 1: Low  // Stand 1 (position low)
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000007  # Absent mode  // Afwezig (absence mode, aka: weg/away) - low & doesn't respond to sensors
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000607  # Party/boost
+    # I --- 37:171871 32:155617 --:------ 22F3 007 00023C03070000  # Timer (boost) mode // TIJDELIJKE stand (temporary) 60 min - high, then return to what was
+
     #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
     #  I 016 --:------ --:------ 39:159057 22F1 003 000304 # medium
     #  I 017 --:------ --:------ 39:159057 22F1 003 000404 # high
