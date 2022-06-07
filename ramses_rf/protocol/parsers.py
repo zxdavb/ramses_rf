@@ -63,6 +63,28 @@ from .const import (
     ZON_ROLE_MAP,
     __dev_mode__,
 )
+from ..const import (
+    AIR_QUALITY,
+    AIR_QUALITY_BASE,
+    BYPASS_POS,
+    CO2_LEVEL,
+    EXHAUST_FAN_SPEED,
+    EXHAUST_FLOW,
+    EXHAUST_TEMPERATURE,
+    FAN_INFO,
+    INDOOR_HUMIDITY,
+    INDOOR_TEMPERATURE,
+    OUTDOOR_HUMIDITY,
+    OUTDOOR_TEMPERATURE,
+    POST_HEAT,
+    PRE_HEAT,
+    REMAINING_TIME,
+    SUPPLY_FAN_SPEED,
+    SUPPLY_FLOW,
+    SUPPLY_TEMPERATURE,
+    SPEED_CAP,
+)
+
 from .exceptions import InvalidPayloadError
 from .fingerprint import check_signature
 from .helpers import (
@@ -1606,7 +1628,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     result = {
         "flags": flag8(payload[2:4]),
-        "exhaust_fan_speed": percent(
+        EXHAUST_FAN_SPEED: percent(
             payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
         "passive": bool(bitmap & 0x02),
@@ -1710,25 +1732,25 @@ def parser_31da(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "exhaust_fan_speed": percent(payload[38:40]),  # 31D9[4:6]
-        "remaining_time": double(payload[42:46]),  # mins, 22F3[2:6]
-        "co2_level": double(payload[6:10]),  # ppm, 1298[2:6]
-        "indoor_humidity": percent(payload[10:12], high_res=False),  # 12A0?
-        "air_quality": percent(payload[2:4]),
-        "air_quality_base": int(payload[4:6], 16),  # 12C8[4:6]
-        "outdoor_humidity": percent(payload[12:14], high_res=False),
-        "exhaust_temperature": double(payload[14:18], factor=100),
-        "supply_temperature": double(payload[18:22], factor=100),
-        "indoor_temperature": double(payload[22:26], factor=100),
-        "outdoor_temperature": double(payload[26:30], factor=100),  # 1290?
-        "speed_cap": int(payload[30:34], 16),
-        "bypass_pos": percent(payload[34:36]),
-        "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "supply_fan_speed": percent(payload[40:42]),
-        "post_heat": percent(payload[46:48], high_res=False),
-        "pre_heat": percent(payload[48:50], high_res=False),
-        "supply_flow": double(payload[50:54], factor=100),  # L/sec
-        "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
+        AIR_QUALITY: percent(payload[2:4]),
+        AIR_QUALITY_BASE: int(payload[4:6], 16),  # 12C8[4:6]
+        BYPASS_POS: percent(payload[34:36]),
+        CO2_LEVEL: double(payload[6:10]),  # ppm, 1298[2:6]
+        EXHAUST_FAN_SPEED: percent(payload[38:40]),  # 31D9[4:6]
+        EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec
+        EXHAUST_TEMPERATURE: double(payload[14:18], factor=100),
+        FAN_INFO: CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
+        INDOOR_HUMIDITY: percent(payload[10:12], high_res=False),  # 12A0?
+        INDOOR_TEMPERATURE: double(payload[22:26], factor=100),
+        OUTDOOR_HUMIDITY: percent(payload[12:14], high_res=False),
+        OUTDOOR_TEMPERATURE: double(payload[26:30], factor=100),  # 1290?
+        POST_HEAT: percent(payload[46:48], high_res=False),
+        PRE_HEAT: percent(payload[48:50], high_res=False),
+        REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
+        SUPPLY_FAN_SPEED: percent(payload[40:42]),
+        SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec
+        SUPPLY_TEMPERATURE: double(payload[18:22], factor=100),
+        SPEED_CAP: int(payload[30:34], 16),
     }
 
 
