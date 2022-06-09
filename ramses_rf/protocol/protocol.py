@@ -14,8 +14,8 @@ from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
 from typing import Callable, Optional
 
-from .command import DEAMON, EXPIRES, FUNC, TIMEOUT, Command
-from .const import __dev_mode__
+from .command import Command
+from .const import SZ_DAEMON, SZ_EXPIRED, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
 from .exceptions import CorruptStateError, InvalidPacketError
 from .message import Message
 
@@ -41,7 +41,7 @@ class AwaitableCallback:
     """
 
     DEFAULT_TIMEOUT = 3
-    HAS_TIMED_OUT = None
+    HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
     def __init__(self, loop) -> None:
@@ -64,12 +64,14 @@ class AwaitableCallback:
             except Empty:
                 await asyncio.sleep(self.SHORT_WAIT)
         else:
-            raise TimeoutError("outer timer expired")
+            raise TimeoutError(f"Outer timer expired (timeout={timeout}s)")
 
         if msg is self.HAS_TIMED_OUT:
-            raise TimeoutError("inner timer expired")
+            raise TimeoutError("Inner timer expired")
+        if msg is None:
+            raise TypeError("Null response")
         if not isinstance(msg, Message):
-            raise TypeError
+            raise TypeError(f"Response is not a message: {msg}")
         return msg
 
     def putter(self, msg: Message):  # callback
@@ -140,8 +142,8 @@ class MessageTransport(asyncio.Transport):
 
         async def call_send_data(cmd):
             _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
-            if cmd.callback:
-                self._add_callback(cmd.rx_header, cmd.callback)
+            if cmd._cbk:
+                self._add_callback(cmd.rx_header, cmd._cbk)
 
             await self._dispatcher(cmd)  # send_data, *once* callback registered
 
@@ -181,10 +183,10 @@ class MessageTransport(asyncio.Transport):
         return self._extra[self.WRITER]
 
     def _add_callback(self, header, callback):
-        callback[EXPIRES] = (
+        callback[SZ_EXPIRES] = (
             dt.max
-            if callback.get(DEAMON)
-            else dt.now() + td(seconds=callback.get(TIMEOUT, 1))
+            if callback.get(SZ_DAEMON)
+            else dt.now() + td(seconds=callback.get(SZ_TIMEOUT, 1))
         )
         self._callbacks[header] = callback
 
@@ -194,21 +196,25 @@ class MessageTransport(asyncio.Transport):
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("rcvd: %s", pkt)
 
+        # HACK: 1st, notify all expired callbacks
         for (
             hdr,
             callback,
-        ) in self._callbacks.items():  # 1st, notify all expired callbacks
-            if callback.get(EXPIRES, dt.max) < pkt.dtm and not callback.get("expired"):
+        ) in self._callbacks.items():
+            if callback.get(SZ_EXPIRES, dt.max) < pkt.dtm and not callback.get(
+                SZ_EXPIRED
+            ):
                 # see  also: PktProtocolQos.send_data()
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback[FUNC](None)  # ZX: 1/3
-                callback["expired"] = not callback.get(DEAMON, False)  # HACK:
+                callback[SZ_FUNC](AwaitableCallback.HAS_TIMED_OUT)  # ZX: 1/3
+                callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
 
-        self._callbacks = {  # 2nd, discard any expired callbacks
+        # HACK: 2nd, discard any expired callbacks
+        self._callbacks = {
             hdr: callback
             for hdr, callback in self._callbacks.items()
-            if callback.get(DEAMON)
-            or (callback[EXPIRES] >= pkt.dtm and not callback.get("expired"))
+            if callback.get(SZ_DAEMON)
+            or (callback[SZ_EXPIRES] >= pkt.dtm and not callback.get(SZ_EXPIRED))
         }
 
         if len(self._protocols) == 0 or (
@@ -222,18 +228,19 @@ class MessageTransport(asyncio.Transport):
         except InvalidPacketError:
             return
 
+        # HACK: 3rd, invoke any callback
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and msg._pkt._hdr in self._callbacks:
-            callback = self._callbacks[msg._pkt._hdr]  # 3rd, invoke any callback
-            callback[FUNC](msg)  # ZX: 2/3
-            if not callback.get(DEAMON):
+            callback = self._callbacks[msg._pkt._hdr]
+            callback[SZ_FUNC](msg)  # ZX: 2/3
+            if not callback.get(SZ_DAEMON):
                 del self._callbacks[msg._pkt._hdr]
 
         # BUG: the InvalidPacketErrors here should have been caught above
         # BUG: should only need to catch CorruptStateError
         for p in self._protocols:
             try:
-                p.data_received(msg)
+                self._loop.call_soon(p.data_received, msg)
 
             except InvalidPacketError:
                 return
@@ -534,7 +541,7 @@ class MessageProtocol(asyncio.Protocol):
         if _make_awaitable:  # and callback is None:
             awaitable, callback = awaitable_callback(self._loop)  # ZX: 3/3
         if callback:  # func, args, daemon, timeout (& expired)
-            cmd.callback = {FUNC: callback, TIMEOUT: 3}
+            cmd._cbk = {SZ_FUNC: callback, SZ_TIMEOUT: 3}
 
         while self._pause_writing:
             await asyncio.sleep(0.005)
@@ -542,7 +549,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if _make_awaitable:
-            msg = await awaitable(timeout=kwargs.get(TIMEOUT))  # may: TimeoutError
+            msg = await awaitable(timeout=kwargs.get(SZ_TIMEOUT))  # may: TimeoutError
             return msg  # always a Message (or raises TypeError)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:

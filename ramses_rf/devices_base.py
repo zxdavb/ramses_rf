@@ -9,18 +9,17 @@ Base for all devices.
 # TODO: refactor polling
 
 import logging
-from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, Discover, __dev_mode__
-from .entity_base import Child, Entity, class_by_attr, discover_decorator
+from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
+from .entity_base import Child, Entity, class_by_attr
 from .helpers import shrink
 from .protocol import Command
 from .protocol.address import NUL_DEV_ADDR, Address
-from .protocol.command import FUNC, TIMEOUT
 from .protocol.message import Message
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
+from .protocol.transport import SZ_FUNC, SZ_TIMEOUT
 from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
 
 # skipcq: PY-W2000
@@ -214,27 +213,19 @@ class Device(Entity):
         dev._update_traits(**schema)  # TODO: split traits/schema
         return dev
 
-    def _start_discovery(self) -> None:
-
-        delay = randint(10, 20)
-
-        self._gwy.add_task(  # 10E0/1FC9, 3220 pkts
-            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=3600 * 6
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
-        )
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
+    def _setup_discovery_tasks(self) -> None:
+        # super()._setup_discovery_tasks()
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
-        if discover_flag & Discover.TRAITS:  # not inluded in ALl
-            self._make_cmd(_1FC9, retries=3)  # rf_bind
-            self._make_cmd(_0016, retries=3)  # rf_check
+        # if discover_flag & Discover.TRAITS:
+        # self._add_discovery_task(
+        #     Command(RQ, _1FC9, "00", self.id, qos={SZ_RETRIES: 3}), 60 * 60 * 24
+        # )  # rf_bind
+        # self._add_discovery_task(
+        #     Command(RQ, _0016, "00", self.id, qos={SZ_RETRIES: 3}), 60 * 60
+        # )  # rf_check
+
+        pass
 
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
         super()._make_cmd(code, self.id, payload=payload, **kwargs)
@@ -317,15 +308,14 @@ class Device(Entity):
 
 
 class DeviceInfo(Device):  # 10E0
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.SCHEMA:
-            if not self._msgs.get(_10E0) and (
-                self._SLUG not in CODES_BY_DEV_SLUG
-                or RP in CODES_BY_DEV_SLUG[self._SLUG].get(_10E0, {})
-            ):
-                self._make_cmd(_10E0, retries=3)
+        # if discover_flag & Discover.SCHEMA:
+        if self._SLUG not in CODES_BY_DEV_SLUG or RP in CODES_BY_DEV_SLUG[
+            self._SLUG
+        ].get(_10E0, {}):
+            self._add_discovery_task(Command(RQ, _10E0, "00", self.id), 60 * 60 * 24)
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
@@ -400,14 +390,17 @@ class Fakeable(Device):
                 self.id,
                 idx=idx,  # zone_idx or domain_id
                 dst_id=msg.src.id,
-                callback={FUNC: proc_confirm, TIMEOUT: 3},  # re-Tx W until Rx an I
+                callback={
+                    SZ_FUNC: proc_confirm,
+                    SZ_TIMEOUT: 3,
+                },  # re-Tx W until Rx an I
             )
             self._send_cmd(cmd)
 
         self._1fc9_state["code"] = code
         self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
-            f"{_1FC9}|{I_}|{NUL_DEV_ADDR.id}", {FUNC: proc_offer, TIMEOUT: 300}
+            f"{_1FC9}|{I_}|{NUL_DEV_ADDR.id}", {SZ_FUNC: proc_offer, SZ_TIMEOUT: 300}
         )
 
     def _bind_request(self, code, callback=None):
@@ -446,7 +439,7 @@ class Fakeable(Device):
         self._1fc9_state["code"] = code
         self._1fc9_state["state"] = BindState.OFFERING
         cmd = Command.put_bind(
-            I_, code, self.id, callback={FUNC: proc_accept, TIMEOUT: 3}
+            I_, code, self.id, callback={SZ_FUNC: proc_accept, SZ_TIMEOUT: 3}
         )
         self._send_cmd(cmd)
 
@@ -487,7 +480,7 @@ class BatteryState(Device):  # 1060
         }
 
 
-class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
+class HgiGateway(DeviceInfo):  # HGI (18:)
     """The HGI80 base class."""
 
     _SLUG: str = DEV_TYPE.HGI
@@ -510,11 +503,6 @@ class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
     #         self._faked_bdr = self._gwy.get_device(
     #             self.id, class_=DEV_TYPE.BDR, faked=True
     #         )  # also for THM, OUT
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # of no value for a HGI80-compatible device
-        return
 
     def _handle_msg(self, msg: Message) -> None:
         def fake_addrs(msg, faked_dev):
@@ -691,7 +679,7 @@ class DeviceHvac(Child, DeviceInfo):  # HVAC (ventilation, PIV, MV/HR)
     # def _hvac_trick(self):  # a HACK - remove
     #     if not isinstance(self, HvacVentilator) and not randrange(3):
     #         [
-    #             self._send_cmd(Command(RQ, _31DA, "00", d.id, retries=0))
+    #             self._send_cmd(Command(RQ, _31DA, "00", d.id, qos={SZ_RETRIES: 0}))
     #             for d in self._gwy.devices
     #             if isinstance(d, HvacVentilator) and d is not self
     #         ]

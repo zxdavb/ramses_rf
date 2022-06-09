@@ -41,13 +41,12 @@ from .devices import (
     Controller,
     Device,
     DhwSensor,
-    Discover,
     TrvActuator,
     UfhController,
 )
-from .entity_base import Child, Entity, Parent, class_by_attr, discover_decorator
+from .entity_base import Child, Entity, Parent, class_by_attr
 from .helpers import shrink
-from .protocol import CODE_API_MAP, Address, Command, CorruptStateError, Message
+from .protocol import Address, Command, CorruptStateError, Message
 from .schedule import Schedule
 from .schema import (
     SCHEMA_DHW,
@@ -200,18 +199,6 @@ class ZoneBase(Child, Parent, Entity):
             return NotImplemented
         return self.idx < other.idx
 
-    def _start_discovery(self) -> None:
-
-        self._gwy.add_task(  # 0005/000C pkts
-            self._discover, discover_flag=Discover.SCHEMA, delay=1, period=3600 * 24
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=3, period=3600 * 6
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=5, period=60 * 15
-        )
-
     def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
         payload = kwargs.pop("payload", f"{self.idx}00")
         super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
@@ -232,10 +219,10 @@ class ZoneSchedule:  # 0404
 
         self._schedule = Schedule(self)
 
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def OUT_discover(self) -> None:
+        super()._discover()
 
-        if discover_flag & Discover.SCHEDULE:
+        if False:
             self._loop.create_task(self.get_schedule())  # 0404
 
     def _handle_msg(self, msg: Message) -> None:
@@ -270,8 +257,6 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
     _SLUG: str = ZON_ROLE.DHW
-    _ROLE_ACTUATORS: str = DEV_ROLE_MAP.HTG
-    _ROLE_SENSORS: str = DEV_ROLE_MAP.DHW
 
     def __init__(self, tcs, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
@@ -287,43 +272,22 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self._dhw_valve = None  # schema attr
         self._htg_valve = None  # schema attr
 
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        def send_code(code, minutes=2) -> None:
-            """Don't send an api if there is a recent msg in the database.
+    def _setup_discovery_tasks(self) -> None:
+        # super()._setup_discovery_tasks()
 
-            Primarily for HA startup (restore_cache) to avoid exceeding RF duty cycles.
-            """
+        for payload in (
+            f"00{DEV_ROLE_MAP.DHW}",
+            f"00{DEV_ROLE_MAP.HTG}",
+            f"01{DEV_ROLE_MAP.HTG}",
+        ):
+            self._add_discovery_task(
+                Command(RQ, _000C, payload, self.ctl.id), 60 * 60 * 24
+            )
 
-            if (
-                not (msg := self._msgs.get(code))
-                or msg.dtm + td(minutes=minutes) < dt.now()
-            ):
-                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id))
+        self._add_discovery_task(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
 
-        if discover_flag & Discover.SCHEMA:
-            for dev_role in (
-                f"00{self._ROLE_SENSORS}",
-                f"00{self._ROLE_ACTUATORS}",
-                f"01{self._ROLE_ACTUATORS}",
-            ):
-                try:
-                    _ = self._msgz[_000C][RP][dev_role]
-                except KeyError:
-                    self._make_cmd(_000C, payload=dev_role)
-
-        if discover_flag & Discover.PARAMS:
-            # self._send_cmd(Command.get_dhw_params(self.ctl.id))
-            send_code(_10A0, 15)
-
-        if discover_flag & Discover.STATUS:
-            # self._send_cmd(Command.get_dhw_mode(self.ctl.id))
-            # self._send_cmd(Command.get_dhw_temp(self.ctl.id))
-            send_code(_1260)
-            send_code(_1F41)
-
-        # start collecting the schedule
-        # self._schedule.req_schedule()  # , restart=True) start collecting schedule
+        self._add_discovery_task(Command.get_dhw_mode(self.ctl.id), 60 * 5)
+        self._add_discovery_task(Command.get_dhw_temp(self.ctl.id), 60 * 5)
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_dhw_sensor(this, *, prev=None) -> None:
@@ -531,7 +495,6 @@ class Zone(ZoneSchedule, ZoneBase):
 
     _SLUG: str = None  # Unknown
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
-    _ROLE_SENSORS: str = DEV_ROLE_MAP.SEN
 
     def __init__(self, tcs, zone_idx: str) -> None:
         """Create a heating zone.
@@ -616,45 +579,32 @@ class Zone(ZoneSchedule, ZoneBase):
         for dev_id in schema.get(SZ_ACTUATORS, []):
             self._gwy.get_device(dev_id, parent=self)
 
-    @discover_decorator  # NOTE: can mean is double-decorated
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        def throttle_send(code, minutes=2) -> None:
-            """Don't send an api if there is a recent msg in the database.
+    def _setup_discovery_tasks(self) -> None:
+        # super()._setup_discovery_tasks()
 
-            Primarily for HA startup (restore_cache) to avoid exceeding RF duty cycles.
-            """
+        for dev_role in (self._ROLE_ACTUATORS, DEV_ROLE_MAP.SEN):
+            self._add_discovery_task(
+                Command(RQ, _000C, f"{self.idx}{dev_role}", self.ctl.id, qos=None),
+                60 * 60 * 24,
+                delay=0.5,
+            )
 
-            if (
-                not (msg := self._msgs.get(code))
-                or msg.dtm + td(minutes=minutes) < dt.now()
-            ):
-                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id, self.idx))
+        self._add_discovery_task(
+            Command.get_zone_config(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
+        )
+        self._add_discovery_task(
+            Command.get_zone_name(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
+        )
 
-        if discover_flag & Discover.SCHEMA:
-            assert self._gwy.config.disable_discovery is False  # TODO: remove
-
-            for dev_role in (self._ROLE_ACTUATORS, self._ROLE_SENSORS):
-                try:
-                    _ = self._msgz[_000C][RP][f"{self.idx}{dev_role}"]
-                except KeyError:
-                    self._make_cmd(_000C, payload=f"{self.idx}{dev_role}")
-
-        if discover_flag & Discover.PARAMS:
-            # self._send_cmd(Command.get_zone_config(self.ctl.id, self.idx))
-            # self._send_cmd(Command.get_zone_name(self.ctl.id, self.idx))
-            throttle_send(_0004, 15)
-            throttle_send(_000A, 15)
-
-        if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
-            # self._send_cmd(Command.get_zone_mode(self.ctl.id, self.idx))
-            # self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
-            # self._send_cmd(Command.get_zone_window_state(self.ctl.id, self.idx))
-            throttle_send(_12B0, 15)
-            throttle_send(_2349)
-            throttle_send(_30C9)
-
-        # start collecting the schedule
-        # self._schedule.req_schedule()  # , restart=True) start collecting schedule
+        self._add_discovery_task(
+            Command.get_zone_mode(self.ctl.id, self.idx), 60 * 5, delay=0
+        )
+        self._add_discovery_task(
+            Command.get_zone_temp(self.ctl.id, self.idx), 60 * 5, delay=0
+        )
+        self._add_discovery_task(
+            Command.get_zone_window_state(self.ctl.id, self.idx), 60 * 5, delay=15
+        )
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_zone_type(this, *, prev=None) -> None:
@@ -920,13 +870,12 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     _SLUG: str = ZON_ROLE.MIX
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.MIX
 
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super() initially
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_mix_valve_params(self.ctl.id, self.idx))
+        self._add_discovery_task(
+            Command.get_mix_valve_params(self.ctl.id, self.idx), 60 * 60 * 6
+        )
 
     @property
     def mix_config(self) -> dict:  # 1030

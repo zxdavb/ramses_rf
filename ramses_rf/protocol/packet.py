@@ -145,25 +145,25 @@ class Packet(Frame):
         \# 065 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000  # ...
         """  # noqa: W605
 
-        super().__init__(frame[4:])
+        super().__init__(frame[4:])  # incl. self._validate(addr_set)
 
         self._gwy = gwy
         self._dtm: dt = dtm
+        self._timeout: Union[bool, float] = None  # track pkt expiry
+
+        self._rssi: str = frame[0:3]
 
         self.comment: str = kwargs.get("comment", "")
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
 
-        self._rssi: str = frame[0:3]
-        self._validate(frame[11:40])  # ? raise InvalidPacketError
-
         # if DEV_MODE:  # TODO: remove (is for testing only)
         #     _ = self._has_array
         #     _ = self._has_ctl
 
-        self._timeout: Union[bool, float] = None  # track pkt expiry
+        self._validate(strict_checking=False)
 
-    def _validate(self, addr_set, *, strict_checking=None) -> None:
+    def _validate(self, *, strict_checking=None) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -176,16 +176,7 @@ class Packet(Frame):
             if not self._frame and self.comment:  # log null pkts only if has a comment
                 raise InvalidPacketError("Null packet")
 
-            # if not MESSAGE_REGEX.match(self._frame):
-            #     raise InvalidPacketError("Invalid packet structure")
-
-            # length = int(self._frame[46:49])
-            # if len(self._frame[50:]) != length * 2:
-            #     raise InvalidPacketError("Invalid payload length")
-
-            # src, dst, addrs = pkt_addrs(addr_set)  # self._frame[11:40]
-
-            super()._validate(addr_set, strict_checking=strict_checking)  # no RSSI
+            super()._validate(strict_checking=strict_checking)  # no RSSI
 
             _PKT_LOGGER.info("", extra=self.__dict__)
 

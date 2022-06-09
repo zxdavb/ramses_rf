@@ -35,7 +35,6 @@ from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-i
     BdrSwitch,
     Controller,
     DhwSensor,
-    Discover,
     OtbGateway,
     OutSensor,
     Temperature,

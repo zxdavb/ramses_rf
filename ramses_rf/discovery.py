@@ -134,11 +134,11 @@ if DEV_MODE:
 def script_decorator(fnc):
     def wrapper(gwy, *args, **kwargs):
 
-        gwy.send_cmd(Command._puzzle(message="Script begins:", **QOS_DEFAULT_HIGH))
+        gwy.send_cmd(Command._puzzle(message="Script begins:", qos=QOS_DEFAULT_HIGH))
 
         result = fnc(gwy, *args, **kwargs)
 
-        gwy.send_cmd(Command._puzzle(message="Script done.", **QOS_DEFAULT_LOW))
+        gwy.send_cmd(Command._puzzle(message="Script done.", qos=QOS_DEFAULT_LOW))
 
         return result
 
@@ -179,7 +179,7 @@ async def exec_cmd(gwy, **kwargs):
     #     _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
     #     return
 
-    cmd = Command.from_str(kwargs[EXEC_CMD], **QOS_DEFAULT_HIGH)
+    cmd = Command.from_str(kwargs[EXEC_CMD], qos=QOS_DEFAULT_HIGH)
 
     await gwy.async_send_cmd(cmd)
 

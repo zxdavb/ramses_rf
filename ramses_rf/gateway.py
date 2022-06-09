@@ -267,14 +267,14 @@ class Engine:
             try:
                 result = fut.result(timeout=0)
 
-            # except futures.CancelledError:  # fut maybe cancelled by a higher layer
+            # except futures.CancelledError:  # fut ?was cancelled by a higher layer
             #     break
 
             except futures.TimeoutError:  # fut/cmd has not yet completed
                 pass  # should be a pass
 
-            except TimeoutError:  # raised by send_cmd()
-                raise TimeoutError(f"cmd ({cmd.tx_header}) has timed out")
+            except TimeoutError as exc:  # raised by send_cmd()
+                raise TimeoutError(f"cmd ({cmd.tx_header}) timed out: {exc}")
 
             except Exception as exc:
                 _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
@@ -366,16 +366,16 @@ class Gateway(Engine):
         def initiate_discovery(dev_list, sys_list) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
-            # [d._start_discovery() for d in devs]
+            # [d._start_discovery_poller() for d in devs]
             for device in dev_list:
-                device._start_discovery()
+                device._start_discovery_poller()
 
             for system in sys_list:
-                system._start_discovery()
+                system._start_discovery_poller()
                 for zone in system.zones:
-                    zone._start_discovery()
+                    zone._start_discovery_poller()
                 if system.dhw:
-                    system.dhw._start_discovery()
+                    system.dhw._start_discovery_poller()
 
         await super().start()
 

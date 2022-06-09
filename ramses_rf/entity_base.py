@@ -8,6 +8,7 @@ Entity is the base of all RAMSES-II objects: devices and also system/zone constr
 
 import asyncio
 import logging
+import random
 from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
@@ -22,7 +23,6 @@ from .const import (
     SZ_SENSOR,
     SZ_UFH_IDX,
     SZ_ZONE_IDX,
-    Discover,
     __dev_mode__,
 )
 from .protocol import CorruptStateError, Message
@@ -150,19 +150,6 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
             lambda m: isclass(m) and m.__module__ == name and getattr(m, attr, None),
         )
     }
-
-
-def discover_decorator(fnc):
-    # NOTE: only need to Wrap top-level entities
-    def wrapper(self, discover_flag=Discover.DEFAULT) -> None:
-
-        if self._gwy.config.disable_discovery:
-            return
-        if not discover_flag:
-            return
-        return fnc(self, discover_flag=discover_flag)
-
-    return wrapper
 
 
 class MessageDB:
@@ -333,109 +320,152 @@ class MessageDatabaseSql:
 
 
 class Discovery(MessageDB):
+    MAX_CYCLE_SECS = 30
+    MIN_CYCLE_SECS = 3
+
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._disc_tasks = {}
+        self._disc_tasks = None
         self._disc_tasks_poller = None
-
-        gwy._loop.call_soon_threadsafe(self._config_discovery)
 
         if not gwy.config.disable_discovery and isinstance(
             gwy.pkt_protocol, PacketProtocolPort
         ):  # TODO: here, or in get_xxx()?
-            gwy._loop.call_soon_threadsafe(self._start_discovery)
+            # delay = 0  # random.uniform(0.5, 1.5)
+            # gwy._loop.call_soon_threadsafe(
+            #     gwy._loop.call_later, delay, self._start_discovery_poller
+            # )
+            gwy._loop.call_soon(self._start_discovery_poller)
 
-    def _config_discovery(self) -> None:
+    def _setup_discovery_tasks(self) -> dict:
         raise NotImplementedError
 
-    def _start_discovery(self) -> None:
-        if not self._disc_tasks_poller or self._disc_tasks_poller.done():
-            self._disc_tasks_poller = self._gwy.add_task(self._poll_disc_tasks)
-
-    def _stop_discovery(self) -> None:
-        if self._disc_tasks_poller and not self._disc_tasks_poller.done():
-            self._disc_tasks_poller.cancel()
-
-    def _add_disc_task(self, cmd, interval, *, delay: float = 0, timeout: float = None):
+    def _add_discovery_task(
+        self, cmd, interval, *, delay: float = 0, timeout: float = None
+    ):
         """Schedule a command to run periodically."""
 
+        if cmd.rx_header is None:
+            _LOGGER.warning(f"cmd({cmd}): invalid header added to discovery table")
+            return
         if cmd.rx_header in self._disc_tasks:
-            raise ValueError
+            # raise LookupError(cmd.rx_header)
+            _LOGGER.warning(f"cmd({cmd}): duplicate header added to discovery table")
+            return
 
-        timeout = timeout or (cmd.qos.retries + 1) * cmd.qos.timeout.total_seconds()
+        if delay:
+            delay += random.uniform(0.05, 0.45)
+        timeout = timeout or (cmd._qos.retries + 1) * cmd._qos.timeout.total_seconds()
 
         self._disc_tasks[cmd.rx_header] = {
             "command": cmd,
-            "interval": td(seconds=interval),
+            "interval": td(seconds=max(interval, self.MAX_CYCLE_SECS)),
             "last_msg": None,
             "last_ran": None,
             "next_due": dt.now() + td(seconds=delay),
             "timeout": timeout,
+            "failures": 0,
         }
 
-    async def _poll_disc_tasks(self) -> None:
+        # if self._disc_tasks_poller:
+        #     self._stop_discovery_poller()
+        #     self._start_discovery_poller()
+
+    def _start_discovery_poller(self) -> None:
+        if self._disc_tasks is None:
+            self._disc_tasks = {}
+            self._setup_discovery_tasks()
+
+        if not self._disc_tasks_poller or self._disc_tasks_poller.done():
+            self._disc_tasks_poller = self._gwy.add_task(self._poll_discovery_tasks)
+
+    def _stop_discovery_poller(self) -> None:
+        if self._disc_tasks_poller and not self._disc_tasks_poller.done():
+            self._disc_tasks_poller.cancel()
+
+    async def _poll_discovery_tasks(self) -> None:
         """Send any outstanding commands that are past due.
 
         If a relevant message was received recently enough, reschedule the corresponding
         command for later.
         """
-        MAX_CYCLE_SECS = 10
-        MIN_CYCLE_SECS = 3
+
+        def find_newer_msg(hdr: str, task: dict) -> Optional[Message]:
+            msgs = [self._get_msg_by_hdr(hdr[:5] + v + hdr[7:]) for v in (I_, RP)]
+
+            if (
+                (msgs := [m for m in msgs if m is not None])
+                and (msg := max(msgs))
+                and (task["next_due"] < msg.dtm + task["interval"])
+            ):
+                if task["last_msg"] and msg.dtm <= task["last_msg"].dtm:  # TODO: remove
+                    _LOGGER.warning(f"{hdr} failed (0x01)")
+                return msg
+
+        def next_due(hdr: str, task: dict) -> Optional[Message]:
+            if task["last_msg"]:
+                return task["last_ran"] + task["interval"]
+            secs = self.MAX_CYCLE_SECS if task["failures"] > 2 else self.MIN_CYCLE_SECS
+            return task["last_ran"] + td(seconds=secs) * (task["failures"] + 1)
+
+        async def _send_disc_task(hdr: str, task: dict) -> Optional[Message]:
+            """Send a scheduled command and wait for/return the reponse."""
+            try:
+                result = await asyncio.wait_for(
+                    self._gwy.async_send_cmd(task["command"]), timeout=60
+                )
+
+            except asyncio.TimeoutError as exc:
+                _LOGGER.warning(f"{hdr}: {exc} (0x5A)")
+                return
+
+            except TimeoutError as exc:
+                _LOGGER.warning(f"{hdr}: {exc} (0x5B)")
+                return
+
+            # except Exception as exc:
+            #     _LOGGER.exception(exc)
+            #     raise exc
+
+            if not result:  # TODO: remove
+                _LOGGER.warning(f"{hdr} failed (0x5C)")
+
+            return result
 
         while True:
             if self._gwy.config.disable_discovery:
-                await asyncio.sleep(MIN_CYCLE_SECS)
+                await asyncio.sleep(self.MIN_CYCLE_SECS)
                 continue
 
             for hdr, task in self._disc_tasks.items():
-                msgs = [self._get_msg_by_hdr(I_ + hdr[2:]) for v in (I_, RP)]
-
                 dt_now = dt.now()
 
-                if (
-                    (msgs := [m for m in msgs if m is not None])
-                    and (msg := max(msgs))
-                    and (task["next_due"] < msg.dtm + task["interval"])
-                ):
+                if msg := find_newer_msg(hdr, task):
                     task["last_msg"] = msg
-
-                elif task["next_due"] <= dt_now and (
-                    msg := await self._send_disc_task(task)
-                ):
-                    task["last_msg"] = msg
-
+                elif task["next_due"] <= dt_now:
+                    task["last_ran"] = dt_now
+                    task["last_msg"] = await _send_disc_task(hdr, task)
                 else:
                     continue
 
-                task["last_ran"] = task["last_msg"].dtm
-                task["next_due"] = task["last_ran"] + task["interval"]
+                if task["last_msg"]:
+                    task["failures"] = 0
+                    task["last_ran"] = task["last_msg"].dtm
+                else:
+                    task["failures"] += 1
+
+                task["next_due"] = next_due(hdr, task)
 
             if self._disc_tasks:
                 seconds = (
                     min(t["next_due"] for t in self._disc_tasks.values()) - dt.now()
                 ).total_seconds()
-                await asyncio.sleep(min(max(seconds, MIN_CYCLE_SECS), MAX_CYCLE_SECS))
+                await asyncio.sleep(
+                    min(max(seconds, self.MIN_CYCLE_SECS), self.MAX_CYCLE_SECS)
+                )
             else:
-                await asyncio.sleep(MAX_CYCLE_SECS)
-
-    async def _send_disc_task(self, task) -> Message:
-        """Send a scheduled command and wait for/return the reponse."""
-        try:
-            return await asyncio.wait_for(
-                self._gwy.async_send_cmd(task["command"]), timeout=task["timeout"] * 5
-            )
-
-        except asyncio.TimeoutError:
-            return  # task["last_msg"] = None?
-
-        except TypeError as exc:
-            print(exc)
-
-        # except Exception as exc:
-        #     _LOGGER.exception(exc)
-        #     raise exc
-        pass
+                await asyncio.sleep(self.MAX_CYCLE_SECS)
 
 
 class Entity(Discovery):

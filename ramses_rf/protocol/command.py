@@ -12,18 +12,21 @@ import json
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from types import SimpleNamespace
 from typing import Any, Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import (
-    COMMAND_REGEX,
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     SYS_MODE_MAP,
+    SZ_DAEMON,
+    SZ_DHW_IDX,
     SZ_DOMAIN_ID,
+    SZ_FUNC,
+    SZ_TIMEOUT,
     SZ_ZONE_IDX,
     ZON_MODE_MAP,
+    Priority,
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError, InvalidPacketError
@@ -133,19 +136,6 @@ COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 TIMER_SHORT_SLEEP = 0.05
 TIMER_LONG_TIMEOUT = td(seconds=60)
 
-CALLBACK = "callback"
-DEAMON = "daemon"
-EXPIRES = "expires"
-FUNC = "func"
-ARGS = "args"
-
-BACKOFF = "backoff"
-PRIORITY = "priority"
-RETRIES = "retries"
-TIMEOUT = "timeout"
-
-Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
-
 
 DEV_MODE = __dev_mode__ and False
 
@@ -195,6 +185,8 @@ def validate_api_params(*, has_zone=None):
                 kwargs[SZ_ZONE_IDX] = validate_zone_idx(kwargs[SZ_ZONE_IDX])
             if SZ_DOMAIN_ID in kwargs:
                 kwargs[SZ_DOMAIN_ID] = validate_zone_idx(kwargs[SZ_DOMAIN_ID])
+            if SZ_DOMAIN_ID in kwargs:
+                kwargs[SZ_DHW_IDX] = validate_zone_idx(kwargs[SZ_DHW_IDX])
 
             return _wrapper(fcn, cls, dst_id, *args, **kwargs)
 
@@ -280,62 +272,10 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     return until, duration
 
 
-class Qos(Frame):
-    """The QoS class.
+def _qos_function(verb, code, qos: dict) -> dict:
+    from .transport import Qos
 
-    This is a mess - it is the first step in cleaning up QoS.
-    """
-
-    # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
-    DEFAULT_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
-    DEFAULT_TX_RETRIES = 2
-
-    DEFAULT_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
-    MAX_BACKOFF = 3
-
-    DEFAULT = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
-
-    DEFAULT_KEYS = (PRIORITY, RETRIES, TIMEOUT, BACKOFF)
-
-    DEFAULTS = {  # priority, retries, timeout, disable_backoff, c.f. DEFAULT
-        f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
-        f"{RQ}|{_0006}": (Priority.HIGH, 5, None, True),
-        f"{RQ}|{_1F09}": (Priority.HIGH, 5, None, True),
-        f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
-        f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # both short Tx,
-        f"{RQ}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
-        f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),  # but long Rx
-        f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
-        f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
-        f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
-    }  # The long timeout for the OTB is for total RTT to slave (boiler)
-
-    def __init__(
-        self,
-        *,
-        backoff=True,
-        priority=Priority.DEFAULT,
-        retries=0,
-        timeout=DEFAULT_RX_TIMEOUT,
-    ) -> None:
-
-        self.priority = priority or self.DEFAULT[0]
-        self.retries = retries or self.DEFAULT[1]
-        self.timeout = timeout or self.DEFAULT[2]
-        self.backoff = backoff or self.DEFAULT[3]
-
-    @classmethod  # constructor from verb|code pair
-    def verb_code(cls, verb, code, **kwargs) -> dict:
-        """Constructor to create a QoS based upon the defaults for a verb|code pair."""
-
-        default_qos = cls.DEFAULTS.get(f"{verb}|{code}", cls.DEFAULT)
-
-        return cls(
-            **{
-                key: kwargs.get(key, default_qos[i])
-                for i, key in enumerate(cls.DEFAULT_KEYS)
-            }
-        )
+    return Qos.verb_code(verb, code, **qos)
 
 
 @functools.total_ordering
@@ -343,60 +283,46 @@ class Command(Frame):
     """The command class."""
 
     def __init__(
-        self, verb: str, code: str, payload: str, dest_id: str, *, qos=None, **kwargs
+        self,
+        verb: str,
+        code: str,
+        payload: str,
+        dest_id: str,
+        *,
+        from_id: str = HGI_DEV_ADDR.id,
+        qos=None,
+        cbk=None,
     ) -> None:
         """Create a command.
 
         Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
         """
 
-        addr_set = " ".join(
-            (kwargs.get("from_id", HGI_DEV_ADDR.id), dest_id, NON_DEV_ADDR.id)
-        )
+        if dest_id == from_id:
+            addr_set = " ".join((from_id, NON_DEV_ADDR.id, dest_id))
+        else:
+            addr_set = " ".join((from_id, dest_id, NON_DEV_ADDR.id))
+
         frame = " ".join(
-            (verb, "---", addr_set, code, f"{int(len(payload) / 2):03X}", payload)
+            (verb, "---", addr_set, code, f"{int(len(payload) / 2):03d}", payload)
         )
 
-        super().__init__(frame)
+        super().__init__(frame)  # incl. self._validate(addr_set)
 
-        self._validate(addr_set)
+        # used by app layer: callback (protocol.py: func, args, daemon, timeout)
+        self._cbk = cbk or {}
 
-        # callback used by app layer (protocol.py)
-        self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
+        # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
+        self._qos = _qos_function(verb, code, qos or {})
 
-        # qos used by pkt layer (transport.py, backoff, priority, retries, timeout)
-        self.qos = qos if qos else Qos.verb_code(self.verb, self.code, **kwargs)
-
-        # priority used by msg layer for next cmd to send (protocol.py)
-        self._priority = self.qos.priority  # TODO: should only be a QoS attr?
+        # used by msg layer: priority (protocol.py,: for which cmd to send next)
+        self._priority = self._qos.priority  # TODO: should only be a QoS attr
         self._dtm = dt_now()
 
         self._rx_header: Optional[str] = None
-        # self._tx_header: str  # unused?
-
         self._source_entity = None
 
-    def _validate(self, addr_set) -> None:
-        """Validate the command, and construct the frame if so.
-
-        Raise an exception (InvalidPacketError, InvalidAddrSetError) if it is not valid.
-        """
-
-        self._len = int(len(self.payload) / 2)
-        if len(self.payload) != self._len * 2 or 1 > self._len > 48:
-            raise InvalidPacketError("Invalid payload length")
-
-        self._frame = COMMAND_FORMAT.format(
-            self.verb,
-            self.seqn,
-            *(a.id for a in self._addrs),
-            self.code,
-            self.len,
-            self.payload,
-        )
-
-        if not COMMAND_REGEX.match(self._frame):
-            raise InvalidPacketError(f"{self._frame} < Invalid packet structure")
+        self._validate(strict_checking=False)
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -566,8 +492,11 @@ class Command(Frame):
             raise ValueError(f"Out of range, overrun: {overrun}")
         if not (1 <= differential <= 10):
             raise ValueError(f"Out of range, differential: {differential}")
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # can have 2 DHWs, but not ever seen
 
-        payload = f"00{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
+        payload = (
+            f"{dhw_idx}{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
+        )
 
         return cls(W_, _10A0, payload, ctl_id, **kwargs)
 
@@ -770,11 +699,12 @@ class Command(Frame):
 
     @classmethod  # constructor for W/313F
     @validate_api_params()
-    def set_system_time(cls, ctl_id: str, datetime, **kwargs):  # TODO: add is_dst
+    def set_system_time(cls, ctl_id: str, datetime: dt, is_dst: bool = False, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        return cls(W_, _313F, f"006000{dtm_to_hex(datetime)}", ctl_id, **kwargs)
+        datetime = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
+        return cls(W_, _313F, f"0060{datetime}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1100
     @validate_api_params()
@@ -1145,20 +1075,29 @@ class Command(Frame):
 
         verb = I_ if verb == "I" else W_ if verb == "W" else verb
 
-        cmd = cls(verb, code, payload, NUL_DEV_ADDR.id, **kwargs)
-
         addr0 = addr0 or NON_DEV_ADDR.id
         addr1 = addr1 or NON_DEV_ADDR.id
         addr2 = addr2 or NON_DEV_ADDR.id
 
-        cmd.src, cmd.dst, *cmd._addrs = pkt_addrs(" ".join((addr0, addr1, addr2)))
+        src, dst, *_ = pkt_addrs(" ".join((addr0, addr1, addr2)))
+
+        cmd = cls(verb, code, payload, dst.id, from_id=src.id, **kwargs)
 
         if seqn in ("", "-", "--", "---"):
             cmd._seqn = "---"
         elif seqn is not None:
             cmd._seqn = f"{int(seqn):03d}"
 
-        cmd._validate(f"{addr0} {addr1} {addr2}")
+        cmd._frame = COMMAND_FORMAT.format(
+            cmd.verb,
+            cmd.seqn,
+            *(a.id for a in cmd._addrs),
+            cmd.code,
+            cmd.len,
+            cmd.payload,
+        )
+
+        cmd._validate()
 
         return cmd
 
@@ -1211,7 +1150,7 @@ class Command(Frame):
         except ValueError:
             raise InvalidPacketError(f"invalid seqn: {raw[1]}")
 
-        if raw[6] != f"{cmd._len:03d}":
+        if raw[6] != cmd._len:
             raise InvalidPacketError(f"invalid length: {cmd[6]}")
 
         return cmd
@@ -1340,11 +1279,11 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         null_header = "|".join((RP, self.id, _0418))
         if null_header not in self._gwy.msg_transport._callbacks:
             self._gwy.msg_transport._callbacks[null_header] = {
-                FUNC: rq_callback,
-                DEAMON: True,
+                SZ_FUNC: rq_callback,
+                SZ_DAEMON: True,
             }
 
-        rq_callback = {FUNC: rq_callback, TIMEOUT: 10}
+        rq_callback = {SZ_FUNC: rq_callback, SZ_TIMEOUT: 10}
         self._gwy.send_cmd(
             Command.get_system_log_entry(self.ctl.id, log_idx, callback=rq_callback)
         )

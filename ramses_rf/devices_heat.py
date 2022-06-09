@@ -7,7 +7,6 @@ Heating devices.
 """
 
 import logging
-from random import randint
 from symtable import Class
 from typing import Any, Optional
 
@@ -21,7 +20,9 @@ from .const import (
     SZ_HEAT_DEMAND,
     SZ_NAME,
     SZ_PRESSURE,
+    SZ_PRIORITY,
     SZ_RELAY_DEMAND,
+    SZ_RETRIES,
     SZ_SETPOINT,
     SZ_TEMPERATURE,
     SZ_UFH_IDX,
@@ -30,11 +31,10 @@ from .const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     ZON_ROLE_MAP,
-    Discover,
     __dev_mode__,
 )
 from .devices_base import BatteryState, DeviceHeat, Fakeable
-from .entity_base import Entity, Parent, class_by_attr, discover_decorator
+from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
@@ -170,13 +170,14 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
         if isinstance(self, OtbGateway):
             return
 
-        if (
+        if False and (
             msg.code == _3EF0
             and msg.verb == I_
             and not self._faked
+            and not self._gwy.config.disable_discovery
             and not self._gwy.config.disable_sending
         ):
-            self._make_cmd(_3EF1, priority=Priority.LOW, retries=1)
+            self._make_cmd(_3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
 
     @property
     def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
@@ -301,14 +302,11 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
     RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.STATUS and not self._faked:
-            self._send_cmd(
-                Command.get_relay_demand(self.id), priority=Priority.LOW, retries=1
-            )
+        if not self._faked:  # discover_flag & Discover.STATUS and
+            self._add_discovery_task(Command.get_relay_demand(self.id), 60 * 60 * 5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         if msg.src.id == self.id:
@@ -345,7 +343,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
         elif msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
             cmd = Command.get_relay_demand(self.id)
-            self._send_cmd(cmd, priority=Priority.LOW, retries=1)
+            self._send_cmd(cmd, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
 
         elif msg.code == _3EF1 and msg.verb == RQ:  # NOTE: WIP
             mod_level = 1.0
@@ -465,12 +463,6 @@ class Controller(DeviceHeat):  # CTL (01):
         self.tcs = None  # TODO: = self?
         self._make_tcs_controller(**kwargs)  # NOTE: must create_from_schema first
 
-    def _start_discovery(self) -> None:  # TODO: remove
-        pass
-
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:  # TODO: remove
-        pass
-
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
@@ -542,37 +534,22 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         self._iz_controller = True
 
-    def _start_discovery(self) -> None:
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        delay = randint(10, 20)
-
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=600
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
-        )
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
-        if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_0005, payload=f"00{DEV_ROLE_MAP.UFH}")
-            for ufh_idx in range(8):
-                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{DEV_ROLE_MAP.UFH}")
+        self._add_discovery_task(
+            Command(RQ, _0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
+        )
+        for ufh_idx in range(8):
+            payload = f"{ufh_idx:02X}{DEV_ROLE_MAP.UFH}"
+            self._add_discovery_task(Command(RQ, _000C, payload, self.id), 60 * 60 * 24)
 
-        if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
-            for ufh_idx in self.circuits:
-                self._make_cmd(_000A, payload=ufh_idx)
-                self._make_cmd(_2309, payload=ufh_idx)
-
-        # if discover_flag & Discover.STATUS:  # only 2309 has any potential?
-        #     [self._make_cmd(_2309, payload=ufh_idx)for ufh_idx in self._circuits_alt]
+        # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
+        for ufh_idx in self.circuits:
+            self._add_discovery_task(Command(RQ, _000A, ufh_idx, self.id), 60 * 60 * 6)
+            self._add_discovery_task(Command(RQ, _2309, ufh_idx, self.id), 60 * 60 * 6)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -643,7 +620,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                 zone._handle_msg(msg)
 
         # elif msg.code not in (_10E0, _22D0):
-        #     print("AAA")
+        #     print("xxx")
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
@@ -810,76 +787,63 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # lf._msgs_ot_ctl_polled = {}
         self._msgs_supported = {}
 
-    def _start_discovery(self) -> None:
-
-        delay = randint(10, 20)
-
-        self._gwy.add_task(  # 10E0/1FC9, 3220 pkts
-            self._discover, discover_flag=Discover.SCHEMA, delay=240, period=3600 * 24
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=delay + 90, period=3600
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=delay, period=180
-        )
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
+    def _setup_discovery_tasks(self) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
+        super()._setup_discovery_tasks()
 
-        super()._discover(discover_flag=discover_flag)
+        # if discover_flag & Discover.SCHEMA:
+        for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
+            # if self._msgs_ot_supported.get(m) is not False:
+            self._add_discovery_task(
+                Command.get_opentherm_data(self.id, m), 60 * 60 * 24, delay=0
+            )
 
-        if discover_flag & Discover.SCHEMA:
-            for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
-                if self._msgs_ot_supported.get(m) is not False and (
-                    not self._msgs_ot.get(m) or self._msgs_ot[m]._expired
-                ):
-                    self._send_cmd(Command.get_opentherm_data(self.id, m))
-
-        if discover_flag & Discover.PARAMS and _OTB_MODE:
+        if _OTB_MODE:
             for m in PARAMS_MSG_IDS:
-                if self._msgs_ot_supported.get(m) is not False:
-                    self._send_cmd(Command.get_opentherm_data(self.id, m))
-            return
+                # if self._msgs_ot_supported.get(m) is not False:
+                self._add_discovery_task(
+                    Command.get_opentherm_data(self.id, m), 60 * 60, delay=90
+                )
 
-        if discover_flag & Discover.PARAMS:
-            for code in [
-                v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS
-            ]:
-                if self._msgs_supported.get(code) is not False:
-                    self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
-
-        if discover_flag & Discover.STATUS:
-            self._send_cmd(Command(RQ, _2401, "00", self.id))  # WIP
-            self._send_cmd(Command(RQ, _3EF0, "00", self.id))
-
-        if discover_flag & Discover.STATUS and _OTB_MODE:
             for msg_id in STATUS_MSG_IDS:
-                if self._msgs_ot_supported.get(msg_id) is not False:
-                    self._send_cmd(
-                        Command.get_opentherm_data(self.id, msg_id, retries=0)
-                    )
+                # if self._msgs_ot_supported.get(msg_id) is not False:
+                self._add_discovery_task(
+                    Command.get_opentherm_data(self.id, msg_id, qos={SZ_RETRIES: 0}),
+                    60 * 5,
+                )
+
             return
 
-        if discover_flag & Discover.STATUS:
-            self._send_cmd(Command.get_opentherm_data(self.id, "00"))
-            self._send_cmd(Command.get_opentherm_data(self.id, "73"))
+        # if discover_flag & Discover.PARAMS:
+        for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
+            # if self._msgs_supported.get(code) is not False:
+            self._add_discovery_task(
+                Command(RQ, code, "00", self.id, qos={SZ_RETRIES: 0}), 60 * 60, delay=0
+            )
 
-            for code in [
-                v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS
-            ]:
-                if self._msgs_supported.get(code) is not False:
-                    self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
+        # if discover_flag & Discover.STATUS:
+        self._add_discovery_task(Command(RQ, _2401, "00", self.id), 60 * 5)
+        self._add_discovery_task(Command(RQ, _3EF0, "00", self.id), 60 * 5)
 
-        if False and DEV_MODE and discover_flag & Discover.STATUS:
+        if False and DEV_MODE:  # and discover_flag & Discover.STATUS:
+            # if discover_flag & Discover.STATUS:
+            self._add_discovery_task(Command.get_opentherm_data(self.id, "00"), 60 * 5)
+            self._add_discovery_task(Command.get_opentherm_data(self.id, "73"), 60 * 5)
+
+        for code in [v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS]:
+            # if self._msgs_supported.get(code) is not False:
+            self._add_discovery_task(
+                Command(RQ, code, "00", self.id, qos={SZ_RETRIES: 0}), 60 * 5
+            )
+
+        if False and DEV_MODE:  # and discover_flag & Discover.STATUS:
             # TODO: these are WIP, and do vary in payload
             for code in (
                 # _2401,  # WIP - modulation_level + flags?
                 _3221,  # R8810A/20A
                 _3223,  # R8810A/20A
             ):
-                self._send_cmd(Command(RQ, code, "00", self.id))
+                self._add_discovery_task(Command(RQ, code, "00", self.id), 60)
             # TODO: these are WIP, appear fixed in payload, to test against BDR91T
             for code in (
                 _0150,  # payload always "000000", R8820A only?
@@ -890,7 +854,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 _2410,  # payload always "000000000000000000000000010000000100000C"
                 _2420,  # payload always "0000001000000...
             ):
-                self._send_cmd(Command(RQ, code, "00", self.id))
+                self._add_discovery_task(Command(RQ, code, "00", self.id), 60)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -911,7 +875,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         # TODO: this is development code - will be rationalised, eventually
         if _OTB_MODE and (code := self.OT_TO_RAMSES.get(msg_id)):
-            self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
+            self._send_cmd(Command(RQ, code, "00", self.id, qos={SZ_RETRIES: 0}))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
             if msg_id not in self._msgs_ot_supported:
@@ -1319,8 +1283,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     #     if kwargs.get(SZ_DOMAIN_ID) == FC:  # TODO: F9/FA/FC, zone_idx
     #         self.ctl._set_app_cntrl(self)
 
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
+    def _setup_discovery_tasks(self) -> None:
         """Discover BDRs.
 
         The BDRs have one of six roles:
@@ -1336,25 +1299,18 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
          - a BDR91A will *periodically* send an I/3B00/00C8 if it is the heater relay
         """
 
-        super()._discover(discover_flag=discover_flag)
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.PARAMS and not self._faked:
-            self._send_cmd(Command.get_tpi_params(self.id))  # or: self.ctl.id
+        if self._faked:
+            return
 
-        if discover_flag & Discover.STATUS and not self._faked:
-            # NOTE: 13: wont RP to an RQ/3EF0
-            self._make_cmd(_3EF1)
+        # discover_flag & Discover.PARAMS and
+        self._add_discovery_task(
+            Command.get_tpi_params(self.id), 60 * 60 * 6
+        )  # also: self.ctl.id
 
-    # def _handle_msg(self, msg: Message) -> None:
-    #     super()._handle_msg(msg)
-
-    #     if msg.code == _1FC9 and msg.verb == RP:
-    #         pass  # only a heater_relay will have 3B00
-
-    #     elif msg.code == _3B00 and msg.verb == I_:
-    #         pass  # only a heater_relay will I/3B00
-    #         # for code in (_0008, _3EF1):
-    #         #     self._make_cmd(code, delay=1)
+        # discover_flag & Discover.STATUS and
+        self._add_discovery_task(Command(RQ, _3EF1, "00", self.id), 60 * 60 * 5)
 
     @property
     def active(self) -> Optional[bool]:  # 3EF0, 3EF1

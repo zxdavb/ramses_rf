@@ -164,8 +164,6 @@ class Frame:
 
         self.src, self.dst, *self._addrs = pkt_addrs(frame[7:36])  # ?InvalidPacketError
 
-        # self._validate(frame[7:36], strict_checking=False)
-
         self._ctx_: Union[str, bool] = None  # type: ignore[assignment]
         self._hdr_: str = None  # type: ignore[assignment]
         self._idx_: Union[str, bool] = None  # type: ignore[assignment]
@@ -174,22 +172,16 @@ class Frame:
         self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
         self._has_payload_: bool = None  # type: ignore[assignment]
 
-    def _validate(self, addr_set, *, strict_checking: bool = None) -> None:
+        # self._validate(strict_checking=False)  # must be done in Command, Packet
+
+    def _validate(self, *, strict_checking: bool = None) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
         """
 
         if not COMMAND_REGEX.match(self._frame):
-            raise InvalidPacketError("Invalid packet structure")
-
-        # try:  # handled by COMMAND_REGEX
-        #     self.seqn == "---" or int(self.seqn)
-        # except ValueError:
-        #     raise InvalidPacketError(f"Invalid seqn: {self.seqn}")
-
-        # if len(self.payload) % 2 != 0:  # handled by COMMAND_REGEX
-        #     raise InvalidPayloadError(f"Invalid payload length: {self.payload}")
+            raise InvalidPacketError("Invalid frame structure")
 
         if int(self.len) * 2 != (len_ := len(self.payload)):
             raise InvalidPacketError(f"Invalid len: {self.len} (should be {len_})")
@@ -543,7 +535,9 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.p
         if pkt.src == pkt.dst:  # and pkt.verb == I_:
             return "|".join((pkt.code, W_, pkt.src.id))
         if pkt.verb == W_:  # and pkt.src != pkt.dst:
-            return "|".join((pkt.code, I_, pkt.src.id))
+            return "|".join((pkt.code, I_, pkt.src.id))  # TODO: why not pkt.dst?
+        # if pkt.verb == RQ:  # and pkt.src != pkt.dst:  # TODO: this breaks things
+        #     return "|".join((pkt.code, RP, pkt.dst.id))
         return None
 
     addr = pkt.dst if pkt.src.type == DEV_TYPE_MAP.HGI else pkt.src  # DEX

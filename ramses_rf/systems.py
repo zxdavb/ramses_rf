@@ -30,7 +30,6 @@ from .const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     SZ_ZONES,
-    Discover,
     __dev_mode__,
 )
 from .devices import (
@@ -42,7 +41,7 @@ from .devices import (
     Temperature,
     UfhController,
 )
-from .entity_base import Entity, Parent, class_by_attr, discover_decorator
+from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import (
     DEV_ROLE_MAP,
@@ -235,44 +234,13 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     def __repr__(self) -> str:
         return f"{self.ctl.id} ({self._SLUG})"
 
-    def _start_discovery(self) -> None:
+    def _setup_discovery_tasks(self) -> None:
+        # super()._setup_discovery_tasks()
 
-        self._gwy.add_task(  # 0005/000C pkts
-            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
+        self._add_discovery_task(
+            Command(RQ, _000C, f"00{DEV_ROLE_MAP.HTG}", self.id), 60 * 60 * 24, delay=0
         )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=2, period=3600 * 6
-        )
-        self._gwy.add_task(  # 2E04
-            self._discover, discover_flag=Discover.STATUS, delay=2, period=60
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.FAULTS, delay=60, period=60
-        )
-        self._gwy.add_task(
-            self._discover, discover_flag=Discover.SCHEDS, delay=300, period=60
-        )
-
-    @discover_decorator
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        # super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"00{DEV_ROLE_MAP.HTG}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.HTG}")
-
-        if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_tpi_params(self.id))
-
-        # if discover_flag & Discover.PARAMS:
-        #     for domain_id in range(0xF8, 0x100):
-        #         self._make_cmd(_0009, payload=f"{domain_id:02X}00")
-
-        # if discover_flag & Discover.STATUS:
-        #     for domain_id in range(0xF8, 0x100):
-        #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
+        self._add_discovery_task(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_appliance_control(this, *, prev=None) -> None:
@@ -469,15 +437,13 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.SCHEMA:
-            for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
-                try:
-                    _ = self._msgz[_0005][RP][f"00{zone_type}"]
-                except KeyError:
-                    self._make_cmd(_0005, payload=f"00{zone_type}")
+        for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
+            self._add_discovery_task(
+                Command(RQ, _0005, f"00{zone_type}", self.id), 60 * 60 * 24, delay=0
+            )
 
     def _handle_msg(self, msg: Message) -> None:
         """Process any relevant message.
@@ -749,11 +715,10 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self.zone_lock = Lock()  # used to stop concurrent get_schedules
         self.zone_lock_idx = None
 
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.SCHEDS:  # check the latest schedule delta
-            self._make_cmd(_0006)
+        self._add_discovery_task(Command(RQ, _0006, "00", self.id), 60 * 5, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retreive the latest global change counter."""
@@ -836,11 +801,12 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
 
 class Language(SystemBase):  # 0100
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_system_language(self.id))
+        self._add_discovery_task(
+            Command.get_system_language(self.id), 60 * 60 * 24, delay=5
+        )
 
     @property
     def language(self) -> Optional[str]:
@@ -866,12 +832,13 @@ class Logbook(SystemBase):  # 0418
         self._faultlog = None  # FaultLog(self.ctl)
         self._faultlog_outdated = None  # should be True
 
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.FAULTS:  # check the latest log entry
-            self._send_cmd(Command.get_system_log_entry(self.ctl.id, 0))
-            # self._gwy.add_task(self._loop.create_task(self.get_faultlog()))
+        self._add_discovery_task(
+            Command.get_system_log_entry(self.ctl.id, 0), 60 * 5, delay=5
+        )
+        # self._gwy.add_task(self._loop.create_task(self.get_faultlog()))
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
@@ -957,14 +924,12 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"00{DEV_ROLE_MAP.DHW}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.DHW}")
+        self._add_discovery_task(
+            Command(RQ, _000C, f"00{DEV_ROLE_MAP.DHW}", self.id), 60 * 60 * 24, delay=0
+        )
 
     def _handle_msg(self, msg: Message) -> None:
 
@@ -1057,11 +1022,10 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
 
 class SysMode(SystemBase):  # 2E04
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.STATUS:
-            self._send_cmd(Command.get_system_mode(self.id))
+        self._add_discovery_task(Command.get_system_mode(self.id), 60 * 5, delay=5)
 
     @property
     def system_mode(self) -> Optional[dict]:  # 2E04
@@ -1089,14 +1053,10 @@ class SysMode(SystemBase):  # 2E04
 
 
 class Datetime(SystemBase):  # 313F
-    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
 
-        if discover_flag & Discover.PARAMS:  # really .STATUS, but to decrease frequency
-            self._send_cmd(Command.get_system_time(self.id))
-
-        # NOTE: used for testing
-        # run_coroutine_threadsafe(self.get_datetime(), self._gwy._loop)
+        self._add_discovery_task(Command.get_system_time(self.id), 60 * 60, delay=0)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -1233,14 +1193,11 @@ class Hometronics(System):
     _SLUG: str = SYS_KLASS.SYS
 
     #
-    # def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
-    #     # super()._discover(discover_flag=discover_flag)
+    # def _setup_discovery_tasks(self) -> None:
+    #     # super()._setup_discovery_tasks()
 
     #     # will RP to: 0005/configured_zones_alt, but not: configured_zones
     #     # will RP to: 0004
-
-    #     if discover_flag & Discover.STATUS:
-    #         self._make_cmd(_1F09)
 
     RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?

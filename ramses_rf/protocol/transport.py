@@ -39,8 +39,23 @@ from serial import SerialBase, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .command import ARGS, DEAMON, FUNC, Command, Qos
-from .const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_INBOUND, SZ_OUTBOUND, __dev_mode__
+from .command import Command
+from .const import (
+    DEV_TYPE_MAP,
+    SZ_ARGS,
+    SZ_BACKOFF,
+    SZ_DAEMON,
+    SZ_DEVICE_ID,
+    SZ_EXPIRED,
+    SZ_FUNC,
+    SZ_INBOUND,
+    SZ_OUTBOUND,
+    SZ_PRIORITY,
+    SZ_RETRIES,
+    SZ_TIMEOUT,
+    Priority,
+    __dev_mode__,
+)
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -50,8 +65,21 @@ from .version import VERSION
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _1F09,
     I_,
+    RP,
+    RQ,
+    W_,
+)
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    _0006,
+    _0016,
+    _0404,
+    _0418,
+    _1F09,
+    _1FC9,
+    _3220,
 )
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
@@ -67,7 +95,6 @@ TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
-EXPIRED = "expired"
 
 DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 
@@ -101,6 +128,61 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !F  - indicate autotune status
 # !FT - start autotune
 # !FS - save autotune
+
+
+class Qos:  # (Frame):
+    """The QoS class.
+
+    This is a mess - it is the first step in cleaning up QoS.
+    """
+
+    # tx (from sent to gwy, to get back from gwy) seems to takes appDEFAULT_KEYSrox. 0.025s
+    DEFAULT_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
+    DEFAULT_TX_RETRIES = 2
+
+    DEFAULT_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
+    MAX_BACKOFF = 3
+
+    QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT, SZ_BACKOFF)
+
+    DEFAULT_QOS = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
+    DEFAULT_QOS_TABLE = (
+        {  # priority, retries, timeout, disable_backoff, c.f. DEFAULT_QOS
+            f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
+            f"{RQ}|{_0006}": (Priority.HIGH, 5, None, True),
+            f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # short Tx
+            f"{RQ}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
+            f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),  # but long Rx
+            f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
+            f"{RQ}|{_1F09}": (Priority.HIGH, 5, None, True),
+            f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
+            f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
+            f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
+        }
+    )  # The long timeout for the OTB is for total RTT to slave (boiler)
+
+    def __init__(
+        self,
+        *,
+        priority=None,
+        retries=None,
+        timeout=None,
+        backoff=None,
+    ) -> None:
+
+        self.priority = priority if priority is not None else self.DEFAULT_QOS[0]
+        self.retries = retries if retries is not None else self.DEFAULT_QOS[1]
+        self.timeout = timeout if timeout is not None else self.DEFAULT_QOS[2]
+        self.backoff = backoff if backoff is not None else self.DEFAULT_QOS[3]
+
+    @classmethod  # constructor from verb|code pair
+    def verb_code(cls, verb, code, **kwargs) -> dict:
+        """Constructor to create a QoS based upon the defaults for a verb|code pair."""
+
+        default_qos = cls.DEFAULT_QOS_TABLE.get(f"{verb}|{code}", cls.DEFAULT_QOS)
+        return cls(
+            **{k: kwargs.get(k, default_qos[i]) for i, k in enumerate(cls.QOS_KEYS)}
+        )
 
 
 def _str(value: bytes) -> str:
@@ -921,7 +1003,7 @@ class PacketProtocolQos(PacketProtocolPort):
             if self._timeout_full > self._dt_now():
                 await asyncio.sleep(_QOS_POLL_INTERVAL)
                 continue
-            elif self._qos_cmd.qos.backoff:
+            elif self._qos_cmd._qos.backoff:
                 self._backoff = min(self._backoff + 1, _QOS_MAX_BACKOFF)
 
             if self._tx_retries < self._tx_retry_limit:
@@ -959,7 +1041,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
         if cmd:
             self._tx_retries = 0
-            self._tx_retry_limit = cmd.qos.retries
+            self._tx_retry_limit = cmd._qos.retries
 
     def _qos_update_timeouts(self) -> None:
         """Update QoS self._timeout_full, self._timeout_half attrs."""
@@ -972,7 +1054,7 @@ class PacketProtocolQos(PacketProtocolPort):
         if self._tx_hdr:
             timeout = Qos.DEFAULT_TX_TIMEOUT
         else:
-            # timeout = self._qos_cmd.qos.timeout
+            # timeout = self._qos_cmd._qos.timeout
             timeout = _MIN_GAP_BETWEEN_RETRYS  # td(seconds=2.0)
 
         # timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
@@ -991,12 +1073,12 @@ class PacketProtocolQos(PacketProtocolPort):
         if cmd._source_entity:  # HACK - should be using a callback
             cmd._source_entity._qos_function(cmd)
 
-        hdr, callback = cmd.tx_header, cmd.callback
-        if callback and not callback.get(EXPIRED):
+        hdr, callback = cmd.tx_header, cmd._cbk
+        if callback and not callback.get(SZ_EXPIRED):
             # see also: MsgTransport._pkt_receiver()
             _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
-            callback[FUNC](False, *callback.get(ARGS, ()))
-            callback[EXPIRED] = not callback.get(DEAMON, False)  # HACK:
+            callback[SZ_FUNC](False, *callback.get(SZ_ARGS, ()))
+            callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
 
 
 def create_pkt_stack(
@@ -1060,7 +1142,9 @@ def create_pkt_stack(
         elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
             return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
         else:
-            return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()
+            return create_protocol_factory(
+                PacketProtocolQos, gwy, pkt_callback
+            )()  # NOTE: should be: PacketProtocolQos, not PacketProtocolPort
 
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
         raise TypeError("serial port, log file & dict should be mutually exclusive")
