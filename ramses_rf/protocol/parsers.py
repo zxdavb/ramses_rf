@@ -40,6 +40,7 @@ from .const import (
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
+    SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
@@ -1571,7 +1572,7 @@ def parser_313f(payload, msg) -> Optional[dict]:  # TODO: look for TZ
 
     return {
         SZ_DATETIME: dtm_from_hex(payload[4:18]),
-        "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
+        SZ_IS_DST: True if bool(int(payload[4:6], 16) & 0x80) else None,
         f"_{SZ_UNKNOWN}_0": payload[2:4],
     }
 
