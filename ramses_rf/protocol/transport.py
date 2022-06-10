@@ -148,7 +148,7 @@ class Qos:
 
     DEFAULT_QOS = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
     DEFAULT_QOS_TABLE = (
-        {  # priority, retries, timeout, disable_backoff, c.f. DEFAULT_QOS
+        {  # priority, retries, timeout, (enable_)backoff, c.f. DEFAULT_QOS
             f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
             f"{RQ}|{_0006}": (Priority.HIGH, 5, None, True),
             f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # short Tx
@@ -175,7 +175,9 @@ class Qos:
         self.retry_limit = retries if retries is not None else self.DEFAULT_QOS[1]
         self.tx_timeout = self.DEFAULT_TX_TIMEOUT
         self.rx_timeout = timeout if timeout is not None else self.DEFAULT_QOS[2]
-        self.backoff = backoff if backoff is not None else self.DEFAULT_QOS[3]
+        self.disable_backoff = not (
+            backoff if backoff is not None else self.DEFAULT_QOS[3]
+        )
 
     @classmethod  # constructor from verb|code pair
     def verb_code(cls, verb, code, **kwargs) -> dict:
@@ -941,71 +943,60 @@ class PacketProtocolQos(PacketProtocolPort):
 
         return await self._qos_send_data(cmd)
 
-    async def _qos_send_data(self, cmd: Command) -> None:
+    async def _qos_send_data(self, cmd: Command) -> Optional[Packet]:
         """Perform any QoS functions on packets sent to the transport."""
 
+        def expires(timeout, disable_backoff, retry_count):
+            """Return a dtm for expiring the Tx (or Rx), with an optional backoff."""
+            if disable_backoff:
+                return dt.now() + timeout
+            return dt.now() + timeout * 2 ** min(retry_count, Qos.MAX_BACKOFF_FACTOR)
+
         # self._qos_lock.acquire()
-        if cmd and self._qos_cmd:
+        if self._qos_cmd:
             raise RuntimeError
         self._qos_cmd = cmd
         # self._qos_lock.release()
         self._tx_rcvd = None
-        self._rx_rcvd = None
 
         retry_count = 0
         while retry_count <= min(cmd._qos.retry_limit, Qos.RETRY_LIMIT_MAX):  # 5
 
-            # Step 0: transmit the cmd
+            self._rx_rcvd = None
             await self._send_data(str(cmd))
 
-            # Step 1: wait for Tx to echo
-            tx_expires = dt.now() + cmd._qos.tx_timeout * 2 ** min(
-                retry_count, Qos.MAX_BACKOFF_FACTOR
+            tx_expires = expires(
+                cmd._qos.tx_timeout, cmd._qos.disable_backoff, retry_count
             )
-            dt_now = dt.now()
-            while tx_expires > dt_now:
-                if self._tx_rcvd or self._rx_rcvd:
-                    # print("AAA break")
-                    break
+            while tx_expires > dt.now():  # Step 1: wait for Tx to echo
                 await asyncio.sleep(0.001)
-                # print("AAA")
+                if self._tx_rcvd or self._rx_rcvd:
+                    break
             else:
-                # print("AAA else")
-                dt_now = dt.now()
-                # self._tx_rcvd = None
                 retry_count += 1
                 continue
 
-            # Step 2: are needing to wait for Rx?
-            if not cmd._qos.rx_timeout:  # or self._rx_rcvd:
+            if not cmd._qos.rx_timeout or self._rx_rcvd:  # not expected an Rx
                 break
 
-            # Step 3: wait for Rx to arrive
             rx_expires = dt.now() + cmd._qos.rx_timeout
-            dt_now = dt.now()
-            while rx_expires > dt_now:
-                if self._rx_rcvd:
-                    # print("BBB break")
-                    break
+            while rx_expires > dt.now():  # Step 2: wait for Rx to arrive
                 await asyncio.sleep(0.001)
-                # print("BBB")
+                if self._rx_rcvd:
+                    break
             else:
-                # print("BBB else")
-                dt_now = dt.now()
-                self._tx_rcvd = None
                 retry_count += 1
+                continue
 
             if self._rx_rcvd:
-                # print("CCC break")
                 break
 
-        # else:
-        #     _LOGGER.error(f"send_data({cmd}) failed: retry_count={retry_count}")
-
-        if self._tx_rcvd is None:
-            _LOGGER.error(f"send_data({cmd}) failed: no Tx, retry_count={retry_count}")
-        elif cmd._qos.rx_timeout and self._rx_rcvd is None:
-            _LOGGER.error(f"send_data({cmd}) failed: no Rx, retry_count={retry_count}")
+        else:
+            _LOGGER.error(
+                f"send_data({cmd}) timed out"
+                f": tx_rcvd={bool(self._tx_rcvd)} (retry_count={retry_count - 1})"
+                f", rx_rcvd={bool(self._rx_rcvd)} (timeout={cmd._qos.rx_timeout})"
+            )
 
         self._qos_cmd = None
         return self._rx_rcvd
