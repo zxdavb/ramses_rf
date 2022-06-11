@@ -1585,15 +1585,19 @@ def parser_313f(payload, msg) -> Optional[dict]:  # TODO: look for TZ
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
 
-    assert msg.src.type != DEV_TYPE_MAP.CTL or (payload[2:4] in ("F0", FC)), payload[
-        2:4
-    ]  # DEX
+    assert msg.src.type != DEV_TYPE_MAP.CTL or payload[2:4] in (
+        "F0",
+        "FC",
+    ), f"{payload[2:4]} unexpected for CTL"  # DEX
     assert (
         msg.src.type not in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2) or payload[2:4] == "38"
-    ), payload[
-        2:4
-    ]  # DEX
-    assert msg.src.type != DEV_TYPE_MAP.RFG or payload[2:4] == "60", payload[2:4]  # DEX
+    ), f"{payload[2:4]} unexpected for DTS"  # DEX
+    # assert (
+    #     msg.src.type != DEV_TYPE_MAP.FAN or payload[2:4] == "7C"
+    # ), f"{payload[2:4]} unexpected for FAN"  # DEX
+    assert (
+        msg.src.type != DEV_TYPE_MAP.RFG or payload[2:4] == "60"
+    ), "{payload[2:4]} unexpected for RFG"  # DEX
 
     return {
         SZ_DATETIME: dtm_from_hex(payload[4:18]),
@@ -1647,7 +1651,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
         "filter_dirty": bool(bitmap & 0x20),
         "frost_cycle": bool(bitmap & 0x40),
         "has_fault": bool(bitmap & 0x80),
-        "_flags": flag8(payload[2:4]),
+        "flags": flag8(payload[2:4]),
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
