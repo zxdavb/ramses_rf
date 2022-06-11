@@ -808,8 +808,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             for msg_id in STATUS_MSG_IDS:
                 # if self._msgs_ot_supported.get(msg_id) is not False:
                 self._add_discovery_task(
-                    Command.get_opentherm_data(self.id, msg_id, qos={SZ_RETRIES: 0}),
-                    60 * 5,
+                    Command.get_opentherm_data(self.id, msg_id), 60 * 5
                 )
 
             return
@@ -817,9 +816,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # if discover_flag & Discover.PARAMS:
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
             # if self._msgs_supported.get(code) is not False:
-            self._add_discovery_task(
-                Command(RQ, code, "00", self.id, qos={SZ_RETRIES: 0}), 60 * 60, delay=0
-            )
+            self._add_discovery_task(Command(RQ, code, "00", self.id), 60 * 60, delay=0)
 
         # if discover_flag & Discover.STATUS:
         self._add_discovery_task(Command(RQ, _2401, "00", self.id), 60 * 5)
@@ -832,9 +829,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS]:
             # if self._msgs_supported.get(code) is not False:
-            self._add_discovery_task(
-                Command(RQ, code, "00", self.id, qos={SZ_RETRIES: 0}), 60 * 5
-            )
+            self._add_discovery_task(Command(RQ, code, "00", self.id), 60 * 5)
 
         if False and DEV_MODE:  # and discover_flag & Discover.STATUS:
             # TODO: these are WIP, and do vary in payload
@@ -875,7 +870,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         # TODO: this is development code - will be rationalised, eventually
         if _OTB_MODE and (code := self.OT_TO_RAMSES.get(msg_id)):
-            self._send_cmd(Command(RQ, code, "00", self.id, qos={SZ_RETRIES: 0}))
+            self._send_cmd(Command(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
             if msg_id not in self._msgs_ot_supported:

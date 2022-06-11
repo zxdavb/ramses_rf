@@ -584,7 +584,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         for dev_role in (self._ROLE_ACTUATORS, DEV_ROLE_MAP.SEN):
             self._add_discovery_task(
-                Command(RQ, _000C, f"{self.idx}{dev_role}", self.ctl.id, qos=None),
+                Command(RQ, _000C, f"{self.idx}{dev_role}", self.ctl.id),
                 60 * 60 * 24,
                 delay=0.5,
             )

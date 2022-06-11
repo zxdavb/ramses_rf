@@ -272,7 +272,8 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     return until, duration
 
 
-def _qos_function(verb, code, qos: dict) -> dict:
+def _qos_params(verb, code, qos: dict) -> dict:
+    """Class constrcutor wrapped to prevent cyclic reference."""
     from .transport import Qos
 
     return Qos.verb_code(verb, code, **qos)
@@ -313,7 +314,7 @@ class Command(Frame):
         self._cbk = cbk or {}
 
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
-        self._qos = _qos_function(verb, code, qos or {})
+        self._qos = _qos_params(verb, code, qos or {})
 
         # used by msg layer: priority (protocol.py,: for which cmd to send next)
         self._priority = self._qos.priority  # TODO: should only be a QoS attr

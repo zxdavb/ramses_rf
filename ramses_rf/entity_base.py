@@ -346,17 +346,21 @@ class Discovery(MessageDB):
     ):
         """Schedule a command to run periodically."""
 
-        if cmd.rx_header is None:
+        cmd._qos.retry_limit = 0  # disable QoS for these: equivalent functionality here
+
+        if cmd.rx_header is None:  # TODO: raise TypeError
             _LOGGER.warning(f"cmd({cmd}): invalid header added to discovery table")
             return
+
         if cmd.rx_header in self._disc_tasks:
-            # raise LookupError(cmd.rx_header)
-            _LOGGER.warning(f"cmd({cmd}): duplicate header added to discovery table")
+            _LOGGER.info(f"cmd({cmd}): duplicate header added to discovery table")
             return
 
         if delay:
             delay += random.uniform(0.05, 0.45)
-        timeout = timeout or (cmd._qos.retries + 1) * cmd._qos.timeout.total_seconds()
+        timeout = (
+            timeout or (cmd._qos.retry_limit + 1) * cmd._qos.rx_timeout.total_seconds()
+        )
 
         self._disc_tasks[cmd.rx_header] = {
             "command": cmd,
@@ -367,10 +371,6 @@ class Discovery(MessageDB):
             "timeout": timeout,
             "failures": 0,
         }
-
-        # if self._disc_tasks_poller:
-        #     self._stop_discovery_poller()
-        #     self._start_discovery_poller()
 
     def _start_discovery_poller(self) -> None:
         if self._disc_tasks is None:

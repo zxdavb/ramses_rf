@@ -17,9 +17,9 @@ from .entity_base import Child, Entity, class_by_attr
 from .helpers import shrink
 from .protocol import Command
 from .protocol.address import NUL_DEV_ADDR, Address
+from .protocol.const import SZ_FUNC, SZ_TIMEOUT
 from .protocol.message import Message
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
-from .protocol.transport import SZ_FUNC, SZ_TIMEOUT
 from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
 
 # skipcq: PY-W2000
@@ -218,12 +218,8 @@ class Device(Entity):
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         # if discover_flag & Discover.TRAITS:
-        # self._add_discovery_task(
-        #     Command(RQ, _1FC9, "00", self.id, qos={SZ_RETRIES: 3}), 60 * 60 * 24
-        # )  # rf_bind
-        # self._add_discovery_task(
-        #     Command(RQ, _0016, "00", self.id, qos={SZ_RETRIES: 3}), 60 * 60
-        # )  # rf_check
+        # self._add_discovery_task(Command(RQ, _1FC9, "00", self.id), 60 * 60 * 24)
+        # self._add_discovery_task(Command(RQ, _0016, "00", self.id), 60 * 60)
 
         pass
 
@@ -674,15 +670,6 @@ class DeviceHvac(Child, DeviceInfo):  # HVAC (ventilation, PIV, MV/HR)
         super().__init__(*args, **kwargs)
 
         self._child_id = "hv"  # TODO: domain_id/deprecate
-
-    # TODO: split
-    # def _hvac_trick(self):  # a HACK - remove
-    #     if not isinstance(self, HvacVentilator) and not randrange(3):
-    #         [
-    #             self._send_cmd(Command(RQ, _31DA, "00", d.id, qos={SZ_RETRIES: 0}))
-    #             for d in self._gwy.devices
-    #             if isinstance(d, HvacVentilator) and d is not self
-    #         ]
 
     # def _handle_msg(self, msg: Message) -> None:
     #     super()._handle_msg(msg)
