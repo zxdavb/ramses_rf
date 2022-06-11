@@ -30,7 +30,6 @@ from functools import wraps
 from io import TextIOWrapper
 from queue import Queue
 from string import printable  # ascii_letters, digits
-from threading import Lock
 from time import perf_counter
 from types import SimpleNamespace
 from typing import Awaitable, Callable, Iterable, Optional
@@ -42,12 +41,8 @@ from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import (
     DEV_TYPE_MAP,
-    SZ_ARGS,
     SZ_BACKOFF,
-    SZ_DAEMON,
     SZ_DEVICE_ID,
-    SZ_EXPIRED,
-    SZ_FUNC,
     SZ_INBOUND,
     SZ_OUTBOUND,
     SZ_PRIORITY,
@@ -898,41 +893,30 @@ class PacketProtocolQos(PacketProtocolPort):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         super().__init__(gwy, pkt_handler)
 
-        self._qos_lock = Lock()
+        # self._qos_lock = Lock()
         self._qos_cmd = None
         self._tx_rcvd = None
         self._rx_rcvd = None
-        self._tx_retries = None
-        self._tx_retry_limit = None
-
-        self._backoff = 0
-        self._timeout_full = None
-        self._timeout_half = None
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Called when packets are received (a callback).
 
-        Wraps the relevant function with QoS code.
+        Perform any QoS functions on packets received from the transport.
         """
 
-        self._qos_rcvd_data(pkt)
+        if self._qos_cmd:
+            if pkt._hdr == self._qos_cmd.tx_header:
+                if self._tx_rcvd:
+                    _LOGGER.error(f"already seen tx_rcvd, rx_rcvd={self._rx_rcvd}")
+                self._tx_rcvd = pkt
+            if pkt._hdr == self._qos_cmd.rx_header:
+                if self._rx_rcvd:
+                    _LOGGER.error(f"already seen rx_rcvd, tx_rcvd={self._tx_rcvd}")
+                self._rx_rcvd = pkt
+
         super()._pkt_received(pkt)
 
-    def _qos_rcvd_data(self, pkt: Packet) -> None:
-        """Perform any QoS functions on packets received from the transport."""
-
-        if not self._qos_cmd:
-            return
-        if pkt._hdr == self._qos_cmd.tx_header:
-            if self._tx_rcvd:
-                _LOGGER.error(f"already seen tx_rcvd, rx_rcvd={self._rx_rcvd}")
-            self._tx_rcvd = pkt
-        if pkt._hdr == self._qos_cmd.rx_header:
-            if self._rx_rcvd:
-                _LOGGER.error(f"already seen rx_rcvd, tx_rcvd={self._tx_rcvd}")
-            self._rx_rcvd = pkt
-
-    async def send_data(self, cmd: Command) -> None:
+    async def send_data(self, cmd: Command) -> Optional[Packet]:
         """Called when packets are to be sent (not a callback)."""
 
         if self._disable_sending:
@@ -940,11 +924,6 @@ class PacketProtocolQos(PacketProtocolPort):
 
         if cmd.src.id != HGI_DEV_ADDR.id:
             self._handle_impersonation(cmd)
-
-        return await self._qos_send_data(cmd)
-
-    async def _qos_send_data(self, cmd: Command) -> Optional[Packet]:
-        """Perform any QoS functions on packets sent to the transport."""
 
         def expires(timeout, disable_backoff, retry_count):
             """Return a dtm for expiring the Tx (or Rx), with an optional backoff."""
@@ -963,7 +942,7 @@ class PacketProtocolQos(PacketProtocolPort):
         while retry_count <= min(cmd._qos.retry_limit, Qos.RETRY_LIMIT_MAX):  # 5
 
             self._rx_rcvd = None
-            await self._send_data(str(cmd))
+            await super()._send_data(str(cmd))
 
             tx_expires = expires(
                 cmd._qos.tx_timeout, cmd._qos.disable_backoff, retry_count
@@ -1000,20 +979,6 @@ class PacketProtocolQos(PacketProtocolPort):
 
         self._qos_cmd = None
         return self._rx_rcvd
-
-    @staticmethod
-    def _qos_expire_cmd(cmd: Command) -> None:
-        """Handle an expired cmd, such as invoking its callbacks."""
-
-        if cmd._source_entity:  # HACK - should be using a callback
-            cmd._source_entity._qos_function(cmd)
-
-        hdr, callback = cmd.tx_header, cmd._cbk
-        if callback and not callback.get(SZ_EXPIRED):
-            # see also: MsgTransport._pkt_receiver()
-            _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
-            callback[SZ_FUNC](False, *callback.get(SZ_ARGS, ()))
-            callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
 
 
 def create_pkt_stack(
