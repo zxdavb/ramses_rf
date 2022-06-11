@@ -1000,15 +1000,19 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _3EF0: {I_: {}},
     },
     DEV_TYPE.FAN: {
+        _0001: {RP: {}},
+        _042F: {I_: {}},
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
         _12A0: {I_: {}},
         _12C8: {I_: {}},
+        _1470: {RP: {}},
         _1F09: {I_: {}, RP: {}},
         _1FC9: {W_: {}},
-        _2411: {RP: {}},
+        _22F7: {I_: {}, RP: {}},
+        _2411: {I_: {}, RP: {}},
         _3120: {I_: {}},
-        _313F: {I_: {}},
+        _313F: {I_: {}, RP: {}},
         _31D9: {I_: {}, RP: {}},
         _31DA: {I_: {}, RP: {}},
         # _31E0: {I_: {}},
@@ -1034,11 +1038,18 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31E0: {I_: {}},
     },
     DEV_TYPE.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
+        _0001: {RQ: {}},  # from a VMI (only?)
+        _042F: {I_: {}},  # from a VMI (only?)
         _1060: {I_: {}},
-        _10E0: {I_: {}},
+        _10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
+        _1470: {RQ: {}},  # from a VMI (only?)
         _1FC9: {I_: {}},
         _22F1: {I_: {}},
         _22F3: {I_: {}},
+        _22F7: {RQ: {}, W_: {}},  # from a VMI (only?)
+        _2411: {RQ: {}, W_: {}},  # from a VMI (only?)
+        _313F: {RQ: {}, W_: {}},  # from a VMI (only?)
+        _31DA: {RQ: {}},  # to a VMI (only?)
         # _31E0: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
     None: {  # unknown, TODO: make generic HVAC

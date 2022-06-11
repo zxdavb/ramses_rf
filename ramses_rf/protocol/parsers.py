@@ -1002,6 +1002,12 @@ def parser_1300(payload, msg) -> Optional[dict]:
     return {SZ_PRESSURE: temp_from_hex(payload[2:])}  # is 2's complement still
 
 
+@parser_decorator  # message_1470 (HVAC)
+def parser_1470(payload, msg) -> Optional[dict]:
+    assert payload[2:] == "B30E60802A0108", _INFORM_DEV_MSG
+    return {SZ_VALUE: payload[2:]}
+
+
 @parser_decorator  # system_sync
 def parser_1f09(payload, msg) -> Optional[dict]:
     # 22:51:19.287 067  I --- --:------ --:------ 12:193204 1F09 003 010A69
