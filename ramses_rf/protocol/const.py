@@ -34,6 +34,29 @@ SZ_CHANGE_COUNTER = "change_counter"
 Priority = SimpleNamespace(LOWEST=4, LOW=2, DEFAULT=0, HIGH=-2, HIGHEST=-4)
 
 
+# used by 31DA
+SZ_AIR_QUALITY = "air_quality"
+SZ_AIR_QUALITY_BASE = "air_quality_base"
+SZ_BOOST_TIMER = "boost_timer"
+SZ_BYPASS_POSITION = "bypass_position"
+SZ_CO2_LEVEL = "co2_level"
+SZ_EXHAUST_FAN_SPEED = "exhaust_fan_speed"
+SZ_EXHAUST_FLOW = "exhaust_flow"
+SZ_EXHAUST_TEMPERATURE = "exhaust_temperature"
+SZ_FAN_INFO = "fan_info"
+SZ_INDOOR_HUMIDITY = "indoor_humidity"
+SZ_INDOOR_TEMPERATURE = "indoor_temperature"
+SZ_OUTDOOR_HUMIDITY = "outdoor_humidity"
+SZ_OUTDOOR_TEMPERATURE = "outdoor_temperature"
+SZ_POST_HEAT = "post_heat"
+SZ_PRE_HEAT = "pre_heat"
+SZ_REMAINING_TIME = "remaining_time"
+SZ_SUPPLY_FAN_SPEED = "supply_fan_speed"
+SZ_SUPPLY_FLOW = "supply_flow"
+SZ_SUPPLY_TEMPERATURE = "supply_temperature"
+SZ_SPEED_CAP = "speed_cap"
+
+
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
@@ -602,7 +625,7 @@ _PUZZ = "7FFF"
 
 
 # used by 22Fx parser, and FanSwitch devices
-BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
+# SZ_BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
 HEATER_MODE = "heater_mode"  # e.g. auto, off
 HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
 

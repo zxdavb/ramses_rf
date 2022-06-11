@@ -29,7 +29,11 @@ from .const import (
     HEATER_MODES,
     SYS_MODE_MAP,
     SZ_ACTUATOR,
+    SZ_AIR_QUALITY,
+    SZ_AIR_QUALITY_BASE,
+    SZ_BYPASS_POSITION,
     SZ_CHANGE_COUNTER,
+    SZ_CO2_LEVEL,
     SZ_DATETIME,
     SZ_DEVICE_CLASS,
     SZ_DEVICE_ID,
@@ -37,17 +41,32 @@ from .const import (
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_DURATION,
+    SZ_EXHAUST_FAN_SPEED,
+    SZ_EXHAUST_FLOW,
+    SZ_EXHAUST_TEMPERATURE,
+    SZ_FAN_INFO,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
+    SZ_INDOOR_HUMIDITY,
+    SZ_INDOOR_TEMPERATURE,
     SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
+    SZ_OUTDOOR_HUMIDITY,
+    SZ_OUTDOOR_TEMPERATURE,
     SZ_PAYLOAD,
+    SZ_POST_HEAT,
+    SZ_PRE_HEAT,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
+    SZ_REMAINING_TIME,
     SZ_SETPOINT,
+    SZ_SPEED_CAP,
+    SZ_SUPPLY_FAN_SPEED,
+    SZ_SUPPLY_FLOW,
+    SZ_SUPPLY_TEMPERATURE,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_TOTAL_FRAGS,
@@ -1607,7 +1626,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
     return valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
 
 
-@parser_decorator  # ventilation state, HVAC
+@parser_decorator  # ventilation state basic, HVAC
 def parser_31d9(payload, msg) -> Optional[dict]:
     # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
     try:
@@ -1725,25 +1744,25 @@ def parser_31da(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "exhaust_fan_speed": percent(payload[38:40]),  # 31D9[4:6]
-        "remaining_time": double(payload[42:46]),  # mins, 22F3[2:6]
-        "co2_level": double(payload[6:10]),  # ppm, 1298[2:6]
-        "indoor_humidity": percent(payload[10:12], high_res=False),  # 12A0?
-        "air_quality": percent(payload[2:4]),
-        "air_quality_base": int(payload[4:6], 16),  # 12C8[4:6]
-        "outdoor_humidity": percent(payload[12:14], high_res=False),
-        "exhaust_temperature": double(payload[14:18], factor=100),
-        "supply_temperature": double(payload[18:22], factor=100),
-        "indoor_temperature": double(payload[22:26], factor=100),
-        "outdoor_temperature": double(payload[26:30], factor=100),  # 1290?
-        "speed_cap": int(payload[30:34], 16),
-        "bypass_pos": percent(payload[34:36]),
-        "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "supply_fan_speed": percent(payload[40:42]),
-        "post_heat": percent(payload[46:48], high_res=False),
-        "pre_heat": percent(payload[48:50], high_res=False),
-        "supply_flow": double(payload[50:54], factor=100),  # L/sec
-        "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
+        SZ_AIR_QUALITY: percent(payload[2:4]),
+        SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 12C8[4:6]
+        SZ_CO2_LEVEL: double(payload[6:10]),  # ppm, 1298[2:6]
+        SZ_INDOOR_HUMIDITY: percent(payload[10:12], high_res=False),  # 12A0?
+        SZ_OUTDOOR_HUMIDITY: percent(payload[12:14], high_res=False),
+        SZ_EXHAUST_TEMPERATURE: double(payload[14:18], factor=100),
+        SZ_SUPPLY_TEMPERATURE: double(payload[18:22], factor=100),
+        SZ_INDOOR_TEMPERATURE: double(payload[22:26], factor=100),
+        SZ_OUTDOOR_TEMPERATURE: double(payload[26:30], factor=100),  # 1290?
+        SZ_SPEED_CAP: int(payload[30:34], 16),
+        SZ_BYPASS_POSITION: percent(payload[34:36]),
+        SZ_FAN_INFO: CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
+        SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # 31D9[4:6]
+        SZ_SUPPLY_FAN_SPEED: percent(payload[40:42]),
+        SZ_REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
+        SZ_POST_HEAT: percent(payload[46:48], high_res=False),
+        SZ_PRE_HEAT: percent(payload[48:50], high_res=False),
+        SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec
+        SZ_EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec
     }
 
 

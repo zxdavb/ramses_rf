@@ -10,7 +10,32 @@ import logging
 from symtable import Class
 from typing import Optional
 
-from .const import BOOST_TIMER, DEV_TYPE, FAN_MODE, SZ_TEMPERATURE, __dev_mode__
+from .const import (
+    DEV_TYPE,
+    FAN_MODE,
+    SZ_AIR_QUALITY,
+    SZ_AIR_QUALITY_BASE,
+    SZ_BOOST_TIMER,
+    SZ_BYPASS_POSITION,
+    SZ_CO2_LEVEL,
+    SZ_EXHAUST_FAN_SPEED,
+    SZ_EXHAUST_FLOW,
+    SZ_EXHAUST_TEMPERATURE,
+    SZ_FAN_INFO,
+    SZ_INDOOR_HUMIDITY,
+    SZ_INDOOR_TEMPERATURE,
+    SZ_OUTDOOR_HUMIDITY,
+    SZ_OUTDOOR_TEMPERATURE,
+    SZ_POST_HEAT,
+    SZ_PRE_HEAT,
+    SZ_REMAINING_TIME,
+    SZ_SPEED_CAP,
+    SZ_SUPPLY_FAN_SPEED,
+    SZ_SUPPLY_FLOW,
+    SZ_SUPPLY_TEMPERATURE,
+    SZ_TEMPERATURE,
+    __dev_mode__,
+)
 from .devices_base import BatteryState, DeviceHvac, Fakeable
 from .entity_base import class_by_attr
 from .protocol import Address, Message
@@ -223,14 +248,14 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
 
     @property
     def boost_timer(self) -> Optional[int]:
-        return self._msg_value(_22F3, key=BOOST_TIMER)
+        return self._msg_value(_22F3, key=SZ_BOOST_TIMER)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
             FAN_MODE: self.fan_mode,
-            BOOST_TIMER: self.boost_timer,
+            SZ_BOOST_TIMER: self.boost_timer,
         }
 
 
@@ -243,39 +268,97 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
     # Itho Daalderop (NL)
     # Heatrae Sadia (UK)
     # Nuaire (UK), e.g. DRI-ECO-PIV
-    # Orcon/Ventilaire
-
-    # every /30
-    # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
+    # Orcon/Ventiline
 
     _SLUG: str = DEV_TYPE.FAN
 
     @property
-    def boost_timer(self) -> Optional[int]:
-        return self._msg_value(_31DA, key="remaining_time")
+    def air_quality(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_AIR_QUALITY)
+
+    @property
+    def air_quality_base(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_AIR_QUALITY_BASE)
+
+    @property
+    def bypass_pos(self) -> Optional[int]:
+        return self._msg_value(_31DA, key=SZ_BYPASS_POSITION)
 
     @property
     def co2_level(self) -> Optional[int]:
-        return self._msg_value(_31DA, key="co2_level")
+        return self._msg_value(_31DA, key=SZ_CO2_LEVEL)
 
     @property
-    def fan_rate(self) -> Optional[float]:
-        return self._msg_value((_31D9, _31DA), key="exhaust_fan_speed")
+    def exhaust_fan_speed(self) -> Optional[float]:
+        # turn self._msg_value((_31D9, _31DA), key=SZ_EXHAUST_FAN_SPEED)
+        return self._msg_value((_31DA), key=SZ_EXHAUST_FAN_SPEED)
+
+    @property
+    def exhaust_flow(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_EXHAUST_FLOW)
+
+    @property
+    def exhaust_temperature(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_EXHAUST_TEMPERATURE)
+
+    @property
+    def fan_info(self) -> Optional[str]:
+        return self._msg_value(_31DA, key=SZ_FAN_INFO)
 
     @property
     def indoor_humidity(self) -> Optional[float]:
-        return self._msg_value(_31DA, key="indoor_humidity")
+        return self._msg_value(_31DA, key=SZ_INDOOR_HUMIDITY)
+
+    @property
+    def indoor_temperature(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_INDOOR_TEMPERATURE)
+
+    @property
+    def outdoor_humidity(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_OUTDOOR_HUMIDITY)
+
+    @property
+    def outdoor_temperature(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_OUTDOOR_TEMPERATURE)
+
+    @property
+    def post_heat(self) -> Optional[int]:
+        return self._msg_value(_31DA, key=SZ_POST_HEAT)
+
+    @property
+    def pre_heat(self) -> Optional[int]:
+        return self._msg_value(_31DA, key=SZ_PRE_HEAT)
+
+    @property
+    def remaining_time(self) -> Optional[int]:
+        return self._msg_value(_31DA, key=SZ_REMAINING_TIME)
+
+    @property
+    def speed_cap(self) -> Optional[int]:
+        return self._msg_value(_31DA, key=SZ_SPEED_CAP)
+
+    @property
+    def supply_fan_speed(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_SUPPLY_FAN_SPEED)
+
+    @property
+    def supply_flow(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_SUPPLY_FLOW)
+
+    @property
+    def supply_temperature(self) -> Optional[float]:
+        return self._msg_value(_31DA, key=SZ_SUPPLY_TEMPERATURE)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "exhaust_fan_speed": self.fan_rate,
+            SZ_EXHAUST_FAN_SPEED: self.fan_rate,
             **(
                 {
                     k: v
                     for k, v in self._msgs[_31D9].payload.items()
-                    if k != "exhaust_fan_speed"
+                    if k != SZ_EXHAUST_FAN_SPEED
                 }
                 if _31D9 in self._msgs
                 else {}
@@ -284,7 +367,7 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
                 {
                     k: v
                     for k, v in self._msgs[_31DA].payload.items()
-                    if k != "exhaust_fan_speed"
+                    if k != SZ_EXHAUST_FAN_SPEED
                 }
                 if _31DA in self._msgs
                 else {}
