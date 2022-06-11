@@ -898,10 +898,10 @@ def parser_1280(payload, msg) -> Optional[dict]:
 
     rh = percent(payload[2:4], high_res=False)
     if msg.len == 2:
-        return {"outdoor_humidity": rh}
+        return {SZ_OUTDOOR_HUMIDITY: rh}
 
     return {
-        "outdoor_humidity": rh,
+        SZ_OUTDOOR_HUMIDITY: rh,
         SZ_TEMPERATURE: temp_from_hex(payload[4:8]),
         "dewpoint_temp": temp_from_hex(payload[8:12]),
     }
@@ -926,10 +926,10 @@ def parser_1298(payload, msg) -> Optional[dict]:
     if fault := FAULT_CODES_CO2.get(payload[:2]):
         return {"sensor_fault": fault}
 
-    return {"co2_level": double(payload[2:])}
+    return {SZ_CO2_LEVEL: double(payload[2:])}
 
 
-@parser_decorator  # indoor_humidity (Nuaire RH sensor)
+@parser_decorator  # indoor_humidity
 def parser_12a0(payload, msg) -> Optional[dict]:
 
     FAULT_CODES_RHUM = {
@@ -961,10 +961,10 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 
     rh = percent(payload[2:4], high_res=False)
     if msg.len == 2:
-        return {"indoor_humidity": rh}
+        return {SZ_INDOOR_HUMIDITY: rh}
 
     return {
-        "indoor_humidity": rh,
+        SZ_INDOOR_HUMIDITY: rh,
         SZ_TEMPERATURE: temp_from_hex(payload[4:8]),
         "dewpoint_temp": temp_from_hex(payload[8:12]),
     }
@@ -1006,8 +1006,8 @@ def parser_12c8(payload, msg) -> Optional[dict]:
     # 04:51:41.192 078  I --- 37:261128 --:------ 37:261128 12C8 003 009540
 
     return {
-        "air_quality": percent(payload[2:4]),  # 31DA[2:4]
-        "air_quality_base": int(payload[4:6], 16),  # 31DA[4:6]
+        SZ_AIR_QUALITY: percent(payload[2:4]),  # 31DA[2:4]
+        SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 31DA[4:6]
     }
 
 
@@ -1304,14 +1304,14 @@ def parser_22f3(payload, msg) -> Optional[dict]:
         0x00: "minutes",
         0x40: "hours",
         0x80: "index",  # TODO: days, day-of-week, day-of-month?
-    }.get(int(payload[2:4], 0x10) & 0xC8)
+    }.get(int(payload[2:4], 0x10) & 0xC0)
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
 
     if msg.len >= 3:
         result = {
-            "flags": flag8(payload[2:4]),
             "minutes" if units != "index" else "index": duration,
+            "flags": flag8(payload[2:4]),
             "_new_speed_mode": new_speed,
             "_fallback_speed_mode": fallback_speed,
         }
@@ -1471,7 +1471,7 @@ def parser_2420(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # hometronics _state (of unknown)
+@parser_decorator  # _state (of unknown), from hometronics controller
 def parser_2d49(payload, msg) -> dict:
 
     assert payload[2:] in ("0000", "C800"), _INFORM_DEV_MSG
@@ -1639,8 +1639,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     bitmap = int(payload[2:4], 16)
 
     result = {
-        "flags": flag8(payload[2:4]),
-        "exhaust_fan_speed": percent(
+        SZ_EXHAUST_FAN_SPEED: percent(
             payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
         "passive": bool(bitmap & 0x02),
@@ -1648,6 +1647,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
         "filter_dirty": bool(bitmap & 0x20),
         "frost_cycle": bool(bitmap & 0x40),
         "has_fault": bool(bitmap & 0x80),
+        "_flags": flag8(payload[2:4]),
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
@@ -1705,6 +1705,13 @@ def parser_31da(payload, msg) -> Optional[dict]:
         0x16: "absolute minimum",
         0x17: "absolute maximum",
         0x18: "auto",
+        0x19: "-unknown-",
+        0x1A: "-unknown-",
+        0x1B: "-unknown-",
+        0x1C: "-unknown-",
+        0x1D: "-unknown-",
+        0x1E: "-unknown-",
+        0x1F: "-unknown-",
     }
 
     # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF
@@ -1744,7 +1751,11 @@ def parser_31da(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        SZ_AIR_QUALITY: percent(payload[2:4]),
+        SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # 31D9[4:6]
+        SZ_FAN_INFO: CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
+        SZ_REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
+        #
+        SZ_AIR_QUALITY: percent(payload[2:4]),  # 12C8[2:4]
         SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 12C8[4:6]
         SZ_CO2_LEVEL: double(payload[6:10]),  # ppm, 1298[2:6]
         SZ_INDOOR_HUMIDITY: percent(payload[10:12], high_res=False),  # 12A0?
@@ -1755,10 +1766,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
         SZ_OUTDOOR_TEMPERATURE: double(payload[26:30], factor=100),  # 1290?
         SZ_SPEED_CAP: int(payload[30:34], 16),
         SZ_BYPASS_POSITION: percent(payload[34:36]),
-        SZ_FAN_INFO: CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # 31D9[4:6]
         SZ_SUPPLY_FAN_SPEED: percent(payload[40:42]),
-        SZ_REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
         SZ_POST_HEAT: percent(payload[46:48], high_res=False),
         SZ_PRE_HEAT: percent(payload[48:50], high_res=False),
         SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec
