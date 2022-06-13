@@ -281,7 +281,7 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(_31DA, key=SZ_AIR_QUALITY_BASE)
 
     @property
-    def bypass_pos(self) -> Optional[int]:
+    def bypass_position(self) -> Optional[int]:
         return self._msg_value(_31DA, key=SZ_BYPASS_POSITION)
 
     @property
