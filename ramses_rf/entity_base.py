@@ -366,7 +366,6 @@ class Discovery(MessageDB):
             "command": cmd,
             "interval": td(seconds=max(interval, self.MAX_CYCLE_SECS)),
             "last_msg": None,
-            "last_ran": None,
             "next_due": dt.now() + td(seconds=delay),
             "timeout": timeout,
             "failures": 0,
@@ -397,41 +396,44 @@ class Discovery(MessageDB):
             if (
                 (msgs := [m for m in msgs if m is not None])
                 and (msg := max(msgs))
-                and (task["next_due"] < msg.dtm + task["interval"])
+                and msg.dtm > task["next_due"] - task["interval"]
             ):
-                if task["last_msg"] and msg.dtm <= task["last_msg"].dtm:  # TODO: remove
-                    _LOGGER.warning(f"{hdr} failed (0x01)")
                 return msg
 
-        def next_due(hdr: str, task: dict) -> Optional[Message]:
-            if task["last_msg"]:
-                return task["last_ran"] + task["interval"]
-            secs = self.MAX_CYCLE_SECS if task["failures"] > 2 else self.MIN_CYCLE_SECS
-            return task["last_ran"] + td(seconds=secs) * (task["failures"] + 1)
+        def interval(hdr: str, failures: int) -> td:
+            """Adjust the ineterval - backoff if any failures."""
 
-        async def _send_disc_task(hdr: str, task: dict) -> Optional[Message]:
+            if failures > 5:
+                secs = 60 * 60 * 24
+                _LOGGER.warning(f"No response for task({hdr}): throttling to 1/24h")
+            elif failures > 2:
+                _LOGGER.debug(f"No response for task({hdr}): throttling")
+                secs = self.MAX_CYCLE_SECS
+            else:
+                secs = self.MIN_CYCLE_SECS
+
+            return td(seconds=secs)
+
+        async def send_disc_task(hdr: str, task: dict) -> Optional[Message]:
             """Send a scheduled command and wait for/return the reponse."""
+
             try:
                 result = await asyncio.wait_for(
-                    self._gwy.async_send_cmd(task["command"]), timeout=60
+                    self._gwy.async_send_cmd(task["command"]),
+                    timeout=60,  # self.MAX_CYCLE_SECS?
                 )
 
-            except asyncio.TimeoutError as exc:
-                _LOGGER.warning(f"{hdr}: {exc} (0x5A)")
-                return
+            except asyncio.TimeoutError as exc:  # safety valve timeout
+                _LOGGER.debug(f"{hdr}: {exc} (0x5A)")
 
-            except TimeoutError as exc:
-                _LOGGER.warning(f"{hdr}: {exc} (0x5B)")
-                return
+            except TimeoutError as exc:  # TODO: deprecate non-responsive code/device
+                _LOGGER.debug(f"{hdr}: {exc} (0x5B)")
 
-            # except Exception as exc:
-            #     _LOGGER.exception(exc)
-            #     raise exc
+            except Exception as exc:
+                _LOGGER.error(exc)
 
-            if not result:  # TODO: remove
-                _LOGGER.warning(f"{hdr} failed (0x5C)")
-
-            return result
+            else:
+                return result
 
         while True:
             if self._gwy.config.disable_discovery:
@@ -444,18 +446,16 @@ class Discovery(MessageDB):
                 if msg := find_newer_msg(hdr, task):
                     task["last_msg"] = msg
                 elif task["next_due"] <= dt_now:
-                    task["last_ran"] = dt_now
-                    task["last_msg"] = await _send_disc_task(hdr, task)
+                    task["last_msg"] = await send_disc_task(hdr, task)
                 else:
                     continue
 
                 if task["last_msg"]:
-                    task["failures"] = 0
-                    task["last_ran"] = task["last_msg"].dtm
+                    task["failures"] = 0  # only if task["last_msg"].verb == RP?
+                    task["next_due"] = task["last_msg"].dtm + task["interval"]
                 else:
                     task["failures"] += 1
-
-                task["next_due"] = next_due(hdr, task)
+                    task["next_due"] = dt_now + interval(hdr, task["failures"])
 
             if self._disc_tasks:
                 seconds = (
