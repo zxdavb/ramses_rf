@@ -197,8 +197,10 @@ class MessageDB:
                 msg = self._msgz[code][verb][False]
             elif None in self._msgz[code][verb]:
                 msg = self._msgz[code][verb][None]
+            else:
+                return
         except KeyError:
-            return None
+            return
 
         if msg._pkt._hdr != hdr:
             raise LookupError
@@ -446,6 +448,7 @@ class Discovery(MessageDB):
                 if msg := find_newer_msg(hdr, task):
                     task["last_msg"] = msg
                 elif task["next_due"] <= dt_now:
+                    task["next_due"] = dt_now + task["interval"]
                     task["last_msg"] = await send_disc_task(hdr, task)
                 else:
                     continue
