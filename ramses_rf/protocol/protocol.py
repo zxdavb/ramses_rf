@@ -40,7 +40,7 @@ class AwaitableCallback:
     The callback (putter) may put the message in the queue before the getter is invoked.
     """
 
-    DEFAULT_TIMEOUT = 3
+    DEFAULT_TIMEOUT = 120  # used to prevent waiting forever
     HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
@@ -64,12 +64,10 @@ class AwaitableCallback:
             except Empty:
                 await asyncio.sleep(self.SHORT_WAIT)
         else:
-            raise TimeoutError(f"Outer timer expired (timeout={timeout}s)")
+            raise TimeoutError(f"Safety timer expired (timeout={timeout}s)")
 
         if msg is self.HAS_TIMED_OUT:
-            raise TimeoutError("Inner timer expired")
-        if msg is None:
-            raise TypeError("Null response")
+            raise TimeoutError("Command timer expired")
         if not isinstance(msg, Message):
             raise TypeError(f"Response is not a message: {msg}")
         return msg
@@ -530,7 +528,7 @@ class MessageProtocol(asyncio.Protocol):
         self._callback(self._this_msg, prev_msg=self._prev_msg)
 
     async def send_data(
-        self, cmd: Command, callback=None, _make_awaitable=None, **kwargs
+        self, cmd: Command, callback=None, _make_awaitable=None
     ) -> Optional[Message]:
         """Called when a command is to be sent."""
         _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
@@ -549,8 +547,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if _make_awaitable:
-            msg = await awaitable(timeout=kwargs.get(SZ_TIMEOUT))  # may: TimeoutError
-            return msg  # always a Message (or raises TypeError)
+            return await awaitable()  # AwaitableCallback.getter(timeout: float = 120)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""

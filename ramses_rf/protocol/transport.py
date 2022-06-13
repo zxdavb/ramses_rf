@@ -97,9 +97,6 @@ ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 SZ_POLLER_TASK = "poller_task"
 
-_QOS_POLL_INTERVAL = 0.005
-_QOS_MAX_BACKOFF = 3
-
 _MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 _MIN_GAP_BETWEEN_RETRYS = td(seconds=2.0)  # seconds
 
@@ -130,6 +127,8 @@ class Qos:
 
     This is a mess - it is the first step in cleaning up QoS.
     """
+
+    POLL_INTERVAL = 0.002
 
     # tx (from sent to gwy, to get back from gwy) seems to takes appDEFAULT_KEYSrox. 0.025s
     DEFAULT_TX_TIMEOUT = td(seconds=0.2)  # 0.20 OK, but too high?
@@ -948,7 +947,7 @@ class PacketProtocolQos(PacketProtocolPort):
                 cmd._qos.tx_timeout, cmd._qos.disable_backoff, retry_count
             )
             while tx_expires > dt.now():  # Step 1: wait for Tx to echo
-                await asyncio.sleep(0.001)
+                await asyncio.sleep(Qos.POLL_INTERVAL)
                 if self._tx_rcvd or self._rx_rcvd:
                     break
             else:
@@ -971,8 +970,8 @@ class PacketProtocolQos(PacketProtocolPort):
                 break
 
         else:
-            _LOGGER.error(
-                f"send_data({cmd}) timed out"
+            _LOGGER.debug(
+                f"PacketProtocolQos.send_data({cmd}) timed out"
                 f": tx_rcvd={bool(self._tx_rcvd)} (retry_count={retry_count - 1})"
                 f", rx_rcvd={bool(self._rx_rcvd)} (timeout={cmd._qos.rx_timeout})"
             )
