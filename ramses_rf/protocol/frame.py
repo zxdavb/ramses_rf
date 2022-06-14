@@ -198,7 +198,6 @@ class Frame:
     @classmethod  # constructor for internal use only
     def _from_vars(
         cls,
-        self,
         verb,
         code,
         payload,
@@ -212,8 +211,8 @@ class Frame:
         \# RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
         """  # noqa: W605
 
-        vars = (verb, seqn, addr0, addr1, addr2, code, int(len(payload) / 2), payload)
-        return cls(" ".join(vars))
+        varz = (verb, seqn, addr0, addr1, addr2, code, int(len(payload) / 2), payload)
+        return cls(" ".join(varz))
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""

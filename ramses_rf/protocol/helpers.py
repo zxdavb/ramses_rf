@@ -195,10 +195,10 @@ def flag8(byte: str, lsb: bool = False) -> list:  # TODO: should be tuple
     if lsb:  # LSB is first bit
         # [(int("C001", 16) & (1 << x)) >> x for x in range(16)]
         # [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]
-        return list((int(byte, 16) & (1 << x)) >> x for x in range(8))
+        return [(int(byte, 16) & (1 << x)) >> x for x in range(8)]
     # [(int("C001", 16) & (1 << x)) >> x for x in reversed(range(16))]
     # [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-    return list((int(byte, 16) & (1 << x)) >> x for x in reversed(range(8)))
+    return [(int(byte, 16) & (1 << x)) >> x for x in reversed(range(8))]
 
 
 # TODO: add a wrapper for EF, & 0xF0
