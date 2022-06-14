@@ -344,18 +344,21 @@ class Discovery(MessageDB):
         raise NotImplementedError
 
     def _add_discovery_task(
-        self, cmd, interval, *, delay: float = 0, timeout: float = None
+        self, cmd, interval, *, timeout: float = None, delay: float = 0
     ):
-        """Schedule a command to run periodically."""
+        """Schedule a command to run periodically.
+
+        Both `timeout` and `delay` are in seconds.
+        """
 
         cmd._qos.retry_limit = 0  # disable QoS for these: equivalent functionality here
 
         if cmd.rx_header is None:  # TODO: raise TypeError
-            _LOGGER.warning(f"cmd({cmd}): invalid header added to discovery table")
+            _LOGGER.warning(f"cmd({cmd}): invalid (null) header not added to discovery")
             return
 
         if cmd.rx_header in self._disc_tasks:
-            _LOGGER.info(f"cmd({cmd}): duplicate header added to discovery table")
+            _LOGGER.info(f"cmd({cmd}): duplicate header not added to discovery")
             return
 
         if delay:
@@ -401,6 +404,16 @@ class Discovery(MessageDB):
                 and msg.dtm > task["next_due"] - task["interval"]
             ):
                 return msg
+
+            # has the controller sent an array recently - use that instead?
+            for code in (_000A, _30C9):  # can't use 2309 (no mode) instead of 2349
+                try:
+                    if task["command"].code == code and (
+                        msg := self.tcs._msgz[code][I_][True]
+                    ):
+                        return msg
+                except KeyError:
+                    pass
 
         def interval(hdr: str, failures: int) -> td:
             """Adjust the ineterval - backoff if any failures."""

@@ -20,6 +20,7 @@ from .const import (
     SZ_CHANGE_COUNTER,
     SZ_DATETIME,
     SZ_DEVICES,
+    SZ_DHW_IDX,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
     SZ_LANGUAGE,
@@ -604,8 +605,14 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
             #     self.get_htg_zone(zone_idx)._handle_msg(msg)
+            pass
 
         super()._handle_msg(msg)
+
+        if msg.code not in (_0005, _000A, _2309, _30C9) and (
+            SZ_ZONE_IDX not in msg.payload  # 0004,0008,0009,000C,0404,12B0,2349,3150
+        ):
+            return
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:
@@ -625,17 +632,17 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 ]
             return
 
-        if msg.code == _000C:
-            if not msg.payload[SZ_DEVICES]:
-                return
-            if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES:
+        if msg.code == _000C and msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES:
+            if msg.payload[SZ_DEVICES]:
                 self.get_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
+            elif zon := self.zone_by_idx.get(msg.payload[SZ_ZONE_IDX]):
+                zon._handle_msg(msg)  # tell existing zone: no device
             return
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and (
-            msg.code in (_2309, _30C9) and msg._has_array
-        ):
+            msg.code in (_000A, _2309, _30C9) and msg._has_array
+        ):  # could do _000A, but only 1/hr
             eavesdrop_zones(msg)
 
         # Route all messages to their zones, incl. 000C, 0404, others
@@ -935,30 +942,26 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         super()._handle_msg(msg)
 
+        if (
+            not isinstance(msg.payload, dict)
+            or msg.payload.get(SZ_DHW_IDX) is None
+            and msg.payload.get(SZ_DOMAIN_ID) not in (F9, FA)
+        ):  # _0008, _000C, _0404, _10A0, _1260, _1F41
+            return
+
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
-        if msg.code == _000C:
-            if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES and (
-                msg.payload[SZ_DEVICES]
-            ):
-                self.get_dhw_zone(msg=msg)
+        if msg.code == _000C and msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES:
+            if msg.payload[SZ_DEVICES]:
+                self.get_dhw_zone(msg=msg)  # create DHW zone if required
+            elif self._dhw:
+                self._dhw._handle_msg(msg)  # tell existing DHW zone: no device
             return
 
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
         # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
 
         # Route all messages to their zones, incl. 000C, 0404, others
-        if msg.code in (_10A0, _1260, _1F41):
-            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != FA:
-            self.get_dhw_zone(msg=msg)
-
-        elif isinstance(msg.payload, dict) and (
-            msg.payload.get(SZ_DOMAIN_ID) in (F9, FA)
-        ):
-            assert msg.code in (
-                _0008,
-                _0404,
-            ), f"{msg!r} < unexpected code for DHW: {msg.code}"
-            self.get_dhw_zone(msg=msg)
+        self.get_dhw_zone(msg=msg)
 
     def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
         """Return a DHW zone, create it if required.
@@ -1061,26 +1064,18 @@ class Datetime(SystemBase):  # 313F
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _313F and msg.verb in (I_, RP):  # NOTE: beware I/W/I loop, below
-            if self._gwy.ser_name and (diff := abs(self._datetime - dt.now())) > td(
-                minutes=5
-            ):
+        if msg.code == _313F and msg.verb in (I_, RP):
+            if self._gwy.ser_name and (
+                diff := abs(dt.fromisoformat(msg.payload[SZ_DATETIME]) - dt.now())
+            ) > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
-                # if the above is corrected thus, you can get a I/W/I loop
-                # self._gwy.send_cmd(Command.set_system_time(self.id, dt.now()))
-
-    @property
-    def _datetime(self) -> Optional[dt]:  # 313F
-        """Return the last seen datetime (NB: the packet could be from hours ago)."""
-        if dtm_str := self._msg_value(_313F, key=SZ_DATETIME):
-            return dt.fromisoformat(dtm_str)
 
     async def get_datetime(self) -> Optional[dt]:
         msg = await self._gwy.async_send_cmd(Command.get_system_time(self.id))
-        return dt.fromisoformat(msg.payload["datetime"])
+        return dt.fromisoformat(msg.payload[SZ_DATETIME])
 
-    async def set_datetime(self, dtm: dt) -> None:
-        await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
+    async def set_datetime(self, dtm: dt) -> Optional[Message]:
+        return await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
 class UfHeating(SystemBase):

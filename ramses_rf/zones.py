@@ -287,7 +287,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self._add_discovery_task(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
 
         self._add_discovery_task(Command.get_dhw_mode(self.ctl.id), 60 * 5)
-        self._add_discovery_task(Command.get_dhw_temp(self.ctl.id), 60 * 5)
+        self._add_discovery_task(Command.get_dhw_temp(self.ctl.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_dhw_sensor(this, *, prev=None) -> None:
@@ -561,10 +561,8 @@ class Zone(ZoneSchedule, ZoneBase):
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
-            # TODO: needs work...
-            # self._discover(discover_flag=Discover.SCHEMA)  # TODO: tidyup (ref #67)
-            if not self._gwy.config.disable_discovery:
-                self._make_cmd(_000C, payload=f"{self.idx}{self._ROLE_ACTUATORS}")
+            # TODO: broken
+            # self._gwy._loop.call_soon(self._setup_discovery_tasks)  # TODO: check this
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
@@ -591,7 +589,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         self._add_discovery_task(
             Command.get_zone_config(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
-        )
+        )  # td should be > long sync_cycle duration (> 1hr)
         self._add_discovery_task(
             Command.get_zone_name(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
         )
@@ -601,10 +599,29 @@ class Zone(ZoneSchedule, ZoneBase):
         )
         self._add_discovery_task(
             Command.get_zone_temp(self.ctl.id, self.idx), 60 * 5, delay=0
-        )
+        )  # td should be > sync_cycle duration,?delay in hope of picking up cycle
         self._add_discovery_task(
-            Command.get_zone_window_state(self.ctl.id, self.idx), 60 * 5, delay=15
-        )
+            Command.get_zone_window_state(self.ctl.id, self.idx), 60 * 15, delay=60 * 5
+        )  # longer dt as low yield (factory duration is 30 min): prefer eavesdropping
+
+    def _add_discovery_task(
+        self, cmd, interval, *, delay: float = 0, timeout: float = None
+    ):
+        """Schedule a command to run periodically."""
+        super()._add_discovery_task(cmd, interval, delay=delay, timeout=timeout)
+
+        if cmd.code != _000C:  # or cmd._ctx == f"{self.idx}{ZON_ROLE_MAP.SEN}":
+            return
+
+        if [t for t in self._disc_tasks if t[-2:] in ZON_ROLE_MAP.HEAT_ZONES] and (
+            self._disc_tasks.pop(f"{self.idx}{ZON_ROLE_MAP.ACT}", None)
+        ):
+            _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
+
+        if self._disc_tasks.get(f"{self.idx}{ZON_ROLE_MAP.VAL}") and (
+            self._disc_tasks[f"{self.idx}{ZON_ROLE_MAP.ELE}"]
+        ):
+            _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_zone_type(this, *, prev=None) -> None:

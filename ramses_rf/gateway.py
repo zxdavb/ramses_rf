@@ -61,6 +61,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     FA,
     FC,
     FF,
+    _313F,
 )
 
 
@@ -452,7 +453,10 @@ class Gateway(Engine):
         pkts = {
             f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
             for msg in msgs
-            if msg.verb in (I_, RP) and (include_expired or not msg._expired)
+            if msg.verb in (I_, RP)
+            and (
+                include_expired or msg.code == _313F or not msg._expired
+            )  # 313F will be expired, but will be useful for back-back restarts
         }  # BUG: assumes pkts have unique dtms
 
         return self.schema, dict(sorted(pkts.items()))
