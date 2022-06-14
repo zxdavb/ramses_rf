@@ -150,7 +150,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__  # and False
-_OTB_MODE = False
+_OTB_MODE = False  # use OT (3220s) in favour of RAMSES
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -756,14 +756,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     _SLUG: str = DEV_TYPE.OTB
 
-    # BOILER_SETPOINT = "boiler_setpoint"
-    # OPENTHERM_STATUS = "opentherm_status"
-
     _STATE_ATTR = "rel_modulation_level"
 
     OT_TO_RAMSES = {
         # "00": _3EF0,  # master/slave status (actuator_state)
         "01": _22D9,  # boiler_setpoint
+        "0E": _3EF0,  # max_rel_modulation_level (is a PARAM?)
         "11": _3EF0,  # rel_modulation_level (actuator_state, also _3EF1)
         "12": _1300,  # ch_water_pressure
         "13": _12F0,  # dhw_flow_rate
@@ -791,54 +789,49 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
         super()._setup_discovery_tasks()
 
-        # if discover_flag & Discover.SCHEMA:
-        for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
-            # if self._msgs_ot_supported.get(m) is not False:
-            self._add_discovery_task(
-                Command.get_opentherm_data(self.id, m), 60 * 60 * 24, delay=0
-            )
+        # the following are test/dev
+        if DEV_MODE:
+            for code in (
+                _2401,  # WIP - modulation_level + flags?
+                _3221,  # R8810A/20A
+                _3223,  # R8810A/20A
+            ):  # TODO: these are WIP, but do vary in payload
+                self._add_discovery_task(Command(RQ, code, "00", self.id), 60)
 
-        if _OTB_MODE:
-            for m in PARAMS_MSG_IDS:
-                # if self._msgs_ot_supported.get(m) is not False:
+        for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
+            if _OTB_MODE or m not in self.OT_TO_RAMSES:
+                self._add_discovery_task(
+                    Command.get_opentherm_data(self.id, m), 60 * 60 * 24, delay=60 * 3
+                )
+
+        for m in PARAMS_MSG_IDS:  # or L/T state
+            if _OTB_MODE or m not in self.OT_TO_RAMSES:
                 self._add_discovery_task(
                     Command.get_opentherm_data(self.id, m), 60 * 60, delay=90
                 )
 
-            for msg_id in STATUS_MSG_IDS:
-                # if self._msgs_ot_supported.get(msg_id) is not False:
+        for msg_id in STATUS_MSG_IDS:
+            if _OTB_MODE or m not in self.OT_TO_RAMSES:
                 self._add_discovery_task(
-                    Command.get_opentherm_data(self.id, msg_id), 60 * 5
+                    Command.get_opentherm_data(self.id, msg_id), 60 * 5, delay=15
                 )
 
-            return
-
-        # if discover_flag & Discover.PARAMS:
-        for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
-            # if self._msgs_supported.get(code) is not False:
-            self._add_discovery_task(Command(RQ, code, "00", self.id), 60 * 60, delay=0)
-
-        # if discover_flag & Discover.STATUS:
+        # TODO: both modulation level?
         self._add_discovery_task(Command(RQ, _2401, "00", self.id), 60 * 5)
         self._add_discovery_task(Command(RQ, _3EF0, "00", self.id), 60 * 5)
 
-        if False and DEV_MODE:  # and discover_flag & Discover.STATUS:
-            # if discover_flag & Discover.STATUS:
-            self._add_discovery_task(Command.get_opentherm_data(self.id, "00"), 60 * 5)
-            self._add_discovery_task(Command.get_opentherm_data(self.id, "73"), 60 * 5)
+        if _OTB_MODE:
+            return
+
+        for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
+            self._add_discovery_task(
+                Command(RQ, code, "00", self.id), 60 * 60, delay=90
+            )
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS]:
-            # if self._msgs_supported.get(code) is not False:
             self._add_discovery_task(Command(RQ, code, "00", self.id), 60 * 5)
 
-        if False and DEV_MODE:  # and discover_flag & Discover.STATUS:
-            # TODO: these are WIP, and do vary in payload
-            for code in (
-                # _2401,  # WIP - modulation_level + flags?
-                _3221,  # R8810A/20A
-                _3223,  # R8810A/20A
-            ):
-                self._add_discovery_task(Command(RQ, code, "00", self.id), 60)
+        if False and DEV_MODE:
             # TODO: these are WIP, appear fixed in payload, to test against BDR91T
             for code in (
                 _0150,  # payload always "000000", R8820A only?
@@ -849,7 +842,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 _2410,  # payload always "000000000000000000000000010000000100000C"
                 _2420,  # payload always "0000001000000...
             ):
-                self._add_discovery_task(Command(RQ, code, "00", self.id), 60)
+                self._add_discovery_task(
+                    Command(RQ, code, "00", self.id), 60 * 5, delay=60 * 5
+                )
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
