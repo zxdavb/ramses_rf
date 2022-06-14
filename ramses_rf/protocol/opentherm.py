@@ -21,6 +21,7 @@ if DEV_MODE:
 SCHEMA_MSG_IDS = (
     "03",  # ..3: "Slave configuration",
     "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
+    "0E",  # .14: "Maximum relative modulation level setting (%)"
     "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
     "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
     "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
