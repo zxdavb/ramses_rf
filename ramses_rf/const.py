@@ -24,6 +24,7 @@ from .protocol.const import (  # noqa: F401
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
+    SZ_DHW_IDX,
     SZ_DOMAIN_ID,
     SZ_DURATION,
     SZ_EXHAUST_FAN_SPEED,

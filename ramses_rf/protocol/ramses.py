@@ -150,8 +150,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RP: r"^00[01][0-9A-F]{3,5}$",
         EXPIRES: False,
     },
-    _0006: {  # schedule_sync  # TODO: what for DHW schedule?
-        SZ_NAME: "schedule_sync",
+    _0006: {  # schedule_version  # TODO: what for DHW schedule?
+        SZ_NAME: "schedule_version",
         RQ: r"^00$",
         RP: r"^0005[0-9A-F]{4}$",
     },
@@ -331,8 +331,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # RQ --- 18:200202 10:067219 --:------ 1260 002 0000
         # RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
         #  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
-        I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
-        RQ: r"^00(00)?$",  # TODO: officially: r"^00$"
+        I_: r"^0[01]0[0-9A-F]{4}$",  # NOTE: RP is same
+        RQ: r"^0[01](00)?$",  # TODO: officially: r"^0[01]$"
         EXPIRES: td(hours=1),
     },
     _1280: {  # outdoor_humidity
@@ -400,9 +400,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _1F41: {  # dhw_mode
         SZ_NAME: "dhw_mode",
-        I_: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
-        RQ: r"^00$",  # will accept: r"^00(00)$"
-        W_: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
+        I_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
+        RQ: r"^0[01]$",  # will accept: r"^0[01](00)$"
+        W_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         EXPIRES: td(hours=4),
     },
     _1FC9: {  # rf_bind
@@ -431,7 +431,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
-    _2249: {
+    _2249: {  # setpoint_now?
         SZ_NAME: "setpoint_now",  # setpt_now_next
         I_: r"^(0[0-9A-F]{13}){1,2}$",
     },  # TODO: This could be an array
@@ -633,8 +633,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00((00)?|[0-9A-F]{22})$",  # NOTE: latter is Japser
         RP: r"^00([0-9A-F]{12}|[0-9A-F]{34})$",  # NOTE: latter is Japser
     },
-    _4401: {
-        SZ_NAME: "actuator_sync",
+    _4401: {  # unknown_4401 - HVAC
+        SZ_NAME: "unknown_4401",
         I_: r"^[0-9A-F]{40}$",
         RQ: r"^[0-9A-F]{40}$",  # NOTE: no RP!
     },

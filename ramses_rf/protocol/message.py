@@ -20,7 +20,9 @@ from .address import Address
 from .const import (
     DEV_TYPE_MAP,
     SZ_ALIAS,
+    SZ_DHW_IDX,
     SZ_DOMAIN_ID,
+    SZ_LOG_IDX,
     SZ_UFH_IDX,
     SZ_ZONE_IDX,
     __dev_mode__,
@@ -268,8 +270,10 @@ class Message:
 
         IDX_NAMES = {
             _0002: "other_idx",  # non-evohome: hometronics
-            _0418: "log_idx",  # can be 2 DHW zones per system
-            _10A0: "dhw_idx",  # can be 2 DHW zones per system
+            _0418: SZ_LOG_IDX,
+            _10A0: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
+            _1260: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
+            _1F41: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
             _22C9: SZ_UFH_IDX,  # UFH circuit
             _2389: "other_idx",  # anachronistic
             _2D49: "other_idx",  # non-evohome: hometronics
