@@ -595,7 +595,7 @@ class Zone(ZoneSchedule, ZoneBase):
         )
 
         self._add_discovery_task(
-            Command.get_zone_mode(self.ctl.id, self.idx), 60 * 5, delay=0
+            Command.get_zone_mode(self.ctl.id, self.idx), 60 * 5, delay=30
         )
         self._add_discovery_task(
             Command.get_zone_temp(self.ctl.id, self.idx), 60 * 5, delay=0
