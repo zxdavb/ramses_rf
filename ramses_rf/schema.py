@@ -197,7 +197,7 @@ SCHEMA_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123
         vol.Optional(SZ_ZONE_TYPE): renamed(SZ_CLASS),
         vol.Optional("zone_sensor"): renamed(SZ_SENSOR),
         # vol.Optional(SZ_SENSOR_FAKED): bool,
-        vol.Optional(f"_{SZ_NAME}"): str,
+        vol.Optional(f"_{SZ_NAME}"): vol.Any(str, None),
     },
     extra=vol.PREVENT_EXTRA,
 )
