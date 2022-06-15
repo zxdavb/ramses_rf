@@ -52,7 +52,7 @@ jobs:
           command: |
             sudo pip install -r requirements.txt
             sudo pip install -r requirements-dev.txt
-            sudo pip install -e ramses_rf
+            sudo pip install -e .
       - run:
           name: "Run pytest"
           command: |
