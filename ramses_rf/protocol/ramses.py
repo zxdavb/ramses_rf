@@ -696,7 +696,7 @@ CODE_IDX_SIMPLE = [
         or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
     )
 ]
-CODE_IDX_SIMPLE.extend((_10A0, _3B00))
+CODE_IDX_SIMPLE.extend((_10A0, _1260, _1F41, _3B00))
 CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
