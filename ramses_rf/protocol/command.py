@@ -419,7 +419,8 @@ class Command(Frame):
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
 
-        return cls(RQ, _1F41, "00", ctl_id, **kwargs)
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        return cls(RQ, _1F41, dhw_idx, ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/1F41
     @validate_api_params()
@@ -435,6 +436,8 @@ class Command(Frame):
     ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+
         mode = _normalise_mode(
             int(mode) if isinstance(mode, bool) else mode, active, until, duration
         )
@@ -446,7 +449,7 @@ class Command(Frame):
 
         payload = "".join(
             (
-                "00",
+                dhw_idx,
                 "01" if bool(active) else "00",
                 mode,
                 "FFFFFF" if duration is None else f"{duration:06X}",
@@ -461,7 +464,8 @@ class Command(Frame):
     def get_dhw_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
-        return cls(RQ, _10A0, "00", ctl_id, **kwargs)
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        return cls(RQ, _10A0, dhw_idx, ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/10A0
     @validate_api_params()
@@ -482,6 +486,8 @@ class Command(Frame):
         # 14:34:26.734 022  W --- 18:013393 01:145038 --:------ 10A0 006 000F6E050064
         # 14:34:26.751 073  I --- 01:145038 --:------ 01:145038 10A0 006 000F6E0003E8
         # 14:34:26.764 074  I --- 01:145038 18:013393 --:------ 10A0 006 000F6E0003E8
+
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
 
         setpoint = 50.0 if setpoint is None else setpoint
         overrun = 5 if overrun is None else overrun
@@ -506,7 +512,8 @@ class Command(Frame):
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
-        return cls(RQ, _1260, "00", ctl_id, **kwargs)
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        return cls(RQ, _1260, dhw_idx, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1030
     @validate_api_params(has_zone=True)
@@ -984,13 +991,15 @@ class Command(Frame):
         This is for use by a faked CS92A or similar.
         """
 
+        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+
         if dev_id[:2] != DEV_TYPE_MAP.DHW:
             raise TypeError(
                 f"Faked device {dev_id} has unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
             )
 
-        payload = f"00{temp_to_hex(temperature)}"
+        payload = f"{dhw_idx}{temp_to_hex(temperature)}"
         return cls.packet(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for I/0002  # TODO: trap corrupt temps?
