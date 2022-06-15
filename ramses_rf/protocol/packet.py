@@ -178,7 +178,7 @@ class Packet(Frame):
 
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
-            _PKT_LOGGER.info("", extra=self.__dict__)
+            _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
         except InvalidPacketError as exc:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:

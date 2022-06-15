@@ -83,10 +83,10 @@ class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
         Will overwrite created and msecs (and thus asctime), but not relativeCreated.
         """
 
-        extra = dict(extra)
+        extra = dict(extra)  # work with a copy
         extra["frame"] = extra.pop("_frame", "")
         if extra["frame"]:
-            extra["frame"] = f" {extra['frame']}"
+            extra["frame"] = f" {extra['_rssi']} {extra['frame']}"
 
         rv = super().makeRecord(
             name, level, fn, lno, msg, args, exc_info, func, extra, sinfo
