@@ -45,7 +45,7 @@ jobs:
 
   run_pytest:
     docker:
-      - image: circleci/python:3.9.57
+      - image: circleci/python:3.9.7
     steps:
       - checkout
       - run:
