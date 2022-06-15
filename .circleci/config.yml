@@ -116,25 +116,25 @@ workflows:
 
   build-and-deploy:
     jobs:
-      - build:
-          filters: # required since `check_lint` has tag filters AND requires `build`
-            tags:
-              only: /.*/
+      # - build:
+      #     filters: # required since `check_lint` has tag filters AND requires `build`
+      #       tags:
+      #         only: /.*/
       - check_lint:
-          requires:
-            - build
+          # requires:
+          #   - build
           filters: # required since `deploy` has tag filters AND requires `check_lint`
             tags:
               only: /.*/
       - run_pytest:
-          requires:
-            - build
+          # requires:
+          #   - build
           filters: # required since `deploy` has tag filters AND requires `check_lint`
             tags:
               only: /.*/
       - deploy:
           requires:
-            - build
+            # - build
             - check_lint
             - run_pytest
           filters:
