@@ -2148,7 +2148,7 @@ def parser_7fff(payload, msg) -> Optional[dict]:
 
     result = {}
     if payload[2:4] != "13":
-        dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)
+        dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)  # TZ-naive
         result["datetime"] = dtm.isoformat(timespec="milliseconds")
 
     msg_type = LOOKUP_PUZZ.get(payload[2:4], SZ_PAYLOAD)
