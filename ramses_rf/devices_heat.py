@@ -879,10 +879,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 )
 
         else:
+            # 18:50:32.524 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
+            # 18:50:32.547 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # -reserved-
+            # 18:55:32.601 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
+            # 18:55:32.630 ... RP --- 10:048122 18:013393 --:------ 3220 005 00C07300CB  # Read-Ack, 'value': 203
             self._msgs_ot_supported[msg_id] = msg.payload[MSG_TYPE] not in (
                 OtMsgType.DATA_INVALID,
                 OtMsgType.UNKNOWN_DATAID,
-                "OUT-reserved-",  # TODO: remove
+                # OtMsgType.RESERVED,  # some always reserved, others sometimes so
             )
 
     def _handle_code(self, msg: Message) -> None:
@@ -1085,7 +1089,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             "dhw_pump_hours": self._ot_msg_value("7A"),
             "dhw_pump_starts": self._ot_msg_value("76"),
             "flame_signal_low": self._ot_msg_value("72"),
-        }
+        }  # 0x73 is OEM diagnostic code...
 
     @property
     def opentherm_params(self) -> dict:

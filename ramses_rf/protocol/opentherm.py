@@ -21,17 +21,8 @@ if DEV_MODE:
 SCHEMA_MSG_IDS = (
     "03",  # ..3: "Slave configuration",
     "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
-    "0E",  # .14: "Maximum relative modulation level setting (%)"
-    "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
-    "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
-    "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
     "7D",  # 125: "Opentherm version Slave",                            # not native
     "7F",  # 127: "Slave product version number and type",
-)
-# SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
-_PARAMS_MSG_IDS = (
-    "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
-    "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
     # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
     "71",  # 113: "Number of un-successful burner starts",
     "72",  # 114: "Number of times flame signal was too low",
@@ -43,6 +34,15 @@ _PARAMS_MSG_IDS = (
     "79",  # 121: "Number of hours central heating pump has been running",
     "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
     "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
+)
+# SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
+_PARAMS_MSG_IDS = (
+    "0E",  # .14: "Maximum relative modulation level setting (%)"
+    "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
+    "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
+    "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
+    "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
+    "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
 )
 PARAMS_MSG_IDS = {k: td(hours=6) for k in _PARAMS_MSG_IDS}
 _STATUS_MSG_IDS = (
