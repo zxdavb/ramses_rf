@@ -1292,19 +1292,25 @@ def parser_22f3(payload, msg) -> Optional[dict]:
         0x00: "fan_boost",  # #    set fan off, or 'boost' mode?
         0x01: "per_request",  # #  set fan as per payload[6:10]?
         0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(int(payload[2:4], 0x10) & 0x07)
+    }.get(
+        int(payload[2:4], 0x10) & 0x07
+    )  # 0b0000-0111
 
     fallback_speed = {  # after timer expiry
         0x08: "fan_off",  # #      set fan off?
         0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
         0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(int(payload[2:4], 0x10) & 0x38)
+    }.get(
+        int(payload[2:4], 0x10) & 0x38
+    )  # 0b0011-1000
 
     units = {
         0x00: "minutes",
         0x40: "hours",
         0x80: "index",  # TODO: days, day-of-week, day-of-month?
-    }.get(int(payload[2:4], 0x10) & 0xC0)
+    }.get(
+        int(payload[2:4], 0x10) & 0xC0
+    )  # 0b1100-0000
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
 

@@ -413,3 +413,57 @@ if DEV_MODE:
     assert len(_HVAC_KLASS_BY_VC_PAIR) == (
         sum(len(v) for v in _HVAC_VC_PAIR_BY_CLASS.values())
     ), "Coding error: There is a duplicate verb/code pair"
+
+# see: https:#github.com/arjenhiemstra/ithowifi/blob/master/software/NRG_itho_wifi/src/IthoPacket.h
+
+"""
+# CVE/HRU remote (536-0124) [RFT W: 3 modes, timer]
+    "away":       (_22F1, 00, 01|04"),  # how to invoke?
+    "low":        (_22F1, 00, 02|04"),
+    "medium":     (_22F1, 00, 03|04"),  # aka auto (with sensors) - is that only for 63?
+    "high":       (_22F1, 00, 04|04"),  # aka full
+
+    "timer_1":    (_22F3, 00, 00|0A"),  # 10 minutes full speed
+    "timer_2":    (_22F3, 00, 00|14"),  # 20 minutes full speed
+    "timer_3":    (_22F3, 00, 00|1E"),  # 30 minutes full speed
+
+# AUTO RFT (536-0150) [RFT CAR: 2 modes, auto, timer]: idx = 63, essentially same as above, but also...
+    "auto_night": (_22F8, 63, 02|03"),  # additional - press auto x2
+
+# RFT-RV (04-00046), RFT-CO2 (04-00045) - sensors with control
+    "medium":     (_22F1, 00, 03|07"), 1=away, 2=low?
+    "auto":       (_22F1, 00, 05|07"), 4=high
+    "auto_night": (_22F1, 00, 0B|0B"),
+
+    "timer_1":    (_22F3, 00, 00|0A, 00|00, 0000"),  # 10 minutes
+    "timer_2":    (_22F3, 00, 00|14, 00|00, 0000"),  # 20 minutes
+    "timer_3":    (_22F3, 00, 00|1E, 00|00, 0000"),  # 30 minutes
+
+# RFT-PIR (545-7550) - presence sensor
+
+# DemandFlow remote (536-0146)
+    "timer_1":    (_22F3, 00, 42|03, 03|03"),  # 0b01-000-010 = 3 hrs, back to last mode
+    "timer_2":    (_22F3, 00, 42|06, 03|03"),  # 0b01-000-010 = 6 hrs, back to last mode
+    "timer_3":    (_22F3, 00, 42|09, 03|03"),  # 0b01-000-010 = 9 hrs, back to last mode
+    "cook_30":    (_22F3, 00, 02|1E, 02|03"),  # 30 mins (press 1x)
+    "cook_60":    (_22F3, 00, 02|3C, 02|03"),  # 60 mins (press 2x)
+
+    "low":        (_22F8, 00, 01|02"),  # ?eco     co2 <= 1200 ppm?
+    "high":       (_22F8, 00, 02|02"),  # ?comfort co2 <= 1000 ppm?
+
+# Join/Leave commands:
+    "CVERFT":     (_1FC9,  00, _22F1, 0x000000,                        01, _10E0, 0x000000"),  # CVE/HRU remote    (536-0124)
+    "AUTORFT":    (_1FC9,  63, _22F8, 0x000000,                        01, _10E0, 0x000000"),  # AUTO RFT          (536-0150)
+    "DF":         (_1FC9,  00, _22F8, 0x000000,                        00, _10E0, 0x000000"),  # DemandFlow remote (536-0146)
+    "RV":         (_1FC9,  00, _12A0, 0x000000,                        01, _10E0, 0x000000,  00, _31E0, 0x000000,  00, _1FC9, 0x000000"),  # RFT-RV   (04-00046)
+    "CO2":        (_1FC9,  00, _1298, 0x000000,  00, _2E10, 0x000000,  01, _10E0, 0x000000,  00, _31E0, 0x000000,  00, _1FC9, 0x000000"),  # RFT-CO2  (04-00045)
+
+    "Leave":      (_1FC9, 00, _1FC9, 0x000000"),  # standard leave command
+    "Leave":      (_1FC9, 63, _1FC9, 0x000000"),  # leave command of AUTO RFT (536-0150)
+
+    # RQ 0x00
+    # I_ 0x01
+    # W_ 0x02
+    # RP 0x03
+
+"""
