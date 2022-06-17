@@ -382,7 +382,7 @@ class Message:
             ):
                 _logger = _LOGGER.info
             else:
-                _logger = _LOGGER.warning  # if DEV_MODE else _LOGGER.info  # TODO
+                _logger = _LOGGER.warning if DEV_MODE else _LOGGER.info
             _logger(f"{self!r} # has expired ({self._fraction_expired * 100:1.0f}%)")
 
         # elif self._fraction_expired >= self.IS_EXPIRING:  # this could log multiple times
