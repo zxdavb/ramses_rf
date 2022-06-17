@@ -31,7 +31,7 @@ from .const import (
 )
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import Frame, pkt_header
-from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
+from .helpers import dt_now, dtm_to_hex, percent, str_to_hex, temp_to_hex, timestamp
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ
 from .version import VERSION
@@ -102,6 +102,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _22D9,
     _22F1,
     _22F3,
+    _22F7,
     _2309,
     _2349,
     _2389,
@@ -362,7 +363,34 @@ class Command(Frame):
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
-    @classmethod  # constructor for I/22F1
+    @classmethod  # constructor for I|22F7
+    @validate_api_params()
+    def set_bypass_position(
+        cls,
+        fan_id: str,
+        *,
+        bypass_position: float = None,
+        src_id: str = None,
+        **kwargs,
+    ):
+        """Constructor to get the bypass position (c.f. parser_22f7).
+
+        bypass_position: a % from fully open (1.0) to fully closed (0.0).
+        None is a sentinel value for auto.
+        """
+
+        if bypass_position is None:
+            payload = "00FFEF"
+        else:
+            payload = f"00{percent(bypass_position):02X}EF"
+
+        cmd = cls.packet(
+            I_, _22F7, payload, fan_id, addr0=src_id, addr1=fan_id, **kwargs
+        )
+
+        return cmd
+
+    @classmethod  # constructor for I|22F1
     @validate_api_params()
     def set_fan_rate(
         cls,
