@@ -1237,9 +1237,9 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     # I --- 37:171871 32:155617 --:------ 22F1 003 000607  # Party/boost
     # I --- 37:171871 32:155617 --:------ 22F3 007 00023C03070000  # Timer (boost) mode // TIJDELIJKE stand (temporary) 60 min - high, then return to what was
 
-    #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
-    #  I 016 --:------ --:------ 39:159057 22F1 003 000304 # medium
-    #  I 017 --:------ --:------ 39:159057 22F1 003 000404 # high
+    #  I 015 --:------ --:------ 39:159057 22F1 003 000204  # low
+    #  I 016 --:------ --:------ 39:159057 22F1 003 000304  # medium
+    #  I 017 --:------ --:------ 39:159057 22F1 003 000404  # high
 
     # Scheme x: 0|x standby/off, 1|x min, 2+|x rate as % of max (Itho?)
     # Scheme 4: 0|4 standby/off, 1|4 auto, 2|4 low, 3|4 med, 4|4 high/boost
