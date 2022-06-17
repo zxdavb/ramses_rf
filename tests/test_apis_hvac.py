@@ -36,8 +36,12 @@ def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
             assert cmd == pkt  # must have exact same addr set
 
 
-def test_set_2e04(gwy):  # noqa: F811
-    _test_api(gwy, Command.set_system_mode, SET_2E04_GOOD)
+def test_set_22f7(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_bypass_mode, SET_22F7_GOOD)
 
 
-SET_2E04_GOOD = ("...  W --- 30:258720 01:073976 --:------ 2E04 008 0521011A0607E401",)
+SET_22F7_GOOD = (
+    "...  W --- 37:171871 32:155617 --:------ 22F7 003 0000EF",  # bypass off
+    "...  W --- 37:171871 32:155617 --:------ 22F7 003 00C8EF",  # bypass on
+    "...  W --- 37:171871 32:155617 --:------ 22F7 003 00FFEF",  # bypass auto
+)
