@@ -146,6 +146,15 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def check_faking_enabled(fnc):
+    def wrapper(self, *args, **kwargs):
+        if not self._faked:
+            raise RuntimeError(f"Faking is not enabled for {self}")
+        return fnc(*args, **kwargs)
+
+    return wrapper
+
+
 class Device(Entity):
     """The Device base class - can also be used for unknown device types."""
 
@@ -332,10 +341,8 @@ class Fakeable(Device):
         if kwargs.get(SZ_FAKED):
             self._make_fake()
 
+    @check_faking_enabled
     def _bind(self):
-        if not self._faked:
-            raise RuntimeError(f"Can't bind {self} (Faking is not enabled)")
-
         self._1fc9_state["state"] = BindState.UNBOUND
 
     def _make_fake(self, bind=None) -> Device:

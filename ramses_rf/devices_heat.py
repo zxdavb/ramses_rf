@@ -33,7 +33,7 @@ from .const import (
     ZON_ROLE_MAP,
     __dev_mode__,
 )
-from .devices_base import BatteryState, DeviceHeat, Fakeable
+from .devices_base import BatteryState, DeviceHeat, Fakeable, check_faking_enabled
 from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
@@ -279,11 +279,9 @@ class Weather(Fakeable, DeviceHeat):  # 0002
     def temperature(self) -> Optional[float]:  # 0002
         return self._msg_value(_0002, key=self.TEMPERATURE)
 
+    @check_faking_enabled
     @temperature.setter
     def temperature(self, value) -> None:  # 0002
-        if not self._faked:
-            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
-
         cmd = Command.put_outdoor_temp(self.id, value)
         # cmd = Command.put_zone_temp(
         #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
@@ -394,11 +392,9 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
     def temperature(self) -> Optional[float]:  # 1260
         return self._msg_value(_1260, key=self.TEMPERATURE)
 
+    @check_faking_enabled
     @temperature.setter
     def temperature(self, value) -> None:  # 1260
-        if not self._faked:
-            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
-
         self._send_cmd(Command.put_dhw_temp(value))
         # lf._send_cmd(Command.get_dhw_temp(self.ctl.id, self.zone.idx))
 
@@ -429,11 +425,9 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
     def temperature(self) -> Optional[float]:  # 30C9
         return self._msg_value(_30C9, key=self.TEMPERATURE)
 
+    @check_faking_enabled
     @temperature.setter
     def temperature(self, value) -> None:  # 30C9
-        if not self._faked:
-            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
-
         self._send_cmd(Command.put_sensor_temp(self.id, value))
         # lf._send_cmd(Command.get_zone_temp(self.ctl.id, self.zone.idx))
 
