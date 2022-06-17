@@ -377,8 +377,8 @@ class Command(Frame):
     ):
         """Constructor to get the fan speed (c.f. parser_22f1).
 
-        There are two types of this packet (with seqn, with src_id):
-         - I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
+        There are two types of this packet (with seqn, or with src_id):
+         - I 018 --:------ --:------ 39:159057 22F1 003 000204
          - I --- 21:039407 28:126495 --:------ 22F1 003 000407
         """
 
