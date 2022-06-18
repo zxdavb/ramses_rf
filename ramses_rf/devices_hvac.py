@@ -413,7 +413,7 @@ if DEV_MODE:
         sum(len(v) for v in _HVAC_VC_PAIR_BY_CLASS.values())
     ), "Coding error: There is a duplicate verb/code pair"
 
-# see: https:#github.com/arjenhiemstra/ithowifi/blob/master/software/NRG_itho_wifi/src/IthoPacket.h
+# see: https://github.com/arjenhiemstra/ithowifi/blob/master/software/NRG_itho_wifi/src/IthoPacket.h
 
 """
 # CVE/HRU remote (536-0124) [RFT W: 3 modes, timer]
