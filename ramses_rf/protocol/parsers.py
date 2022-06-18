@@ -1496,7 +1496,7 @@ def parser_2411(payload, msg) -> Optional[dict]:
     assert (
         payload[4:6] in _2411_TABLE
     ), f"param {payload[4:6]} is unknown"  # _INFORM_DEV_MSG
-    description = _2411_TABLE.get(payload[4:6], (no_op, 8))
+    description = _2411_TABLE.get(payload[4:6], "Unknown")
 
     result = {
         "parameter": payload[4:6],
