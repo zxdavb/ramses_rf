@@ -373,20 +373,24 @@ class Command(Frame):
         src_id: str = None,
         **kwargs,
     ):
-        """Constructor to get the bypass position (c.f. parser_22f7).
+        """Constructor to get the position of the bypass valve (c.f. parser_22f7).
 
         bypass_position: a % from fully open (1.0) to fully closed (0.0).
         None is a sentinel value for auto.
+
+        bypass_mode: is a proxy for bypass_position (they should be mutex)
         """
 
-        if bypass_position is None:
-            payload = "00FFEF"
-        else:
-            payload = f"00{percent(bypass_position):02X}EF"
+        src_id = src_id or fan_id  # TODO: src_id should be an arg?
 
-        cmd = cls.packet(
-            I_, _22F7, payload, fan_id, addr0=src_id, addr1=fan_id, **kwargs
-        )
+        if bypass_position is not None:
+            pos = percent(bypass_position)
+        elif bypass_mode := kwargs.pop("bypass_mode", None):
+            pos = {"auto": "FF", "off": "00", "on": "C8"}.get(bypass_mode)
+        else:
+            pos = "00FFEF"
+
+        cmd = cls.packet(I_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs)
 
         return cmd
 

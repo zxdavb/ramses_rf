@@ -21,7 +21,11 @@ def _test_api_line(gwy, api, pkt_line):  # noqa: F811
     assert str(pkt) == pkt_line[4:]
 
     msg = Message(gwy, pkt)
-    cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
+    cmd = api(
+        msg.dst.id,
+        src_id=msg.src.id,
+        **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
+    )
 
     assert cmd.payload == pkt.payload
 
@@ -37,7 +41,7 @@ def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
 
 
 def test_set_22f7(gwy):  # noqa: F811
-    _test_api(gwy, Command.set_bypass_mode, SET_22F7_GOOD)
+    _test_api(gwy, Command.set_bypass_position, SET_22F7_GOOD)
 
 
 SET_22F7_GOOD = (
