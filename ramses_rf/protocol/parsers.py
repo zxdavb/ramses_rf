@@ -1457,15 +1457,13 @@ def parser_2410(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_2411, HVAC
+@parser_decorator  # fan_params, HVAC
 def parser_2411(payload, msg) -> Optional[dict]:
-
-    # _2411_MODES = {
-    #     0b00111101: "Away",  # 0x3D, 61
-    #     0b00111111: "Low",  # 0x3F, 63
-    #     0b01000001: "Medium",  # 0x41, 65
-    #     0b01000011: "High",  # 0x43, 67
-    # }  # TODO: Exhaust is +1! - doesn't look like a bit mask
+    # There is a relationship between 0001 and 2411
+    # RQ --- 37:171871 32:155617 --:------ 0001 005 0020000A04
+    # RP --- 32:155617 37:171871 --:------ 0001 008 0020000A004E0B00  # 0A -> 2411|4E
+    # RQ --- 37:171871 32:155617 --:------ 2411 003 00004E            # 11th menu option (i.e. 0x0A)
+    # RP --- 32:155617 37:171871 --:------ 2411 023 00004E460000000001000000000000000100000001A600
 
     def counter(x):
         return int(x, 16)
@@ -1474,15 +1472,15 @@ def parser_2411(payload, msg) -> Optional[dict]:
         return x
 
     _2411_DATA_TYPES = {
-        # "00": (8, no_op),
-        # "01": (8, no_op),
-        "0F": (2, percent),
-        "10": (4, counter),
-        "92": (4, temp_from_hex),
-    }  # TODO: _2411_TYPES.get(payload[8:10]) - looks possible
+        "00": (2, counter),  # 4E (0-1), 54 (15-60)
+        "01": (2, counter),  # 52 (0-250) PIR ?should be percent
+        "0F": (2, percent),  # xx (0.0-1.0)
+        "10": (4, counter),  # 30 (0-1800)
+        "92": (4, temp_from_hex),  # 75 (0-30)
+    }  # TODO: _2411_TYPES.get(payload[8:10], (8, no_op))
 
     _2411_TABLE = {
-        "31": "Filter replace time (days)",
+        "31": "Time to change filter (days)",  # 2C
         "3D": "Away mode Supply fan rate (%)",
         "3E": "Away mode Exhaust fan rate (%)",
         "3F": "Low mode Supply fan rate (%)",
@@ -1491,19 +1489,18 @@ def parser_2411(payload, msg) -> Optional[dict]:
         "42": "Medium mode Exhaust fan rate (%)",
         "43": "High mode Supply fan rate (%)",
         "44": "High mode Exhaust fan rate (%)",
-        # "4E": "Unknown (??)",
-        # "52": "Unknown (??)",
-        # "54": "Unknown (??)",
-        "75": "Some Temperature (°C)",
-        # "95": "Unknown (%)",
-    }
-
-    assert payload[:4] == "0000", _INFORM_DEV_MSG
+        "4E": "Moisture scenario position (0=medium, 1=high)",  # 00, see: 22F8?
+        "52": "Motion sensor sensitivity (%)",
+        "54": "Moisture sensor overrun time (mins)",  # 2A
+        "75": "Comfort temperature (°C)",  # 01
+        "95": "Boost mode Supply/exhaust fan rate (%)",
+        "xx": "Test Bypass valve (0=normal operation, 1=open, 2=closed)",  # ??
+    }  # all % are # 32 -  units ??? 00: none, 01: C, 2A-C:min/hr/day, 32: %   ???
 
     assert (
         payload[4:6] in _2411_TABLE
     ), f"param {payload[4:6]} is unknown"  # _INFORM_DEV_MSG
-    description = _2411_TABLE.get(payload[4:6], (no_op, 8))
+    description = _2411_TABLE.get(payload[4:6], "Unknown")
 
     result = {
         "parameter": payload[4:6],
@@ -1520,12 +1517,11 @@ def parser_2411(payload, msg) -> Optional[dict]:
 
     return result | {
         "value": parser(payload[10:18][-length:]),
-        f"{SZ_VALUE}_06": payload[6:10],  # data-type? %/temp/double
-        "block_10": payload[10:18],  # each block is data-value?
-        "block_18": payload[18:26],  # current-val, low/high/default vals?
-        "block_26": payload[26:34],
-        "block_34": payload[34:42],
-        f"{SZ_VALUE}_42": payload[42:],
+        "min_value": parser(payload[18:26][-length:]),
+        "max_value": parser(payload[26:34][-length:]),
+        "precision": parser(payload[34:42][-length:]),
+        f"_{SZ_VALUE}_06": payload[6:10],
+        f"_{SZ_VALUE}_42": payload[42:],
     }
 
 
@@ -1800,10 +1796,6 @@ def parser_31da(payload, msg) -> Optional[dict]:
         assert (
             payload[12:14] == "EF" or int(payload[12:14], 16) <= 100
         ), f"[12:14] {payload[10:12]}"
-        # assert payload[14:18] == "7FFF", payload[14:18]
-        # assert payload[18:22] == "7FFF", payload[18:22]
-        # assert payload[22:26] == "7FFF", payload[22:26]
-        # assert payload[26:30] == "7FFF", payload[26:30]
         # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
         # assert payload[34:36] == "EF", payload[34:36]
         assert (
@@ -1814,11 +1806,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
             "FF",
         ), payload[38:40]
         # assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
-        # assert payload[42:46] == "0000", payload[42:46]
         assert payload[46:48] in ("00", "EF"), f"[46:48] {payload[46:48]}"
         # assert payload[48:50] == "EF", payload[48:50]
-        # assert payload[50:54] == "7FFF", payload[50:54]
-        # assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
