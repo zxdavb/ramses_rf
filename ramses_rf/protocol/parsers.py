@@ -8,6 +8,7 @@
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
+# - janvken: 2411
 
 import logging
 import re
@@ -1459,12 +1460,53 @@ def parser_2410(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2411, HVAC
 def parser_2411(payload, msg) -> Optional[dict]:
 
-    assert payload[:4] == "0000", _INFORM_DEV_MSG
+    # _2411_MODES = {
+    #     0b00111101: "Away",  # 0x3D, 61
+    #     0b00111111: "Low",  # 0x3F, 63
+    #     0b01000001: "Medium",  # 0x41, 65
+    #     0b01000011: "High",  # 0x43, 67
+    # }  # TODO: Exhaust is +1! - doesn't look like a bit mask
 
-    return {
-        f"{SZ_VALUE}_1": payload[4:6],
-        f"{SZ_VALUE}_2": payload[6:],
+    _2411_DATA_TYPES = {
+        "0F": percent,
+        "10": double,
+        "92": temp_from_hex,
+    }  # TODO: _2411_TYPES.get(payload[8:10]) - looks possible
+
+    _2411_TABLE = {
+        "31": ("Filter replace time (days)", double, 4),
+        "3D": ("Away mode Supply fan rate (%)", percent, 2),
+        "3E": ("Away mode Exhaust fan rate (%)", percent, 2),
+        "75": ("Temperature (C)", temp_from_hex, 4),
     }
+
+    assert payload[:4] == "0000", _INFORM_DEV_MSG
+    assert payload[4:6] in _2411_TABLE, _INFORM_DEV_MSG
+    assert payload[8:10] in _2411_DATA_TYPES, _INFORM_DEV_MSG
+
+    description, parser, length = _2411_TABLE.get(
+        payload[4:6], ("Unknown", lambda x: x, 8)
+    )
+
+    assert parser == _2411_DATA_TYPES.get(payload[4:6])
+
+    result = {
+        "parameter": payload[4:6],
+        "description": description,
+    }
+
+    if msg.len > 3:
+        result = result | {
+            "value": parser(payload[10:18][:-length]),
+            f"{SZ_VALUE}_06": payload[6:10],  # data-type? %/temp/double
+            "block_10": payload[10:18],  # each block is data-value?
+            "block_18": payload[18:26],  # current-val, low/high/default vals?
+            "block_26": payload[26:34],
+            "block_34": payload[34:42],
+            f"{SZ_VALUE}_42": payload[42:],
+        }
+
+    return result
 
 
 @parser_decorator  # unknown_2420, from OTB
