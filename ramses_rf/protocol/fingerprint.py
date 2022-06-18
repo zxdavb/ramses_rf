@@ -106,6 +106,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMD-15RMS64  - FAN - Orcon HRC-350 (Ventiline)
 # VMD-15RMS86  -
 # VMD-17RPS01  -
+# VMI-15WSJ53  - SWI - Orcon HRC Display recessed 15RF
 # VMN-15LF01   -
 # VMN-23LMH23  - SWI - 4 button RF Switch
 # VMS-02MC05   - CO2 -
