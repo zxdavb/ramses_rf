@@ -1796,10 +1796,6 @@ def parser_31da(payload, msg) -> Optional[dict]:
         assert (
             payload[12:14] == "EF" or int(payload[12:14], 16) <= 100
         ), f"[12:14] {payload[10:12]}"
-        # assert payload[14:18] == "7FFF", payload[14:18]
-        # assert payload[18:22] == "7FFF", payload[18:22]
-        # assert payload[22:26] == "7FFF", payload[22:26]
-        # assert payload[26:30] == "7FFF", payload[26:30]
         # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
         # assert payload[34:36] == "EF", payload[34:36]
         assert (
@@ -1810,11 +1806,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
             "FF",
         ), payload[38:40]
         # assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
-        # assert payload[42:46] == "0000", payload[42:46]
         assert payload[46:48] in ("00", "EF"), f"[46:48] {payload[46:48]}"
         # assert payload[48:50] == "EF", payload[48:50]
-        # assert payload[50:54] == "7FFF", payload[50:54]
-        # assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 

@@ -74,6 +74,7 @@ from .const import (  # isort: skip
     _22F1,
     _22F3,
     _22F7,
+    _22F8,
     _2309,
     _2349,
     _2389,
@@ -451,20 +452,23 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _22F1: {  # switch_speed, HVAC
-        SZ_NAME: "switch_speed",
+    _22F1: {  # fan_mode, HVAC
+        SZ_NAME: "fan_mode",
         I_: r"^(00|63)(0[0-9A-F]){2}$",
     },
-    _22F7: {  # bypass on/off, HVAC
-        SZ_NAME: "bypass_mode",
+    _22F3: {  # fan_boost
+        SZ_NAME: "fan_boost",
+        I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
+    },  # minutes
+    _22F7: {  # fan_bypass_mode (% open), HVAC
+        SZ_NAME: "fan_bypass_mode",
         I_: r"^00(00|C8|FF)(00|C8)$",  # RP is the same
         RQ: r"^00$",
         W_: r"^00(00|C8|FF)EF$",
     },
-    _22F3: {  # switch_duration
-        SZ_NAME: "switch_duration",
-        I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
-    },  # minutes
+    _22F8: {  # fan_22f8, HVAC (moisture scenario?)
+        SZ_NAME: "fan_22f8",
+    },
     _2309: {  # setpoint
         SZ_NAME: "setpoint",
         I_: r"^(0[0-9A-F]{5})+$",
@@ -503,8 +507,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00",
     },
-    _2411: {  # unknown_2411, HVAC
-        SZ_NAME: "message_2411",
+    _2411: {  # fan_params, HVAC
+        SZ_NAME: "fan_params",
         I_: r"^0000[0-9A-F]{42}$",
         RQ: r"^0000[0-9A-F]{2}((00){19})?$",
         W_: r"^0000[0-9A-F]{42}$",
@@ -563,24 +567,24 @@ CODES_SCHEMA: dict = {  # rf_unknown
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
         EXPIRES: td(minutes=20),
     },
-    _31D9: {  # ventilation_status
-        SZ_NAME: "vent_status",
+    _31D9: {  # fan_state
+        SZ_NAME: "fan_state",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
         I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){0,12}(00|08)?)?$",  # 00-0004-FE
         RQ: r"^00$",
     },
-    _31DA: {  # ventilation_unknown
-        SZ_NAME: "vent_31da",
+    _31DA: {  # hvac_state (fan_state_extended)
+        SZ_NAME: "hvac_state",
         I_: r"^(00|01|21)[0-9A-F]{56}(00)?$",
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
-    _31E0: {  # ventilation demand
+    _31E0: {  # fan_demand
         # 10:15:42.712 077  I --- 29:146052 32:023459 --:------ 31E0 003 0000C8
         # 10:21:18.549 078  I --- 29:146052 32:023459 --:------ 31E0 003 000000
         # 07:56:50.522 095  I --- --:------ --:------ 07:044315 31E0 004 00006E00
-        SZ_NAME: "vent_demand",
+        SZ_NAME: "fan_demand",
         I_: r"^00[0-9A-F]{4}(00|FF)?$",
     },
     _3200: {  # boiler output temp
