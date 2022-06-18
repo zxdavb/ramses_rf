@@ -1459,14 +1459,6 @@ def parser_2410(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # unknown_2411, HVAC
 def parser_2411(payload, msg) -> Optional[dict]:
-
-    # _2411_MODES = {
-    #     0b00111101: "Away",  # 0x3D, 61
-    #     0b00111111: "Low",  # 0x3F, 63
-    #     0b01000001: "Medium",  # 0x41, 65
-    #     0b01000011: "High",  # 0x43, 67
-    # }  # TODO: Exhaust is +1! - doesn't look like a bit mask
-
     def counter(x):
         return int(x, 16)
 
