@@ -456,7 +456,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         SZ_NAME: "fan_mode",
         I_: r"^(00|63)(0[0-9A-F]){2}$",
     },
-    _22F3: {  # fan_boost
+    _22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes
@@ -466,8 +466,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         W_: r"^00(00|C8|FF)EF$",
     },
-    _22F8: {  # fan_22f8, HVAC (moisture scenario?)
+    _22F8: {  # fan_22f8 (moisture scenario?), HVAC
         SZ_NAME: "fan_22f8",
+        I_: r"^00[0-9A-F]{4}$",
     },
     _2309: {  # setpoint
         SZ_NAME: "setpoint",
