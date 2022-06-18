@@ -25,7 +25,7 @@ def _test_api_line(gwy, api, pkt_line):  # noqa: F811
     cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
     # assert cmd.src.id == pkt.src.id  # TODO:
-    # assert cmd.dst.id == pkt.dst.id  # TODO:
+    assert cmd.dst.id == pkt.dst.id
     assert cmd.verb == pkt.verb
     assert cmd.code == pkt.code
     assert cmd.payload == pkt.payload
@@ -69,11 +69,12 @@ def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke
             **{k: v for k, v in kwargs.items() if k[:1] != "_"}
         )
 
+        assert cmd.dst.id == pkt.dst.id
         assert cmd.verb == pkt.verb
         assert cmd.code == pkt.code
         assert cmd.payload[:-2] == pkt.payload[:-2]
 
-        if msg.src.id == "18:000730":
+        if msg.src.id == HGI_DEV_ADDR.id:
             assert cmd == pkt  # must have exact same addr set
 
 
@@ -110,11 +111,12 @@ def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke
             **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
         )
 
+        assert cmd.dst.id == pkt.dst.id
         assert cmd.verb == pkt.verb
         assert cmd.code == pkt.code
         assert cmd.payload, pkt.payload
 
-        if msg.src.id == "18:000730":
+        if msg.src.id == HGI_DEV_ADDR.id:
             assert cmd == pkt  # must have exact same addr set
 
 
