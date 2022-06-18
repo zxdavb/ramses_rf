@@ -1457,8 +1457,14 @@ def parser_2410(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_2411, HVAC
+@parser_decorator  # fan_params, HVAC
 def parser_2411(payload, msg) -> Optional[dict]:
+    # There is a relationship between 0001 and 2411
+    # RQ --- 37:171871 32:155617 --:------ 0001 005 0020000A04
+    # RP --- 32:155617 37:171871 --:------ 0001 008 0020000A004E0B00  # 0A -> 2411|4E
+    # RQ --- 37:171871 32:155617 --:------ 2411 003 00004E            # 11th menu option (i.e. 0x0A)
+    # RP --- 32:155617 37:171871 --:------ 2411 023 00004E460000000001000000000000000100000001A600
+
     def counter(x):
         return int(x, 16)
 
@@ -1483,15 +1489,13 @@ def parser_2411(payload, msg) -> Optional[dict]:
         "42": "Medium mode Exhaust fan rate (%)",
         "43": "High mode Supply fan rate (%)",
         "44": "High mode Exhaust fan rate (%)",
-        "4E": "Moisture scenario position (0=medium, 1=high)",  # 00
-        "52": "Sensitivity sensor (%)",
+        "4E": "Moisture scenario position (0=medium, 1=high)",  # 00, see: 22F8?
+        "52": "Motion sensor sensitivity (%)",
         "54": "Moisture sensor overrun time (mins)",  # 2A
         "75": "Comfort temperature (°C)",  # 01
         "95": "Boost mode Supply/exhaust fan rate (%)",
         "xx": "Test Bypass valve (0=normal operation, 1=open, 2=closed)",  # ??
     }  # all % are # 32 -  units ??? 00: none, 01: C, 2A-C:min/hr/day, 32: %   ???
-
-    assert payload[:4] == "0000", _INFORM_DEV_MSG
 
     assert (
         payload[4:6] in _2411_TABLE
