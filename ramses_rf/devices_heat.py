@@ -279,8 +279,8 @@ class Weather(Fakeable, DeviceHeat):  # 0002
     def temperature(self) -> Optional[float]:  # 0002
         return self._msg_value(_0002, key=self.TEMPERATURE)
 
-    @check_faking_enabled
     @temperature.setter
+    @check_faking_enabled
     def temperature(self, value) -> None:  # 0002
         cmd = Command.put_outdoor_temp(self.id, value)
         # cmd = Command.put_zone_temp(
@@ -392,8 +392,8 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
     def temperature(self) -> Optional[float]:  # 1260
         return self._msg_value(_1260, key=self.TEMPERATURE)
 
-    @check_faking_enabled
     @temperature.setter
+    @check_faking_enabled
     def temperature(self, value) -> None:  # 1260
         self._send_cmd(Command.put_dhw_temp(value))
         # lf._send_cmd(Command.get_dhw_temp(self.ctl.id, self.zone.idx))
@@ -425,8 +425,8 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
     def temperature(self) -> Optional[float]:  # 30C9
         return self._msg_value(_30C9, key=self.TEMPERATURE)
 
-    @check_faking_enabled
     @temperature.setter
+    @check_faking_enabled
     def temperature(self, value) -> None:  # 30C9
         self._send_cmd(Command.put_sensor_temp(self.id, value))
         # lf._send_cmd(Command.get_zone_temp(self.ctl.id, self.zone.idx))

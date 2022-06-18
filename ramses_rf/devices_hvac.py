@@ -233,8 +233,8 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
     def fan_rate(self) -> Optional[str]:
         return self._msg_value(_22F1, key="rate")
 
-    @check_faking_enabled
     @fan_rate.setter
+    @check_faking_enabled
     def fan_rate(self, rate) -> None:
         for _ in range(3):
             self._send_cmd(
