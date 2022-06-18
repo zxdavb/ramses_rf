@@ -390,7 +390,7 @@ class Command(Frame):
         else:
             pos = "00FFEF"
 
-        cmd = cls.packet(I_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs)
+        cmd = cls.packet(W_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs)
 
         return cmd
 

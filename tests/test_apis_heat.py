@@ -24,6 +24,10 @@ def _test_api_line(gwy, api, pkt_line):  # noqa: F811
     msg = Message(gwy, pkt)
     cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
+    # assert cmd.src.id == pkt.src.id  # TODO:
+    # assert cmd.dst.id == pkt.dst.id  # TODO:
+    assert cmd.verb == pkt.verb
+    assert cmd.code == pkt.code
     assert cmd.payload == pkt.payload
 
     return pkt, msg, cmd
@@ -65,6 +69,8 @@ def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke
             **{k: v for k, v in kwargs.items() if k[:1] != "_"}
         )
 
+        assert cmd.verb == pkt.verb
+        assert cmd.code == pkt.code
         assert cmd.payload[:-2] == pkt.payload[:-2]
 
         if msg.src.id == "18:000730":
@@ -104,6 +110,8 @@ def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke
             **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
         )
 
+        assert cmd.verb == pkt.verb
+        assert cmd.code == pkt.code
         assert cmd.payload, pkt.payload
 
         if msg.src.id == "18:000730":
@@ -139,6 +147,8 @@ def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke
             msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
         )
 
+        assert cmd.verb == pkt.verb
+        assert cmd.code == pkt.code
         assert cmd.payload[:4] == pkt.payload[:4]
         assert cmd.payload[6:] == pkt.payload[6:]
 

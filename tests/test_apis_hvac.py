@@ -27,6 +27,10 @@ def _test_api_line(gwy, api, pkt_line):  # noqa: F811
         **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
     )
 
+    assert cmd.src.id == pkt.src.id
+    assert cmd.dst.id == pkt.dst.id
+    assert cmd.verb == pkt.verb
+    assert cmd.code == pkt.code
     assert cmd.payload == pkt.payload
 
     return pkt, msg, cmd
