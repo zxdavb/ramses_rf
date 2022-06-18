@@ -450,15 +450,16 @@ if DEV_MODE:
     "low":        (_22F8, 00, 01|02"),  # ?eco     co2 <= 1200 ppm?
     "high":       (_22F8, 00, 02|02"),  # ?comfort co2 <= 1000 ppm?
 
-# Join/Leave commands:
+# Join commands:
     "CVERFT":     (_1FC9,  00, _22F1, 0x000000,                        01, _10E0, 0x000000"),  # CVE/HRU remote    (536-0124)
     "AUTORFT":    (_1FC9,  63, _22F8, 0x000000,                        01, _10E0, 0x000000"),  # AUTO RFT          (536-0150)
     "DF":         (_1FC9,  00, _22F8, 0x000000,                        00, _10E0, 0x000000"),  # DemandFlow remote (536-0146)
     "RV":         (_1FC9,  00, _12A0, 0x000000,                        01, _10E0, 0x000000,  00, _31E0, 0x000000,  00, _1FC9, 0x000000"),  # RFT-RV   (04-00046)
     "CO2":        (_1FC9,  00, _1298, 0x000000,  00, _2E10, 0x000000,  01, _10E0, 0x000000,  00, _31E0, 0x000000,  00, _1FC9, 0x000000"),  # RFT-CO2  (04-00045)
 
-    "Leave":      (_1FC9, 00, _1FC9, 0x000000"),  # standard leave command
-    "Leave":      (_1FC9, 63, _1FC9, 0x000000"),  # leave command of AUTO RFT (536-0150)
+# Leave commands:
+    "Others":      (_1FC9, 00, _1FC9, 0x000000"),  # standard leave command
+    "AUTORFT":     (_1FC9, 63, _1FC9, 0x000000"),  # leave command of AUTO RFT (536-0150)
 
     # RQ 0x00
     # I_ 0x01
