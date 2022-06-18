@@ -1516,8 +1516,8 @@ def parser_2411(payload, msg) -> Optional[dict]:
         "min_value": parser(payload[18:26][-length:]),
         "max_value": parser(payload[26:34][-length:]),
         "precision": parser(payload[34:42][-length:]),
-        f"{SZ_VALUE}_06": payload[6:10],
-        f"{SZ_VALUE}_42": payload[42:],
+        f"_{SZ_VALUE}_06": payload[6:10],
+        f"_{SZ_VALUE}_42": payload[42:],
     }
 
 
