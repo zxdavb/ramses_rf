@@ -1467,46 +1467,63 @@ def parser_2411(payload, msg) -> Optional[dict]:
     #     0b01000011: "High",  # 0x43, 67
     # }  # TODO: Exhaust is +1! - doesn't look like a bit mask
 
+    def counter(x):
+        return int(x, 16)
+
+    def no_op(x):
+        return x
+
     _2411_DATA_TYPES = {
+        "x00": counter,
+        "x01": counter,
         "0F": percent,
-        "10": double,
+        "10": counter,
         "92": temp_from_hex,
     }  # TODO: _2411_TYPES.get(payload[8:10]) - looks possible
 
     _2411_TABLE = {
-        "31": ("Filter replace time (days)", double, 4),
+        "x31": ("Filter replace time (days)", counter, 4),
         "3D": ("Away mode Supply fan rate (%)", percent, 2),
         "3E": ("Away mode Exhaust fan rate (%)", percent, 2),
-        "75": ("Temperature (C)", temp_from_hex, 4),
+        "3F": ("Low mode Supply fan rate (%)", percent, 2),
+        "40": ("Low mode Exhaust fan rate (%)", percent, 2),
+        "41": ("Medium mode Supply fan rate (%)", percent, 2),
+        "42": ("Medium mode Exhaust fan rate (%)", percent, 2),
+        "43": ("High mode Supply fan rate (%)", percent, 2),
+        "44": ("High mode Exhaust fan rate (%)", percent, 2),
+        "75": ("Some Temperature (°C)", temp_from_hex, 4),
     }
 
     assert payload[:4] == "0000", _INFORM_DEV_MSG
-    assert payload[4:6] in _2411_TABLE, _INFORM_DEV_MSG
-    assert payload[8:10] in _2411_DATA_TYPES, _INFORM_DEV_MSG
+    # assert payload[4:6] in _2411_TABLE, _INFORM_DEV_MSG
 
-    description, parser, length = _2411_TABLE.get(
-        payload[4:6], ("Unknown", lambda x: x, 8)
-    )
+    description, parser, length = _2411_TABLE.get(payload[4:6], ("Unknown", no_op, 8))
 
-    assert parser == _2411_DATA_TYPES.get(payload[4:6])
+    # assert parser == _2411_DATA_TYPES.get(payload[4:6]), (
+    #   f"param {payload[4:6]} has data_type: {payload[8:10]}"
+    # )
 
     result = {
         "parameter": payload[4:6],
         "description": description,
     }
 
-    if msg.len > 3:
-        result = result | {
-            "value": parser(payload[10:18][:-length]),
-            f"{SZ_VALUE}_06": payload[6:10],  # data-type? %/temp/double
-            "block_10": payload[10:18],  # each block is data-value?
-            "block_18": payload[18:26],  # current-val, low/high/default vals?
-            "block_26": payload[26:34],
-            "block_34": payload[34:42],
-            f"{SZ_VALUE}_42": payload[42:],
-        }
+    if msg.len <= 3:
+        return result
 
-    return result
+    assert (
+        payload[8:10] in _2411_DATA_TYPES
+    ), f"param {payload[4:6]} has data_type: {payload[8:10]}"  # _INFORM_DEV_MSG
+
+    return result | {
+        "value": parser(payload[10:18][-length:]),
+        f"{SZ_VALUE}_06": payload[6:10],  # data-type? %/temp/double
+        "block_10": payload[10:18],  # each block is data-value?
+        "block_18": payload[18:26],  # current-val, low/high/default vals?
+        "block_26": payload[26:34],
+        "block_34": payload[34:42],
+        f"{SZ_VALUE}_42": payload[42:],
+    }
 
 
 @parser_decorator  # unknown_2420, from OTB
