@@ -1474,15 +1474,15 @@ def parser_2411(payload, msg) -> Optional[dict]:
         return x
 
     _2411_DATA_TYPES = {
-        # "00": (8, no_op),
-        # "01": (8, no_op),
-        "0F": (2, percent),
-        "10": (4, counter),
-        "92": (4, temp_from_hex),
-    }  # TODO: _2411_TYPES.get(payload[8:10]) - looks possible
+        "00": (2, counter),  # 4E (0-1), 54 (15- 60)
+        "01": (2, counter),  # 52 (0-250) ???
+        "0F": (2, percent),  # xx (0.0-1.0)
+        "10": (4, counter),  # 30 (0-1800)
+        "92": (4, temp_from_hex),  # 75 (0-30)
+    }  # TODO: _2411_TYPES.get(payload[8:10], (8, no_op))
 
     _2411_TABLE = {
-        "31": "Filter replace time (days)",
+        "31": "Time to change filter (days)",
         "3D": "Away mode Supply fan rate (%)",
         "3E": "Away mode Exhaust fan rate (%)",
         "3F": "Low mode Supply fan rate (%)",
@@ -1491,11 +1491,12 @@ def parser_2411(payload, msg) -> Optional[dict]:
         "42": "Medium mode Exhaust fan rate (%)",
         "43": "High mode Supply fan rate (%)",
         "44": "High mode Exhaust fan rate (%)",
-        # "4E": "Unknown (??)",
-        # "52": "Unknown (??)",
-        # "54": "Unknown (??)",
-        "75": "Some Temperature (°C)",
-        # "95": "Unknown (%)",
+        "4E": "Moisture scenario position (0=medium, 1=high)",
+        "52": "Sensitivity sensor (%)",
+        "54": "Moisture sensor overrun time (mins)",
+        "75": "Comfort temperature (°C)",
+        "95": "Boost mode Supply/exhaust fan rate (%)",
+        "xx": "Test Bypass valve (0=normal operation, 1=open, 2=closed)",
     }
 
     assert payload[:4] == "0000", _INFORM_DEV_MSG
@@ -1520,11 +1521,10 @@ def parser_2411(payload, msg) -> Optional[dict]:
 
     return result | {
         "value": parser(payload[10:18][-length:]),
-        f"{SZ_VALUE}_06": payload[6:10],  # data-type? %/temp/double
-        "block_10": payload[10:18],  # each block is data-value?
-        "block_18": payload[18:26],  # current-val, low/high/default vals?
-        "block_26": payload[26:34],
-        "block_34": payload[34:42],
+        "min": parser(payload[18:26][-length:]),
+        "max": parser(payload[26:34][-length:]),
+        "step": parser(payload[34:42][-length:]),
+        f"{SZ_VALUE}_06": payload[6:10],
         f"{SZ_VALUE}_42": payload[42:],
     }
 
