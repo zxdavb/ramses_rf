@@ -1474,15 +1474,15 @@ def parser_2411(payload, msg) -> Optional[dict]:
         return x
 
     _2411_DATA_TYPES = {
-        "x00": counter,
-        "x01": counter,
+        # "00": no_op,
+        # "01": no_op,
         "0F": percent,
         "10": counter,
         "92": temp_from_hex,
     }  # TODO: _2411_TYPES.get(payload[8:10]) - looks possible
 
     _2411_TABLE = {
-        "x31": ("Filter replace time (days)", counter, 4),
+        "31": ("Filter replace time (days)", counter, 4),
         "3D": ("Away mode Supply fan rate (%)", percent, 2),
         "3E": ("Away mode Exhaust fan rate (%)", percent, 2),
         "3F": ("Low mode Supply fan rate (%)", percent, 2),
@@ -1491,11 +1491,17 @@ def parser_2411(payload, msg) -> Optional[dict]:
         "42": ("Medium mode Exhaust fan rate (%)", percent, 2),
         "43": ("High mode Supply fan rate (%)", percent, 2),
         "44": ("High mode Exhaust fan rate (%)", percent, 2),
+        # "4E": ("Unknown (??)", no_op, 8),
+        # "52": ("Unknown (??)", no_op, 8),
+        # "54": ("Unknown (??)", no_op, 8),
         "75": ("Some Temperature (°C)", temp_from_hex, 4),
+        # "95": ("Unknown (%)", percent, 8),
     }
 
     assert payload[:4] == "0000", _INFORM_DEV_MSG
-    # assert payload[4:6] in _2411_TABLE, _INFORM_DEV_MSG
+    assert (
+        payload[4:6] in _2411_TABLE
+    ), f"param {payload[4:6]} is unknown"  # _INFORM_DEV_MSG
 
     description, parser, length = _2411_TABLE.get(payload[4:6], ("Unknown", no_op, 8))
 
@@ -1513,7 +1519,7 @@ def parser_2411(payload, msg) -> Optional[dict]:
 
     assert (
         payload[8:10] in _2411_DATA_TYPES
-    ), f"param {payload[4:6]} has data_type: {payload[8:10]}"  # _INFORM_DEV_MSG
+    ), f"param {payload[4:6]} has unknown data_type: {payload[8:10]}"  # _INFORM_DEV_MSG
 
     return result | {
         "value": parser(payload[10:18][-length:]),
