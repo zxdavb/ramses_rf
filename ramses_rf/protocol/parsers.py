@@ -1507,7 +1507,7 @@ def parser_2411(payload, msg) -> Optional[dict]:
         "description": description,
     }
 
-    if msg.len <= 3:
+    if msg.verb == RQ:
         return result
 
     assert (
@@ -1515,12 +1515,18 @@ def parser_2411(payload, msg) -> Optional[dict]:
     ), f"param {payload[4:6]} has unknown data_type: {payload[8:10]}"  # _INFORM_DEV_MSG
     length, parser = _2411_DATA_TYPES.get(payload[8:10], (no_op, 8))
 
-    return result | {
+    result |= {
         "value": parser(payload[10:18][-length:]),
+        f"_{SZ_VALUE}_06": payload[6:10],
+    }
+
+    if msg.len == 9:
+        return result
+
+    return result | {
         "min_value": parser(payload[18:26][-length:]),
         "max_value": parser(payload[26:34][-length:]),
         "precision": parser(payload[34:42][-length:]),
-        f"_{SZ_VALUE}_06": payload[6:10],
         f"_{SZ_VALUE}_42": payload[42:],
     }
 

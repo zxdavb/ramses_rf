@@ -510,9 +510,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _2411: {  # fan_params, HVAC
         SZ_NAME: "fan_params",
-        I_: r"^0000[0-9A-F]{42}$",
+        I_: r"^0000[0-9A-F]{6}([0-9A-F]{8}){4}[0-9A-F]{4}$",
         RQ: r"^0000[0-9A-F]{2}((00){19})?$",
-        W_: r"^0000[0-9A-F]{42}$",
+        W_: r"^0000[0-9A-F]{6}[0-9A-F]{8}(([0-9A-F]{8}){3}[0-9A-F]{4})?$",
     },
     _2420: {  # unknown_2420, from OTB
         SZ_NAME: "message_2420",
