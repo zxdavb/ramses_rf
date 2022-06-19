@@ -436,6 +436,9 @@ class Command(Frame):
         bypass_mode: is a proxy for bypass_position (they should be mutex)
         """
 
+        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # offically: 00C8EF
+        # RP --- 32:155617 37:155617 --:------ 22F7 003 00C8C8
+
         src_id = src_id or fan_id  # TODO: src_id should be an arg?
 
         if bypass_position is not None:
@@ -443,9 +446,9 @@ class Command(Frame):
         elif bypass_mode := kwargs.pop("bypass_mode", None):
             pos = {"auto": "FF", "off": "00", "on": "C8"}.get(bypass_mode)
         else:
-            pos = "00FFEF"
+            pos = "00FF"
 
-        return cls.packet(W_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs)
+        return cls.packet(W_, _22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs)
 
     @classmethod  # constructor for W|2411
     @validate_api_params()
