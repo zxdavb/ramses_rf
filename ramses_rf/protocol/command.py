@@ -446,7 +446,7 @@ class Command(Frame):
         elif bypass_mode := kwargs.pop("bypass_mode", None):
             pos = {"auto": "FF", "off": "00", "on": "C8"}.get(bypass_mode)
         else:
-            pos = "00FF"
+            pos = "FF"  # auto
 
         return cls.packet(W_, _22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs)
 
