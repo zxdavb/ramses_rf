@@ -99,6 +99,7 @@ from .helpers import (
     valve_demand,
 )
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
+from .ramses import _2411_PARAMS_SCHEMA
 from .version import VERSION
 
 # skipcq: PY-W2000
@@ -114,6 +115,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FC,
     FF,
 )
+
+_2411_TABLE = {k: v["description"] for k, v in _2411_PARAMS_SCHEMA.items()}
 
 _INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"
 
@@ -1468,34 +1471,13 @@ def parser_2411(payload, msg) -> Optional[dict]:
     def counter(x):
         return int(x, 16)
 
-    def no_op(x):
-        return x
-
     _2411_DATA_TYPES = {
         "00": (2, counter),  # 4E (0-1), 54 (15-60)
         "01": (2, counter),  # 52 (0-250) PIR ?should be percent
         "0F": (2, percent),  # xx (0.0-1.0)
-        "10": (4, counter),  # 30 (0-1800)
+        "10": (4, counter),  # 31 (0-1800)
         "92": (4, temp_from_hex),  # 75 (0-30)
     }  # TODO: _2411_TYPES.get(payload[8:10], (8, no_op))
-
-    _2411_TABLE = {
-        "31": "Time to change filter (days)",  # 2C
-        "3D": "Away mode Supply fan rate (%)",
-        "3E": "Away mode Exhaust fan rate (%)",
-        "3F": "Low mode Supply fan rate (%)",
-        "40": "Low mode Exhaust fan rate (%)",
-        "41": "Medium mode Supply fan rate (%)",
-        "42": "Medium mode Exhaust fan rate (%)",
-        "43": "High mode Supply fan rate (%)",
-        "44": "High mode Exhaust fan rate (%)",
-        "4E": "Moisture scenario position (0=medium, 1=high)",  # 00, see: 22F8?
-        "52": "Motion sensor sensitivity (%)",
-        "54": "Moisture sensor overrun time (mins)",  # 2A
-        "75": "Comfort temperature (°C)",  # 01
-        "95": "Boost mode Supply/exhaust fan rate (%)",
-        "xx": "Test Bypass valve (0=normal operation, 1=open, 2=closed)",  # ??
-    }  # all % are # 32 -  units ??? 00: none, 01: C, 2A-C:min/hr/day, 32: %   ???
 
     assert (
         payload[4:6] in _2411_TABLE
@@ -1513,7 +1495,7 @@ def parser_2411(payload, msg) -> Optional[dict]:
     assert (
         payload[8:10] in _2411_DATA_TYPES
     ), f"param {payload[4:6]} has unknown data_type: {payload[8:10]}"  # _INFORM_DEV_MSG
-    length, parser = _2411_DATA_TYPES.get(payload[8:10], (no_op, 8))
+    length, parser = _2411_DATA_TYPES.get(payload[8:10], (8, lambda x: x))
 
     result |= {
         "value": parser(payload[10:18][-length:]),

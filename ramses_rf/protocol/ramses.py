@@ -1103,6 +1103,108 @@ _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_TYPE.CTL].keys()
 _CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
 CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 
+
+SZ_DESCRIPTION = "description"
+SZ_MIN_VALUE = "min_value"
+SZ_MAX_VALUE = "max_value"
+SZ_PRECISION = "precision"
+SZ_DATA_TYPE = "data_type"
+
+_2411_PARAMS_SCHEMA = {  # unclear if true for *all* models
+    "3D": {
+        SZ_DESCRIPTION: "Away mode Supply fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 0.4,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "3E": {
+        SZ_DESCRIPTION: "Away mode Exhaust fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 0.4,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "3F": {
+        SZ_DESCRIPTION: "Low mode Supply fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 0.8,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "40": {
+        SZ_DESCRIPTION: "Low mode Exhaust fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 0.8,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "41": {
+        SZ_DESCRIPTION: "Medium mode Supply fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 1.0,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "42": {
+        SZ_DESCRIPTION: "Medium mode Exhaust fan rate (%)",
+        SZ_MIN_VALUE: 0.1,
+        SZ_MAX_VALUE: 1.0,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "43": {
+        SZ_DESCRIPTION: "High mode Supply fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 1.0,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "44": {
+        SZ_DESCRIPTION: "High mode Exhaust fan rate (%)",
+        SZ_MIN_VALUE: 0.1,
+        SZ_MAX_VALUE: 1.0,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "95": {
+        SZ_DESCRIPTION: "Boost mode Supply/exhaust fan rate (%)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 1.0,
+        SZ_PRECISION: 0.005,
+        SZ_DATA_TYPE: "0F",
+    },
+    "31": {
+        SZ_DESCRIPTION: "Time to change filter (days)",
+        SZ_MIN_VALUE: 0,
+        SZ_MAX_VALUE: 1800,
+        SZ_PRECISION: 30,
+        SZ_DATA_TYPE: "10",
+    },
+    "4E": {
+        SZ_DESCRIPTION: "Moisture scenario position (0=medium, 1=high)",
+        SZ_MIN_VALUE: 0,
+        SZ_MAX_VALUE: 1,
+        SZ_PRECISION: 1,
+        SZ_DATA_TYPE: "00",
+    },
+    "54": {
+        SZ_DESCRIPTION: "Moisture sensor overrun time (mins)",
+        SZ_MIN_VALUE: 15,
+        SZ_MAX_VALUE: 60,
+        SZ_PRECISION: 1,
+        SZ_DATA_TYPE: "00",
+    },
+    "75": {
+        SZ_DESCRIPTION: "Comfort temperature (°C)",
+        SZ_MIN_VALUE: 0.0,
+        SZ_MAX_VALUE: 30.0,
+        SZ_PRECISION: 0.01,
+        SZ_DATA_TYPE: 92,
+    },
+}
+
+
 #
 ########################################################################################
 # CODES_BY_ZONE_TYPE

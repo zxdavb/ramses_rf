@@ -34,6 +34,7 @@ from .frame import Frame, pkt_header
 from .helpers import dt_now, dtm_to_hex, percent, str_to_hex, temp_to_hex, timestamp
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ
+from .ramses import _2411_PARAMS_SCHEMA
 from .version import VERSION
 
 # skipcq: PY-W2000
@@ -109,6 +110,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _2400,
     _2401,
     _2410,
+    _2411,
     _2420,
     _2D49,
     _2E04,
@@ -363,37 +365,6 @@ class Command(Frame):
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
-    @classmethod  # constructor for I|22F7
-    @validate_api_params()
-    def set_bypass_position(
-        cls,
-        fan_id: str,
-        *,
-        bypass_position: float = None,
-        src_id: str = None,
-        **kwargs,
-    ):
-        """Constructor to get the position of the bypass valve (c.f. parser_22f7).
-
-        bypass_position: a % from fully open (1.0) to fully closed (0.0).
-        None is a sentinel value for auto.
-
-        bypass_mode: is a proxy for bypass_position (they should be mutex)
-        """
-
-        src_id = src_id or fan_id  # TODO: src_id should be an arg?
-
-        if bypass_position is not None:
-            pos = percent(bypass_position)
-        elif bypass_mode := kwargs.pop("bypass_mode", None):
-            pos = {"auto": "FF", "off": "00", "on": "C8"}.get(bypass_mode)
-        else:
-            pos = "00FFEF"
-
-        cmd = cls.packet(W_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs)
-
-        return cmd
-
     @classmethod  # constructor for I|22F1
     @validate_api_params()
     def set_fan_rate(
@@ -434,17 +405,69 @@ class Command(Frame):
 
         payload = f"{idx}{step_idx:02X}{step_max:02X}"
         if seqn and not src_id:
-            cmd = cls.packet(
+            return cls.packet(
                 I_, _22F1, payload, fan_id, addr2=fan_id, seqn=seqn, **kwargs
             )
-        elif src_id and not seqn:
-            cmd = cls.packet(
+
+        if src_id and not seqn:
+            return cls.packet(
                 I_, _22F1, payload, fan_id, addr0=src_id, addr1=fan_id, **kwargs
             )
-        else:
-            raise TypeError("seqn and src_id are mutally exclusive, one is required")
 
-        return cmd
+        raise TypeError(
+            "seqn and src_id are mutally exclusive, exactly one is required"
+        )
+
+    @classmethod  # constructor for I|22F7
+    @validate_api_params()
+    def set_bypass_position(
+        cls,
+        fan_id: str,
+        *,
+        bypass_position: float = None,
+        src_id: str = None,
+        **kwargs,
+    ):
+        """Constructor to set the position of the bypass valve (c.f. parser_22f7).
+
+        bypass_position: a % from fully open (1.0) to fully closed (0.0).
+        None is a sentinel value for auto.
+
+        bypass_mode: is a proxy for bypass_position (they should be mutex)
+        """
+
+        src_id = src_id or fan_id  # TODO: src_id should be an arg?
+
+        if bypass_position is not None:
+            pos = percent(bypass_position)
+        elif bypass_mode := kwargs.pop("bypass_mode", None):
+            pos = {"auto": "FF", "off": "00", "on": "C8"}.get(bypass_mode)
+        else:
+            pos = "00FFEF"
+
+        return cls.packet(W_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs)
+
+    @classmethod  # constructor for W|2411
+    @validate_api_params()
+    def set_fan_param(
+        cls,
+        fan_id: str,
+        param_id: str,
+        value: str,
+        *,
+        src_id: str = None,
+        **kwargs,
+    ):
+        """Constructor to set a configurable fan parameter (c.f. parser_2411)."""
+
+        src_id = src_id or fan_id  # TODO: src_id should be an arg?
+
+        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
+            raise ValueError(f"Unknown parameter: {param_id}")
+
+        payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work
+
+        return cls.packet(W_, _2411, payload, addr0=src_id, addr1=fan_id, **kwargs)
 
     @classmethod  # constructor for RQ/1F41
     @validate_api_params()
