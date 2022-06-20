@@ -405,14 +405,10 @@ class Command(Frame):
 
         payload = f"{idx}{step_idx:02X}{step_max:02X}"
         if seqn and not src_id:
-            return cls.packet(
-                I_, _22F1, payload, fan_id, addr2=fan_id, seqn=seqn, **kwargs
-            )
+            return cls.packet(I_, _22F1, payload, addr2=fan_id, seqn=seqn, **kwargs)
 
         if src_id and not seqn:
-            return cls.packet(
-                I_, _22F1, payload, fan_id, addr0=src_id, addr1=fan_id, **kwargs
-            )
+            return cls.packet(I_, _22F1, payload, addr0=src_id, addr1=fan_id, **kwargs)
 
         raise TypeError(
             "seqn and src_id are mutally exclusive, exactly one is required"
@@ -1148,6 +1144,7 @@ class Command(Frame):
         addr2 = addr2 or NON_DEV_ADDR.id
 
         src, dst, *_ = pkt_addrs(" ".join((addr0, addr1, addr2)))
+        print(pkt_addrs(" ".join((addr0, addr1, addr2))))
 
         cmd = cls(verb, code, payload, dst.id, from_id=src.id, **kwargs)
 
@@ -1164,7 +1161,6 @@ class Command(Frame):
             cmd.len,
             cmd.payload,
         )
-
         cmd._validate()
 
         return cmd
