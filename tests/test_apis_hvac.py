@@ -36,8 +36,15 @@ def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
         assert cmd == pkt  # must have exact same addr set
 
 
-def test_set_22f7(gwy):  # noqa: F811
+def test_set_22f7_invert(gwy):  # noqa: F811
     _test_api(gwy, Command.set_bypass_position, SET_22F7_GOOD)
+
+
+def test_set_22f7_kwargs():
+    for pkt, kwargs in SET_22F7_KWARGS.items():
+        cmd = Command.set_bypass_position("32:155617", src_id="37:171871", **kwargs)
+
+        assert str(cmd) == pkt[4:]  # must have exact same addr set
 
 
 SET_22F7_GOOD = (
@@ -45,3 +52,22 @@ SET_22F7_GOOD = (
     "...  W --- 37:171871 32:155617 --:------ 22F7 003 00C8EF",  # bypass on
     "...  W --- 37:171871 32:155617 --:------ 22F7 003 00FFEF",  # bypass auto
 )
+
+
+SET_22F7_KWARGS = {
+    "000  W --- 37:171871 32:155617 --:------ 22F7 003 00FFEF": {"bypass_mode": "auto"},
+    "000  W --- 37:171871 32:155617 --:------ 22F7 003 0000EF": {"bypass_mode": "off"},
+    "000  W --- 37:171871 32:155617 --:------ 22F7 003 00C8EF": {"bypass_mode": "on"},
+    "001  W --- 37:171871 32:155617 --:------ 22F7 003 00FFEF": {
+        "bypass_position": None
+    },
+    "001  W --- 37:171871 32:155617 --:------ 22F7 003 0000EF": {
+        "bypass_position": 0.0
+    },
+    "001  W --- 37:171871 32:155617 --:------ 22F7 003 0064EF": {
+        "bypass_position": 0.5
+    },
+    "001  W --- 37:171871 32:155617 --:------ 22F7 003 00C8EF": {
+        "bypass_position": 1.0
+    },
+}
