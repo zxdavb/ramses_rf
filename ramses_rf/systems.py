@@ -600,6 +600,81 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             _LOGGER.debug("System state (finally): %s", self.schema)
 
+        def eavesdrop_zone_sensors_new(this, *, prev=None) -> None:
+            """Determine each zone's sensor by matching zone/sensor temperatures."""
+
+            def _testable_zones(changed_zones) -> dict:
+                return {
+                    t: z
+                    for z, t in changed_zones.items()
+                    if self.zone_by_idx[z].sensor is None
+                    and t not in [t2 for z2, t2 in changed_zones.items() if z2 != z]
+                }
+
+            self._prev_30c9, prev = this, self._prev_30c9
+            if prev is None:
+                return
+
+            # TODO: use msgz/I, not RP
+            secs = self._msg_value(_1F09, key="remaining_seconds")
+            if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
+                return  # can only compare against 30C9 pkt from the last cycle
+
+            _LOGGER.debug("System state (before): %s", self.schema)
+
+            changed_zones = {
+                z[SZ_ZONE_IDX]: z[SZ_TEMPERATURE]
+                for z in this.payload
+                if z not in prev.payload and z[SZ_TEMPERATURE] is not None
+            }  # zones with changed temps
+            if not changed_zones:
+                return  # ctl's 30C9 says no zones have changed temps during this cycle
+
+            testable_zones = _testable_zones(changed_zones)
+            if not testable_zones:
+                return  # no testable zones
+
+            testable_sensors = {
+                d.temperature: d
+                for d in self._gwy.devices  # NOTE: *not* self.childs
+                if isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
+                and d.ctl in (self.ctl, None)
+                and d.temperature is not None
+                and d._msgs[_30C9].dtm > prev.dtm  # changed during last cycle
+            }
+            if not testable_sensors:
+                return  # no testable sensors
+
+            matched_pairs = {
+                sensor: zone_idx
+                for temp_z, zone_idx in testable_zones.items()
+                for temp_s, sensor in testable_sensors.items()
+                if temp_z == temp_s
+            }
+
+            for sensor, zone_idx in matched_pairs.items():
+                zone = self.zone_by_idx[zone_idx]
+                self._gwy.get_device(sensor.id, parent=zone, is_sensor=True)
+
+            _LOGGER.debug("System state (after): %s", self.schema)
+
+            # now see if we can allocate the controller as a sensor...
+            if any(z for z in self.zones if z.sensor is self.ctl):
+                return  # the controller is already a sensor
+
+            remaining_zones = _testable_zones(changed_zones)
+            if len(remaining_zones) != 1:
+                return  # no testable zones
+
+            temp, zone_idx = tuple(remaining_zones.items())[0]
+
+            # can safely(?) assume this zone is using the CTL as a sensor...
+            if not [s for s in testable_sensors if s == temp]:
+                zone = self.zone_by_idx[zone_idx]
+                self._gwy.get_device(self.ctl.id, parent=zone, is_sensor=True)
+
+            _LOGGER.debug("System state (finally): %s", self.schema)
+
         def handle_msg_by_zone_idx(zone_idx: str, msg):
             if zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
