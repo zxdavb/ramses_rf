@@ -922,7 +922,7 @@ class PacketProtocolQos(PacketProtocolPort):
             raise RuntimeError("Sending is disabled")
 
         if cmd.src.id != HGI_DEV_ADDR.id:
-            self._handle_impersonation(cmd)
+            await self._handle_impersonation(cmd)
 
         def expires(timeout, disable_backoff, retry_count):
             """Return a dtm for expiring the Tx (or Rx), with an optional backoff."""
