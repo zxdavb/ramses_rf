@@ -413,6 +413,53 @@ if DEV_MODE:
         sum(len(v) for v in _HVAC_VC_PAIR_BY_CLASS.values())
     ), "Coding error: There is a duplicate verb/code pair"
 
+# CVE = Mechanical Ventilation Unit (CVD on roof) - has RH sensor
+# HRU = Heat Recovery Unit
+
+
+_REMOTES = {
+    "21800000": {
+        "name": "Orcon 15RF",
+        "mode": "1,2,3,T,Auto,Away",
+    },
+    "21800060": {
+        "name": "Orcon 15RF Display",
+        "mode": "1,2,3,T,Auto,Away",
+    },
+    "xxx": {
+        "name": "Orcon CO2 Control",
+        "mode": "1T,2T,3T,Auto,Away",
+    },
+    "03-00062": {
+        "name": "RFT-SPIDER",
+        "mode": "1,2,3,T,A",
+    },
+    "04-00045": {"name": "RFT-CO2"},  # mains-powered
+    "04-00046": {"name": "RFT-RV"},
+    "545-7550": {
+        "name": "RFT-PIR",
+    },
+    "536-0124": {  # idx="00"
+        "name": "RFT",
+        "mode": "1,2,3,T",
+        "CVE": False,  # not clear
+        "HRV": True,
+    },
+    "536-0146": {  # idx="??"
+        "name": "RFT-DF",
+        "mode": "",
+        "CVE": True,
+        "HRV": False,
+    },
+    "536-0150": {  # idx = "63"
+        "name": "RFT-AUTO",
+        "mode": "1,Auto,3,T",
+        "CVE": True,
+        "HRV": True,
+    },
+}
+
+
 # see: https://github.com/arjenhiemstra/ithowifi/blob/master/software/NRG_itho_wifi/src/IthoPacket.h
 
 """
@@ -426,7 +473,7 @@ if DEV_MODE:
     "timer_2":    (_22F3, 00, 00|14"),  # 20 minutes full speed
     "timer_3":    (_22F3, 00, 00|1E"),  # 30 minutes full speed
 
-# AUTO RFT (536-0150) [RFT CAR: 2 modes, auto, timer]: idx = 63, essentially same as above, but also...
+# RFT-AUTO (536-0150) [RFT CAR: 2 modes, auto, timer]: idx = 63, essentially same as above, but also...
     "auto_night": (_22F8, 63, 02|03"),  # additional - press auto x2
 
 # RFT-RV (04-00046), RFT-CO2 (04-00045) - sensors with control
@@ -440,7 +487,7 @@ if DEV_MODE:
 
 # RFT-PIR (545-7550) - presence sensor
 
-# DemandFlow remote (536-0146)
+# RFT_DF: DemandFlow remote (536-0146)
     "timer_1":    (_22F3, 00, 42|03, 03|03"),  # 0b01-000-010 = 3 hrs, back to last mode
     "timer_2":    (_22F3, 00, 42|06, 03|03"),  # 0b01-000-010 = 6 hrs, back to last mode
     "timer_3":    (_22F3, 00, 42|09, 03|03"),  # 0b01-000-010 = 9 hrs, back to last mode
