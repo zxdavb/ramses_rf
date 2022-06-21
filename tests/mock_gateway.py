@@ -64,7 +64,7 @@ class Command(CommandBase):
         zones = f"{sum(b<<i for i, b in enumerate(zone_mask)):04X}"
         payload = f"{sub_idx}{zone_type}{zones[2:]}{zones[:2]}"  # swap order
 
-        return cls.packet(RP, _0005, payload, addr0=src_id, addr1=dst_id)
+        return cls._from_attrs(RP, _0005, payload, addr0=src_id, addr1=dst_id)
 
     @classmethod  # constructor for RP/000C
     @validate_api_params(has_zone=True)
@@ -80,7 +80,7 @@ class Command(CommandBase):
 
         payload = f"{zone_idx}{zone_type}..."
 
-        return cls.packet(RP, _000C, payload, addr0=src_id, addr1=dst_id)
+        return cls._from_attrs(RP, _000C, payload, addr0=src_id, addr1=dst_id)
 
 
 class MockSerialBase:  # all the 'mocking' is done here
