@@ -38,6 +38,7 @@ from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
+from .protocol.command import _mk_cmd
 from .protocol.exceptions import InvalidPayloadError
 from .protocol.opentherm import (
     MSG_ID,
@@ -534,16 +535,16 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
         self._add_discovery_task(
-            Command(RQ, _0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
+            _mk_cmd(RQ, _0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
         )
         for ufh_idx in range(8):
             payload = f"{ufh_idx:02X}{DEV_ROLE_MAP.UFH}"
-            self._add_discovery_task(Command(RQ, _000C, payload, self.id), 60 * 60 * 24)
+            self._add_discovery_task(_mk_cmd(RQ, _000C, payload, self.id), 60 * 60 * 24)
 
         # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
         for ufh_idx in self.circuits:
-            self._add_discovery_task(Command(RQ, _000A, ufh_idx, self.id), 60 * 60 * 6)
-            self._add_discovery_task(Command(RQ, _2309, ufh_idx, self.id), 60 * 60 * 6)
+            self._add_discovery_task(_mk_cmd(RQ, _000A, ufh_idx, self.id), 60 * 60 * 6)
+            self._add_discovery_task(_mk_cmd(RQ, _2309, ufh_idx, self.id), 60 * 60 * 6)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -790,7 +791,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 _3221,  # R8810A/20A
                 _3223,  # R8810A/20A
             ):  # TODO: these are WIP, but do vary in payload
-                self._add_discovery_task(Command(RQ, code, "00", self.id), 60)
+                self._add_discovery_task(_mk_cmd(RQ, code, "00", self.id), 60)
 
         for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
             if _OTB_MODE or m not in self.OT_TO_RAMSES:
@@ -811,19 +812,19 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 )
 
         # TODO: both modulation level?
-        self._add_discovery_task(Command(RQ, _2401, "00", self.id), 60 * 5)
-        self._add_discovery_task(Command(RQ, _3EF0, "00", self.id), 60 * 5)
+        self._add_discovery_task(_mk_cmd(RQ, _2401, "00", self.id), 60 * 5)
+        self._add_discovery_task(_mk_cmd(RQ, _3EF0, "00", self.id), 60 * 5)
 
         if _OTB_MODE:
             return
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
             self._add_discovery_task(
-                Command(RQ, code, "00", self.id), 60 * 60, delay=90
+                _mk_cmd(RQ, code, "00", self.id), 60 * 60, delay=90
             )
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS]:
-            self._add_discovery_task(Command(RQ, code, "00", self.id), 60 * 5)
+            self._add_discovery_task(_mk_cmd(RQ, code, "00", self.id), 60 * 5)
 
         if False and DEV_MODE:
             # TODO: these are WIP, appear fixed in payload, to test against BDR91T
@@ -837,7 +838,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 _2420,  # payload always "0000001000000...
             ):
                 self._add_discovery_task(
-                    Command(RQ, code, "00", self.id), 60 * 5, delay=60 * 5
+                    _mk_cmd(RQ, code, "00", self.id), 60 * 5, delay=60 * 5
                 )
 
     def _handle_msg(self, msg: Message) -> None:
@@ -853,13 +854,13 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         self._msgs_ot[msg_id] = msg
 
         if DEV_MODE:  # here to follow state changes
-            self._send_cmd(Command(RQ, _2401, "00", self.id))  # oem code
+            self._send_cmd(_mk_cmd(RQ, _2401, "00", self.id))  # oem code
             if msg_id != "73":
                 self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
         # TODO: this is development code - will be rationalised, eventually
         if _OTB_MODE and (code := self.OT_TO_RAMSES.get(msg_id)):
-            self._send_cmd(Command(RQ, code, "00", self.id))
+            self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
             if msg_id not in self._msgs_ot_supported:
@@ -887,7 +888,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if DEV_MODE:  # here to follow state changes
             self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # unknown
             if msg.code != _2401:
-                self._send_cmd(Command(RQ, _2401, "00", self.id))  # oem code
+                self._send_cmd(_mk_cmd(RQ, _2401, "00", self.id))  # oem code
 
         if msg.code in (_10A0, _3EF0, _3EF1) or msg.len != 3:
             return
@@ -1298,7 +1299,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         )  # also: self.ctl.id
 
         # discover_flag & Discover.STATUS and
-        self._add_discovery_task(Command(RQ, _3EF1, "00", self.id), 60 * 60 * 5)
+        self._add_discovery_task(_mk_cmd(RQ, _3EF1, "00", self.id), 60 * 60 * 5)
 
     @property
     def active(self) -> Optional[bool]:  # 3EF0, 3EF1

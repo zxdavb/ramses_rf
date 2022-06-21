@@ -54,6 +54,7 @@ from .protocol import (
     Message,
     Priority,
 )
+from .protocol.command import _mk_cmd
 from .schema import (
     SCHEMA_DHW,
     SCHEMA_SYS,
@@ -239,7 +240,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         # super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            Command(RQ, _000C, f"00{DEV_ROLE_MAP.HTG}", self.id), 60 * 60 * 24, delay=0
+            _mk_cmd(RQ, _000C, f"00{DEV_ROLE_MAP.HTG}", self.id), 60 * 60 * 24, delay=0
         )
         self._add_discovery_task(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
 
@@ -443,7 +444,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
             self._add_discovery_task(
-                Command(RQ, _0005, f"00{zone_type}", self.id), 60 * 60 * 24, delay=0
+                _mk_cmd(RQ, _0005, f"00{zone_type}", self.id), 60 * 60 * 24, delay=0
             )
 
     def _handle_msg(self, msg: Message) -> None:
@@ -800,7 +801,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
 
-        self._add_discovery_task(Command(RQ, _0006, "00", self.id), 60 * 5, delay=5)
+        self._add_discovery_task(_mk_cmd(RQ, _0006, "00", self.id), 60 * 5, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retreive the latest global change counter."""
@@ -1010,7 +1011,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            Command(RQ, _000C, f"00{DEV_ROLE_MAP.DHW}", self.id), 60 * 60 * 24, delay=0
+            _mk_cmd(RQ, _000C, f"00{DEV_ROLE_MAP.DHW}", self.id), 60 * 60 * 24, delay=0
         )
 
     def _handle_msg(self, msg: Message) -> None:

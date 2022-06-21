@@ -1224,6 +1224,11 @@ class Command(Frame):
         return cls.from_attrs(I_, NUL_DEV_ADDR.id, _PUZZ, payload[:48], **kwargs)
 
 
+def _mk_cmd(verb, code, payload, dest_id, **kwargs) -> Command:
+    """A convenience function, to cope with a change to the Command class."""
+    return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
+
+
 # A convenience dict
 CODE_API_MAP = {
     f"{I_}/{_0002}": Command.put_outdoor_temp,

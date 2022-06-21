@@ -13,6 +13,7 @@ import re
 
 from .const import SZ_SCHEDULE, SZ_ZONE_IDX, __dev_mode__
 from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
+from .protocol.command import _mk_cmd
 from .protocol.opentherm import OTB_MSG_IDS
 
 # skipcq: PY-W2000
@@ -244,7 +245,7 @@ def script_poll_device(gwy, dev_id) -> list:
     tasks = []
 
     for code in (_0016, _1FC9):
-        cmd = Command(RQ, code, "00", dev_id, **QOS_DEFAULT)
+        cmd = _mk_cmd(RQ, code, "00", dev_id, **QOS_DEFAULT)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
@@ -263,25 +264,25 @@ async def script_scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     qos = {"priority": Priority.DEFAULT, "retries": 5}
-    gwy.send_cmd(Command(RQ, _0016, "0000", dev_id, **qos))
+    gwy.send_cmd(_mk_cmd(RQ, _0016, "0000", dev_id, **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(CODES_SCHEMA):
         if code == _0005:
             for zone_type in range(20):  # known up to 18
-                gwy.send_cmd(Command(RQ, code, f"00{zone_type:02X}", dev_id, **qos))
+                gwy.send_cmd(_mk_cmd(RQ, code, f"00{zone_type:02X}", dev_id, **qos))
 
         elif code == _000C:
             for zone_idx in range(16):  # also: FA-FF?
-                gwy.send_cmd(Command(RQ, code, f"{zone_idx:02X}00", dev_id, **qos))
+                gwy.send_cmd(_mk_cmd(RQ, code, f"{zone_idx:02X}00", dev_id, **qos))
 
         elif code == _0016:
             continue
 
         # elif code in (_01D0, _01E9):
         #     for zone_idx in ("00", "01", "99", FC, FF):
-        #         gwy.send_cmd(Command(W_, code, f"{zone_idx}00", dev_id, **qos))
-        #         gwy.send_cmd(Command(W_, code, f"{zone_idx}03", dev_id, **qos))
+        #         gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, **qos))
+        #         gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, **qos))
 
         elif code == _0404:
             gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, 0, **qos))
@@ -309,15 +310,15 @@ async def script_scan_full(gwy, dev_id: str):
             and RQ in CODES_SCHEMA[code]
             and re.match(CODES_SCHEMA[code][RQ], "00")
         ):
-            gwy.send_cmd(Command(RQ, code, "00", dev_id, **qos))
+            gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, **qos))
 
         else:
-            gwy.send_cmd(Command(RQ, code, "0000", dev_id, **qos))
+            gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, **qos))
 
     # these are possible/difficult codes
     qos = {"priority": Priority.DEFAULT, "retries": 2}
     for code in (_0150, _2389):
-        gwy.send_cmd(Command(RQ, code, "0000", dev_id, **qos))
+        gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, **qos))
 
 
 @script_decorator
@@ -328,7 +329,7 @@ async def script_scan_hard(gwy, dev_id: str):
     #     nonlocal code
 
     #     if (code := code + 1) < 0x4000:
-    #         cmd = Command(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN)
+    #         cmd = _mk_cmd(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN)
     #         # gwy.msg_protocol.send_data(cmd, callback=callback)
     #         gwy.send_cmd(cmd, callback=callback)
 
@@ -336,7 +337,7 @@ async def script_scan_hard(gwy, dev_id: str):
     # callback(None)
 
     for code in range(0x4000):
-        gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN))
+        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN))
         await asyncio.sleep(1)
 
 
@@ -346,8 +347,8 @@ async def script_scan_001(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
-        gwy.send_cmd(Command(W_, _000E, f"{idx:02X}0050", dev_id, **qos))
-        gwy.send_cmd(Command(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
+        gwy.send_cmd(_mk_cmd(W_, _000E, f"{idx:02X}0050", dev_id, **qos))
+        gwy.send_cmd(_mk_cmd(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
 
 
 @script_decorator
@@ -358,7 +359,7 @@ async def script_scan_002(gwy, dev_id: str):
     message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
 
     [
-        gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **QOS_DEFAULT))
+        gwy.send_cmd(_mk_cmd(W_, f"{c:04X}", message, dev_id, **QOS_DEFAULT))
         for c in range(0x4000)
         if c not in CODES_SCHEMA
     ]
@@ -407,7 +408,7 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
-        gwy.send_cmd(Command(RQ, code, "00", dev_id, **QOS_DEFAULT))
+        gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, **QOS_DEFAULT))
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **QOS_DEFAULT))
 
 
@@ -447,7 +448,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
     #  - ch setpoint          /
     #  - max. rel. modulation /
 
-    [gwy.send_cmd(Command(RQ, c, "00", dev_id, **QOS_DEFAULT)) for c in CODES]
+    [gwy.send_cmd(_mk_cmd(RQ, c, "00", dev_id, **QOS_DEFAULT)) for c in CODES]
 
 
 SCRIPTS = {

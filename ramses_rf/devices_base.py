@@ -15,8 +15,8 @@ from typing import Optional
 from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .entity_base import Child, Entity, class_by_attr
 from .helpers import shrink
-from .protocol import Command
 from .protocol.address import NUL_DEV_ADDR, Address
+from .protocol.command import Command, _mk_cmd
 from .protocol.const import SZ_FUNC, SZ_TIMEOUT
 from .protocol.message import Message
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
@@ -227,8 +227,8 @@ class Device(Entity):
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         # if discover_flag & Discover.TRAITS:
-        # self._add_discovery_task(Command(RQ, _1FC9, "00", self.id), 60 * 60 * 24)
-        # self._add_discovery_task(Command(RQ, _0016, "00", self.id), 60 * 60)
+        # self._add_discovery_task(_mk_cmd(RQ, _1FC9, "00", self.id), 60 * 60 * 24)
+        # self._add_discovery_task(_mk_cmd(RQ, _0016, "00", self.id), 60 * 60)
 
         pass
 
@@ -320,7 +320,7 @@ class DeviceInfo(Device):  # 10E0
         if self._SLUG not in CODES_BY_DEV_SLUG or RP in CODES_BY_DEV_SLUG[
             self._SLUG
         ].get(_10E0, {}):
-            self._add_discovery_task(Command(RQ, _10E0, "00", self.id), 60 * 60 * 24)
+            self._add_discovery_task(_mk_cmd(RQ, _10E0, "00", self.id), 60 * 60 * 24)
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0

@@ -47,6 +47,7 @@ from .devices import (
 from .entity_base import Child, Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import Address, Command, CorruptStateError, Message
+from .protocol.command import _mk_cmd
 from .schedule import Schedule
 from .schema import (
     SCHEMA_DHW,
@@ -281,7 +282,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             f"01{DEV_ROLE_MAP.HTG}",
         ):
             self._add_discovery_task(
-                Command(RQ, _000C, payload, self.ctl.id), 60 * 60 * 24
+                _mk_cmd(RQ, _000C, payload, self.ctl.id), 60 * 60 * 24
             )
 
         self._add_discovery_task(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
@@ -582,7 +583,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         for dev_role in (self._ROLE_ACTUATORS, DEV_ROLE_MAP.SEN):
             self._add_discovery_task(
-                Command(RQ, _000C, f"{self.idx}{dev_role}", self.ctl.id),
+                _mk_cmd(RQ, _000C, f"{self.idx}{dev_role}", self.ctl.id),
                 60 * 60 * 24,
                 delay=0.5,
             )
