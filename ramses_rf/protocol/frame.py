@@ -228,7 +228,7 @@ class Frame:
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
-        # repr(self) == repr(cls._from_str(repr(self)))
+        # repr(self) == repr(cls(repr(self)))
 
         return " ".join(
             (
@@ -243,7 +243,7 @@ class Frame:
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        # repr(self) == repr(cls._from_str(str(self)))
+        # repr(self) == repr(cls(str(self)))
 
         try:
             return f"{self!r} # {self._hdr}"  # code|ver|device_id|context
