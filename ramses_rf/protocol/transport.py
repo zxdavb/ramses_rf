@@ -843,7 +843,7 @@ class PacketProtocolPort(PacketProtocolBase):
             raise RuntimeError("Sending is disabled")
 
         if cmd.src.id != HGI_DEV_ADDR.id:
-            self._handle_impersonation(cmd)
+            await self._handle_impersonation(cmd)
 
         await self._send_data(str(cmd))
 
