@@ -33,6 +33,9 @@ class Address:
     def __init__(self, device_id) -> None:
         """Create an address from a valid device id."""
 
+        # if device_id is None:
+        #     device_id = NON_DEVICE_ID
+
         self.id = device_id  # TODO: check is a valid id...
         self.type = device_id[:2]  # dex, NOTE: remove last
         self._hex_id: str = None  # type: ignore[assignment]
@@ -204,7 +207,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, Address, Address, Address, A
         )
         and not (
             # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A # valid
-            # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid?
+            # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid
             addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
             and addrs[1] not in (NON_DEV_ADDR, addrs[0])
             and addrs[2] == NON_DEV_ADDR
