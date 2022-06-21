@@ -532,8 +532,8 @@ class Command(Frame):
             pos = "FF"  # auto
 
         return cls._from_attrs(
-            W_, _22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs
-        )
+            W_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs
+        )  # trailing EF not required
 
     @classmethod  # constructor for W|2411
     @validate_api_params()
