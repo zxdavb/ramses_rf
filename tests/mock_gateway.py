@@ -168,7 +168,7 @@ class MockSerialBase:  # all the 'mocking' is done here
         if data[7:16] == b"18:000730":
             data = data[:7] + bytes(self.DEV_ID, "ascii") + data[16:]
         try:
-            self._tx_data(data, Command.from_frame(data.decode("ascii")))
+            self._tx_data(data, Command(data.decode("ascii")))
         except InvalidPacketError:
             pass
         return 0
@@ -276,13 +276,13 @@ class MockController:
 
     def tx_response_pkt(self, frame: str) -> Optional[tuple]:
         try:
-            return 2, Command.from_frame(frame)
+            return 2, Command(frame)
         except InvalidPacketError as exc:
             raise InvalidPacketError(f"Invalid entry the response table: {exc}")
 
     def tx_response_1f09(self) -> Optional[tuple]:
         interval = int((self.next_cycle - dt.now()).total_seconds() * 10)
-        return 1, Command.packet(
+        return 1, Command._from_attrs(
             RP, _1F09, f"00{interval:04X}", addr0=self.DEV_ID, addr1=GWY_ID
         )
 
@@ -305,7 +305,9 @@ class MockController:
 
     def tx_response_0006(self, rp_header) -> Optional[tuple]:
         payload = f"0005{self._change_counter:04X}"
-        return 1, Command.packet(RP, _0006, payload, addr0=self.DEV_ID, addr1=GWY_ID)
+        return 1, Command._from_attrs(
+            RP, _0006, payload, addr0=self.DEV_ID, addr1=GWY_ID
+        )
 
     def tx_response_000c(self, context: str) -> Optional[tuple]:
         zone_idx, zone_type = context[:2], context[2:]
@@ -380,13 +382,13 @@ def sync_cycle_pkts(ctl_id, seconds) -> tuple[Command, Command, Command]:
     #  I --- 01:087939 --:------ 01:087939 2309 009 0007D0-010640-0201F4
     #  I --- 01:087939 --:------ 01:087939 30C9 009 0007A0-010634-020656
 
-    cmd_1f09 = Command.packet(
+    cmd_1f09 = Command._from_attrs(
         I_, _1F09, f"FF{seconds * 10:04X}", addr0=ctl_id, addr2=ctl_id
     )
-    cmd_2309 = Command.packet(
+    cmd_2309 = Command._from_attrs(
         I_, _2309, "0007D00106400201F4", addr0=ctl_id, addr2=ctl_id
     )
-    cmd_30c9 = Command.packet(
+    cmd_30c9 = Command._from_attrs(
         I_, _30C9, "0007A0010634020656", addr0=ctl_id, addr2=ctl_id
     )
 
