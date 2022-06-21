@@ -386,7 +386,10 @@ class Command(Frame):
 
         cmd = cmd_str.upper().split()
         if len(cmd) < 4:
-            raise ValueError(f"Command is invalid: '{cmd_str}'")
+            raise ValueError(
+                f"Command string is not parseable: '{cmd_str}'"
+                ", format is: verb [seqn] addr0 [addr1 [addr2]] code payload"
+            )
 
         verb = cmd.pop(0)
         seqn = "---" if DEVICE_ID_REGEX.ANY.match(cmd[0]) else cmd.pop(0)
