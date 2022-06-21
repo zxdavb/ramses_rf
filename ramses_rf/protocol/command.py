@@ -29,7 +29,7 @@ from .const import (
     Priority,
     __dev_mode__,
 )
-from .exceptions import ExpiredCallbackError, InvalidPacketError
+from .exceptions import ExpiredCallbackError
 from .frame import Frame, pkt_header
 from .helpers import dt_now, dtm_to_hex, percent, str_to_hex, temp_to_hex, timestamp
 from .opentherm import parity
@@ -157,20 +157,7 @@ def validate_api_params(*, has_zone=None):
 
     def _wrapper(fcn, cls, *args, **kwargs):
         _LOGGER.debug(f"Calling: {fcn.__name__}({args}, {kwargs})")
-        try:
-            return fcn(cls, *args, **kwargs)
-        except (
-            # ArithmeticError,  # incl. ZeroDivisionError,
-            AssertionError,
-            # AttributeError,
-            # IndexError,
-            # LookupError,  # incl. IndexError, KeyError
-            # NameError,  # incl. UnboundLocalError
-            # RuntimeError,  # incl. RecursionError
-            TypeError,
-            # ValueError,
-        ) as exc:
-            _LOGGER.exception(f"{fcn.__name__}{tuple(list(args) + [kwargs])}: {exc}")
+        return fcn(cls, *args, **kwargs)
 
     def validate_zone_idx(zone_idx) -> int:
         if isinstance(zone_idx, str):
@@ -284,42 +271,25 @@ def _qos_params(verb, code, qos: dict) -> dict:
 
 @functools.total_ordering
 class Command(Frame):
-    """The command class."""
+    """The Command class (packets to be transmitted).
 
-    def __init__(
-        self,
-        verb: str,
-        code: str,
-        payload: str,
-        dest_id: str,
-        *,
-        from_id: str = HGI_DEV_ADDR.id,
-        qos=None,
-        cbk=None,
-    ) -> None:
-        """Create a command.
+    They have QoS and/or callbacks (but no RSSI).
+    """
 
-        Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
+    def __init__(self, frame: str, qos=None, cbk=None) -> None:
+        """Create a command from a string (and its meta-attrs).
+
+        Will raise InvalidPacketError if it is invalid.
         """
 
-        if dest_id == from_id:
-            addr_set = " ".join((from_id, NON_DEV_ADDR.id, dest_id))
-        else:
-            addr_set = " ".join((from_id, dest_id, NON_DEV_ADDR.id))
-
-        frame = " ".join(
-            (verb, "---", addr_set, code, f"{int(len(payload) / 2):03d}", payload)
-        )
-
-        super().__init__(frame)  # incl. self._validate(addr_set)
+        super().__init__(frame)  # may raise InvalidPacketError if it is invalid
 
         # used by app layer: callback (protocol.py: func, args, daemon, timeout)
         self._cbk = cbk or {}
-
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
-        self._qos = _qos_params(verb, code, qos or {})
+        self._qos = _qos_params(self.verb, self.code, qos or {})
 
-        # used by msg layer: priority (protocol.py,: for which cmd to send next)
+        # used for by msg layer (for which cmd to send next)
         self._priority = self._qos.priority  # TODO: should only be a QoS attr
         self._dtm = dt_now()
 
@@ -327,6 +297,119 @@ class Command(Frame):
         self._source_entity = None
 
         self._validate(strict_checking=False)
+
+    @classmethod  # convenience constructor
+    def from_attrs(
+        cls,
+        verb,
+        dest_id,
+        code,
+        payload,
+        *,
+        from_id=None,
+        seqn=None,
+        **kwargs,
+    ):
+        """Create a command from its attrs using a destination device_id."""
+
+        from_id = from_id or HGI_DEV_ADDR.id
+
+        if dest_id == from_id:
+            addrs = (from_id, NON_DEV_ADDR.id, dest_id)
+        else:
+            addrs = (from_id, dest_id, NON_DEV_ADDR.id)
+
+        return cls._from_attrs(
+            verb,
+            code,
+            payload,
+            addr0=addrs[0],
+            addr1=addrs[1],
+            addr2=addrs[2],
+            seqn=seqn,
+        )
+
+    @classmethod  # generic constructor
+    def _from_attrs(
+        cls,
+        verb,
+        code,
+        payload,
+        *,
+        addr0=None,
+        addr1=None,
+        addr2=None,
+        seqn=None,
+        **kwargs,
+    ):
+        """Create a command from its attrs using an address set."""
+
+        verb = I_ if verb == "I" else W_ if verb == "W" else verb
+
+        addr0 = addr0 or NON_DEV_ADDR.id
+        addr1 = addr1 or NON_DEV_ADDR.id
+        addr2 = addr2 or NON_DEV_ADDR.id
+
+        _, _, *addrs = pkt_addrs(" ".join((addr0, addr1, addr2)))
+        # print(pkt_addrs(" ".join((addr0, addr1, addr2))))
+
+        if seqn in (None, "", "-", "--", "---"):
+            seqn = "---"
+        else:
+            seqn = f"{int(seqn):03d}"
+
+        len_ = f"{int(len(payload) / 2):03d}"
+
+        frame = " ".join(
+            (
+                verb,
+                seqn,
+                *(a.id for a in addrs),
+                code,
+                len_,
+                payload,
+            )
+        )
+
+        return cls(frame, **kwargs)
+
+    @classmethod  # used by CLI for -x switch
+    def from_cli(cls, cmd_str: str, **kwargs):
+        """Create a command from a CLI string (the -x switch).
+
+        Examples include (whitespace for readability):
+            'RQ     01:123456               1F09 00'
+            'RQ     01:123456     13:123456 3EF0 00'
+            'RQ     07:045960     01:054173 10A0 00137400031C'
+            ' W 123 30:045960 -:- 32:054173 22F1 001374'
+        """
+
+        cmd = cmd_str.upper().split()
+        if len(cmd) < 4:
+            raise ValueError(f"Command is invalid: '{cmd_str}'")
+
+        verb = cmd.pop(0)
+        seqn = "---" if DEVICE_ID_REGEX.ANY.match(cmd[0]) else cmd.pop(0)
+        payload = cmd.pop()[:48]
+        code = cmd.pop()
+
+        if not 0 < len(cmd) < 4:
+            raise ValueError(f"Command is invalid: '{cmd_str}'")
+        elif len(cmd) == 1 and verb == I_:
+            # drs = (cmd[0],          NON_DEV_ADDR.id, cmd[0])
+            addrs = (NON_DEV_ADDR.id, NON_DEV_ADDR.id, cmd[0])
+        elif len(cmd) == 1:
+            addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
+        elif len(cmd) == 2 and cmd[0] == cmd[1]:
+            addrs = (cmd[0], NON_DEV_ADDR.id, cmd[1])
+        elif len(cmd) == 2:
+            addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
+        else:
+            addrs = (cmd[0], cmd[1], cmd[2])
+
+        addrs = {f"addr{k}": v for k, v in enumerate(addrs)}
+
+        return cls._from_attrs(verb, code, payload, **addrs, seqn=seqn, **kwargs)
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -405,10 +488,14 @@ class Command(Frame):
 
         payload = f"{idx}{step_idx:02X}{step_max:02X}"
         if seqn and not src_id:
-            return cls.packet(I_, _22F1, payload, addr2=fan_id, seqn=seqn, **kwargs)
+            return cls._from_attrs(
+                I_, _22F1, payload, addr2=fan_id, seqn=seqn, **kwargs
+            )
 
         if src_id and not seqn:
-            return cls.packet(I_, _22F1, payload, addr0=src_id, addr1=fan_id, **kwargs)
+            return cls._from_attrs(
+                I_, _22F1, payload, addr0=src_id, addr1=fan_id, **kwargs
+            )
 
         raise TypeError(
             "seqn and src_id are mutally exclusive, exactly one is required"
@@ -444,7 +531,9 @@ class Command(Frame):
         else:
             pos = "FF"  # auto
 
-        return cls.packet(W_, _22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs)
+        return cls._from_attrs(
+            W_, _22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs
+        )
 
     @classmethod  # constructor for W|2411
     @validate_api_params()
@@ -466,7 +555,7 @@ class Command(Frame):
 
         payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work
 
-        return cls.packet(W_, _2411, payload, addr0=src_id, addr1=fan_id, **kwargs)
+        return cls._from_attrs(W_, _2411, payload, addr0=src_id, addr1=fan_id, **kwargs)
 
     @classmethod  # constructor for RQ/1F41
     @validate_api_params()
@@ -474,7 +563,7 @@ class Command(Frame):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
 
         dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
-        return cls(RQ, _1F41, dhw_idx, ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _1F41, dhw_idx, **kwargs)
 
     @classmethod  # constructor for W_/1F41
     @validate_api_params()
@@ -511,7 +600,7 @@ class Command(Frame):
             )
         )
 
-        return cls(W_, _1F41, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _1F41, payload, **kwargs)
 
     @classmethod  # constructor for RQ/10A0
     @validate_api_params()
@@ -519,7 +608,7 @@ class Command(Frame):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
         dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
-        return cls(RQ, _10A0, dhw_idx, ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _10A0, dhw_idx, **kwargs)
 
     @classmethod  # constructor for W_/10A0
     @validate_api_params()
@@ -559,7 +648,7 @@ class Command(Frame):
             f"{dhw_idx}{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
         )
 
-        return cls(W_, _10A0, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _10A0, payload, **kwargs)
 
     @classmethod  # constructor for RQ/1260
     @validate_api_params()
@@ -567,14 +656,16 @@ class Command(Frame):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
         dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
-        return cls(RQ, _1260, dhw_idx, ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _1260, dhw_idx, **kwargs)
 
     @classmethod  # constructor for RQ/1030
     @validate_api_params(has_zone=True)
     def get_mix_valve_params(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
 
-        return cls(RQ, _1030, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls.from_attrs(
+            RQ, ctl_id, _1030, f"{zone_idx:02X}00", **kwargs
+        )  # TODO: needs 00?
 
     @classmethod  # constructor for W/1030
     @validate_api_params(has_zone=True)
@@ -611,16 +702,16 @@ class Command(Frame):
             )
         )
 
-        return cls(W_, _1030, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _1030, payload, **kwargs)
 
     @classmethod  # constructor for RQ/3220
     @validate_api_params()
-    def get_opentherm_data(cls, dev_id: str, msg_id: Union[int, str], **kwargs):
+    def get_opentherm_data(cls, otb_id: str, msg_id: Union[int, str], **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
 
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
-        return cls(RQ, _3220, payload, dev_id, **kwargs)
+        return cls.from_attrs(RQ, otb_id, _3220, payload, **kwargs)
 
     @classmethod  # constructor for RQ/0008
     @validate_api_params()  # has_zone=Optional
@@ -628,7 +719,7 @@ class Command(Frame):
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
 
         payload = "00" if zone_idx is None else f"{zone_idx:02X}"
-        return cls(RQ, _0008, payload, dev_id, **kwargs)
+        return cls.from_attrs(RQ, dev_id, _0008, payload, **kwargs)
 
     @classmethod  # constructor for RQ/0006
     @validate_api_params()
@@ -640,7 +731,7 @@ class Command(Frame):
         schedule, only to see that it hasn't changed.
         """
 
-        return cls(RQ, _0006, "00", ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _0006, "00", **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_api_params(has_zone=True)
@@ -668,7 +759,7 @@ class Command(Frame):
         header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
 
         payload = f"{header}00{frag_num:02X}{frag_cnt:02X}"
-        return cls(RQ, _0404, payload, ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _0404, payload, **kwargs)
 
     @classmethod  # constructor for W/0404
     @validate_api_params(has_zone=True)
@@ -696,14 +787,14 @@ class Command(Frame):
         frag_length = int(len(fragment) / 2)
 
         payload = f"{header}{frag_length:02X}{frag_num:02X}{frag_cnt:02X}{fragment}"
-        return cls(W_, _0404, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _0404, payload, **kwargs)
 
     @classmethod  # constructor for RQ/0100
     @validate_api_params()
     def get_system_language(cls, ctl_id: str, **kwargs):
         """Constructor to get the language of a system (c.f. parser_0100)."""
 
-        return cls(RQ, _0100, "00", ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _0100, "00", **kwargs)
 
     @classmethod  # constructor for RQ/0418
     @validate_api_params()
@@ -711,14 +802,14 @@ class Command(Frame):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
 
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
-        return cls(RQ, _0418, f"{log_idx:06X}", ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _0418, f"{log_idx:06X}", **kwargs)
 
     @classmethod  # constructor for RQ/2E04
     @validate_api_params()
     def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
 
-        return cls(RQ, _2E04, FF, ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _2E04, FF, **kwargs)
 
     @classmethod  # constructor for W/2E04
     @validate_api_params()
@@ -750,14 +841,14 @@ class Command(Frame):
             )
         )
 
-        return cls(W_, _2E04, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _2E04, payload, **kwargs)
 
     @classmethod  # constructor for RQ/313F
     @validate_api_params()
     def get_system_time(cls, ctl_id: str, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
 
-        return cls(RQ, _313F, "00", ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _313F, "00", **kwargs)
 
     @classmethod  # constructor for W/313F
     @validate_api_params()
@@ -766,7 +857,7 @@ class Command(Frame):
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
         datetime = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
-        return cls(W_, _313F, f"0060{datetime}", ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _313F, f"0060{datetime}", **kwargs)
 
     @classmethod  # constructor for RQ/1100
     @validate_api_params()
@@ -775,7 +866,7 @@ class Command(Frame):
 
         if domain_id is None:
             domain_id = "00" if dev_id[:2] == DEV_TYPE_MAP.BDR else FC
-        return cls(RQ, _1100, domain_id, dev_id, **kwargs)
+        return cls.from_attrs(RQ, dev_id, _1100, domain_id, **kwargs)
 
     @classmethod  # constructor for W/1100
     @validate_api_params()
@@ -812,14 +903,16 @@ class Command(Frame):
             )
         )
 
-        return cls(W_, _1100, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _1100, payload, **kwargs)
 
     @classmethod  # constructor for RQ/000A
     @validate_api_params(has_zone=True)
     def get_zone_config(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
 
-        return cls(RQ, _000A, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls.from_attrs(
+            RQ, ctl_id, _000A, f"{zone_idx:02X}00", **kwargs
+        )  # TODO: needs 00?
 
     @classmethod  # constructor for W/000A
     @validate_api_params(has_zone=True)
@@ -861,14 +954,16 @@ class Command(Frame):
             )
         )
 
-        return cls(W_, _000A, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _000A, payload, **kwargs)
 
     @classmethod  # constructor for RQ/2349
     @validate_api_params(has_zone=True)
     def get_zone_mode(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
 
-        return cls(RQ, _2349, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls.from_attrs(
+            RQ, ctl_id, _2349, f"{zone_idx:02X}00", **kwargs
+        )  # TODO: needs 00?
 
     @classmethod  # constructor for W/2349
     @validate_api_params(has_zone=True)
@@ -915,14 +1010,16 @@ class Command(Frame):
             )
         )
 
-        return cls(W_, _2349, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _2349, payload, **kwargs)
 
     @classmethod  # constructor for RQ/0004
     @validate_api_params(has_zone=True)
     def get_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
 
-        return cls(RQ, _0004, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls.from_attrs(
+            RQ, ctl_id, _0004, f"{zone_idx:02X}00", **kwargs
+        )  # TODO: needs 00?
 
     @classmethod  # constructor for W/0004
     @validate_api_params(has_zone=True)
@@ -930,7 +1027,7 @@ class Command(Frame):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:40]:0<40}"
-        return cls(W_, _0004, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _0004, payload, **kwargs)
 
     @classmethod  # constructor for W/2309
     @validate_api_params(has_zone=True)
@@ -941,21 +1038,21 @@ class Command(Frame):
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
         payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
-        return cls(W_, _2309, payload, ctl_id, **kwargs)
+        return cls.from_attrs(W_, ctl_id, _2309, payload, **kwargs)
 
     @classmethod  # constructor for RQ/30C9
     @validate_api_params(has_zone=True)
     def get_zone_temp(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
 
-        return cls(RQ, _30C9, f"{zone_idx:02X}", ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _30C9, f"{zone_idx:02X}", **kwargs)
 
     @classmethod  # constructor for RQ/12B0
     @validate_api_params(has_zone=True)
     def get_zone_window_state(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
 
-        return cls(RQ, _12B0, f"{zone_idx:02X}", ctl_id, **kwargs)
+        return cls.from_attrs(RQ, ctl_id, _12B0, f"{zone_idx:02X}", **kwargs)
 
     @classmethod  # constructor for RP/3EF1 (I/3EF1?)  # TODO: trap corrupt values?
     @validate_api_params()
@@ -985,7 +1082,7 @@ class Command(Frame):
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
         payload += f"{actuator_countdown:04X}"
         payload += f"{int(modulation_level * 200):02X}FF"
-        return cls.packet(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
+        return cls._from_attrs(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
 
     @classmethod  # constructor for I/3EF0  # TODO: trap corrupt states?
     @validate_api_params()
@@ -1008,7 +1105,7 @@ class Command(Frame):
             if modulation_level is None
             else f"00{int(modulation_level * 200):02X}FF"
         )
-        return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+        return cls._from_attrs(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for 1FC9 (rf_bind) 3-way handshake
     def put_bind(cls, verb, codes, src_id, *, idx="00", dst_id=None, **kwargs):
@@ -1033,7 +1130,7 @@ class Command(Frame):
             raise ValueError("Invalid parameters")
 
         kwargs.update({"priority": Priority.HIGH, "retries": 3})
-        return cls.packet(
+        return cls._from_attrs(
             verb, _1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )
 
@@ -1054,7 +1151,7 @@ class Command(Frame):
             )
 
         payload = f"{dhw_idx}{temp_to_hex(temperature)}"
-        return cls.packet(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+        return cls._from_attrs(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for I/0002  # TODO: trap corrupt temps?
     @validate_api_params()
@@ -1071,7 +1168,7 @@ class Command(Frame):
             )
 
         payload = f"00{temp_to_hex(temperature)}01"
-        return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+        return cls._from_attrs(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for I/30C9  # TODO: trap corrupt temps?
     @validate_api_params()
@@ -1089,7 +1186,7 @@ class Command(Frame):
             )
 
         payload = f"00{temp_to_hex(temperature)}"
-        return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+        return cls._from_attrs(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for internal use only
     def _puzzle(cls, msg_type=None, message="", **kwargs):
@@ -1116,108 +1213,7 @@ class Command(Frame):
         else:
             payload += str_to_hex(message)
 
-        return cls(I_, _PUZZ, payload[:48], NUL_DEV_ADDR.id, **kwargs)
-
-    @classmethod  # generic constructor
-    def packet(
-        cls,
-        verb,
-        code,
-        payload,
-        *,
-        addr0=None,
-        addr1=None,
-        addr2=None,
-        seqn=None,
-        **kwargs,
-    ):
-        """Construct commands with fewer assumptions/checks than the main constructor.
-
-        For example:
-            I 056 --:------ --:------ 02:123456 99FD 003 000404
-        """
-
-        verb = I_ if verb == "I" else W_ if verb == "W" else verb
-
-        addr0 = addr0 or NON_DEV_ADDR.id
-        addr1 = addr1 or NON_DEV_ADDR.id
-        addr2 = addr2 or NON_DEV_ADDR.id
-
-        src, dst, *_ = pkt_addrs(" ".join((addr0, addr1, addr2)))
-        print(pkt_addrs(" ".join((addr0, addr1, addr2))))
-
-        cmd = cls(verb, code, payload, dst.id, from_id=src.id, **kwargs)
-
-        if seqn in ("", "-", "--", "---"):
-            cmd._seqn = "---"
-        elif seqn is not None:
-            cmd._seqn = f"{int(seqn):03d}"
-
-        cmd._frame = COMMAND_FORMAT.format(
-            cmd.verb,
-            cmd.seqn,
-            *(a.id for a in cmd._addrs),
-            cmd.code,
-            cmd.len,
-            cmd.payload,
-        )
-        cmd._validate()
-
-        return cmd
-
-    @classmethod  # constructor for internal use only
-    def from_str(cls, cmd_str: str, **kwargs):
-        """Create a command from a string.
-
-        Examples include (whitespace for readability):
-            'RQ     01:123456               1F09 00'
-            'RQ     01:123456     13:123456 3EF0 00'
-            'RQ     07:045960     01:054173 10A0 00137400031C'
-            ' W 123 30:045960 -:- 32:054173 22F1 001374'
-        """
-
-        cmd = cmd_str.upper().split()
-        if len(cmd) < 4:
-            raise ValueError(f"Command is invalid: '{cmd_str}'")
-
-        verb = cmd.pop(0)
-        seqn = "---" if DEVICE_ID_REGEX.ANY.match(cmd[0]) else cmd.pop(0)
-        payload = cmd.pop()[:48]
-        code = cmd.pop()
-
-        if not 0 < len(cmd) < 4:
-            raise ValueError(f"Command is invalid: '{cmd_str}'")
-        elif len(cmd) == 1:
-            addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
-        elif len(cmd) == 3:
-            addrs = (cmd[0], cmd[1], cmd[2])
-        elif cmd[0] == cmd[1]:
-            addrs = (cmd[0], NON_DEV_ADDR.id, cmd[1])
-        else:
-            addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
-
-        addrs = {f"addr{k}": v for k, v in enumerate(addrs)}
-
-        return cls.packet(verb, code, payload, **addrs, seqn=seqn, **kwargs)
-
-    @classmethod  # constructor for internal use only
-    def from_frame(cls, frame: str, **kwargs):
-        """Create a command from a frame (a raw string) (no RSSI)."""
-
-        raw = frame.split()
-        cmd = cls.packet(
-            raw[0], raw[5], raw[7], addr0=raw[2], addr1=raw[3], addr2=raw[4], **kwargs
-        )  # may: raise InvalidPacketError
-
-        try:
-            raw[1] == "---" or int(raw[1])
-        except ValueError:
-            raise InvalidPacketError(f"invalid seqn: {raw[1]}")
-
-        if raw[6] != cmd._len:
-            raise InvalidPacketError(f"invalid length: {cmd[6]}")
-
-        return cmd
+        return cls.from_attrs(I_, NUL_DEV_ADDR.id, _PUZZ, payload[:48], **kwargs)
 
 
 # A convenience dict

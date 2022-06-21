@@ -132,30 +132,32 @@ def fraction_expired(age, age_limit) -> float:
 
 
 class Packet(Frame):
-    """The packet class; should trap/log all invalid PKTs appropriately."""
+    """The Packet class (packets that were received).
+
+    They have a datetime (when received) an RSSI, and other meta-fields.
+    """
 
     _dtm: dt
     _rssi: str
 
     def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
-        """Create a packet from a valid frame (actually from a f"{RSSI} {frame}").
+        """Create a packet from a string (actually from f"{RSSI} {frame}").
 
-        Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
+        Will raise InvalidPacketError if it is invalid.
+        """
 
-        \# 065 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000  # ...
-        """  # noqa: W605
-
-        super().__init__(frame[4:])  # incl. self._validate(addr_set)
+        super().__init__(frame[4:])  # remove RSSI
 
         self._gwy = gwy
         self._dtm: dt = dtm
-        self._timeout: Union[bool, float] = None  # track pkt expiry
 
         self._rssi: str = frame[0:3]
 
         self.comment: str = kwargs.get("comment", "")
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
+
+        self._timeout: Union[bool, float] = None  # track pkt expiry
 
         # if DEV_MODE:  # TODO: remove (is for testing only)
         #     _ = self._has_array
@@ -243,19 +245,19 @@ class Packet(Frame):
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):
-        """Constructor to create a packet from a saved state (a curated dict)."""
+        """Create a packet from a saved state (a curated dict)."""
         frame, _, comment = cls._partition(pkt_line)
         return cls(gwy, dt.fromisoformat(dtm), frame, comment=comment)
 
     @classmethod
     def from_file(cls, gwy, dtm: str, pkt_line: str):
-        """Constructor to create a packet from a log file line."""
+        """Create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(gwy, dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
     def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: bytes = None):
-        """Constructor to create a packet from a usb port (HGI80, evofw3)."""
+        """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(
             gwy, dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line

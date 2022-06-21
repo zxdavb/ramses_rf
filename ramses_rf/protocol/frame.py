@@ -129,40 +129,56 @@ if DEV_MODE:
 
 
 class Frame:
-    """The packet base - used by Command and Packet classes."""
+    """The Frame class - used as a base by the Command and Packet classes.
+
+    `RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000`
+    """
 
     _frame: str
 
     verb: str
     seqn: str  # TODO: or, better as int?
-    code: str
-    _len: str
-    payload: str
-
     src: Address
     dst: Address
     _addrs: tuple[Address, Address, Address]
+    code: str
+    len_: str
+    _len: int  # int(len(payload) / 2)
+    payload: str
 
     def __init__(self, frame: str) -> None:
-        """Create a frame.
+        """Create a frame from a string.
 
-        Frames do not have dtm, RSSI fields (i.e. they were never Tx/Rx).
-
-        \# RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
-        """  # noqa: W605
-
-        if not isinstance(frame, str):
-            raise InvalidPacketError(f"invalid frame (not a string): {type(frame)}")
+        Will raise InvalidPacketError if it is invalid.
+        """
 
         self._frame = frame
+        if not isinstance(self._frame, str):
+            raise InvalidPacketError(f"Bad frame: not a string: {type(self._frame)}")
+        if not COMMAND_REGEX.match(self._frame):
+            raise InvalidPacketError("Bad frame: invalid structure")
 
-        self.verb = frame[:2]
-        self.seqn = frame[3:6]
-        self.code = frame[37:41]
-        self._len = frame[42:45]
-        self.payload = frame[46:].split(" ")[0]
+        fields = frame.lstrip().split(" ")
 
-        self.src, self.dst, *self._addrs = pkt_addrs(frame[7:36])  # ?InvalidPacketError
+        self.verb = frame[:2]  # cant use fields[0] as leading space ' I'
+        self.seqn = fields[1]  # frame[3:6]
+        self.code = fields[5]  # frame[37:41]
+        self.len_ = fields[6]  # frame[42:45]
+        self.payload = fields[7]  # frame[46:].split(" ")[0]
+        self._len = int(len(self.payload) / 2)
+
+        try:
+            self.src, self.dst, *self._addrs = pkt_addrs(
+                " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
+            )
+        except InvalidPacketError as exc:  # will be: InvalidAddrSetError
+            raise InvalidPacketError(f"Bad frame: invalid address set {exc}")
+
+        if len(self.payload) != int(self.len_) * 2:
+            raise InvalidPacketError(
+                f"Bad frame: invalid payload: "
+                f"len({self.payload}) is not int('{self.len_}' * 2))"
+            )
 
         self._ctx_: Union[str, bool] = None  # type: ignore[assignment]
         self._hdr_: str = None  # type: ignore[assignment]
@@ -172,7 +188,17 @@ class Frame:
         self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
         self._has_payload_: bool = None  # type: ignore[assignment]
 
-        # self._validate(strict_checking=False)  # must be done in Command, Packet
+    @classmethod  # for internal use only
+    def _from_attrs(cls, verb, *addrs, code, payload, seqn=None):
+        """Create a frame from its attributes (args, kwargs)."""
+
+        seqn = seqn or "---"
+        len_ = f"{int(len(payload) / 2):03d}"
+
+        try:
+            return cls(" ".join(verb, seqn, *addrs, code, len_, payload))
+        except TypeError as exc:
+            raise InvalidPacketError(f"Bad frame: invalid attr: {exc}")
 
     def _validate(self, *, strict_checking: bool = None) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
@@ -180,52 +206,49 @@ class Frame:
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
         """
 
-        if not COMMAND_REGEX.match(self._frame):
-            raise InvalidPacketError("Invalid frame structure")
-
-        if int(self.len) * 2 != (len_ := len(self.payload)):
-            raise InvalidPacketError(f"Invalid len: {self.len} (should be {len_})")
+        if (seqn := self._frame[3:6]) == "...":
+            raise InvalidPacketError(f"Bad frame: deprecated seqn: {seqn}")
 
         if not strict_checking:
             return
 
-        if self.seqn == "...":
-            raise InvalidPacketError(f"Invalid seqn: {self.seqn} ('...' deprecated)")
+        if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
+            raise InvalidPacketError("Bad frame: payload length mismatch")
 
-        if self.code not in CODES_SCHEMA:
-            raise InvalidPacketError(f"Unknown code: {self.code}")
+        try:
+            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
+        except InvalidPacketError as exc:  # will be: InvalidAddrSetError
+            raise InvalidPacketError(f"Bad frame: invalid address set: {exc}")
 
-    @classmethod  # constructor for internal use only
-    def _from_vars(
-        cls,
-        verb,
-        code,
-        payload,
-        addr0=NUL_DEV_ADDR,
-        addr1=NUL_DEV_ADDR,
-        addr2=NUL_DEV_ADDR,
-        seqn="---",
-    ):
-        """Create a command from a frame (a raw string) (NB: no RSSI).
+        if True:  # below is done at a higher layer
+            return
 
-        \# RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
-        """  # noqa: W605
-
-        varz = (verb, seqn, addr0, addr1, addr2, code, int(len(payload) / 2), payload)
-        return cls(" ".join(varz))
+        if (code := self._frame[37.41]) not in CODES_SCHEMA:
+            raise InvalidPacketError(f"Bad frame: unknown code: {code}")
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
-        return self._frame
+        # repr(self) == repr(cls._from_str(repr(self)))
+
+        return " ".join(
+            (
+                self.verb,
+                self.seqn,
+                *(repr(a) for a in self._addrs),
+                self.code,
+                self.len_,
+                self.payload,
+            )
+        )
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return self._hdr  # code|ver|device_id|context
+        # repr(self) == repr(cls._from_str(str(self)))
 
-    @property
-    def len(self) -> int:
-        """Return the payload length in two-byte chunks."""
-        return int(self._len)  # == len(payload) / 2
+        try:
+            return f"{self!r} # {self._hdr}"  # code|ver|device_id|context
+        except AttributeError as exc:
+            return f"{self!r} < {exc}"
 
     @property
     def _has_array(self) -> Optional[bool]:
@@ -252,7 +275,7 @@ class Frame:
         elif self.verb != I_ or self.code not in CODES_WITH_ARRAYS:
             self._has_array_ = False
 
-        elif self.len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
+        elif self._len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
             self._has_array_ = False
             if (
                 self.code in (_22C9, _3150)  # only time 22C9 is seen
@@ -265,8 +288,8 @@ class Frame:
         else:
             len_ = CODES_WITH_ARRAYS[self.code][0]
             assert (
-                self.len % len_ == 0
-            ), f"{self} < array has length ({self.len}) that is not multiple of {len_}"
+                self._len % len_ == 0
+            ), f"{self} < array has length ({self._len}) that is not multiple of {len_}"
             assert (
                 self.src.type in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2)
                 or self.src == self.dst  # DEX
@@ -370,10 +393,10 @@ class Frame:
 
         self._has_payload_ = not any(
             (
-                self.len == 1,
+                self._len == 1,
                 self.verb == RQ and self.code in RQ_NO_PAYLOAD,
-                self.verb == RQ and self.len == 2 and self.code != _0016,
-                # self.verb == RQ and self.len == 2 and self.code in (
+                self.verb == RQ and self._len == 2 and self.code != _0016,
+                # self.verb == RQ and self._len == 2 and self.code in (
                 #   _2309, _2349, _3EF1
                 # ),
             )

@@ -165,7 +165,7 @@ class Message:
         self.verb: str = pkt.verb
         self.seqn: str = pkt.seqn
         self.code: str = pkt.code
-        self.len: int = pkt.len
+        self.len: int = pkt._len
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
 

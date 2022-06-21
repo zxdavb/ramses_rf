@@ -298,7 +298,7 @@ def track_system_syncs(fnc) -> Callable:
             """Return True if a sync cycle is still pending (ignores drift)."""
             return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
 
-        if pkt.code != _1F09 or pkt.verb != I_ or pkt.len != 3:
+        if pkt.code != _1F09 or pkt.verb != I_ or pkt._len != 3:
             return fnc(self, pkt, *args, **kwargs)
 
         sync_cycles = deque(
