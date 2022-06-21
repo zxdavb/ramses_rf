@@ -496,19 +496,19 @@ async def main(command, lib_kwargs, **kwargs):
         In this case, the message is merely printed.
         """
 
-        # if kwargs["long_format"]:  # HACK for test/dev
-        #     print(
-        #         f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
-        #     )
-        #     # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # ("{msg.src!r}", "{msg.dst!r}")')
-        #     return
+        if False and kwargs["long_format"]:  # HACK for test/dev
+            print(
+                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
+            )
+            # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # ("{msg.src!r}", "{msg.dst!r}")')
+            return
 
         if kwargs["long_format"]:
             dtm = msg.dtm.isoformat(timespec="microseconds")
-            con_cols = CONSOLE_COLS
+            con_cols = None
         else:
             dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-            con_cols = None
+            con_cols = CONSOLE_COLS
 
         if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
