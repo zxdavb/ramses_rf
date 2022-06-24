@@ -463,7 +463,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _22F1: {  # fan_mode, HVAC
         SZ_NAME: "fan_mode",
-        I_: r"^(00|63)(0[0-9A-F]){2}$",
+        I_: r"^(00|63)(0[0-9A-F]){1,2}$",
     },
     _22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
@@ -471,9 +471,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },  # minutes
     _22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
-        I_: r"^00(00|C8|FF)(00|C8)$",  # RP is the same
+        I_: r"^00([0-9A-F]{2}){1,2}$",  # RP is the same
         RQ: r"^00$",
-        W_: r"^00(00|C8|FF)EF$",
+        W_: r"^00[0-9A-F]{2}(EF)?$",
     },
     _22F8: {  # fan_22f8 (moisture scenario?), HVAC
         SZ_NAME: "fan_22f8",
@@ -1234,14 +1234,14 @@ _2411_PARAMS_SCHEMA = {  # unclear if true for only Orcon/*all* models
 }
 
 _2411_MODE_ORCON = {
-    "00": "away__",
-    "01": "low___",
+    "00": "away",
+    "01": "low",
     "02": "medium",
-    "03": "high__",
-    "04": "auto_4",
-    "05": "auto_5",
-    "06": "boost_",
-    "07": "off___",
+    "03": "high",
+    "04": "auto",
+    "05": "auto_alt",
+    "06": "boost",
+    "07": "off",
 }
 
 

@@ -490,7 +490,7 @@ class Command(Frame):
             pos = "FF"  # auto
 
         return cls._from_attrs(
-            W_, _22F7, f"00{pos}EF", addr0=src_id, addr1=fan_id, **kwargs
+            W_, _22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs
         )  # trailing EF not required
 
     @classmethod  # constructor for W|2411
@@ -517,56 +517,65 @@ class Command(Frame):
 
     @classmethod  # constructor for I|22F1
     @validate_api_params()
-    def set_fan_rate(
+    def set_fan_mode(
         cls,
         fan_id: str,
-        step_idx: int,
-        step_max: int,
+        fan_mode: int | str,
         *,
         seqn: int = None,
         src_id: str = None,
-        idx: str = "00",
+        idx: str = "00",  # could be e.g. "63"
         **kwargs,
     ):
-        """Constructor to get the fan speed (c.f. parser_22f1).
+        """Constructor to get the fan speed (and heater?) (c.f. parser_22f1).
 
-        There are two types of this packet (with seqn, or with src_id):
+        There are two types of this packet seen (with seqn, or with src_id):
          - I 018 --:------ --:------ 39:159057 22F1 003 000204
          - I --- 21:039407 28:126495 --:------ 22F1 003 000407
         """
 
-        # Type 1: --:------ --:------ 39:159057
+        # Scheme 1: I 218 --:------ --:------ 39:159057
         #  - are cast as a triplet, 0.1s apart?, with a seqn (000-255) and no src_id
         #  - triplet has same seqn, increased monotonically mod 256 after every triplet
-        #  - only payloads seen: '(00|63)0[234]04'
+        #  - only payloads seen: '(00|63)0[234]04', may accept '000.'
         #  I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
 
-        # Type 2: 21:038634 18:126620 --:------ (less common)
-        #  - are cast as a triplet, 0.085s apart, without a seqn (---)
-        #  - only payloads seen: '000.0[47A]'
+        # Scheme 1a: I --- --:------ --:------ 21:038634 (less common)
+        #  - some systems that accept scheme 2 will accept this scheme
+
+        # Scheme 2: I --- 21:038634 18:126620 --:------ (less common)
+        #  - are cast as a triplet, 0.085s apart, without a seqn (i.e. is ---)
+        #  - only payloads seen: '000.0[47A]', may accept '000.'
         #  I --- 21:038634 18:126620 --:------ 22F1 003 000507
 
-        step_idx &= 0b00001111
-        step_max &= 0b00001111
-        if step_idx > step_max or step_max < 4:
-            raise ValueError(
-                f"step_idx ({step_idx}) must not exceed step_max {step_max}"
+        from .ramses import _2411_MODE_ORCON
+
+        _2411_MODE_ORCON_MAP = {v: k for k, v in _2411_MODE_ORCON.items()}
+
+        if fan_mode is None:
+            mode = "00"
+        elif isinstance(fan_mode, int):
+            mode = f"{fan_mode:02X}"
+        else:
+            mode = fan_mode
+
+        if mode in _2411_MODE_ORCON:
+            payload = f"{idx}{mode}"
+        elif mode in _2411_MODE_ORCON_MAP:
+            payload = f"{idx}{_2411_MODE_ORCON_MAP[mode]}"
+        else:
+            raise TypeError(f"fan_mode is not valid: {fan_mode}")
+
+        if src_id and seqn:
+            raise TypeError(
+                "seqn and src_id are mutally exclusive (you can have neither)"
             )
 
-        payload = f"{idx}{step_idx:02X}{step_max:02X}"
-        if seqn and not src_id:
+        if seqn:
             return cls._from_attrs(
                 I_, _22F1, payload, addr2=fan_id, seqn=seqn, **kwargs
             )
-
-        if src_id and not seqn:
-            return cls._from_attrs(
-                I_, _22F1, payload, addr0=src_id, addr1=fan_id, **kwargs
-            )
-
-        raise TypeError(
-            "seqn and src_id are mutally exclusive, exactly one is required"
-        )
+        return cls._from_attrs(I_, _22F1, payload, addr0=src_id, addr1=fan_id, **kwargs)
 
     @classmethod  # constructor for RQ/1F41
     @validate_api_params()
@@ -1234,37 +1243,40 @@ def _mk_cmd(verb, code, payload, dest_id, **kwargs) -> Command:
 
 # A convenience dict
 CODE_API_MAP = {
-    f"{I_}/{_0002}": Command.put_outdoor_temp,
-    f"{RQ}/{_0004}": Command.get_zone_name,
-    f"{W_}/{_0004}": Command.set_zone_name,
-    f"{RQ}/{_0008}": Command.get_relay_demand,
-    f"{RQ}/{_000A}": Command.get_zone_config,
-    f"{W_}/{_000A}": Command.set_zone_config,
-    f"{RQ}/{_0100}": Command.get_system_language,
-    f"{RQ}/{_0404}": Command.get_schedule_fragment,
-    f"{W_}/{_0404}": Command.set_schedule_fragment,
-    f"{RQ}/{_0418}": Command.get_system_log_entry,
-    f"{RQ}/{_1030}": Command.get_mix_valve_params,
-    f"{W_}/{_1030}": Command.set_mix_valve_params,
-    f"{RQ}/{_10A0}": Command.get_dhw_params,
-    f"{W_}/{_10A0}": Command.set_dhw_params,
-    f"{RQ}/{_1100}": Command.get_tpi_params,
-    f"{W_}/{_1100}": Command.set_tpi_params,
-    f"{RQ}/{_1260}": Command.get_dhw_temp,
-    f"{I_}/{_1260}": Command.put_dhw_temp,
-    f"{RQ}/{_12B0}": Command.get_zone_window_state,
-    f"{RQ}/{_1F41}": Command.get_dhw_mode,
-    f"{W_}/{_1F41}": Command.set_dhw_mode,
-    f"{RQ}/{_2349}": Command.get_zone_mode,
-    f"{W_}/{_2349}": Command.set_zone_mode,
-    f"{RQ}/{_2E04}": Command.get_system_mode,
-    f"{W_}/{_2E04}": Command.set_system_mode,
-    f"{I_}/{_30C9}": Command.put_sensor_temp,
-    f"{RQ}/{_30C9}": Command.get_zone_temp,
-    f"{RQ}/{_313F}": Command.get_system_time,
-    f"{W_}/{_313F}": Command.set_system_time,
-    f"{RQ}/{_3220}": Command.get_opentherm_data,
-}  # TODO: RQ/0404 (Zone & DHW)
+    f"{I_}|{_0002}": Command.put_outdoor_temp,
+    f"{RQ}|{_0004}": Command.get_zone_name,
+    f"{W_}|{_0004}": Command.set_zone_name,
+    f"{RQ}|{_0008}": Command.get_relay_demand,
+    f"{RQ}|{_000A}": Command.get_zone_config,
+    f"{W_}|{_000A}": Command.set_zone_config,
+    f"{RQ}|{_0100}": Command.get_system_language,
+    f"{RQ}|{_0404}": Command.get_schedule_fragment,
+    f"{W_}|{_0404}": Command.set_schedule_fragment,
+    f"{RQ}|{_0418}": Command.get_system_log_entry,
+    f"{RQ}|{_1030}": Command.get_mix_valve_params,
+    f"{W_}|{_1030}": Command.set_mix_valve_params,
+    f"{RQ}|{_10A0}": Command.get_dhw_params,
+    f"{W_}|{_10A0}": Command.set_dhw_params,
+    f"{RQ}|{_1100}": Command.get_tpi_params,
+    f"{W_}|{_1100}": Command.set_tpi_params,
+    f"{RQ}|{_1260}": Command.get_dhw_temp,
+    f"{I_}|{_1260}": Command.put_dhw_temp,
+    f"{RQ}|{_12B0}": Command.get_zone_window_state,
+    f"{RQ}|{_1F41}": Command.get_dhw_mode,
+    f"{W_}|{_1F41}": Command.set_dhw_mode,
+    f"{I_}|{_22F1}": Command.set_fan_mode,
+    f"{W_}|{_22F7}": Command.set_bypass_position,
+    f"{RQ}|{_2349}": Command.get_zone_mode,
+    f"{W_}|{_2349}": Command.set_zone_mode,
+    f"{W_}|{_2411}": Command.set_fan_param,
+    f"{RQ}|{_2E04}": Command.get_system_mode,
+    f"{W_}|{_2E04}": Command.set_system_mode,
+    f"{I_}|{_30C9}": Command.put_sensor_temp,
+    f"{RQ}|{_30C9}": Command.get_zone_temp,
+    f"{RQ}|{_313F}": Command.get_system_time,
+    f"{W_}|{_313F}": Command.set_system_time,
+    f"{RQ}|{_3220}": Command.get_opentherm_data,
+}  # TODO: RQ|0404 (Zone & DHW)
 
 
 class FaultLog:  # 0418  # TODO: used a NamedTuple

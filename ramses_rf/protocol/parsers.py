@@ -1335,13 +1335,11 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
         assert payload[0:2] == "00"
         assert payload[2:4] in _2411_MODE_ORCON
-        assert payload[4:6] in ("04", "07") and (
-            int(payload[2:4], 16) <= int(payload[4:6], 16)
-        )
+        assert payload[4:6] in ("", "04", "07")
 
         return {
-            "mode_idx": payload[2:4],
             "fan_mode": _2411_MODE_ORCON[payload[2:4]],
+            "_mode_idx": payload[2:4],
             "_scheme": SCHEME,
         }
 
@@ -1443,7 +1441,7 @@ def parser_22f7(payload, msg) -> Optional[dict]:
     result = {
         "bypass_mode": {"00": "off", "C8": "on", "FF": "auto"}.get(payload[2:4]),
     }
-    if msg.verb != W_ or payload[4:] != "EF":
+    if msg.verb != W_ or payload[4:] not in ("", "EF"):
         result["bypass_state"] = {"00": "off", "C8": "on"}.get(payload[4:])
 
     return result

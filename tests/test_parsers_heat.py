@@ -13,7 +13,7 @@ from ramses_rf.protocol.packet import Packet
 from tests.common import gwy  # noqa: F401
 from tests.common import TEST_DIR
 
-WORK_DIR = f"{TEST_DIR}/parsers"
+WORK_DIR = f"{TEST_DIR}/parsers_heat"
 
 
 def id_fnc(param):
