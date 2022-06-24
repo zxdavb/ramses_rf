@@ -1346,8 +1346,10 @@ def parser_22f1(payload, msg) -> Optional[dict]:
         }
 
     try:
-        assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
-        assert payload[4:] in ("04", "07", "0A"), f"byte 2: {payload[4:]}"
+        assert not payload[4:] or int(payload[2:4], 16) <= int(
+            payload[4:], 16
+        ), "byte 1: idx > max"
+        assert payload[4:] in ("", "04", "07", "0A"), f"byte 2: {payload[4:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
@@ -1363,7 +1365,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     return {
         "mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
         **_action,
-        "_mode_max": int(payload[4:6], 16),  # & 0x07
+        "_mode_max": int(payload[4:6], 16) if payload[4:6] else None,
     }
 
 
