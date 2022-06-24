@@ -1025,8 +1025,16 @@ def parser_1300(payload, msg) -> Optional[dict]:
     return {SZ_PRESSURE: temp_from_hex(payload[2:])}  # is 2's complement still
 
 
-@parser_decorator  # message_1470 (HVAC)
+@parser_decorator  # schedule_scheme, HVAC
 def parser_1470(payload, msg) -> Optional[dict]:
+    # Seen on Orcon
+
+    SCHEDULE_SCHEME = {
+        "9": "one_per_week",
+        "A": "two_per_week",  # week_day, week_end
+        "B": "one_each_day",  # seven_per_week (default?)
+    }
+
     assert payload[8:10] == "80", _INFORM_DEV_MSG
     assert msg.verb == W_ or payload[4:8] == "0E60", _INFORM_DEV_MSG
     assert msg.verb == W_ or payload[10:] == "2A0108", _INFORM_DEV_MSG
@@ -1035,19 +1043,13 @@ def parser_1470(payload, msg) -> Optional[dict]:
     # schedule...
     # [2:3] - 1, every/all days, 1&6, weekdays/weekends, 1-7, each individual day
     # [3:4] - # setpoints/day (default 3)
-    assert payload[2:3] in ("9", "A", "B") and (
+    assert payload[2:3] in SCHEDULE_SCHEME and (
         payload[3:4] in ("2", "3", "4", "5", "6")
     ), _INFORM_DEV_MSG
 
-    SCHEDULE_SCHEME = {
-        "9": "single",
-        "A": "weekday/weekends",
-        "B": "daily",
-    }
-
     return {
-        "num_setpoints": payload[3:4],
         "schedule_scheme": SCHEDULE_SCHEME.get(payload[2:3], f"unknown_{payload[2:3]}"),
+        "daily_setpoints": payload[3:4],
         f"_{SZ_VALUE}_4": payload[4:8],
         f"_{SZ_VALUE}_8": payload[8:10],
         f"_{SZ_VALUE}_10": payload[10:],
@@ -1601,7 +1603,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     }  # TODO: double-check the final "00"
 
 
-@parser_decorator  # presence_detect, from HVAC sensor
+@parser_decorator  # presence_detect, HVAC sensor
 def parser_2e10(payload, msg) -> Optional[dict]:
 
     assert payload in ("0001", "000100"), _INFORM_DEV_MSG
@@ -1627,7 +1629,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # unknown_3110 - HVAC
+@parser_decorator  # unknown_3110, HVAC
 def parser_3110(payload, msg) -> Optional[dict]:
 
     try:
@@ -2217,7 +2219,7 @@ def parser_3ef1(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # timestamp - HVAC
+@parser_decorator  # timestamp, HVAC
 def parser_4401(payload, msg) -> Optional[dict]:
 
     assert payload[:4] == "1000", _INFORM_DEV_MSG

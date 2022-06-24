@@ -388,7 +388,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RP: r"^00[0-9A-F]{4}$",
     },
     _1470: {  # HVAC - something to do with date/time/schedule?
-        SZ_NAME: "message_1470",
+        SZ_NAME: "schedule_scheme",
         RQ: r"^00$",
         I_: r"^00[0-9A-F]{14}$",
         W_: r"^00[0-9A-F]{2}0{4}800{6}$",
