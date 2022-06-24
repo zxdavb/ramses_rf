@@ -496,7 +496,8 @@ async def main(command, lib_kwargs, **kwargs):
         In this case, the message is merely printed.
         """
 
-        if False and kwargs["long_format"]:  # HACK for test/dev
+        DEV_MODE = False
+        if DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
             print(
                 f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
             )
