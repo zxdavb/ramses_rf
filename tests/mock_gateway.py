@@ -187,10 +187,10 @@ class MockSerial(MockSerialBase):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._devices = [MockController(self, gwy)]
+        self._devices = [MockDeviceCtl(self, gwy)]
 
 
-class MockController:
+class MockDeviceCtl:
     """A pseudo-mocked controller used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
