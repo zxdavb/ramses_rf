@@ -520,7 +520,7 @@ class Command(Frame):
     def set_fan_mode(
         cls,
         fan_id: str,
-        fan_mode: int | str,
+        fan_mode,
         *,
         seqn: int = None,
         src_id: str = None,
