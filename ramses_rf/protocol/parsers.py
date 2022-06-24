@@ -8,7 +8,7 @@
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
-# - janvken: 2411
+# - janvken: 1470, 2411
 
 import logging
 import re
@@ -1032,17 +1032,25 @@ def parser_1470(payload, msg) -> Optional[dict]:
     assert msg.verb == W_ or payload[10:] == "2A0108", _INFORM_DEV_MSG
     assert msg.verb != W_ or payload[4:] == "000080000000", _INFORM_DEV_MSG
 
-    # 9: 1001, A: 1010, B: 1011
-    # 2: 0010, 6: 0110
+    # schedule...
+    # [2:3] - 1, every/all days, 1&6, weekdays/weekends, 1-7, each individual day
+    # [3:4] - # setpoints/day (default 3)
     assert payload[2:3] in ("9", "A", "B") and (
         payload[3:4] in ("2", "3", "4", "5", "6")
     ), _INFORM_DEV_MSG
 
+    SCHEDULE_SCHEME = {
+        "9": "single",
+        "A": "weekday/weekends",
+        "B": "daily",
+    }
+
     return {
-        f"{SZ_VALUE}_2": payload[2:4],
-        f"{SZ_VALUE}_4": payload[4:8],
-        f"{SZ_VALUE}_8": payload[8:10],
-        f"{SZ_VALUE}_10": payload[10:],
+        "num_setpoints": payload[3:4],
+        "schedule_scheme": SCHEDULE_SCHEME.get(payload[2:3], f"unknown_{payload[2:3]}"),
+        f"_{SZ_VALUE}_4": payload[4:8],
+        f"_{SZ_VALUE}_8": payload[8:10],
+        f"_{SZ_VALUE}_10": payload[10:],
     }
 
 
