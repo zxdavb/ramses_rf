@@ -63,6 +63,7 @@ from .const import (  # isort: skip
     _1470,
     _1F09,
     _1F41,
+    _1F70,
     _1FC9,
     _1FCA,
     _1FD0,
@@ -75,6 +76,7 @@ from .const import (  # isort: skip
     _22F3,
     _22F7,
     _22F8,
+    _22B0,
     _2309,
     _2349,
     _2389,
@@ -387,8 +389,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _1470: {  # HVAC - something to do with date/time/schedule?
-        SZ_NAME: "schedule_scheme",
+    _1470: {  # programme_scheme, HVAC (1470, 1F70, 22B0)
+        SZ_NAME: "programme_scheme",
         RQ: r"^00$",
         I_: r"^00[0-9A-F]{14}$",
         W_: r"^00[0-9A-F]{2}0{4}800{6}$",
@@ -406,6 +408,12 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^0[01]$",  # will accept: r"^0[01](00)$"
         W_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         EXPIRES: td(hours=4),
+    },
+    _1F70: {  # programme_config, HVAC (1470, 1F70, 22B0)
+        SZ_NAME: "programme_config",
+        I_: r"^00[0-9A-F]{30}$",
+        RQ: r"^00[0-9A-F]{30}$",
+        W_: r"^00[0-9A-F]{30}$",
     },
     _1FC9: {  # rf_bind
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
@@ -470,6 +478,11 @@ CODES_SCHEMA: dict = {  # rf_unknown
     _22F8: {  # fan_22f8 (moisture scenario?), HVAC
         SZ_NAME: "fan_22f8",
         I_: r"^00[0-9A-F]{4}$",
+    },
+    _22B0: {  # programme_status, HVAC (1470, 1F70, 22B0)
+        SZ_NAME: "programme_status",
+        W_: r"^00[0-9A-F]{2}$",
+        I_: r"^00[0-9A-F]{2}$",
     },
     _2309: {  # setpoint
         SZ_NAME: "setpoint",
@@ -578,7 +591,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _31DA: {  # hvac_state (fan_state_extended)
         SZ_NAME: "hvac_state",
-        I_: r"^(00|01|21)[0-9A-F]{56}(00)?$",
+        I_: r"^(00|01|21)[0-9A-F]{56}(00|20)?$",
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },

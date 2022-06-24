@@ -4,11 +4,11 @@
 """RAMSES RF - payload processors."""
 
 # Kudos & many thanks to:
-# - Evsdd: 0404
+# - Evsdd: 0404 (wow!)
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
-# - janvken: 1470, 2411
+# - janvken: 1470, 1F70, 22B0, 2411, others
 
 import logging
 import re
@@ -129,7 +129,6 @@ LOOKUP_PUZZ = {
 }  # "00" is reserved
 
 DEV_MODE = __dev_mode__ and False
-TEST_MODE = False  # enable to test constructors (usu. W)
 
 _LOGGER = _PKT_LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -1028,9 +1027,9 @@ def parser_1300(payload, msg) -> Optional[dict]:
     return {SZ_PRESSURE: temp_from_hex(payload[2:])}  # is 2's complement still
 
 
-@parser_decorator  # schedule_scheme, HVAC
+@parser_decorator  # programme_scheme, HVAC
 def parser_1470(payload, msg) -> Optional[dict]:
-    # Seen on Orcon
+    # Seen on Orcon: see 1470, 1F70, 22B0
 
     SCHEDULE_SCHEME = {
         "9": "one_per_week",
@@ -1051,7 +1050,7 @@ def parser_1470(payload, msg) -> Optional[dict]:
     ), _INFORM_DEV_MSG
 
     return {
-        "schedule_scheme": SCHEDULE_SCHEME.get(payload[2:3], f"unknown_{payload[2:3]}"),
+        "scheme": SCHEDULE_SCHEME.get(payload[2:3], f"unknown_{payload[2:3]}"),
         "daily_setpoints": payload[3:4],
         f"_{SZ_VALUE}_4": payload[4:8],
         f"_{SZ_VALUE}_8": payload[8:10],
@@ -1099,6 +1098,38 @@ def parser_1f41(payload, msg) -> Optional[dict]:
         result[SZ_UNTIL] = dtm_from_hex(payload[12:24])
 
     return result
+
+
+@parser_decorator  # programme_config, HVAC
+def parser_1F70(payload, msg) -> Optional[dict]:
+    # Seen on Orcon: see 1470, 1F70, 22B0
+
+    assert payload[:2] == "00", _INFORM_DEV_MSG
+    assert payload[2:4] in ("00", "01"), _INFORM_DEV_MSG
+    assert payload[4:8] == "0800", _INFORM_DEV_MSG
+    assert payload[10:14] == "0000", _INFORM_DEV_MSG
+    assert msg.verb in (RQ, W_) or payload[14:16] == "15", _INFORM_DEV_MSG
+    assert msg.verb in (I_, RP) or payload[14:16] == "00", _INFORM_DEV_MSG
+    assert msg.verb == RQ or payload[22:24] == "60", _INFORM_DEV_MSG
+    assert msg.verb != RQ or payload[22:24] == "00", _INFORM_DEV_MSG
+    assert msg.verb == RP or payload[26:] == "000000", _INFORM_DEV_MSG
+    assert msg.verb != RP or payload[26:] == "008000", _INFORM_DEV_MSG
+
+    # assert int(payload[16:18], 16) < 7, _INFORM_DEV_MSG
+    assert msg.verb == RQ or payload[24:26] in ("E4", "E5", "E6"), _INFORM_DEV_MSG
+
+    return {
+        "day_idx": payload[16:18],  # depends upon 1470[3:4]?
+        "setpoint_idx": payload[8:10],  # needs to be mod 1470[3:4]?
+        "start_time": f"{int(payload[18:20], 16):02d}:{int(payload[20:22], 16):02d}",
+        "fan_speed_wip": payload[24:26],  # # E4/E5/E6   / 00(RQ)
+        f"_{SZ_VALUE}_02": payload[2:4],  # # 00/01      / 00(RQ)
+        f"_{SZ_VALUE}_04": payload[4:8],  # # 0800
+        f"_{SZ_VALUE}_10": payload[10:14],  # 0000
+        f"_{SZ_VALUE}_14": payload[14:16],  # 15(RP,I)   / 00(RQ,W)
+        f"_{SZ_VALUE}_22": payload[22:24],  # 60         / 00(RQ)
+        f"_{SZ_VALUE}_26": payload[26:],  # # 008000(RP) / 000000(I/RQ/W)
+    }
 
 
 @parser_decorator  # rf_bind
@@ -1219,6 +1250,21 @@ def parser_2249(payload, msg) -> Optional[dict]:
         ]
 
     return _parser(payload)
+
+
+@parser_decorator  # program_enabled, HVAC
+def parser_22b0(payload, msg) -> Optional[dict]:
+    # Seen on Orcon: see 1470, 1F70, 22B0
+
+    #  W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable
+    #  I --- 32:155617 37:171871 --:------ 22B0 002 0005
+
+    #  W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable
+    #  I --- 32:155617 37:171871 --:------ 22B0 002 0006
+
+    return {
+        "enabled": {"06": False, "05": True}.get(payload[2:4]),
+    }
 
 
 @parser_decorator  # ufh_setpoint, TODO: max length = 24?
