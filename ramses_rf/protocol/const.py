@@ -278,10 +278,13 @@ DEV_TYPE = SimpleNamespace(
     #
     # HVAC devices, these are more like classes (i.e. no reliable device type)
     RFS="RFS",  # ??: HVAC spIDer gateway
-    CO2="CO2",  # ??: HVAC CO2 sensor
     FAN="FAN",  # ??: HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
+    CO2="CO2",  # ??: HVAC CO2 sensor
     HUM="HUM",  # ??: HVAC humidity sensor, 1260: 32
+    PIR="PIR",  # ??: HVAC pesence sensor, 2E10
     SWI="SWI",  # ??: HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
+    SW2="SW2",  # ??: HVAC switch, Orcon variant
+    DIS="DIS",  # ??: HVAC switch with display
 )
 DEV_TYPE_MAP = attr_dict_factory(
     {
@@ -311,11 +314,14 @@ DEV_TYPE_MAP = attr_dict_factory(
         DEV_TYPE.JIM: {"08": "jasper_interface"},
         DEV_TYPE.JST: {"31": "jasper_thermostat"},
         # Ventilation devices
+        DEV_TYPE.CO2: {None: "switch_display"},
         DEV_TYPE.CO2: {None: "co2_sensor"},
         DEV_TYPE.FAN: {None: "ventilator"},  # Both Fans and HRUs
         DEV_TYPE.HUM: {None: "rh_sensor"},
+        DEV_TYPE.PIR: {None: "presence_sensor"},
         DEV_TYPE.RFS: {None: "hvac_gateway"},  # Spider
         DEV_TYPE.SWI: {None: "switch"},
+        DEV_TYPE.SW2: {None: "switch_variant"},
     },
     {
         "HEAT_DEVICES": (

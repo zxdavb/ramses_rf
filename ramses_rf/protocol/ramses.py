@@ -308,7 +308,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         EXPIRES: False,
     },
-    _10E2: {  # unknown_10e2 - HVAC
+    _10E2: {  # unknown_10e2, HVAC?
         SZ_NAME: "unknown_10e2",
         I_: r"^00[0-9A-F]{4}$",
     },
@@ -1003,6 +1003,21 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
 }
 # TODO: add 1FC9 everywhere?
 _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
+    DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a SWI
+        _0001: {RQ: {}},
+        _042F: {I_: {}},
+        _10E0: {I_: {}, RQ: {}},
+        _1470: {RQ: {}},
+        _1FC9: {I_: {}},
+        _1F70: {I_: {}},
+        _22F1: {I_: {}},
+        _22F3: {I_: {}},
+        _22F7: {RQ: {}, W_: {}},
+        _22B0: {W_: {}},
+        _2411: {RQ: {}, W_: {}},
+        _313F: {RQ: {}},
+        _31DA: {RQ: {}},
+    },
     DEV_TYPE.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
         _1060: {I_: {}},
         _10E0: {I_: {}, RP: {}},
