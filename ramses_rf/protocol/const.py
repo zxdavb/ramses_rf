@@ -314,8 +314,8 @@ DEV_TYPE_MAP = attr_dict_factory(
         DEV_TYPE.JIM: {"08": "jasper_interface"},
         DEV_TYPE.JST: {"31": "jasper_thermostat"},
         # Ventilation devices
-        DEV_TYPE.CO2: {None: "switch_display"},
         DEV_TYPE.CO2: {None: "co2_sensor"},
+        DEV_TYPE.DIS: {None: "switch_display"},
         DEV_TYPE.FAN: {None: "ventilator"},  # Both Fans and HRUs
         DEV_TYPE.HUM: {None: "rh_sensor"},
         DEV_TYPE.PIR: {None: "presence_sensor"},
