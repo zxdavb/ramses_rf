@@ -1328,7 +1328,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
     # Scheme A: only seen 000[239A]0A -- ? off, auto, rate x/x, and?
 
-    SCHEME = "orcon" if msg.verb == "aa" else "itho"  # HACK
+    SCHEME = "itho" if msg.verb == "XX" else "orcon"  # HACK
 
     if SCHEME == "orcon":
         from .ramses import _2411_MODE_ORCON
