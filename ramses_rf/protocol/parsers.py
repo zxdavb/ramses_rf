@@ -778,6 +778,9 @@ def parser_10b0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_info
 def parser_10e0(payload, msg) -> Optional[dict]:
+    if msg.payload == "00":  # some HVAC devices wil RP|10E0|00
+        return {}
+
     assert msg.len in (19, 28, 29, 30, 36, 38), msg.len  # >= 19, msg.len
 
     payload = re.sub("(00)*$", "", payload)  # remove trailing 00s
