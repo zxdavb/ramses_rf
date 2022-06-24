@@ -84,7 +84,6 @@ class Command(CommandBase):
 
 
 class MockSerialBase:  # all the 'mocking' is done here
-
     """A pseudo-mocked serial port used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
@@ -107,7 +106,7 @@ class MockSerialBase:  # all the 'mocking' is done here
         self._next_bytes = self._loop.create_task(self._rx_buffer_bytes())
 
     def close(self, exc=None):
-        """Close the por."""
+        """Close the port."""
         if not self.is_open:
             return
         self.is_open = False
@@ -168,7 +167,7 @@ class MockSerialBase:  # all the 'mocking' is done here
         if data[7:16] == b"18:000730":
             data = data[:7] + bytes(self.DEV_ID, "ascii") + data[16:]
         try:
-            self._tx_data(data, Command(data.decode("ascii")))
+            self._tx_data(data, Command(data.decode("ascii")[:-2]))
         except InvalidPacketError:
             pass
         return 0
@@ -184,6 +183,8 @@ class MockSerialBase:  # all the 'mocking' is done here
 
 
 class MockSerial(MockSerialBase):
+    """A pseudo-mocked serial port used for testing."""
+
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
@@ -200,7 +201,7 @@ class MockDeviceCtl:
     DEV_ID = CTL_ID
 
     SYNC_CYCLE_INTERVAL = 60  # sync_cycle interval, in seconds
-    SYNC_CYCLE_REMANING = 5
+    SYNC_CYCLE_REMANING = 900
     # SYNC_CYCLE_PACKETS = sync_cycle_pkts(DEV_ID, SYNC_CYCLE_INTERVAL)
 
     def __init__(self, ser, gwy, schema=None) -> None:

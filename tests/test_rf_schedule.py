@@ -174,7 +174,7 @@ async def test_rq_0006():
     await gwy.stop()
 
 
-async def test_rq_0404_dhw():
+async def _test_rq_0404_dhw():
 
     gwy, tcs = await load_test_system(config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
@@ -185,7 +185,7 @@ async def test_rq_0404_dhw():
     await gwy.stop()
 
 
-async def test_rq_0404_zone():
+async def _test_rq_0404_zone():
 
     gwy, tcs = await load_test_system(config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
@@ -196,7 +196,7 @@ async def test_rq_0404_zone():
     await gwy.stop()
 
 
-async def _test_ww_0404_dhw():
+async def __test_ww_0404_dhw():
 
     gwy, tcs = await load_test_system(config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
@@ -207,7 +207,7 @@ async def _test_ww_0404_dhw():
     await gwy.stop()
 
 
-async def test_ww_0404_zone():
+async def _test_ww_0404_zone():
 
     gwy, tcs = await load_test_system(config={"disable_dicovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException
