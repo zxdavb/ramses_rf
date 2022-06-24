@@ -1027,8 +1027,23 @@ def parser_1300(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # message_1470 (HVAC)
 def parser_1470(payload, msg) -> Optional[dict]:
-    assert payload[2:] == "B30E60802A0108", _INFORM_DEV_MSG
-    return {SZ_VALUE: payload[2:]}
+    assert payload[8:10] == "80", _INFORM_DEV_MSG
+    assert msg.verb == W_ or payload[4:8] == "0E60", _INFORM_DEV_MSG
+    assert msg.verb == W_ or payload[10:] == "2A0108", _INFORM_DEV_MSG
+    assert msg.verb != W_ or payload[4:] == "000080000000", _INFORM_DEV_MSG
+
+    # 9: 1001, A: 1010, B: 1011
+    # 2: 0010, 6: 0110
+    assert payload[2:3] in ("9", "A", "B") and (
+        payload[3:4] in ("2", "3", "4", "5", "6")
+    ), _INFORM_DEV_MSG
+
+    return {
+        f"{SZ_VALUE}_2": payload[2:4],
+        f"{SZ_VALUE}_4": payload[4:8],
+        f"{SZ_VALUE}_8": payload[8:10],
+        f"{SZ_VALUE}_10": payload[10:],
+    }
 
 
 @parser_decorator  # system_sync
@@ -1234,21 +1249,42 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 @parser_decorator  # fan_speed (switch_mode), HVAC
 def parser_22f1(payload, msg) -> Optional[dict]:
     # Orcon wireless remote 15RF
-    # I --- 37:171871 32:155617 --:------ 22F1 003 000307  # Mode 3: High // Stand 3 (position high)
-    # I --- 37:171871 32:155617 --:------ 22F1 003 000207  # Mode 2: Med  // Stand 2 (position med)
-    # I --- 37:171871 32:155617 --:------ 22F1 003 000107  # Mode 1: Low  // Stand 1 (position low)
     # I --- 37:171871 32:155617 --:------ 22F1 003 000007  # Absent mode  // Afwezig (absence mode, aka: weg/away) - low & doesn't respond to sensors
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000107  # Mode 1: Low  // Stand 1 (position low)
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000207  # Mode 2: Med  // Stand 2 (position med)
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000307  # Mode 3: High // Stand 3 (position high)
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000407  # Auto
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000507  # Auto
     # I --- 37:171871 32:155617 --:------ 22F1 003 000607  # Party/boost
-    # I --- 37:171871 32:155617 --:------ 22F3 007 00023C03070000  # Timer (boost) mode // TIJDELIJKE stand (temporary) 60 min - high, then return to what was
+    # I --- 37:171871 32:155617 --:------ 22F1 003 000707  # Off
 
+    #  I 015 --:------ --:------ 39:159057 22F1 003 000004  # TBA: standby?
+    #  I 015 --:------ --:------ 39:159057 22F1 003 000104  # TBA: low?
     #  I 015 --:------ --:------ 39:159057 22F1 003 000204  # low
     #  I 016 --:------ --:------ 39:159057 22F1 003 000304  # medium
-    #  I 017 --:------ --:------ 39:159057 22F1 003 000404  # high
+    #  I 017 --:------ --:------ 39:159057 22F1 003 000404  # high (aka boost if timer)
 
     # Scheme x: 0|x standby/off, 1|x min, 2+|x rate as % of max (Itho?)
     # Scheme 4: 0|4 standby/off, 1|4 auto, 2|4 low, 3|4 med, 4|4 high/boost
     # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
     # Scheme A: only seen 000[239A]0A -- ? off, auto, rate x/x, and?
+
+    SCHEME = "orcon" if msg.verb == "aa" else "itho"  # HACK
+
+    if SCHEME == "orcon":
+        from .ramses import _2411_MODE_ORCON
+
+        assert payload[0:2] == "00"
+        assert payload[2:4] in _2411_MODE_ORCON
+        assert payload[4:6] in ("04", "07") and (
+            int(payload[2:4], 16) <= int(payload[4:6], 16)
+        )
+
+        return {
+            "mode_idx": payload[2:4],
+            "fan_mode": _2411_MODE_ORCON[payload[2:4]],
+            "_scheme": SCHEME,
+        }
 
     try:
         assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
@@ -1265,14 +1301,10 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     else:
         _action = {}
 
-    step_idx = int(payload[2:4], 16)  # & 0x07
-    step_max = int(payload[4:6], 16)  # & 0x07
-
     return {
-        "rate": step_idx / step_max,
-        "_step_idx": step_idx,
-        "_step_max": step_max,
+        "mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
         **_action,
+        "_mode_max": int(payload[4:6], 16),  # & 0x07
     }
 
 
@@ -1692,17 +1724,18 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    bitmap = int(payload[2:4], 16)
+    # bitmap = int(payload[2:4], 16)
 
     result = {
         SZ_EXHAUST_FAN_SPEED: percent(
             payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
-        "passive": bool(bitmap & 0x02),
-        "damper_only": bool(bitmap & 0x04),
-        "filter_dirty": bool(bitmap & 0x20),
-        "frost_cycle": bool(bitmap & 0x40),
-        "has_fault": bool(bitmap & 0x80),
+        "fan_mode": payload[4:6],
+        # "passive": bool(bitmap & 0x02),
+        # "damper_only": bool(bitmap & 0x04),
+        # "filter_dirty": bool(bitmap & 0x20),
+        # "frost_cycle": bool(bitmap & 0x40),
+        # "has_fault": bool(bitmap & 0x80),
         "flags": flag8(payload[2:4]),
     }
 
@@ -1714,7 +1747,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    result.update({f"_{SZ_UNKNOWN}_3": payload[6:8]})
+    # result.update({f"_{SZ_UNKNOWN}_3": payload[6:8]})
 
     if msg.len == 4:  # usu: I -->20: (no seq#)
         return result
@@ -1728,7 +1761,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     return {
         **result,
         # f"_{SZ_UNKNOWN}_4": payload[8:32],
-        f"{SZ_UNKNOWN}_16": payload[32:],
+        # f"{SZ_UNKNOWN}_16": payload[32:],
     }
 
 
@@ -1758,20 +1791,20 @@ def parser_31da(payload, msg) -> Optional[dict]:
         0x13: "speed 9 temporary override",
         0x14: "speed 10 temporary override",
         0x15: "away",
-        0x16: "absolute minimum",
-        0x17: "absolute maximum",
+        0x16: "absolute minimum",  # trickle?
+        0x17: "absolute maximum",  # boost?
         0x18: "auto",
-        0x19: "-unknown-",
-        0x1A: "-unknown-",
-        0x1B: "-unknown-",
-        0x1C: "-unknown-",
-        0x1D: "-unknown-",
-        0x1E: "-unknown-",
-        0x1F: "-unknown-",
+        0x19: "-unknown 0x19-",
+        0x1A: "-unknown 0x1A-",
+        0x1B: "-unknown 0x1B-",
+        0x1C: "-unknown 0x1C-",
+        0x1D: "-unknown 0x1D-",
+        0x1E: "-unknown 0x1E-",
+        0x1F: "-unknown 0x1F-",
     }
 
-    # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF
-    # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00
+    # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF  # # event-driven?
+    # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00  # periodic?
     try:
         # assert (
         #     int(payload[2:4], 16) <= 200
@@ -1788,7 +1821,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
         # assert payload[34:36] == "EF", payload[34:36]
         assert (
             payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18
-        ), payload[36:38]
+        ), f"invalid CODE_31DA_FAN_INFO: {payload[36:38]}"
         assert int(payload[38:40], 16) <= 200 or payload[38:40] in (
             "EF",
             "FF",
@@ -1799,8 +1832,24 @@ def parser_31da(payload, msg) -> Optional[dict]:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
+    # From an Orcon 15RF Display
+    #  1 Software version
+    #  4 RH value in home (%)                 SZ_INDOOR_HUMIDITY
+    #  5 RH value supply air (%)              SZ_OUTDOOR_HUMIDITY
+    #  6 Exhaust air temperature out (°C)     SZ_EXHAUST_TEMPERATURE
+    #  7 Supply air temperature to home (°C)  SZ_SUPPLY_TEMPERATURE
+    #  8 Temperature from home (°C)           SZ_INDOOR_TEMPERATURE
+    #  9 Temperature outside (°C)             SZ_OUTDOOR_TEMPERATURE
+    # 10 Bypass position                      SZ_BYPASS_POSITION
+    # 11 Exhaust fan speed (%)                SZ_EXHAUST_FAN_SPEED
+    # 12 Fan supply speed (%)                 SZ_SUPPLY_FAN_SPEED
+    # 13 Remaining after run time (humidity scenario) (min.)  SZ_REMAINING_TIME
+    # 14 Preheater control (MaxComfort) (%)   SZ_PRE_HEAT
+    # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW
+    # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
+
     return {
-        SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # 31D9[4:6]
+        SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # maybe 31D9[4:6] for some?
         SZ_FAN_INFO: CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
         #
@@ -1818,8 +1867,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
         SZ_SUPPLY_FAN_SPEED: percent(payload[40:42]),
         SZ_POST_HEAT: percent(payload[46:48], high_res=False),
         SZ_PRE_HEAT: percent(payload[48:50], high_res=False),
-        SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec
-        SZ_EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec
+        SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec or m^3/hr
+        SZ_EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec or m^3/hr
     }
 
 

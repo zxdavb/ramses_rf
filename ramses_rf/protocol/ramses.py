@@ -387,10 +387,11 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _1470: {  # HVAC - something to do with date/time? is RQ|1470 after RQ|313F
+    _1470: {  # HVAC - something to do with date/time/schedule?
         SZ_NAME: "message_1470",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{14}$",
+        I_: r"^00[0-9A-F]{14}$",
+        W_: r"^00[0-9A-F]{2}0{4}800{6}$",
     },
     _1F09: {  # system_sync - FF (I), 00 (RP), F8 (W, after 1FC9)
         SZ_NAME: "system_sync",
@@ -1110,7 +1111,7 @@ SZ_MAX_VALUE = "max_value"
 SZ_PRECISION = "precision"
 SZ_DATA_TYPE = "data_type"
 
-_2411_PARAMS_SCHEMA = {  # unclear if true for *all* models
+_2411_PARAMS_SCHEMA = {  # unclear if true for only Orcon/*all* models
     "3D": {
         SZ_DESCRIPTION: "Away mode Supply fan rate (%)",
         SZ_MIN_VALUE: 0.0,
@@ -1202,6 +1203,17 @@ _2411_PARAMS_SCHEMA = {  # unclear if true for *all* models
         SZ_PRECISION: 0.01,
         SZ_DATA_TYPE: 92,
     },
+}
+
+_2411_MODE_ORCON = {
+    "00": "away__",
+    "01": "low___",
+    "02": "medium",
+    "03": "high__",
+    "04": "auto_4",
+    "05": "auto_5",
+    "06": "boost_",
+    "07": "off___",
 }
 
 
