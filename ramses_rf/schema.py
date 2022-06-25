@@ -140,7 +140,9 @@ SCHEMA_DEV = vol.Any(
     {
         vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
         vol.Optional(SZ_CLASS, default=None): vol.Any(
-            None, *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.slugs())
+            *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.slugs()),
+            *(s for s in DEV_TYPE_MAP.slugs()),
+            None,
         ),
         vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
         vol.Optional("_note"): str,  # only a convenience, not used
