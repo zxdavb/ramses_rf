@@ -888,7 +888,7 @@ class Language(SystemBase):  # 0100
         super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            Command.get_system_language(self.id), 60 * 60 * 24, delay=5
+            Command.get_system_language(self.id), 60 * 60 * 24, delay=60 * 15
         )
 
     @property
