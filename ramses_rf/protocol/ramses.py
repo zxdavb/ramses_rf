@@ -1233,7 +1233,25 @@ _2411_PARAMS_SCHEMA = {  # unclear if true for only Orcon/*all* models
     },
 }
 
-_2411_MODE_ORCON = {
+_22F1_MODE_ITHO = {
+    "00": "off",  # not seen
+    "01": "trickle",  # not seen
+    "02": "low",
+    "03": "medium",
+    "04": "high",  # aka boost with 22F3
+}
+
+_22F1_MODE_NUAIRE = {
+    "00": "standby",
+    "01": "auto",
+    "02": "low",
+    "03": "medium",
+    "04": "high",  # boost
+    "09": "heater_off",
+    "0A": "heater_auto",
+}
+
+_22F1_MODE_ORCON = {
     "00": "away",
     "01": "low",
     "02": "medium",
@@ -1244,6 +1262,11 @@ _2411_MODE_ORCON = {
     "07": "off",
 }
 
+_22F1_SCHEMES = {
+    "itho": _22F1_MODE_ITHO,
+    "nuaire": _22F1_MODE_NUAIRE,
+    "orcon": _22F1_MODE_ORCON,
+}
 
 #
 ########################################################################################

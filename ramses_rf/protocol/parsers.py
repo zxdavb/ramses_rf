@@ -16,18 +16,14 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Optional, Union
 
-from .address import hex_id_to_dev_id
+from .address import NON_DEV_ADDR, hex_id_to_dev_id
 from .const import (
     DEV_ROLE,
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
-    FAN_MODE,
-    FAN_MODES,
     FAULT_DEVICE_CLASS,
     FAULT_STATE,
     FAULT_TYPE,
-    HEATER_MODE,
-    HEATER_MODES,
     SYS_MODE_MAP,
     SZ_ACTUATOR,
     SZ_AIR_QUALITY,
@@ -799,8 +795,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:
     result = {
         "date_2": date_from_hex(payload[20:28]) or "0000-00-00",  # manufactured?
         "date_1": date_from_hex(payload[28:36]) or "0000-00-00",  # firmware?
-        # # "manufacturer_group": payload[2:6],  # default is: 0001
-        # "manufacturer_sub_id": payload[6:8],
+        # "manufacturer_group": payload[2:6],  # 0001/0002
+        "manufacturer_sub_id": payload[6:8],
         "product_id": payload[8:10],  # if CH/DHW: matches device_type (sometimes)
         # "software_ver_id": payload[10:12],
         # "list_ver_id": payload[12:14],  # if FF/01 is CH/DHW, then 01/FF
@@ -1317,8 +1313,8 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     # I --- 37:171871 32:155617 --:------ 22F1 003 000607  # Party/boost
     # I --- 37:171871 32:155617 --:------ 22F1 003 000707  # Off
 
-    #  I 015 --:------ --:------ 39:159057 22F1 003 000004  # TBA: standby?
-    #  I 015 --:------ --:------ 39:159057 22F1 003 000104  # TBA: low?
+    #  I 015 --:------ --:------ 39:159057 22F1 003 000004  # TBA: off/standby?
+    #  I 015 --:------ --:------ 39:159057 22F1 003 000104  # TBA: trickle/min-speed?
     #  I 015 --:------ --:------ 39:159057 22F1 003 000204  # low
     #  I 016 --:------ --:------ 39:159057 22F1 003 000304  # medium
     #  I 017 --:------ --:------ 39:159057 22F1 003 000404  # high (aka boost if timer)
@@ -1328,42 +1324,45 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
     # Scheme A: only seen 000[239A]0A -- ? off, auto, rate x/x, and?
 
-    SCHEME = "itho" if msg.verb == "XX" else "orcon"  # HACK
-
-    if SCHEME == "orcon":
-        from .ramses import _2411_MODE_ORCON
-
-        assert payload[0:2] == "00"
-        assert payload[2:4] in _2411_MODE_ORCON
-        assert payload[4:6] in ("", "04", "07")
-
-        return {
-            "fan_mode": _2411_MODE_ORCON[payload[2:4]],
-            "_mode_idx": payload[2:4],
-            "_scheme": SCHEME,
-        }
+    # fan_mode = int(payload[2:4], 16)  # & 0b11110000
 
     try:
+        assert payload[0:2] in ("00", "63")
         assert not payload[4:] or int(payload[2:4], 16) <= int(
             payload[4:], 16
-        ), "byte 1: idx > max"
-        assert payload[4:] in ("", "04", "07", "0A"), f"byte 2: {payload[4:]}"
+        ), "mode_idx > mode_max"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    bitmap = int(payload[2:4], 16)  # & 0b11110000
+    if msg._addrs[0] == NON_DEV_ADDR:  # and payload[4:6] == "04":
+        from .ramses import _22F1_MODE_ITHO as _22F1_FAN_MODE  # TODO: only if 04
 
-    if bitmap in FAN_MODES:
-        _action = {FAN_MODE: FAN_MODES[bitmap]}
-    elif bitmap in {9, 10}:  # 0b00010001, 0b00010010
-        _action = {HEATER_MODE: HEATER_MODES[bitmap]}
+        _22f1_mode_set = ("", "04")
+        _22f1_scheme = "itho.."
+
+    elif payload[4:6] == "0A":
+        from .ramses import _22F1_MODE_NUAIRE as _22F1_FAN_MODE
+
+        _22f1_mode_set = ("", "0A")
+        _22f1_scheme = "nuaire"
+
     else:
-        _action = {}
+        from .ramses import _22F1_MODE_ORCON as _22F1_FAN_MODE
+
+        _22f1_mode_set = ("", "04", "07", "0B")  # 0B?
+        _22f1_scheme = "orcon."
+
+    try:
+        assert payload[2:4] in _22F1_FAN_MODE, f"unknown fan_mode: {payload[2:4]}"
+        assert payload[4:6] in _22f1_mode_set, f"unknown mode_set: {payload[4:6]}"
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
-        **_action,
-        "_mode_max": int(payload[4:6], 16) if payload[4:6] else None,
+        "_mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
+        "_mode_max": payload[4:6] or None,
+        "_scheme": _22f1_scheme,
+        "fan_mode": _22F1_FAN_MODE.get(payload[2:4], f"unknown_{payload[2:4]}"),
     }
 
 
