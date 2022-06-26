@@ -548,9 +548,9 @@ class Command(Frame):
         #  - only payloads seen: '000.0[47A]', may accept '000.'
         #  I --- 21:038634 18:126620 --:------ 22F1 003 000507
 
-        from .ramses import _2411_MODE_ORCON
+        from .ramses import _22F1_MODE_ORCON
 
-        _2411_MODE_ORCON_MAP = {v: k for k, v in _2411_MODE_ORCON.items()}
+        _22F1_MODE_ORCON_MAP = {v: k for k, v in _22F1_MODE_ORCON.items()}
 
         if fan_mode is None:
             mode = "00"
@@ -559,10 +559,10 @@ class Command(Frame):
         else:
             mode = fan_mode
 
-        if mode in _2411_MODE_ORCON:
+        if mode in _22F1_MODE_ORCON:
             payload = f"{idx}{mode}"
-        elif mode in _2411_MODE_ORCON_MAP:
-            payload = f"{idx}{_2411_MODE_ORCON_MAP[mode]}"
+        elif mode in _22F1_MODE_ORCON_MAP:
+            payload = f"{idx}{_22F1_MODE_ORCON_MAP[mode]}"
         else:
             raise TypeError(f"fan_mode is not valid: {fan_mode}")
 
