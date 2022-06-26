@@ -98,27 +98,34 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMN -
 # VMS - Sensors platform: CO2, humidity and temperature (and PIR?)
 
-# BRDG-02JAS01 - PIV - Nuaire DriMaster PIV (input)
+# BRDG-02A55   - Fan of some description
+# BRDG-02JAS01 - PIV - Nuaire DriMaster PIV
+# BRDG-02M11   - Itho Honeywell RF-repeater
+
 # CCU-12T20    - RFS - RF gateway (spIDer, Fifthplay Home Area Manager)
 # CVE-RF       - FAN -
 # HRA82        -
 # VMC-15RP01   - Orcon unit (senseair.com)
+
 # VMD-15RMS64  - FAN - Orcon HRC-350 (Ventiline)
 # VMD-15RMS86  -
 # VMD-17RPS01  -
+
 # VMI-15WSJ53  - SWI - Orcon HRC Display recessed 15RF
 # VMN-15LF01   -
 # VMN-23LMH23  - SWI - 4 button RF Switch
+
 # VMS-02MC05   - CO2 -
 # VMS-12C39    - CO2 - CO2 sensor, incl. integrated control, PIR
 # VMS-15CM17   - CO2 - CO2 Sensor
 # VMS-17C01    -
 # VMS-17HB01   -
-# VMS-23C33    - CO2 - CO2 Sensor
-# VMS-23HB33   - HUM - RH/Temp Sensor
+# VMS-23C33    - CO2 - CO2 Sensor (no PIR) (e.g. Nuaire DRI-ECO-CO2)
+# VMS-23HB33   - HUM - RH/Temp Sensor      (e.g. Nuaire DRI-ECO-RH)
 # MVS-15RHB    - FAN - Orcon Smartline FAN (incl. Moisture sensor and transmitter)
 
-# CVD ???
+
+# CVD coupled ventilation system (device)
 # CVE coupled ventilation system (equipment)
 # DCV demand controlled ventilation
 # IAQ indoor air quality
