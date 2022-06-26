@@ -1338,7 +1338,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
         from .ramses import _22F1_MODE_ITHO as _22F1_FAN_MODE  # TODO: only if 04
 
         _22f1_mode_set = ("", "04")
-        _22f1_scheme = "itho.."
+        _22f1_scheme = "itho"
 
     # elif msg._addrs[0] == NON_DEV_ADDR:  # and payload[4:6] == "04":
     #     _22F1_FAN_MODE = {
@@ -1358,7 +1358,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
         from .ramses import _22F1_MODE_ORCON as _22F1_FAN_MODE
 
         _22f1_mode_set = ("", "04", "07", "0B")  # 0B?
-        _22f1_scheme = "orcon."
+        _22f1_scheme = "orcon"
 
     try:
         assert payload[2:4] in _22F1_FAN_MODE, f"unknown fan_mode: {payload[2:4]}"
@@ -1369,8 +1369,8 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     return {
         "_mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
         "_mode_max": payload[4:6] or None,
-        "_scheme": _22f1_scheme,
         "fan_mode": _22F1_FAN_MODE.get(payload[2:4], f"unknown_{payload[2:4]}"),
+        "_scheme": _22f1_scheme,
     }
 
 
