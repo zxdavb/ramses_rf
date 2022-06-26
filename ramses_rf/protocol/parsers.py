@@ -1340,6 +1340,14 @@ def parser_22f1(payload, msg) -> Optional[dict]:
         _22f1_mode_set = ("", "04")
         _22f1_scheme = "itho.."
 
+    # elif msg._addrs[0] == NON_DEV_ADDR:  # and payload[4:6] == "04":
+    #     _22F1_FAN_MODE = {
+    #         f"{x:02X}": f"speed_{x}" for x in range(int(payload[4:6], 16) + 1)
+    #     } | {"00": "off"}
+
+    #     _22f1_mode_set = (payload[4:6], )
+    #     _22f1_scheme = "itho_2"
+
     elif payload[4:6] == "0A":
         from .ramses import _22F1_MODE_NUAIRE as _22F1_FAN_MODE
 
