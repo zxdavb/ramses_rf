@@ -1,7 +1,9 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![CircleCI](https://circleci.com/gh/zxdavb/ramses_rf.svg?style=svg)](https://circleci.com/gh/zxdavb/ramses_rf) [![Join the chat at https://gitter.im/evohome_rf/community](https://badges.gitter.im/evohome_rf/community.svg)](https://gitter.im/evohome_rf/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Overview
-**ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as **evohome**, **Sundial**, **Hometronic**, **Chronotherm** and many others.
+**ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as:
+ - (Heat) **evohome**, **Sundial**, **Hometronic**, **Chronotherm**
+ - (HVAC) **Itho**, **Orcon**, **Nuaire**
 
 It requires a USB-to-RF device, either a Honeywell HGI80 (somewhat rare, expensive) or something running the [evofw3](https://github.com/ghoti57/evofw3) firmware, such as the one from [here](https://indalo-tech.onlineweb.shop/).
 
@@ -11,7 +13,7 @@ It does three things:
  - allows you to send commands to evohome, or monitor for state changes
  - allows you to emulate some hardware devices
 
-The simplest way to know if it will work with your system is to identify the box connected to your boiler/HVAC appliance as one of:
+For CH/DHW, the simplest way to know if it will work with your system is to identify the box connected to your boiler/HVAC appliance as one of:
  - **R8810A**: OpenTherm Bridge
  - **BDR91A**: Wireless Relay (also BDR91T)
  - **HC60NG**: Wireless Relay (older hardware)
