@@ -475,7 +475,7 @@ class Gateway(Engine):
         self._resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
-    async def _set_state(self, packets, *, schema=None) -> None:
+    async def _set_state(self, packets: dict, *, schema=None) -> None:
 
         pkt_receiver = (
             self.msg_transport.get_extra_info(self.msg_transport.READER)
