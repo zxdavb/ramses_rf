@@ -1141,8 +1141,8 @@ class Datetime(SystemBase):  # 313F
         super()._handle_msg(msg)
 
         if msg.code == _313F and msg.verb in (I_, RP):
-            if self._gwy.ser_name and (
-                diff := abs(dt.fromisoformat(msg.payload[SZ_DATETIME]) - dt.now())
+            if diff := abs(
+                dt.fromisoformat(msg.payload[SZ_DATETIME]) - self._gwy._dt_now()
             ) > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
 
