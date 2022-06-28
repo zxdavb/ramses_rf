@@ -1140,10 +1140,9 @@ class Datetime(SystemBase):  # 313F
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _313F and msg.verb in (I_, RP):
-            if diff := abs(
-                dt.fromisoformat(msg.payload[SZ_DATETIME]) - self._gwy._dt_now()
-            ) > td(minutes=5):
+        if msg.code == _313F and msg.verb in (I_, RP) and self._gwy.pkt_transport:
+            diff = abs(dt.fromisoformat(msg.payload[SZ_DATETIME]) - self._gwy._dt_now())
+            if diff > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
 
     async def get_datetime(self) -> Optional[dt]:
