@@ -143,10 +143,10 @@ class MessageTransport(asyncio.Transport):
             if cmd._cbk:
                 self._add_callback(cmd.rx_header, cmd._cbk)
 
-            await self._dispatcher(cmd)  # send_data, *once* callback registered
-
             if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-                _LOGGER.info("sent: %s", cmd)
+                _LOGGER.info("SENT: %s", cmd)
+
+            await self._dispatcher(cmd)  # send_data, *once* callback registered
 
         async def pkt_dispatcher():
             """Poll the queue and send any command packets to the lower layer."""
@@ -203,7 +203,7 @@ class MessageTransport(asyncio.Transport):
                 SZ_EXPIRED
             ):
                 # see  also: PktProtocolQos.send_data()
-                _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
+                _LOGGER.warning("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
                 callback[SZ_FUNC](AwaitableCallback.HAS_TIMED_OUT)  # ZX: 1/3
                 callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
 
@@ -444,8 +444,8 @@ class MessageTransport(asyncio.Transport):
             raise RuntimeError("MsgTransport: sending is disabled (cmd discarded)")
 
         else:
-            if not self._dispatcher:  # TODO: do better?
-                _LOGGER.warning("MsgTransport.write(%s): no dispatcher", cmd)
+            # if not self._dispatcher:  # TODO: do better?
+            #     _LOGGER.debug("MsgTransport.write(%s): no dispatcher", cmd)
 
             try:
                 self._que.put_nowait(cmd)
