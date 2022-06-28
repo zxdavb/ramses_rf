@@ -151,7 +151,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__  # and False
-_OTB_MODE = False  # use OT (3220s) in favour of RAMSES
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -768,19 +767,19 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 self._add_discovery_task(_mk_cmd(RQ, code, "00", self.id), 60)
 
         for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
-            if _OTB_MODE or m not in self.OT_TO_RAMSES:
+            if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
                 self._add_discovery_task(
                     Command.get_opentherm_data(self.id, m), 60 * 60 * 24, delay=60 * 3
                 )
 
         for m in PARAMS_MSG_IDS:  # or L/T state
-            if _OTB_MODE or m not in self.OT_TO_RAMSES:
+            if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
                 self._add_discovery_task(
                     Command.get_opentherm_data(self.id, m), 60 * 60, delay=90
                 )
 
         for msg_id in STATUS_MSG_IDS:
-            if _OTB_MODE or m not in self.OT_TO_RAMSES:
+            if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
                 self._add_discovery_task(
                     Command.get_opentherm_data(self.id, msg_id), 60 * 5, delay=15
                 )
@@ -789,7 +788,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         self._add_discovery_task(_mk_cmd(RQ, _2401, "00", self.id), 60 * 5)
         self._add_discovery_task(_mk_cmd(RQ, _3EF0, "00", self.id), 60 * 5)
 
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
@@ -833,7 +832,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
         # TODO: this is development code - will be rationalised, eventually
-        if _OTB_MODE and (code := self.OT_TO_RAMSES.get(msg_id)):
+        if self._gwy.config.use_native_ot and (code := self.OT_TO_RAMSES.get(msg_id)):
             self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
@@ -939,25 +938,25 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def boiler_output_temp(self) -> Optional[float]:  # 3220|19, or 3200
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("19")
         return self._msg_value(_3200, key=SZ_TEMPERATURE)
 
     @property
     def boiler_return_temp(self) -> Optional[float]:  # 3220|1C, or 3210
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("1C")
         return self._msg_value(_3210, key=SZ_TEMPERATURE)
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 3220|01, or 22D9
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("01")
         return self._msg_value(_22D9, key=SZ_SETPOINT)
 
     @property
     def ch_max_setpoint(self) -> Optional[float]:  # 3220|39, or 1081
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("39")
         return self._msg_value(_1081, key=SZ_SETPOINT)
 
@@ -967,26 +966,26 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220|12, or 1300
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("12")
         result = self._msg_value(_1300, key=SZ_PRESSURE)
         return None if result == 25.5 else result  # HACK: to make more rigourous
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220|13, or 12F0
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("13")
         return self._msg_value(_12F0, key="dhw_flow_rate")
 
     @property
     def dhw_setpoint(self) -> Optional[float]:  # 3220|38, or 10A0
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("38")
         return self._msg_value(_10A0, key=SZ_SETPOINT)
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220|1A, or 1260
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("1A")
         return self._msg_value(_1260, key=SZ_TEMPERATURE)
 
@@ -994,7 +993,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def max_rel_modulation(
         self,
     ) -> Optional[float]:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("0E")  # needs confirming
         return self._msg_value(_3EF0, key="max_rel_modulation")
 
@@ -1004,7 +1003,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def outside_temp(self) -> Optional[float]:  # 3220|1B, 1290
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_value("1B")
         return self._msg_value(_1290, key=SZ_TEMPERATURE)
 
@@ -1020,19 +1019,19 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def ch_active(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 1)
         return self._msg_value(_3EF0, key="ch_active")
 
     @property
     def ch_enabled(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 0)
         return self._msg_value(_3EF0, key="ch_enabled")
 
     @property
     def dhw_active(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if _OTB_MODE:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 2)
         return self._msg_value(_3EF0, key="dhw_active")
 
@@ -1042,7 +1041,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def flame_active(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if not _OTB_MODE:
+        if not self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 3)
         return self._msg_value(_3EF0, key="flame_active")
 

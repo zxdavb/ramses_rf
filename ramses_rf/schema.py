@@ -105,6 +105,7 @@ SERIAL_CONFIG = "serial_config"
 USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 USE_SCHEMA = "use_schema"
 USE_REGEX = "use_regex"
+USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
 
 
 def renamed(new_key):
@@ -121,17 +122,18 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(DISABLE_DISCOVERY, default=False): bool,
         vol.Optional(DISABLE_SENDING, default=False): bool,
         vol.Optional(ENABLE_EAVESDROP, default=False): bool,
+        vol.Optional(ENFORCE_KNOWN_LIST, default=None): vol.Any(None, bool),
         vol.Optional(REDUCE_PROCESSING, default=0): vol.All(
             int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
         ),
         vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
             int, vol.Range(min=1, max=16)
         ),
-        vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
-        vol.Optional(ENFORCE_KNOWN_LIST, default=None): vol.Any(None, bool),
-        vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
+        vol.Optional(USE_NATIVE_OT, default=True): bool,
         vol.Optional(USE_REGEX, default={}): dict,
+        # vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
