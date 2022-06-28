@@ -159,6 +159,12 @@ if DEV_MODE:
 
 
 class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
+    # RP --- 10:048122 18:140805 --:------ 3EF1 007 007FFF-003C2A10       # only RP, always 7FFF
+    # RP --- 13:109598 18:199952 --:------ 3EF1 007 0001B8-01B800FF       # only RP
+
+    # RP --- 10:047707 18:199952 --:------ 3EF0 009 001110-0A00FF-033100  # only RP
+    # RP --- 10:138926 34:010253 --:------ 3EF0 006 002E11-0000FF         # only RP
+    #  I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # only  I
 
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
@@ -179,38 +185,6 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
             and not self._gwy.config.disable_sending
         ):
             self._make_cmd(_3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
-
-    @property
-    def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
-        return self._msg_flag(_3EF0, "_flags_3", 7)
-
-    @property
-    def bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
-        return self._msg_flag(_3EF0, "_flags_3", 6)
-
-    @property
-    def ch_active(self) -> Optional[bool]:  # 3EF0 (byte 3, only R8820A?)
-        return self._msg_value(_3EF0, key="ch_active")
-
-    @property
-    def ch_enabled(self) -> Optional[bool]:  # 3EF0 (byte 6, only R8820A?)
-        return self._msg_value(_3EF0, key="ch_enabled")
-
-    @property
-    def dhw_active(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
-        return self._msg_value(_3EF0, key="dhw_active")
-
-    @property
-    def flame_active(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
-        return self._msg_value(_3EF0, key="flame_active")
-
-    @property
-    def ch_setpoint(self) -> Optional[float]:  # 3EF0 (byte 7, only R8820A?)
-        return self._msg_value(_3EF0, key="ch_setpoint")
-
-    @property
-    def max_rel_modulation(self) -> Optional[float]:  # 3EF0 (byte 8, only R8820A?)
-        return self._msg_value(_3EF0, key="max_rel_modulation")
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
@@ -948,6 +922,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._msg_flag(_2401, "_flags_2", 7)
 
     @property
+    def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
+        return self._msg_flag(_3EF0, "_flags_3", 7)
+
+    @property
+    def bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
+        return self._msg_flag(_3EF0, "_flags_3", 6)
+
+    @property
     def oem_code(self) -> Optional[float]:  # 3220/73
         return self._ot_msg_value("73")
 
@@ -982,6 +964,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if _OTB_MODE:
             return self._ot_msg_value("39")
         return self._msg_value(_1081, key=SZ_SETPOINT)
+
+    @property
+    def ch_setpoint(self) -> Optional[float]:  # 3EF0 (byte 7, only R8820A?)
+        return self._msg_value(_3EF0, key="ch_setpoint")
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 1300 (3220/12)
@@ -1025,15 +1011,25 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("11")
 
     @property
-    def ch_active(self) -> Optional[bool]:  # 3220/00
+    def max_rel_modulation(self) -> Optional[float]:  # 3EF0 (byte 8, only R8820A?)
+        return self._msg_value(_3EF0, key="max_rel_modulation")
+
+    @property
+    def ch_active(self) -> Optional[bool]:  # 3220/00, or 3EF0 (byte 3, only R8820A?)
+        if not _OTB_MODE:
+            return self._msg_value(_3EF0, key="ch_active")
         return self._ot_msg_flag("00", 8 + 1) if _OTB_MODE else super().ch_active
 
     @property
-    def ch_enabled(self) -> Optional[bool]:  # 3220/00
+    def ch_enabled(self) -> Optional[bool]:  # 3220/00, or 3EF0 (byte 6, only R8820A?)
+        if not _OTB_MODE:
+            return self._msg_value(_3EF0, key="ch_enabled")
         return self._ot_msg_flag("00", 0) if _OTB_MODE else super().ch_enabled
 
     @property
-    def dhw_active(self) -> Optional[bool]:  # 3220/00
+    def dhw_active(self) -> Optional[bool]:  # 3220/00, or 3EF0 (byte 3, only OTB)
+        if not _OTB_MODE:
+            return self._msg_value(_3EF0, key="dhw_active")
         return self._ot_msg_flag("00", 8 + 2) if _OTB_MODE else super().dhw_active
 
     @property
@@ -1041,7 +1037,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_flag("00", 1)  # if _OTB_MODE else None  # TODO: super().xxx
 
     @property
-    def flame_active(self) -> Optional[bool]:  # 3220/00 (flame_on)
+    def flame_active(self) -> Optional[bool]:  # 3220/00, or 3EF0 (byte 3, only OTB)
+        if not _OTB_MODE:
+            return self._msg_value(_3EF0, key="flame_active")
         return self._ot_msg_flag("00", 8 + 3) if _OTB_MODE else super().flame_active
 
     @property
@@ -1148,11 +1146,11 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             "outside_temp": self._msg_value(_1290, key=SZ_TEMPERATURE),
             "rel_modulation_level": self.rel_modulation_level,
             #
-            "ch_setpoint": super().ch_setpoint,
-            "ch_active": super().ch_active,
-            "ch_enabled": super().ch_enabled,
-            "dhw_active": super().dhw_active,
-            "flame_active": super().flame_active,
+            "ch_active": self.ch_active,
+            "ch_enabled": self.ch_enabled,
+            "ch_setpoint": self.ch_setpoint,
+            "dhw_active": self.dhw_active,
+            "flame_active": self.flame_active,
         }
 
     @property
