@@ -269,6 +269,14 @@ def parser_0008(payload, msg) -> Optional[dict]:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # e.g. Electric Heat Zone
 
+    #  I --- 01:145038 --:------ 01:145038 0008 002 0314
+    #  I --- 01:145038 --:------ 01:145038 0008 002 F914
+    #  I --- 01:054173 --:------ 01:054173 0008 002 FA00
+    #  I --- 01:145038 --:------ 01:145038 0008 002 FC14
+
+    # RP --- 13:109598 18:199952 --:------ 0008 002 0000
+    # RP --- 13:109598 18:199952 --:------ 0008 002 00C8
+
     if msg.src.type == DEV_TYPE_MAP.JST and msg.len == 13:  # Honeywell Japser, DEX
         assert msg.len == 13, "expecting length 13"
         return {
@@ -276,7 +284,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
             "blob": payload[8:],
         }
 
-    return {SZ_RELAY_DEMAND: percent(payload[2:4])}
+    return {SZ_RELAY_DEMAND: percent(payload[2:4])}  # 3EF0[2:4], 3EF1[10:12]
 
 
 @parser_decorator  # relay_failsafe
@@ -2173,7 +2181,7 @@ def parser_3ef0(payload, msg) -> dict:
         mod_level = percent(payload[2:4], high_res=False)
 
     result = {
-        "modulation_level": mod_level,
+        "modulation_level": mod_level,  # 0008[2:4], 3EF1[10:12]
         "_flags_2": payload[4:6],
     }
 
@@ -2268,7 +2276,7 @@ def parser_3ef1(payload, msg) -> dict:
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
-        "modulation_level": percent(payload[10:12]),
+        "modulation_level": percent(payload[10:12]),  # 0008[2:4], 3EF0[2:4]
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,
         f"_{SZ_UNKNOWN}_0": payload[12:],
