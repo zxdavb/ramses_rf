@@ -831,9 +831,11 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if msg_id != "73":
                 self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
-        # TODO: this is development code - will be rationalised, eventually
-        if self._gwy.config.use_native_ot and (code := self.OT_TO_RAMSES.get(msg_id)):
-            self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
+            # TODO: this is development code - will be rationalised, eventually
+            if self._gwy.config.use_native_ot and (
+                code := self.OT_TO_RAMSES.get(msg_id)
+            ):
+                self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
             if msg_id not in self._msgs_ot_supported:
