@@ -226,7 +226,7 @@ class Engine:
         """Make a command addressed to device_id."""
 
         try:
-            return Command(verb, code, payload, device_id)
+            return Command.from_attrs(verb, device_id, code, payload, **kwargs)
         except (
             AssertionError,
             AttributeError,
