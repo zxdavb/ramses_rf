@@ -157,13 +157,17 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
-    # RP --- 10:048122 18:140805 --:------ 3EF1 007 007FFF-003C2A10       # only RP, always 7FFF
-    # RP --- 13:109598 18:199952 --:------ 3EF1 007 0001B8-01B800FF       # only RP
+class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
+    #  I --- 13:109598 --:------ 13:109598 3EF0 003 00C8FF                # event-driven, 00/C8
+    # RP --- 13:109598 18:002563 --:------ 0008 002 00C8                  # 00/C8, as abobe
+    # RP --- 13:109598 18:002563 --:------ 3EF1 007 0000BF-00BFC8FF       # 00/C8, as above
 
-    # RP --- 10:047707 18:199952 --:------ 3EF0 009 001110-0A00FF-033100  # only RP
-    # RP --- 10:138926 34:010253 --:------ 3EF0 006 002E11-0000FF         # only RP
-    #  I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # only  I
+    # RP --- 10:048122 18:140805 --:------ 3EF1 007 007FFF-003C2A10       # 10:s only RP, always 7FFF
+    # RP --- 13:109598 18:199952 --:------ 3EF1 007 0001B8-01B800FF       # 13:s only RP
+
+    # RP --- 10:047707 18:199952 --:------ 3EF0 009 001110-0A00FF-033100  # 10:s only RP
+    # RP --- 10:138926 34:010253 --:------ 3EF0 006 002E11-0000FF         # 10:s only RP
+    #  I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # 13:s only  I
 
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
@@ -176,13 +180,14 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
         if isinstance(self, OtbGateway):
             return
 
-        if False and (
+        if (
             msg.code == _3EF0
-            and msg.verb == I_
+            and msg.verb == I_  # will be a 13:
             and not self._faked
             and not self._gwy.config.disable_discovery
             and not self._gwy.config.disable_sending
         ):
+            # self._make_cmd(_0008, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
             self._make_cmd(_3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
 
     @property
@@ -271,6 +276,14 @@ class Weather(Fakeable, DeviceHeat):  # 0002
 
 
 class RelayDemand(Fakeable, DeviceHeat):  # 0008
+    # Some either 00/C8, others 00-C8
+    #  I --- 01:145038 --:------ 01:145038 0008 002 0314  # zone valve zone (not electric?)
+    #  I --- 01:145038 --:------ 01:145038 0008 002 F914  # DHW valve
+    #  I --- 01:054173 --:------ 01:054173 0008 002 FA00  # DHW valve
+    #  I --- 01:145038 --:------ 01:145038 0008 002 FC14  # appliance_relay
+
+    # RP --- 13:109598 18:199952 --:------ 0008 002 0000
+    # RP --- 13:109598 18:199952 --:------ 0008 002 00C8
 
     RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
@@ -278,7 +291,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         super()._setup_discovery_tasks()
 
         if not self._faked:  # discover_flag & Discover.STATUS and
-            self._add_discovery_task(Command.get_relay_demand(self.id), 60 * 60 * 5)
+            self._add_discovery_task(Command.get_relay_demand(self.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         if msg.src.id == self.id:
