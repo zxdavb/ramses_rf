@@ -160,6 +160,8 @@ def validate_api_params(*, has_zone=None):
         return fcn(cls, *args, **kwargs)
 
     def validate_zone_idx(zone_idx) -> int:
+        # if zone_idx is None:
+        #     return "00"  # TODO: I suspect a bad idea
         if isinstance(zone_idx, str):
             zone_idx = FA if zone_idx == "HW" else zone_idx
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
@@ -175,7 +177,7 @@ def validate_api_params(*, has_zone=None):
                 kwargs[SZ_ZONE_IDX] = validate_zone_idx(kwargs[SZ_ZONE_IDX])
             if SZ_DOMAIN_ID in kwargs:
                 kwargs[SZ_DOMAIN_ID] = validate_zone_idx(kwargs[SZ_DOMAIN_ID])
-            if SZ_DOMAIN_ID in kwargs:
+            if SZ_DHW_IDX in kwargs:
                 kwargs[SZ_DHW_IDX] = validate_zone_idx(kwargs[SZ_DHW_IDX])
 
             return _wrapper(fcn, cls, dst_id, *args, **kwargs)
@@ -327,6 +329,7 @@ class Command(Frame):
             addr1=addrs[1],
             addr2=addrs[2],
             seqn=seqn,
+            **kwargs,
         )
 
     @classmethod  # generic constructor
@@ -582,7 +585,7 @@ class Command(Frame):
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
 
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
         return cls.from_attrs(RQ, ctl_id, _1F41, dhw_idx, **kwargs)
 
     @classmethod  # constructor for W_/1F41
@@ -599,7 +602,7 @@ class Command(Frame):
     ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
 
         mode = _normalise_mode(
             int(mode) if isinstance(mode, bool) else mode, active, until, duration
@@ -627,7 +630,7 @@ class Command(Frame):
     def get_dhw_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
         return cls.from_attrs(RQ, ctl_id, _10A0, dhw_idx, **kwargs)
 
     @classmethod  # constructor for W_/10A0
@@ -650,7 +653,7 @@ class Command(Frame):
         # 14:34:26.751 073  I --- 01:145038 --:------ 01:145038 10A0 006 000F6E0003E8
         # 14:34:26.764 074  I --- 01:145038 18:013393 --:------ 10A0 006 000F6E0003E8
 
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
 
         setpoint = 50.0 if setpoint is None else setpoint
         overrun = 5 if overrun is None else overrun
@@ -662,7 +665,6 @@ class Command(Frame):
             raise ValueError(f"Out of range, overrun: {overrun}")
         if not (1 <= differential <= 10):
             raise ValueError(f"Out of range, differential: {differential}")
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # can have 2 DHWs, but not ever seen
 
         payload = (
             f"{dhw_idx}{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
@@ -675,7 +677,7 @@ class Command(Frame):
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
         return cls.from_attrs(RQ, ctl_id, _1260, dhw_idx, **kwargs)
 
     @classmethod  # constructor for RQ/1030
@@ -759,8 +761,8 @@ class Command(Frame):
         cls,
         ctl_id: str,
         zone_idx: Union[int, str],
-        frag_num: int,
-        frag_cnt: int,
+        frag_number: int,
+        total_frags: int,
         **kwargs,
     ):
         """Constructor to get a schedule fragment (c.f. parser_0404).
@@ -768,17 +770,24 @@ class Command(Frame):
         Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
         """
 
+        kwargs.pop("frag_length", None)
+        frag_length = "00"
+
         # TODO: check the following rules
-        if frag_num == 0:
-            raise ValueError(f"frag_num={frag_num}, but it is 1-indexed")
-        elif frag_num == 1 and frag_cnt != 0:
-            raise ValueError(f"frag_cnt={frag_cnt}, but must be 0 when frag_num=1")
-        elif frag_num > frag_cnt and frag_cnt != 0:
-            raise ValueError(f"frag_num={frag_num}, but must be <= frag_cnt={frag_cnt}")
+        if frag_number == 0:
+            raise ValueError(f"frag_number={frag_number}, but it is 1-indexed")
+        elif frag_number == 1 and total_frags != 0:
+            raise ValueError(
+                f"total_frags={total_frags}, but must be 0 when frag_number=1"
+            )
+        elif frag_number > total_frags and total_frags != 0:
+            raise ValueError(
+                f"frag_number={frag_number}, but must be <= total_frags={total_frags}"
+            )
 
         header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
 
-        payload = f"{header}00{frag_num:02X}{frag_cnt:02X}"
+        payload = f"{header}{frag_length}{frag_number:02X}{total_frags:02X}"
         return cls.from_attrs(RQ, ctl_id, _0404, payload, **kwargs)
 
     @classmethod  # constructor for W/0404
@@ -1162,7 +1171,7 @@ class Command(Frame):
         This is for use by a faked CS92A or similar.
         """
 
-        dhw_idx = kwargs.pop(SZ_DHW_IDX, "00")  # only 00 or 01 (rare)
+        dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
 
         if dev_id[:2] != DEV_TYPE_MAP.DHW:
             raise TypeError(
@@ -1216,10 +1225,12 @@ class Command(Frame):
 
         assert msg_type in LOOKUP_PUZZ, "Invalid/deprecated Puzzle type"
 
-        kwargs["priority"] = kwargs.pop("priority", Priority.HIGHEST)
+        qos = kwargs.get("qos")
+        qos["priority"] = qos.get("priority", Priority.HIGHEST)
         if msg_type == "10":
-            kwargs["disable_backoff"] = kwargs.pop("disable_backoff", True)
-            kwargs["retries"] = kwargs.pop("retries", 24)
+            qos["disable_backoff"] = qos.get("disable_backoff", True)
+            qos["retries"] = qos.get("retries", 12)
+        kwargs["qos"] = qos
 
         payload = f"00{msg_type}"
 
