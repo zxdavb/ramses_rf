@@ -39,6 +39,7 @@ def test_pkt_addr_parser(gwy):  # noqa: F811
 
 
 def test_attrdict_class() -> None:
+
     _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
 
     assert_raises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")
@@ -61,7 +62,7 @@ def test_attrdict_class() -> None:
     assert DEV_ROLE_MAP["rad_actuator"] == "08"
 
     assert DEV_ROLE_MAP._hex("SEN") == "04"
-    assert_raises(KeyError, DEV_ROLE_MAP._hex, "04")
+    assert_raises(KeyError, DEV_ROLE_MAP._hex, "04")  # aka: DEV_ROLE_MAP._hex("04")
     assert DEV_ROLE_MAP._hex("zone_sensor") == "04"
 
     assert_raises(KeyError, DEV_ROLE_MAP._hex, "_rubbish_")
@@ -74,7 +75,7 @@ def test_attrdict_class() -> None:
     assert_raises(KeyError, DEV_ROLE_MAP._str, "_rubbish_")
     assert_raises(KeyError, DEV_ROLE_MAP._str, None)
 
-    assert_raises(KeyError, DEV_ROLE_MAP.slug, "RFG")
+    assert_raises(KeyError, DEV_ROLE_MAP.slug, "RFG")  # aka: DEV_ROLE_MAP.slug("RFG")
     assert DEV_ROLE_MAP.slug("10") == "RFG"
     assert DEV_ROLE_MAP.slug("remote_gateway") == "RFG"
 
