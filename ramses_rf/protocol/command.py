@@ -580,7 +580,7 @@ class Command(Frame):
             )
         return cls._from_attrs(I_, _22F1, payload, addr0=src_id, addr1=fan_id, **kwargs)
 
-    @classmethod  # constructor for RQ/1F41
+    @classmethod  # constructor for RQ|1F41
     @validate_api_params()
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
@@ -588,7 +588,7 @@ class Command(Frame):
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
         return cls.from_attrs(RQ, ctl_id, _1F41, dhw_idx, **kwargs)
 
-    @classmethod  # constructor for W_/1F41
+    @classmethod  # constructor for W|1F41
     @validate_api_params()
     def set_dhw_mode(
         cls,
@@ -625,7 +625,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _1F41, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/10A0
+    @classmethod  # constructor for RQ|10A0
     @validate_api_params()
     def get_dhw_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
@@ -633,7 +633,7 @@ class Command(Frame):
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
         return cls.from_attrs(RQ, ctl_id, _10A0, dhw_idx, **kwargs)
 
-    @classmethod  # constructor for W_/10A0
+    @classmethod  # constructor for W|10A0
     @validate_api_params()
     def set_dhw_params(
         cls,
@@ -672,7 +672,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _10A0, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/1260
+    @classmethod  # constructor for RQ|1260
     @validate_api_params()
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
@@ -680,7 +680,7 @@ class Command(Frame):
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
         return cls.from_attrs(RQ, ctl_id, _1260, dhw_idx, **kwargs)
 
-    @classmethod  # constructor for RQ/1030
+    @classmethod  # constructor for RQ|1030
     @validate_api_params(has_zone=True)
     def get_mix_valve_params(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
@@ -689,7 +689,7 @@ class Command(Frame):
             RQ, ctl_id, _1030, f"{zone_idx:02X}00", **kwargs
         )  # TODO: needs 00?
 
-    @classmethod  # constructor for W/1030
+    @classmethod  # constructor for W|1030
     @validate_api_params(has_zone=True)
     def set_mix_valve_params(
         cls,
@@ -726,7 +726,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _1030, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/3220
+    @classmethod  # constructor for RQ|3220
     @validate_api_params()
     def get_opentherm_data(cls, otb_id: str, msg_id: Union[int, str], **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
@@ -735,7 +735,7 @@ class Command(Frame):
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
         return cls.from_attrs(RQ, otb_id, _3220, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/0008
+    @classmethod  # constructor for RQ|0008
     @validate_api_params()  # has_zone=Optional
     def get_relay_demand(cls, dev_id: str, zone_idx: Union[int, str] = None, **kwargs):
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
@@ -743,7 +743,7 @@ class Command(Frame):
         payload = "00" if zone_idx is None else f"{zone_idx:02X}"
         return cls.from_attrs(RQ, dev_id, _0008, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/0006
+    @classmethod  # constructor for RQ|0006
     @validate_api_params()
     def get_schedule_version(cls, ctl_id: str, **kwargs):
         """Constructor to get the current version (change counter) of the schedules.
@@ -755,7 +755,7 @@ class Command(Frame):
 
         return cls.from_attrs(RQ, ctl_id, _0006, "00", **kwargs)
 
-    @classmethod  # constructor for RQ/0404
+    @classmethod  # constructor for RQ|0404
     @validate_api_params(has_zone=True)
     def get_schedule_fragment(
         cls,
@@ -790,7 +790,7 @@ class Command(Frame):
         payload = f"{header}{frag_length}{frag_number:02X}{total_frags:02X}"
         return cls.from_attrs(RQ, ctl_id, _0404, payload, **kwargs)
 
-    @classmethod  # constructor for W/0404
+    @classmethod  # constructor for W|0404
     @validate_api_params(has_zone=True)
     def set_schedule_fragment(
         cls,
@@ -818,14 +818,14 @@ class Command(Frame):
         payload = f"{header}{frag_length:02X}{frag_num:02X}{frag_cnt:02X}{fragment}"
         return cls.from_attrs(W_, ctl_id, _0404, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/0100
+    @classmethod  # constructor for RQ|0100
     @validate_api_params()
     def get_system_language(cls, ctl_id: str, **kwargs):
         """Constructor to get the language of a system (c.f. parser_0100)."""
 
         return cls.from_attrs(RQ, ctl_id, _0100, "00", **kwargs)
 
-    @classmethod  # constructor for RQ/0418
+    @classmethod  # constructor for RQ|0418
     @validate_api_params()
     def get_system_log_entry(cls, ctl_id: str, log_idx: Union[int, str], **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
@@ -833,14 +833,14 @@ class Command(Frame):
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls.from_attrs(RQ, ctl_id, _0418, f"{log_idx:06X}", **kwargs)
 
-    @classmethod  # constructor for RQ/2E04
+    @classmethod  # constructor for RQ|2E04
     @validate_api_params()
     def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
 
         return cls.from_attrs(RQ, ctl_id, _2E04, FF, **kwargs)
 
-    @classmethod  # constructor for W/2E04
+    @classmethod  # constructor for W|2E04
     @validate_api_params()
     def set_system_mode(cls, ctl_id: str, system_mode, *, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
@@ -872,14 +872,14 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _2E04, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/313F
+    @classmethod  # constructor for RQ|313F
     @validate_api_params()
     def get_system_time(cls, ctl_id: str, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
 
         return cls.from_attrs(RQ, ctl_id, _313F, "00", **kwargs)
 
-    @classmethod  # constructor for W/313F
+    @classmethod  # constructor for W|313F
     @validate_api_params()
     def set_system_time(cls, ctl_id: str, datetime: dt, is_dst: bool = False, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
@@ -888,7 +888,7 @@ class Command(Frame):
         datetime = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
         return cls.from_attrs(W_, ctl_id, _313F, f"0060{datetime}", **kwargs)
 
-    @classmethod  # constructor for RQ/1100
+    @classmethod  # constructor for RQ|1100
     @validate_api_params()
     def get_tpi_params(cls, dev_id: str, *, domain_id=None, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
@@ -897,7 +897,7 @@ class Command(Frame):
             domain_id = "00" if dev_id[:2] == DEV_TYPE_MAP.BDR else FC
         return cls.from_attrs(RQ, dev_id, _1100, domain_id, **kwargs)
 
-    @classmethod  # constructor for W/1100
+    @classmethod  # constructor for W|1100
     @validate_api_params()
     def set_tpi_params(
         cls,
@@ -934,7 +934,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _1100, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/000A
+    @classmethod  # constructor for RQ|000A
     @validate_api_params(has_zone=True)
     def get_zone_config(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
@@ -943,7 +943,7 @@ class Command(Frame):
             RQ, ctl_id, _000A, f"{zone_idx:02X}00", **kwargs
         )  # TODO: needs 00?
 
-    @classmethod  # constructor for W/000A
+    @classmethod  # constructor for W|000A
     @validate_api_params(has_zone=True)
     def set_zone_config(
         cls,
@@ -985,7 +985,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _000A, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/2349
+    @classmethod  # constructor for RQ|2349
     @validate_api_params(has_zone=True)
     def get_zone_mode(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
@@ -994,7 +994,7 @@ class Command(Frame):
             RQ, ctl_id, _2349, f"{zone_idx:02X}00", **kwargs
         )  # TODO: needs 00?
 
-    @classmethod  # constructor for W/2349
+    @classmethod  # constructor for W|2349
     @validate_api_params(has_zone=True)
     def set_zone_mode(
         cls,
@@ -1041,7 +1041,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, _2349, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/0004
+    @classmethod  # constructor for RQ|0004
     @validate_api_params(has_zone=True)
     def get_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
@@ -1050,7 +1050,7 @@ class Command(Frame):
             RQ, ctl_id, _0004, f"{zone_idx:02X}00", **kwargs
         )  # TODO: needs 00?
 
-    @classmethod  # constructor for W/0004
+    @classmethod  # constructor for W|0004
     @validate_api_params(has_zone=True)
     def set_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
@@ -1058,7 +1058,7 @@ class Command(Frame):
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:40]:0<40}"
         return cls.from_attrs(W_, ctl_id, _0004, payload, **kwargs)
 
-    @classmethod  # constructor for W/2309
+    @classmethod  # constructor for W|2309
     @validate_api_params(has_zone=True)
     def set_zone_setpoint(
         cls, ctl_id: str, zone_idx: Union[int, str], setpoint: float, **kwargs
@@ -1069,21 +1069,21 @@ class Command(Frame):
         payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
         return cls.from_attrs(W_, ctl_id, _2309, payload, **kwargs)
 
-    @classmethod  # constructor for RQ/30C9
+    @classmethod  # constructor for RQ|30C9
     @validate_api_params(has_zone=True)
     def get_zone_temp(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
 
         return cls.from_attrs(RQ, ctl_id, _30C9, f"{zone_idx:02X}", **kwargs)
 
-    @classmethod  # constructor for RQ/12B0
+    @classmethod  # constructor for RQ|12B0
     @validate_api_params(has_zone=True)
     def get_zone_window_state(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
 
         return cls.from_attrs(RQ, ctl_id, _12B0, f"{zone_idx:02X}", **kwargs)
 
-    @classmethod  # constructor for RP/3EF1 (I/3EF1?)  # TODO: trap corrupt values?
+    @classmethod  # constructor for RP|3EF1 (I|3EF1?)  # TODO: trap corrupt values?
     @validate_api_params()
     def put_actuator_cycle(
         cls,
@@ -1113,7 +1113,7 @@ class Command(Frame):
         payload += f"{int(modulation_level * 200):02X}FF"
         return cls._from_attrs(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
 
-    @classmethod  # constructor for I/3EF0  # TODO: trap corrupt states?
+    @classmethod  # constructor for I|3EF0  # TODO: trap corrupt states?
     @validate_api_params()
     def put_actuator_state(cls, dev_id: str, modulation_level: float, **kwargs):
         """Constructor to announce the modulation level of an actuator (3EF0).
@@ -1163,7 +1163,7 @@ class Command(Frame):
             verb, _1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )
 
-    @classmethod  # constructor for I/1260  # TODO: trap corrupt temps?
+    @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
     @validate_api_params()
     def put_dhw_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an DHW sensor (1260).
@@ -1182,7 +1182,7 @@ class Command(Frame):
         payload = f"{dhw_idx}{temp_to_hex(temperature)}"
         return cls._from_attrs(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for I/0002  # TODO: trap corrupt temps?
+    @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
     @validate_api_params()
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an outdoor sensor (0002).
@@ -1199,7 +1199,7 @@ class Command(Frame):
         payload = f"00{temp_to_hex(temperature)}01"
         return cls._from_attrs(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for I/30C9  # TODO: trap corrupt temps?
+    @classmethod  # constructor for I|30C9  # TODO: trap corrupt temps?
     @validate_api_params()
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of a thermostat (3C09).
