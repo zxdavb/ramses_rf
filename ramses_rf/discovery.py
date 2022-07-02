@@ -120,10 +120,8 @@ SCAN_XXXX = "scan_xxxx"
 
 # DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
-QOS_DEFAULT = {"priority": Priority.LOW, "retries": 0}
-QOS_DEFAULT_HIGH = {"priority": Priority.HIGH, "retries": 3}
-QOS_DEFAULT_LOW = {"priority": Priority.LOW, "retries": 3}
-QOS_DEFAULT_SCAN = {"priority": Priority.LOW, "retries": 0, "disable_backoff": True}
+QOS_SCAN = {"priority": Priority.LOW, "retries": 0}
+QOS_HIGH = {"priority": Priority.HIGH, "retries": 3}
 
 DEV_MODE = __dev_mode__ and False
 
@@ -135,15 +133,33 @@ if DEV_MODE:
 def script_decorator(fnc):
     def wrapper(gwy, *args, **kwargs):
 
-        gwy.send_cmd(Command._puzzle(message="Script begins:", qos=QOS_DEFAULT_HIGH))
+        highest = {"priority": Priority.HIGHEST, "retries": 3, "disable_backoff": True}
+        gwy.send_cmd(Command._puzzle(message="Script begins:", qos=highest))
 
         result = fnc(gwy, *args, **kwargs)
 
-        gwy.send_cmd(Command._puzzle(message="Script done.", qos=QOS_DEFAULT_LOW))
+        lowest = {"priority": Priority.LOWEST, "retries": 3, "disable_backoff": True}
+        gwy.send_cmd(Command._puzzle(message="Script done.", qos=lowest))
 
         return result
 
     return wrapper
+
+
+async def periodic(gwy, cmd, count=1, interval=None):
+    async def _periodic():
+        await asyncio.sleep(interval)
+        gwy.send_cmd(cmd)
+
+    if interval is None:
+        interval = 0 if count == 1 else 60
+
+    if count <= 0:
+        while True:
+            await _periodic()
+    else:
+        for _ in range(count):
+            await _periodic()
 
 
 def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
@@ -176,29 +192,22 @@ def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
 
 async def exec_cmd(gwy, **kwargs):
 
-    # if not kwargs.get(EXEC_CMD):  # e.g. "RQ 01:145038 1F09 00"
-    #     _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
-    #     return
-
-    cmd = Command.from_cli(kwargs[EXEC_CMD], qos=QOS_DEFAULT_HIGH)
-
-    await gwy.async_send_cmd(cmd)
+    await gwy.async_send_cmd(Command.from_cli(kwargs[EXEC_CMD], qos=QOS_HIGH))
 
 
-async def periodic(gwy, cmd, count=1, interval=None):
-    async def _periodic():
-        await asyncio.sleep(interval)
-        gwy.send_cmd(cmd)
+# @script_decorator
+# async def script_scan_001(gwy, dev_id: str):
+#     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
+#     qos = {"priority": Priority.LOW, "retries": 3}
+#     for idx in range(0x10):
+#         gwy.send_cmd(_mk_cmd(W_, _000E, f"{idx:02X}0050", dev_id, **qos))
+#         gwy.send_cmd(_mk_cmd(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
 
-    if interval is None:
-        interval = 0 if count == 1 else 60
-
-    if count <= 0:
-        while True:
-            await _periodic()
-    else:
-        for _ in range(count):
-            await _periodic()
+# @script_decorator
+# async def script_scan_004(gwy, dev_id: str):
+#     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
+#     cmd = Command.get_dhw_mode(dev_id, **QOS_SCAN)
+#     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
 
 
 async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
@@ -245,7 +254,7 @@ def script_poll_device(gwy, dev_id) -> list:
     tasks = []
 
     for code in (_0016, _1FC9):
-        cmd = _mk_cmd(RQ, code, "00", dev_id, **QOS_DEFAULT)
+        cmd = _mk_cmd(RQ, code, "00", dev_id, qos=QOS_SCAN)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
@@ -279,14 +288,15 @@ async def script_scan_full(gwy, dev_id: str):
         elif code == _0016:
             continue
 
-        # elif code in (_01D0, _01E9):
-        #     for zone_idx in ("00", "01", "99", FC, FF):
-        #         gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, **qos))
-        #         gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, **qos))
+        elif code in (_01D0, _01E9):
+            for zone_idx in ("00", "01", "FC"):
+                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, **qos))
+                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, **qos))
 
         elif code == _0404:
-            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, 0, **qos))
-            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 0, 0, **qos))
+            # gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, 0, **qos))
+            # gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 0, 0, **qos))
+            pass
 
         elif code == _0418:
             for log_idx in range(2):
@@ -325,52 +335,9 @@ async def script_scan_full(gwy, dev_id: str):
 async def script_scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
-    # def callback(msg) -> None:
-    #     nonlocal code
-
-    #     if (code := code + 1) < 0x4000:
-    #         cmd = _mk_cmd(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN)
-    #         # gwy.msg_protocol.send_data(cmd, callback=callback)
-    #         gwy.send_cmd(cmd, callback=callback)
-
-    # code = 0x0000
-    # callback(None)
-
     for code in range(0x4000):
-        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN))
-        await asyncio.sleep(1)
-
-
-@script_decorator
-async def script_scan_001(gwy, dev_id: str):
-    _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
-
-    qos = {"priority": Priority.LOW, "retries": 3}
-    for idx in range(0x10):
-        gwy.send_cmd(_mk_cmd(W_, _000E, f"{idx:02X}0050", dev_id, **qos))
-        gwy.send_cmd(_mk_cmd(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
-
-
-@script_decorator
-async def script_scan_002(gwy, dev_id: str):
-    _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
-
-    # Two modes, I & W, and Two contexts, zz & zz00
-    message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
-
-    [
-        gwy.send_cmd(_mk_cmd(W_, f"{c:04X}", message, dev_id, **QOS_DEFAULT))
-        for c in range(0x4000)
-        if c not in CODES_SCHEMA
-    ]
-
-
-async def script_scan_004(gwy, dev_id: str):
-    _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
-
-    cmd = Command.get_dhw_mode(dev_id, **QOS_DEFAULT)
-
-    return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
+        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))
+        await asyncio.sleep(0.2)
 
 
 @script_decorator
@@ -387,7 +354,7 @@ async def script_scan_otb_hard(gwy, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     for msg_id in range(0x80):
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **QOS_DEFAULT_SCAN))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, qos=QOS_SCAN))
 
 
 @script_decorator
@@ -408,8 +375,8 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
-        gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, **QOS_DEFAULT))
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **QOS_DEFAULT))
+        gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, qos=QOS_SCAN))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, qos=QOS_SCAN))
 
 
 @script_decorator
@@ -448,7 +415,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
     #  - ch setpoint          /
     #  - max. rel. modulation /
 
-    [gwy.send_cmd(_mk_cmd(RQ, c, "00", dev_id, **QOS_DEFAULT)) for c in CODES]
+    [gwy.send_cmd(_mk_cmd(RQ, c, "00", dev_id, qos=QOS_SCAN)) for c in CODES]
 
 
 SCRIPTS = {
