@@ -132,6 +132,8 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
+STRICT_MODE = not DEV_MODE  # and False
+
 
 def _create_devices_from_addrs(gwy, this: Message) -> None:
     """Discover and create any new devices using the packet addresses (not payload)."""
@@ -203,7 +205,11 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
 
     if slug not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
         if msg.code != _10E0 and msg.code not in CODES_HVAC_ONLY:
-            raise InvalidPacketError(f"Unknown src type: {msg.src}")
+            err_msg = f"Unknown src type: {msg.dst}"
+            if STRICT_MODE:
+                raise InvalidPacketError(err_msg)
+            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            return
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
         return
 
@@ -215,7 +221,11 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # DEX_done
         if slug != DEV_TYPE.DEV:  # DEX_done
-            raise InvalidPacketError(f"Invalid code for {msg.src} to Tx: {msg.code}")
+            err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
+            if STRICT_MODE:
+                raise InvalidPacketError(err_msg)
+            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            return
         if msg.verb in (RQ, W_):
             return
         _LOGGER.warning(f"{msg!r} < Invalid code for {msg.src} to Tx: {msg.code}")
@@ -229,9 +239,10 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
     #
     # (code := CODES_BY_DEV_SLUG[slug][msg.code]) and msg.verb not in code:
     if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # DEX_done
-        raise InvalidPacketError(
-            f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
-        )
+        err_msg = f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
+        if STRICT_MODE:
+            raise InvalidPacketError(err_msg)
+        _LOGGER.warning(f"{msg!r} < {err_msg}")
 
 
 def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
@@ -251,7 +262,11 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 
     if slug not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in CODES_HVAC_ONLY:
-            raise InvalidPacketError(f"Unknown dst type: {msg.dst}")
+            err_msg = f"Unknown dst type: {msg.dst}"
+            if STRICT_MODE:
+                raise InvalidPacketError(err_msg)
+            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            return
         _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
         return
 
@@ -262,11 +277,17 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # NOTE: not OK for Rx, DEX_done
-        if slug != DEV_TYPE.HGI:  # NOTE: not yet needed because of 1st if, DEX_done
-            raise InvalidPacketError(f"Invalid code for {msg.dst} to Rx: {msg.code}")
+        if (
+            slug != DEV_TYPE.HGI and msg.src.type != "18c"
+        ):  # NOTE: not yet needed because of 1st if, DEX_done
+            err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
+            if STRICT_MODE:
+                raise InvalidPacketError(err_msg)
+            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            return
         if msg.verb == RP:
             return
-        _LOGGER.warning(f"{msg!r} < Invalid code for {msg.dst} to Tx: {msg.code}")
+        _LOGGER.warning(f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}")
         return
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
@@ -277,9 +298,10 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
     # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and verb not in code:
     if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # DEX_done
-        raise InvalidPacketError(
-            f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
-        )
+        err_msg = f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
+        if STRICT_MODE:
+            raise InvalidPacketError(err_msg)
+        _LOGGER.warning(f"{msg!r} < {err_msg}")
 
 
 def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
