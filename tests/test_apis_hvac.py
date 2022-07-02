@@ -8,40 +8,57 @@ Test the Command.put_*, Command.set_* APIs.
 
 from datetime import datetime as dt
 
-from ramses_rf.protocol.command import CODE_API_MAP
+from ramses_rf.protocol.command import CODE_API_MAP, Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
 from tests.common import gwy  # noqa: F401
 
 
-def _test_api_invert(gwy, api, pkt_line):  # noqa: F811
+def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+    """Test a verb|code pair that has a Command constructor."""
+
+    for pkt_line, kwargs in packets.items():
+        pkt = _create_pkt_from_frame(gwy, pkt_line)
+
+        msg = Message(gwy, pkt)
+
+        _test_api_from_kwargs(api, pkt, **kwargs)
+        _test_api_from_msg(api, msg)
+
+
+def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
+    """Create a pkt from a pkt_line and assert their frames match."""
+
     pkt = Packet.from_port(gwy, dt.now(), pkt_line)
-
     assert str(pkt) == pkt_line[4:]
+    return pkt
 
-    msg = Message(gwy, pkt)
+
+def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
+    """Create a cmd from a msg and assert they're equal (*also* asserts payload)."""
+
     cmd = api(
         msg.dst.id,
         src_id=msg.src.id,
         **{k: v for k, v in msg.payload.items() if k[:1] != "_"},
     )
 
-    assert cmd == pkt  # must have exact same addr set
+    assert cmd == msg._pkt  # must have exact same addr set
+
+    return cmd
 
 
-def _test_api_kwargs(api, pkt_line, **kwargs):
+def _test_api_from_kwargs(api, pkt, **kwargs):
     cmd = api(HRU, src_id=REM, **kwargs)
 
-    assert str(cmd) == pkt_line[4:]  # [4:] to exclude seqn
+    assert str(cmd) == str(pkt)
 
 
-def test_set_kwargs(gwy):  # noqa: F811
-    for test_set in (SET_22F1_KWARGS, SET_22F7_KWARGS):
-        for pkt, kwargs in test_set.items():
-            api = CODE_API_MAP[f"{pkt[4:6]}|{pkt[41:45]}"]
-
-            _test_api_kwargs(api, pkt, **kwargs)
-            _test_api_invert(gwy, api, pkt)
+def test_set(gwy):  # noqa: F811
+    for test_pkts in (SET_22F1_KWARGS, SET_22F7_KWARGS):
+        pkt = list(test_pkts)[0]
+        api = CODE_API_MAP[f"{pkt[4:6]}|{pkt[41:45]}"]
+        _test_api(gwy, api, test_pkts)
 
 
 HRU = "32:155617"
@@ -85,7 +102,7 @@ SET_22F7_KWARGS = {
     #
     f"001  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {"bypass_position": None},
     f"001  W --- {REM} {HRU} {NUL} 22F7 002 0000": {"bypass_position": 0.0},
-    # f"001  W --- {REM} {HRU} {NUL} 22F7 002 0064": {"bypass_position": 0.5},
+    # 001  W --- {REM} {HRU} {NUL} 22F7 002 0064": {"bypass_position": 0.5},
     f"001  W --- {REM} {HRU} {NUL} 22F7 002 00C8": {"bypass_position": 1.0},
     #
     f"002  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {"bypass_mode": None},

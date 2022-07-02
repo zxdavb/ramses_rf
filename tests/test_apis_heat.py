@@ -16,35 +16,39 @@ from ramses_rf.protocol.packet import Packet
 from tests.common import gwy  # noqa: F401
 
 
-def _test_api_line_pkt(gwy, pkt_line):  # noqa: F811
-    """Create pkt and assert matches pkt_line."""
+def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+    """Test a verb|code pair that has a Command constructor."""
+
+    for pkt_line in packets:
+        pkt = _create_pkt_from_frame(gwy, pkt_line)
+
+        msg = Message(gwy, pkt)
+
+        cmd = _test_api_from_msg(api, msg)
+        assert cmd.payload == msg._pkt.payload  # aka pkt.payload
+
+
+def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
+    """Create a pkt from a pkt_line and assert their frames match."""
+
     pkt = Packet.from_port(gwy, dt.now(), pkt_line)
     assert str(pkt) == pkt_line[4:]
     return pkt
 
 
-def _test_api_line_cmd(msg, api):  # noqa: F811
-    """Create cmd and assert matches pkt (NB: does not assert payload)."""
+def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
+    """Create a cmd from a msg and assert their meta-data (doesn't assert payload.)"""
+
     cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
     if msg.src.id == HGI_DEV_ADDR.id:
         assert cmd == msg._pkt  # assert str(cmd) == str(pkt)
-    else:  # wont have exact same addr set
-        assert cmd.dst.id == msg._pkt.dst.id
-        assert cmd.verb == msg._pkt.verb
-        assert cmd.code == msg._pkt.code
+    assert cmd.dst.id == msg._pkt.dst.id
+    assert cmd.verb == msg._pkt.verb
+    assert cmd.code == msg._pkt.code
+    # assert cmd.payload == pkt.payload
 
     return cmd
-
-
-def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
-    for pkt_line in packets:
-        pkt = _test_api_line_pkt(gwy, pkt_line)
-
-        msg = Message(gwy, pkt)
-
-        cmd = _test_api_line_cmd(msg, api)
-        assert cmd.payload == pkt.payload
 
 
 def test_put_30c9(gwy):  # noqa: F811
@@ -58,7 +62,7 @@ def test_put_3ef0(gwy):  # noqa: F811
 def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
     # _test_api(gwy, Command.put_actuator_cycle, PUT_3EF1_GOOD)
     for pkt_line in PUT_3EF1_GOOD:
-        pkt = _test_api_line_pkt(gwy, pkt_line)
+        pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
         kwargs = msg.payload
@@ -93,14 +97,14 @@ def test_set_000a(gwy):  # noqa: F811
 
 def test_get_0404(gwy):  # noqa: F811  # NOTE: bespoke: params
     for pkt_line in GET_0404_GOOD:
-        pkt = _test_api_line_pkt(gwy, pkt_line)
+        pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
         if msg.payload.pop("domain_id", None) == "FA":
             msg.payload["zone_idx"] = "FA"  # or: "HW"
 
-        cmd = _test_api_line_cmd(msg, Command.get_schedule_fragment)
-        assert cmd.payload == pkt.payload
+        cmd = _test_api_from_msg(Command.get_schedule_fragment, msg)
+        assert cmd.payload == msg._pkt.payload
 
 
 def test_set_1030(gwy):  # noqa: F811
@@ -113,13 +117,13 @@ def test_set_10a0(gwy):  # noqa: F811
 
 def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
     for pkt_line in SET_1100_GOOD:
-        pkt = _test_api_line_pkt(gwy, pkt_line)
+        pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
         msg.payload[SZ_DOMAIN_ID] = msg.payload.get(SZ_DOMAIN_ID, "00")
 
-        cmd = _test_api_line_cmd(msg, Command.set_tpi_params)
-        assert cmd.payload == pkt.payload
+        cmd = _test_api_from_msg(Command.set_tpi_params, msg)
+        assert cmd.payload == msg._pkt.payload
 
 
 def test_set_1f41(gwy):  # noqa: F811
@@ -146,9 +150,9 @@ def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
 
         msg = Message(gwy, pkt)
 
-        cmd = _test_api_line_cmd(msg, Command.set_system_time)
-        assert cmd.payload[:4] == pkt.payload[:4]
-        assert cmd.payload[6:] == pkt.payload[6:]
+        cmd = _test_api_from_msg(Command.set_system_time, msg)
+        assert cmd.payload[:4] == msg._pkt.payload[:4]
+        assert cmd.payload[6:] == msg._pkt.payload[6:]
 
 
 PUT_30C9_GOOD = (
