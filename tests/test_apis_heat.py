@@ -16,29 +16,35 @@ from ramses_rf.protocol.packet import Packet
 from tests.common import gwy  # noqa: F401
 
 
-def _test_api_line(gwy, api, pkt_line):  # noqa: F811
+def _test_api_line_pkt(gwy, pkt_line):  # noqa: F811
+    """Create pkt and assert matches pkt_line."""
     pkt = Packet.from_port(gwy, dt.now(), pkt_line)
-
     assert str(pkt) == pkt_line[4:]
+    return pkt
 
-    msg = Message(gwy, pkt)
+
+def _test_api_line_cmd(msg, api):  # noqa: F811
+    """Create cmd and assert matches pkt (NB: does not assert payload)."""
     cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
-    # assert cmd.src.id == pkt.src.id  # TODO:
-    assert cmd.dst.id == pkt.dst.id
-    assert cmd.verb == pkt.verb
-    assert cmd.code == pkt.code
-    assert cmd.payload == pkt.payload
+    if msg.src.id == HGI_DEV_ADDR.id:
+        assert cmd == msg._pkt  # assert str(cmd) == str(pkt)
+    else:  # wont have exact same addr set
+        assert cmd.dst.id == msg._pkt.dst.id
+        assert cmd.verb == msg._pkt.verb
+        assert cmd.code == msg._pkt.code
 
-    return pkt, msg, cmd
+    return cmd
 
 
 def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     for pkt_line in packets:
-        pkt, msg, cmd = _test_api_line(gwy, api, pkt_line)
+        pkt = _test_api_line_pkt(gwy, pkt_line)
 
-        if msg.src.id == HGI_DEV_ADDR.id:
-            assert cmd == pkt  # must have exact same addr set
+        msg = Message(gwy, pkt)
+
+        cmd = _test_api_line_cmd(msg, api)
+        assert cmd.payload == pkt.payload
 
 
 def test_put_30c9(gwy):  # noqa: F811
@@ -49,18 +55,16 @@ def test_put_3ef0(gwy):  # noqa: F811
     _test_api(gwy, Command.put_actuator_state, PUT_3EF0_GOOD)
 
 
-def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke
+def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
     # _test_api(gwy, Command.put_actuator_cycle, PUT_3EF1_GOOD)
     for pkt_line in PUT_3EF1_GOOD:
-        pkt = Packet.from_port(gwy, dt.now(), pkt_line)
-
-        assert str(pkt) == pkt_line[4:]
+        pkt = _test_api_line_pkt(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
-
         kwargs = msg.payload
         modulation_level = kwargs.pop("modulation_level")
         actuator_countdown = kwargs.pop("actuator_countdown")
+
         cmd = Command.put_actuator_cycle(
             msg.src.id,
             msg.dst.id,
@@ -69,13 +73,13 @@ def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke
             **{k: v for k, v in kwargs.items() if k[:1] != "_"}
         )
 
+        if msg.src.id != HGI_DEV_ADDR.id:
+            assert cmd.src.id == pkt.src.id
         assert cmd.dst.id == pkt.dst.id
         assert cmd.verb == pkt.verb
         assert cmd.code == pkt.code
-        assert cmd.payload[:-2] == pkt.payload[:-2]
 
-        if msg.src.id == HGI_DEV_ADDR.id:
-            assert cmd == pkt  # must have exact same addr set
+        assert cmd.payload[:-2] == pkt.payload[:-2]
 
 
 def test_set_0004(gwy):  # noqa: F811
@@ -87,6 +91,18 @@ def test_set_000a(gwy):  # noqa: F811
     _test_api(gwy, Command.set_zone_config, SET_000A_GOOD)
 
 
+def test_get_0404(gwy):  # noqa: F811  # NOTE: bespoke: params
+    for pkt_line in GET_0404_GOOD:
+        pkt = _test_api_line_pkt(gwy, pkt_line)
+
+        msg = Message(gwy, pkt)
+        if msg.payload.pop("domain_id", None) == "FA":
+            msg.payload["zone_idx"] = "FA"  # or: "HW"
+
+        cmd = _test_api_line_cmd(msg, Command.get_schedule_fragment)
+        assert cmd.payload == pkt.payload
+
+
 def test_set_1030(gwy):  # noqa: F811
     _test_api(gwy, Command.set_mix_valve_params, SET_1030_GOOD)
 
@@ -95,29 +111,15 @@ def test_set_10a0(gwy):  # noqa: F811
     _test_api(gwy, Command.set_dhw_params, SET_10A0_GOOD)
 
 
-def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke
-    # _test_api(gwy, Command.set_tpi_params, SET_1100_GOOD)
+def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
     for pkt_line in SET_1100_GOOD:
-        pkt = Packet.from_port(gwy, dt.now(), pkt_line)
-
-        assert str(pkt) == pkt_line[4:]
+        pkt = _test_api_line_pkt(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
+        msg.payload[SZ_DOMAIN_ID] = msg.payload.get(SZ_DOMAIN_ID, "00")
 
-        domain_id = msg.payload.pop(SZ_DOMAIN_ID, None)
-        cmd = Command.set_tpi_params(
-            msg.dst.id,
-            domain_id,
-            **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
-        )
-
-        assert cmd.dst.id == pkt.dst.id
-        assert cmd.verb == pkt.verb
-        assert cmd.code == pkt.code
-        assert cmd.payload, pkt.payload
-
-        if msg.src.id == HGI_DEV_ADDR.id:
-            assert cmd == pkt  # must have exact same addr set
+        cmd = _test_api_line_cmd(msg, Command.set_tpi_params)
+        assert cmd.payload == pkt.payload
 
 
 def test_set_1f41(gwy):  # noqa: F811
@@ -136,21 +138,15 @@ def test_set_2e04(gwy):  # noqa: F811
     _test_api(gwy, Command.set_system_mode, SET_2E04_GOOD)
 
 
-def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke
+def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
     for pkt_line in SET_313F_GOOD:
         pkt = Packet.from_port(gwy, dt.now(), pkt_line)
-
         assert str(pkt)[:4] == pkt_line[4:8]
         assert str(pkt)[6:] == pkt_line[10:]
 
         msg = Message(gwy, pkt)
 
-        cmd = Command.set_system_time(
-            msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
-        )
-
-        assert cmd.verb == pkt.verb
-        assert cmd.code == pkt.code
+        cmd = _test_api_line_cmd(msg, Command.set_system_time)
         assert cmd.payload[:4] == pkt.payload[:4]
         assert cmd.payload[6:] == pkt.payload[6:]
 
@@ -180,6 +176,13 @@ SET_000A_GOOD = (
     "...  W --- 18:000730 01:145038 --:------ 000A 006 010001F40DAC",
     "...  W --- 18:000730 01:145038 --:------ 000A 006 031001F409C4",
     "...  W --- 18:000730 01:145038 --:------ 000A 006 050201F40898",
+)
+GET_0404_GOOD = (
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 00230008000100",  # DHW
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000100",  # zone_idx: 02
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000204",
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000304",
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000404",
 )
 SET_1030_GOOD = (  # TODO: no W|1030 seen in the wild
     "...  W --- 18:000730 01:145038 --:------ 1030 016 01C80137C9010FCA0196CB010FCC0101",
