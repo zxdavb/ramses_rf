@@ -330,6 +330,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             msg.src is self.ctl
             and msg.code in (_0005, _000C, _10A0, _1260, _1F41)
             or msg.payload.get(SZ_DOMAIN_ID) in (F9, FA)
+            or msg.payload.get(SZ_ZONE_IDX) == "HW"
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -518,8 +519,6 @@ class Zone(ZoneSchedule, ZoneBase):
         self._sensor = None  # schema attr
         self.actuators = []  # schema attr
         self.actuator_by_id = {}  # schema attr
-
-        self._schedule = Schedule(self)  # param attr
 
     def _update_schema(self, *, append_actuators=True, **schema):
         """Update a heating zone with new schema attrs.

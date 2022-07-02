@@ -421,9 +421,9 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
-        RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # #     NOTE: idx can be 90 (HEAT)
-        I_: r"^((0[0-9A-F]|F[9ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
-        W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+        RP: r"^((0[0-9A-F]|F[69ABCF]|90)([0-9A-F]{10}))+$",  # #     NOTE: idx can be 90 (HEAT)
+        I_: r"^((0[0-9A-F]|F[69ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
+        W_: r"^((0[0-9A-F]|F[69ABCF])([0-9A-F]{10}))+$",
     },
     _1FCA: {  # unknown_1fca
         SZ_NAME: "message_1fca",
@@ -540,7 +540,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # 10:14:12.272 047  I --- 01:023389 --:------ 01:023389 2D49 003 01C800
         # 10:14:12.390 049  I --- 01:023389 --:------ 01:023389 2D49 003 880000
         # 10:14:12.399 048  I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
-        I_: r"^(0[0-9A-F]|88|FD)[0-9A-F]{2}00$",
+        I_: r"^(0[0-9A-F]|88|F6|FD)[0-9A-F]{2}(00||FF)$",
     },  # seen with Hometronic systems
     _2E04: {  # system_mode
         SZ_NAME: "system_mode",
@@ -926,6 +926,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _1100: {I_: {}, RP: {}},
         _11F0: {I_: {}},  # BDR91T in heatpump mode
         _1FC9: {RP: {}, W_: {}},
+        _2D49: {I_: {}},  # BDR91T in heatpump mode
         _3B00: {I_: {}},
         _3EF0: {I_: {}},
         # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00

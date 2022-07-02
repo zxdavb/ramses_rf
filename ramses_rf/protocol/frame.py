@@ -482,8 +482,8 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
             return FA
         return pkt.payload[:2]
 
-    if pkt.code == _0404:
-        return FA if pkt.payload[2:4] == "23" else pkt.payload[:2]
+    if pkt.code == _0404:  # assumes only 1 DHW zone (can be 2, but never seen)
+        return "HW" if pkt.payload[2:4] == "23" else pkt.payload[:2]
 
     if pkt.code == _0418:  # log_idx (payload[4:6])
         return pkt.payload[4:6]

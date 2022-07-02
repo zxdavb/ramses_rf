@@ -104,6 +104,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F6,
     F8,
     F9,
     FA,
@@ -542,14 +543,17 @@ def parser_0404(payload, msg) -> Optional[dict]:
         return {
             SZ_FRAG_NUMBER: int(seqx[10:12], 16),
             SZ_TOTAL_FRAGS: int(seqx[12:], 16),
-            SZ_FRAG_LENGTH: int(seqx[8:10], 16),
         }
 
     if msg.verb == RQ:  # RQs have a context: index|fragment_idx
         return _context(payload)
 
+    if int(payload[8:10], 16) * 2 != len(payload[14:]):
+        raise InvalidPayloadError(f"Incorrect fragment length: {payload[8:10]}")
+
     return {
         **_context(payload[:14]),
+        SZ_FRAG_LENGTH: int(payload[8:10], 16),
         SZ_FRAGMENT: payload[14:],
     }
 
@@ -1094,11 +1098,12 @@ def parser_1f41(payload, msg) -> Optional[dict]:
         payload[6:12] == "FFFFFF"
     ), f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
 
-    result = {
-        "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
-        SZ_MODE: ZON_MODE_MAP.get(payload[4:6]),
-    }
-    if payload[4:6] == ZON_MODE_MAP.TEMPORARY:  # temporary_override
+    result = {SZ_MODE: ZON_MODE_MAP.get(payload[4:6])}
+    if payload[4:6] != ZON_MODE_MAP.FOLLOW:
+        result["active"] = {"00": False, "01": True, "FF": None}[payload[2:4]]
+    # if payload[4:6] == ZON_MODE_MAP.COUNTDOWN:
+    #     result[SZ_UNTIL] = dtm_from_hex(payload[6:12])
+    if payload[4:6] == ZON_MODE_MAP.TEMPORARY:
         result[SZ_UNTIL] = dtm_from_hex(payload[12:24])
 
     return result
@@ -1138,6 +1143,8 @@ def parser_1F70(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> list:
+    #  I --- 01:145038 --:------ 01:145038 1FC9 012 F6-2D49-06368E F6-1FC9-06368E
+
     #  I is missing?
     #  W --- 10:048122 01:145038 --:------ 1FC9 006 003EF028BBFA
     #  I --- 01:145038 10:048122 --:------ 1FC9 006 00FFFF06368E
@@ -1177,6 +1184,7 @@ def parser_1fc9(payload, msg) -> list:
             "67",
             "6C",
             "90",
+            F6,
             F9,
             FA,
             FB,
@@ -1629,13 +1637,13 @@ def parser_2420(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # _state (of unknown), from hometronics controller
+@parser_decorator  # _state (of cooling?), from BDR91T, hometronics CTL
 def parser_2d49(payload, msg) -> dict:
 
-    assert payload[2:] in ("0000", "C800"), _INFORM_DEV_MSG
+    assert payload[2:] in ("0000", "00FF", "C800", "C8FF"), _INFORM_DEV_MSG
 
     return {
-        "_state": bool_from_hex(payload[2:4]),
+        "state": bool_from_hex(payload[2:4]),
     }
 
 

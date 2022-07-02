@@ -9,6 +9,7 @@ Test the Command.put_*, Command.set_* APIs.
 from datetime import datetime as dt
 
 from ramses_rf.const import SZ_DOMAIN_ID
+from ramses_rf.helpers import shrink
 from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
@@ -27,8 +28,8 @@ def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
         cmd = _test_api_from_msg(api, msg)
         assert cmd.payload == msg._pkt.payload  # aka pkt.payload
 
-        if isinstance(packets, dict):
-            assert msg.payload == eval(packets[pkt_line])
+        if isinstance(packets, dict) and (payload := packets[pkt_line]):
+            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
 def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
@@ -77,7 +78,7 @@ def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
             msg.dst.id,
             modulation_level,
             actuator_countdown,
-            **{k: v for k, v in kwargs.items() if k[:1] != "_"}
+            **{k: v for k, v in kwargs.items() if k[:1] != "_"},
         )
 
         if msg.src.id != HGI_DEV_ADDR.id:
@@ -108,6 +109,9 @@ def test_get_0404(gwy):  # noqa: F811  # NOTE: bespoke: params
 
         cmd = _test_api_from_msg(Command.get_schedule_fragment, msg)
         assert cmd.payload == msg._pkt.payload
+
+        if isinstance(GET_0404_GOOD, dict) and (payload := GET_0404_GOOD[pkt_line]):
+            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
 def test_set_1030(gwy):  # noqa: F811
@@ -184,20 +188,27 @@ SET_000A_GOOD = (
     "...  W --- 18:000730 01:145038 --:------ 000A 006 031001F409C4",
     "...  W --- 18:000730 01:145038 --:------ 000A 006 050201F40898",
 )
-GET_0404_GOOD = (
-    "... RQ --- 18:000730 01:076010 --:------ 0404 007 00230008000100",  # DHW
-    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000100",  # zone_idx: 02
-    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000204",
-    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000304",
-    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000404",
-)
-SET_1030_GOOD = (  # TODO: no W|1030 seen in the wild
-    "...  W --- 18:000730 01:145038 --:------ 1030 016 01C80137C9010FCA0196CB010FCC0101",
-)
-SET_10A0_GOOD = (  # TODO: no W|10A0 seen in the wild
-    "...  W --- 01:123456 07:031785 --:------ 10A0 006 0015180001F4",
-    "...  W --- 01:123456 07:031785 --:------ 10A0 006 0015180001F4",
-)
+GET_0404_GOOD = {
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 00230008000100": "{'zone_idx': 'HW', 'frag_number': 1, 'total_frags': 0}",
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000100": "{'zone_idx': '02', 'frag_number': 1, 'total_frags': 0}",
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000204": "{'zone_idx': '02', 'frag_number': 2, 'total_frags': 4}",
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000304": "{'zone_idx': '02', 'frag_number': 3, 'total_frags': 4}",
+    "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000404": "{'zone_idx': '02', 'frag_number': 4, 'total_frags': 4}",
+}
+SET_1030_GOOD = {  # NOTE: no W|1030 seen in the wild
+    "...  W --- 18:000730 01:145038 --:------ 1030 016 01C80137C9010FCA0196CB010FCC0101": "{'zone_idx': '01', 'max_flow_setpoint': 55, 'min_flow_setpoint': 15, 'valve_run_time': 150, 'pump_run_time': 15}",
+}
+SET_10A0_GOOD = {  # NOTE: no W|10A0 seen in the wild
+    "000  W --- 01:123456 07:031785 --:------ 10A0 006 000F6E050064": "{'dhw_idx': '00', 'setpoint': 39.5, 'overrun': 5, 'differential':  1.0}",
+    "000  W --- 01:123456 07:031785 --:------ 10A0 006 000F6E0003E8": "{'dhw_idx': '00', 'setpoint': 39.5, 'overrun': 0, 'differential': 10.0}",
+    "000  W --- 01:123456 07:031785 --:------ 10A0 006 0015180301F4": "{'dhw_idx': '00', 'setpoint': 54.0, 'overrun': 3, 'differential':  5.0}",
+    "000  W --- 01:123456 07:031785 --:------ 10A0 006 0013240003E8": "{'dhw_idx': '00', 'setpoint': 49.0, 'overrun': 0, 'differential': 10.0}",
+    #
+    "001  W --- 01:123456 07:031785 --:------ 10A0 006 010F6E050064": "{'dhw_idx': '01', 'setpoint': 39.5, 'overrun': 5, 'differential':  1.0}",
+    "001  W --- 01:123456 07:031785 --:------ 10A0 006 010F6E0003E8": "{'dhw_idx': '01', 'setpoint': 39.5, 'overrun': 0, 'differential': 10.0}",
+    "001  W --- 01:123456 07:031785 --:------ 10A0 006 0115180301F4": "{'dhw_idx': '01', 'setpoint': 54.0, 'overrun': 3, 'differential':  5.0}",
+    "001  W --- 01:123456 07:031785 --:------ 10A0 006 0113240003E8": "{'dhw_idx': '01', 'setpoint': 49.0, 'overrun': 0, 'differential': 10.0}",
+}
 SET_1100_FAIL = (
     "...  W --- 01:145038 13:163733 --:------ 1100 008 000C1400007FFF01",  # no domain_id
 )

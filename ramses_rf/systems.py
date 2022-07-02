@@ -1022,6 +1022,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             not isinstance(msg.payload, dict)
             or msg.payload.get(SZ_DHW_IDX) is None
             and msg.payload.get(SZ_DOMAIN_ID) not in (F9, FA)
+            and msg.payload.get(SZ_ZONE_IDX) != "HW"
         ):  # _0008, _000C, _0404, _10A0, _1260, _1F41
             return
 

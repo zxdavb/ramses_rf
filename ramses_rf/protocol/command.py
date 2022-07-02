@@ -594,7 +594,7 @@ class Command(Frame):
         cls,
         ctl_id: str,
         *,
-        mode=None,
+        mode: int = None,
         active: bool = None,
         until=None,
         duration: int = None,
@@ -604,9 +604,12 @@ class Command(Frame):
 
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
 
-        mode = _normalise_mode(
-            int(mode) if isinstance(mode, bool) else mode, active, until, duration
-        )
+        mode = mode or 0
+        mode = f"{mode:02X}" if isinstance(mode, int) else mode
+        mode = _normalise_mode(mode, active, until, duration)
+
+        if mode == ZON_MODE_MAP.FOLLOW:
+            active = None
 
         if active is not None and not isinstance(active, (bool, int)):
             raise TypeError(f"Invalid args: active={active}, but must be an bool")
@@ -616,7 +619,7 @@ class Command(Frame):
         payload = "".join(
             (
                 dhw_idx,
-                "01" if bool(active) else "00",
+                "FF" if active is None else "01" if bool(active) else "00",
                 mode,
                 "FFFFFF" if duration is None else f"{duration:06X}",
                 "" if until is None else dtm_to_hex(until),

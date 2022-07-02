@@ -474,9 +474,10 @@ DEVICE_ID_REGEX = SimpleNamespace(
 )
 
 # Domains
-F8, F9, FA, FB, FC, FD, FE, FF = (f"{x:02X}" for x in range(0xF8, 0x100))
+F6, F7, F8, F9, FA, FB, FC, FD, FE, FF = (f"{x:02X}" for x in range(0xF6, 0x100))
 
 DOMAIN_TYPE_MAP = {
+    F6: "cooling_valve",  # cooling
     F8: None,
     F9: DEV_ROLE_MAP[DEV_ROLE.HT1],  # Heating Valve
     FA: DEV_ROLE_MAP[DEV_ROLE.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
