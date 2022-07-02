@@ -20,12 +20,16 @@ def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
+        pkt_line = pkt_line.split("#")[0].rstrip()
         pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
 
         cmd = _test_api_from_msg(api, msg)
         assert cmd.payload == msg._pkt.payload  # aka pkt.payload
+
+        if isinstance(packets, dict):
+            assert msg.payload == packets[pkt_line]
 
 
 def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
@@ -37,7 +41,7 @@ def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
 
 
 def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
-    """Create a cmd from a msg and assert their meta-data (doesn't assert payload.)"""
+    """Create a cmd from a msg and assert their meta-data (doesn't assert payload.)."""
 
     cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
@@ -210,11 +214,59 @@ SET_1100_GOOD = (
     "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C14007FFF01",  # cycle_rate 2
     "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C00007FFF01",  # cycle_rate 2
 )
-SET_1F41_GOOD = (
-    "...  W --- 18:000730 01:050858 --:------ 1F41 012 000104FFFFFF0509160607E5",
-    "...  W --- 18:000730 01:050858 --:------ 1F41 006 000000FFFFFF",
-    "...  W --- 18:000730 01:050858 --:------ 1F41 012 000104FFFFFF2F0E0D0B07E5",
-    "...  W --- 18:000730 01:050858 --:------ 1F41 012 000104FFFFFF19100D0B07E5",
+SET_1F41_GOOD = {
+    # "000  W --- 18:000730 01:050858 --:------ 1F41 006 000000FFFFFF": {"dhw_idx": "00", "mode": "follow_schedule"},
+    # "000  W --- 18:000730 01:050858 --:------ 1F41 006 000100FFFFFF": {'dhw_idx': '00', 'mode': 'follow_schedule'},
+    "000  W --- 18:000730 01:050858 --:------ 1F41 006 00FF00FFFFFF": {
+        "dhw_idx": "00",
+        "mode": "follow_schedule",
+    },
+    "000  W --- 18:000730 01:050858 --:------ 1F41 006 000102FFFFFF": {
+        "dhw_idx": "00",
+        "active": 1,
+        "mode": "permanent_override",
+    },
+    "000  W --- 18:000730 01:050858 --:------ 1F41 012 000004FFFFFF0509160607E5": {
+        "dhw_idx": "00",
+        "active": 0,
+        "mode": "temporary_override",
+        "until": "2021-06-22T09:05:00",
+    },
+    "000  W --- 18:000730 01:050858 --:------ 1F41 012 000104FFFFFF2F0E0D0B07E5": {
+        "dhw_idx": "00",
+        "active": 1,
+        "mode": "temporary_override",
+        "until": "2021-11-13T14:47:00",
+    },
+    #
+    # "001  W --- 18:000730 01:050858 --:------ 1F41 006 010000FFFFFF": {'dhw_idx': '01', 'mode': 'follow_schedule'},
+    # "001  W --- 18:000730 01:050858 --:------ 1F41 006 010100FFFFFF": {'dhw_idx': '01', 'mode': 'follow_schedule'},
+    "001  W --- 18:000730 01:050858 --:------ 1F41 006 01FF00FFFFFF": {
+        "dhw_idx": "01",
+        "mode": "follow_schedule",
+    },
+    "001  W --- 18:000730 01:050858 --:------ 1F41 006 010102FFFFFF": {
+        "dhw_idx": "01",
+        "active": 1,
+        "mode": "permanent_override",
+    },
+    "001  W --- 18:000730 01:050858 --:------ 1F41 012 010004FFFFFF0509160607E5": {
+        "dhw_idx": "01",
+        "active": 0,
+        "mode": "temporary_override",
+        "until": "2021-06-22T09:05:00",
+    },
+    "001  W --- 18:000730 01:050858 --:------ 1F41 012 010104FFFFFF2F0E0D0B07E5": {
+        "dhw_idx": "01",
+        "active": 1,
+        "mode": "temporary_override",
+        "until": "2021-11-13T14:47:00",
+    },
+}  # TODO: add other modes
+SET_1F41_FAIL = (
+    "000  W --- 18:000730 01:050858 --:------ 1F41 006 020000FFFFFF",  # dhw_idx = 02
+    "000  W --- 18:000730 01:050858 --:------ 1F41 006 000005FFFFFF",  # zone_mode = 05
+    "000  W --- 18:000730 01:050858 --:------ 1F41 006 000005FFFFFF",  # zone_mode = 05
 )
 SET_2309_FAIL = (
     "...  W --- 18:000730 01:145038 --:------ 2309 003 017FFF",  # temp is None - should be good?
