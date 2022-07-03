@@ -52,8 +52,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _1098,
     _10A0,
     _10B0,
+    _10D0,
     _10E0,
     _10E1,
+    _10E2,
     _1100,
     _11F0,
     _1260,
@@ -66,24 +68,36 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _12C8,
     _12F0,
     _1300,
+    _1470,
     _1F09,
     _1F41,
+    _1F70,
     _1FC9,
     _1FCA,
     _1FD0,
     _1FD4,
+    _2210,
     _2249,
     _22C9,
     _22D0,
     _22D9,
+    _22E0,
+    _22E5,
+    _22E9,
     _22F1,
+    _22F2,
     _22F3,
+    _22F4,
+    _22F7,
+    _22F8,
+    _22B0,
     _2309,
     _2349,
     _2389,
     _2400,
     _2401,
     _2410,
+    _2411,
     _2420,
     _2D49,
     _2E04,
@@ -91,6 +105,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _30C9,
     _3110,
     _3120,
+    _313E,
     _313F,
     _3150,
     _31D9,
@@ -100,10 +115,12 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _3210,
     _3220,
     _3221,
+    _3222,
     _3223,
     _3B00,
     _3EF0,
     _3EF1,
+    _4401,
     _PUZZ,
 )
 
@@ -337,6 +354,54 @@ async def script_scan_hard(gwy, dev_id: str):
     for code in range(0x4000):
         gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))
         await asyncio.sleep(0.2)
+
+
+@script_decorator
+async def script_scan_fan(gwy, dev_id: str):
+    _LOGGER.warning("scan_fan() invoked - expect a lot of nonsense")
+    qos = {"priority": Priority.LOW, "retries": 3}
+
+    from ramses_rf.protocol.ramses import _DEV_KLASSES_HVAC
+
+    OUT_CODES = (
+        _0016,
+        _1470,
+    )
+
+    OLD_CODES = dict.fromkeys(
+        c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in OUT_CODES
+    )
+    for code in OLD_CODES:
+        gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, qos=qos))
+
+    NEW_CODES = (
+        _0150,
+        _042F,
+        _1030,
+        _10D0,
+        _10E1,
+        _2210,
+        _22B0,
+        _22E0,
+        _22E5,
+        _22E9,
+        _22F1,
+        _22F2,
+        _22F3,
+        _22F4,
+        _22F7,
+        _22F8,
+        _2400,
+        _2410,
+        _2420,
+        _313E,
+        _3221,
+        _3222,
+    )
+
+    for code in NEW_CODES:
+        if code not in OLD_CODES and code not in OUT_CODES:
+            gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, qos=qos))
 
 
 @script_decorator
