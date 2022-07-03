@@ -180,20 +180,38 @@ def parser_0001(payload, msg) -> Optional[dict]:
     # W/--:/--:/12:/00-0000-0501 = Test transmit
     # W/--:/--:/12:/00-0000-0505 = Field strength
 
-    assert payload[:2] == "00"
-    assert payload[2:4] in ("20", "80", "A0")
-    assert payload[4:6] == "00"
-    assert payload[8:10] in ("00", "04", "10", "20", "FF"), payload[8:10]
+    if payload[2:6] in ("2000", "8000", "A000"):
+        mode = "hvac"
+    if payload[2:6] in ("0000", "FFFF"):
+        mode = "heat"
+    else:
+        mode = "heat"
 
-    result = {"slot_num": payload[6:8]}
-    if msg.len >= 6:
-        result.update({"param_num": payload[10:12]})
-    if msg.len >= 7:
-        result.update({"next_slot_num": payload[12:14]})
-    if msg.len >= 8:
-        result.update({"boolean_14": bool(int(payload[14:16]))})
+    if mode == "hvac":
+        assert payload[:2] == "00", payload[:2]
+        # assert payload[2:4] in ("20", "80", "A0"), payload[2:4]
+        # assert payload[4:6] == "00", payload[4:6]
+        assert payload[8:10] in ("00", "04", "10", "20", "FF"), payload[8:10]
 
-    return result
+        result = {"payload": payload, "slot_num": payload[6:8]}
+        if msg.len >= 6:
+            result.update({"param_num": payload[10:12]})
+        if msg.len >= 7:
+            result.update({"next_slot_num": payload[12:14]})
+        if msg.len >= 8:
+            result.update(
+                {
+                    "boolean_14": None
+                    if payload[14:16] == "FF"
+                    else bool(int(payload[14:16]))
+                }
+            )
+        return result
+
+    assert payload[:2] in ("00",), payload[:2]
+    assert payload[2:6] in ("0000", "FFFF"), payload[2:6]
+    assert payload[8:10] in ("00", "02", "05"), payload[8:10]
+
     return {
         SZ_PAYLOAD: "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
     }
