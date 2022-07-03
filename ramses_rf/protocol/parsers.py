@@ -1631,15 +1631,18 @@ def parser_2411(payload, msg) -> Optional[dict]:
     # RQ --- 37:171871 32:155617 --:------ 2411 003 00004E            # 11th menu option (i.e. 0x0A)
     # RP --- 32:155617 37:171871 --:------ 2411 023 00004E460000000001000000000000000100000001A600
 
-    def counter(x):
+    def counter(x) -> int:
         return int(x, 16)
+
+    def centile(x) -> float:
+        return int(x, 16) / 10
 
     _2411_DATA_TYPES = {
         "00": (2, counter),  # 4E (0-1), 54 (15-60)
-        "01": (2, counter),  # 52 (0-250) PIR ?should be percent
-        "0F": (2, percent),  # xx (0.0-1.0)
-        "10": (4, counter),  # 31 (0-1800)
-        "92": (4, temp_from_hex),  # 75 (0-30)
+        "01": (2, centile),  # 52 (0.0-25.0) (%)
+        "0F": (2, percent),  # xx (0.0-1.0) (%)
+        "10": (4, counter),  # 31 (0-1800) (days)
+        "92": (4, temp_from_hex),  # 75 (0-30) (C)
     }  # TODO: _2411_TYPES.get(payload[8:10], (8, no_op))
 
     assert (

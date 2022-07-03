@@ -1221,10 +1221,10 @@ _2411_PARAMS_SCHEMA = {  # unclear if true for only Orcon/*all* models
         SZ_DATA_TYPE: "00",
     },
     "52": {  # slot 0B
-        SZ_DESCRIPTION: "Sensor sensitivity (%?)",
+        SZ_DESCRIPTION: "Sensor sensitivity (%)",
         SZ_MIN_VALUE: 0,
-        SZ_MAX_VALUE: 250,
-        SZ_PRECISION: 1,
+        SZ_MAX_VALUE: 25.0,
+        SZ_PRECISION: 0.1,
         SZ_DATA_TYPE: "0F",
     },
     "54": {  # slot 0C
