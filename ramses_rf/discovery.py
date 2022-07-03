@@ -200,8 +200,8 @@ async def exec_cmd(gwy, **kwargs):
 #     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 #     qos = {"priority": Priority.LOW, "retries": 3}
 #     for idx in range(0x10):
-#         gwy.send_cmd(_mk_cmd(W_, _000E, f"{idx:02X}0050", dev_id, **qos))
-#         gwy.send_cmd(_mk_cmd(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
+#         gwy.send_cmd(_mk_cmd(W_, _000E, f"{idx:02X}0050", dev_id, qos=qos))
+#         gwy.send_cmd(_mk_cmd(RQ, _000E, f"{idx:02X}00C8", dev_id, qos=qos))
 
 # @script_decorator
 # async def script_scan_004(gwy, dev_id: str):
@@ -273,44 +273,43 @@ async def script_scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     qos = {"priority": Priority.DEFAULT, "retries": 5}
-    gwy.send_cmd(_mk_cmd(RQ, _0016, "0000", dev_id, **qos))
+    gwy.send_cmd(_mk_cmd(RQ, _0016, "0000", dev_id, qos=qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(CODES_SCHEMA):
         if code == _0005:
             for zone_type in range(20):  # known up to 18
-                gwy.send_cmd(_mk_cmd(RQ, code, f"00{zone_type:02X}", dev_id, **qos))
+                gwy.send_cmd(_mk_cmd(RQ, code, f"00{zone_type:02X}", dev_id, qos=qos))
 
         elif code == _000C:
             for zone_idx in range(16):  # also: FA-FF?
-                gwy.send_cmd(_mk_cmd(RQ, code, f"{zone_idx:02X}00", dev_id, **qos))
+                gwy.send_cmd(_mk_cmd(RQ, code, f"{zone_idx:02X}00", dev_id, qos=qos))
 
         elif code == _0016:
             continue
 
         elif code in (_01D0, _01E9):
             for zone_idx in ("00", "01", "FC"):
-                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, **qos))
-                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, **qos))
+                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, qos=qos))
+                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, qos=qos))
 
-        elif code == _0404:
-            # gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, 0, **qos))
-            # gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 0, 0, **qos))
-            pass
+        elif code == _0404:  # FIXME
+            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 1, 0, qos=qos))
+            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 1, 0, qos=qos))
 
         elif code == _0418:
             for log_idx in range(2):
-                gwy.send_cmd(Command.get_system_log_entry(dev_id, log_idx, **qos))
+                gwy.send_cmd(Command.get_system_log_entry(dev_id, log_idx, qos=qos))
 
         elif code == _1100:
-            gwy.send_cmd(Command.get_tpi_params(dev_id, **qos))
+            gwy.send_cmd(Command.get_tpi_params(dev_id, qos=qos))
 
         elif code == _2E04:
-            gwy.send_cmd(Command.get_system_mode(dev_id, **qos))
+            gwy.send_cmd(Command.get_system_mode(dev_id, qos=qos))
 
         elif code == _3220:
             for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
-                gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, **qos))
+                gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, qos=qos))
 
         elif code == _PUZZ:
             continue
@@ -320,15 +319,15 @@ async def script_scan_full(gwy, dev_id: str):
             and RQ in CODES_SCHEMA[code]
             and re.match(CODES_SCHEMA[code][RQ], "00")
         ):
-            gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, **qos))
+            gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, qos=qos))
 
         else:
-            gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, **qos))
+            gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, qos=qos))
 
     # these are possible/difficult codes
     qos = {"priority": Priority.DEFAULT, "retries": 2}
     for code in (_0150, _2389):
-        gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, **qos))
+        gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, qos=qos))
 
 
 @script_decorator
@@ -346,7 +345,7 @@ async def script_scan_otb(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 1}
     for msg_id in OTB_MSG_IDS:
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, qos=qos))
 
 
 @script_decorator
