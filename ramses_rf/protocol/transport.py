@@ -906,11 +906,13 @@ class PacketProtocolQos(PacketProtocolPort):
         if self._qos_cmd:
             if pkt._hdr == self._qos_cmd.tx_header:
                 if self._tx_rcvd:
-                    _LOGGER.error(f"already seen tx_rcvd, rx_rcvd={self._rx_rcvd}")
+                    err = f"have seen tx_rcvd({self._tx_rcvd}), rx_rcvd={self._rx_rcvd}"
+                    _LOGGER.error(err)
                 self._tx_rcvd = pkt
-            if pkt._hdr == self._qos_cmd.rx_header:
+            elif pkt._hdr == self._qos_cmd.rx_header:
                 if self._rx_rcvd:
-                    _LOGGER.error(f"already seen rx_rcvd, tx_rcvd={self._tx_rcvd}")
+                    err = f"have seen rx_rcvd({self._rx_rcvd}), tx_rcvd={self._tx_rcvd}"
+                    _LOGGER.error(err)
                 self._rx_rcvd = pkt
 
         super()._pkt_received(pkt)
