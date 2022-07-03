@@ -656,10 +656,16 @@ def parser_0b04(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # mixvalve_config (zone), NB: mixvalves are listen-only
 def parser_1030(payload, msg) -> Optional[dict]:
+    #  I --- 01:145038 --:------ 01:145038 1030 016 0A-C80137-C9010F-CA0196-CB0100-CC0101
+    #  I --- --:------ --:------ 12:144017 1030 016 01-C80137-C9010F-CA0196-CB010F-CC0101
+    # RP --- 32:155617 18:005904 --:------ 1030 007 00-200100-21011F
+
     def _parser(seqx) -> dict:
         assert seqx[2:4] == "01", seqx[2:4]
 
         param_name = {
+            "20": "unknown_20",  # HVAC
+            "21": "unknown_21",  # HVAC
             "C8": "max_flow_setpoint",  # 55 (0-99) C
             "C9": "min_flow_setpoint",  # 15 (0-50) C
             "CA": "valve_run_time",  # 150 (0-240) sec, aka actuator_run_time
@@ -669,7 +675,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
 
         return {param_name: int(seqx[4:], 16)}
 
-    assert msg.len == 1 + 5 * 3, msg.len
+    assert (msg.len - 1) / 3 in (2, 5), msg.len
     assert payload[30:] in ("00", "01"), payload[30:]
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
@@ -1565,10 +1571,15 @@ def parser_2401(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_2410, from OTB
+@parser_decorator  # unknown_2410, from OTB, FAN
 def parser_2410(payload, msg) -> Optional[dict]:
+    # RP --- 10:048122 18:006402 --:------ 2410 020 000000-0000-00000000-00000001-00000001-00-000C  # OTB
+    # RP --- 32:155617 18:005904 --:------ 2410 020 000000-3EE8-00000000-FFFFFFFF-00000000-10-02A6  # Orcon Fan
 
-    assert payload == "00" * 12 + "010000000100000C", _INFORM_DEV_MSG
+    assert payload[:6] == "00" * 3, _INFORM_DEV_MSG
+    assert payload[10:18] == "00" * 4, _INFORM_DEV_MSG
+    assert payload[18:26] in ("00000001", "FFFFFFFF"), _INFORM_DEV_MSG
+    assert payload[26:34] in ("00000001", "00000000"), _INFORM_DEV_MSG
 
     return {
         SZ_PAYLOAD: payload,
