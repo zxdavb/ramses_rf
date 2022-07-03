@@ -1232,7 +1232,7 @@ class Command(Frame):
 
         assert msg_type in LOOKUP_PUZZ, "Invalid/deprecated Puzzle type"
 
-        qos = kwargs.get("qos")
+        qos = kwargs.get("qos", {})
         qos["priority"] = qos.get("priority", Priority.HIGHEST)
         if msg_type == "10":
             qos["disable_backoff"] = qos.get("disable_backoff", True)
