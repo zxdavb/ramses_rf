@@ -55,41 +55,6 @@ def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
     return cmd
 
 
-def test_put_30c9(gwy):  # noqa: F811
-    _test_api(gwy, Command.put_sensor_temp, PUT_30C9_GOOD)
-
-
-def test_put_3ef0(gwy):  # noqa: F811
-    _test_api(gwy, Command.put_actuator_state, PUT_3EF0_GOOD)
-
-
-def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
-    # _test_api(gwy, Command.put_actuator_cycle, PUT_3EF1_GOOD)
-    for pkt_line in PUT_3EF1_GOOD:
-        pkt = _create_pkt_from_frame(gwy, pkt_line)
-
-        msg = Message(gwy, pkt)
-        kwargs = msg.payload
-        modulation_level = kwargs.pop("modulation_level")
-        actuator_countdown = kwargs.pop("actuator_countdown")
-
-        cmd = Command.put_actuator_cycle(
-            msg.src.id,
-            msg.dst.id,
-            modulation_level,
-            actuator_countdown,
-            **{k: v for k, v in kwargs.items() if k[:1] != "_"},
-        )
-
-        if msg.src.id != HGI_DEV_ADDR.id:
-            assert cmd.src.id == pkt.src.id
-        assert cmd.dst.id == pkt.dst.id
-        assert cmd.verb == pkt.verb
-        assert cmd.code == pkt.code
-
-        assert cmd.payload[:-2] == pkt.payload[:-2]
-
-
 def test_set_0004(gwy):  # noqa: F811
     # assert str_from_hex(cmd.payload[4:]) == msg.payload["name"]
     _test_api(gwy, Command.set_zone_name, SET_0004_GOOD)
@@ -132,6 +97,9 @@ def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
         cmd = _test_api_from_msg(Command.set_tpi_params, msg)
         assert cmd.payload == msg._pkt.payload
 
+        if isinstance(SET_1100_GOOD, dict) and (payload := SET_1100_GOOD[pkt_line]):
+            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
+
 
 def test_set_1f41(gwy):  # noqa: F811
     _test_api(gwy, Command.set_dhw_mode, SET_1F41_GOOD)
@@ -162,19 +130,41 @@ def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
         assert cmd.payload[6:] == msg._pkt.payload[6:]
 
 
-PUT_30C9_GOOD = (
-    "...  I --- 03:123456 --:------ 03:123456 30C9 003 0007C1",
-    "...  I --- 03:123456 --:------ 03:123456 30C9 003 007FFF",
-)
-PUT_3EF0_FAIL = ("...  I --- 13:123456 --:------ 13:123456 3EF0 003 00AAFF",)
-PUT_3EF0_GOOD = (
-    "...  I --- 13:123456 --:------ 13:123456 3EF0 003 0000FF",
-    "...  I --- 13:123456 --:------ 13:123456 3EF0 003 00C8FF",
-)
-PUT_3EF1_GOOD = (  # TODO: needs checking
-    "... RP --- 13:123456 01:123456 --:------ 3EF1 007 000126012600FF",
-    "... RP --- 13:123456 18:123456 --:------ 3EF1 007 007FFF003C0010",  # NOTE: should be: RP|10|3EF1
-)
+def test_put_30c9(gwy):  # noqa: F811
+    _test_api(gwy, Command.put_sensor_temp, PUT_30C9_GOOD)
+
+
+def test_put_3ef0(gwy):  # noqa: F811
+    _test_api(gwy, Command.put_actuator_state, PUT_3EF0_GOOD)
+
+
+def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
+    # _test_api(gwy, Command.put_actuator_cycle, PUT_3EF1_GOOD)
+    for pkt_line in PUT_3EF1_GOOD:
+        pkt = _create_pkt_from_frame(gwy, pkt_line)
+
+        msg = Message(gwy, pkt)
+        kwargs = msg.payload
+        modulation_level = kwargs.pop("modulation_level")
+        actuator_countdown = kwargs.pop("actuator_countdown")
+
+        cmd = Command.put_actuator_cycle(
+            msg.src.id,
+            msg.dst.id,
+            modulation_level,
+            actuator_countdown,
+            **{k: v for k, v in kwargs.items() if k[:1] != "_"},
+        )
+
+        if msg.src.id != HGI_DEV_ADDR.id:
+            assert cmd.src.id == pkt.src.id
+        assert cmd.dst.id == pkt.dst.id
+        assert cmd.verb == pkt.verb
+        assert cmd.code == pkt.code
+
+        assert cmd.payload[:-2] == pkt.payload[:-2]
+
+
 SET_0004_FAIL = (
     "...  W --- 18:000730 01:145038 --:------ 0004 022 05000000000000000000000000000000000000000000",  # name is None
     "...  W --- 18:000730 01:145038 --:------ 0004 022 05005468697320497320412056657279204C6F6E6720",  # trailing space
@@ -212,18 +202,18 @@ SET_10A0_GOOD = {  # NOTE: no W|10A0 seen in the wild
 SET_1100_FAIL = (
     "...  W --- 01:145038 13:163733 --:------ 1100 008 000C1400007FFF01",  # no domain_id
 )
-SET_1100_GOOD = (
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 00240414007FFF01",
-    "...  W --- 01:145038 13:163733 --:------ 1100 008 000C14000000C801",  # min_off_time 0
-    "...  W --- 01:145038 13:163733 --:------ 1100 008 00180400007FFF01",  # min_off_time 0
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC042814007FFF01",  # cycle_rate 1
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC082814007FFF01",  # cycle_rate 2
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC243C14007FFF01",  # min_on_time 15
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC240414007FFF01",
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC240428007FFF01",  # min_off_time 10
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C14007FFF01",  # cycle_rate 2
-    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C00007FFF01",  # cycle_rate 2
-)
+SET_1100_GOOD = {
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 00240414007FFF01": "{'domain_id': '00', 'cycle_rate': 9, 'min_on_time':  1.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:163733 --:------ 1100 008 000C14000000C801": "{'domain_id': '00', 'cycle_rate': 3, 'min_on_time':  5.0, 'min_off_time':  0.0, 'proportional_band_width': 2.0}",
+    "...  W --- 01:145038 13:163733 --:------ 1100 008 00180400007FFF01": "{'domain_id': '00', 'cycle_rate': 6, 'min_on_time':  1.0, 'min_off_time':  0.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC042814007FFF01": "{'domain_id': 'FC', 'cycle_rate': 1, 'min_on_time': 10.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC082814007FFF01": "{'domain_id': 'FC', 'cycle_rate': 2, 'min_on_time': 10.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC243C14007FFF01": "{'domain_id': 'FC', 'cycle_rate': 9, 'min_on_time': 15.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC240414007FFF01": "{'domain_id': 'FC', 'cycle_rate': 9, 'min_on_time':  1.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC240428007FFF01": "{'domain_id': 'FC', 'cycle_rate': 9, 'min_on_time':  1.0, 'min_off_time': 10.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C14007FFF01": "{'domain_id': 'FC', 'cycle_rate': 2, 'min_on_time': 15.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
+    "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C00007FFF01": "{'domain_id': 'FC', 'cycle_rate': 2, 'min_on_time': 15.0, 'min_off_time':  0.0, 'proportional_band_width': None}",
+}
 SET_1F41_GOOD = {
     # 00  W --- 18:000730 01:050858 --:------ 1F41 006 000000FFFFFF            ": "{'dhw_idx': '00', 'mode': 'follow_schedule'}",
     # 00  W --- 18:000730 01:050858 --:------ 1F41 006 000100FFFFFF            ": "{'dhw_idx': '00', 'mode': 'follow_schedule'}",
@@ -272,4 +262,17 @@ SET_313F_GOOD = (
     "...  W --- 30:258720 01:073976 --:------ 313F 009 006002210D080C07E5",
     "...  W --- 30:042165 01:076010 --:------ 313F 009 006003090A0D0207E6",
     "...  W --- 30:042165 01:076010 --:------ 313F 009 0060041210040207E6",
+)
+PUT_30C9_GOOD = (
+    "...  I --- 03:123456 --:------ 03:123456 30C9 003 0007C1",
+    "...  I --- 03:123456 --:------ 03:123456 30C9 003 007FFF",
+)
+PUT_3EF0_FAIL = ("...  I --- 13:123456 --:------ 13:123456 3EF0 003 00AAFF",)
+PUT_3EF0_GOOD = (
+    "...  I --- 13:123456 --:------ 13:123456 3EF0 003 0000FF",
+    "...  I --- 13:123456 --:------ 13:123456 3EF0 003 00C8FF",
+)
+PUT_3EF1_GOOD = (  # TODO: needs checking
+    "... RP --- 13:123456 01:123456 --:------ 3EF1 007 000126012600FF",
+    "... RP --- 13:123456 18:123456 --:------ 3EF1 007 007FFF003C0010",  # NOTE: should be: RP|10|3EF1
 )
