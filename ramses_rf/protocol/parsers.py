@@ -654,7 +654,7 @@ def parser_0b04(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # mixvalve_config (zone), NB: mixvalves are listen-only
+@parser_decorator  # mixvalve_config (zone), FAN
 def parser_1030(payload, msg) -> Optional[dict]:
     #  I --- 01:145038 --:------ 01:145038 1030 016 0A-C80137-C9010F-CA0196-CB0100-CC0101
     #  I --- --:------ --:------ 12:144017 1030 016 01-C80137-C9010F-CA0196-CB010F-CC0101
@@ -670,13 +670,13 @@ def parser_1030(payload, msg) -> Optional[dict]:
             "C9": "min_flow_setpoint",  # 15 (0-50) C
             "CA": "valve_run_time",  # 150 (0-240) sec, aka actuator_run_time
             "CB": "pump_run_time",  # 15 (0-99) sec
-            "CC": f"_{SZ_UNKNOWN}_0",  # ?boolean?
+            "CC": "boolean_cc",  # ?boolean?
         }[seqx[:2]]
 
         return {param_name: int(seqx[4:], 16)}
 
     assert (msg.len - 1) / 3 in (2, 5), msg.len
-    assert payload[30:] in ("00", "01"), payload[30:]
+    # assert payload[30:] in ("00", "01"), payload[30:]
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
     return {k: v for x in params for k, v in x.items()}
@@ -1120,19 +1120,23 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 def parser_1F70(payload, msg) -> Optional[dict]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
-    assert payload[:2] == "00", _INFORM_DEV_MSG
-    assert payload[2:4] in ("00", "01"), _INFORM_DEV_MSG
-    assert payload[4:8] == "0800", _INFORM_DEV_MSG
-    assert payload[10:14] == "0000", _INFORM_DEV_MSG
-    assert msg.verb in (RQ, W_) or payload[14:16] == "15", _INFORM_DEV_MSG
-    assert msg.verb in (I_, RP) or payload[14:16] == "00", _INFORM_DEV_MSG
-    assert msg.verb == RQ or payload[22:24] == "60", _INFORM_DEV_MSG
-    assert msg.verb != RQ or payload[22:24] == "00", _INFORM_DEV_MSG
-    assert msg.verb == RP or payload[26:] == "000000", _INFORM_DEV_MSG
-    assert msg.verb != RP or payload[26:] == "008000", _INFORM_DEV_MSG
+    try:
+        assert payload[:2] == "00", f"expected 00, not {payload[:2]}"
+        assert payload[2:4] in ("00", "01"), f"expected (00|01), not {payload[2:4]}"
+        assert payload[4:8] == "0800", f"expected 0800, not {payload[4:8]}"
+        assert payload[10:14] == "0000", f"expected 0000, not {payload[10:14]}"
+        assert msg.verb in (RQ, W_) or payload[14:16] == "15"
+        assert msg.verb in (I_, RP) or payload[14:16] == "00"
+        assert msg.verb == RQ or payload[22:24] == "60"
+        assert msg.verb != RQ or payload[22:24] == "00"
+        assert msg.verb == RQ or payload[24:26] in ("E4", "E5", "E6"), _INFORM_DEV_MSG
+        assert msg.verb == RP or payload[26:] == "000000"
+        assert msg.verb != RP or payload[26:] == "008000"
 
-    # assert int(payload[16:18], 16) < 7, _INFORM_DEV_MSG
-    assert msg.verb == RQ or payload[24:26] in ("E4", "E5", "E6"), _INFORM_DEV_MSG
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
+
+        # assert int(payload[16:18], 16) < 7, _INFORM_DEV_MSG
 
     return {
         "day_idx": payload[16:18],  # depends upon 1470[3:4]?
@@ -1543,10 +1547,11 @@ def parser_2389(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_2400, from OTB
+@parser_decorator  # unknown_2400, from OTB, FAN
 def parser_2400(payload, msg) -> Optional[dict]:
-
-    assert payload == "0000000F", _INFORM_DEV_MSG
+    # RP --- 32:155617 18:005904 --:------ 2400 045 00001111-1010929292921110101020110010000080100010100000009191111191910011119191111111111100  # Orcon FAN
+    # RP --- 10:048122 18:006402 --:------ 2400 004 0000000F
+    # assert payload == "0000000F", _INFORM_DEV_MSG
 
     return {
         SZ_PAYLOAD: payload,
