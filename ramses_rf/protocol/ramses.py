@@ -304,6 +304,12 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{8}$",
     },
+    _10D0: {  # filter_change
+        SZ_NAME: "filter_change",
+        I_: r"^00[0-9A-F]{6}(0000)?$",
+        RQ: r"^00(00)?$",
+        W_: r"^00FF$",
+    },
     _10E0: {  # device_info
         SZ_NAME: "device_info",
         I_: r"^00[0-9A-F]{30,}$",  # r"^[0-9A-F]{32,}$" might be OK

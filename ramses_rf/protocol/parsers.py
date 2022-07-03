@@ -8,7 +8,7 @@
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
-# - janvken: 1470, 1F70, 22B0, 2411, several others
+# - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 
 import logging
 import re
@@ -820,6 +820,32 @@ def parser_10b0(payload, msg) -> Optional[dict]:
             payload[2:], percent(payload[2:])
         ),
     }
+
+
+@parser_decorator  # filter_change, HVAC
+def parser_10d0(payload, msg) -> Optional[dict]:
+
+    # 2022-07-03T22:52:34.571579 045  W --- 37:171871 32:155617 --:------ 10D0 002 00FF
+    # 2022-07-03T22:52:34.596526 066  I --- 32:155617 37:171871 --:------ 10D0 006 0047B44F0000
+    # then...
+    # 2022-07-03T23:14:23.854089 000 RQ --- 37:155617 32:155617 --:------ 10D0 002 0000
+    # 2022-07-03T23:14:23.876088 084 RP --- 32:155617 37:155617 --:------ 10D0 006 00B4B4C80000
+
+    # 00-FF resets the counter, 00-47-B4-4F-0000 is the value (71 180 79).
+    # Default is 180 180 200. The returned value is the amount of days (180),
+    # total amount of days till change (180), percentage (200)
+
+    if msg.verb == W_:
+        result = {"reset_counter": payload[2:4] == "FF"}
+    else:
+        result = {"days_remaining": int(payload[2:4], 16)}
+
+    if msg.len >= 3:
+        result.update({"days_lifetime": int(payload[4:6], 16)})
+    if msg.len >= 4:
+        result.update({"percent_remaining": percent(payload[6:8])})
+
+    return result
 
 
 @parser_decorator  # device_info
