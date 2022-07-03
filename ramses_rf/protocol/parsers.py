@@ -2112,11 +2112,12 @@ def parser_3220(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # unknown_3221, from OTB
+@parser_decorator  # unknown_3221, from OTB, FAN
 def parser_3221(payload, msg) -> Optional[dict]:
 
-    # 2021-11-03T09:55:43.112792 071 RP --- 10:052644 18:198151 --:------ 3221 002 000F
-    # 2021-11-02T05:15:55.767108 046 RP --- 10:048122 18:006402 --:------ 3221 002 0000
+    # RP --- 10:052644 18:198151 --:------ 3221 002 000F
+    # RP --- 10:048122 18:006402 --:------ 3221 002 0000
+    # RP --- 32:155617 18:005904 --:------ 3221 002 000A
 
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
