@@ -190,7 +190,7 @@ GET_0404_GOOD = {
     "... RQ --- 18:000730 01:076010 --:------ 0404 007 02200008000404": "{'zone_idx': '02', 'frag_number': 4, 'total_frags': 4}",
 }
 SET_1030_GOOD = {  # NOTE: no W|1030 seen in the wild
-    "...  W --- 18:000730 01:145038 --:------ 1030 016 01C80137C9010FCA0196CB010FCC0101": "{'zone_idx': '01', 'max_flow_setpoint': 55, 'min_flow_setpoint': 15, 'valve_run_time': 150, 'pump_run_time': 15}",
+    "...  W --- 18:000730 01:145038 --:------ 1030 016 01C80137C9010FCA0196CB010FCC0101": "{'zone_idx': '01', 'max_flow_setpoint': 55, 'min_flow_setpoint': 15, 'valve_run_time': 150, 'pump_run_time': 15, 'boolean_cc': 1}",
 }
 SET_10A0_GOOD = {  # NOTE: no W|10A0 seen in the wild
     "000  W --- 01:123456 07:031785 --:------ 10A0 006 000F6E050064": "{'dhw_idx': '00', 'setpoint': 39.5, 'overrun': 5, 'differential':  1.0}",
@@ -257,7 +257,7 @@ SET_2349_GOOD = (
 SET_2E04_GOOD = {
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 00FFFFFFFFFFFF00": "{'system_mode': 'auto'}",
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 01FFFFFFFFFFFF00": "{'system_mode': 'heat_off'}",
-    "...  W --- 30:258720 01:073976 --:------ 2E04 008 06FFFFFFFFFFFF00": "{'system_mode': 'auto_with_reset', 'until': None}",
+    "...  W --- 30:258720 01:073976 --:------ 2E04 008 06FFFFFFFFFFFF00": "{'system_mode': 'auto_with_reset'}",
     #
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 03FFFFFFFFFFFF00": "{'system_mode': 'away',            'until': None}",
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 0300001D0A07E301": "{'system_mode': 'away',            'until': '2019-10-29T00:00:00'}",

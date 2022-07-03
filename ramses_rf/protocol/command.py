@@ -707,6 +707,10 @@ class Command(Frame):
     ):
         """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
 
+        boolean_cc = kwargs.pop("boolean_cc", 1)
+        kwargs.get("unknown_20", None)  # HVAC
+        kwargs.get("unknown_21", None)  # HVAC
+
         if not (0 <= max_flow_setpoint <= 99):
             raise ValueError(f"Out of range, max_flow_setpoint: {max_flow_setpoint}")
         if not (0 <= min_flow_setpoint <= 50):
@@ -723,7 +727,7 @@ class Command(Frame):
                 f"C901{min_flow_setpoint:02X}",
                 f"CA01{valve_run_time:02X}",
                 f"CB01{pump_run_time:02X}",
-                f"CC01{1:02X}",
+                f"CC01{boolean_cc:02X}",
             )
         )
 
