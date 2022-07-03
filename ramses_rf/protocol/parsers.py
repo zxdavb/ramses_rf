@@ -1669,10 +1669,12 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         # msg.len in (8, 16)  # evohome 8, hometronics 16
         assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
-    return {
-        SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]],
-        SZ_UNTIL: dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None,
-    }  # TODO: double-check the final "00"
+    result = {SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]]}
+    if payload[:2] not in (SYS_MODE_MAP.AUTO, SYS_MODE_MAP.HEAT_OFF):
+        result.update(
+            {SZ_UNTIL: dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None}
+        )
+    return result  # TODO: double-check the final "00"
 
 
 @parser_decorator  # presence_detect, HVAC sensor
