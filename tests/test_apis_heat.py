@@ -65,7 +65,9 @@ def test_set_000a(gwy):  # noqa: F811
 
 
 def test_get_0404(gwy):  # noqa: F811  # NOTE: bespoke: params
-    for pkt_line in GET_0404_GOOD:
+    packets = GET_0404_GOOD
+
+    for pkt_line in packets:
         pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
@@ -75,7 +77,7 @@ def test_get_0404(gwy):  # noqa: F811  # NOTE: bespoke: params
         cmd = _test_api_from_msg(Command.get_schedule_fragment, msg)
         assert cmd.payload == msg._pkt.payload
 
-        if isinstance(GET_0404_GOOD, dict) and (payload := GET_0404_GOOD[pkt_line]):
+        if isinstance(packets, dict) and (payload := packets[pkt_line]):
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
@@ -88,7 +90,9 @@ def test_set_10a0(gwy):  # noqa: F811
 
 
 def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
-    for pkt_line in SET_1100_GOOD:
+    packets = SET_1100_GOOD
+
+    for pkt_line in packets:
         pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
@@ -97,8 +101,12 @@ def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
         cmd = _test_api_from_msg(Command.set_tpi_params, msg)
         assert cmd.payload == msg._pkt.payload
 
-        if isinstance(SET_1100_GOOD, dict) and (payload := SET_1100_GOOD[pkt_line]):
+        if isinstance(packets, dict) and (payload := packets[pkt_line]):
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
+
+
+def test_set_1260(gwy):  # noqa: F811
+    _test_api(gwy, Command.put_dhw_temp, PUT_1260_GOOD)
 
 
 def test_set_1f41(gwy):  # noqa: F811
@@ -118,7 +126,9 @@ def test_set_2e04(gwy):  # noqa: F811
 
 
 def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
-    for pkt_line in SET_313F_GOOD:
+    packets = SET_313F_GOOD
+
+    for pkt_line in packets:
         pkt = Packet.from_port(gwy, dt.now(), pkt_line)
         assert str(pkt)[:4] == pkt_line[4:8]
         assert str(pkt)[6:] == pkt_line[10:]
@@ -128,6 +138,9 @@ def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
         cmd = _test_api_from_msg(Command.set_system_time, msg)
         assert cmd.payload[:4] == msg._pkt.payload[:4]
         assert cmd.payload[6:] == msg._pkt.payload[6:]
+
+        if isinstance(packets, dict) and (payload := packets[pkt_line]):
+            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
 def test_put_30c9(gwy):  # noqa: F811
@@ -139,8 +152,9 @@ def test_put_3ef0(gwy):  # noqa: F811
 
 
 def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
-    # _test_api(gwy, Command.put_actuator_cycle, PUT_3EF1_GOOD)
-    for pkt_line in PUT_3EF1_GOOD:
+    packets = PUT_3EF1_GOOD
+
+    for pkt_line in packets:
         pkt = _create_pkt_from_frame(gwy, pkt_line)
 
         msg = Message(gwy, pkt)
@@ -163,6 +177,9 @@ def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
         assert cmd.code == pkt.code
 
         assert cmd.payload[:-2] == pkt.payload[:-2]
+
+        if isinstance(packets, dict) and (payload := packets[pkt_line]):
+            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
 SET_0004_FAIL = (
@@ -214,6 +231,7 @@ SET_1100_GOOD = {
     "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C14007FFF01": "{'domain_id': 'FC', 'cycle_rate': 2, 'min_on_time': 15.0, 'min_off_time':  5.0, 'proportional_band_width': None}",
     "...  W --- 01:145038 13:035462 --:------ 1100 008 FC083C00007FFF01": "{'domain_id': 'FC', 'cycle_rate': 2, 'min_on_time': 15.0, 'min_off_time':  0.0, 'proportional_band_width': None}",
 }
+PUT_1260_GOOD = {}
 SET_1F41_GOOD = {
     # 00  W --- 18:000730 01:050858 --:------ 1F41 006 000000FFFFFF            ": "{'dhw_idx': '00', 'mode': 'follow_schedule'}",
     # 00  W --- 18:000730 01:050858 --:------ 1F41 006 000100FFFFFF            ": "{'dhw_idx': '00', 'mode': 'follow_schedule'}",
