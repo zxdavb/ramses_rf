@@ -78,8 +78,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _1098,
     _10A0,
     _10B0,
+    _10D0,
     _10E0,
     _10E1,
+    _10E2,
     _1100,
     _11F0,
     _1260,
@@ -92,24 +94,36 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _12C8,
     _12F0,
     _1300,
+    _1470,
     _1F09,
     _1F41,
+    _1F70,
     _1FC9,
     _1FCA,
     _1FD0,
     _1FD4,
+    _2210,
     _2249,
     _22C9,
     _22D0,
     _22D9,
+    _22E0,
+    _22E5,
+    _22E9,
     _22F1,
+    _22F2,
     _22F3,
+    _22F4,
+    _22F7,
+    _22F8,
+    _22B0,
     _2309,
     _2349,
     _2389,
     _2400,
     _2401,
     _2410,
+    _2411,
     _2420,
     _2D49,
     _2E04,
@@ -117,6 +131,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _30C9,
     _3110,
     _3120,
+    _313E,
     _313F,
     _3150,
     _31D9,
@@ -126,10 +141,12 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _3210,
     _3220,
     _3221,
+    _3222,
     _3223,
     _3B00,
     _3EF0,
     _3EF1,
+    _4401,
     _PUZZ,
 )
 
@@ -270,6 +287,24 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
     # Orcon/Ventiline
 
     _SLUG: str = DEV_TYPE.FAN
+
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
+
+        # RP --- 32:155617 18:005904 --:------ 22F1 003 000207
+        self._add_discovery_task(
+            Command.from_attrs(RQ, self.id, _22F1, "00"), 60 * 60 * 24, delay=15
+        )  # to learn scheme: orcon/itho/other (04/07/0?)
+
+        for code in (_2210, _22E0, _22E5, _22E9, _22F2, _22F4, _22F8):
+            self._add_discovery_task(
+                Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=15
+            )
+
+        for code in (_10D0, _313E, _3222):
+            self._add_discovery_task(
+                Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=30
+            )
 
     @property
     def air_quality(self) -> Optional[float]:
