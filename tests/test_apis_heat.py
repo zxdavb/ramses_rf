@@ -64,21 +64,8 @@ def test_set_000a(gwy):  # noqa: F811
     _test_api(gwy, Command.set_zone_config, SET_000A_GOOD)
 
 
-def test_get_0404(gwy):  # noqa: F811  # NOTE: bespoke: params
-    packets = GET_0404_GOOD
-
-    for pkt_line in packets:
-        pkt = _create_pkt_from_frame(gwy, pkt_line)
-
-        msg = Message(gwy, pkt)
-        if msg.payload.pop("domain_id", None) == "FA":
-            msg.payload["zone_idx"] = "FA"  # or: "HW"
-
-        cmd = _test_api_from_msg(Command.get_schedule_fragment, msg)
-        assert cmd.payload == msg._pkt.payload
-
-        if isinstance(packets, dict) and (payload := packets[pkt_line]):
-            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
+def test_get_0404(gwy):  # noqa: F811
+    _test_api(gwy, Command.get_schedule_fragment, GET_0404_GOOD)
 
 
 def test_set_1030(gwy):  # noqa: F811
