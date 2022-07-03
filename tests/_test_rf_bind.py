@@ -59,7 +59,7 @@ async def load_test_system(config: dict = None) -> Gateway:
 
 # async def test_ww_0404_zone():
 
-#     gwy, tcs = await load_test_system(config={"disable_dicovery": True})
+#     gwy, tcs = await load_test_system(config={"disable_discovery": True})
 #     await gwy.start(start_discovery=False)  # may: SerialException
 
 #     if tcs.zones:
