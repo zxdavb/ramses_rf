@@ -1099,7 +1099,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     ), f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
 
     result = {SZ_MODE: ZON_MODE_MAP.get(payload[4:6])}
-    if payload[4:6] != ZON_MODE_MAP.FOLLOW:
+    if payload[2:4] != "FF":
         result["active"] = {"00": False, "01": True, "FF": None}[payload[2:4]]
     # if payload[4:6] == ZON_MODE_MAP.COUNTDOWN:
     #     result[SZ_UNTIL] = dtm_from_hex(payload[6:12])
