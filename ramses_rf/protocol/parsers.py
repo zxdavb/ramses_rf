@@ -560,6 +560,7 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # system_fault
 def parser_0418(payload, msg) -> Optional[dict]:
+    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B006F604000000711607697FFFFF7000348A86  # COMMS FAULT, CHANGEOVER
     # RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa: E501
     # RP --- 01:145038 18:013393 --:------ 0418 022 000036B0010000000000108000007FFFFF7000000000  # noqa: E501
     # RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa: E501
@@ -579,7 +580,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         assert payload[12:14] in FAULT_DEVICE_CLASS, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
         assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-            payload[10:12] in ("1C", F9, FA, FC)
+            payload[10:12] in ("1C", F6, F9, FA, FC)
         ), f"domain id: {payload[10:12]}"
     except AssertionError as exc:
         _LOGGER.warning(
