@@ -8,7 +8,7 @@
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
-# - janvken: 1470, 1F70, 22B0, 2411, others
+# - janvken: 1470, 1F70, 22B0, 2411, several others
 
 import logging
 import re
@@ -180,6 +180,20 @@ def parser_0001(payload, msg) -> Optional[dict]:
     # W/--:/--:/12:/00-0000-0501 = Test transmit
     # W/--:/--:/12:/00-0000-0505 = Field strength
 
+    assert payload[:2] == "00"
+    assert payload[2:4] in ("20", "80", "A0")
+    assert payload[4:6] == "00"
+    assert payload[8:10] in ("00", "04", "10", "20", "FF"), payload[8:10]
+
+    result = {"slot_num": payload[6:8]}
+    if msg.len >= 6:
+        result.update({"param_num": payload[10:12]})
+    if msg.len >= 7:
+        result.update({"next_slot_num": payload[12:14]})
+    if msg.len >= 8:
+        result.update({"boolean_14": bool(int(payload[14:16]))})
+
+    return result
     return {
         SZ_PAYLOAD: "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
     }
