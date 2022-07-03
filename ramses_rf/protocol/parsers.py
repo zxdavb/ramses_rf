@@ -182,7 +182,7 @@ def parser_0001(payload, msg) -> Optional[dict]:
 
     if payload[2:6] in ("2000", "8000", "A000"):
         mode = "hvac"
-    if payload[2:6] in ("0000", "FFFF"):
+    elif payload[2:6] in ("0000", "FFFF"):
         mode = "heat"
     else:
         mode = "heat"
