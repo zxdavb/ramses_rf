@@ -132,7 +132,7 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-STRICT_MODE = not DEV_MODE  # and False
+STRICT_MODE = not DEV_MODE and False
 
 
 def _create_devices_from_addrs(gwy, this: Message) -> None:
