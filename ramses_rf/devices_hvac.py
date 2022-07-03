@@ -306,9 +306,10 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
                 Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=30
             )
 
-        self._add_discovery_task(
-            Command.from_attrs(RQ, self.id, code, "00"), 60 * 60 * 24, delay=30
-        )  # filter_change
+        for code in (_10D0,):
+            self._add_discovery_task(
+                Command.from_attrs(RQ, self.id, code, "00"), 60 * 60 * 24, delay=30
+            )
 
     @property
     def air_quality(self) -> Optional[float]:
