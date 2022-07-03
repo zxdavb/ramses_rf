@@ -348,10 +348,12 @@ async def script_scan_full(gwy, dev_id: str):
 
 
 @script_decorator
-async def script_scan_hard(gwy, dev_id: str):
+async def script_scan_hard(gwy, dev_id: str, *, start_code: int = None):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
-    for code in range(0x4000):
+    start_code = start_code or 0
+
+    for code in range(start_code, 0x5000):
         gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))
         await asyncio.sleep(0.2)
 
