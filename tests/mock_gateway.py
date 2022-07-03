@@ -241,7 +241,7 @@ class MockDeviceCtl:
         elif response := RESPONSES.get(rp_header):
             if rp_header[:17] == f"{_0404}|{I_}|{CTL_ID}":
                 self._change_counter += 2
-            pkts = self.tx_response_pkt(response + "\r\n")
+            pkts = self.tx_response_pkt(response)
         else:
             pkts = None
 
