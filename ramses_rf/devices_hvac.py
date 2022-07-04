@@ -275,7 +275,20 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
         }
 
 
-class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
+class FilterChange(DeviceHvac):  # FAN: 10D0
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
+
+        self._add_discovery_task(
+            Command.from_attrs(RQ, self.id, _10D0, "00"), 60 * 60 * 24, delay=30
+        )
+
+    @property
+    def filter_remaining(self) -> Optional[int]:
+        return self._msg_value(_31DA, key="days_remaining")
+
+
+class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     """The Ventilation class.
 
     The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
@@ -304,11 +317,6 @@ class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
         for code in (_313E, _3222):
             self._add_discovery_task(
                 Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=30
-            )
-
-        for code in (_10D0,):
-            self._add_discovery_task(
-                Command.from_attrs(RQ, self.id, code, "00"), 60 * 60 * 24, delay=30
             )
 
     @property
