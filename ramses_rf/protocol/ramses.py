@@ -1279,8 +1279,8 @@ _22F1_MODE_ORCON = {
     "01": "low",
     "02": "medium",
     "03": "high",
-    "04": "auto",
-    "05": "auto_alt",
+    "04": "auto",  # #   economy, as per RH and CO2 <= 1150 ppm (unsure which is which)
+    "05": "auto_alt",  # comfort, as per RH and CO2 <=  950 ppm (unsure which is which)
     "06": "boost",
     "07": "off",
 }
