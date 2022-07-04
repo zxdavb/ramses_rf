@@ -601,7 +601,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         SZ_NAME: "fan_state",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
-        I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){0,12}(00|08)?)?$",  # 00-0004-FE
+        I_: r"^(00|01|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|08)?)?$",  # 00-0004-FE
         RQ: r"^00$",
     },
     _31DA: {  # hvac_state (fan_state_extended)
@@ -975,12 +975,13 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
     #     _10E0: {I_: {}},
     #     _12C0: {I_: {}},
     #     _1FC9: {I_: {}},
+    #     _1FD4: {I_: {}},
     #     _2309: {I_: {}, RQ: {}, W_: {}},
     #     _2349: {RQ: {}},
     #     _30C9: {I_: {}},
     #     _3120: {I_: {}},
     #     _313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
-    #     _3EF0: {RQ: {}},  # when bound direct to a 13:
+    #     _3EF0: {I_: {}, RQ: {}},  # when bound direct to a 13:
     #     _3EF1: {RQ: {}},  # when bound direct to a 13:
     # },
     # DEV_TYPE.DTS: {  # e.g. DTS92(E)

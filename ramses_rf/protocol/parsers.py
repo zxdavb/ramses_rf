@@ -1892,10 +1892,11 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     bitmap = int(payload[2:4], 16)
 
+    # NOTE: 31D9[4:6] is fan_speed (itho?) *or* fan_mode (orcon?)
+    # TODO: 31D9[4:6] == 31DA[38:40] in some systems
+    # TODO: 31D9[4:6] == 31DA[36:38]??
     result = {
-        SZ_EXHAUST_FAN_SPEED: percent(
-            payload[4:6], high_res=True
-        ),  # NOTE: is 31DA/payload[38:40]
+        SZ_EXHAUST_FAN_SPEED: percent(payload[4:6], high_res=True),
         "fan_mode": payload[4:6],
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),
@@ -1909,7 +1910,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
         return result
 
     try:
-        assert payload[6:8] in ("00", "FE"), f"byte 3: {payload[6:8]}"
+        assert payload[6:8] in ("00", "07", "0A", "FE"), f"byte 3: {payload[6:8]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
@@ -2031,8 +2032,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
         SZ_SUPPLY_FAN_SPEED: percent(payload[40:42]),
         SZ_POST_HEAT: percent(payload[46:48], high_res=False),
         SZ_PRE_HEAT: percent(payload[48:50], high_res=False),
-        SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec or m^3/hr
-        SZ_EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec or m^3/hr
+        SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec
+        SZ_EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec
     }
 
 
