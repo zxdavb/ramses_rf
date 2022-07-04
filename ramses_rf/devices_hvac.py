@@ -36,7 +36,7 @@ from .const import (
     SZ_TEMPERATURE,
     __dev_mode__,
 )
-from .devices_base import BatteryState, DeviceHvac, Fakeable, check_faking_enabled
+from .devices_base import BatteryState, DeviceHvac, Fakeable
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.command import Command
@@ -250,9 +250,11 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
     def fan_rate(self) -> Optional[str]:
         return self._msg_value(_22F1, key="rate")
 
+    # @check_faking_enabled
     @fan_rate.setter
-    @check_faking_enabled
     def fan_rate(self, rate) -> None:
+        if not self._faked:
+            raise RuntimeError(f"Faking is not enabled for {self}")
         for _ in range(3):
             self._send_cmd(
                 Command.set_fan_rate(self._ctl, int(4 * rate), 4, src_id=self.id)
