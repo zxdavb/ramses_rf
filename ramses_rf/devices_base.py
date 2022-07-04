@@ -205,7 +205,7 @@ class Device(Entity):
 
         if traits.get(SZ_FAKED):  # class & alias are done elsewhere
             if not isinstance(self, Fakeable):
-                raise TypeError(f"Device is not fakable: {self}")
+                raise TypeError(f"Device is not fakable: {self} (traits={traits})")
             self._make_fake()
 
     @classmethod
