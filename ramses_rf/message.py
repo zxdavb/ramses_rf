@@ -26,7 +26,7 @@ from .protocol import (
     InvalidPacketError,
     Message,
 )
-from .protocol.ramses import CODES_HVAC_ONLY
+from .protocol.ramses import CODES_HEAT_ONLY, CODES_HVAC_ONLY
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -181,11 +181,12 @@ def _check_msg_addrs(msg: Message) -> None:
         # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
         # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
         # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
-        if msg.code not in CODES_HVAC_ONLY:
+        if msg.code in CODES_HEAT_ONLY:
             raise InvalidAddrSetError(f"Invalid src/dst addr pair: {msg.src}/{msg.dst}")
-        _LOGGER.warning(
-            f"{msg!r} < Invalid src/dst addr pair: {msg.src}/{msg.dst}, is it HVAC?"
-        )
+        elif msg.code not in CODES_HVAC_ONLY:
+            _LOGGER.warning(
+                f"{msg!r} < Invalid src/dst addr pair: {msg.src}/{msg.dst}, is it HVAC?"
+            )
 
 
 def _check_msg_src(msg: Message, *, slug: str = None) -> None:
