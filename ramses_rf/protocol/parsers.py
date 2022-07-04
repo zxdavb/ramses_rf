@@ -1890,18 +1890,18 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    # bitmap = int(payload[2:4], 16)
+    bitmap = int(payload[2:4], 16)
 
     result = {
         SZ_EXHAUST_FAN_SPEED: percent(
             payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
         "fan_mode": payload[4:6],
-        # "passive": bool(bitmap & 0x02),
-        # "damper_only": bool(bitmap & 0x04),
-        # "filter_dirty": bool(bitmap & 0x20),
-        # "frost_cycle": bool(bitmap & 0x40),
-        # "has_fault": bool(bitmap & 0x80),
+        "passive": bool(bitmap & 0x02),
+        "damper_only": bool(bitmap & 0x04),
+        "filter_dirty": bool(bitmap & 0x20),
+        "frost_cycle": bool(bitmap & 0x40),
+        "has_fault": bool(bitmap & 0x80),
         "flags": flag8(payload[2:4]),
     }
 
@@ -1969,8 +1969,6 @@ def parser_31da(payload, msg) -> Optional[dict]:
         0x1F: "-unknown 0x1F-",
     }
 
-    # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF  # # event-driven?
-    # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00  # periodic?
     try:
         # assert (
         #     int(payload[2:4], 16) <= 200
@@ -2011,7 +2009,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
     # 12 Fan supply speed (%)                 SZ_SUPPLY_FAN_SPEED
     # 13 Remaining after run time (humidity scenario) (min.)  SZ_REMAINING_TIME
     # 14 Preheater control (MaxComfort) (%)   SZ_PRE_HEAT
-    # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW
+    # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW (Orcon is m3/h, others L/s)
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
 
     return {
