@@ -591,13 +591,13 @@ def parser_0404(payload, msg) -> Optional[dict]:
     if msg.verb == RQ:  # have a ctx: idx|frag_idx
         return {
             SZ_FRAG_NUMBER: int(payload[10:12], 16),
-            SZ_TOTAL_FRAGS: None if payload[12:] == "00" else int(payload[12:], 16),
+            SZ_TOTAL_FRAGS: None if payload[12:14] == "00" else int(payload[12:14], 16),
         }
 
     if msg.verb == I_:  # have a ctx: idx|frag_idx
         return {
             SZ_FRAG_NUMBER: int(payload[10:12], 16),
-            SZ_TOTAL_FRAGS: int(payload[12:], 16),
+            SZ_TOTAL_FRAGS: int(payload[12:14], 16),
             SZ_FRAG_LENGTH: None if payload[8:10] == "00" else int(payload[8:10], 16),
         }
 
@@ -609,7 +609,7 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
     return {
         SZ_FRAG_NUMBER: int(payload[10:12], 16),
-        SZ_TOTAL_FRAGS: int(payload[12:], 16),
+        SZ_TOTAL_FRAGS: int(payload[12:14], 16),
         SZ_FRAG_LENGTH: None if payload[8:10] == "FF" else int(payload[8:10], 16),
         SZ_FRAGMENT: payload[14:],
     }
