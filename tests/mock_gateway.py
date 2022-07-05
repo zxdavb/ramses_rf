@@ -106,7 +106,7 @@ class MockSerialBase:  # all the 'mocking' is done here
 
     def close(self, exc=None):
         """Close the port."""
-        if not self.is_open:
+        if self.is_open is False:
             return
         self.is_open = False
 
