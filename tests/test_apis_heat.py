@@ -112,6 +112,10 @@ def test_set_2e04(gwy):  # noqa: F811
     _test_api(gwy, Command.set_system_mode, SET_2E04_GOOD)
 
 
+def test_put_30c9(gwy):  # noqa: F811
+    _test_api(gwy, Command.put_sensor_temp, PUT_30C9_GOOD)
+
+
 def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
     packets = SET_313F_GOOD
 
@@ -128,10 +132,6 @@ def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
 
         if isinstance(packets, dict) and (payload := packets[pkt_line]):
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
-
-
-def test_put_30c9(gwy):  # noqa: F811
-    _test_api(gwy, Command.put_sensor_temp, PUT_30C9_GOOD)
 
 
 def test_put_3ef0(gwy):  # noqa: F811
