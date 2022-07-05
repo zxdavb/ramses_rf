@@ -777,6 +777,9 @@ class Command(Frame):
         Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
         """
 
+        if total_frags is None:
+            total_frags = 0
+
         kwargs.pop("frag_length", None)
         frag_length = "00"
 

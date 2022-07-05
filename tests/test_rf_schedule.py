@@ -23,10 +23,16 @@ from ramses_rf.schedule import (
 )
 from tests.common import TEST_DIR
 
+# import tracemalloc
+# tracemalloc.start()
+
+
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
 
-if ports := [c for c in list_ports.comports() if c.device[-7:-1] == "ttyACM"]:
+if ports := [
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
+]:
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
@@ -37,10 +43,6 @@ else:
 
     SERIAL_PORT = "/dev/ttyMOCK"
     GWY_ID = "01:000730"
-
-
-# import tracemalloc
-# tracemalloc.start()
 
 
 async def load_test_system(config: dict = None) -> Gateway:
@@ -121,8 +123,8 @@ async def read_schedule(zone) -> dict:
 
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
 
-    if schedule is None:  # TODO: remove?
-        assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] == 255
+    if schedule is None:
+        assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] is None
         return
 
     schedule = assert_schedule_dict(zone._schedule._schedule)
@@ -170,11 +172,13 @@ async def test_rq_0006():
     version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
     version = assert_version(version)
 
-    # await asyncio.sleep(30)
     await gwy.stop()
 
 
-async def _test_rq_0404_dhw():
+async def test_rq_0404_dhw():  # Needs mocking
+
+    if SERIAL_PORT == "/dev/ttyMOCK":
+        return
 
     gwy, tcs = await load_test_system(config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException

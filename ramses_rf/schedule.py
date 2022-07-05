@@ -208,8 +208,8 @@ class Schedule:  # 0404
         self._schedule = None
         self._schedule_done = None  # TODO: deprecate
 
-        self._rx_frags = self._init_set()
-        self._tx_frags = self._init_set()
+        self._rx_frags: list = self._init_set()
+        self._tx_frags: list = self._init_set()
 
         self._global_ver: int = None
         self._sched_ver: int = 0
@@ -224,7 +224,7 @@ class Schedule:  # 0404
             self._global_ver = msg.payload[SZ_CHANGE_COUNTER]
             return
 
-        # RP --- 01:145038 18:013393 --:------ 0404 007 002300080001FF  # 0404|RP|01:145038|FA01
+        # next line also in self._get_schedule(), so protected here with a lock
         if msg.payload[SZ_TOTAL_FRAGS] != 255 and self.tcs.zone_lock_idx != self.idx:
             self._rx_frags = self._incr_set(self._rx_frags, msg.payload)
 
@@ -309,9 +309,8 @@ class Schedule:  # 0404
         self._rx_frags[0] = None  # if 1st frag valid: schedule very likely unchanged
         while frag_num := next(i for i, f in enumerate(self._rx_frags, 1) if f is None):
             fragment = await get_fragment(frag_num)
-            self._rx_frags = self._incr_set(
-                self._rx_frags, fragment
-            )  # ?duplicated in _handle_msg()
+            # next line also in self._handle_msg(), so protected there with a lock
+            self._rx_frags = self._incr_set(self._rx_frags, fragment)
             if self._schedule:  # TODO: potential for infinite loop?
                 self._sched_ver = self._global_ver
                 break
@@ -325,8 +324,9 @@ class Schedule:  # 0404
         If the schedule is for DHW, set the `zone_idx` key to 'HW' (to avoid confusing
         with zone '00').
         """
-        # if None in frag_set:
-        #     return
+        if frag_set == self._init_set(None):
+            self._schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: None}
+            return self._schedule
         try:
             schedule = fragments_to_schedule((frag[SZ_FRAGMENT] for frag in frag_set))
         except zlib.error:
@@ -339,7 +339,7 @@ class Schedule:  # 0404
     @staticmethod
     def _init_set(fragment: dict = None) -> list:  # return frag_set
         """Return a new frag set, after initializing it with an optional fragment."""
-        if fragment is None:
+        if fragment is None or fragment[SZ_TOTAL_FRAGS] is None:
             return [None]
         frag_set = [None] * fragment[SZ_TOTAL_FRAGS]
         frag_set[fragment[SZ_FRAG_NUMBER] - 1] = fragment
@@ -359,13 +359,17 @@ class Schedule:  # 0404
         assert len(frag_set) == 1 and frag_set == [None]  # TODO: remove
         return 0  # sentinel value as per RAMSES protocol
 
-    def _incr_set(self, frag_set, fragment) -> list:  # return frag_set
+    def _incr_set(self, frag_set: list, fragment: dict) -> list:  # return frag_set
         """Add a fragment to a frag set and process/return the new set.
 
         If the frag set is complete, check for a schedule (sets `self._schedule`).
 
         If required, start a new frag set with the fragment.
         """
+        if fragment[SZ_TOTAL_FRAGS] is None:  # zone has no schedule
+            frag_set = self._init_set(None)
+            self._proc_set(frag_set)
+            return frag_set
         if fragment[SZ_TOTAL_FRAGS] != self._size_set(frag_set):  # schedule has changed
             return self._init_set(fragment)
         frag_set[fragment[SZ_FRAG_NUMBER] - 1] = fragment
