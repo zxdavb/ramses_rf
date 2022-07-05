@@ -91,3 +91,29 @@ async def test_zone_sensor():  # I/30C9
     # assert zon_temp == old_temp - 0.5, f"new: {new_temp}, old: {old_temp}"
 
     await gwy.stop()
+
+
+async def test_zone_sensor_unfaked():  # I/30C9
+
+    gwy, tcs = await load_test_system(config={"disable_discovery": True})
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    zone = tcs.zones[0]
+    org_temp = zone.temperature  # may be None
+    old_temp = 19.5 if org_temp is None else org_temp  # HACK
+
+    zone.sensor._faked = True
+    try:
+        zone.sensor.temperature = old_temp - 0.5
+    except RuntimeError:
+        assert False
+
+    zone.sensor._faked = False
+    try:
+        zone.sensor.temperature = old_temp - 0.5
+    except RuntimeError:
+        pass
+    else:
+        assert False
+
+    await gwy.stop()
