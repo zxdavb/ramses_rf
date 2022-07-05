@@ -9,7 +9,7 @@ Heating devices.
 import logging
 from symtable import Class
 
-from .const import DEV_TYPE_MAP, SZ_CLASS, __dev_mode__
+from .const import DEV_TYPE_MAP, SZ_CLASS, SZ_FAKED, __dev_mode__
 from .protocol import Address, Message
 
 # skipcq: PY-W2000
@@ -124,9 +124,18 @@ def zx_device_factory(
     Some devices are promotable to a compatible sub class.
     """
 
-    return best_dev_role(
+    cls = best_dev_role(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,
         **schema,
-    ).create_from_schema(gwy, dev_addr, **schema)
+    )
+
+    if (
+        isinstance(cls, DeviceHvac)
+        and schema.get(SZ_CLASS) in (DEV_TYPE_MAP.HVC, None)
+        and schema.get(SZ_FAKED)
+    ):
+        raise TypeError("Faked HVAC devices must have an defined class: {dev_addr}")
+
+    return cls.create_from_schema(gwy, dev_addr, **schema)
