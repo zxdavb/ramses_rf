@@ -13,10 +13,16 @@ from serial.tools import list_ports
 
 from tests.common import TEST_DIR
 
+# import tracemalloc
+# tracemalloc.start()
+
+
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
 
-if ports := [c for c in list_ports.comports() if c.device[-7:-1] == "ttyACM"]:
+if ports := [
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
+]:
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
@@ -67,6 +73,10 @@ async def test_zone_sensor():  # I/30C9
     await gwy.start(start_discovery=False)  # may: SerialException
 
     zone = tcs.zones[0]
+
+    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:  # gwy.ser_name == ...
+        return
+
     org_temp = zone.temperature  # may be None
     old_temp = 19.5 if org_temp is None else org_temp  # HACK
 
@@ -99,6 +109,10 @@ async def test_zone_sensor_unfaked():  # I/30C9
     await gwy.start(start_discovery=False)  # may: SerialException
 
     zone = tcs.zones[0]
+
+    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:  # gwy.ser_name == ...
+        return
+
     org_temp = zone.temperature  # may be None
     old_temp = 19.5 if org_temp is None else org_temp  # HACK
 
