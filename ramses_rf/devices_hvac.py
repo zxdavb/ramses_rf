@@ -252,12 +252,12 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
 
     # @check_faking_enabled
     @fan_rate.setter
-    def fan_rate(self, rate) -> None:
+    def fan_rate(self, rate) -> None:  # I/22F1
         if not self._faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         for _ in range(3):
             self._send_cmd(
-                Command.set_fan_rate(self._ctl, int(4 * rate), 4, src_id=self.id)
+                Command.set_fan_mode(self._ctl, int(4 * rate), 4, src_id=self.id)
             )
 
     @property
