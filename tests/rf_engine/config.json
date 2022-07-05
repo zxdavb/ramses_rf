@@ -77,7 +77,7 @@
             "01": {
                 "_name": "Main room",
                 "class": "radiator_valve",
-                "sensor": null,
+                "sensor": "03:123456",
                 "actuators": ["04:111111"]
             },
             "02": {
@@ -97,8 +97,27 @@
                 "class": "radiator_valve",
                 "sensor": "04:444444",
                 "actuators": ["04:444444", "04:444445"]
+            },
+            "09": {
+                "_name": "Test room 9",
+                "class": "electric_heat",
+                "sensor": null,
+                "actuators": ["04:999999"]
+            },
+            "0A": {
+                "_name": "Test room A",
+                "class": "zone_valve",
+                "sensor": null,
+                "actuators": []
+            },
+            "0B": {
+                "_name": "Test room B"
             }
         }
+    },
+
+    "known_list": {
+        "03:123456": {"faked": true}
     },
 
     "block_list": {
