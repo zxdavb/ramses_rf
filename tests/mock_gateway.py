@@ -40,6 +40,7 @@ DEV_MODE = __dev_mode__ and False
 
 GWY_ID = "18:181818"
 CTL_ID = "01:000730"
+THM_ID = "03:123456"
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
@@ -89,8 +90,6 @@ class MockSerialBase:  # all the 'mocking' is done here
     Will periodically Rx a sync_cycle set that will be available via `read()`.
     Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
     """
-
-    DEV_ID = GWY_ID
 
     def __init__(self, gwy, port=None, **kwargs) -> None:
         self._loop = gwy._loop
@@ -165,7 +164,7 @@ class MockSerialBase:  # all the 'mocking' is done here
         if data[:1] == b"!":  # an evofw3 flag
             return 0
         if data[7:16] == b"18:000730":
-            data = data[:7] + bytes(self.DEV_ID, "ascii") + data[16:]
+            data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
             self._tx_data(data, Command(data.decode("ascii")[:-2]))
         except InvalidPacketError:
@@ -188,23 +187,16 @@ class MockSerial(MockSerialBase):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._devices = [MockDeviceCtl(self, gwy)]
+        self._devices = [
+            MockDeviceCtl(self, gwy, CTL_ID),
+            MockDeviceThm(self, gwy, THM_ID),
+        ]
 
 
-class MockDeviceCtl:
-    """A pseudo-mocked controller used for testing.
+class MockDeviceBase:
+    """A pseudo-mocked device used for testing."""
 
-    Will periodically Rx a sync_cycle set that will be available via `read()`.
-    Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
-    """
-
-    DEV_ID = CTL_ID
-
-    SYNC_CYCLE_INTERVAL = 60  # sync_cycle interval, in seconds
-    SYNC_CYCLE_REMANING = 900
-    # SYNC_CYCLE_PACKETS = sync_cycle_pkts(DEV_ID, SYNC_CYCLE_INTERVAL)
-
-    def __init__(self, ser, gwy, schema=None) -> None:
+    def __init__(self, ser, gwy, device_id) -> None:
 
         self._ser = ser
         self._que = ser._que  # this entity will only put
@@ -212,7 +204,33 @@ class MockDeviceCtl:
         self._gwy = gwy
         self._loop = gwy._loop
 
-        self._tcs = None  # load_system(gwy, self.DEV_ID, schema or {})
+        self.id = device_id
+        self._tasks = []
+
+    def rx_frame_by_header(self, rp_header: str) -> None:
+        """Find/Create an encoded frame (via its hdr), and queue it for the gwy to Rx.
+
+        The rp_header is the sent cmd's rx_header (the header of the packet the gwy is
+        waiting for).
+        """
+        pass
+
+
+class MockDeviceCtl(MockDeviceBase):
+    """A pseudo-mocked controller used for testing.
+
+    Will periodically Rx a sync_cycle set that will be available via `read()`.
+    Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
+    """
+
+    SYNC_CYCLE_INTERVAL = 60  # sync_cycle interval, in seconds
+    SYNC_CYCLE_REMANING = 900
+    # SYNC_CYCLE_PACKETS = sync_cycle_pkts(DEV_ID, SYNC_CYCLE_INTERVAL)
+
+    def __init__(self, ser, gwy, device_id, *, schema=None) -> None:
+        super().__init__(ser, gwy, device_id)
+
+        self._tcs = None  # load_system(gwy, self.id, schema or {})
 
         self._change_counter = 8
         self.next_cycle = dt.now() + td(seconds=self.SYNC_CYCLE_REMANING)
@@ -220,11 +238,8 @@ class MockDeviceCtl:
         self._tasks = [self._loop.create_task(self.tx_sync_cycle())]
 
     def rx_frame_by_header(self, rp_header: str) -> None:
-        """Find an encoded frame (via its header), and queue it for the gwy to Rx.
-
-        The rp_header is the sent cmd's rx_header (the header of teh packet the gwy is
-        waiting for).
-        """
+        """Find/Create an encoded frame, and queue it for the gwy to Rx."""
+        super().rx_frame_by_header(rp_header)
 
         if rp_header == f"{_1F09}|{RP}|{CTL_ID}":
             pkts = self.tx_response_1f09()
@@ -284,7 +299,7 @@ class MockDeviceCtl:
     def tx_response_1f09(self) -> Optional[tuple]:
         interval = int((self.next_cycle - dt.now()).total_seconds() * 10)
         return 1, Command._from_attrs(
-            RP, _1F09, f"00{interval:04X}", addr0=self.DEV_ID, addr1=GWY_ID
+            RP, _1F09, f"00{interval:04X}", addr0=self.id, addr1=GWY_ID
         )
 
     def tx_response_0005(self, context: str) -> Optional[tuple]:
@@ -301,14 +316,12 @@ class MockDeviceCtl:
         zone_mask = (is_type(idx, zone_type) for idx in range(0x10))
 
         return 1, Command.put_zone_types(
-            self.DEV_ID, GWY_ID, zone_type, zone_mask, sub_idx=context[:2]
+            self.id, GWY_ID, zone_type, zone_mask, sub_idx=context[:2]
         )
 
     def tx_response_0006(self, rp_header) -> Optional[tuple]:
         payload = f"0005{self._change_counter:04X}"
-        return 1, Command._from_attrs(
-            RP, _0006, payload, addr0=self.DEV_ID, addr1=GWY_ID
-        )
+        return 1, Command._from_attrs(RP, _0006, payload, addr0=self.id, addr1=GWY_ID)
 
     def tx_response_000c(self, context: str) -> Optional[tuple]:
         zone_idx, zone_type = context[:2], context[2:]
@@ -332,6 +345,15 @@ class MockDeviceCtl:
             pass
 
         return
+
+
+class MockDeviceThm(MockDeviceBase):
+    """A pseudo-mocked thermostat used for testing."""
+
+    def __init__(self, ser, gwy, device_id, *, schema=None) -> None:
+        super().__init__(ser, gwy, device_id)
+
+        self.temperature = None  # TODO: maintain internal state (is needed?)
 
 
 class SerTransportMock(SerTransportPoll):  # only to gracefully close the mocked port
