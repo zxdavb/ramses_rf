@@ -140,7 +140,7 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
 
-SCH_DEV = vol.Any(
+SCH_TRAITS = vol.Any(
     {
         vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
         vol.Optional(SZ_CLASS, default=None): vol.Any(
@@ -152,8 +152,8 @@ SCH_DEV = vol.Any(
         vol.Optional("_note"): str,  # only a convenience, not used
     },
 )
-_SCH_DEV = vol.Schema(
-    {vol.Optional(DEV_REGEX_ANY): SCH_DEV},
+SCH_DEVICE = vol.Schema(
+    {vol.Optional(DEV_REGEX_ANY): SCH_TRAITS},
     extra=vol.PREVENT_EXTRA,
 )
 
@@ -234,8 +234,8 @@ SCH_GLOBAL_CONFIG = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(_SCH_DEV, vol.Length(min=0)),
-        vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(_SCH_DEV, vol.Length(min=0)),
+        vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
+        vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
     },
     extra=vol.REMOVE_EXTRA,
 )
