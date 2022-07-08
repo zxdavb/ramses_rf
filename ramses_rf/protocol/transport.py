@@ -13,6 +13,11 @@ connection: &con00
   connector: serialdev,/dev/ttyUSB0,115200n81,local
   options:
     max-connections: 3
+
+For socat, see:
+  socat -dd pty,raw,echo=0 pty,raw,echo=0
+  python client.py monitor /dev/pts/0
+  cat packet.log | cut -d ' ' -f 2- | unix2dos > /dev/pts/1
 """
 
 # TODO: switch dtm from naive to aware
