@@ -59,6 +59,8 @@ SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
 SZ_TCS_SYSTEM = "system"
 SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DEV_ROLE.APP]
 SZ_ORPHANS = "orphans"
+SZ_ORPHANS_HEAT = "orphans_heat"
+SZ_ORPHANS_HVAC = "orphans_hvac"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
 SZ_DHW_SENSOR = DEV_ROLE_MAP[DEV_ROLE.DHW]
@@ -174,7 +176,7 @@ SCHEMA_DHW = vol.Schema(
         vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
     }
 )
-UFC_CIRCUIT = vol.Schema(
+SCHEMA_UFC_CIRCUIT = vol.Schema(
     {
         vol.Required(UFH_IDX): vol.Any(
             {vol.Optional(SZ_ZONE_IDX): vol.Any(ZONE_IDX)},
@@ -377,8 +379,9 @@ def load_schema(gwy, **kwargs) -> dict:
         gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
 
     [
-        _get_device(gwy, device_id, disable_warning=True)
-        for device_id in kwargs.pop(SZ_ORPHANS, [])
+        _get_device(gwy, device_id)
+        for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
+        for device_id in kwargs.pop(key, [])
     ]
 
 
