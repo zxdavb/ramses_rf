@@ -258,7 +258,7 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
         for _ in range(3):
             self._send_cmd(
                 Command.set_fan_mode(self._ctl, int(4 * rate), 4, src_id=self.id)
-            )
+            )  # TODO: needs checking
 
     @property
     def fan_mode(self) -> Optional[str]:
