@@ -1114,7 +1114,7 @@ class SysMode(SystemBase):  # 2E04
     def set_mode(self, system_mode, *, until=None) -> asyncio.Task:
         """Set a system mode for a specified duration, or indefinitely."""
         return self._send_cmd(
-            Command.set_system_mode(self.id, system_mode=system_mode, until=until)
+            Command.set_system_mode(self.id, system_mode, until=until)
         )
 
     def set_auto(self) -> asyncio.Task:

@@ -465,7 +465,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         #     setpoint = dhw_params["differential"]
 
         return self._send_cmd(
-            Command.set_dhw_params(self.ctl.id, setpoint, overrun, differential)
+            Command.set_dhw_params(
+                self.ctl.id,
+                setpoint=setpoint,
+                overrun=overrun,
+                differential=differential,
+            )
         )
 
     def reset_config(self) -> Task:  # 10A0
@@ -808,7 +813,9 @@ class Zone(ZoneSchedule, ZoneBase):
         if mode is None and until is None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
         else:
-            cmd = Command.set_zone_mode(self.ctl.id, self.idx, mode, setpoint, until)
+            cmd = Command.set_zone_mode(
+                self.ctl.id, self.idx, mode=mode, setpoint=setpoint, until=until
+            )
         return self._send_cmd(cmd)
 
     def set_name(self, name) -> Task:
