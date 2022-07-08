@@ -91,9 +91,9 @@ jobs:
       - run:
           name: Create .pypirc
           command: |
-            echo -e "[pypi]"                                          >  ~/.pypirc
-            echo -e "  username = __token__                           >> ~/.pypirc
-            echo -e "  password = $PYPI_TOKEN"                        >> ~/.pypirc
+            echo -e "[pypi]                                         " >  ~/.pypirc
+            echo -e "  username = __token__                         " >> ~/.pypirc
+            echo -e "  password = $PYPI_TOKEN                       " >> ~/.pypirc
       - run:
           name: Upload to PyPi
           command: twine upload -r pypi dist/*
