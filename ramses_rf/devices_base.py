@@ -187,8 +187,8 @@ class Device(Entity):
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
-            return f"{self.id} ({self._child_id}): {getattr(self, self._STATE_ATTR)}"
-        return f"{self.id} ({self._child_id})"
+            return f"{self.id} {self._SLUG}): {getattr(self, self._STATE_ATTR)}"
+        return f"{self.id} ({self._SLUG})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):

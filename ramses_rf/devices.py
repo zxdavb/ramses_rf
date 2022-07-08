@@ -87,17 +87,19 @@ def best_dev_role(
     # a specified device class always takes precidence (even if it is wrong)...
     if cls := _CLASS_BY_SLUG.get(slug):
         _LOGGER.debug(
-            f"Using an explicitly-defined class for: {dev_addr} ({cls._SLUG})"
+            f"Using an explicitly-defined class for: {dev_addr!r} ({cls._SLUG})"
         )
         return cls
 
     if dev_addr.type == DEV_TYPE_MAP.HGI:
-        _LOGGER.debug(f"Using the default class for: {dev_addr} ({HgiGateway._SLUG})")
+        _LOGGER.debug(f"Using the default class for: {dev_addr!r} ({HgiGateway._SLUG})")
         return HgiGateway
 
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
         if cls := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):
-            _LOGGER.debug(f"Using the default Heat class for: {dev_addr} ({cls._SLUG})")
+            _LOGGER.debug(
+                f"Using the default Heat class for: {dev_addr!r} ({cls._SLUG})"
+            )
             return cls
     except TypeError:
         pass
@@ -105,14 +107,16 @@ def best_dev_role(
     try:  # or, a HVAC class, eavesdropped from the message code/payload...
         if cls := class_dev_hvac(dev_addr, msg=msg, eavesdrop=eavesdrop):
             _LOGGER.debug(
-                f"Using eavesdropped HVAC class for: {dev_addr} ({cls._SLUG})"
+                f"Using eavesdropped HVAC class for: {dev_addr!r} ({cls._SLUG})"
             )
             return cls  # includes DeviceHvac
     except TypeError:
         pass
 
     # otherwise, use the default device class...
-    _LOGGER.debug(f"Using a promotable HVAC class for: {dev_addr} ({DeviceHvac._SLUG})")
+    _LOGGER.debug(
+        f"Using a promotable HVAC class for: {dev_addr!r} ({DeviceHvac._SLUG})"
+    )
     return DeviceHvac
 
 
