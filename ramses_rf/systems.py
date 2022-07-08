@@ -56,9 +56,9 @@ from .protocol import (
 )
 from .protocol.command import _mk_cmd
 from .schema import (
-    SCHEMA_DHW,
-    SCHEMA_SYS,
-    SCHEMA_ZON,
+    SCH_DHW,
+    SCH_SYS,
+    SCH_ZON,
     SZ_APPLIANCE_CONTROL,
     SZ_CLASS,
     SZ_CONTROLLER,
@@ -208,7 +208,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        schema = shrink(SCHEMA_SYS(schema))
+        schema = shrink(SCH_SYS(schema))
 
         if schema.get(SZ_TCS_SYSTEM) and (
             dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APPLIANCE_CONTROL)
@@ -752,7 +752,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         from .zones import zx_zone_factory
 
-        schema = shrink(SCHEMA_ZON(schema))
+        schema = shrink(SCH_ZON(schema))
 
         zon = self.zone_by_idx.get(zone_idx)
         if not zon:
@@ -1051,7 +1051,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         from .zones import zx_zone_factory
 
-        schema = shrink(SCHEMA_DHW(schema))
+        schema = shrink(SCH_DHW(schema))
 
         if not self._dhw:
             self._dhw = zx_zone_factory(self, "HW", msg=msg, **schema)

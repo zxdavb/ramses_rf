@@ -20,7 +20,7 @@ from .protocol.command import Command, _mk_cmd
 from .protocol.const import SZ_FUNC, SZ_TIMEOUT
 from .protocol.message import Message
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
-from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
+from .schema import SCH_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -201,7 +201,7 @@ class Device(Entity):
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        traits = shrink(SCHEMA_DEV(traits))
+        traits = shrink(SCH_DEV(traits))
 
         if traits.get(SZ_FAKED):  # class & alias are done elsewhere
             if not isinstance(self, Fakeable):

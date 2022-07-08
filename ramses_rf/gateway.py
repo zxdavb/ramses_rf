@@ -37,7 +37,7 @@ from .schema import (
     DEBUG_MODE,
     ENFORCE_KNOWN_LIST,
     INPUT_FILE,
-    SCHEMA_DEV,
+    SCH_DEV,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
     SZ_CLASS,
@@ -525,7 +525,7 @@ class Gateway(Engine):
                 )
 
         check_filter_lists(dev_id)
-        traits = SCHEMA_DEV(self._include.get(dev_id, {}))
+        traits = SCH_DEV(self._include.get(dev_id, {}))
 
         dev = self.device_by_id.get(dev_id)
         if not dev:

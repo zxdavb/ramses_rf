@@ -149,14 +149,14 @@ def schema_sched(schema_switchpoint: vol.Schema) -> vol.Schema:
     )
 
 
-SCHEMA_SWITCHPOINT_DHW = vol.Schema(
+SCH_SWITCHPOINT_DHW = vol.Schema(
     {
         vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
         vol.Required(ENABLED): bool,
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCHEMA_SWITCHPOINT_ZON = vol.Schema(
+SCH_SWITCHPOINT_ZON = vol.Schema(
     {
         vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
         vol.Required(HEAT_SETPOINT): vol.All(
@@ -165,22 +165,22 @@ SCHEMA_SWITCHPOINT_ZON = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCHEMA_SCHEDULE_DHW = vol.Schema(
+SCH_SCHEDULE_DHW = vol.Schema(
     {
         vol.Required(SZ_ZONE_IDX): "HW",
-        vol.Required(SZ_SCHEDULE): schema_sched(SCHEMA_SWITCHPOINT_DHW),
+        vol.Required(SZ_SCHEDULE): schema_sched(SCH_SWITCHPOINT_DHW),
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCHEMA_SCHEDULE_ZON = vol.Schema(
+SCH_SCHEDULE_ZON = vol.Schema(
     {
         vol.Required(SZ_ZONE_IDX): vol.Match(r"0[0-F]"),
-        vol.Required(SZ_SCHEDULE): schema_sched(SCHEMA_SWITCHPOINT_ZON),
+        vol.Required(SZ_SCHEDULE): schema_sched(SCH_SWITCHPOINT_ZON),
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCHEMA_SCHEDULE = vol.Schema(
-    vol.Any(SCHEMA_SCHEDULE_DHW, SCHEMA_SCHEDULE_ZON), extra=vol.PREVENT_EXTRA
+SCH_SCHEDULE = vol.Schema(
+    vol.Any(SCH_SCHEDULE_DHW, SCH_SCHEDULE_ZON), extra=vol.PREVENT_EXTRA
 )
 
 DEV_MODE = __dev_mode__ and False
@@ -392,10 +392,10 @@ class Schedule:  # 0404
         def normalise_validate(schedule) -> dict:
             if self.idx == "HW":
                 schedule = {SZ_ZONE_IDX: "HW", SZ_SCHEDULE: schedule}
-                schema_schedule = SCHEMA_SCHEDULE_DHW
+                schema_schedule = SCH_SCHEDULE_DHW
             else:
                 schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
-                schema_schedule = SCHEMA_SCHEDULE_ZON
+                schema_schedule = SCH_SCHEDULE_ZON
 
             try:
                 schedule = schema_schedule(schedule)

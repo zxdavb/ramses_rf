@@ -140,7 +140,7 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
 
-SCHEMA_DEV = vol.Any(
+SCH_DEV = vol.Any(
     {
         vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
         vol.Optional(SZ_CLASS, default=None): vol.Any(
@@ -152,15 +152,15 @@ SCHEMA_DEV = vol.Any(
         vol.Optional("_note"): str,  # only a convenience, not used
     },
 )
-_SCHEMA_DEV = vol.Schema(
-    {vol.Optional(DEV_REGEX_ANY): SCHEMA_DEV},
+_SCH_DEV = vol.Schema(
+    {vol.Optional(DEV_REGEX_ANY): SCH_DEV},
     extra=vol.PREVENT_EXTRA,
 )
 
 # 2/3: Schemas for Heating systems
 SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
-SCHEMA_TCS = vol.Schema(
+SCH_TCS = vol.Schema(
     {
         vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(None, DEV_REGEX_APP),
         vol.Optional("heating_control"): renamed(SZ_APPLIANCE_CONTROL),
@@ -168,7 +168,7 @@ SCHEMA_TCS = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCHEMA_DHW = vol.Schema(
+SCH_DHW = vol.Schema(
     {
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
         vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
@@ -176,23 +176,23 @@ SCHEMA_DHW = vol.Schema(
         vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
     }
 )
-SCHEMA_UFC_CIRCUIT = vol.Schema(
+SCH_UFC_CIRCUIT = vol.Schema(
     {
         vol.Required(UFH_IDX): vol.Any(
             {vol.Optional(SZ_ZONE_IDX): vol.Any(ZONE_IDX)},
         ),
     }
 )
-SCHEMA_UFH = vol.Schema(
+SCH_UFH = vol.Schema(
     {
         vol.Required(DEV_REGEX_UFC): vol.Any(
             None, {vol.Optional(SZ_CIRCUITS): vol.Any(None, dict)}
         )
     }
 )
-SCHEMA_UFH = vol.All(SCHEMA_UFH, vol.Length(min=1, max=3))
+SCH_UFH = vol.All(SCH_UFH, vol.Length(min=1, max=3))
 
-SCHEMA_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123456'])
+SCH_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123456'])
     {
         vol.Optional(SZ_CLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_SEN),
@@ -207,26 +207,26 @@ SCHEMA_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123
     },
     extra=vol.PREVENT_EXTRA,
 )
-# SCHEMA_ZON({SZ_CLASS: None, SZ_DEVICES: None})  # TODO: remove me
-SCHEMA_ZONES = vol.All(
-    vol.Schema({vol.Required(ZONE_IDX): SCHEMA_ZON}),
+# SCH_ZON({SZ_CLASS: None, SZ_DEVICES: None})  # TODO: remove me
+SCH_ZONES = vol.All(
+    vol.Schema({vol.Required(ZONE_IDX): SCH_ZON}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
 )
-SCHEMA_SYS = vol.Schema(
+SCH_SYS = vol.Schema(
     {
         # vol.Required(SZ_CONTROLLER): DEV_REGEX_CTL,
-        vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, SCHEMA_TCS),
-        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCHEMA_DHW),
-        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCHEMA_UFH),
+        vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, SCH_TCS),
+        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_DHW),
+        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_UFH),
         vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEV_REGEX_ANY]),
-        vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCHEMA_ZONES),
+        vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCH_ZONES),
     },
     extra=vol.PREVENT_EXTRA,
 )
 
 
 # 3/3: Global Schemas
-SCHEMA_GLOBAL_CONFIG = vol.Schema(
+SCH_GLOBAL_CONFIG = vol.Schema(
     {
         vol.Required(SZ_CONFIG): CONFIG_SCHEMA.extend(
             {
@@ -234,12 +234,8 @@ SCHEMA_GLOBAL_CONFIG = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(
-            _SCHEMA_DEV, vol.Length(min=0)
-        ),
-        vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(
-            _SCHEMA_DEV, vol.Length(min=0)
-        ),
+        vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(_SCH_DEV, vol.Length(min=0)),
+        vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(_SCH_DEV, vol.Length(min=0)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -257,7 +253,7 @@ def load_config(
      - block_list (is a dict)
     """
 
-    config = SCHEMA_GLOBAL_CONFIG(kwargs)
+    config = SCH_GLOBAL_CONFIG(kwargs)
     schema = {k: v for k, v in kwargs.items() if k not in config and k[:1] != "_"}
 
     block_list = config.pop(SZ_BLOCK_LIST)
@@ -388,7 +384,7 @@ def load_schema(gwy, **kwargs) -> dict:
 def load_system(gwy, ctl_id, schema) -> Any:  # System
     """Create a system using its schema."""
     # print(schema)
-    # schema = SCHEMA_ZON(schema)
+    # schema = SCH_ZON(schema)
 
     ctl = _get_device(gwy, ctl_id)
     ctl.tcs._update_schema(**schema)  # TODO
