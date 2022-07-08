@@ -113,6 +113,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 
 # VMI-15WSJ53  - SWI - Orcon HRC Interactive/Display 15RF
 # VMN-15LF01   - SWI - Orcon 15RF 6 button remote
+# VMN-23LM33   -
 # VMN-23LMH23  - SWI - 4 button RF Switch
 
 # VMS-02MC05   - CO2 -
