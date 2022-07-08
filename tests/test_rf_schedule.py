@@ -16,8 +16,8 @@ from ramses_rf.schedule import (
     DAY_OF_WEEK,
     ENABLED,
     HEAT_SETPOINT,
-    SCHEMA_SCHEDULE_DHW,
-    SCHEMA_SCHEDULE_ZON,
+    SCH_SCHEDULE_DHW,
+    SCH_SCHEDULE_ZON,
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
@@ -62,9 +62,9 @@ async def load_test_system(config: dict = None) -> Gateway:
 def assert_schedule_dict(schedule_full):
 
     if schedule_full[SZ_ZONE_IDX] == "HW":
-        SCHEMA_SCHEDULE_DHW(schedule_full)
+        SCH_SCHEDULE_DHW(schedule_full)
     else:
-        SCHEMA_SCHEDULE_ZON(schedule_full)
+        SCH_SCHEDULE_ZON(schedule_full)
 
     schedule = schedule_full[SZ_SCHEDULE]
     # assert isinstance(schedule, list)

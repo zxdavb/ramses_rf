@@ -15,8 +15,8 @@ from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.schedule import (
     ENABLED,
     HEAT_SETPOINT,
-    SCHEMA_SCHEDULE_DHW,
-    SCHEMA_SCHEDULE_ZON,
+    SCH_SCHEDULE_DHW,
+    SCH_SCHEDULE_ZON,
     SWITCHPOINTS,
     fragments_to_schedule,
     schedule_to_fragments,
@@ -57,10 +57,10 @@ async def test_schedule_helpers(dir_name):
     new_schedule = deepcopy(schedule)
 
     if schedule[SZ_ZONE_IDX] == "HW":
-        SCHEMA_SCHEDULE_DHW(schedule)
+        SCH_SCHEDULE_DHW(schedule)
         schedule[SZ_ZONE_IDX] = "00"
     else:
-        SCHEMA_SCHEDULE_ZON(schedule)
+        SCH_SCHEDULE_ZON(schedule)
 
     assert schedule == fragments_to_schedule(schedule_to_fragments(schedule))
 

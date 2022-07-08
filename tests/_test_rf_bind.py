@@ -16,8 +16,8 @@ from ramses_rf.schedule import (
     DAY_OF_WEEK,
     ENABLED,
     HEAT_SETPOINT,
-    SCHEMA_SCHEDULE_DHW,
-    SCHEMA_SCHEDULE_ZON,
+    SCH_SCHEDULE_DHW,
+    SCH_SCHEDULE_ZON,
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
