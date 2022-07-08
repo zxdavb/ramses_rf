@@ -218,7 +218,7 @@ def _normalise_mode(mode, target, until, duration) -> str:
             mode = ZON_MODE_MAP.COUNTDOWN
         else:
             mode = ZON_MODE_MAP.PERMANENT  # TODO: advanced_override?
-    else:  # may raise KeyError
+    elif mode not in ZON_MODE_MAP:  # may raise KeyError
         mode = ZON_MODE_MAP._hex(f"{mode:02X}" if isinstance(mode, int) else mode)
 
     if mode != ZON_MODE_MAP.FOLLOW_SCHEDULE and target is None:
