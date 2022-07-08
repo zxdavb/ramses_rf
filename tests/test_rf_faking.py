@@ -74,7 +74,9 @@ async def test_zone_sensor():  # I/30C9
 
     zone = tcs.zones[0]
 
-    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:  # gwy.ser_name == ...
+    # TODO: remove this block when can assure zone.sensor is not None
+    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:
+        await gwy.stop()
         return
 
     org_temp = zone.temperature  # may be None
@@ -110,7 +112,9 @@ async def test_zone_sensor_unfaked():  # I/30C9
 
     zone = tcs.zones[0]
 
-    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:  # gwy.ser_name == ...
+    # TODO: remove this block when can assure zone.sensor is not None
+    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:
+        await gwy.stop()
         return
 
     org_temp = zone.temperature  # may be None
