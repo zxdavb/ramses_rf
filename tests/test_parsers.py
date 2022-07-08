@@ -21,12 +21,12 @@ def id_fnc(param):
 
 
 def pytest_generate_tests(metafunc):
-    metafunc.parametrize("f_name", Path(WORK_DIR).glob("*.log"), ids=id_fnc)
+    metafunc.parametrize("f_name", sorted(Path(WORK_DIR).glob("*.log")), ids=id_fnc)
 
 
 def _proc_log_line(gwy, pkt_line):  # noqa: F811
-    pkt_line, pkt_dict = list(
-        map(str.strip, pkt_line.split("#", maxsplit=1) + [""])[:2]
+    pkt_line, pkt_dict, *_ = list(
+        map(str.strip, pkt_line.split("#", maxsplit=1) + [""])
     )
 
     if pkt_line:
