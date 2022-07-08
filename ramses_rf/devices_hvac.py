@@ -40,7 +40,7 @@ from .devices_base import BatteryState, DeviceHvac, Fakeable
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.command import Command
-from .protocol.ramses import CODES_HVAC_ONLY
+from .protocol.ramses import CODES_HVAC_ONLY, HVAC_KLASS_BY_VC_PAIR
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -229,22 +229,22 @@ class HvacCarbonDioxide(DeviceHvac):  # CO2: I/1298
         }
 
 
-class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
+class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
     """
 
-    # 11:19:47.199 074  I --- 29:156898 63:262142 --:------ 1FC9 024 001FC97664E2 0022F17664E2 0022F37664E2 6710E07664E2         # SWI, idx|10E0 == 67
+    # 11:19:47.199 074  I --- 29:156898 63:262142 --:------ 1FC9 024 001FC97664E2 0022F17664E2 0022F37664E2 6710E07664E2         # REM, idx|10E0 == 67
     # 11:19:47.212 059  W --- 32:132125 29:156898 --:------ 1FC9 012 0031D982041D 0031DA82041D                                   # FAN, is: Orcon HRC500
-    # 11:19:47.275 074  I --- 29:156898 32:132125 --:------ 1FC9 001 00                                                          # SWI, is: Orcon RF15
+    # 11:19:47.275 074  I --- 29:156898 32:132125 --:------ 1FC9 001 00                                                          # REM, is: Orcon RF15
     # 11:19:47.348 074  I --- 29:156898 63:262142 --:------ 10E0 029 000001C827050167FFFFFFFFFFFFFFFFFFFF564D4E2D31354C46303100  # VMN-15LF01, oem_code == 67
 
     # every /15
     # RQ --- 32:166025 30:079129 --:------ 31DA 001 21
     # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
-    _SLUG: str = DEV_TYPE.SWI
+    _SLUG: str = DEV_TYPE.REM
 
     @property
     def fan_rate(self) -> Optional[str]:
@@ -275,6 +275,12 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # SWI: I/22F[13]
             FAN_MODE: self.fan_mode,
             SZ_BOOST_TIMER: self.boost_timer,
         }
+
+
+class HvacDisplay(HvacSwitch):  # DIS
+    """The FAN (switch) class, such as a 4-way switch."""
+
+    _SLUG: str = DEV_TYPE.DIS
 
 
 class FilterChange(DeviceHvac):  # FAN: 10D0
@@ -426,14 +432,6 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
 HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidity
 
-_HVAC_VC_PAIR_BY_CLASS = {
-    DEV_TYPE.CO2: ((I_, _1298),),
-    DEV_TYPE.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
-    DEV_TYPE.HUM: ((I_, _12A0),),
-    DEV_TYPE.SWI: ((I_, _22F1), (I_, _22F3)),
-}
-_HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
-
 
 def class_dev_hvac(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
@@ -449,22 +447,13 @@ def class_dev_hvac(
     if msg is None:
         raise TypeError(f"No HVAC class for: {dev_addr} (no msg)")
 
-    if klass := _HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
+    if klass := HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
         return HVAC_CLASS_BY_SLUG[klass]
 
     if msg.code in CODES_HVAC_ONLY:
         return DeviceHvac
 
     raise TypeError(f"No HVAC class for: {dev_addr} (insufficient meta-data)")
-
-
-if DEV_MODE:
-    assert len(_HVAC_KLASS_BY_VC_PAIR) == (
-        sum(len(v) for v in _HVAC_VC_PAIR_BY_CLASS.values())
-    ), "Coding error: There is a duplicate verb/code pair"
-
-# CVE = Mechanical Ventilation Unit (CVD on roof) - has RH sensor
-# HRU = Heat Recovery Unit
 
 
 _REMOTES = {

@@ -195,16 +195,12 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    if slug is None:  # FIXME: next line needs work
-        slug = getattr(
-            msg.src, "_SLUG", DEV_TYPE.DEV
-        )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
+    if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
+        slug = getattr(msg.src, "_SLUG", DEV_TYPE.DEV)
     if slug in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
-        #
-        #
         return
 
-    if slug not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
+    if slug not in CODES_BY_DEV_SLUG:
         if msg.code != _10E0 and msg.code not in CODES_HVAC_ONLY:
             err_msg = f"Unknown src type: {msg.dst}"
             if STRICT_MODE:
@@ -216,7 +212,6 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
 
     #
     #
-
     #
     #
 
@@ -253,15 +248,11 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
     """
 
     if slug is None:
-        slug = getattr(
-            msg.dst, "_SLUG", None
-        )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
-    if slug in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC) or (
-        msg.dst is msg.src and msg.verb == I_
-    ):
+        slug = getattr(msg.dst, "_SLUG", None)
+    if slug in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
         return
 
-    if slug not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
+    if slug not in CODES_BY_DEV_SLUG:
         if msg.code not in CODES_HVAC_ONLY:
             err_msg = f"Unknown dst type: {msg.dst}"
             if STRICT_MODE:
@@ -273,7 +264,6 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 
     if msg.verb == I_:  # TODO: not common, unless src=dst
         return  # receiving an I isn't currently in the schema & cant yet be tested
-
     if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{_3EF1}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
@@ -352,7 +342,8 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
             _create_devices_from_addrs(gwy, msg)
 
         _check_msg_src(msg)  # ? InvalidPacketError
-        _check_msg_dst(msg)  # ? InvalidPacketError
+        if msg.dst is not msg.src or msg.verb != I_:
+            _check_msg_dst(msg)  # ? InvalidPacketError
 
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             return

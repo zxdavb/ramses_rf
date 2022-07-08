@@ -1020,7 +1020,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
 }
 # TODO: add 1FC9 everywhere?
 _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
-    DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a SWI
+    DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a REM
         _0001: {RQ: {}},
         _042F: {I_: {}},
         _10E0: {I_: {}, RQ: {}},
@@ -1088,7 +1088,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
-    DEV_TYPE.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
+    DEV_TYPE.REM: {  # HVAC: two-way switch; also an "06/22F1"?
         _0001: {RQ: {}},  # from a VMI (only?)
         _042F: {I_: {}},  # from a VMI (only?)
         _1060: {I_: {}},
@@ -1103,9 +1103,9 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31DA: {RQ: {}},  # to a VMI (only?)
         # _31E0: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
-    None: {  # unknown, TODO: make generic HVAC
-        _4401: {I_: {}},
-    },
+    # None: {  # unknown, TODO: make generic HVAC
+    #     _4401: {I_: {}},
+    # },
 }
 
 CODES_BY_DEV_SLUG: Dict[SimpleNamespace, Dict] = {
@@ -1148,6 +1148,33 @@ _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_TYPE.CTL].keys()
 
 _CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
 CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
+
+# ### WIP:
+# _result = {}
+# for domain in (_DEV_KLASSES_HVAC, ):
+#     for klass, kv in domain.items():
+#         if klass in (DEV_TYPE.DIS, DEV_TYPE.RFS):
+#             continue
+#         for code, cv in kv.items():
+#             for verb in cv:
+#                 _result.update({(verb, code): _result.get((verb, code), 0) + 1})
+
+# _HVAC_VC_PAIR_BY_CLASS = {
+#     (v, c): k
+#     for c, cv in kv.items()
+#     for v in cv
+#     for k, kv in _DEV_KLASSES_HVAC.items()
+#     if (v, c) in [k for k, v in _result.items() if v == 1]
+# }
+
+
+_HVAC_VC_PAIR_BY_CLASS = {
+    DEV_TYPE.CO2: ((I_, _1298),),
+    DEV_TYPE.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
+    DEV_TYPE.HUM: ((I_, _12A0),),
+    DEV_TYPE.REM: ((I_, _22F1), (I_, _22F3)),
+}
+HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
 
 
 SZ_DESCRIPTION = "description"

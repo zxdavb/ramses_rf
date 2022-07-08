@@ -54,13 +54,13 @@ __DEVICE_INFO_DB: Dict[str, Tuple[str, str, str, str]] = {
     "0001C825050266FFFF": ("HUM", "29", "2017-04-19", "VMS-17HB01"),  # .                   12A0, 31E0, 1060
     "0001C85802016CFFFF": ("HUM", "32", "2016-07-12", "VMS-23HB33"),  # .                   12A0, 31E0, 1060 (and I|042F)
     "0001C85803016CFFFF": ("HUM", "32", "2016-09-12", "VMS-23HB33"),  # .                   12A0, 31E0, 1060 (and I|042F)
-    # SWI
-    "0001C827050167FFFF": ("SWI", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
-    "0001C827070167FFFF": ("SWI", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
-    "0001C827090167FFFF": ("SWI", "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
-    "0001C85A01016CFFFF": ("SWI", "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
-    # SWI (display)
-    "0001C894030167FFFF": ("SWI", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, ?22F3 (HRC Display recessed 15RF)
+    # REM
+    "0001C827050167FFFF": ("REM", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
+    "0001C827070167FFFF": ("REM", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
+    "0001C827090167FFFF": ("REM", "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
+    "0001C85A01016CFFFF": ("REM", "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
+    # REM (display)
+    "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, ?22F3 (HRC Display recessed 15RF)
     # RFS...
     "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
     "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
@@ -111,10 +111,10 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMD-15RMS86  -
 # VMD-17RPS01  -
 
-# VMI-15WSJ53  - SWI - Orcon HRC Interactive/Display 15RF
-# VMN-15LF01   - SWI - Orcon 15RF 6 button remote
+# VMI-15WSJ53  - REM - Orcon HRC Interactive/Display 15RF
+# VMN-15LF01   - REM - Orcon 15RF 6 button remote
 # VMN-23LM33   -
-# VMN-23LMH23  - SWI - 4 button RF Switch
+# VMN-23LMH23  - REM - 4 button RF Switch
 
 # VMS-02MC05   - CO2 -
 # VMS-12C39    - CO2 - CO2 sensor, incl. integrated control, PIR
