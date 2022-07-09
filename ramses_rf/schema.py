@@ -52,7 +52,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # schema strings
-SCHEMA = "schema"
+SZ_SCHEMA = "schema"
 SZ_MAIN_CONTROLLER = "main_controller"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
@@ -349,13 +349,13 @@ def _get_device(gwy, dev_id, **kwargs) -> Any:  # Device
 
         err_msg = None
         if gwy.config.enforce_known_list and dev_id not in gwy._include:
-            err_msg = f"it is in the {SCHEMA}, but not in the {SZ_KNOWN_LIST}"
+            err_msg = f"it is in the {SZ_SCHEMA}, but not in the {SZ_KNOWN_LIST}"
         if dev_id in gwy._exclude:
-            err_msg = f"it is in the {SCHEMA}, but also in the {SZ_BLOCK_LIST}"
+            err_msg = f"it is in the {SZ_SCHEMA}, but also in the {SZ_BLOCK_LIST}"
 
         if err_msg:
             raise LookupError(
-                f"Can't create {dev_id}: {err_msg} (check the lists and the {SCHEMA})"
+                f"Can't create {dev_id}: {err_msg} (check the lists and the {SZ_SCHEMA})"
             )
 
     check_filter_lists(dev_id)
