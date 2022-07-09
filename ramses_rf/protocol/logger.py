@@ -14,6 +14,7 @@ import shutil
 import sys
 from datetime import datetime as dt
 from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
+from typing import Callable
 
 from .const import __dev_mode__
 from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
@@ -38,7 +39,7 @@ DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
 
 # TODO: make account for the non-printing characters
-CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
+CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(int(2e3), 24)).columns - 1)
 
 if DEV_MODE:  # Do this to have longer-format console messages
     # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
@@ -113,7 +114,7 @@ class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
 class _Formatter:  # format asctime with configurable precision
     """Formatter instances convert a LogRecord to text."""
 
-    converter = None
+    converter = None  # was: time.localtime
     default_time_format = "%Y-%m-%dT%H:%M:%S.%f"
     precision = 6
 
@@ -131,11 +132,11 @@ class _Formatter:  # format asctime with configurable precision
         return result[: precision - 6] if -1 <= precision < 6 else result
 
 
-class ColoredFormatter(_Formatter, colorlog.ColoredFormatter):
+class ColoredFormatter(_Formatter, colorlog.ColoredFormatter):  # typx: ignore
     pass
 
 
-class Formatter(_Formatter, logging.Formatter):
+class Formatter(_Formatter, logging.Formatter):  # typx: ignore
     pass
 
 
@@ -219,7 +220,7 @@ def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
     return logger
 
 
-def set_logger_timesource(dtm_now):
+def set_logger_timesource(dtm_now: Callable):
     """Set a custom record factory, with a bespoke source of timestamps.
 
     Used to have records with the same datetime as the most recent packet log record.
@@ -239,7 +240,7 @@ def set_logger_timesource(dtm_now):
     logging.setLogRecordFactory(record_factory)
 
 
-def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
+def set_pkt_logging(logger, dt_now=None, cc_console: bool = False, **kwargs) -> None:
     """Create/configure handlers, formatters, etc.
 
     Parameters:

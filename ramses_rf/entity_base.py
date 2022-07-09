@@ -208,7 +208,7 @@ class MessageDB:
 
         return msg
 
-    def _msg_flag(self, code, key, idx) -> Optional[bool]:
+    def _msg_flag(self, code, key, idx) -> None | bool:
 
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
@@ -308,7 +308,7 @@ class MessageDatabaseSql:
     def _get_msg_by_hdr(self, hdr) -> Optional[Message]:
         pass
 
-    def _msg_flag(self, code, key, idx) -> Optional[bool]:
+    def _msg_flag(self, code, key, idx) -> None | bool:
         pass
 
     def _msg_value(self, code, *args, **kwargs):

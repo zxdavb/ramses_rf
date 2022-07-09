@@ -184,15 +184,15 @@ class HvacHumiditySensor(BatteryState, DeviceHvac):  # HUM: I/12A0
     DEWPOINT_TEMP = "dewpoint_temp"  # celsius
 
     @property
-    def indoor_humidity(self) -> Optional[float]:
+    def indoor_humidity(self) -> None | float:
         return self._msg_value(_12A0, key=self.REL_HUMIDITY)
 
     @property
-    def temperature(self) -> Optional[float]:
+    def temperature(self) -> None | float:
         return self._msg_value(_12A0, key=self.TEMPERATURE)
 
     @property
-    def dewpoint_temp(self) -> Optional[float]:
+    def dewpoint_temp(self) -> None | float:
         return self._msg_value(_12A0, key=self.DEWPOINT_TEMP)
 
     @property
@@ -219,7 +219,7 @@ class HvacCarbonDioxideSensor(DeviceHvac):  # CO2: I/1298
     _SLUG: str = DEV_TYPE.CO2
 
     @property
-    def co2_level(self) -> Optional[float]:
+    def co2_level(self) -> None | float:
         return self._msg_value(_1298, key="co2_level")
 
     @property
@@ -248,7 +248,7 @@ class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
     _SLUG: str = DEV_TYPE.REM
 
     @property
-    def fan_rate(self) -> Optional[str]:
+    def fan_rate(self) -> None | str:
         return self._msg_value(_22F1, key="rate")
 
     # @check_faking_enabled
@@ -262,7 +262,7 @@ class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
             )  # TODO: needs checking
 
     @property
-    def fan_mode(self) -> Optional[str]:
+    def fan_mode(self) -> None | str:
         return self._msg_value(_22F1, key=FAN_MODE)
 
     @property
@@ -329,11 +329,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             )
 
     @property
-    def air_quality(self) -> Optional[float]:
+    def air_quality(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_AIR_QUALITY)
 
     @property
-    def air_quality_base(self) -> Optional[float]:
+    def air_quality_base(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_AIR_QUALITY_BASE)
 
     @property
@@ -345,36 +345,36 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(_31DA, key=SZ_CO2_LEVEL)
 
     @property
-    def exhaust_fan_speed(self) -> Optional[float]:
+    def exhaust_fan_speed(self) -> None | float:
         # turn self._msg_value((_31D9, _31DA), key=SZ_EXHAUST_FAN_SPEED)
         return self._msg_value((_31DA), key=SZ_EXHAUST_FAN_SPEED)
 
     @property
-    def exhaust_flow(self) -> Optional[float]:
+    def exhaust_flow(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_EXHAUST_FLOW)
 
     @property
-    def exhaust_temperature(self) -> Optional[float]:
+    def exhaust_temperature(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_EXHAUST_TEMPERATURE)
 
     @property
-    def fan_info(self) -> Optional[str]:
+    def fan_info(self) -> None | str:
         return self._msg_value(_31DA, key=SZ_FAN_INFO)
 
     @property
-    def indoor_humidity(self) -> Optional[float]:
+    def indoor_humidity(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_INDOOR_HUMIDITY)
 
     @property
-    def indoor_temperature(self) -> Optional[float]:
+    def indoor_temperature(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_INDOOR_TEMPERATURE)
 
     @property
-    def outdoor_humidity(self) -> Optional[float]:
+    def outdoor_humidity(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_OUTDOOR_HUMIDITY)
 
     @property
-    def outdoor_temperature(self) -> Optional[float]:
+    def outdoor_temperature(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_OUTDOOR_TEMPERATURE)
 
     @property
@@ -394,15 +394,15 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(_31DA, key=SZ_SPEED_CAP)
 
     @property
-    def supply_fan_speed(self) -> Optional[float]:
+    def supply_fan_speed(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_SUPPLY_FAN_SPEED)
 
     @property
-    def supply_flow(self) -> Optional[float]:
+    def supply_flow(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_SUPPLY_FLOW)
 
     @property
-    def supply_temperature(self) -> Optional[float]:
+    def supply_temperature(self) -> None | float:
         return self._msg_value(_31DA, key=SZ_SUPPLY_TEMPERATURE)
 
     @property

@@ -296,7 +296,7 @@ class Command(Frame):
         self._priority = self._qos.priority  # TODO: should only be a QoS attr
         self._dtm = dt_now()
 
-        self._rx_header: Optional[str] = None
+        self._rx_header: None | str = None
         self._source_entity = None
 
         self._validate(strict_checking=False)
@@ -448,7 +448,7 @@ class Command(Frame):
         return self._hdr
 
     @property
-    def rx_header(self) -> Optional[str]:
+    def rx_header(self) -> None | str:
         """Return the QoS header of a corresponding response packet (if any)."""
 
         if self.tx_header and self._rx_header is None:

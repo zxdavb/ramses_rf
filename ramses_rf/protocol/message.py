@@ -12,7 +12,6 @@ import re
 from datetime import datetime as dt
 from datetime import timedelta as td
 from functools import lru_cache
-from typing import Optional
 
 from .address import Address
 from .const import (
@@ -261,7 +260,7 @@ class Message:
         return self._pkt._has_array
 
     @property
-    def _idx(self) -> Optional[dict]:
+    def _idx(self) -> dict:
         """Return the domain_id/zone_idx/other_idx of a message payload, if any.
 
         Used to identify the zone/domain that a message applies to. Returns an empty
@@ -413,7 +412,7 @@ class Message:
 
         return self._is_fragment
 
-    def _validate(self, raw_payload) -> Optional[dict]:  # TODO: needs work
+    def _validate(self, raw_payload) -> dict | list:  # TODO: needs work
         """Validate the message, and parse the payload if so.
 
         Raise an exception (InvalidPacketError) if it is not valid.
@@ -467,14 +466,14 @@ class Message:
 
 
 @lru_cache(maxsize=256)
-def re_compile_re_match(regex, string) -> bool:  # Optional[Match[Any]]
+def re_compile_re_match(regex: str, string: str) -> bool:  # Optional[Match[Any]]
     # TODO: confirm this does speed things up
     # Python has its own caching of re.complile, _MAXCACHE = 512
     # https://github.com/python/cpython/blob/3.10/Lib/re.py
     return re.compile(regex).match(string)  # type: ignore[return-value]
 
 
-def _check_msg_payload(msg: Message, payload) -> None:
+def _check_msg_payload(msg: Message, payload: str) -> None:
     """Validate the packet's payload against its verb/code pair.
 
     Raise an InvalidPayloadError if the payload is invalid, otherwise simply return.

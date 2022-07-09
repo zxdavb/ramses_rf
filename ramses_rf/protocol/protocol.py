@@ -13,12 +13,13 @@ import signal
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
-from typing import Callable, Optional
+from typing import Callable, Dict, Iterable, List, Optional
 
 from .command import Command
 from .const import SZ_DAEMON, SZ_EXPIRED, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
 from .exceptions import CorruptStateError, InvalidPacketError
 from .message import Message
+from .packet import Packet
 
 DONT_CREATE_MESSAGES = 3  # duplicate
 
@@ -48,10 +49,12 @@ class AwaitableCallback:
     def __init__(self, loop) -> None:
         self._loop = loop or asyncio.get_event_loop()
 
-        self.expires = None
-        self._queue = SimpleQueue()  # is unbounded, but we'll use only 1 entry...
+        self.expires: None | dt = None
+        self._queue: SimpleQueue = (
+            SimpleQueue()
+        )  # is unbounded, but we'll use only 1 entry...
 
-    async def getter(self, timeout: float = DEFAULT_TIMEOUT) -> tuple:  # awaitable
+    async def getter(self, timeout: float = DEFAULT_TIMEOUT) -> Message:  # awaitable
         """Poll the queue until the message arrives, or the timer expires."""
 
         if timeout is None or timeout <= 0:
@@ -73,7 +76,7 @@ class AwaitableCallback:
             raise TypeError(f"Response is not a message: {msg}")
         return msg
 
-    def putter(self, msg: Message):  # callback
+    def putter(self, msg: Message) -> None:  # callback
         """Put the message in the queue (when invoked)."""
 
         # self._queue.put_nowait(msg)  # ...so should not raise Full
@@ -109,26 +112,27 @@ class MessageTransport(asyncio.Transport):
     READER = "receiver_callback"
     WRITER = SZ_WRITER_TASK
 
-    def __init__(self, gwy, protocol, extra=None) -> None:
+    _dispatcher: Callable
+
+    _write_buffer_limit_high: int = MAX_BUFFER_SIZE
+    _write_buffer_limit_low: int = 0
+    _write_buffer_paused: bool = False
+
+    def __init__(self, gwy, protocol: MessageProtocol, extra: dict = None) -> None:
         super().__init__(extra=extra)
 
         self._loop = gwy._loop
 
         self._gwy = gwy
-        self._protocols = []
+        self._protocols: List[MessageProtocol] = []
         self.add_protocol(protocol)
 
-        self._extra.update({self.READER: self._pkt_receiver})
+        self._extra.update({self.READER: self._pkt_receiver})  # typx:ignore
         self._is_closing = False
 
-        self._write_buffer_limit_high = None
-        self._write_buffer_limit_low = None
-        self._write_buffer_paused = None
+        self._callbacks: Dict[str, dict] = {}
 
-        self._callbacks = {}
-        self._dispatcher = None  # the HGI80 interface (is a asyncio.protocol)
-
-        self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
+        self._que: PriorityQueue = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self.set_write_buffer_limits()
 
         # self._extra[self.WRITER] = self._loop.create_task(self._polling_loop())
@@ -136,7 +140,7 @@ class MessageTransport(asyncio.Transport):
         for sig in (signal.SIGINT, signal.SIGTERM):
             self._loop.add_signal_handler(sig, self.abort)
 
-    def _set_dispatcher(self, dispatcher: Callable):
+    def _set_dispatcher(self, dispatcher: Callable) -> None:
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
 
         async def call_send_data(cmd):
@@ -176,12 +180,14 @@ class MessageTransport(asyncio.Transport):
             _LOGGER.error("MsgTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]
 
-        self._dispatcher = dispatcher
-        self._extra[self.WRITER] = self._loop.create_task(pkt_dispatcher())
+        self._dispatcher = dispatcher  # typx:ignore
+        self._extra[self.WRITER] = self._loop.create_task(
+            pkt_dispatcher()
+        )  # typx:ignore
 
-        return self._extra[self.WRITER]
+        return self._extra[self.WRITER]  # typx:ignore
 
-    def _add_callback(self, header, callback):
+    def _add_callback(self, header: str, callback: dict) -> None:
         callback[SZ_EXPIRES] = (
             dt.max
             if callback.get(SZ_DAEMON)
@@ -189,7 +195,7 @@ class MessageTransport(asyncio.Transport):
         )
         self._callbacks[header] = callback
 
-    def _pkt_receiver(self, pkt):
+    def _pkt_receiver(self, pkt: Packet) -> None:
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
@@ -267,7 +273,7 @@ class MessageTransport(asyncio.Transport):
                     raise
                 _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
 
-    def close(self):
+    def close(self) -> None:
         """Close the transport.
 
         Buffered data will be flushed asynchronously. No more data will be received.
@@ -278,12 +284,12 @@ class MessageTransport(asyncio.Transport):
         self._is_closing = True
         self._pause_protocols()
 
-        if task := self._extra.get(self.WRITER):
+        if task := self._extra.get(self.WRITER):  # typx:ignore
             task.cancel()
 
         [self._loop.call_soon(p.connection_lost, None) for p in self._protocols]
 
-    def abort(self):
+    def abort(self) -> None:
         """Close the transport immediately.
 
         Buffered data will be lost. No more data will be received. The protocol's
@@ -299,12 +305,12 @@ class MessageTransport(asyncio.Transport):
 
         return self._is_closing
 
-    def get_extra_info(self, name, default=None):
+    def get_extra_info(self, name: str, default=None):
         """Get optional transport information."""
 
-        return self._extra.get(name, default)
+        return self._extra.get(name, default)  # typx:ignore
 
-    def add_protocol(self, protocol) -> None:
+    def add_protocol(self, protocol: MessageProtocol) -> None:
         """Attach a new protocol.
 
         Allow multiple protocols per transport.
@@ -330,7 +336,7 @@ class MessageTransport(asyncio.Transport):
 
         raise NotImplementedError
 
-    def pause_reading(self):
+    def pause_reading(self) -> None:
         """Pause the receiving end.
 
         No data will be passed to the protocol's data_received() method until
@@ -339,7 +345,7 @@ class MessageTransport(asyncio.Transport):
 
         raise NotImplementedError
 
-    def resume_reading(self):
+    def resume_reading(self) -> None:
         """Resume the receiving end.
 
         Data received will once again be passed to the protocol's data_received()
@@ -348,7 +354,7 @@ class MessageTransport(asyncio.Transport):
 
         raise NotImplementedError
 
-    def _clear_write_buffer(self):
+    def _clear_write_buffer(self) -> None:
         """Empty the dispatch queue.
 
         Should not call `get_write_buffer_size()`.
@@ -361,19 +367,21 @@ class MessageTransport(asyncio.Transport):
                 continue
             self._que.task_done()
 
-    def _pause_protocols(self, force=None):
+    def _pause_protocols(self, force: bool = None) -> None:
         """Pause the other end."""
 
         if not self._write_buffer_paused or force:
             self._write_buffer_paused = True
-            [p.pause_writing() for p in self._protocols]
+            for p in self._protocols:
+                p.pause_writing()
 
-    def _resume_protocols(self, force=None):
+    def _resume_protocols(self, force: bool = None) -> None:
         """Resume the other end."""
 
         if self._write_buffer_paused or force:
             self._write_buffer_paused = False
-            [p.resume_writing() for p in self._protocols]
+            for p in self._protocols:
+                p.resume_writing()
 
     def get_write_buffer_limits(self) -> tuple[int, int]:
         """Get the high and low watermarks for write flow control.
@@ -383,7 +391,7 @@ class MessageTransport(asyncio.Transport):
 
         return self._write_buffer_limit_low, self._write_buffer_limit_high
 
-    def set_write_buffer_limits(self, high=None, low=None):
+    def set_write_buffer_limits(self, high: int = None, low: int = None) -> None:
         """Set the high- and low-water limits for write flow control.
 
         These two values control when to call the protocol's pause_writing() and
@@ -398,16 +406,11 @@ class MessageTransport(asyncio.Transport):
         opportunities for doing I/O and computation concurrently.
         """
 
-        self._write_buffer_limit_high = int(
-            self.MAX_BUFFER_SIZE
-            if high is None
-            else max((min((high, self.MAX_BUFFER_SIZE)), 0))
-        )
-        self._write_buffer_limit_low = int(
-            self._write_buffer_limit_high * 0.8
-            if low is None
-            else min((max((low, 0)), high))
-        )
+        high = self.MAX_BUFFER_SIZE if high is None else high
+        low = int(self._write_buffer_limit_high * 0.8) if low is None else low
+
+        self._write_buffer_limit_high = max((min((high, self.MAX_BUFFER_SIZE)), 0))
+        self._write_buffer_limit_low = min((max((low, 0)), high))
 
         self.get_write_buffer_size()
 
@@ -427,7 +430,7 @@ class MessageTransport(asyncio.Transport):
 
         return qsize
 
-    def write(self, cmd):
+    def write(self, cmd: Command) -> None:
         """Write some data bytes to the transport.
 
         This does not block; it buffers the data and arranges for it to be sent out
@@ -455,7 +458,7 @@ class MessageTransport(asyncio.Transport):
 
         self.get_write_buffer_size()
 
-    def writelines(self, list_of_cmds):
+    def writelines(self, list_of_cmds: Iterable[Command]) -> None:
         """Write a list (or any iterable) of data bytes to the transport.
 
         The default implementation concatenates the arguments and calls write() on the
@@ -465,7 +468,7 @@ class MessageTransport(asyncio.Transport):
         for cmd in list_of_cmds:
             self.write(cmd)
 
-    def write_eof(self):
+    def write_eof(self) -> None:
         """Close the write end after flushing buffered data.
 
         This is like typing ^D into a UNIX program reading from stdin. Data may still be
@@ -505,23 +508,24 @@ class MessageProtocol(asyncio.Protocol):
     * CL: connection_lost()
     """
 
+    _transport: MessageTransport = None
+    _prev_msg: Message = None
+    _this_msg: Message = None
+
     def __init__(self, gwy, callback: Callable) -> None:
 
         # self._gwy = gwy  # is not used
         self._loop = gwy._loop
         self._callback = callback
 
-        self._transport = None
-        self._pause_writing = None
+        self._pause_writing: bool = True
 
-        self._prev_msg = None
-        self._this_msg = None
-
-    def connection_made(self, transport: MessageTransport) -> None:
+    def connection_made(self, transport: MessageTransport) -> None:  # typx:ignore
         """Called when a connection is made."""
         self._transport = transport
+        self.resume_writing()
 
-    def data_received(self, msg: Message) -> None:
+    def data_received(self, msg: Message) -> None:  # typx:ignore
         """Called by the transport when a message is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 
@@ -529,7 +533,7 @@ class MessageProtocol(asyncio.Protocol):
         self._callback(self._this_msg, prev_msg=self._prev_msg)
 
     async def send_data(
-        self, cmd: Command, callback=None, _make_awaitable=None
+        self, cmd: Command, callback: Callable = None, _make_awaitable: bool = None
     ) -> Optional[Message]:
         """Called when a command is to be sent."""
         _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
@@ -549,6 +553,7 @@ class MessageProtocol(asyncio.Protocol):
 
         if _make_awaitable:
             return await awaitable()  # AwaitableCallback.getter(timeout: float = 120)
+        return None
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -572,7 +577,7 @@ def create_protocol_factory(protocol: asyncio.Protocol, *args, **kwargs) -> Call
 
 
 def create_msg_stack(
-    gwy, msg_callback, protocol_factory=None
+    gwy, msg_callback: Callable, protocol_factory: Callable = None
 ) -> tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to a client protocol.
 

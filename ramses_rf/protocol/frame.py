@@ -8,7 +8,6 @@ Provide the base class for commands (constructed/sent packets) and packets.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
@@ -182,9 +181,9 @@ class Frame:
                 f"len({self.payload}) is not int('{self.len_}' * 2))"
             )
 
-        self._ctx_: Union[str, bool] = None  # type: ignore[assignment]
+        self._ctx_: bool | str = None  # type: ignore[assignment]
         self._hdr_: str = None  # type: ignore[assignment]
-        self._idx_: Union[str, bool] = None  # type: ignore[assignment]
+        self._idx_: bool | str = None  # type: ignore[assignment]
 
         self._has_array_: bool = None  # type: ignore[assignment]
         self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
@@ -253,7 +252,7 @@ class Frame:
             return f"{self!r} < {exc}"
 
     @property
-    def _has_array(self) -> Optional[bool]:
+    def _has_array(self) -> None | bool:
         """Return the True if the packet payload is an array, False if not.
 
         May return false negatives (e.g. arrays of length 1), and None if undetermined.
@@ -316,7 +315,7 @@ class Frame:
         return self._has_array_
 
     @property
-    def _has_ctl(self) -> Optional[bool]:
+    def _has_ctl(self) -> None | bool:
         """Return True if the packet is to/from a controller."""
 
         if self._has_ctl_ is not None:
@@ -413,7 +412,7 @@ class Frame:
         self._idx_ = None  # type: ignore[assignment]
 
     @property
-    def _ctx(self) -> Union[str, bool]:  # incl. self._idx
+    def _ctx(self) -> bool | str:  # incl. self._idx
         """Return the payload's full context, if any (e.g. for 0404: zone_idx/frag_idx).
 
         Used to store packets in the entity's message DB. It is a superset of _idx.
@@ -441,7 +440,7 @@ class Frame:
         return self._hdr_
 
     @property
-    def _idx(self) -> Union[str, bool]:
+    def _idx(self) -> bool | str:
         """Return the payload's index, if any (e.g. zone_idx, domain_id  or log_idx).
 
         Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.
@@ -452,7 +451,7 @@ class Frame:
         return self._idx_
 
 
-def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
+def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     """Return the payload's 2-byte context (e.g. zone_idx, domain_id or log_idx).
 
     May return a 2-byte string (usu. pkt.payload[:2]), or:
@@ -543,7 +542,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
     return None
 
 
-def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
+def pkt_header(pkt, rx_header=None) -> None | str:  # NOTE: used in command.py
     """Return the QoS header of a packet (all packets have a header).
 
     For rx_header=True, return the header of the response packet, if one is expected.

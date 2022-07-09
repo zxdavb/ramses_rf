@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Optional, Union
 
 from .const import __dev_mode__
 from .exceptions import InvalidPacketError
@@ -127,7 +126,7 @@ if DEV_MODE:
 _PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
-def fraction_expired(age, age_limit) -> float:
+def fraction_expired(age: td, age_limit: td) -> float:
     """Return the packet's age as fraction of its 'normal' lifetime."""
     return (age - _TD_SECONDS_003) / age_limit
 
@@ -158,7 +157,7 @@ class Packet(Frame):
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
 
-        self._timeout: Union[bool, float] = None  # track pkt expiry
+        self._timeout: None | bool | td = None  # track pkt expiry
 
         # if DEV_MODE:  # TODO: remove (is for testing only)
         #     _ = self._has_array
@@ -166,7 +165,7 @@ class Packet(Frame):
 
         self._validate(strict_checking=False)
 
-    def _validate(self, *, strict_checking=None) -> None:
+    def _validate(self, *, strict_checking: bool = None) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -226,7 +225,7 @@ class Packet(Frame):
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
 
     @property
-    def _expired(self) -> Union[bool, float]:
+    def _expired(self) -> bool | float:
         """Return the used fraction of the packet's 'normal' lifetime.
 
         A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
@@ -242,7 +241,9 @@ class Packet(Frame):
         if self._timeout is False:
             return False
 
-        return fraction_expired(self._gwy._dt_now() - self.dtm, self._timeout)
+        return fraction_expired(
+            self._gwy._dt_now() - self.dtm, self._timeout
+        )  # typx: ignore
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):
@@ -265,7 +266,7 @@ class Packet(Frame):
         )
 
 
-def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
+def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
     """Return the pkt lifetime, or None if the packet does not expire (e.g. 10E0).
 
     Some codes require a valid payload to best determine lifetime (e.g. 1F09).

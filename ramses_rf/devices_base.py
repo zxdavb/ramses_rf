@@ -264,7 +264,7 @@ class Device(Entity):
                 self.__class__ = cls
 
     @property
-    def has_battery(self) -> Optional[bool]:  # 1060
+    def has_battery(self) -> None | bool:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
         return isinstance(self, BatteryState) or _1060 in self._msgz
@@ -466,7 +466,7 @@ class BatteryState(Device):  # 1060
     BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
 
     @property
-    def battery_low(self) -> Optional[bool]:  # 1060
+    def battery_low(self) -> None | bool:  # 1060
         if self._faked:
             return False
         return self._msg_value(_1060, key=self.BATTERY_LOW)
@@ -653,7 +653,7 @@ class DeviceHeat(
     #     return self.ctl  # TODO: if the controller is not known, try to find it?
 
     @property
-    def _is_controller(self) -> Optional[bool]:
+    def _is_controller(self) -> None | bool:
 
         if self._iz_controller is not None:
             return bool(self._iz_controller)  # True, False, or msg

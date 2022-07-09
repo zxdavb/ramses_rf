@@ -5,8 +5,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Dict
 
-from .const import DEV_TYPE, DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
+from .const import DEV_TYPE
+from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP
+from .const import DEVICE_ID_REGEX, __dev_mode__
 from .exceptions import InvalidAddrSetError
 from .helpers import typechecked
 
@@ -14,13 +17,13 @@ DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
 
 
-DEVICE_LOOKUP = {
-    k: DEV_TYPE_MAP._hex(k)
-    for k in DEV_TYPE_MAP.SLUGS
+DEVICE_LOOKUP: Dict[str, str] = {
+    k: _DEV_TYPE_MAP._hex(k)
+    for k in _DEV_TYPE_MAP.SLUGS
     if k not in (DEV_TYPE.JIM, DEV_TYPE.JST)
 }
 DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
-DEV_TYPE_MAP = {v: k for k, v in DEVICE_LOOKUP.items()}
+DEV_TYPE_MAP: Dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
 
 
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
@@ -84,7 +87,7 @@ class Address:
         return f"{DEV_TYPE_MAP.get(_type, f'{_type:>3}')}:{_tmp}"
 
     @classmethod
-    def convert_from_hex(cls, device_hex: str, friendly_id=False) -> str:
+    def convert_from_hex(cls, device_hex: str, friendly_id: bool = False) -> str:
         """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
 
         if device_hex == "FFFFFE":  # aka '63:262142'
@@ -186,7 +189,7 @@ def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
 @typechecked
-def pkt_addrs(addr_fragment: str) -> tuple[Address, Address, Address, Address, Address]:
+def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
 
     Will raise an InvalidAddrSetError is the address fields are not valid.

@@ -129,6 +129,9 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !FS - save autotune
 
 
+sync_cycles: deque = deque()  # used by @avoid_system_syncs / @track_system_syncs
+
+
 class Qos:
     """The QoS class.
 
@@ -181,7 +184,7 @@ class Qos:
         )
 
     @classmethod  # constructor from verb|code pair
-    def verb_code(cls, verb, code, **kwargs) -> dict:
+    def verb_code(cls, verb, code, **kwargs) -> Qos:
         """Constructor to create a QoS based upon the defaults for a verb|code pair."""
 
         default_qos = cls.DEFAULT_QOS_TABLE.get(f"{verb}|{code}", cls.DEFAULT_QOS)
@@ -239,9 +242,6 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
         )
 
     return result
-
-
-sync_cycles = deque()
 
 
 def avoid_system_syncs(fnc) -> Awaitable:

@@ -349,11 +349,11 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return self._msg_value(_1100)
 
     @property
-    def heat_demand(self) -> Optional[float]:  # 3150/FC
+    def heat_demand(self) -> None | float:  # 3150/FC
         return self._msg_value(_3150, domain_id=FC, key=SZ_HEAT_DEMAND)
 
     @property
-    def is_calling_for_heat(self) -> Optional[bool]:
+    def is_calling_for_heat(self) -> None | bool:
         """Return True is the system is currently calling for heat."""
         return self._app_cntrl and self._app_cntrl.actuator_state
 
@@ -894,7 +894,7 @@ class Language(SystemBase):  # 0100
         )
 
     @property
-    def language(self) -> Optional[str]:
+    def language(self) -> None | str:
         return self._msg_value(_0100, key=SZ_LANGUAGE)
 
     @property

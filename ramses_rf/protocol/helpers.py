@@ -11,7 +11,6 @@ import ctypes
 import sys
 import time
 from datetime import datetime as dt
-from typing import Optional, Union
 
 try:
     from typeguard import typechecked  # type: ignore[reportMissingImports]
@@ -66,7 +65,7 @@ def dt_str() -> str:
 
 
 @typechecked
-def bool_from_hex(value: str) -> Optional[bool]:  # either 00 or C8
+def bool_from_hex(value: str) -> None | bool:  # either 00 or C8
     """Convert a 2-char hex string into a boolean."""
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -76,7 +75,7 @@ def bool_from_hex(value: str) -> Optional[bool]:  # either 00 or C8
 
 
 @typechecked
-def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
+def date_from_hex(value: str) -> None | str:  # YY-MM-DD
     """Convert am 8-char hex string into a date, format YY-MM-DD."""
     if not isinstance(value, str) or len(value) != 8:
         raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
@@ -90,7 +89,7 @@ def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
 
 
 @typechecked
-def double(value: str, factor: int = 1) -> Optional[float]:
+def double(value: str, factor: int = 1) -> None | float:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -100,7 +99,7 @@ def double(value: str, factor: int = 1) -> Optional[float]:
 
 
 @typechecked
-def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
+def dtm_from_hex(value: str) -> None | str:  # from parsers
     """Convert a 12/14-char hex string to an isoformat datetime (naive, local)."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
@@ -122,7 +121,7 @@ def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
 
 
 @typechecked
-def dtm_to_hex(dtm: Union[str, dt, None], is_dst=False, incl_seconds=False) -> str:
+def dtm_to_hex(dtm: None | dt | str, is_dst=False, incl_seconds=False) -> str:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
     def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
@@ -142,7 +141,7 @@ def dtm_to_hex(dtm: Union[str, dt, None], is_dst=False, incl_seconds=False) -> s
 
 
 @typechecked
-def dts_from_hex(value: str) -> Optional[str]:
+def dts_from_hex(value: str) -> None | str:
     """YY-MM-DD HH:MM:SS."""
     if not isinstance(value, str) or len(value) != 12:
         raise ValueError(f"Invalid value: {value}, is not a 12-char hex string")
@@ -160,7 +159,7 @@ def dts_from_hex(value: str) -> Optional[str]:
 
 
 @typechecked
-def dts_to_hex(dtm: Union[str, dt, None]) -> str:  # TODO: WIP
+def dts_to_hex(dtm: None | dt | str) -> str:  # TODO: WIP
     """Convert a datetime (isoformat str, or dtm) to a packed 12-char hex str."""
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
@@ -204,7 +203,7 @@ def flag8(byte: str, lsb: bool = False) -> list:  # TODO: should be tuple
 
 # TODO: add a wrapper for EF, & 0xF0
 @typechecked
-def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve_demand
+def percent(value: str, high_res: bool = True) -> None | float:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
@@ -222,7 +221,7 @@ def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve
 
 
 @typechecked
-def str_from_hex(value: str) -> Optional[str]:  # printable ASCII characters
+def str_from_hex(value: str) -> None | str:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
     if not isinstance(value, str):
@@ -240,7 +239,7 @@ def str_to_hex(value: str) -> str:
 
 
 @typechecked
-def temp_from_hex(value: str) -> Union[float, bool, None]:
+def temp_from_hex(value: str) -> None | bool | float:
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -255,7 +254,7 @@ def temp_from_hex(value: str) -> Union[float, bool, None]:
 
 
 @typechecked
-def temp_to_hex(value: Union[float, None]) -> str:
+def temp_to_hex(value: None | float) -> str:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
@@ -270,7 +269,7 @@ def temp_to_hex(value: Union[float, None]) -> str:
 
 
 @typechecked
-def valve_demand(value: str) -> dict:  # c.f. percent()
+def valve_demand(value: str) -> None | dict:  # c.f. percent()
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.

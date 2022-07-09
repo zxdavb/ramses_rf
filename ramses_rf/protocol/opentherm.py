@@ -8,7 +8,7 @@ import logging
 import struct
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Callable, Dict, Union
+from typing import Callable, Dict
 
 from .const import __dev_mode__
 
@@ -19,7 +19,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # R8810A/R8820A-specific msg_ids, as used by Packet (pkt_timeout) & OtbGateway classes
-SCHEMA_MSG_IDS = (
+SCHEMA_MSG_IDS: tuple = (
     "03",  # ..3: "Slave configuration",
     "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
     "7D",  # 125: "Opentherm version Slave",                            # not native
@@ -37,7 +37,7 @@ SCHEMA_MSG_IDS = (
     "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
 )
 # SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
-_PARAMS_MSG_IDS = (
+_PARAMS_MSG_IDS: tuple = (
     "0E",  # .14: "Maximum relative modulation level setting (%)"
     "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
     "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
@@ -45,8 +45,8 @@ _PARAMS_MSG_IDS = (
     "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
     "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
 )
-PARAMS_MSG_IDS = {k: td(hours=6) for k in _PARAMS_MSG_IDS}
-_STATUS_MSG_IDS = (
+PARAMS_MSG_IDS: dict = {k: td(hours=6) for k in _PARAMS_MSG_IDS}
+_STATUS_MSG_IDS: tuple = (
     "00",  # ..0: "Master/Slave status flags",                          # not RAMSES
     "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
     "11",  # .17: "Relative Modulation Level (%)",
@@ -60,8 +60,8 @@ _STATUS_MSG_IDS = (
     "05",  # ..5: "Fault flags & OEM codes",                            # not RAMSES
     "73",  # 115: "OEM diagnostic code",                                # not RAMSES
 )
-STATUS_MSG_IDS = {k: td(minutes=5) for k in _STATUS_MSG_IDS}
-_WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
+STATUS_MSG_IDS: dict = {k: td(minutes=5) for k in _STATUS_MSG_IDS}
+_WRITE_MSG_IDS: tuple = (  # Write-Data, NB: some are also Read-Data
     "01",  # ..1:  -see above-
     "02",  # ..2: "Master configuration",
     "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
@@ -72,7 +72,7 @@ _WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
     "7C",  # 124: "Opentherm version Master",
     "7E",  # 126: "Master product version number and type",
 )
-WRITE_MSG_IDS = {k: td(seconds=3) for k in _WRITE_MSG_IDS}
+WRITE_MSG_IDS: dict = {k: td(seconds=3) for k in _WRITE_MSG_IDS}
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:
 # github.com/nlrb/com.tclcode.otgw (node_modules/otg-api/lib/ot_msg.js),
@@ -83,38 +83,38 @@ WRITE_MSG_IDS = {k: td(seconds=3) for k in _WRITE_MSG_IDS}
 # Also see:
 # github.com/rvdbreemen/OTGW-firmware
 
-READ_WRITE = "RW"
-READ_ONLY = "R-"
-WRITE_ONLY = "-W"
+READ_WRITE: str = "RW"
+READ_ONLY: str = "R-"
+WRITE_ONLY: str = "-W"
 
-EN = "en"
-FLAGS = "flags"
-DIR = "dir"
-NL = "nl"
-SENSOR = "sensor"
-VAL = "val"
-VAR = "var"
+EN: str = "en"
+FLAGS: str = "flags"
+DIR: str = "dir"
+NL: str = "nl"
+SENSOR: str = "sensor"
+VAL: str = "val"
+VAR: str = "var"
 
-FLAG8 = "flag8"
-FLAG = "flag"
-U8 = "u8"
-S8 = "s8"
-F8_8 = "f8.8"
-U16 = "u16"
-S16 = "s16"
-SPECIAL = U8  # used for ID 0x14 (20)
+FLAG8: str = "flag8"
+FLAG: str = "flag"
+U8: str = "u8"
+S8: str = "s8"
+F8_8: str = "f8.8"
+U16: str = "u16"
+S16: str = "s16"
+SPECIAL: str = U8  # used for ID 0x14 (20)
 
-HB = "hb"
-LB = "lb"
+HB: str = "hb"
+LB: str = "lb"
 
-MESSAGES = "messages"
-MSG_DESC = "description"
-MSG_ID = "msg_id"
-MSG_NAME = "msg_name"
-MSG_TYPE = "msg_type"
-VALUE = "value"
-VALUE_HB = f"{VALUE}_{HB}"
-VALUE_LB = f"{VALUE}_{LB}"
+MESSAGES: str = "messages"
+MSG_DESC: str = "description"
+MSG_ID: str = "msg_id"
+MSG_NAME: str = "msg_name"
+MSG_TYPE: str = "msg_type"
+VALUE: str = "value"
+VALUE_HB: str = f"{VALUE}_{HB}"
+VALUE_LB: str = f"{VALUE}_{LB}"
 
 Sensor = SimpleNamespace(
     COUNTER="counter",
@@ -140,7 +140,7 @@ OtMsgType = SimpleNamespace(
     UNKNOWN_DATAID="Unknown-DataId",
 )  # all are F8_8, except COUNTER, CO2_LEVEL
 
-OPENTHERM_MSG_TYPE = {
+OPENTHERM_MSG_TYPE: dict = {
     0b000: OtMsgType.READ_DATA,
     0b001: OtMsgType.WRITE_DATA,
     0b010: OtMsgType.INVALID_DATA,
@@ -152,7 +152,7 @@ OPENTHERM_MSG_TYPE = {
 }
 
 # These must have either a FLAGS (preferred) or a VAR for their message name
-OPENTHERM_SCHEMA = {
+OPENTHERM_SCHEMA: dict = {
     # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
     "status_flags": {
         0x0100: {
@@ -870,7 +870,7 @@ OPENTHERM_SCHEMA = {
         },
     },
 }
-OPENTHERM_MESSAGES = OPENTHERM_SCHEMA[MESSAGES]
+OPENTHERM_MESSAGES: dict = OPENTHERM_SCHEMA[MESSAGES]
 
 # R8810A 1018 v4: https://www.opentherm.eu/request-details/?post_ids=2944
 # as at: 2021/06/28
@@ -883,7 +883,7 @@ OPENTHERM_MESSAGES = OPENTHERM_SCHEMA[MESSAGES]
 # 0,       1,    3,    5,    6,   12-14,   17-18,   25-26,   28,            56
 # 0x00,       0x03, 0x05, 0x06, 0x0C-0D, 0x11-12, 0x19-1A, 0x1C, 0x30-31, 0x38, 0x7D
 
-OTB_MSG_IDS = {
+OTB_MSG_IDS: dict = {
     # These are in the R8810A specification...
     0x00: "Master/Slave status flags",
     # 000:HB0: Master status: CH enable
@@ -969,7 +969,7 @@ def parity(x: int) -> int:
     return x & 1
 
 
-def msg_value(val_seqx, val_type) -> Union[float, int, list, str]:
+def msg_value(val_seqx: str, val_type: str) -> None | float | int | list | str:
     """Make this the docstring."""
 
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
@@ -1024,7 +1024,7 @@ def msg_value(val_seqx, val_type) -> Union[float, int, list, str]:
         try:
             return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
         except ValueError:
-            return
+            return None
     return val_seqx
 
 
@@ -1093,7 +1093,7 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
         data_value[VALUE] = msg_value(frame[4:8], U16)
 
     elif msg_schema[VAL] == F8_8:  # TODO: needs finishing
-        result = msg_value(frame[4:8], msg_schema[VAL])
+        result: float = msg_value(frame[4:8], msg_schema[VAL])  # typx: ignore
         if result is None:
             data_value[VALUE] = result
         elif msg_schema.get(SENSOR) == Sensor.PERCENTAGE:

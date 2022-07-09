@@ -8,7 +8,7 @@ import logging
 import re
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from .address import NON_DEV_ADDR, hex_id_to_dev_id
 from .const import (
@@ -134,7 +134,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def parser_decorator(fnc):
+def parser_decorator(fnc) -> Callable:
     def wrapper(payload, msg, **kwargs):
         result = fnc(payload, msg, **kwargs)
         if isinstance(result, dict) and msg.seqn.isnumeric():  # 22F1/3

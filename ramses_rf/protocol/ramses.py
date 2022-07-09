@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Dict
+from typing import Dict, List
 
 from .const import DEV_TYPE, SZ_NAME, __dev_mode__
 
@@ -136,7 +136,7 @@ EXPIRY = "expiry"
 ########################################################################################
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
-CODES_SCHEMA: dict = {  # rf_unknown
+CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
     _0001: {
         SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
@@ -683,7 +683,7 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
         code[RP] = code[I_]
 #
 # I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
-CODES_WITH_ARRAYS = {
+CODES_WITH_ARRAYS: Dict[str, list] = {
     _0005: [4, ("34",)],
     _0009: [3, ("01", "12", "22")],
     _000A: [6, ("01", "12", "22")],  # single element I after a W
@@ -694,7 +694,7 @@ CODES_WITH_ARRAYS = {
     _3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
 #
-RQ_IDX_COMPLEX = [
+RQ_IDX_COMPLEX: list = [
     _0005,  # context: zone_type
     _000A,  # optional payload
     _000C,  # context: index, zone_type
@@ -707,7 +707,7 @@ RQ_IDX_COMPLEX = [
     _2349,  # optional payload
     _3220,  # context: msg_id, and payload
 ]
-RQ_NO_PAYLOAD = [
+RQ_NO_PAYLOAD: list = [
     k
     for k, v in CODES_SCHEMA.items()
     if v.get(RQ)
@@ -717,12 +717,12 @@ RQ_NO_PAYLOAD.extend((_0418,))
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
-CODE_IDX_COMPLEX = [_0005, _000C, _1100, _3220]  # TODO: 0005 to ..._NONE?
+CODE_IDX_COMPLEX: List[str] = [_0005, _000C, _1100, _3220]  # TODO: 0005 to ..._NONE?
 CODE_IDX_COMPLEX.sort()
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
-CODE_IDX_SIMPLE = [
+CODE_IDX_SIMPLE: list = [
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX
@@ -736,7 +736,7 @@ CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
-CODE_IDX_NONE = [
+CODE_IDX_NONE: List[str] = [
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
@@ -748,7 +748,7 @@ CODE_IDX_NONE.extend(
 CODE_IDX_NONE.sort()
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
-CODE_IDX_DOMAIN = {
+CODE_IDX_DOMAIN: Dict[str, str] = {
     _0001: "^F[ACF])",
     _0008: "^F[9AC]",
     _0009: "^F[9AC]",
@@ -762,7 +762,7 @@ CODE_IDX_DOMAIN = {
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
 #
-_DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
+_DEV_KLASSES_HEAT: Dict[SimpleNamespace, dict] = {
     DEV_TYPE.RFG: {  # RFG100: RF to Internet gateway (and others)
         _0002: {RQ: {}},
         _0004: {I_: {}, RQ: {}},
@@ -1020,7 +1020,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
     # },
 }
 # TODO: add 1FC9 everywhere?
-_DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
+_DEV_KLASSES_HVAC: Dict[SimpleNamespace, dict] = {
     DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a REM
         _0001: {RQ: {}},
         _042F: {I_: {}},
@@ -1109,7 +1109,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
     # },
 }
 
-CODES_BY_DEV_SLUG: Dict[SimpleNamespace, Dict] = {
+CODES_BY_DEV_SLUG: Dict[SimpleNamespace, dict] = {
     DEV_TYPE.HGI: {  # HGI80: RF to (USB) serial gateway interface
         _PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
@@ -1117,7 +1117,7 @@ CODES_BY_DEV_SLUG: Dict[SimpleNamespace, Dict] = {
     **{k: v for k, v in _DEV_KLASSES_HEAT.items() if k is not None},
 }
 
-_CODES_EXCLUDED = (
+_CODES_EXCLUDED: tuple = (
     _0001,
     _0002,
     _000E,
@@ -1169,13 +1169,15 @@ CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 # }
 
 
-_HVAC_VC_PAIR_BY_CLASS = {
+_HVAC_VC_PAIR_BY_CLASS: Dict[SimpleNamespace, tuple] = {
     DEV_TYPE.CO2: ((I_, _1298),),
     DEV_TYPE.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
     DEV_TYPE.HUM: ((I_, _12A0),),
     DEV_TYPE.REM: ((I_, _22F1), (I_, _22F3)),
 }
-HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
+HVAC_KLASS_BY_VC_PAIR: dict = {
+    t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v
+}
 
 
 SZ_DESCRIPTION = "description"
@@ -1184,7 +1186,7 @@ SZ_MAX_VALUE = "max_value"
 SZ_PRECISION = "precision"
 SZ_DATA_TYPE = "data_type"
 
-_2411_PARAMS_SCHEMA = {  # unclear if true for only Orcon/*all* models
+_2411_PARAMS_SCHEMA: Dict[str, dict] = {  # unclear if true for only Orcon/*all* models
     "31": {  # slot 09
         SZ_DESCRIPTION: "Time to change filter (days)",
         SZ_MIN_VALUE: 0,
@@ -1285,7 +1287,7 @@ _2411_PARAMS_SCHEMA = {  # unclear if true for only Orcon/*all* models
     },
 }
 
-_22F1_MODE_ITHO = {
+_22F1_MODE_ITHO: Dict[str, str] = {
     "00": "off",  # not seen
     "01": "trickle",  # not seen
     "02": "low",
@@ -1293,7 +1295,7 @@ _22F1_MODE_ITHO = {
     "04": "high",  # aka boost with 22F3
 }
 
-_22F1_MODE_NUAIRE = {
+_22F1_MODE_NUAIRE: Dict[str, str] = {
     "00": "standby",
     "01": "auto",
     "02": "low",
@@ -1303,7 +1305,7 @@ _22F1_MODE_NUAIRE = {
     "0A": "heater_auto",
 }
 
-_22F1_MODE_ORCON = {
+_22F1_MODE_ORCON: Dict[str, str] = {
     "00": "away",
     "01": "low",
     "02": "medium",
@@ -1314,7 +1316,7 @@ _22F1_MODE_ORCON = {
     "07": "off",
 }
 
-_22F1_SCHEMES = {
+_22F1_SCHEMES: Dict[str, dict] = {
     "itho": _22F1_MODE_ITHO,
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
@@ -1324,7 +1326,7 @@ _22F1_SCHEMES = {
 ########################################################################################
 # CODES_BY_ZONE_TYPE
 #
-# RAMSES_ZONES = {
+# RAMSES_ZONES: Dict[str, str] = {
 #     "ALL": {
 #         _0004: {I_: {}, RP: {}},
 #         _000C: {RP: {}},

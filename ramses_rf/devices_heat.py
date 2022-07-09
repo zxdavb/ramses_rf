@@ -213,7 +213,7 @@ class HeatDemand(DeviceHeat):  # 3150
     HEAT_DEMAND = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
     @property
-    def heat_demand(self) -> Optional[float]:  # 3150
+    def heat_demand(self) -> None | float:  # 3150
         return self._msg_value(_3150, key=self.HEAT_DEMAND)
 
     @property
@@ -229,7 +229,7 @@ class Setpoint(DeviceHeat):  # 2309
     SETPOINT = SZ_SETPOINT  # degrees Celsius
 
     @property
-    def setpoint(self) -> Optional[float]:  # 2309
+    def setpoint(self) -> None | float:  # 2309
         return self._msg_value(_2309, key=self.SETPOINT)
 
     @property
@@ -256,7 +256,7 @@ class Weather(Fakeable, DeviceHeat):  # 0002
         self._bind_request(_0002, callback=callback)
 
     @property
-    def temperature(self) -> Optional[float]:  # 0002
+    def temperature(self) -> None | float:  # 0002
         return self._msg_value(_0002, key=self.TEMPERATURE)
 
     # @check_faking_enabled
@@ -352,7 +352,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         self._bind_waiting(_3EF0, callback=callback)
 
     @property
-    def relay_demand(self) -> Optional[float]:  # 0008
+    def relay_demand(self) -> None | float:  # 0008
         return self._msg_value(_0008, key=self.RELAY_DEMAND)
 
     @property
@@ -379,7 +379,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         self._bind_request(_1260, callback=callback)
 
     @property
-    def temperature(self) -> Optional[float]:  # 1260
+    def temperature(self) -> None | float:  # 1260
         return self._msg_value(_1260, key=self.TEMPERATURE)
 
     # @check_faking_enabled
@@ -414,7 +414,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
         self._bind_request(_30C9, callback=callback)
 
     @property
-    def temperature(self) -> Optional[float]:  # 30C9
+    def temperature(self) -> None | float:  # 30C9
         return self._msg_value(_30C9, key=self.TEMPERATURE)
 
     # @check_faking_enabled
@@ -641,7 +641,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         return self._circuits
 
     @property
-    def heat_demand(self) -> Optional[float]:  # 3150|FC (there is also 3150|FA)
+    def heat_demand(self) -> None | float:  # 3150|FC (there is also 3150|FA)
         return self._msg_value_msg(self._heat_demand, key=self.HEAT_DEMAND)
 
     @property
@@ -904,7 +904,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         else:
             self._msgs_supported.pop(msg.code, None)
 
-    def _ot_msg_flag(self, msg_id, flag_idx) -> Optional[bool]:
+    def _ot_msg_flag(self, msg_id, flag_idx) -> None | bool:
         if flags := self._ot_msg_value(msg_id):
             return bool(flags[flag_idx])
         return None
@@ -917,7 +917,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             else f"{msg.payload[MSG_ID]:02X}"
         )
 
-    def _ot_msg_value(self, msg_id) -> Optional[float]:
+    def _ot_msg_value(self, msg_id) -> None | float:
         if (
             (msg := self._msgs_ot.get(msg_id))
             and self._msgs_ot_supported[msg_id]
@@ -927,31 +927,31 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return None
 
     @property
-    def bit_2_4(self) -> Optional[bool]:  # 2401 - WIP
+    def bit_2_4(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(_2401, "_flags_2", 4)
 
     @property
-    def bit_2_5(self) -> Optional[bool]:  # 2401 - WIP
+    def bit_2_5(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(_2401, "_flags_2", 5)
 
     @property
-    def bit_2_6(self) -> Optional[bool]:  # 2401 - WIP
+    def bit_2_6(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(_2401, "_flags_2", 6)
 
     @property
-    def bit_2_7(self) -> Optional[bool]:  # 2401 - WIP
+    def bit_2_7(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(_2401, "_flags_2", 7)
 
     @property
-    def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
+    def bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
         return self._msg_flag(_3EF0, "_flags_3", 7)
 
     @property
-    def bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
+    def bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
         return self._msg_flag(_3EF0, "_flags_3", 6)
 
     @property
-    def percent(self) -> Optional[float]:  # 2401 - WIP
+    def percent(self) -> None | float:  # 2401 - WIP
         return self._msg_value(_2401, key="_percent_3")
 
     @property
@@ -959,54 +959,54 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._msg_value(_2401, key="_value_2")
 
     @property
-    def boiler_output_temp(self) -> Optional[float]:  # 3220|19, or 3200
+    def boiler_output_temp(self) -> None | float:  # 3220|19, or 3200
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("19")
         return self._msg_value(_3200, key=SZ_TEMPERATURE)
 
     @property
-    def boiler_return_temp(self) -> Optional[float]:  # 3220|1C, or 3210
+    def boiler_return_temp(self) -> None | float:  # 3220|1C, or 3210
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("1C")
         return self._msg_value(_3210, key=SZ_TEMPERATURE)
 
     @property
-    def boiler_setpoint(self) -> Optional[float]:  # 3220|01, or 22D9
+    def boiler_setpoint(self) -> None | float:  # 3220|01, or 22D9
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("01")
         return self._msg_value(_22D9, key=SZ_SETPOINT)
 
     @property
-    def ch_max_setpoint(self) -> Optional[float]:  # 3220|39, or 1081
+    def ch_max_setpoint(self) -> None | float:  # 3220|39, or 1081
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("39")
         return self._msg_value(_1081, key=SZ_SETPOINT)
 
     @property
-    def ch_setpoint(self) -> Optional[float]:  # 3EF0 (byte 7, only R8820A?)
+    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
         return self._msg_value(_3EF0, key="ch_setpoint")
 
     @property
-    def ch_water_pressure(self) -> Optional[float]:  # 3220|12, or 1300
+    def ch_water_pressure(self) -> None | float:  # 3220|12, or 1300
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("12")
         result = self._msg_value(_1300, key=SZ_PRESSURE)
         return None if result == 25.5 else result  # HACK: to make more rigourous
 
     @property
-    def dhw_flow_rate(self) -> Optional[float]:  # 3220|13, or 12F0
+    def dhw_flow_rate(self) -> None | float:  # 3220|13, or 12F0
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("13")
         return self._msg_value(_12F0, key="dhw_flow_rate")
 
     @property
-    def dhw_setpoint(self) -> Optional[float]:  # 3220|38, or 10A0
+    def dhw_setpoint(self) -> None | float:  # 3220|38, or 10A0
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("38")
         return self._msg_value(_10A0, key=SZ_SETPOINT)
 
     @property
-    def dhw_temp(self) -> Optional[float]:  # 3220|1A, or 1260
+    def dhw_temp(self) -> None | float:  # 3220|1A, or 1260
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("1A")
         return self._msg_value(_1260, key=SZ_TEMPERATURE)
@@ -1014,69 +1014,69 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     @property
     def max_rel_modulation(
         self,
-    ) -> Optional[float]:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
+    ) -> None | float:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("0E")  # needs confirming
         return self._msg_value(_3EF0, key="max_rel_modulation")
 
     @property
-    def oem_code(self) -> Optional[float]:  # 3220|73
+    def oem_code(self) -> None | float:  # 3220|73
         return self._ot_msg_value("73")
 
     @property
-    def outside_temp(self) -> Optional[float]:  # 3220|1B, 1290
+    def outside_temp(self) -> None | float:  # 3220|1B, 1290
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("1B")
         return self._msg_value(_1290, key=SZ_TEMPERATURE)
 
     @property
-    def rel_modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
+    def rel_modulation_level(self) -> None | float:  # 3EF0/3EF1
         """Return the relative modulation level from RAMSES_II."""
         return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
 
     @property
-    def rel_modulation_level_ot(self) -> Optional[float]:  # 3220|11
+    def rel_modulation_level_ot(self) -> None | float:  # 3220|11
         """Return the relative modulation level from OpenTherm."""
         return self._ot_msg_value("11")
 
     @property
-    def ch_active(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
+    def ch_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 1)
         return self._msg_value(_3EF0, key="ch_active")
 
     @property
-    def ch_enabled(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
+    def ch_enabled(self) -> None | bool:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 0)
         return self._msg_value(_3EF0, key="ch_enabled")
 
     @property
-    def dhw_active(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 3, only OTB)
+    def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 2)
         return self._msg_value(_3EF0, key="dhw_active")
 
     @property
-    def dhw_enabled(self) -> Optional[bool]:  # 3220|00
+    def dhw_enabled(self) -> None | bool:  # 3220|00
         return self._ot_msg_flag("00", 1)
 
     @property
-    def flame_active(self) -> Optional[bool]:  # 3220|00, or 3EF0 (byte 3, only OTB)
+    def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
         if not self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 3)
         return self._msg_value(_3EF0, key="flame_active")
 
     @property
-    def cooling_active(self) -> Optional[bool]:  # 3220|00
+    def cooling_active(self) -> None | bool:  # 3220|00
         return self._ot_msg_flag("00", 8 + 4)
 
     @property
-    def cooling_enabled(self) -> Optional[bool]:  # 3220|00
+    def cooling_enabled(self) -> None | bool:  # 3220|00
         return self._ot_msg_flag("00", 2)
 
     @property
-    def fault_present(self) -> Optional[bool]:  # 3220|00
+    def fault_present(self) -> None | bool:  # 3220|00
         return self._ot_msg_flag("00", 8)
 
     @property
@@ -1322,13 +1322,13 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         self._add_discovery_task(_mk_cmd(RQ, _3EF1, "00", self.id), 60 * 60 * 5)
 
     @property
-    def active(self) -> Optional[bool]:  # 3EF0, 3EF1
+    def active(self) -> None | bool:  # 3EF0, 3EF1
         """Return the actuator's current state."""
         result = self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
         return None if result is None else bool(result)
 
     @property
-    def role(self) -> Optional[str]:
+    def role(self) -> None | str:
         """Return the role of the BDR91A (there are six possibilities)."""
 
         # TODO: use self._parent?
@@ -1381,14 +1381,14 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
     _STATE_ATTR = "heat_demand"
 
     @property
-    def heat_demand(self) -> Optional[float]:  # 3150
+    def heat_demand(self) -> None | float:  # 3150
         if (heat_demand := super().heat_demand) is None:
             if self._msg_value(_3150) is None and self.setpoint is False:
                 return 0  # instead of None (no 3150s sent when setpoint is False)
         return heat_demand
 
     @property
-    def window_open(self) -> Optional[bool]:  # 12B0
+    def window_open(self) -> None | bool:  # 12B0
         return self._msg_value(_12B0, key=self.WINDOW_OPEN)
 
     @property
