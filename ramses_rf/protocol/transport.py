@@ -19,10 +19,7 @@ For socat, see:
   python client.py monitor /dev/pts/0
   cat packet.log | cut -d ' ' -f 2- | unix2dos > /dev/pts/1
 """
-
-# TODO: switch dtm from naive to aware
-# TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646997554178989
-# TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646998253052939
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -62,6 +59,11 @@ from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
+
+# TODO: switch dtm from naive to aware
+# TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646997554178989
+# TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646998253052939
+
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

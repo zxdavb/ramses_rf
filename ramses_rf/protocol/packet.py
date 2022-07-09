@@ -5,6 +5,7 @@
 
 Decode/process a packet (packet that was received).
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime as dt

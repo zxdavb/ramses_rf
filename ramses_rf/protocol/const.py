@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
+from __future__ import annotations
 
 import re
 from types import SimpleNamespace

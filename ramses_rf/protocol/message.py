@@ -5,9 +5,7 @@
 
 Decode/process a message (payload into JSON).
 """
-
-# TODO:
-# long-format msg.__str__ - alias columns don't line up
+from __future__ import annotations
 
 import logging
 import re
@@ -31,6 +29,10 @@ from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
+
+# TODO:
+# long-format msg.__str__ - alias columns don't line up
+
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

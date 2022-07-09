@@ -2,13 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - payload processors."""
-
-# Kudos & many thanks to:
-# - Evsdd: 0404 (wow!)
-# - Ierlandfan: 3150, 31D9, 31DA, others
-# - ReneKlootwijk: 3EF0
-# - brucemiranda: 3EF0, others
-# - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
+from __future__ import annotations
 
 import logging
 import re
@@ -97,6 +91,14 @@ from .helpers import (
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
 from .ramses import _2411_PARAMS_SCHEMA
 from .version import VERSION
+
+# Kudos & many thanks to:
+# - Evsdd: 0404 (wow!)
+# - Ierlandfan: 3150, 31D9, 31DA, others
+# - ReneKlootwijk: 3EF0
+# - brucemiranda: 3EF0, others
+# - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
+
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

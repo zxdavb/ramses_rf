@@ -5,8 +5,7 @@
 
 Provide the base class for commands (constructed/sent packets) and packets.
 """
-
-# TODO: add _has_idx (ass func return only one type, or raise)
+from __future__ import annotations
 
 import logging
 from typing import Optional, Union
@@ -24,6 +23,9 @@ from .ramses import (
     CODES_WITH_ARRAYS,
     RQ_NO_PAYLOAD,
 )
+
+# TODO: add _has_idx (ass func return only one type, or raise)
+
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

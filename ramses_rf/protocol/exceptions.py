@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - exceptions."""
+from __future__ import annotations
 
 
 class EvohomeError(Exception):

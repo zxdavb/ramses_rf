@@ -5,6 +5,7 @@
 
 This module wraps logger to provide bespoke functionality, especially for timestamps.
 """
+from __future__ import annotations
 
 import logging
 import os

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - Opentherm processor."""
+from __future__ import annotations
 
 import logging
 import struct

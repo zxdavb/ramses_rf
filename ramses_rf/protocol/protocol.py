@@ -5,6 +5,7 @@
 
 Operates at the msg layer of: app - msg - pkt - h/w
 """
+from __future__ import annotations
 
 import asyncio
 import logging
