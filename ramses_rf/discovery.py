@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - discovery scripts."""
-
-# Beware, none of this is reliable - it is all subject to random change
-# However, these serve as examples how to us eteh other modules
+from __future__ import annotations
 
 import asyncio
 import json
@@ -15,6 +13,10 @@ from .const import SZ_SCHEDULE, SZ_ZONE_IDX, __dev_mode__
 from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.command import _mk_cmd
 from .protocol.opentherm import OTB_MSG_IDS
+
+# Beware, none of this is reliable - it is all subject to random change
+# However, these serve as examples how to us eteh other modules
+
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import

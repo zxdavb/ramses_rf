@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - The evohome-compatible system."""
-
-# TODO: refactor packet routing (filter *before* routing)
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -68,6 +67,9 @@ from .schema import (
     SZ_UFH_SYSTEM,
 )
 from .zones import DhwZone, Zone
+
+# TODO: refactor packet routing (filter *before* routing)
+
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import

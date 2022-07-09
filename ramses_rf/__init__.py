@@ -9,6 +9,7 @@ Works with (amongst others):
 - chronotherm (CM60xNG can do 4 zones)
 - hometronics (16? zones)
 """
+from __future__ import annotations
 
 import logging
 

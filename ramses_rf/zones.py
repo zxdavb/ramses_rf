@@ -2,11 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - The evohome-compatible zones."""
-
-# Kudos & many thanks to:
-# - @dbmandrake: valve_position -> heat_demand transform
-
-# TODO: add optional eavesdrop of zone_type
+from __future__ import annotations
 
 import logging
 import math
@@ -59,6 +55,12 @@ from .schema import (
     SZ_HTG_VALVE,
     SZ_SENSOR,
 )
+
+# Kudos & many thanks to:
+# - @dbmandrake: valve_position -> heat_demand transform
+
+# TODO: add optional eavesdrop of zone_type
+
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import

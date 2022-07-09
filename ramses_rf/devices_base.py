@@ -5,8 +5,7 @@
 
 Base for all devices.
 """
-
-# TODO: refactor polling
+from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
@@ -21,6 +20,9 @@ from .protocol.const import SZ_FUNC, SZ_TIMEOUT
 from .protocol.message import Message
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from .schema import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
+
+# TODO: refactor polling
+
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

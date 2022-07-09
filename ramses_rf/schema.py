@@ -5,8 +5,7 @@
 
 Schema processor.
 """
-
-# TODO: move max_zones into system-specific location, ?profile
+from __future__ import annotations
 
 import logging
 import re
@@ -44,6 +43,9 @@ from .protocol.const import (
     SZ_ZONES,
 )
 from .protocol.transport import DEV_HACK_REGEX, SZ_BLOCK_LIST, SZ_KNOWN_LIST
+
+# TODO: move max_zones into system-specific location, ?profile
+
 
 DEV_MODE = __dev_mode__ and False
 

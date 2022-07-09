@@ -5,6 +5,7 @@
 
 Decode/process a message (payload into JSON).
 """
+from __future__ import annotations
 
 import logging
 from datetime import timedelta as td
