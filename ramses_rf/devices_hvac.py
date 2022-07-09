@@ -430,6 +430,17 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         }
 
 
+# class HvacFanHru(HvacVentilator):
+#     """A Heat recovery unit (aka: HRU, WTW)."""
+#     _SLUG: str = DEV_TYPE.HRU
+# class HvacFanCve(HvacVentilator):
+#     """An extraction unit (aka: CVE, CVD)."""
+#     _SLUG: str = DEV_TYPE.CVE
+# class HvacFanPiv(HvacVentilator):
+#     """A positive input ventilation unit (aka: PIV)."""
+#     _SLUG: str = DEV_TYPE.PIV
+
+
 HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumiditySensor
 
 
