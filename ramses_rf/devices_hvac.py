@@ -170,7 +170,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
         self.tcs = None
 
 
-class HvacHumidity(BatteryState, DeviceHvac):  # HUM: I/12A0
+class HvacHumiditySensor(BatteryState, DeviceHvac):  # HUM: I/12A0
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -204,7 +204,7 @@ class HvacHumidity(BatteryState, DeviceHvac):  # HUM: I/12A0
         }
 
 
-class HvacCarbonDioxide(DeviceHvac):  # CO2: I/1298
+class HvacCarbonDioxideSensor(DeviceHvac):  # CO2: I/1298
     """The Sensor class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -229,7 +229,7 @@ class HvacCarbonDioxide(DeviceHvac):  # CO2: I/1298
         }
 
 
-class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
+class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
@@ -277,7 +277,7 @@ class HvacSwitch(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
         }
 
 
-class HvacDisplay(HvacSwitch):  # DIS
+class HvacDisplayRemote(HvacRemote):  # DIS
     """The FAN (switch) class, such as a 4-way switch."""
 
     _SLUG: str = DEV_TYPE.DIS
@@ -430,7 +430,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         }
 
 
-HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidity
+HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumiditySensor
 
 
 def class_dev_hvac(

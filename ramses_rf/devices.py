@@ -48,6 +48,11 @@ from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-i
 # skipcq: PY-W2000
 from .devices_hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     HVAC_CLASS_BY_SLUG,
+    HvacCarbonDioxideSensor,
+    HvacHumiditySensor,
+    HvacRemote,
+    HvacVentilator,
+    RfsGateway,
     class_dev_hvac,
 )
 
