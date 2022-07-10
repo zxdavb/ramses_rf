@@ -42,16 +42,16 @@ class AwaitableCallback:
     The callback (putter) may put the message in the queue before the getter is invoked.
     """
 
-    SAFETY_TIMEOUT_DEFAULT = 30  # used to prevent waiting forever
-    SAFETY_TIMEOUT_MINIMUM = 10
+    SAFETY_TIMEOUT_DEFAULT = 30.0  # used to prevent waiting forever
+    SAFETY_TIMEOUT_MINIMUM = 10.0
     HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
     def __init__(self, loop) -> None:
         self._loop = loop or asyncio.get_event_loop()
-
-        self.expires: dt = None
         self._queue: SimpleQueue = SimpleQueue()  # unbounded, but we use only 1 entry
+
+        self.expires: dt = None  # type: ignore
 
     # the awaitable...
     async def getter(self, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> Message:
@@ -77,14 +77,18 @@ class AwaitableCallback:
         return msg
 
     # the callback...
-    def putter(self, msg: Message) -> None:
+    def putter(self, msg: Message, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> None:
         """Put the message in the queue (when invoked)."""
+
+        if timeout is None or timeout <= self.SAFETY_TIMEOUT_MINIMUM:
+            timeout = self.SAFETY_TIMEOUT_DEFAULT
+        self.expires = dt.now() + td(seconds=timeout)
 
         # self._queue.put_nowait(msg)  # ...so should not raise Full
         self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
 
 
-def awaitable_callback(loop) -> tuple[Awaitable, Callable]:
+def awaitable_callback(loop) -> tuple[Callable[..., Awaitable[Message]], Callable]:
     """Create a pair of functions, so that a callback can be awaited."""
     obj = AwaitableCallback(loop)
     return obj.getter, obj.putter  # awaitable, callback
@@ -113,11 +117,7 @@ class MessageTransport(asyncio.Transport):
     READER = "receiver_callback"
     WRITER = SZ_WRITER_TASK
 
-    _dispatcher: Callable
-
-    _write_buffer_limit_high: int = MAX_BUFFER_SIZE
-    _write_buffer_limit_low: int = 0
-    _write_buffer_paused: bool = False
+    _extra: dict  # asyncio.BaseTransport
 
     def __init__(self, gwy, protocol: MessageProtocol, extra: dict = None) -> None:
         super().__init__(extra=extra)
@@ -126,20 +126,25 @@ class MessageTransport(asyncio.Transport):
 
         self._gwy = gwy
         self._protocols: List[MessageProtocol] = []
-        self.add_protocol(protocol)
-
-        self._extra.update({self.READER: self._pkt_receiver})  # typx:ignore
-        self._is_closing = False
+        self._extra[self.READER] = self._pkt_receiver
+        self._dispatcher: Callable = None  # type: ignore
 
         self._callbacks: Dict[str, dict] = {}
 
         self._que: PriorityQueue = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
+        self._write_buffer_limit_high: int = self.MAX_BUFFER_SIZE
+        self._write_buffer_limit_low: int = 0
+        self._write_buffer_paused = False
         self.set_write_buffer_limits()
 
         # self._extra[self.WRITER] = self._loop.create_task(self._polling_loop())
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             self._loop.add_signal_handler(sig, self.abort)
+
+        self._is_closing = False
+
+        self.add_protocol(protocol)  # calls protocol.commection_made()
 
     def _set_dispatcher(self, dispatcher: Callable) -> None:
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
@@ -181,7 +186,7 @@ class MessageTransport(asyncio.Transport):
             _LOGGER.error("MsgTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]
 
-        self._dispatcher = dispatcher  # typx:ignore
+        self._dispatcher = dispatcher  # type: ignore
         self._extra[self.WRITER] = self._loop.create_task(
             pkt_dispatcher()
         )  # typx:ignore
@@ -274,21 +279,10 @@ class MessageTransport(asyncio.Transport):
                     raise
                 _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
 
-    def close(self) -> None:
-        """Close the transport.
+    def get_extra_info(self, name: str, default=None):
+        """Get optional transport information."""
 
-        Buffered data will be flushed asynchronously. No more data will be received.
-        After all buffered data is flushed, the protocol's connection_lost() method will
-        (eventually) be called with None as its argument.
-        """
-
-        self._is_closing = True
-        self._pause_protocols()
-
-        if task := self._extra.get(self.WRITER):  # typx:ignore
-            task.cancel()
-
-        [self._loop.call_soon(p.connection_lost, None) for p in self._protocols]
+        return self._extra.get(name, default)  # typx:ignore
 
     def abort(self) -> None:
         """Close the transport immediately.
@@ -301,15 +295,27 @@ class MessageTransport(asyncio.Transport):
         self._clear_write_buffer()
         self.close()
 
+    def close(self) -> None:
+        """Close the transport.
+
+        Buffered data will be flushed asynchronously. No more data will be received.
+        After all buffered data is flushed, the protocol's connection_lost() method will
+        (eventually) be called with None as its argument.
+        """
+
+        if self._is_closing:
+            return
+        self._is_closing = True
+
+        self._pause_protocols()
+        if task := self._extra.get(self.WRITER):  # typx:ignore
+            task.cancel()
+
+        [self._loop.call_soon(p.connection_lost, None) for p in self._protocols]
+
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
-
         return self._is_closing
-
-    def get_extra_info(self, name: str, default=None):
-        """Get optional transport information."""
-
-        return self._extra.get(name, default)  # typx:ignore
 
     def add_protocol(self, protocol: MessageProtocol) -> None:
         """Attach a new protocol.
@@ -509,24 +515,24 @@ class MessageProtocol(asyncio.Protocol):
     * CL: connection_lost()
     """
 
-    _transport: MessageTransport = None
-    _prev_msg: Message = None
-    _this_msg: Message = None
-
     def __init__(self, gwy, callback: Callable) -> None:
 
         # self._gwy = gwy  # is not used
         self._loop = gwy._loop
         self._callback = callback
 
-        self._pause_writing: bool = True
+        self._transport: MessageTransport = None  # type: ignore
+        self._prev_msg: Message = None  # type: ignore
+        self._this_msg: Message = None  # type: ignore
 
-    def connection_made(self, transport: MessageTransport) -> None:  # typx:ignore
+        self._pause_writing = True
+
+    def connection_made(self, transport: MessageTransport) -> None:  # type:ignore
         """Called when a connection is made."""
         self._transport = transport
         self.resume_writing()
 
-    def data_received(self, msg: Message) -> None:  # typx:ignore
+    def data_received(self, msg: Message) -> None:  # type:ignore
         """Called by the transport when a message is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 
@@ -553,7 +559,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if _make_awaitable:
-            return await awaitable()  # AwaitableCallback.getter(timeout: float = 120)
+            return await awaitable()  # AwaitableCallback.getter(timeout: float = ...)
         return None
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
