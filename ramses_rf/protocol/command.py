@@ -13,17 +13,20 @@ import json
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Any, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import (
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     SYS_MODE_MAP,
+    SZ_BACKOFF,
     SZ_DAEMON,
     SZ_DHW_IDX,
     SZ_DOMAIN_ID,
     SZ_FUNC,
+    SZ_PRIORITY,
+    SZ_RETRIES,
     SZ_TIMEOUT,
     SZ_ZONE_IDX,
     ZON_MODE_MAP,
@@ -31,7 +34,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
-from .frame import Frame, pkt_header
+from .frame import Code, DevId, Frame, Payload, Verb, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp, typechecked
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ
@@ -148,7 +151,68 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def validate_api_params(*, has_zone=None):
+class Qos:
+    """The QoS class.
+
+    This is a mess - it is the first step in cleaning up QoS.
+    """
+
+    POLL_INTERVAL = 0.002
+
+    # tx (from sent to gwy, to get back from gwy) seems to takes appDEFAULT_KEYSrox. 0.025s
+    DEFAULT_TX_TIMEOUT = td(seconds=0.2)  # 0.20 OK, but too high?
+    DEFAULT_TX_RETRIES = 2
+    RETRY_LIMIT_MAX = 5
+
+    DEFAULT_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
+    MAX_BACKOFF_FACTOR = 2  # i.e. tx_timeout 2 ** MAX_BACKOFF
+
+    QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT, SZ_BACKOFF)
+
+    DEFAULT_QOS = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
+    DEFAULT_QOS_TABLE = (
+        {  # priority, retries, timeout, (enable_)backoff, c.f. DEFAULT_QOS
+            f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
+            f"{RQ}|{_0006}": (Priority.HIGH, 5, None, True),
+            f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # short Tx
+            f"{RQ}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
+            f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),  # but long Rx
+            f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
+            f"{RQ}|{_1F09}": (Priority.HIGH, 5, None, True),
+            f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
+            f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
+            f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
+        }
+    )  # The long timeout for the OTB is for total RTT to slave (boiler)
+
+    def __init__(
+        self,
+        *,
+        priority=None,
+        retries=None,
+        timeout=None,
+        backoff=None,
+    ) -> None:
+
+        self.priority = priority if priority is not None else self.DEFAULT_QOS[0]
+        self.retry_limit = retries if retries is not None else self.DEFAULT_QOS[1]
+        self.tx_timeout = self.DEFAULT_TX_TIMEOUT
+        self.rx_timeout = timeout if timeout is not None else self.DEFAULT_QOS[2]
+        self.disable_backoff = not (
+            backoff if backoff is not None else self.DEFAULT_QOS[3]
+        )
+
+    @classmethod  # constructor from verb|code pair
+    def verb_code(cls, verb, code, **kwargs) -> Qos:
+        """Constructor to create a QoS based upon the defaults for a verb|code pair."""
+
+        default_qos = cls.DEFAULT_QOS_TABLE.get(f"{verb}|{code}", cls.DEFAULT_QOS)
+        return cls(
+            **{k: kwargs.get(k, default_qos[i]) for i, k in enumerate(cls.QOS_KEYS)}
+        )
+
+
+def validate_api_params(*, has_zone: bool = None):
     """Decorator to protect the engine from any invalid command constructors.
 
     Additionally, validate/normalise some command arguments (e.g. 'HW' becomes 0xFA).
@@ -265,10 +329,8 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     return until, duration
 
 
-def _qos_params(verb, code, qos: dict) -> dict:
+def _qos_params(verb: Verb, code: Code, qos: dict) -> Qos:
     """Class constrcutor wrapped to prevent cyclic reference."""
-    from .transport import Qos
-
     return Qos.verb_code(verb, code, **qos)
 
 
@@ -304,10 +366,10 @@ class Command(Frame):
     @classmethod  # convenience constructor
     def from_attrs(
         cls,
-        verb,
+        verb: Verb,
         dest_id,
-        code,
-        payload,
+        code: Code,
+        payload: Payload,
         *,
         from_id=None,
         seqn=None,
@@ -336,9 +398,9 @@ class Command(Frame):
     @classmethod  # generic constructor
     def _from_attrs(
         cls,
-        verb,
-        code,
-        payload,
+        verb: Verb,
+        code: Code,
+        payload: Payload,
         *,
         addr0=None,
         addr1=None,
@@ -414,9 +476,14 @@ class Command(Frame):
         else:
             addrs = (cmd[0], cmd[1], cmd[2])
 
-        addrs = {f"addr{k}": v for k, v in enumerate(addrs)}
-
-        return cls._from_attrs(verb, code, payload, **addrs, seqn=seqn, **kwargs)
+        return cls._from_attrs(
+            verb,
+            code,
+            payload,
+            **{f"addr{k}": v for k, v in enumerate(addrs)},
+            seqn=seqn,
+            **kwargs,
+        )
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -460,10 +527,10 @@ class Command(Frame):
     @typechecked
     def set_bypass_position(
         cls,
-        fan_id: str,
+        fan_id: DevId,
         *,
         bypass_position: float = None,
-        src_id: str = None,
+        src_id: DevId = None,
         **kwargs,
     ):
         """Constructor to set the position of the bypass valve (c.f. parser_22f7).
@@ -501,11 +568,11 @@ class Command(Frame):
     @validate_api_params()
     def set_fan_param(
         cls,
-        fan_id: str,
+        fan_id: DevId,
         param_id: str,
         value: str,
         *,
-        src_id: str = None,
+        src_id: DevId = None,
         **kwargs,
     ):
         """Constructor to set a configurable fan parameter (c.f. parser_2411)."""
@@ -523,11 +590,11 @@ class Command(Frame):
     @validate_api_params()
     def set_fan_mode(
         cls,
-        fan_id: str,
+        fan_id: DevId,
         fan_mode,
         *,
         seqn: int = None,
-        src_id: str = None,
+        src_id: DevId = None,
         idx: str = "00",  # could be e.g. "63"
         **kwargs,
     ):
@@ -583,7 +650,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1F41
     @validate_api_params()
-    def get_dhw_mode(cls, ctl_id: str, **kwargs):
+    def get_dhw_mode(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
 
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
@@ -593,9 +660,9 @@ class Command(Frame):
     @validate_api_params()
     def set_dhw_mode(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         *,
-        mode: int = None,
+        mode: None | int | str = None,
         active: bool = None,
         until=None,
         duration: int = None,
@@ -631,7 +698,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|10A0
     @validate_api_params()
-    def get_dhw_params(cls, ctl_id: str, **kwargs):
+    def get_dhw_params(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
@@ -641,7 +708,7 @@ class Command(Frame):
     @validate_api_params()
     def set_dhw_params(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         *,
         setpoint: float = 50.0,
         overrun: int = 5,
@@ -678,7 +745,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1260
     @validate_api_params()
-    def get_dhw_temp(cls, ctl_id: str, **kwargs):
+    def get_dhw_temp(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
@@ -686,7 +753,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1030
     @validate_api_params(has_zone=True)
-    def get_mix_valve_params(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+    def get_mix_valve_params(cls, ctl_id: DevId, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
 
         return cls.from_attrs(
@@ -697,7 +764,7 @@ class Command(Frame):
     @validate_api_params(has_zone=True)
     def set_mix_valve_params(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         zone_idx: Union[int, str],
         *,
         max_flow_setpoint=55,
@@ -736,7 +803,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|3220
     @validate_api_params()
-    def get_opentherm_data(cls, otb_id: str, msg_id: Union[int, str], **kwargs):
+    def get_opentherm_data(cls, otb_id: DevId, msg_id: Union[int, str], **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
 
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
@@ -745,7 +812,9 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|0008
     @validate_api_params()  # has_zone=Optional
-    def get_relay_demand(cls, dev_id: str, zone_idx: Union[int, str] = None, **kwargs):
+    def get_relay_demand(
+        cls, dev_id: DevId, zone_idx: Union[int, str] = None, **kwargs
+    ):
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
 
         payload = "00" if zone_idx is None else f"{zone_idx:02X}"
@@ -753,7 +822,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|0006
     @validate_api_params()
-    def get_schedule_version(cls, ctl_id: str, **kwargs):
+    def get_schedule_version(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the current version (change counter) of the schedules.
 
         This number is increased whenever any zone's schedule is changed (incl. the DHW
@@ -767,7 +836,7 @@ class Command(Frame):
     @validate_api_params(has_zone=True)
     def get_schedule_fragment(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         zone_idx: Union[int, str],
         frag_number: int,
         total_frags: int,
@@ -805,7 +874,7 @@ class Command(Frame):
     @validate_api_params(has_zone=True)
     def set_schedule_fragment(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         zone_idx: Union[int, str],
         frag_num: int,
         frag_cnt: int,
@@ -831,14 +900,14 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|0100
     @validate_api_params()
-    def get_system_language(cls, ctl_id: str, **kwargs):
+    def get_system_language(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the language of a system (c.f. parser_0100)."""
 
         return cls.from_attrs(RQ, ctl_id, _0100, "00", **kwargs)
 
     @classmethod  # constructor for RQ|0418
     @validate_api_params()
-    def get_system_log_entry(cls, ctl_id: str, log_idx: Union[int, str], **kwargs):
+    def get_system_log_entry(cls, ctl_id: DevId, log_idx: Union[int, str], **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
 
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
@@ -846,14 +915,14 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|2E04
     @validate_api_params()
-    def get_system_mode(cls, ctl_id: str, **kwargs):
+    def get_system_mode(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
 
         return cls.from_attrs(RQ, ctl_id, _2E04, FF, **kwargs)
 
     @classmethod  # constructor for W|2E04
     @validate_api_params()
-    def set_system_mode(cls, ctl_id: str, system_mode, *, until=None, **kwargs):
+    def set_system_mode(cls, ctl_id: DevId, system_mode, *, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         if system_mode is None:
@@ -885,14 +954,16 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|313F
     @validate_api_params()
-    def get_system_time(cls, ctl_id: str, **kwargs):
+    def get_system_time(cls, ctl_id: DevId, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
 
         return cls.from_attrs(RQ, ctl_id, _313F, "00", **kwargs)
 
     @classmethod  # constructor for W|313F
     @validate_api_params()
-    def set_system_time(cls, ctl_id: str, datetime: dt, is_dst: bool = False, **kwargs):
+    def set_system_time(
+        cls, ctl_id: DevId, datetime: dt, is_dst: bool = False, **kwargs
+    ):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
@@ -901,7 +972,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1100
     @validate_api_params()
-    def get_tpi_params(cls, dev_id: str, *, domain_id=None, **kwargs):
+    def get_tpi_params(cls, dev_id: DevId, *, domain_id=None, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
 
         if domain_id is None:
@@ -912,7 +983,7 @@ class Command(Frame):
     @validate_api_params()
     def set_tpi_params(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         domain_id: Union[str, None],
         *,
         cycle_rate: int = 3,  # TODO: check
@@ -947,7 +1018,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|000A
     @validate_api_params(has_zone=True)
-    def get_zone_config(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+    def get_zone_config(cls, ctl_id: DevId, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
 
         return cls.from_attrs(
@@ -958,7 +1029,7 @@ class Command(Frame):
     @validate_api_params(has_zone=True)
     def set_zone_config(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         zone_idx: Union[int, str],
         *,
         min_temp: float = 5,
@@ -998,7 +1069,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|2349
     @validate_api_params(has_zone=True)
-    def get_zone_mode(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+    def get_zone_mode(cls, ctl_id: DevId, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
 
         return cls.from_attrs(
@@ -1009,7 +1080,7 @@ class Command(Frame):
     @validate_api_params(has_zone=True)
     def set_zone_mode(
         cls,
-        ctl_id: str,
+        ctl_id: DevId,
         zone_idx: Union[int, str],
         *,
         mode: str = None,
@@ -1054,7 +1125,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|0004
     @validate_api_params(has_zone=True)
-    def get_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+    def get_zone_name(cls, ctl_id: DevId, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
 
         return cls.from_attrs(
@@ -1063,7 +1134,9 @@ class Command(Frame):
 
     @classmethod  # constructor for W|0004
     @validate_api_params(has_zone=True)
-    def set_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], name: str, **kwargs):
+    def set_zone_name(
+        cls, ctl_id: DevId, zone_idx: Union[int, str], name: str, **kwargs
+    ):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:40]:0<40}"
@@ -1072,7 +1145,7 @@ class Command(Frame):
     @classmethod  # constructor for W|2309
     @validate_api_params(has_zone=True)
     def set_zone_setpoint(
-        cls, ctl_id: str, zone_idx: Union[int, str], setpoint: float, **kwargs
+        cls, ctl_id: DevId, zone_idx: Union[int, str], setpoint: float, **kwargs
     ):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
@@ -1082,14 +1155,14 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|30C9
     @validate_api_params(has_zone=True)
-    def get_zone_temp(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+    def get_zone_temp(cls, ctl_id: DevId, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
 
         return cls.from_attrs(RQ, ctl_id, _30C9, f"{zone_idx:02X}", **kwargs)
 
     @classmethod  # constructor for RQ|12B0
     @validate_api_params(has_zone=True)
-    def get_zone_window_state(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+    def get_zone_window_state(cls, ctl_id: DevId, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
 
         return cls.from_attrs(RQ, ctl_id, _12B0, f"{zone_idx:02X}", **kwargs)
@@ -1098,8 +1171,8 @@ class Command(Frame):
     @validate_api_params()
     def put_actuator_cycle(
         cls,
-        src_id: str,
-        dst_id: str,
+        src_id: DevId,
+        dst_id: DevId,
         modulation_level: float,
         actuator_countdown: int,
         *,
@@ -1126,7 +1199,7 @@ class Command(Frame):
 
     @classmethod  # constructor for I|3EF0  # TODO: trap corrupt states?
     @validate_api_params()
-    def put_actuator_state(cls, dev_id: str, modulation_level: float, **kwargs):
+    def put_actuator_state(cls, dev_id: DevId, modulation_level: float, **kwargs):
         """Constructor to announce the modulation level of an actuator (3EF0).
 
         This is for use by a faked BDR91A or similar.
@@ -1148,7 +1221,16 @@ class Command(Frame):
         return cls._from_attrs(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for 1FC9 (rf_bind) 3-way handshake
-    def put_bind(cls, verb, codes, src_id, *, idx="00", dst_id=None, **kwargs):
+    def put_bind(
+        cls,
+        verb: Verb,
+        codes: Code | Iterable[Code],
+        src_id: DevId,
+        *,
+        idx="00",
+        dst_id: None | DevId = None,
+        **kwargs,
+    ):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
         #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
@@ -1156,7 +1238,7 @@ class Command(Frame):
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
 
         hex_id = Address.convert_to_hex(src_id)
-        codes = (list(codes) if isinstance(codes, tuple) else [codes]) + [_1FC9]
+        codes = ([codes] if isinstance(codes, Code) else list(codes)) + [_1FC9]
 
         if dst_id is None and verb == I_:
             payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
@@ -1176,7 +1258,7 @@ class Command(Frame):
 
     @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
     @validate_api_params()
-    def put_dhw_temp(cls, dev_id: str, temperature: float, **kwargs):
+    def put_dhw_temp(cls, dev_id: DevId, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an DHW sensor (1260).
 
         This is for use by a faked CS92A or similar.
@@ -1195,7 +1277,7 @@ class Command(Frame):
 
     @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
     @validate_api_params()
-    def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
+    def put_outdoor_temp(cls, dev_id: DevId, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an outdoor sensor (0002).
 
         This is for use by a faked HB85 or similar.
@@ -1212,7 +1294,7 @@ class Command(Frame):
 
     @classmethod  # constructor for I|30C9  # TODO: trap corrupt temps?
     @validate_api_params()
-    def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
+    def put_sensor_temp(cls, dev_id: DevId, temperature: float, **kwargs):
         """Constructor to announce the current temperature of a thermostat (3C09).
 
         This is for use by a faked DTS92(E) or similar.
@@ -1258,7 +1340,7 @@ class Command(Frame):
         return cls.from_attrs(I_, NUL_DEV_ADDR.id, _PUZZ, payload[:48], **kwargs)
 
 
-def _mk_cmd(verb, code, payload, dest_id, **kwargs) -> Command:
+def _mk_cmd(verb: Verb, code: Code, payload: Payload, dest_id, **kwargs) -> Command:
     """A convenience function, to cope with a change to the Command class."""
     return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
 

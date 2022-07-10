@@ -13,7 +13,7 @@ import signal
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
-from typing import Callable, Dict, Iterable, List, Optional, TypeVar
+from typing import Awaitable, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from .command import Command
 from .const import SZ_DAEMON, SZ_EXPIRED, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
@@ -42,23 +42,23 @@ class AwaitableCallback:
     The callback (putter) may put the message in the queue before the getter is invoked.
     """
 
-    DEFAULT_TIMEOUT = 120  # used to prevent waiting forever
+    SAFETY_TIMEOUT_DEFAULT = 30  # used to prevent waiting forever
+    SAFETY_TIMEOUT_MINIMUM = 10
     HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
     def __init__(self, loop) -> None:
         self._loop = loop or asyncio.get_event_loop()
 
-        self.expires: None | dt = None
-        self._queue: SimpleQueue = (
-            SimpleQueue()
-        )  # is unbounded, but we'll use only 1 entry...
+        self.expires: dt = None
+        self._queue: SimpleQueue = SimpleQueue()  # unbounded, but we use only 1 entry
 
-    async def getter(self, timeout: float = DEFAULT_TIMEOUT) -> Message:  # awaitable
+    # the awaitable...
+    async def getter(self, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> Message:
         """Poll the queue until the message arrives, or the timer expires."""
 
-        if timeout is None or timeout <= 0:
-            timeout = self.DEFAULT_TIMEOUT
+        if timeout is None or timeout <= self.SAFETY_TIMEOUT_MINIMUM:
+            timeout = self.SAFETY_TIMEOUT_DEFAULT
         self.expires = dt.now() + td(seconds=timeout)
 
         while dt.now() < self.expires:
@@ -76,14 +76,15 @@ class AwaitableCallback:
             raise TypeError(f"Response is not a message: {msg}")
         return msg
 
-    def putter(self, msg: Message) -> None:  # callback
+    # the callback...
+    def putter(self, msg: Message) -> None:
         """Put the message in the queue (when invoked)."""
 
         # self._queue.put_nowait(msg)  # ...so should not raise Full
         self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
 
 
-def awaitable_callback(loop) -> tuple[Callable, Callable]:
+def awaitable_callback(loop) -> tuple[Awaitable, Callable]:
     """Create a pair of functions, so that a callback can be awaited."""
     obj = AwaitableCallback(loop)
     return obj.getter, obj.putter  # awaitable, callback

@@ -34,25 +34,14 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Awaitable, Callable, Iterable, Optional
+from typing import Awaitable, Callable, Iterable, Optional, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .command import Command
-from .const import (
-    DEV_TYPE_MAP,
-    SZ_BACKOFF,
-    SZ_DEVICE_ID,
-    SZ_INBOUND,
-    SZ_OUTBOUND,
-    SZ_PRIORITY,
-    SZ_RETRIES,
-    SZ_TIMEOUT,
-    Priority,
-    __dev_mode__,
-)
+from .command import Command, Qos
+from .const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_INBOUND, SZ_OUTBOUND, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -129,70 +118,6 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !FS - save autotune
 
 
-sync_cycles: deque = deque()  # used by @avoid_system_syncs / @track_system_syncs
-
-
-class Qos:
-    """The QoS class.
-
-    This is a mess - it is the first step in cleaning up QoS.
-    """
-
-    POLL_INTERVAL = 0.002
-
-    # tx (from sent to gwy, to get back from gwy) seems to takes appDEFAULT_KEYSrox. 0.025s
-    DEFAULT_TX_TIMEOUT = td(seconds=0.2)  # 0.20 OK, but too high?
-    DEFAULT_TX_RETRIES = 2
-    RETRY_LIMIT_MAX = 5
-
-    DEFAULT_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
-    MAX_BACKOFF_FACTOR = 2  # i.e. tx_timeout 2 ** MAX_BACKOFF
-
-    QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT, SZ_BACKOFF)
-
-    DEFAULT_QOS = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
-    DEFAULT_QOS_TABLE = (
-        {  # priority, retries, timeout, (enable_)backoff, c.f. DEFAULT_QOS
-            f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
-            f"{RQ}|{_0006}": (Priority.HIGH, 5, None, True),
-            f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # short Tx
-            f"{RQ}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
-            f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),  # but long Rx
-            f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
-            f"{RQ}|{_1F09}": (Priority.HIGH, 5, None, True),
-            f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
-            f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
-            f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
-        }
-    )  # The long timeout for the OTB is for total RTT to slave (boiler)
-
-    def __init__(
-        self,
-        *,
-        priority=None,
-        retries=None,
-        timeout=None,
-        backoff=None,
-    ) -> None:
-
-        self.priority = priority if priority is not None else self.DEFAULT_QOS[0]
-        self.retry_limit = retries if retries is not None else self.DEFAULT_QOS[1]
-        self.tx_timeout = self.DEFAULT_TX_TIMEOUT
-        self.rx_timeout = timeout if timeout is not None else self.DEFAULT_QOS[2]
-        self.disable_backoff = not (
-            backoff if backoff is not None else self.DEFAULT_QOS[3]
-        )
-
-    @classmethod  # constructor from verb|code pair
-    def verb_code(cls, verb, code, **kwargs) -> Qos:
-        """Constructor to create a QoS based upon the defaults for a verb|code pair."""
-
-        default_qos = cls.DEFAULT_QOS_TABLE.get(f"{verb}|{code}", cls.DEFAULT_QOS)
-        return cls(
-            **{k: kwargs.get(k, default_qos[i]) for i, k in enumerate(cls.QOS_KEYS)}
-        )
-
-
 def _str(value: bytes) -> str:
     try:
         result = "".join(
@@ -244,7 +169,10 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
     return result
 
 
-def avoid_system_syncs(fnc) -> Awaitable:
+sync_cycles: deque = deque()  # used by @avoid_system_syncs / @track_system_syncs
+
+
+def avoid_system_syncs(fnc: Awaitable):
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
     DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
@@ -258,7 +186,7 @@ def avoid_system_syncs(fnc) -> Awaitable:
 
     times_0 = []  # FIXME: remove
 
-    async def wrapper(*args, **kwargs) -> None:
+    async def wrapper(*args, **kwargs):
         global sync_cycles  # skipcq: PYL-W0602
 
         def is_imminent(p):
@@ -293,7 +221,7 @@ def avoid_system_syncs(fnc) -> Awaitable:
     return wrapper
 
 
-def track_system_syncs(fnc) -> Callable:
+def track_system_syncs(fnc: Callable):
     """Track/remember the most recent sync cycle for a controller."""
 
     MAX_SYNCS_TRACKED = 3
@@ -321,7 +249,7 @@ def track_system_syncs(fnc) -> Callable:
     return wrapper
 
 
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60) -> Callable:
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
     """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
     max_duty_cycle: bandwidth available per observation window (%)
@@ -332,13 +260,13 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60) -> Callable:
     FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
     BUCKET_CAPACITY: float = FILL_RATE * time_window
 
-    def decorator(fnc) -> Awaitable:
+    def decorator(fnc):
         # start with a full bit bucket
         bits_in_bucket: float = BUCKET_CAPACITY
         last_time_bit_added = perf_counter()
 
         @wraps(fnc)
-        async def wrapper(self, packet, *args, **kwargs) -> None:
+        async def wrapper(self, packet, *args, **kwargs):
             nonlocal bits_in_bucket
             nonlocal last_time_bit_added
 
@@ -366,7 +294,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60) -> Callable:
     return decorator
 
 
-def limit_transmit_rate(max_tokens: float, time_window: int = 60) -> Callable:
+def limit_transmit_rate(max_tokens: float, time_window: int = 60):
     """Limit the Tx rate as # packets per period of time.
 
     Rate-limits the decorated function locally, for one process (Token Bucket).
@@ -379,7 +307,7 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60) -> Callable:
 
     token_fill_rate: float = max_tokens / time_window
 
-    def decorator(fnc) -> Awaitable:
+    def decorator(fnc):
         token_bucket: float = max_tokens  # initialize with max tokens
         last_time_token_added = perf_counter()
 
@@ -532,12 +460,12 @@ class PacketProtocolBase(asyncio.Protocol):
         self._loop = gwy._loop
         self._callback = pkt_handler  # Could be None
 
-        self._transport = None
+        self._transport: asyncio.Transport = None  # typex: ignore
         self._pause_writing = True
         self._recv_buffer = bytes()
 
-        self._prev_pkt = None
-        self._this_pkt = None
+        self._prev_pkt: Packet = None  # typex: ignore
+        self._this_pkt: Packet = None  # typex: ignore
 
         self._disable_sending = gwy.config.disable_sending
         self._evofw_flag = gwy.config.evofw_flag
@@ -552,10 +480,10 @@ class PacketProtocolBase(asyncio.Protocol):
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
         self._hgi80 = {
-            IS_INITIALIZED: None,
+            IS_INITIALIZED: False,
             IS_EVOFW3: None,
-            SZ_DEVICE_ID: None,
-        }
+            SZ_DEVICE_ID: "",
+        }  # also: "evofw3_ver"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(enforce_include={self.enforce_include})"
@@ -563,8 +491,7 @@ class PacketProtocolBase(asyncio.Protocol):
     def __str__(self) -> str:
         return self.__class__.__name__
 
-    @staticmethod
-    def _dt_now() -> dt:
+    def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
         return dt_now()
 
@@ -613,7 +540,7 @@ class PacketProtocolBase(asyncio.Protocol):
     def data_received(self, data: bytes) -> None:
         """Called by the transport when some data (packet fragments) is received."""
 
-        def bytes_received(data: bytes) -> Iterable[bytes]:
+        def bytes_received(data: bytes) -> Iterable[tuple[dt, bytes]]:
             self._recv_buffer += data
             if b"\r\n" in self._recv_buffer:
                 lines = self._recv_buffer.split(b"\r\n")
@@ -654,13 +581,12 @@ class PacketProtocolBase(asyncio.Protocol):
                 raw_line=raw_line,
             )  # should log all? invalid pkts appropriately
 
-            if (
-                pkt.src.type == DEV_TYPE_MAP.HGI
-            ):  # dex: ideally should use HGI, but how?
+            if pkt.src.type == DEV_TYPE_MAP.HGI:
                 self._check_set_hgi80(pkt)
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
-                self._hgi80[IS_EVOFW3] = line
+                self._hgi80[IS_EVOFW3] = True
+                self._hgi80["evofw3_ver"] = line
                 if self._evofw_flag not in (None, "!V"):
                     self._transport.write(
                         bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
@@ -719,7 +645,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._include.append(dev_id)  # NOTE: only time include list is modified
                 continue
 
-            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._hgi80[SZ_DEVICE_ID] is None:
+            if dev_id[:2] == DEV_TYPE_MAP.HGI and not self._hgi80[SZ_DEVICE_ID]:
                 _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
                 continue
 
@@ -750,7 +676,7 @@ class PacketProtocolFile(PacketProtocolBase):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         super().__init__(gwy, pkt_handler)
 
-        self._dt_str_ = None
+        self._dt_str_: str = None  # typex: ignore
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using a packet's dtm field."""
@@ -879,7 +805,7 @@ class PacketProtocolPort(PacketProtocolBase):
         # ):
         #     await asyncio.sleep(0.005)
 
-        data = bytes(
+        data_bytes = bytes(
             _regex_hack(
                 data,
                 self._gwy.config.use_regex.get(SZ_OUTBOUND, {}),
@@ -890,7 +816,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Tx:     %s", data)
-        self._transport.write(data + b"\r\n")
+        self._transport.write(data_bytes + b"\r\n")
 
 
 class PacketProtocolQos(PacketProtocolPort):
@@ -900,7 +826,7 @@ class PacketProtocolQos(PacketProtocolPort):
         super().__init__(gwy, pkt_handler)
 
         # self._qos_lock = Lock()
-        self._qos_cmd = None
+        self._qos_cmd: Command = None  # typex: ignore
         self._tx_rcvd = None
         self._rx_rcvd = None
 
@@ -989,16 +915,20 @@ class PacketProtocolQos(PacketProtocolPort):
         return self._rx_rcvd
 
 
+_P = TypeVar("_P", bound=asyncio.BaseProtocol)
+_T = TypeVar("_T", bound=asyncio.BaseTransport)
+
+
 def create_pkt_stack(
     gwy,
-    pkt_callback,
+    pkt_callback: Callable,
     /,
     *,
-    protocol_factory=None,
-    ser_port=None,
+    protocol_factory: Callable = None,
+    ser_port: str = None,
     packet_log=None,
-    packet_dict=None,
-) -> tuple[asyncio.Protocol, asyncio.Transport]:
+    packet_dict: dict = None,
+) -> tuple[type[_P], type[_T]]:
     """Utility function to provide a transport to the internal protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface) / log (file).
@@ -1008,7 +938,7 @@ def create_pkt_stack(
      - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
-    def get_serial_instance(ser_name, ser_config) -> SerialBase:
+    def get_serial_instance(ser_name: str, ser_config: dict) -> SerialBase:
 
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
@@ -1035,7 +965,7 @@ def create_pkt_stack(
 
         return ser_obj
 
-    def issue_warning():
+    def issue_warning() -> None:
         _LOGGER.warning(
             f"{'Windows' if os.name == 'nt' else 'This type of serial interface'} "
             "is not fully supported by this library: "
@@ -1044,7 +974,7 @@ def create_pkt_stack(
             "(e.g. linux with a local serial port)"
         )
 
-    def protocol_factory_():
+    def protocol_factory_() -> type[_P]:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
         elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
@@ -1062,6 +992,7 @@ def create_pkt_stack(
     )  # do this first, in case raises a SerialException
 
     pkt_protocol = (protocol_factory or protocol_factory_)()
+    pkt_transport: type[_T] = None  # typex: ignore
 
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
