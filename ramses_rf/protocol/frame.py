@@ -129,6 +129,12 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+Code = str
+DevId = str
+Payload = str
+Verb = str
+
+
 class Frame:
     """The Frame class - used as a base by the Command and Packet classes.
 
@@ -190,7 +196,7 @@ class Frame:
         self._has_payload_: bool = None  # type: ignore[assignment]
 
     @classmethod  # for internal use only
-    def _from_attrs(cls, verb, *addrs, code, payload, seqn=None):
+    def _from_attrs(cls, verb: Verb, *addrs, code: Code, payload: Payload, seqn=None):
         """Create a frame from its attributes (args, kwargs)."""
 
         seqn = seqn or "---"

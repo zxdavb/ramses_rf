@@ -13,7 +13,7 @@ import signal
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, TypeVar
 
 from .command import Command
 from .const import SZ_DAEMON, SZ_EXPIRED, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
@@ -569,16 +569,22 @@ class MessageProtocol(asyncio.Protocol):
         self._pause_writing = False
 
 
-def create_protocol_factory(protocol: asyncio.Protocol, *args, **kwargs) -> Callable:
-    def _protocol_factory():
-        return protocol(*args, **kwargs)
+_P = TypeVar("_P", bound=MessageProtocol)
+_T = TypeVar("_T", bound=MessageTransport)
+
+
+def create_protocol_factory(
+    protocol_class: type[asyncio.Protocol], *args, **kwargs
+) -> Callable:
+    def _protocol_factory() -> asyncio.Protocol:
+        return protocol_class(*args, **kwargs)
 
     return _protocol_factory
 
 
 def create_msg_stack(
     gwy, msg_callback: Callable, protocol_factory: Callable = None
-) -> tuple[asyncio.Protocol, asyncio.Transport]:
+) -> tuple[_P, _T]:
     """Utility function to provide a transport to a client protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
