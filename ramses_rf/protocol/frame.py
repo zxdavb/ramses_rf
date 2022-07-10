@@ -133,6 +133,7 @@ Code = str
 DevId = str
 Payload = str
 Verb = str
+Header = str
 
 
 class Frame:
@@ -143,15 +144,15 @@ class Frame:
 
     _frame: str
 
-    verb: str
+    verb: Verb
     seqn: str  # TODO: or, better as int?
     src: Address
     dst: Address
     _addrs: tuple[Address, Address, Address]
-    code: str
+    code: Code
     len_: str
     _len: int  # int(len(payload) / 2)
-    payload: str
+    payload: Payload
 
     def __init__(self, frame: str) -> None:
         """Create a frame from a string.
@@ -175,7 +176,7 @@ class Frame:
         self._len = int(len(self.payload) / 2)
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(
+            self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
         except InvalidPacketError as exc:  # will be: InvalidAddrSetError
@@ -203,7 +204,7 @@ class Frame:
         len_ = f"{int(len(payload) / 2):03d}"
 
         try:
-            return cls(" ".join(verb, seqn, *addrs, code, len_, payload))
+            return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
         except TypeError as exc:
             raise InvalidPacketError(f"Bad frame: invalid attr: {exc}")
 
@@ -223,7 +224,7 @@ class Frame:
             raise InvalidPacketError("Bad frame: payload length mismatch")
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
+            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore
         except InvalidPacketError as exc:  # will be: InvalidAddrSetError
             raise InvalidPacketError(f"Bad frame: invalid address set: {exc}")
 
@@ -434,7 +435,7 @@ class Frame:
         return self._ctx_
 
     @property
-    def _hdr(self) -> str:  # incl. self._ctx
+    def _hdr(self) -> Header:  # incl. self._ctx
         """Return the QoS header (fingerprint) of this packet (i.e. device_id/code/hdr).
 
         Used for QoS (timeouts, retries), callbacks, etc.
@@ -548,7 +549,9 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     return None
 
 
-def pkt_header(pkt, rx_header=None) -> None | str:  # NOTE: used in command.py
+def pkt_header(
+    pkt, rx_header: bool = None
+) -> None | Header:  # NOTE: used in command.py
     """Return the QoS header of a packet (all packets have a header).
 
     For rx_header=True, return the header of the response packet, if one is expected.

@@ -556,7 +556,7 @@ class Command(Frame):
         elif bypass_position is not None:
             pos = f"{int(bypass_position * 200):02X}"
         elif bypass_mode:
-            pos = {"auto": "FF", "off": "00", "on": "C8"}.get(bypass_mode)
+            pos = {"auto": "FF", "off": "00", "on": "C8"}[bypass_mode]
         else:
             pos = "FF"  # auto
 
@@ -967,8 +967,8 @@ class Command(Frame):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        datetime = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
-        return cls.from_attrs(W_, ctl_id, _313F, f"0060{datetime}", **kwargs)
+        dt_str = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
+        return cls.from_attrs(W_, ctl_id, _313F, f"0060{dt_str}", **kwargs)
 
     @classmethod  # constructor for RQ|1100
     @validate_api_params()
@@ -1396,8 +1396,8 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         # self.tcs = ctl.tcs
         self._gwy = ctl._gwy
 
-        self._faultlog = None
-        self._faultlog_done = None
+        self._faultlog: dict = {}
+        self._faultlog_done: None | bool = None
 
         self._START = 0x00  # max 0x3E
         self._limit = 0x06
@@ -1481,10 +1481,10 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         )
 
     @property
-    def faultlog(self) -> Optional[dict]:
+    def faultlog(self) -> None | dict:
         """Return the fault log of a system."""
         if not self._faultlog_done:
-            return
+            return None
 
         result = {
             x: {k: v for k, v in y.items() if k[:1] != "_"}
@@ -1495,4 +1495,4 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
     @property
     def _faultlog_outdated(self) -> bool:
-        return self._faultlog_done and len(self._faultlog_done) and self._faultlog_done
+        return bool(self._faultlog_done and len(self._faultlog))

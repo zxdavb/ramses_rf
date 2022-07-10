@@ -172,9 +172,9 @@ class Message:
 
         self._payload = self._validate(self._pkt.payload)  # ? raise InvalidPacketError
 
-        self._str: str = None
-        self._fraction_expired: float = None
-        self._is_fragment: bool = None
+        self._str: str = None  # type: ignore[assignment]
+        self._fraction_expired: float = None  # type: ignore[assignment]
+        self._is_fragment: bool = None  # type: ignore[assignment]
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
