@@ -165,7 +165,7 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
 sync_cycles: deque = deque()  # used by @avoid_system_syncs / @track_system_syncs
 
 
-def avoid_system_syncs(fnc: Awaitable):
+def avoid_system_syncs(fnc: Callable[..., Awaitable]):
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
     DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
@@ -219,7 +219,7 @@ def track_system_syncs(fnc: Callable):
 
     MAX_SYNCS_TRACKED = 3
 
-    def wrapper(self, pkt, *args, **kwargs) -> None:
+    def wrapper(self, pkt: Packet, *args, **kwargs) -> None:
         global sync_cycles
 
         def is_pending(p):
@@ -253,13 +253,13 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
     FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
     BUCKET_CAPACITY: float = FILL_RATE * time_window
 
-    def decorator(fnc):
+    def decorator(fnc: Callable[..., Awaitable]):
         # start with a full bit bucket
         bits_in_bucket: float = BUCKET_CAPACITY
         last_time_bit_added = perf_counter()
 
         @wraps(fnc)
-        async def wrapper(self, packet, *args, **kwargs):
+        async def wrapper(self, packet: str, *args, **kwargs):
             nonlocal bits_in_bucket
             nonlocal last_time_bit_added
 
@@ -300,7 +300,7 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60):
 
     token_fill_rate: float = max_tokens / time_window
 
-    def decorator(fnc):
+    def decorator(fnc: Callable):
         token_bucket: float = max_tokens  # initialize with max tokens
         last_time_token_added = perf_counter()
 
