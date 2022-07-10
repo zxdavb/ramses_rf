@@ -345,26 +345,30 @@ class SerTransportBase(asyncio.ReadTransport):
         self._loop = loop
         self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
-        self._closing = False
-
         # for sig in (signal.SIGINT, signal.SIGTERM):
         #     self._loop.add_signal_handler(sig, self.abort)
 
-    def is_closing(self) -> bool:
-        """Return True if the transport is closing or closed."""
-        return self._closing
-
-    def close(self):
-        if self._closing:
-            return
-
-        if poller := self._extra.get(SZ_POLLER_TASK):
-            poller.cancel()
-
-        self._loop.call_soon(self._protocol.connection_lost, None)
+        self._is_closing = False
 
     async def _polling_loop(self):
         raise NotImplementedError
+
+    def close(self):
+        """Close the transport."""
+
+        if self._is_closing:
+            return
+        self._is_closing = True
+
+        self._protocol.pause_writing()
+        if task := self._extra.get(SZ_POLLER_TASK):
+            task.cancel()
+
+        self._loop.call_soon(self._protocol.connection_lost, None)
+
+    def is_closing(self) -> bool:
+        """Return True if the transport is closing or closed."""
+        return self._is_closing
 
 
 class SerTransportRead(SerTransportBase):
@@ -725,10 +729,6 @@ class PacketProtocolPort(PacketProtocolBase):
 
         self._sem = asyncio.BoundedSemaphore()
         self._leaker = None
-
-        # for sig in (signal.SIGINT, signal.SIGTERM):
-        #     self._loop.add_signal_handler(sig, self._shutdown)
-        pass
 
     async def _leak_sem(self):
         """Used to enforce a minimum time between calls to `self._transport.write()`."""
