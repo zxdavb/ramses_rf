@@ -111,6 +111,10 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !FS - save autotune
 
 
+_P = TypeVar("_P", bound=asyncio.BaseProtocol)
+_T = TypeVar("_T", bound=asyncio.BaseTransport)
+
+
 def _str(value: bytes) -> str:
     try:
         result = "".join(
@@ -369,7 +373,7 @@ class SerTransportBase(asyncio.ReadTransport):
 class SerTransportRead(SerTransportBase):
     """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
-    def __init__(self, loop, protocol, packet_source, extra=None):
+    def __init__(self, loop, protocol: PacketProtocolBase, packet_source, extra=None):
         super().__init__(loop, extra=extra)
 
         self._protocol = protocol
@@ -404,14 +408,14 @@ class SerTransportPoll(SerTransportBase):
 
     MAX_BUFFER_SIZE = 500
 
-    def __init__(self, loop, protocol, ser_instance, extra=None):
+    def __init__(self, loop, protocol: PacketProtocolBase, ser_instance, extra=None):
         super().__init__(loop, extra=extra)
 
         self._protocol = protocol
         self.serial = ser_instance
 
         self._is_closing = None
-        self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
+        self._write_queue: Queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
 
     async def _polling_loop(self):
         self._protocol.connection_made(self)
@@ -908,10 +912,6 @@ class PacketProtocolQos(PacketProtocolPort):
 
         self._qos_cmd = None
         return self._rx_rcvd
-
-
-_P = TypeVar("_P", bound=asyncio.BaseProtocol)
-_T = TypeVar("_T", bound=asyncio.BaseTransport)
 
 
 def create_pkt_stack(
