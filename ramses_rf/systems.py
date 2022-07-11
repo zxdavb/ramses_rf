@@ -9,10 +9,9 @@ import logging
 from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
-from symtable import Class
 from threading import Lock
 from types import SimpleNamespace
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple, TypeVar
 
 from .const import (
     SYS_MODE_MAP,
@@ -41,6 +40,7 @@ from .devices import (
     OtbGateway,
     Temperature,
     UfhController,
+    _Device,
 )
 from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
@@ -359,10 +359,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return self._app_cntrl and self._app_cntrl.actuator_state
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         """Return the system's schema."""
 
-        schema = {SZ_TCS_SYSTEM: {}}
+        schema: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
         # hema = {SZ_CONTROLLER: self.ctl.id, SZ_TCS_SYSTEM: {}}
 
         schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL] = (
@@ -380,10 +380,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return schema
 
     @property
-    def _schema_min(self) -> dict:
+    def _schema_min(self) -> dict[str, Any]:
         """Return the global schema."""
 
-        schema = self.schema
+        schema: dict[str, Any] = self.schema
         result: dict[str, None | str] = {SZ_CONTROLLER: self.id}
 
         try:
@@ -413,18 +413,18 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return result
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         """Return the system's configuration."""
 
-        params = {SZ_TCS_SYSTEM: {}}
+        params: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
         params[SZ_TCS_SYSTEM]["tpi_params"] = self._msg_value(_1100)
         return params
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return the system's current state."""
 
-        status = {SZ_TCS_SYSTEM: {}}
+        status: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
         status[SZ_TCS_SYSTEM]["heat_demand"] = self.heat_demand
 
         status[SZ_DEVICES] = {d.id: d.status for d in sorted(self.childs)}
@@ -771,21 +771,21 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         return zon
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         return {
             **super().schema,
             SZ_ZONES: {z.idx: z.schema for z in sorted(self.zones)},
         }
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             SZ_ZONES: {z.idx: z.params for z in sorted(self.zones)},
         }
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             SZ_ZONES: {z.idx: z.status for z in sorted(self.zones)},
@@ -879,7 +879,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self.zone_lock.release()
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             SZ_CHANGE_COUNTER: self._msg_value(_0006, SZ_CHANGE_COUNTER),
@@ -899,7 +899,7 @@ class Language(SystemBase):  # 0100
         return self._msg_value(_0100, key=SZ_LANGUAGE)
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         params = super().params
         params[SZ_TCS_SYSTEM][SZ_LANGUAGE] = self.language
         return params
@@ -915,7 +915,8 @@ class Logbook(SystemBase):  # 0418
         self._prev_fault: Message = None  # type: ignore[assignment]
         self._this_fault: Message = None  # type: ignore[assignment]
 
-        self._faultlog: FaultLog = None  # FaultLog(self.ctl)
+        # FaultLog(self.ctl)
+        self._faultlog: FaultLog = None  # type: ignore[assignment]
         self._faultlog_outdated: bool = True
 
     def _setup_discovery_tasks(self) -> None:
@@ -954,7 +955,9 @@ class Logbook(SystemBase):  # 0418
         #     if not self._gwy.config.disable_sending:
         #         self._loop.create_task(self.get_faultlog(force_io=True))
 
-    async def get_faultlog(self, *, start=None, limit=None, force_io=None) -> dict:
+    async def get_faultlog(
+        self, *, start=None, limit=None, force_io=None
+    ) -> None | dict:
         if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
 
@@ -963,7 +966,7 @@ class Logbook(SystemBase):  # 0418
                 start=start, limit=limit, force_io=force_io
             )
         except (ExpiredCallbackError, RuntimeError):
-            return
+            return None
 
     # @property
     # def faultlog_outdated(self) -> bool:
@@ -978,8 +981,9 @@ class Logbook(SystemBase):  # 0418
     @property
     def active_fault(self) -> Optional[tuple]:
         """Return the most recently logged event, but only if it is a fault."""
-        if self.latest_fault == self.latest_event:
-            return self.latest_fault
+        if self.latest_fault != self.latest_event:
+            return None
+        return self.latest_fault
 
     @property
     def latest_event(self) -> Optional[tuple]:
@@ -992,7 +996,7 @@ class Logbook(SystemBase):  # 0418
         return self._this_fault and self._this_fault.payload["log_entry"]
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             "latest_event": self.latest_event,
@@ -1008,7 +1012,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._dhw = None
+        self._dhw: DhwZone = None  # type: ignore[assignment]
 
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
@@ -1071,33 +1075,33 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         return self._dhw
 
     @property
-    def dhw_sensor(self) -> Device:
+    def dhw_sensor(self) -> None | _Device:
         return self._dhw.sensor if self._dhw else None
 
     @property
-    def hotwater_valve(self) -> Device:
+    def hotwater_valve(self) -> None | _Device:
         return self._dhw.hotwater_valve if self._dhw else None
 
     @property
-    def heating_valve(self) -> Device:
+    def heating_valve(self) -> None | _Device:
         return self._dhw.heating_valve if self._dhw else None
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         return {
             **super().schema,
             SZ_DHW_SYSTEM: self._dhw.schema if self._dhw else {},
         }
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             SZ_DHW_SYSTEM: self._dhw.params if self._dhw else {},
         }
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             SZ_DHW_SYSTEM: self._dhw.status if self._dhw else {},
@@ -1129,7 +1133,7 @@ class SysMode(SystemBase):  # 2E04
         return self.set_mode(SYS_MODE_MAP.AUTO_WITH_RESET)
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         params = super().params
         params[SZ_TCS_SYSTEM][SZ_SYSTEM_MODE] = self.system_mode
         return params
@@ -1162,21 +1166,21 @@ class UfHeating(SystemBase):
         return sorted([d for d in self.childs if isinstance(d, UfhController)])
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         return {
             **super().schema,
             SZ_UFH_SYSTEM: {d.id: d.schema for d in self._ufh_ctls()},
         }
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             SZ_UFH_SYSTEM: {d.id: d.params for d in self._ufh_ctls()},
         }
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             SZ_UFH_SYSTEM: {d.id: d.status for d in self._ufh_ctls()},
@@ -1191,9 +1195,9 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
     def __init__(self, ctl, **kwargs) -> None:
         super().__init__(ctl, **kwargs)
 
-        self._heat_demands = {}
-        self._relay_demands = {}
-        self._relay_failsafes = {}
+        self._heat_demands: dict[str, Any] = {}
+        self._relay_demands: dict[str, Any] = {}
+        self._relay_failsafes: dict[str, Any] = {}
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -1212,24 +1216,25 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
     @property
     def heat_demands(self) -> Optional[dict]:  # 3150
         # FC: 00-C8 (no F9, FA), TODO: deprecate as FC only?
-        if self._heat_demands:
-            return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
+        if not self._heat_demands:
+            return None
+        return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
     def relay_demands(self) -> Optional[dict]:  # 0008
         # FC: 00-C8, F9: 00-C8, FA: 00 or C8 only (01: all 3, 02: FC/FA only)
-        if self._relay_demands:
-            return {
-                k: v.payload["relay_demand"] for k, v in self._relay_demands.items()
-            }
+        if not self._relay_demands:
+            return None
+        return {k: v.payload["relay_demand"] for k, v in self._relay_demands.items()}
 
     @property
     def relay_failsafes(self) -> Optional[dict]:  # 0009
-        if self._relay_failsafes:
-            return {}  # TODO: failsafe_enabled
+        if not self._relay_failsafes:
+            return None
+        return {}  # TODO: failsafe_enabled
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return the system's current state."""
 
         status = super().status
@@ -1287,10 +1292,11 @@ class Sundial(Evohome):
     _SLUG: str = SYS_KLASS.SYS
 
 
+_System = TypeVar("_System", bound=System)
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(ctl, *, msg: Message = None, **schema) -> System:
+def zx_system_factory(ctl, *, msg: Message = None, **schema) -> _System:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
@@ -1299,7 +1305,7 @@ def zx_system_factory(ctl, *, msg: Message = None, **schema) -> System:
         msg: Message = None,
         eavesdrop: bool = False,
         **schema,
-    ) -> Class:
+    ) -> _System:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         # a specified system class always takes precidence (even if it is wrong)...

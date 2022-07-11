@@ -9,8 +9,7 @@ import math
 from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
-from symtable import Class
-from typing import Optional
+from typing import Any, Optional, TypeVar
 
 from .const import (
     DEV_ROLE,
@@ -253,7 +252,7 @@ class ZoneSchedule:  # 0404
         return None
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             SZ_SCHEDULE: self.schedule,
@@ -484,7 +483,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return self.set_config(setpoint=50, overrun=5, differential=1)
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         """Return the schema of the DHW's."""
         return {
             SZ_SENSOR: self.sensor.id if self.sensor else None,
@@ -493,12 +492,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         }
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         """Return the DHW's configuration (excl. schedule)."""
         return {a: getattr(self, a) for a in ("config", "mode")}
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return the DHW's current state."""
         return {a: getattr(self, a) for a in (SZ_TEMPERATURE, SZ_HEAT_DEMAND)}
 
@@ -734,7 +733,7 @@ class Zone(ZoneSchedule, ZoneBase):
         return self._msg_value(_0004, key=SZ_NAME)
 
     @name.setter
-    def name(self, value) -> None | str:
+    def name(self, value) -> None:
         """Set the name of the zone."""
         self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, value))
 
@@ -829,7 +828,7 @@ class Zone(ZoneSchedule, ZoneBase):
         return self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, name))
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         """Return the schema of the zone (type, devices)."""
 
         return {
@@ -840,12 +839,12 @@ class Zone(ZoneSchedule, ZoneBase):
         }
 
     @property  # TODO: setpoint
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         """Return the zone's configuration (excl. schedule)."""
         return {a: getattr(self, a) for a in ("config", "mode", "name")}
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return the zone's current state."""
         return {
             a: getattr(self, a) for a in (SZ_SETPOINT, SZ_TEMPERATURE, SZ_HEAT_DEMAND)
@@ -882,7 +881,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         return self._msg_value(_0008, key=SZ_RELAY_DEMAND)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             SZ_RELAY_DEMAND: self.relay_demand,
@@ -912,7 +911,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
         return self._msg_value(_1030)
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().status,
             "mix_config": self.mix_config,
@@ -968,10 +967,11 @@ def _transform(valve_pos: float) -> float:
     return math.floor((valve_pos - t1) * t1 / (t2 - t1) + t0 + 0.5) / 100
 
 
+_Zone = TypeVar("_Zone", bound=ZoneBase)
 ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 
-def zx_zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> Zone:
+def zx_zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> _Zone:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).
@@ -984,7 +984,7 @@ def zx_zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> Zone:
         msg: Message = None,
         eavesdrop: bool = False,
         **schema,
-    ) -> Class:
+    ) -> _Zone:
         """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 
         # NOTE: for now, zones are always promoted after instantiation

@@ -12,9 +12,9 @@ import logging
 import struct
 import zlib
 from datetime import timedelta as td
-from typing import Any, Optional, Tuple
+from typing import Any, Iterable, Tuple
 
-import voluptuous as vol
+import voluptuous as vol  # type: ignore[import]
 
 from ramses_rf.protocol.const import SZ_CHANGE_COUNTER
 
@@ -206,7 +206,7 @@ class Schedule:  # 0404
         self.tcs = zone.tcs
         self._gwy = zone._gwy
 
-        self._schedule: dict[str, Any] = {}
+        self._schedule: None | dict[str, Any] = {}
         self._schedule_done = None  # TODO: deprecate
 
         self._rx_frags: list = self._init_set()
@@ -263,7 +263,7 @@ class Schedule:  # 0404
 
         return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
-    async def get_schedule(self, *, force_io: bool = False) -> dict:
+    async def get_schedule(self, *, force_io: bool = False) -> None | dict:
         """Retrieve/return the brief schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
@@ -279,7 +279,7 @@ class Schedule:  # 0404
             raise
         return self.schedule
 
-    async def _get_schedule(self, *, force_io: bool = False) -> dict:
+    async def _get_schedule(self, *, force_io: bool = False) -> None | dict:
         """Retrieve/return the brief schedule of a zone."""
 
         async def get_fragment(frag_num: int):  # may: TimeoutError?
@@ -319,7 +319,7 @@ class Schedule:  # 0404
         self.tcs._release_lock()
         return self.schedule
 
-    def _proc_set(self, frag_set: list) -> Optional[dict]:  # return full_schedule
+    def _proc_set(self, frag_set: list) -> None | dict:  # return full_schedule
         """Process a frag set and return the full schedule (sets `self._schedule`).
 
         If the schedule is for DHW, set the `zone_idx` key to 'HW' (to avoid confusing
@@ -331,7 +331,7 @@ class Schedule:  # 0404
         try:
             schedule = fragments_to_schedule((frag[SZ_FRAGMENT] for frag in frag_set))
         except zlib.error:
-            return
+            return None
         if self.idx == "HW":
             schedule[SZ_ZONE_IDX] = "HW"
         self._schedule = schedule
@@ -378,7 +378,7 @@ class Schedule:  # 0404
             return frag_set
         return self._init_set(fragment)
 
-    async def set_schedule(self, schedule, force_refresh=False) -> dict:
+    async def set_schedule(self, schedule, force_refresh=False) -> None | dict:
         """Set the schedule of a zone."""
 
         async def put_fragment(frag_num, frag_cnt, fragment) -> None:
@@ -434,12 +434,13 @@ class Schedule:  # 0404
         return self.schedule
 
     @property
-    def schedule(self) -> Optional[dict]:
-        if self._schedule:
-            return self._schedule[SZ_SCHEDULE]
+    def schedule(self) -> None | dict:
+        if not self._schedule:
+            return None
+        return self._schedule[SZ_SCHEDULE]
 
 
-def fragments_to_schedule(fragments: list) -> dict:
+def fragments_to_schedule(fragments: Iterable) -> dict:
     """Convert a set of fragments (a blob) into a schedule.
 
     May raise a `zlib.error` exception.
@@ -447,8 +448,10 @@ def fragments_to_schedule(fragments: list) -> dict:
 
     raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
 
-    zone_idx, schedule = None, []
-    old_day, switchpoints = 0, []
+    old_day = 0
+    schedule = []
+    switchpoints: list[dict] = []
+    zone_idx = None
 
     for i in range(0, len(raw_schedule), 20):
         zone_idx, day, time, temp, _ = struct.unpack(
@@ -493,11 +496,10 @@ def schedule_to_fragments(schedule: dict) -> list:
         for week_day in schedule[SZ_SCHEDULE]
         for setpoint in week_day[SWITCHPOINTS]
     ]
-    frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
+    frags_: list[bytes] = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
 
     cobj = zlib.compressobj(level=9, wbits=14)
-    blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
-    blob = blob.hex().upper()
+    blob = (b"".join(cobj.compress(s) for s in frags_) + cobj.flush()).hex().upper()
 
     return [blob[i : i + 82] for i in range(0, len(blob), 82)]
 

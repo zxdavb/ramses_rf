@@ -8,7 +8,7 @@ HVAC devices.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from .const import (
     DEV_TYPE,
@@ -36,7 +36,7 @@ from .const import (
     SZ_TEMPERATURE,
     __dev_mode__,
 )
-from .devices_base import _D, BatteryState, DeviceHvac, Fakeable
+from .devices_base import BatteryState, DeviceHvac, Fakeable, _Device
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.command import Command
@@ -195,7 +195,7 @@ class HvacHumiditySensor(BatteryState, DeviceHvac):  # HUM: I/12A0
         return self._msg_value(_12A0, key=self.DEWPOINT_TEMP)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.REL_HUMIDITY: self.indoor_humidity,
@@ -222,7 +222,7 @@ class HvacCarbonDioxideSensor(DeviceHvac):  # CO2: I/1298
         return self._msg_value(_1298, key="co2_level")
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             "co2_level": self.co2_level,
@@ -269,7 +269,7 @@ class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
         return self._msg_value(_22F3, key=SZ_BOOST_TIMER)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             FAN_MODE: self.fan_mode,
@@ -405,28 +405,17 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(_31DA, key=SZ_SUPPLY_TEMPERATURE)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            SZ_EXHAUST_FAN_SPEED: self.fan_rate,
-            **(
-                {
-                    k: v
-                    for k, v in self._msgs[_31D9].payload.items()
-                    if k != SZ_EXHAUST_FAN_SPEED
-                }
-                if _31D9 in self._msgs
-                else {}
-            ),
-            **(
-                {
-                    k: v
-                    for k, v in self._msgs[_31DA].payload.items()
-                    if k != SZ_EXHAUST_FAN_SPEED
-                }
-                if _31DA in self._msgs
-                else {}
-            ),
+            SZ_EXHAUST_FAN_SPEED: self.exhaust_fan_speed,
+            **{
+                k: v
+                for code in (_31D9, _31DA)
+                for k, v in self._msgs[code].payload.items()
+                if code in self._msgs
+                if k != SZ_EXHAUST_FAN_SPEED
+            },
         }
 
 
@@ -446,7 +435,7 @@ HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidityS
 
 def class_dev_hvac(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
-) -> type[_D]:
+) -> type[_Device]:
     """Return a device class, but only if the device must be from the HVAC group.
 
     May return a base clase, DeviceHvac, which will need promotion.

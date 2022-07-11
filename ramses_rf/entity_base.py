@@ -352,7 +352,7 @@ class Discovery(MessageDB):
             # )
             gwy._loop.call_soon(self._start_discovery_poller)
 
-    def _setup_discovery_tasks(self) -> dict:
+    def _setup_discovery_tasks(self) -> None:
         raise NotImplementedError
 
     def _add_discovery_task(
@@ -550,14 +550,14 @@ class Entity(Discovery):
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
-    def _send_cmd(self, cmd, **kwargs) -> Future:
+    def _send_cmd(self, cmd, **kwargs) -> None | Future:
         if self._gwy.config.disable_sending:
             _LOGGER.info(f"{cmd} < Sending is disabled")
-            return
+            return None
 
         if self._qos_tx_count > _QOS_TX_LIMIT:
             _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
-            return
+            return None
 
         cmd._source_entity = self
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug

@@ -33,7 +33,7 @@ from .const import (
     ZON_ROLE_MAP,
     __dev_mode__,
 )
-from .devices_base import _D, BatteryState, DeviceHeat, Fakeable
+from .devices_base import BatteryState, DeviceHeat, Fakeable, _Device
 from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
@@ -199,7 +199,7 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
         return self._msg_value(_3EF0)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.ACTUATOR_CYCLE: self.actuator_cycle,
@@ -216,7 +216,7 @@ class HeatDemand(DeviceHeat):  # 3150
         return self._msg_value(_3150, key=self.HEAT_DEMAND)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.HEAT_DEMAND: self.heat_demand,
@@ -232,7 +232,7 @@ class Setpoint(DeviceHeat):  # 2309
         return self._msg_value(_2309, key=self.SETPOINT)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.SETPOINT: self.setpoint,
@@ -270,7 +270,7 @@ class Weather(Fakeable, DeviceHeat):  # 0002
         self._send_cmd(cmd)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.TEMPERATURE: self.temperature,
@@ -355,7 +355,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         return self._msg_value(_0008, key=self.RELAY_DEMAND)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.RELAY_DEMAND: self.relay_demand,
@@ -390,7 +390,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         # lf._send_cmd(Command.get_dhw_temp(self.ctl.id, self.zone.idx))
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.TEMPERATURE: self.temperature,
@@ -425,7 +425,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
         # lf._send_cmd(Command.get_zone_temp(self.ctl.id, self.zone.idx))
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.TEMPERATURE: self.temperature,
@@ -670,21 +670,21 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         }
 
     @property  # id, type
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         return {
             **super().schema,
             SZ_CIRCUITS: self.circuit_by_id,
         }
 
     @property  # setpoint, config, mode (not schedule)
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             SZ_CIRCUITS: self.setpoints,
         }
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             SZ_HEAT_DEMAND: self.heat_demand,
@@ -721,7 +721,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
         return self._msg_value(_10A0)
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             self.DHW_PARAMS: self.dhw_params,
@@ -1200,7 +1200,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         return {
             **super().schema,
             "opentherm_schema": self.opentherm_schema,
@@ -1208,7 +1208,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             "opentherm_params": self.opentherm_params,
@@ -1216,7 +1216,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,  # incl. actuator_cycle, actuator_state
             "opentherm_status": self.opentherm_status,
@@ -1350,21 +1350,21 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         return self._msg_value(_1100)
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         return {
             **super().schema,
             "role": self.role,
         }
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {
             **super().params,
             self.TPI_PARAMS: self.tpi_params,
         }
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.ACTIVE: self.active,
@@ -1392,7 +1392,7 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
         return self._msg_value(_12B0, key=self.WINDOW_OPEN)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.WINDOW_OPEN: self.window_open,
@@ -1480,7 +1480,7 @@ _HEAT_VC_PAIR_BY_CLASS = {
 
 def class_dev_heat(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
-) -> type[_D]:
+) -> type[_Device]:
     """Return a device class, but only if the device must be from the CH/DHW group.
 
     May return a device class, DeviceHeat (which will need promotion).

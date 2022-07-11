@@ -44,6 +44,8 @@ from .protocol.const import (
 )
 from .protocol.transport import DEV_HACK_REGEX, SZ_BLOCK_LIST, SZ_KNOWN_LIST
 
+# from .systems import _System  # circular import
+
 # TODO: move max_zones into system-specific location, ?profile
 
 
@@ -289,7 +291,7 @@ def load_config(
     return (config, schema, known_list, block_list)
 
 
-def update_config(config, known_list, block_list) -> dict:
+def update_config(config, known_list, block_list) -> None:
     """Determine which device filter to use, if any: known_list or block_list."""
 
     if SZ_INBOUND not in config[USE_REGEX]:  # TODO: move to voluptuous
@@ -365,7 +367,7 @@ def _get_device(gwy, dev_id, **kwargs) -> Any:  # Device
     return gwy.get_device(dev_id, **kwargs)
 
 
-def load_schema(gwy, **kwargs) -> dict:
+def load_schema(gwy, **kwargs) -> None:
     """Process the schema, and the configuration and return True if it is valid."""
 
     [
@@ -383,7 +385,7 @@ def load_schema(gwy, **kwargs) -> dict:
     ]
 
 
-def load_system(gwy, ctl_id, schema) -> Any:  # System
+def load_system(gwy, ctl_id, schema) -> Any:
     """Create a system using its schema."""
     # print(schema)
     # schema = SCH_ZON(schema)

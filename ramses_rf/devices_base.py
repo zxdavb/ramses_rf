@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from typing import Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .entity_base import Child, Entity, class_by_attr
@@ -277,22 +277,22 @@ class Device(Entity):
         )  # TODO: needs addressing
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         """Return the fixed attributes of the device."""
         return {}  # SZ_CLASS: DEV_TYPE_MAP[self._SLUG]}
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         """Return the configurable attributes of the device."""
         return {}
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return the state attributes of the device."""
         return {}
 
     @property
-    def traits(self) -> dict:
+    def traits(self) -> dict[str, Any]:
         """Return the traits of the device."""
         known_dev = self._gwy._include.get(self.id)
 
@@ -314,7 +314,7 @@ class Device(Entity):
         return result
 
 
-_D = TypeVar("_D", bound=Device)
+_Device = TypeVar("_Device", bound=Device)
 
 
 class DeviceInfo(Device):  # 10E0
@@ -481,7 +481,7 @@ class BatteryState(Device):  # 1060
         return self._msg_value(_1060)
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {
             **super().status,
             self.BATTERY_STATE: self.battery_state,
@@ -626,7 +626,7 @@ class DeviceHeat(
         self.tcs = None
         self._child_id = None  # domain_id, or zone_idx
 
-        self._iz_controller = None  # TODO: deprecate
+        self._iz_controller: None | bool | Message = None
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
