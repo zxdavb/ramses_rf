@@ -160,9 +160,9 @@ def check_faking_enabled(fnc):
 class Device(Entity):
     """The Device base class - can also be used for unknown device types."""
 
-    _SLUG: str = DEV_TYPE.DEV  # shouldn't be any of these instantiated
+    _SLUG: str = DEV_TYPE.DEV  # type: ignore[assignment]
 
-    _STATE_ATTR = None
+    _STATE_ATTR: str = None  # type: ignore[assignment]
 
     def __init__(self, gwy, dev_addr, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
@@ -185,7 +185,7 @@ class Device(Entity):
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._faked: bool = None
+        self._faked: bool = False
 
     def __str__(self) -> str:
         if self._STATE_ATTR:

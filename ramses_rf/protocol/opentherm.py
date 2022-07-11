@@ -1093,7 +1093,7 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
         data_value[VALUE] = msg_value(frame[4:8], U16)
 
     elif msg_schema[VAL] == F8_8:  # TODO: needs finishing
-        result: float = msg_value(frame[4:8], msg_schema[VAL])  # typx: ignore
+        result: float = msg_value(frame[4:8], msg_schema[VAL])  # type: ignore[assignment]
         if result is None:
             data_value[VALUE] = result
         elif msg_schema.get(SENSOR) == Sensor.PERCENTAGE:

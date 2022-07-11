@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
 from symtable import Class
@@ -53,7 +54,7 @@ from .protocol import (
     Message,
     Priority,
 )
-from .protocol.command import _mk_cmd
+from .protocol.command import FaultLog, _mk_cmd
 from .schema import (
     SCH_DHW,
     SCH_SYS,
@@ -183,7 +184,7 @@ SYS_KLASS = SimpleNamespace(
 class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     """The TCS base class."""
 
-    _SLUG: str = None
+    _SLUG: str = None  # type: ignore[assignment]
 
     def __init__(self, ctl) -> None:
         _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl.id, self.__class__)
@@ -383,7 +384,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         """Return the global schema."""
 
         schema = self.schema
-        result = {SZ_CONTROLLER: self.id}
+        result: dict[str, None | str] = {SZ_CONTROLLER: self.id}
 
         try:
             if (
@@ -795,7 +796,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._msg_0006: Message = None
+        self._msg_0006: Message = None  # type: ignore[assignment]
 
         self.zone_lock = Lock()  # used to stop concurrent get_schedules
         self.zone_lock_idx = None
@@ -908,14 +909,14 @@ class Logbook(SystemBase):  # 0418
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._prev_event = None
-        self._this_event = None
+        self._prev_event: Message = None  # type: ignore[assignment]
+        self._this_event: Message = None  # type: ignore[assignment]
 
-        self._prev_fault = None
-        self._this_fault = None
+        self._prev_fault: Message = None  # type: ignore[assignment]
+        self._this_fault: Message = None  # type: ignore[assignment]
 
-        self._faultlog = None  # FaultLog(self.ctl)
-        self._faultlog_outdated = None  # should be True
+        self._faultlog: FaultLog = None  # FaultLog(self.ctl)
+        self._faultlog_outdated: bool = True
 
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
@@ -1113,17 +1114,17 @@ class SysMode(SystemBase):  # 2E04
     def system_mode(self) -> Optional[dict]:  # 2E04
         return self._msg_value(_2E04)
 
-    def set_mode(self, system_mode, *, until=None) -> asyncio.Task:
+    def set_mode(self, system_mode, *, until=None) -> Future:
         """Set a system mode for a specified duration, or indefinitely."""
         return self._send_cmd(
             Command.set_system_mode(self.id, system_mode, until=until)
         )
 
-    def set_auto(self) -> asyncio.Task:
+    def set_auto(self) -> Future:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
         return self.set_mode(SYS_MODE_MAP.AUTO)
 
-    def reset_mode(self) -> asyncio.Task:
+    def reset_mode(self) -> Future:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
         return self.set_mode(SYS_MODE_MAP.AUTO_WITH_RESET)
 

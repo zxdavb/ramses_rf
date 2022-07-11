@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import math
-from asyncio import Task
+from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
 from symtable import Class
@@ -167,9 +167,9 @@ if DEV_MODE:
 class ZoneBase(Child, Parent, Entity):
     """The Zone/DHW base class."""
 
-    _SLUG: str = None
-    _ROLE_ACTUATORS: str = None
-    _ROLE_SENSORS: str = None
+    _SLUG: str = None  # type: ignore[assignment]
+    _ROLE_ACTUATORS: str = None  # type: ignore[assignment]
+    _ROLE_SENSORS: str = None  # type: ignore[assignment]
 
     def __init__(self, tcs, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
@@ -246,10 +246,11 @@ class ZoneSchedule:  # 0404
         return self.schedule
 
     @property
-    def schedule(self) -> dict:
+    def schedule(self) -> None | dict:
         """Return the latest known schedule (not guaranteed to be up to date)."""
         if self._schedule._schedule:
             return self._schedule._schedule[SZ_SCHEDULE]
+        return None
 
     @property
     def status(self) -> dict:
@@ -274,9 +275,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         super().__init__(tcs, "HW")
 
-        self._dhw_sensor = None  # schema attr
-        self._dhw_valve = None  # schema attr
-        self._htg_valve = None  # schema attr
+        self._dhw_sensor: DhwSensor = None  # type: ignore[assignment]
+        self._dhw_valve: BdrSwitch = None  # type: ignore[assignment]
+        self._htg_valve: BdrSwitch = None  # type: ignore[assignment]
 
     def _setup_discovery_tasks(self) -> None:
         # super()._setup_discovery_tasks()
@@ -423,7 +424,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     @setpoint.setter
     def setpoint(self, value) -> None:  # 10A0
-        return self.set_config(setpoint=value)
+        self.set_config(setpoint=value)
 
     @property
     def temperature(self) -> None | float:  # 1260
@@ -441,13 +442,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def relay_failsafe(self) -> None | float:  # 0009
         return self._msg_value(_0009, key=SZ_RELAY_FAILSAFE)
 
-    def set_mode(self, *, mode=None, active=None, until=None) -> Task:
+    def set_mode(self, *, mode=None, active=None, until=None) -> Future:
         """Set the DHW mode (mode, active, until)."""
         return self._send_cmd(
             Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
         )
 
-    def set_boost_mode(self) -> Task:
+    def set_boost_mode(self) -> Future:
         """Enable DHW for an hour, despite any schedule."""
         return self.set_mode(
             mode=ZON_MODE_MAP.TEMPORARY,
@@ -455,11 +456,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             until=dt.now() + td(hours=1),
         )
 
-    def reset_mode(self) -> Task:  # 1F41
+    def reset_mode(self) -> Future:  # 1F41
         """Revert the DHW to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
-    def set_config(self, *, setpoint=None, overrun=None, differential=None) -> Task:
+    def set_config(self, *, setpoint=None, overrun=None, differential=None) -> Future:
         """Set the DHW parameters (setpoint, overrun, differential)."""
         # dhw_params = self._msg_value(_10A0)
         # if setpoint is None:
@@ -478,7 +479,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             )
         )
 
-    def reset_config(self) -> Task:  # 10A0
+    def reset_config(self) -> Future:  # 10A0
         """Reset the DHW parameters to their default values."""
         return self.set_config(setpoint=50, overrun=5, differential=1)
 
@@ -505,7 +506,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 class Zone(ZoneSchedule, ZoneBase):
     """The Zone class for all zone types (but not DHW)."""
 
-    _SLUG: str = None  # Unknown
+    _SLUG: str = None  # type: ignore[assignment]
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
 
     def __init__(self, tcs, zone_idx: str) -> None:
@@ -652,8 +653,8 @@ class Zone(ZoneSchedule, ZoneBase):
                 ), self._SLUG
 
                 if self._SLUG is None:
-                    self._set_zone_type(
-                        ZON_ROLE.ELE
+                    self._update_schema(
+                        {SZ_CLASS: ZON_ROLE.ELE}
                     )  # might eventually be: ZON_ROLE.VAL
 
             elif this.code == _3150:  # TODO: and this.verb in (I_, RP)?
@@ -666,11 +667,11 @@ class Zone(ZoneSchedule, ZoneBase):
                 ), self._SLUG
 
                 if isinstance(this.src, TrvActuator):
-                    self._set_zone_type(ZON_ROLE.RAD)
+                    self._update_schema({SZ_CLASS: ZON_ROLE.RAD})
                 elif isinstance(this.src, BdrSwitch):
-                    self._set_zone_type(ZON_ROLE.VAL)
+                    self._update_schema({SZ_CLASS: ZON_ROLE.VAL})
                 elif isinstance(this.src, UfhController):
-                    self._set_zone_type(ZON_ROLE.UFH)
+                    self._update_schema({SZ_CLASS: ZON_ROLE.UFH})
 
             assert (
                 msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC
@@ -776,11 +777,11 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return an estimate of the zone's current window_open state."""
         return self._msg_value(_12B0, key=SZ_WINDOW_OPEN)
 
-    def _get_temp(self) -> Task:  # TODO: messy - needs tidy up
+    def _get_temp(self) -> Future:  # TODO: messy - needs tidy up
         """Get the zone's latest temp from the Controller."""
         return self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
 
-    def reset_config(self) -> Task:  # 000A
+    def reset_config(self) -> Future:  # 000A
         """Reset the zone's parameters to their default values."""
         return self.set_config()
 
@@ -792,7 +793,7 @@ class Zone(ZoneSchedule, ZoneBase):
         local_override: bool = False,
         openwindow_function: bool = False,
         multiroom_mode: bool = False,
-    ) -> Task:
+    ) -> Future:
         """Set the zone's parameters (min_temp, max_temp, etc.)."""
         cmd = Command.set_zone_config(
             self.ctl.id,
@@ -805,15 +806,15 @@ class Zone(ZoneSchedule, ZoneBase):
         )
         return self._send_cmd(cmd)
 
-    def reset_mode(self) -> Task:  # 2349
+    def reset_mode(self) -> Future:  # 2349
         """Revert the zone to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
-    def set_frost_mode(self) -> Task:  # 2349
+    def set_frost_mode(self) -> Future:  # 2349
         """Set the zone to the lowest possible setpoint, indefinitely."""
         return self.set_mode(mode=ZON_MODE_MAP.PERMANENT, setpoint=5)  # TODO
 
-    def set_mode(self, *, mode=None, setpoint=None, until=None) -> Task:  # 2309/2349
+    def set_mode(self, *, mode=None, setpoint=None, until=None) -> Future:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
         if mode is None and until is None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
@@ -823,7 +824,7 @@ class Zone(ZoneSchedule, ZoneBase):
             )
         return self._send_cmd(cmd)
 
-    def set_name(self, name) -> Task:
+    def set_name(self, name) -> Future:
         """Set the zone's name."""
         return self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, name))
 
@@ -863,7 +864,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         super()._handle_msg(msg)
 
         # if msg.code == _0008:  # ZON zones are ELE zones that also call for heat
-        #     self._set_zone_type(ZON_ROLE.VAL)
+        #     self._update_schema({SZ_CLASS: ZON_ROLE.VAL})
         if msg.code == _3150:
             raise TypeError("WHAT 1")
         elif msg.code == _3EF0:
@@ -940,6 +941,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         if (demand := self._msg_value(_3150, key=SZ_HEAT_DEMAND)) is not None:
             return _transform(demand)
+        return None
 
 
 class ValZone(EleZone):  # BDR91A/T

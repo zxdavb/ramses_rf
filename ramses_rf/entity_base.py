@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
@@ -549,7 +550,7 @@ class Entity(Discovery):
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
-    def _send_cmd(self, cmd, **kwargs) -> None:
+    def _send_cmd(self, cmd, **kwargs) -> Future:
         if self._gwy.config.disable_sending:
             _LOGGER.info(f"{cmd} < Sending is disabled")
             return
@@ -560,7 +561,7 @@ class Entity(Discovery):
 
         cmd._source_entity = self
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        self._gwy.send_cmd(cmd)  # BUG, should be: await async_send_cmd()
+        return self._gwy.send_cmd(cmd)  # BUG, should be: await async_send_cmd()
 
     @property
     def traits(self) -> dict:

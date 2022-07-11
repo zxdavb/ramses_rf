@@ -11,7 +11,7 @@ import asyncio
 import logging
 import os
 import signal
-from asyncio.futures import Future
+from asyncio import Future
 from concurrent import futures
 from datetime import datetime as dt
 from threading import Lock

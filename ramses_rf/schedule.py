@@ -12,7 +12,7 @@ import logging
 import struct
 import zlib
 from datetime import timedelta as td
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import voluptuous as vol
 
@@ -206,13 +206,13 @@ class Schedule:  # 0404
         self.tcs = zone.tcs
         self._gwy = zone._gwy
 
-        self._schedule = None
+        self._schedule: dict[str, Any] = {}
         self._schedule_done = None  # TODO: deprecate
 
         self._rx_frags: list = self._init_set()
         self._tx_frags: list = self._init_set()
 
-        self._global_ver: int = None
+        self._global_ver: int = None  # type: ignore[assignment]
         self._sched_ver: int = 0
 
     def __str__(self) -> str:
@@ -298,7 +298,7 @@ class Schedule:  # 0404
 
         is_dated, did_io = await self._is_dated(force_io=force_io)
         if is_dated:
-            self._schedule = None  # keep fragments, maybe only other sched(s) changed
+            self._schedule = {}  # keep fragments, maybe only other sched(s) changed
         if self._schedule:
             return self.schedule
 

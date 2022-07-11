@@ -514,11 +514,11 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         self.circuit_by_id: dict[str:Any] = {}
 
-        self._setpoints = None  # type: ignore[assignment]
-        self._heat_demand = None  # type: ignore[assignment]
-        self._heat_demands = None  # type: ignore[assignment]
-        self._relay_demand = None  # type: ignore[assignment]
-        self._relay_demand_fa = None  # type: ignore[assignment]
+        self._setpoints: Message = None  # type: ignore[assignment]
+        self._heat_demand: Message = None  # type: ignore[assignment]
+        self._heat_demands: Message = None  # type: ignore[assignment]
+        self._relay_demand: Message = None  # type: ignore[assignment]
+        self._relay_demand_fa: Message = None  # type: ignore[assignment]
 
         self._iz_controller = True
 
@@ -1415,7 +1415,7 @@ class UfhCircuit(Entity):
      - `self.tcs.ctl`: the Evohome controller
     """
 
-    _SLUG: str = None  # is not a zone
+    _SLUG: str = None  # type: ignore[assignment]
 
     def __init__(self, ufc, ufh_idx: str) -> None:
         super().__init__(ufc._gwy)
@@ -1425,8 +1425,9 @@ class UfhCircuit(Entity):
         self.ufc: UfhController = ufc
         self._child_id = ufh_idx
 
-        self._ctl: Controller = None  # TODO: should be: .ufc? .ctl?
-        self._zone = None
+        # TODO: _ctl should be: .ufc? .ctl?
+        self._ctl: Controller = None  # type: ignore[assignment]
+        self._zone = None  # self._zone: Zone = None
 
     # def __str__(self) -> str:
     #     return f"{self.id} ({self._zone and self._zone._child_id})"
