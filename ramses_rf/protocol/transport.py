@@ -485,7 +485,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self._hgi80 = {
             IS_INITIALIZED: False,
             IS_EVOFW3: None,
-            SZ_DEVICE_ID: "",
+            SZ_DEVICE_ID: HGI_DEV_ADDR.id,
         }  # also: "evofw3_ver"
 
     def __repr__(self) -> str:
@@ -558,7 +558,7 @@ class PacketProtocolBase(asyncio.Protocol):
         """Check/set HGI; log if it is a foreign HGI."""
         assert pkt.src.type == DEV_TYPE_MAP.HGI and pkt.src.id != HGI_DEV_ADDR.id
 
-        if self._hgi80[SZ_DEVICE_ID] is None:
+        if self._hgi80[SZ_DEVICE_ID] is HGI_DEV_ADDR.id:
             self._hgi80[SZ_DEVICE_ID] = pkt.src.id
 
         elif (
@@ -923,7 +923,7 @@ def create_pkt_stack(
     ser_port: str = None,
     packet_log=None,
     packet_dict: dict = None,
-) -> tuple[type[_P], type[_T]]:
+) -> tuple[_P, _T]:
     """Utility function to provide a transport to the internal protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface) / log (file).

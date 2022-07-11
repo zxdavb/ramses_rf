@@ -522,8 +522,8 @@ class MessageProtocol(asyncio.Protocol):
         self._callback = callback
 
         self._transport: MessageTransport = None  # type: ignore[assignment]
-        self._prev_msg: Message = None  # type: ignore[assignment]
-        self._this_msg: Message = None  # type: ignore[assignment]
+        self._prev_msg: None | Message = None
+        self._this_msg: None | Message = None
 
         self._pause_writing = True
 

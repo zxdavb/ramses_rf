@@ -512,7 +512,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         self._child_id = FA  # NOTE: domain_id, HACK: UFC
 
-        self.circuit_by_id: dict[str:Any] = {}
+        self.circuit_by_id: dict[str, Any] = {}
 
         self._setpoints: Message = None  # type: ignore[assignment]
         self._heat_demand: Message = None  # type: ignore[assignment]

@@ -18,6 +18,8 @@ from threading import Lock
 from typing import Callable, Optional
 
 from ramses_rf.devices_base import DeviceHeat, DeviceHvac
+from ramses_rf.protocol.protocol import MessageProtocol, MessageTransport
+from ramses_rf.protocol.transport import PacketProtocolBase
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .devices import Device, zx_device_factory
@@ -83,14 +85,17 @@ class Engine:
         self.ser_name = serial_port
         self._input_file = None
 
-        self.pkt_protocol, self.pkt_transport = None, None
-        self.msg_protocol, self.msg_transport = None, None
+        self.msg_protocol: MessageProtocol = None  # type: ignore[assignment]
+        self.msg_transport: MessageTransport = None  # type: ignore[assignment]
+        self.pkt_protocol: PacketProtocolBase = None  # type: ignore[assignment]
+        self.pkt_transport = None  # type: ignore[assignment]
 
         self._engine_lock = Lock()
-        self._engine_state = None
+        self._engine_state: None | tuple = None
 
     def __str__(self) -> str:
-        return (self.hgi or HGI_DEV_ADDR).id + f" ({self.ser_name})"
+        hgi_id = self.pkt_protocol._hgi80[SZ_DEVICE_ID] if self.pkt_protocol else ""
+        return (hgi_id or HGI_DEV_ADDR.id) + f" ({self.ser_name})"
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         def handle_exception(loop, context):
@@ -109,7 +114,7 @@ class Engine:
         # return dt.now()
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
-    def create_client(self, msg_handler) -> tuple[Callable, Callable]:
+    def create_client(self, msg_handler) -> tuple:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
@@ -211,31 +216,15 @@ class Engine:
         return args
 
     @property
-    def hgi(self) -> Optional[Device]:
-        """Return the HGI80-compatible gateway device."""
-
-        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
-            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
-
-    @property
-    def pkt_source(self) -> asyncio.Task:
+    def pkt_source(self) -> None | asyncio.Task:
         if t := self.msg_transport:
             return t.get_extra_info(t.WRITER)
+        return None
 
     @staticmethod
     def create_cmd(verb, device_id, code, payload, **kwargs) -> Command:
         """Make a command addressed to device_id."""
-
-        try:
-            return Command.from_attrs(verb, device_id, code, payload, **kwargs)
-        except (
-            AssertionError,
-            AttributeError,
-            LookupError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            _LOGGER.exception(f"create_cmd(): {exc}")
+        return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
     def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
         """Send a command with the option to return any response message via callback.
@@ -321,7 +310,7 @@ class Gateway(Engine):
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         # if self.config.reduce_processing > 0:
-        self._tcs: System = None
+        self._tcs: None | System = None
         self.devices: list[Device] = []
         self.device_by_id: dict = {}
 
@@ -329,8 +318,8 @@ class Gateway(Engine):
 
         load_schema(self, **self._schema)
 
-        self._db = None
-        self._cur = None
+        # self._db = None
+        # self._cur = None
 
     def __repr__(self) -> str:
         return super().__str__()
@@ -471,12 +460,13 @@ class Gateway(Engine):
         self._pause(clear_state=True)
 
         load_schema(self, **schema)
-        self._set_state(packets, schema=schema)
+        await self._set_state(packets, schema=schema)
 
         self._resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
     async def _set_state(self, packets: dict, *, schema=None) -> None:
+        tmp_transport: PacketProtocolBase
 
         pkt_receiver = (
             self.msg_transport.get_extra_info(self.msg_transport.READER)
@@ -547,6 +537,13 @@ class Gateway(Engine):
             dev._handle_msg(msg)
 
         return dev
+
+    @property
+    def hgi(self) -> Optional[Device]:
+        """Return the HGI80-compatible gateway device."""
+        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
+            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
+        return None
 
     @property
     def tcs(self) -> Optional[System]:
@@ -691,14 +688,14 @@ class GatewayWithSql(Gateway):
 
         import sqlite3
 
-        self._db = sqlite3.connect("file::memory:?cache=shared")
+        self._db: sqlite3.Connection = sqlite3.connect("file::memory:?cache=shared")
         self._cur = self._db.cursor()
 
     async def start(self, *, start_discovery=True) -> None:
-        super().start(start_discovery=start_discovery)
+        await super().start(start_discovery=start_discovery)
 
     async def stop(self) -> None:
-        super().stop()
+        await super().stop()
 
     def _get_state(self, include_expired=None) -> tuple[dict, dict]:
         pass
