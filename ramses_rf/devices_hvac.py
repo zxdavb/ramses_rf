@@ -8,7 +8,6 @@ HVAC devices.
 from __future__ import annotations
 
 import logging
-from symtable import Class
 from typing import Optional
 
 from .const import (
@@ -37,7 +36,7 @@ from .const import (
     SZ_TEMPERATURE,
     __dev_mode__,
 )
-from .devices_base import BatteryState, DeviceHvac, Fakeable
+from .devices_base import _D, BatteryState, DeviceHvac, Fakeable
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.command import Command
@@ -447,7 +446,7 @@ HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidityS
 
 def class_dev_hvac(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
-) -> Class:
+) -> type[_D]:
     """Return a device class, but only if the device must be from the HVAC group.
 
     May return a base clase, DeviceHvac, which will need promotion.

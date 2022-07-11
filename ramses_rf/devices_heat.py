@@ -8,7 +8,6 @@ Heating devices.
 from __future__ import annotations
 
 import logging
-from symtable import Class
 from typing import Any, Optional
 
 from .const import (
@@ -34,7 +33,7 @@ from .const import (
     ZON_ROLE_MAP,
     __dev_mode__,
 )
-from .devices_base import BatteryState, DeviceHeat, Fakeable
+from .devices_base import _D, BatteryState, DeviceHeat, Fakeable
 from .entity_base import Entity, Parent, class_by_attr
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
@@ -513,12 +512,13 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         self._child_id = FA  # NOTE: domain_id, HACK: UFC
 
-        self._circuits = {}
-        self._setpoints = None
-        self._heat_demand = None
-        self._heat_demands = None
-        self._relay_demand = None
-        self._relay_demand_fa = None
+        self.circuit_by_id: dict[str:Any] = {}
+
+        self._setpoints = None  # type: ignore[assignment]
+        self._heat_demand = None  # type: ignore[assignment]
+        self._heat_demands = None  # type: ignore[assignment]
+        self._relay_demand = None  # type: ignore[assignment]
+        self._relay_demand_fa = None  # type: ignore[assignment]
 
         self._iz_controller = True
 
@@ -535,7 +535,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             self._add_discovery_task(_mk_cmd(RQ, _000C, payload, self.id), 60 * 60 * 24)
 
         # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
-        for ufh_idx in self.circuits:
+        for ufh_idx in self.circuit_by_id:
             self._add_discovery_task(_mk_cmd(RQ, _000A, ufh_idx, self.id), 60 * 60 * 6)
             self._add_discovery_task(_mk_cmd(RQ, _2309, ufh_idx, self.id), 60 * 60 * 6)
 
@@ -553,9 +553,9 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK]):
                 ufh_idx = f"{idx:02X}"
                 if not flag:
-                    self._circuits.pop(ufh_idx, None)
-                elif SZ_ZONE_IDX not in self._circuits.get(ufh_idx, {}):
-                    self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
+                    self.circuit_by_id.pop(ufh_idx, None)
+                elif SZ_ZONE_IDX not in self.circuit_by_id.get(ufh_idx, {}):
+                    self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: None}
                     self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}")
 
         elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
@@ -577,15 +577,15 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             ufh_idx = msg.payload[SZ_UFH_IDX]
 
             if not msg.payload[SZ_ZONE_IDX]:
-                self._circuits.pop(ufh_idx, None)
+                self.circuit_by_id.pop(ufh_idx, None)
                 return
-            self._circuits[ufh_idx] = {SZ_ZONE_IDX: msg.payload[SZ_ZONE_IDX]}
+            self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: msg.payload[SZ_ZONE_IDX]}
 
             # TODO: REFACTOR
             # if dev_ids := msg.payload[SZ_DEVICES]:
-            #     # self._circuits[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
+            #     # self.circuit_by_id[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
             #     if ctl := self._set_ctl(self._gwy.get_device(dev_ids[0])):
-            #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
+            #         # self.circuit_by_id[ufh_idx][SZ_DEVICES] = ctl.id  # better
             #         self.set_parent(
             #             ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
             #         )
@@ -636,9 +636,9 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             cct._handle_msg(msg)
         return cct
 
-    @property
-    def circuits(self) -> Optional[dict]:  # 000C
-        return self._circuits
+    # @property
+    # def circuits(self) -> dict:  # 000C
+    #     return self.circuit_by_id
 
     @property
     def heat_demand(self) -> None | float:  # 3150|FC (there is also 3150|FA)
@@ -673,7 +673,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     def schema(self) -> dict:
         return {
             **super().schema,
-            SZ_CIRCUITS: self.circuits,
+            SZ_CIRCUITS: self.circuit_by_id,
         }
 
     @property  # setpoint, config, mode (not schedule)
@@ -1479,7 +1479,7 @@ _HEAT_VC_PAIR_BY_CLASS = {
 
 def class_dev_heat(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
-) -> Class:
+) -> type[_D]:
     """Return a device class, but only if the device must be from the CH/DHW group.
 
     May return a device class, DeviceHeat (which will need promotion).

@@ -36,8 +36,8 @@ from time import perf_counter
 from types import SimpleNamespace
 from typing import Awaitable, Callable, Iterable, Optional, TypeVar
 
-from serial import SerialBase, SerialException, serial_for_url  # type: ignore
-from serial_asyncio import SerialTransport as SerTransportAsync  # type: ignore
+from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
+from serial_asyncio import SerialTransport as SerTransportAsync  # type: ignore[import]
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command, Qos
@@ -463,12 +463,12 @@ class PacketProtocolBase(asyncio.Protocol):
         self._loop = gwy._loop
         self._callback = pkt_handler  # Could be None
 
-        self._transport: asyncio.Transport = None  # type: ignore
+        self._transport: asyncio.Transport = None  # type: ignore[assignment]
         self._pause_writing = True
         self._recv_buffer = bytes()
 
-        self._prev_pkt: Packet = None  # type: ignore
-        self._this_pkt: Packet = None  # type: ignore
+        self._prev_pkt: Packet = None  # type: ignore[assignment]
+        self._this_pkt: Packet = None  # type: ignore[assignment]
 
         self._disable_sending = gwy.config.disable_sending
         self._evofw_flag = gwy.config.evofw_flag
@@ -679,7 +679,7 @@ class PacketProtocolFile(PacketProtocolBase):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         super().__init__(gwy, pkt_handler)
 
-        self._dt_str_: str = None  # type: ignore
+        self._dt_str_: str = None  # type: ignore[assignment]
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using a packet's dtm field."""
@@ -694,14 +694,14 @@ class PacketProtocolFile(PacketProtocolBase):
         except AttributeError:
             return dt(1970, 1, 1, 1, 0)
 
-    def data_received(self, data: str) -> None:  # type: ignore
+    def data_received(self, data: str) -> None:  # type: ignore[override]
         """Called when a packet line is received (from a log file)."""
 
         self._dt_str_ = data[:26]  # used for self._dt_now
 
         self._line_received(data[:26], data[27:].strip(), data)
 
-    def _line_received(self, dtm: str, line: str, raw_line: str) -> None:  # type: ignore
+    def _line_received(self, dtm: str, line: str, raw_line: str) -> None:  # type: ignore[override]
 
         try:
             pkt = Packet.from_file(
@@ -849,7 +849,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
         super()._pkt_received(pkt)
 
-    async def send_data(self, cmd: Command) -> Optional[Packet]:  # type: ignore
+    async def send_data(self, cmd: Command) -> Optional[Packet]:  # type: ignore[override]
         """Called when packets are to be sent (not a callback)."""
 
         if self._disable_sending:
@@ -987,13 +987,13 @@ def create_pkt_stack(
     )  # do this first, in case raises a SerialException
 
     pkt_protocol = (protocol_factory or protocol_factory_)()
-    pkt_transport: type[_T] = None  # type: ignore
+    pkt_transport: type[_T] = None  # type: ignore[assignment]
 
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
-        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore
+        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
     elif os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()
-        pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)  # type: ignore
+        pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)  # type: ignore[arg-type, assignment]
     else:  # use the standard serial_asyncio library
         pkt_transport = SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
 

@@ -51,7 +51,7 @@ class AwaitableCallback:
         self._loop = loop or asyncio.get_event_loop()
         self._queue: SimpleQueue = SimpleQueue()  # unbounded, but we use only 1 entry
 
-        self.expires: dt = None  # type: ignore
+        self.expires: dt = None  # type: ignore[assignment]
 
     # the awaitable...
     async def getter(self, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> Message:
@@ -127,7 +127,7 @@ class MessageTransport(asyncio.Transport):
         self._gwy = gwy
         self._protocols: List[MessageProtocol] = []
         self._extra[self.READER] = self._pkt_receiver
-        self._dispatcher: Callable = None  # type: ignore
+        self._dispatcher: Callable = None  # type: ignore[assignment]
 
         self._callbacks: Dict[str, dict] = {}
 
@@ -186,7 +186,7 @@ class MessageTransport(asyncio.Transport):
             _LOGGER.error("MsgTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]
 
-        self._dispatcher = dispatcher  # type: ignore
+        self._dispatcher = dispatcher  # type: ignore[assignment]
         self._extra[self.WRITER] = self._loop.create_task(
             pkt_dispatcher()
         )  # typx:ignore
@@ -521,18 +521,18 @@ class MessageProtocol(asyncio.Protocol):
         self._loop = gwy._loop
         self._callback = callback
 
-        self._transport: MessageTransport = None  # type: ignore
-        self._prev_msg: Message = None  # type: ignore
-        self._this_msg: Message = None  # type: ignore
+        self._transport: MessageTransport = None  # type: ignore[assignment]
+        self._prev_msg: Message = None  # type: ignore[assignment]
+        self._this_msg: Message = None  # type: ignore[assignment]
 
         self._pause_writing = True
 
-    def connection_made(self, transport: MessageTransport) -> None:  # type:ignore
+    def connection_made(self, transport: MessageTransport) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         self._transport = transport
         self.resume_writing()
 
-    def data_received(self, msg: Message) -> None:  # type:ignore
+    def data_received(self, msg: Message) -> None:  # type: ignore[override]
         """Called by the transport when a message is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, TypeVar
 
 from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .entity_base import Child, Entity, class_by_attr
@@ -314,6 +314,9 @@ class Device(Entity):
         return result
 
 
+_D = TypeVar("_D", bound=Device)
+
+
 class DeviceInfo(Device):  # 10E0
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
@@ -333,7 +336,7 @@ class Fakeable(Device):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._faked = None  # known (schema) attr
+        self._faked: bool = None  # type: ignore[assignment]
 
         self._1fc9_state = {"state": BindState.UNKNOWN}
 
@@ -449,7 +452,7 @@ class Fakeable(Device):
         self._send_cmd(cmd)
 
     @property
-    def is_faked(self) -> dict:
+    def is_faked(self) -> bool:
         return bool(self._faked)
 
     @property
@@ -474,7 +477,7 @@ class BatteryState(Device):  # 1060
     @property
     def battery_state(self) -> Optional[dict]:  # 1060
         if self._faked:
-            return
+            return None
         return self._msg_value(_1060)
 
     @property
@@ -497,9 +500,9 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         self._child_id = "gw"  # TODO
         self.tcs = None
 
-        self._faked_bdr = None
-        self._faked_ext = None
-        self._faked_thm = None
+        self._faked_bdr: Device = None  # type: ignore[assignment]
+        self._faked_ext: Device = None  # type: ignore[assignment]
+        self._faked_thm: Device = None  # type: ignore[assignment]
 
         # self. _proc_schema(**kwargs)
 

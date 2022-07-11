@@ -8,7 +8,6 @@ Heating devices.
 from __future__ import annotations
 
 import logging
-from symtable import Class
 
 from .const import DEV_TYPE_MAP, SZ_CLASS, SZ_FAKED, __dev_mode__
 from .protocol import Address, Message
@@ -23,6 +22,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 # skipcq: PY-W2000
 from .devices_base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    _D,
     BASE_CLASS_BY_SLUG,
     Device,
     DeviceHeat,
@@ -73,7 +73,7 @@ def best_dev_role(
     msg: Message = None,
     eavesdrop: bool = False,
     **schema,
-) -> Class:
+) -> type[_D]:
     """Return the best device role (object class) for a given device id/msg/schema.
 
     Heat (CH/DHW) devices can reliably be determined by their address type (e.g. '04:').
@@ -83,8 +83,9 @@ def best_dev_role(
     The generic HVAC class can be promoted later on, when more information is available.
     """
 
-    cls: Device = None
-    slug: str = None
+    cls: None | type[_D] = None
+    slug: None | str = None
+
     try:  # convert (say) 'dhw_sensor' to DHW
         slug = DEV_TYPE_MAP.slug(schema.get(SZ_CLASS))
     except KeyError:
@@ -99,12 +100,12 @@ def best_dev_role(
 
     if dev_addr.type == DEV_TYPE_MAP.HGI:
         _LOGGER.debug(f"Using the default class for: {dev_addr!r} ({HgiGateway._SLUG})")
-        return HgiGateway
+        return HgiGateway  # type: ignore[return-value]
 
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
         if cls := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):
             _LOGGER.debug(
-                f"Using the default Heat class for: {dev_addr!r} ({cls._SLUG})"
+                f"Using the default Heat class for: {dev_addr!r} ({cls._SLUG})"  # type: ignore[attr-defined]
             )
             return cls
     except TypeError:
@@ -113,7 +114,7 @@ def best_dev_role(
     try:  # or, a HVAC class, eavesdropped from the message code/payload...
         if cls := class_dev_hvac(dev_addr, msg=msg, eavesdrop=eavesdrop):
             _LOGGER.debug(
-                f"Using eavesdropped HVAC class for: {dev_addr!r} ({cls._SLUG})"
+                f"Using eavesdropped HVAC class for: {dev_addr!r} ({cls._SLUG})"  # type: ignore[attr-defined]
             )
             return cls  # includes DeviceHvac
     except TypeError:
@@ -123,18 +124,16 @@ def best_dev_role(
     _LOGGER.debug(
         f"Using a promotable HVAC class for: {dev_addr!r} ({DeviceHvac._SLUG})"
     )
-    return DeviceHvac
+    return DeviceHvac  # type: ignore[return-value]
 
 
-def zx_device_factory(
-    gwy, dev_addr: Address, *, msg: Message = None, **schema
-) -> Device:
+def zx_device_factory(gwy, dev_addr: Address, *, msg: Message = None, **schema) -> _D:
     """Return the initial device class for a given device id/msg/schema.
 
     Some devices are promotable to a compatible sub class.
     """
 
-    cls = best_dev_role(
+    cls: type[_D] = best_dev_role(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,

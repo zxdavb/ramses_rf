@@ -14,7 +14,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .const import (
     SZ_ACTUATORS,
@@ -27,6 +27,7 @@ from .const import (
     __dev_mode__,
 )
 from .protocol import CorruptStateError, Message
+from .protocol.frame import Code, DevId, Header, Verb
 from .protocol.ramses import CODES_SCHEMA
 from .protocol.transport import PacketProtocolPort
 from .schema import SZ_CIRCUITS
@@ -156,9 +157,13 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 class MessageDB:
     """Maintain/utilize an entity's state database."""
 
+    _gwy: Any  # HACK
+    ctl: Any  # HACK
+    tcs: Any  # HACK
+
     def __init__(self, gwy) -> None:
-        self._msgs = {}  # code, should be code/ctx? ?deprecate
-        self._msgz = {}  # code/verb/ctx, should be code/ctx/verb?
+        self._msgs: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
+        self._msgz: dict[Code, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
 
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
@@ -186,7 +191,7 @@ class MessageDB:
         """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    def _get_msg_by_hdr(self, hdr) -> Optional[Message]:
+    def _get_msg_by_hdr(self, hdr: Header) -> None | Message:
         """Return a msg, if any, that matches a header."""
 
         code, verb, _, *args = hdr.split("|")
@@ -199,27 +204,30 @@ class MessageDB:
             elif None in self._msgz[code][verb]:
                 msg = self._msgz[code][verb][None]
             else:
-                return
+                return None
         except KeyError:
-            return
+            return None
 
         if msg._pkt._hdr != hdr:
             raise LookupError
 
         return msg
 
-    def _msg_flag(self, code, key, idx) -> None | bool:
+    def _msg_flag(self, code: Code, key, idx) -> None | bool:
 
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
+        return None
 
-    def _msg_value(self, code, *args, **kwargs):
+    def _msg_value(self, code: Code, *args, **kwargs):
 
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
-    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> Optional[dict]:
+    def _msg_value_code(
+        self, code: Code, verb: Verb = None, key=None, **kwargs
+    ) -> None | dict | list:
 
         assert (
             not isinstance(code, tuple) or verb is None
@@ -241,22 +249,24 @@ class MessageDB:
         return self._msg_value_msg(msg, key=key, **kwargs)
 
     @staticmethod  # FIXME: messy (uses msg, others use code - move to Message?)
-    def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> Optional[dict]:
+    def _msg_value_msg(
+        msg: None | Message, key=None, zone_idx: str = None, domain_id=None
+    ) -> None | dict | list:
 
         if msg is None:
-            return
+            return None
         elif msg._expired:
             _delete_msg(msg)
 
         if msg.code == _1FC9:  # NOTE: list of lists/tuples
             return [x[1] for x in msg.payload]
 
+        idx: None | str = None
+        val: None | str = None
         if domain_id:
             idx, val = SZ_DOMAIN_ID, domain_id
         elif zone_idx:
             idx, val = SZ_ZONE_IDX, zone_idx
-        else:
-            idx = val = None
 
         if isinstance(msg.payload, dict):
             msg_dict = msg.payload
@@ -305,7 +315,7 @@ class MessageDatabaseSql:
     def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
         pass
 
-    def _get_msg_by_hdr(self, hdr) -> Optional[Message]:
+    def _get_msg_by_hdr(self, hdr: Header) -> None | Message:
         pass
 
     def _msg_flag(self, code, key, idx) -> None | bool:
@@ -314,11 +324,11 @@ class MessageDatabaseSql:
     def _msg_value(self, code, *args, **kwargs):
         pass
 
-    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> Optional[dict]:
+    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> None | dict:
         pass
 
     @staticmethod  # FIXME: messy (uses msg, others use code - move to Message?)
-    def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> Optional[dict]:
+    def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> None | dict:
         pass
 
 
@@ -329,7 +339,7 @@ class Discovery(MessageDB):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._disc_tasks = None
+        self._disc_tasks: dict[Header, dict] = {}
         self._disc_tasks_poller = None
 
         if not gwy.config.disable_discovery and isinstance(
@@ -396,11 +406,15 @@ class Discovery(MessageDB):
         command for later.
         """
 
-        def find_newer_msg(hdr: str, task: dict) -> Optional[Message]:
-            msgs = [self._get_msg_by_hdr(hdr[:5] + v + hdr[7:]) for v in (I_, RP)]
+        def find_newer_msg(hdr: Header, task: dict) -> None | Message:
+            msgs: list[Message] = [
+                m
+                for m in [self._get_msg_by_hdr(hdr[:5] + v + hdr[7:]) for v in (I_, RP)]
+                if m is not None
+            ]
 
             if (
-                (msgs := [m for m in msgs if m is not None])
+                msgs
                 and (msg := max(msgs))
                 and msg.dtm > task["next_due"] - task["interval"]
             ):
@@ -416,7 +430,9 @@ class Discovery(MessageDB):
                 except KeyError:
                     pass
 
-        def interval(hdr: str, failures: int) -> td:
+            return None
+
+        def interval(hdr: Header, failures: int) -> td:
             """Adjust the ineterval - backoff if any failures."""
 
             if failures > 5:
@@ -430,7 +446,7 @@ class Discovery(MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_task(hdr: str, task: dict) -> Optional[Message]:
+        async def send_disc_task(hdr: Header, task: dict) -> None | Message:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -450,6 +466,8 @@ class Discovery(MessageDB):
 
             else:
                 return result
+
+            return None
 
         while True:
             if self._gwy.config.disable_discovery:
@@ -492,13 +510,13 @@ class Entity(Discovery):
      - if the entity can Rx packets (e.g. can the HGI send it an RQ)
     """
 
-    _SLUG = None
+    _SLUG: str = None  # type: ignore[assignment]
 
     def __init__(self, gwy) -> None:
         super().__init__(gwy)
 
         self._gwy = gwy
-        self.id = None
+        self.id: DevId = None  # type: ignore[assignment]
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
@@ -577,7 +595,7 @@ def _delete_msg(msg) -> None:
             pass
 
 
-class Parent:  # A System, Zone, DhwZone or a UfhController
+class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     """A Parent can be a System (TCS), a heating Zone, a DHW Zone, or a UfhController.
 
     For a System, children include the appliance controller, the children of all Zones
@@ -590,14 +608,23 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
+    actuator_by_id: dict[DevId, Entity]
+    actuators: list[Entity]
+
+    circuit_by_id: dict[str, Any]
+
+    _dhw_sensor: Entity
+    _dhw_valve: Entity
+    _htg_valve: Entity
+
     def __init__(self, *args, child_id: str = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = child_id
+        self._child_id: str = child_id  # type: ignore[assignment]
 
         # self._sensor: Child = None
-        self.child_by_id: Dict[str:Child] = {}
-        self.childs: List[Child] = []
+        self.child_by_id: dict[str, Child] = {}
+        self.childs: list[Child] = []
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_ufh_circuits():
@@ -635,10 +662,10 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
         """Set the domain id, after validating it."""
         self._child_id = value
 
-    def _set_child(
+    def _add_child(
         self, child: Any, *, child_id: str = None, is_sensor: bool = None
     ) -> None:
-        """Add/Set the parent's child device, after validating the association.
+        """Add a child device to this Parent, after validating the association.
 
         Also sets various other parent-specific object references (e.g. parent._sensor).
 
@@ -688,8 +715,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
 
         elif hasattr(self, SZ_CIRCUITS):  # UFH circuit
             assert isinstance(self, UfhController)  # TODO: remove me
-            if child not in self.circuits:
-                self.circuits.append(child)
+            if child not in self.circuit_by_id:
                 self.circuit_by_id[child.id] = child
 
         elif hasattr(self, SZ_ACTUATORS):  # HTG zone
@@ -752,7 +778,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
             )
 
 
-class Child:  # A Zone, Device or a UfhCircuit
+class Child(Entity):  # A Zone, Device or a UfhCircuit
     """A Device can be the Child of a Parent (a System, a heating Zone, or a DHW Zone).
 
     A Device may/may not have a Parent, but all devices will have the gateway as a
@@ -769,10 +795,10 @@ class Child:  # A Zone, Device or a UfhCircuit
     ) -> None:
         super().__init__(*args, **kwargs)
 
-        self._parent: Parent = parent
+        self._parent = parent  # type: ignore[assignment]
+        self._is_sensor = is_sensor  # type: ignore[assignment]
 
-        self._child_id: str = None
-        self._is_sensor: bool = is_sensor
+        self._child_id: str = None  # type: ignore[assignment]
 
     def _handle_msg(self, msg: Message) -> None:
         from .devices import Controller, UfhController
@@ -800,7 +826,7 @@ class Child:  # A Zone, Device or a UfhCircuit
 
     def _get_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
-    ) -> Tuple[Parent, str]:
+    ) -> tuple[Parent, str]:
         """Get the device's parent, after validating it."""
 
         # NOTE: here to prevent circular references
@@ -822,15 +848,15 @@ class Child:  # A Zone, Device or a UfhCircuit
             child_id = FF
 
         if isinstance(parent, Controller):  # A controller cant be a Parent
-            parent: System = parent.tcs
+            parent: System = parent.tcs  # type: ignore[assignment, no-redef]
 
         if isinstance(parent, System) and child_id:
             if child_id in (F9, FA):
-                parent: DhwZone = parent.get_dhw_zone()
+                parent: DhwZone = parent.get_dhw_zone()  # type: ignore[no-redef]
             # elif child_id == FC:
             #     pass
             elif int(child_id, 16) < self._gwy.config.max_zones:
-                parent: Zone = parent.get_htg_zone(child_id)
+                parent: Zone = parent.get_htg_zone(child_id)  # type: ignore[no-redef, attr-defined]
 
         elif isinstance(parent, Zone) and not child_id:
             child_id = child_id or parent.idx
@@ -865,7 +891,7 @@ class Child:  # A Zone, Device or a UfhCircuit
         #     if self._child_id and self._child_id != child_id:
         #         raise CorruptStateError(f"child_id mismatch: {self._child_id} != {child_id}")
 
-        PARENT_RULES = {
+        PARENT_RULES: dict[Any, dict] = {
             DhwZone: {SZ_ACTUATORS: (BdrSwitch,), SZ_SENSOR: (DhwSensor,)},
             System: {
                 SZ_ACTUATORS: (BdrSwitch, OtbGateway, UfhController),
@@ -956,7 +982,7 @@ class Child:  # A Zone, Device or a UfhCircuit
                 "(or perhaps the device has multiple controllers?"
             )
 
-        parent._set_child(self, child_id=child_id, is_sensor=is_sensor)
+        parent._add_child(self, child_id=child_id, is_sensor=is_sensor)
         # parent.childs.append(self)
         # parent.child_by_id[self.id] = self
 

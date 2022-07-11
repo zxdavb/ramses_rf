@@ -194,6 +194,9 @@ class ZoneBase(Child, Parent, Entity):
         zon._update_schema(**schema)
         return zon
 
+    def _update_schema(self, **schema):
+        raise NotImplementedError
+
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 

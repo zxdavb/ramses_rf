@@ -176,7 +176,7 @@ class Frame:
         self._len = int(len(self.payload) / 2)
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore
+            self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
         except InvalidPacketError as exc:  # will be: InvalidAddrSetError
@@ -224,7 +224,7 @@ class Frame:
             raise InvalidPacketError("Bad frame: payload length mismatch")
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore
+            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore[assignment]
         except InvalidPacketError as exc:  # will be: InvalidAddrSetError
             raise InvalidPacketError(f"Bad frame: invalid address set: {exc}")
 
