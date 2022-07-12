@@ -17,7 +17,7 @@ from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandl
 from typing import Callable
 
 from .const import __dev_mode__
-from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
+from .schemas import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 from .version import VERSION
 
 DEV_MODE = __dev_mode__ and False

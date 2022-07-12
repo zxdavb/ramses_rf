@@ -18,7 +18,7 @@ from .const import (
     SZ_DEVICES,
     __dev_mode__,
 )
-from .devices import Device
+from .device import Device
 from .protocol import (
     CODES_BY_DEV_SLUG,
     CODES_SCHEMA,
@@ -35,89 +35,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-)
-
-# skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10E0,
-    _10E1,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
+    Codx,
 )
 
 __all__ = ["process_msg"]
@@ -202,7 +120,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
         return
 
     if slug not in CODES_BY_DEV_SLUG:
-        if msg.code != _10E0 and msg.code not in CODES_HVAC_ONLY:
+        if msg.code != Codx._10E0 and msg.code not in CODES_HVAC_ONLY:
             err_msg = f"Unknown src type: {msg.dst}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -265,7 +183,7 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 
     if msg.verb == I_:  # TODO: not common, unless src=dst
         return  # receiving an I isn't currently in the schema & cant yet be tested
-    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{_3EF1}",):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Codx._3EF1}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # NOTE: not OK for Rx, DEX_done
@@ -282,9 +200,11 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         _LOGGER.warning(f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}")
         return
 
-    if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
+    if f"{msg.verb}/{msg.code}" in (f"{W_}/{Codx._0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
-    if f"{slug}/{msg.verb}/{msg.code}" in (f"{DEV_TYPE.BDR}/{RQ}/{_3EF0}",):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (
+        f"{DEV_TYPE.BDR}/{RQ}/{Codx._3EF0}",
+    ):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
@@ -310,7 +230,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         if (
             not prev
             or not prev._has_array
-            or this.code not in (_000A, _22C9)
+            or this.code not in (Codx._000A, Codx._22C9)
             or this.code != prev.code
             or this.verb != prev.verb != I_
             or this.src != prev.src
@@ -352,7 +272,12 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
             msg.src._handle_msg(msg)
 
-        if msg.code not in (_0008, _0009, _3B00, _3EF1):  # special case: are fakeable
+        if msg.code not in (
+            Codx._0008,
+            Codx._0009,
+            Codx._3B00,
+            Codx._3EF1,
+        ):  # special case: are fakeable
             return
 
         #  I --- 22:060293 --:------ 22:060293 0008 002 000C

@@ -18,7 +18,7 @@ import voluptuous as vol  # type: ignore[import]
 
 from ramses_rf.protocol.const import SZ_CHANGE_COUNTER
 
-from .const import (
+from ..const import (
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
     SZ_SCHEDULE,
@@ -26,98 +26,16 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .protocol.command import Command
-from .protocol.message import Message
+from ..protocol.command import Command
+from ..protocol.message import Message
 
 # skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
-)
-
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10E0,
-    _10E1,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
+    Codx,
 )
 
 
@@ -221,7 +139,7 @@ class Schedule:  # 0404
     def _handle_msg(self, msg: Message) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
 
-        if msg.code == _0006:
+        if msg.code == Codx._0006:
             self._global_ver = msg.payload[SZ_CHANGE_COUNTER]
             return
 

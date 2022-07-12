@@ -28,8 +28,8 @@ from ramses_rf.protocol.logger import (
     DEFAULT_FMT,
     LOG_FILE_NAME,
 )
-from ramses_rf.protocol.schema import SERIAL_PORT
-from ramses_rf.schema import (
+from ramses_rf.protocol.schemas import SERIAL_PORT
+from ramses_rf.schemas import (
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
     ENABLE_EAVESDROP,

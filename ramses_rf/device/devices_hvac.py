@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from .const import (
+from ..const import (
     DEV_TYPE,
     FAN_MODE,
     SZ_AIR_QUALITY,
@@ -36,119 +36,21 @@ from .const import (
     SZ_TEMPERATURE,
     __dev_mode__,
 )
+from ..entity_base import class_by_attr
+from ..protocol import Address, Message
+from ..protocol.command import Command
+from ..protocol.ramses import CODES_HVAC_ONLY, HVAC_KLASS_BY_VC_PAIR
 from .devices_base import BatteryState, DeviceHvac, Fakeable, _Device
-from .entity_base import class_by_attr
-from .protocol import Address, Message
-from .protocol.command import Command
-from .protocol.ramses import CODES_HVAC_ONLY, HVAC_KLASS_BY_VC_PAIR
 
 # skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
+    Codx,
 )
 
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10D0,
-    _10E0,
-    _10E1,
-    _10E2,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1470,
-    _1F09,
-    _1F41,
-    _1F70,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2210,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22E0,
-    _22E5,
-    _22E9,
-    _22F1,
-    _22F2,
-    _22F3,
-    _22F4,
-    _22F7,
-    _22F8,
-    _22B0,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2411,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313E,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3222,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _4401,
-    _PUZZ,
-)
 
 DEV_MODE = __dev_mode__  # and False
 
@@ -184,15 +86,15 @@ class HvacHumiditySensor(BatteryState, DeviceHvac):  # HUM: I/12A0
 
     @property
     def indoor_humidity(self) -> None | float:
-        return self._msg_value(_12A0, key=self.REL_HUMIDITY)
+        return self._msg_value(Codx._12A0, key=self.REL_HUMIDITY)
 
     @property
     def temperature(self) -> None | float:
-        return self._msg_value(_12A0, key=self.TEMPERATURE)
+        return self._msg_value(Codx._12A0, key=self.TEMPERATURE)
 
     @property
     def dewpoint_temp(self) -> None | float:
-        return self._msg_value(_12A0, key=self.DEWPOINT_TEMP)
+        return self._msg_value(Codx._12A0, key=self.DEWPOINT_TEMP)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -219,7 +121,7 @@ class HvacCarbonDioxideSensor(DeviceHvac):  # CO2: I/1298
 
     @property
     def co2_level(self) -> None | float:
-        return self._msg_value(_1298, key="co2_level")
+        return self._msg_value(Codx._1298, key="co2_level")
 
     @property
     def status(self) -> dict[str, Any]:
@@ -248,7 +150,7 @@ class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
 
     @property
     def fan_rate(self) -> None | str:
-        return self._msg_value(_22F1, key="rate")
+        return self._msg_value(Codx._22F1, key="rate")
 
     # @check_faking_enabled
     @fan_rate.setter
@@ -262,11 +164,11 @@ class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
 
     @property
     def fan_mode(self) -> None | str:
-        return self._msg_value(_22F1, key=FAN_MODE)
+        return self._msg_value(Codx._22F1, key=FAN_MODE)
 
     @property
     def boost_timer(self) -> Optional[int]:
-        return self._msg_value(_22F3, key=SZ_BOOST_TIMER)
+        return self._msg_value(Codx._22F3, key=SZ_BOOST_TIMER)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -288,12 +190,12 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
         super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            Command.from_attrs(RQ, self.id, _10D0, "00"), 60 * 60 * 24, delay=30
+            Command.from_attrs(RQ, self.id, Codx._10D0, "00"), 60 * 60 * 24, delay=30
         )
 
     @property
     def filter_remaining(self) -> Optional[int]:
-        return self._msg_value(_31DA, key="days_remaining")
+        return self._msg_value(Codx._31DA, key="days_remaining")
 
 
 class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
@@ -314,95 +216,103 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
         # RP --- 32:155617 18:005904 --:------ 22F1 003 000207
         self._add_discovery_task(
-            Command.from_attrs(RQ, self.id, _22F1, "00"), 60 * 60 * 24, delay=15
+            Command.from_attrs(RQ, self.id, Codx._22F1, "00"), 60 * 60 * 24, delay=15
         )  # to learn scheme: orcon/itho/other (04/07/0?)
 
-        for code in (_2210, _22E0, _22E5, _22E9, _22F2, _22F4, _22F8):
+        for code in (
+            Codx._2210,
+            Codx._22E0,
+            Codx._22E5,
+            Codx._22E9,
+            Codx._22F2,
+            Codx._22F4,
+            Codx._22F8,
+        ):
             self._add_discovery_task(
                 Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=15
             )
 
-        for code in (_313E, _3222):
+        for code in (Codx._313E, Codx._3222):
             self._add_discovery_task(
                 Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=30
             )
 
     @property
     def air_quality(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_AIR_QUALITY)
+        return self._msg_value(Codx._31DA, key=SZ_AIR_QUALITY)
 
     @property
     def air_quality_base(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_AIR_QUALITY_BASE)
+        return self._msg_value(Codx._31DA, key=SZ_AIR_QUALITY_BASE)
 
     @property
     def bypass_position(self) -> Optional[int]:
-        return self._msg_value(_31DA, key=SZ_BYPASS_POSITION)
+        return self._msg_value(Codx._31DA, key=SZ_BYPASS_POSITION)
 
     @property
     def co2_level(self) -> Optional[int]:
-        return self._msg_value(_31DA, key=SZ_CO2_LEVEL)
+        return self._msg_value(Codx._31DA, key=SZ_CO2_LEVEL)
 
     @property
     def exhaust_fan_speed(self) -> None | float:
-        # turn self._msg_value((_31D9, _31DA), key=SZ_EXHAUST_FAN_SPEED)
-        return self._msg_value((_31DA), key=SZ_EXHAUST_FAN_SPEED)
+        # turn self._msg_value((Codx._31D9, Codx._31DA), key=SZ_EXHAUST_FAN_SPEED)
+        return self._msg_value((Codx._31DA), key=SZ_EXHAUST_FAN_SPEED)
 
     @property
     def exhaust_flow(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_EXHAUST_FLOW)
+        return self._msg_value(Codx._31DA, key=SZ_EXHAUST_FLOW)
 
     @property
     def exhaust_temperature(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_EXHAUST_TEMPERATURE)
+        return self._msg_value(Codx._31DA, key=SZ_EXHAUST_TEMPERATURE)
 
     @property
     def fan_info(self) -> None | str:
-        return self._msg_value(_31DA, key=SZ_FAN_INFO)
+        return self._msg_value(Codx._31DA, key=SZ_FAN_INFO)
 
     @property
     def indoor_humidity(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_INDOOR_HUMIDITY)
+        return self._msg_value(Codx._31DA, key=SZ_INDOOR_HUMIDITY)
 
     @property
     def indoor_temperature(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_INDOOR_TEMPERATURE)
+        return self._msg_value(Codx._31DA, key=SZ_INDOOR_TEMPERATURE)
 
     @property
     def outdoor_humidity(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_OUTDOOR_HUMIDITY)
+        return self._msg_value(Codx._31DA, key=SZ_OUTDOOR_HUMIDITY)
 
     @property
     def outdoor_temperature(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_OUTDOOR_TEMPERATURE)
+        return self._msg_value(Codx._31DA, key=SZ_OUTDOOR_TEMPERATURE)
 
     @property
     def post_heat(self) -> Optional[int]:
-        return self._msg_value(_31DA, key=SZ_POST_HEAT)
+        return self._msg_value(Codx._31DA, key=SZ_POST_HEAT)
 
     @property
     def pre_heat(self) -> Optional[int]:
-        return self._msg_value(_31DA, key=SZ_PRE_HEAT)
+        return self._msg_value(Codx._31DA, key=SZ_PRE_HEAT)
 
     @property
     def remaining_time(self) -> Optional[int]:
-        return self._msg_value(_31DA, key=SZ_REMAINING_TIME)
+        return self._msg_value(Codx._31DA, key=SZ_REMAINING_TIME)
 
     @property
     def speed_cap(self) -> Optional[int]:
-        return self._msg_value(_31DA, key=SZ_SPEED_CAP)
+        return self._msg_value(Codx._31DA, key=SZ_SPEED_CAP)
 
     @property
     def supply_fan_speed(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_SUPPLY_FAN_SPEED)
+        return self._msg_value(Codx._31DA, key=SZ_SUPPLY_FAN_SPEED)
 
     @property
     def supply_flow(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_SUPPLY_FLOW)
+        return self._msg_value(Codx._31DA, key=SZ_SUPPLY_FLOW)
 
     @property
     def supply_temperature(self) -> None | float:
-        return self._msg_value(_31DA, key=SZ_SUPPLY_TEMPERATURE)
+        return self._msg_value(Codx._31DA, key=SZ_SUPPLY_TEMPERATURE)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -411,7 +321,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             SZ_EXHAUST_FAN_SPEED: self.exhaust_fan_speed,
             **{
                 k: v
-                for code in (_31D9, _31DA)
+                for code in (Codx._31D9, Codx._31DA)
                 for k, v in self._msgs[code].payload.items()
                 if code in self._msgs
                 if k != SZ_EXHAUST_FAN_SPEED
@@ -503,49 +413,49 @@ _REMOTES = {
 
 """
 # CVE/HRU remote (536-0124) [RFT W: 3 modes, timer]
-    "away":       (_22F1, 00, 01|04"),  # how to invoke?
-    "low":        (_22F1, 00, 02|04"),
-    "medium":     (_22F1, 00, 03|04"),  # aka auto (with sensors) - is that only for 63?
-    "high":       (_22F1, 00, 04|04"),  # aka full
+    "away":       (Codx._22F1, 00, 01|04"),  # how to invoke?
+    "low":        (Codx._22F1, 00, 02|04"),
+    "medium":     (Codx._22F1, 00, 03|04"),  # aka auto (with sensors) - is that only for 63?
+    "high":       (Codx._22F1, 00, 04|04"),  # aka full
 
-    "timer_1":    (_22F3, 00, 00|0A"),  # 10 minutes full speed
-    "timer_2":    (_22F3, 00, 00|14"),  # 20 minutes full speed
-    "timer_3":    (_22F3, 00, 00|1E"),  # 30 minutes full speed
+    "timer_1":    (Codx._22F3, 00, 00|0A"),  # 10 minutes full speed
+    "timer_2":    (Codx._22F3, 00, 00|14"),  # 20 minutes full speed
+    "timer_3":    (Codx._22F3, 00, 00|1E"),  # 30 minutes full speed
 
 # RFT-AUTO (536-0150) [RFT CAR: 2 modes, auto, timer]: idx = 63, essentially same as above, but also...
-    "auto_night": (_22F8, 63, 02|03"),  # additional - press auto x2
+    "auto_night": (Codx._22F8, 63, 02|03"),  # additional - press auto x2
 
 # RFT-RV (04-00046), RFT-CO2 (04-00045) - sensors with control
-    "medium":     (_22F1, 00, 03|07"), 1=away, 2=low?
-    "auto":       (_22F1, 00, 05|07"), 4=high
-    "auto_night": (_22F1, 00, 0B|0B"),
+    "medium":     (Codx._22F1, 00, 03|07"), 1=away, 2=low?
+    "auto":       (Codx._22F1, 00, 05|07"), 4=high
+    "auto_night": (Codx._22F1, 00, 0B|0B"),
 
-    "timer_1":    (_22F3, 00, 00|0A, 00|00, 0000"),  # 10 minutes
-    "timer_2":    (_22F3, 00, 00|14, 00|00, 0000"),  # 20 minutes
-    "timer_3":    (_22F3, 00, 00|1E, 00|00, 0000"),  # 30 minutes
+    "timer_1":    (Codx._22F3, 00, 00|0A, 00|00, 0000"),  # 10 minutes
+    "timer_2":    (Codx._22F3, 00, 00|14, 00|00, 0000"),  # 20 minutes
+    "timer_3":    (Codx._22F3, 00, 00|1E, 00|00, 0000"),  # 30 minutes
 
 # RFT-PIR (545-7550) - presence sensor
 
 # RFT_DF: DemandFlow remote (536-0146)
-    "timer_1":    (_22F3, 00, 42|03, 03|03"),  # 0b01-000-010 = 3 hrs, back to last mode
-    "timer_2":    (_22F3, 00, 42|06, 03|03"),  # 0b01-000-010 = 6 hrs, back to last mode
-    "timer_3":    (_22F3, 00, 42|09, 03|03"),  # 0b01-000-010 = 9 hrs, back to last mode
-    "cook_30":    (_22F3, 00, 02|1E, 02|03"),  # 30 mins (press 1x)
-    "cook_60":    (_22F3, 00, 02|3C, 02|03"),  # 60 mins (press 2x)
+    "timer_1":    (Codx._22F3, 00, 42|03, 03|03"),  # 0b01-000-010 = 3 hrs, back to last mode
+    "timer_2":    (Codx._22F3, 00, 42|06, 03|03"),  # 0b01-000-010 = 6 hrs, back to last mode
+    "timer_3":    (Codx._22F3, 00, 42|09, 03|03"),  # 0b01-000-010 = 9 hrs, back to last mode
+    "cook_30":    (Codx._22F3, 00, 02|1E, 02|03"),  # 30 mins (press 1x)
+    "cook_60":    (Codx._22F3, 00, 02|3C, 02|03"),  # 60 mins (press 2x)
 
-    "low":        (_22F8, 00, 01|02"),  # ?eco     co2 <= 1200 ppm?
-    "high":       (_22F8, 00, 02|02"),  # ?comfort co2 <= 1000 ppm?
+    "low":        (Codx._22F8, 00, 01|02"),  # ?eco     co2 <= 1200 ppm?
+    "high":       (Codx._22F8, 00, 02|02"),  # ?comfort co2 <= 1000 ppm?
 
 # Join commands:
-    "CVERFT":     (_1FC9,  00, _22F1, 0x000000,                        01, _10E0, 0x000000"),  # CVE/HRU remote    (536-0124)
-    "AUTORFT":    (_1FC9,  63, _22F8, 0x000000,                        01, _10E0, 0x000000"),  # AUTO RFT          (536-0150)
-    "DF":         (_1FC9,  00, _22F8, 0x000000,                        00, _10E0, 0x000000"),  # DemandFlow remote (536-0146)
-    "RV":         (_1FC9,  00, _12A0, 0x000000,                        01, _10E0, 0x000000,  00, _31E0, 0x000000,  00, _1FC9, 0x000000"),  # RFT-RV   (04-00046)
-    "CO2":        (_1FC9,  00, _1298, 0x000000,  00, _2E10, 0x000000,  01, _10E0, 0x000000,  00, _31E0, 0x000000,  00, _1FC9, 0x000000"),  # RFT-CO2  (04-00045)
+    "CVERFT":     (Codx._1FC9,  00, Codx._22F1, 0x000000,                        01, Codx._10E0, 0x000000"),  # CVE/HRU remote    (536-0124)
+    "AUTORFT":    (Codx._1FC9,  63, Codx._22F8, 0x000000,                        01, Codx._10E0, 0x000000"),  # AUTO RFT          (536-0150)
+    "DF":         (Codx._1FC9,  00, Codx._22F8, 0x000000,                        00, Codx._10E0, 0x000000"),  # DemandFlow remote (536-0146)
+    "RV":         (Codx._1FC9,  00, Codx._12A0, 0x000000,                        01, Codx._10E0, 0x000000,  00, Codx._31E0, 0x000000,  00, Codx._1FC9, 0x000000"),  # RFT-RV   (04-00046)
+    "CO2":        (Codx._1FC9,  00, Codx._1298, 0x000000,  00, Codx._2E10, 0x000000,  01, Codx._10E0, 0x000000,  00, Codx._31E0, 0x000000,  00, Codx._1FC9, 0x000000"),  # RFT-CO2  (04-00045)
 
 # Leave commands:
-    "Others":      (_1FC9, 00, _1FC9, 0x000000"),  # standard leave command
-    "AUTORFT":     (_1FC9, 63, _1FC9, 0x000000"),  # leave command of AUTO RFT (536-0150)
+    "Others":      (Codx._1FC9, 00, Codx._1FC9, 0x000000"),  # standard leave command
+    "AUTORFT":     (Codx._1FC9, 63, Codx._1FC9, 0x000000"),  # leave command of AUTO RFT (536-0150)
 
     # RQ 0x00
     # I_ 0x01

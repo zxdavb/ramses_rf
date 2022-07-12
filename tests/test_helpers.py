@@ -11,7 +11,7 @@ Test the various helper APIs.
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.protocol.packet import Packet
-from ramses_rf.zones import _transform
+from ramses_rf.system.zones import _transform
 from tests.common import gwy  # noqa: F401
 from tests.common import TEST_DIR, assert_raises
 

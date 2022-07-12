@@ -11,8 +11,8 @@ from copy import deepcopy
 
 from serial.tools import list_ports
 
-from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, _0006, _0404
-from ramses_rf.schedule import (
+from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Codx
+from ramses_rf.system.schedule import (
     DAY_OF_WEEK,
     ENABLED,
     HEAT_SETPOINT,
@@ -124,7 +124,7 @@ async def read_schedule(zone) -> dict:
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
 
     if schedule is None:
-        assert zone._msgs[_0404].payload[SZ_TOTAL_FRAGS] is None
+        assert zone._msgs[Codx._0404].payload[SZ_TOTAL_FRAGS] is None
         return
 
     schedule = assert_schedule_dict(zone._schedule._schedule)
@@ -148,7 +148,7 @@ async def read_schedule(zone) -> dict:
 async def test_rq_0006():
     def assert_version(version):
         assert isinstance(version, int)
-        assert version == tcs._msgs[_0006].payload["change_counter"]
+        assert version == tcs._msgs[Codx._0006].payload["change_counter"]
         return version
 
     gwy, tcs = await load_test_system(config={"disable_discovery": True})
@@ -175,7 +175,7 @@ async def test_rq_0006():
     await gwy.stop()
 
 
-async def test_rq_0404_dhw():  # Needs mocking
+async def test_0404_dhw():  # Needs mocking
 
     if SERIAL_PORT == "/dev/ttyMOCK":
         return
@@ -189,7 +189,7 @@ async def test_rq_0404_dhw():  # Needs mocking
     await gwy.stop()
 
 
-async def test_rq_0404_zone():
+async def test_0404_zone():
 
     gwy, tcs = await load_test_system(config={"disable_discovery": True})
     await gwy.start(start_discovery=False)  # may: SerialException

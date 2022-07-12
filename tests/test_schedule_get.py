@@ -12,7 +12,7 @@ from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
-from ramses_rf.schedule import (
+from ramses_rf.system.schedule import (
     ENABLED,
     HEAT_SETPOINT,
     SCH_SCHEDULE_DHW,

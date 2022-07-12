@@ -20,18 +20,7 @@ from ramses_rf.const import SZ_ACTUATORS, SZ_CLASS, SZ_ZONES, ZON_ROLE_MAP
 from ramses_rf.protocol import InvalidPacketError
 from ramses_rf.protocol.command import Command as CommandBase
 from ramses_rf.protocol.command import validate_api_params
-from ramses_rf.protocol.const import (
-    _000C,
-    _1F09,
-    _30C9,
-    I_,
-    RP,
-    _0005,
-    _0006,
-    _0404,
-    _2309,
-    __dev_mode__,
-)
+from ramses_rf.protocol.const import I_, RP, Codx, __dev_mode__
 from ramses_rf.protocol.transport import PacketProtocolPort, SerTransportPoll
 
 RUNNING = True
@@ -65,7 +54,7 @@ class Command(CommandBase):
         zones = f"{sum(b<<i for i, b in enumerate(zone_mask)):04X}"
         payload = f"{sub_idx}{zone_type}{zones[2:]}{zones[:2]}"  # swap order
 
-        return cls._from_attrs(RP, _0005, payload, addr0=src_id, addr1=dst_id)
+        return cls._from_attrs(RP, Codx._0005, payload, addr0=src_id, addr1=dst_id)
 
     @classmethod  # constructor for RP/000C
     @validate_api_params(has_zone=True)
@@ -81,7 +70,7 @@ class Command(CommandBase):
 
         payload = f"{zone_idx}{zone_type}..."
 
-        return cls._from_attrs(RP, _000C, payload, addr0=src_id, addr1=dst_id)
+        return cls._from_attrs(RP, Codx._000C, payload, addr0=src_id, addr1=dst_id)
 
 
 class MockSerialBase:  # all the 'mocking' is done here
@@ -149,8 +138,10 @@ class MockSerialBase:  # all the 'mocking' is done here
 
             if rp_header:
                 for device in self._devices:
-                    device.rx_frame_by_header(rp_header)
-
+                    try:
+                        device.rx_frame_by_header(rp_header)
+                    except (AttributeError, TypeError, ValueError) as exc:
+                        _LOGGER.exception(exc)
             self._que.task_done()
 
     @property
@@ -241,20 +232,20 @@ class MockDeviceCtl(MockDeviceBase):
         """Find/Create an encoded frame, and queue it for the gwy to Rx."""
         super().rx_frame_by_header(rp_header)
 
-        if rp_header == f"{_1F09}|{RP}|{CTL_ID}":
+        if rp_header == f"{Codx._1F09}|{RP}|{CTL_ID}":
             pkts = self.tx_response_1f09()
 
-        elif rp_header[:17] == f"{_0005}|{RP}|{CTL_ID}":
+        elif rp_header[:17] == f"{Codx._0005}|{RP}|{CTL_ID}":
             pkts = self.tx_response_0005(rp_header[18:])
 
-        elif rp_header[:17] == f"{_0006}|{RP}|{CTL_ID}":
+        elif rp_header[:17] == f"{Codx._0006}|{RP}|{CTL_ID}":
             pkts = self.tx_response_0006(rp_header)
 
-        elif rp_header[:17] == f"{_000C}|{RP}|{CTL_ID}":
+        elif rp_header[:17] == f"{Codx._000C}|{RP}|{CTL_ID}":
             pkts = self.tx_response_000c(rp_header[18:])
 
         elif response := RESPONSES.get(rp_header):
-            if rp_header[:17] == f"{_0404}|{I_}|{CTL_ID}":
+            if rp_header[:17] == f"{Codx._0404}|{I_}|{CTL_ID}":
                 self._change_counter += 2
             pkts = self.tx_response_pkt(response)
         else:
@@ -299,7 +290,7 @@ class MockDeviceCtl(MockDeviceBase):
     def tx_response_1f09(self) -> Optional[tuple]:
         interval = int((self.next_cycle - dt.now()).total_seconds() * 10)
         return 1, Command._from_attrs(
-            RP, _1F09, f"00{interval:04X}", addr0=self.id, addr1=GWY_ID
+            RP, Codx._1F09, f"00{interval:04X}", addr0=self.id, addr1=GWY_ID
         )
 
     def tx_response_0005(self, context: str) -> Optional[tuple]:
@@ -321,7 +312,9 @@ class MockDeviceCtl(MockDeviceBase):
 
     def tx_response_0006(self, rp_header) -> Optional[tuple]:
         payload = f"0005{self._change_counter:04X}"
-        return 1, Command._from_attrs(RP, _0006, payload, addr0=self.id, addr1=GWY_ID)
+        return 1, Command._from_attrs(
+            RP, Codx._0006, payload, addr0=self.id, addr1=GWY_ID
+        )
 
     def tx_response_000c(self, context: str) -> Optional[tuple]:
         zone_idx, zone_type = context[:2], context[2:]
@@ -406,13 +399,13 @@ def sync_cycle_pkts(ctl_id, seconds) -> tuple[Command, Command, Command]:
     #  I --- 01:087939 --:------ 01:087939 30C9 009 0007A0-010634-020656
 
     cmd_1f09 = Command._from_attrs(
-        I_, _1F09, f"FF{seconds * 10:04X}", addr0=ctl_id, addr2=ctl_id
+        I_, Codx._1F09, f"FF{seconds * 10:04X}", addr0=ctl_id, addr2=ctl_id
     )
     cmd_2309 = Command._from_attrs(
-        I_, _2309, "0007D00106400201F4", addr0=ctl_id, addr2=ctl_id
+        I_, Codx._2309, "0007D00106400201F4", addr0=ctl_id, addr2=ctl_id
     )
     cmd_30c9 = Command._from_attrs(
-        I_, _30C9, "0007A0010634020656", addr0=ctl_id, addr2=ctl_id
+        I_, Codx._30C9, "0007A0010634020656", addr0=ctl_id, addr2=ctl_id
     )
 
     return cmd_1f09, cmd_2309, cmd_30c9

@@ -43,90 +43,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FA,
     FC,
     FF,
+    Codx,
 )
 
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10E0,
-    _10E1,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
-)
 
 __all__ = ["Message"]
 
@@ -270,23 +189,23 @@ class Message:
         #  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
 
         IDX_NAMES = {
-            _0002: "other_idx",  # non-evohome: hometronics
-            _0418: SZ_LOG_IDX,
-            _10A0: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
-            _1260: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
-            _1F41: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
-            _22C9: SZ_UFH_IDX,  # UFH circuit
-            _2389: "other_idx",  # anachronistic
-            _2D49: "other_idx",  # non-evohome: hometronics
-            _31D9: "hvac_id",
-            _31DA: "hvac_id",
-            _3220: "msg_id",
+            Codx._0002: "other_idx",  # non-evohome: hometronics
+            Codx._0418: SZ_LOG_IDX,
+            Codx._10A0: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
+            Codx._1260: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
+            Codx._1F41: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
+            Codx._22C9: SZ_UFH_IDX,  # UFH circuit
+            Codx._2389: "other_idx",  # anachronistic
+            Codx._2D49: "other_idx",  # non-evohome: hometronics
+            Codx._31D9: "hvac_id",
+            Codx._31DA: "hvac_id",
+            Codx._3220: "msg_id",
         }  # ALSO: SZ_DOMAIN_ID, SZ_ZONE_IDX
 
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
-            return {}  # above was: CODE_IDX_COMPLEX + [_3150]:
+            return {}  # above was: CODE_IDX_COMPLEX + [Codx._3150]:
 
-        if self.code in (_3220,):  # FIXME: should be _SIMPLE
+        if self.code in (Codx._3220,):  # FIXME: should be _SIMPLE
             return {}
 
         #  I 068 03:201498 --:------ 03:201498 30C9 003 0106D6 # rare
@@ -338,8 +257,8 @@ class Message:
 
         # TODO: also 000C (but is a complex idx)
         # TODO: also 3150 (when not domain, and will be array if so)
-        if self.code in (_000A, _2309) and self.src.type == DEV_TYPE_MAP.UFC:
-            return {IDX_NAMES[_22C9]: self._pkt._idx}
+        if self.code in (Codx._000A, Codx._2309) and self.src.type == DEV_TYPE_MAP.UFC:
+            return {IDX_NAMES[Codx._22C9]: self._pkt._idx}
 
         index_name = IDX_NAMES.get(
             self.code, SZ_DOMAIN_ID if self._pkt._idx[:1] == "F" else SZ_ZONE_IDX
@@ -359,7 +278,7 @@ class Message:
 
         prev_fraction = self._fraction_expired
 
-        if self.code == _1F09 and self.verb != RQ:
+        if self.code == Codx._1F09 and self.verb != RQ:
             # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
             self._fraction_expired = fraction_expired(
                 self._gwy._dt_now() - self.dtm,
@@ -376,9 +295,9 @@ class Message:
         # only log expired packets once
         if prev_fraction is None or prev_fraction < self.HAS_EXPIRED:
             if (
-                self.code == _1F09
+                self.code == Codx._1F09
                 and self.verb != I_
-                or self.code in (_0016, _3120, _313F)
+                or self.code in (Codx._0016, Codx._3120, Codx._313F)
                 or self._gwy._engine_state is not None  # restoring from pkt log
             ):
                 _logger = _LOGGER.info
@@ -400,12 +319,12 @@ class Message:
             return self._is_fragment
 
         # packets have a maximum length of 48 (decimal)
-        # if self.code == _000A and self.verb == I_:
+        # if self.code == Codx._000A and self.verb == I_:
         #     self._is_fragment = True if len(???.zones) > 8 else None
         # el
-        if self.code == _0404 and self.verb == RP:
+        if self.code == Codx._0404 and self.verb == RP:
             self._is_fragment = True
-        elif self.code == _22C9 and self.verb == I_:
+        elif self.code == Codx._22C9 and self.verb == I_:
             self._is_fragment = None  # max length 24!
         else:
             self._is_fragment = False
@@ -505,7 +424,7 @@ def _check_msg_payload(msg: Message, payload: str) -> None:
             raise exc  # TODO: messy - these msgs not ignore
 
     # TODO: put this back, or leave it to the parser?
-    # if msg.code == _3220:
+    # if msg.code == Codx._3220:
     #     msg_id = int(payload[4:6], 16)
     #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
     #         raise InvalidPayloadError(

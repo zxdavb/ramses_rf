@@ -48,7 +48,7 @@ from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
-from .schema import SERIAL_CONFIG_SCHEMA
+from .schemas import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
 
 # TODO: switch dtm from naive to aware
@@ -58,11 +58,11 @@ from .version import VERSION
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _1F09,
     I_,
     RP,
     RQ,
     W_,
+    Codx,
 )
 
 
@@ -230,7 +230,7 @@ def track_system_syncs(fnc: Callable):
             """Return True if a sync cycle is still pending (ignores drift)."""
             return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
 
-        if pkt.code != _1F09 or pkt.verb != I_ or pkt._len != 3:
+        if pkt.code != Codx._1F09 or pkt.verb != I_ or pkt._len != 3:
             return fnc(self, pkt, *args, **kwargs)
 
         sync_cycles = deque(

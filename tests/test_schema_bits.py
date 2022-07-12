@@ -8,7 +8,7 @@ Test the Schema processor.
 
 import voluptuous as vol
 
-from ramses_rf.schema import (
+from ramses_rf.schemas import (
     SCH_DHW,
     SCH_ZON,
     SZ_ACTUATORS,

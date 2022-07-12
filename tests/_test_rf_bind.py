@@ -12,7 +12,7 @@ from copy import deepcopy
 from serial.tools import list_ports
 
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, _0006, _0404
-from ramses_rf.schedule import (
+from ramses_rf.system.schedule import (
     DAY_OF_WEEK,
     ENABLED,
     HEAT_SETPOINT,

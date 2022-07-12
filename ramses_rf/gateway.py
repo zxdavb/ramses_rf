@@ -17,12 +17,12 @@ from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Optional
 
-from ramses_rf.devices_base import DeviceHeat, DeviceHvac
+from ramses_rf.device import DeviceHeat, DeviceHvac
 from ramses_rf.protocol.protocol import MessageProtocol, MessageTransport
 from ramses_rf.protocol.transport import PacketProtocolBase
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
-from .devices import Device, zx_device_factory
+from .device import Device, zx_device_factory
 from .helpers import schedule_task, shrink
 from .message import Message, process_msg
 from .protocol import (
@@ -36,7 +36,7 @@ from .protocol import (
     set_pkt_logging_config,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .schema import (
+from .schemas import (
     DEBUG_MODE,
     ENFORCE_KNOWN_LIST,
     INPUT_FILE,
@@ -52,7 +52,7 @@ from .schema import (
     load_config,
     load_schema,
 )
-from .systems import System
+from .system import System
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -64,7 +64,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     FA,
     FC,
     FF,
-    _313F,
+    Codx,
 )
 
 
@@ -445,7 +445,7 @@ class Gateway(Engine):
             for msg in msgs
             if msg.verb in (I_, RP)
             and (
-                include_expired or msg.code == _313F or not msg._expired
+                include_expired or msg.code == Codx._313F or not msg._expired
             )  # 313F will be expired, but will be useful for back-back restarts
         }  # BUG: assumes pkts have unique dtms
 

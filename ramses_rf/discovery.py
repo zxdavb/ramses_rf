@@ -24,107 +24,9 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    Codx,
 )
 
-# skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10D0,
-    _10E0,
-    _10E1,
-    _10E2,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1470,
-    _1F09,
-    _1F41,
-    _1F70,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2210,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22E0,
-    _22E5,
-    _22E9,
-    _22F1,
-    _22F2,
-    _22F3,
-    _22F4,
-    _22F7,
-    _22F8,
-    _22B0,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2411,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313E,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3222,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _4401,
-    _PUZZ,
-)
 
 EXEC_CMD = "exec_cmd"
 GET_FAULTS = "get_faults"
@@ -219,8 +121,8 @@ async def exec_cmd(gwy, **kwargs):
 #     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 #     qos = {"priority": Priority.LOW, "retries": 3}
 #     for idx in range(0x10):
-#         gwy.send_cmd(_mk_cmd(W_, _000E, f"{idx:02X}0050", dev_id, qos=qos))
-#         gwy.send_cmd(_mk_cmd(RQ, _000E, f"{idx:02X}00C8", dev_id, qos=qos))
+#         gwy.send_cmd(_mk_cmd(W_, Codx._000E, f"{idx:02X}0050", dev_id, qos=qos))
+#         gwy.send_cmd(_mk_cmd(RQ, Codx._000E, f"{idx:02X}00C8", dev_id, qos=qos))
 
 # @script_decorator
 # async def script_scan_004(gwy, dev_id: str):
@@ -263,7 +165,7 @@ async def script_bind_req(gwy, dev_id: str):
     gwy.get_device(dev_id)._make_fake(bind=True)
 
 
-async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
+async def script_bind_wait(gwy, dev_id: str, code=Codx._2309, idx="00"):
     gwy.get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
@@ -272,7 +174,7 @@ def script_poll_device(gwy, dev_id) -> list:
 
     tasks = []
 
-    for code in (_0016, _1FC9):
+    for code in (Codx._0016, Codx._1FC9):
         cmd = _mk_cmd(RQ, code, "00", dev_id, qos=QOS_SCAN)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
@@ -292,45 +194,45 @@ async def script_scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     qos = {"priority": Priority.DEFAULT, "retries": 5}
-    gwy.send_cmd(_mk_cmd(RQ, _0016, "0000", dev_id, qos=qos))
+    gwy.send_cmd(_mk_cmd(RQ, Codx._0016, "0000", dev_id, qos=qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(CODES_SCHEMA):
-        if code == _0005:
+        if code == Codx._0005:
             for zone_type in range(20):  # known up to 18
                 gwy.send_cmd(_mk_cmd(RQ, code, f"00{zone_type:02X}", dev_id, qos=qos))
 
-        elif code == _000C:
+        elif code == Codx._000C:
             for zone_idx in range(16):  # also: FA-FF?
                 gwy.send_cmd(_mk_cmd(RQ, code, f"{zone_idx:02X}00", dev_id, qos=qos))
 
-        elif code == _0016:
+        elif code == Codx._0016:
             continue
 
-        elif code in (_01D0, _01E9):
+        elif code in (Codx._01D0, Codx._01E9):
             for zone_idx in ("00", "01", "FC"):
                 gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, qos=qos))
                 gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, qos=qos))
 
-        elif code == _0404:  # FIXME
+        elif code == Codx._0404:  # FIXME
             gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 1, 0, qos=qos))
             gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 1, 0, qos=qos))
 
-        elif code == _0418:
+        elif code == Codx._0418:
             for log_idx in range(2):
                 gwy.send_cmd(Command.get_system_log_entry(dev_id, log_idx, qos=qos))
 
-        elif code == _1100:
+        elif code == Codx._1100:
             gwy.send_cmd(Command.get_tpi_params(dev_id, qos=qos))
 
-        elif code == _2E04:
+        elif code == Codx._2E04:
             gwy.send_cmd(Command.get_system_mode(dev_id, qos=qos))
 
-        elif code == _3220:
+        elif code == Codx._3220:
             for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
                 gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, qos=qos))
 
-        elif code == _PUZZ:
+        elif code == Codx._PUZZ:
             continue
 
         elif (
@@ -345,7 +247,7 @@ async def script_scan_full(gwy, dev_id: str):
 
     # these are possible/difficult codes
     qos = {"priority": Priority.DEFAULT, "retries": 2}
-    for code in (_0150, _2389):
+    for code in (Codx._0150, Codx._2389):
         gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, qos=qos))
 
 
@@ -368,8 +270,8 @@ async def script_scan_fan(gwy, dev_id: str):
     from ramses_rf.protocol.ramses import _DEV_KLASSES_HVAC
 
     OUT_CODES = (
-        _0016,
-        _1470,
+        Codx._0016,
+        Codx._1470,
     )
 
     OLD_CODES = dict.fromkeys(
@@ -379,28 +281,28 @@ async def script_scan_fan(gwy, dev_id: str):
         gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id, qos=qos))
 
     NEW_CODES = (
-        _0150,
-        _042F,
-        _1030,
-        _10D0,
-        _10E1,
-        _2210,
-        _22B0,
-        _22E0,
-        _22E5,
-        _22E9,
-        _22F1,
-        _22F2,
-        _22F3,
-        _22F4,
-        _22F7,
-        _22F8,
-        _2400,
-        _2410,
-        _2420,
-        _313E,
-        _3221,
-        _3222,
+        Codx._0150,
+        Codx._042F,
+        Codx._1030,
+        Codx._10D0,
+        Codx._10E1,
+        Codx._2210,
+        Codx._22B0,
+        Codx._22E0,
+        Codx._22E5,
+        Codx._22E9,
+        Codx._22F1,
+        Codx._22F2,
+        Codx._22F3,
+        Codx._22F4,
+        Codx._22F7,
+        Codx._22F8,
+        Codx._2400,
+        Codx._2410,
+        Codx._2420,
+        Codx._313E,
+        Codx._3221,
+        Codx._3222,
     )
 
     for code in NEW_CODES:
@@ -430,16 +332,16 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_map invoked - expect a lot of nonsense")
 
     RAMSES_TO_OPENTHERM = {
-        _22D9: "01",  # boiler setpoint        / ControlSetpoint
-        _3EF1: "11",  # rel. modulation level  / RelativeModulationLevel
-        _1300: "12",  # cv water pressure      / CHWaterPressure
-        _12F0: "13",  # dhw_flow_rate          / DHWFlowRate
-        _3200: "19",  # boiler output temp     / BoilerWaterTemperature
-        _1260: "1A",  # dhw temp               / DHWTemperature
-        _1290: "1B",  # outdoor temp           / OutsideTemperature
-        _3210: "1C",  # boiler return temp     / ReturnWaterTemperature
-        _10A0: "38",  # dhw params[SZ_SETPOINT] / DHWSetpoint
-        _1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
+        Codx._22D9: "01",  # boiler setpoint        / ControlSetpoint
+        Codx._3EF1: "11",  # rel. modulation level  / RelativeModulationLevel
+        Codx._1300: "12",  # cv water pressure      / CHWaterPressure
+        Codx._12F0: "13",  # dhw_flow_rate          / DHWFlowRate
+        Codx._3200: "19",  # boiler output temp     / BoilerWaterTemperature
+        Codx._1260: "1A",  # dhw temp               / DHWTemperature
+        Codx._1290: "1B",  # outdoor temp           / OutsideTemperature
+        Codx._3210: "1C",  # boiler return temp     / ReturnWaterTemperature
+        Codx._10A0: "38",  # dhw params[SZ_SETPOINT] / DHWSetpoint
+        Codx._1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
@@ -452,30 +354,30 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_ramses invoked - expect a lot of nonsense")
 
     CODES = (
-        _042F,
-        _10E0,  # device_info
-        _10E1,  # device_id
-        _1FD0,
-        _2400,
-        _2401,
-        _2410,
-        _2420,
-        _1300,  # cv water pressure      / CHWaterPressure
-        _1081,  # max ch setpoint        / MaxCHWaterSetpoint
-        _10A0,  # dhw params[SZ_SETPOINT] / DHWSetpoint
-        _22D9,  # boiler setpoint        / ControlSetpoint
-        _1260,  # dhw temp               / DHWTemperature
-        _1290,  # outdoor temp           / OutsideTemperature
-        _3200,  # boiler output temp     / BoilerWaterTemperature
-        _3210,  # boiler return temp     / ReturnWaterTemperature
-        _0150,
-        _12F0,  # dhw flow rate          / DHWFlowRate
-        _1098,
-        _10B0,
-        _3221,
-        _3223,
-        _3EF0,  # rel. modulation level  / RelativeModulationLevel (also, below)
-        _3EF1,  # rel. modulation level  / RelativeModulationLevel
+        Codx._042F,
+        Codx._10E0,  # device_info
+        Codx._10E1,  # device_id
+        Codx._1FD0,
+        Codx._2400,
+        Codx._2401,
+        Codx._2410,
+        Codx._2420,
+        Codx._1300,  # cv water pressure      / CHWaterPressure
+        Codx._1081,  # max ch setpoint        / MaxCHWaterSetpoint
+        Codx._10A0,  # dhw params[SZ_SETPOINT] / DHWSetpoint
+        Codx._22D9,  # boiler setpoint        / ControlSetpoint
+        Codx._1260,  # dhw temp               / DHWTemperature
+        Codx._1290,  # outdoor temp           / OutsideTemperature
+        Codx._3200,  # boiler output temp     / BoilerWaterTemperature
+        Codx._3210,  # boiler return temp     / ReturnWaterTemperature
+        Codx._0150,
+        Codx._12F0,  # dhw flow rate          / DHWFlowRate
+        Codx._1098,
+        Codx._10B0,
+        Codx._3221,
+        Codx._3223,
+        Codx._3EF0,  # rel. modulation level  / RelativeModulationLevel (also, below)
+        Codx._3EF1,  # rel. modulation level  / RelativeModulationLevel
     )  # excl. 3220
 
     # 3EF0 also includes:

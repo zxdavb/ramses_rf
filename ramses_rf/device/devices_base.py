@@ -11,108 +11,26 @@ import logging
 from types import SimpleNamespace
 from typing import Any, Optional, TypeVar
 
-from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
-from .entity_base import Child, Entity, class_by_attr
-from .helpers import shrink
-from .protocol.address import NUL_DEV_ADDR, Address
-from .protocol.command import Command, _mk_cmd
-from .protocol.const import SZ_FUNC, SZ_TIMEOUT
-from .protocol.message import Message
-from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
-from .schema import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
+from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
+from ..entity_base import Child, Entity, class_by_attr
+from ..helpers import shrink
+from ..protocol.address import NUL_DEV_ADDR, Address
+from ..protocol.command import Command, _mk_cmd
+from ..protocol.const import SZ_FUNC, SZ_TIMEOUT
+from ..protocol.message import Message
+from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
+from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
 
 # TODO: refactor polling
 
 
 # skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
-)
-
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10E0,
-    _10E1,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
+    Codx,
 )
 
 DEFAULT_BDR_ID = "13:000730"
@@ -229,8 +147,8 @@ class Device(Entity):
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         # if discover_flag & Discover.TRAITS:
-        # self._add_discovery_task(_mk_cmd(RQ, _1FC9, "00", self.id), 60 * 60 * 24)
-        # self._add_discovery_task(_mk_cmd(RQ, _0016, "00", self.id), 60 * 60)
+        # self._add_discovery_task(_mk_cmd(RQ, Codx._1FC9, "00", self.id), 60 * 60 * 24)
+        # self._add_discovery_task(_mk_cmd(RQ, Codx._0016, "00", self.id), 60 * 60)
 
         pass
 
@@ -250,7 +168,7 @@ class Device(Entity):
 
         if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:
             # HACK: can get precise class?
-            from .devices import best_dev_role
+            from . import best_dev_role
 
             cls = best_dev_role(
                 self.addr, msg=msg, eavesdrop=self._gwy.config.enable_eavesdrop
@@ -267,7 +185,7 @@ class Device(Entity):
     def has_battery(self) -> None | bool:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
-        return isinstance(self, BatteryState) or _1060 in self._msgz
+        return isinstance(self, BatteryState) or Codx._1060 in self._msgz
 
     @property
     def _is_present(self) -> bool:
@@ -306,10 +224,12 @@ class Device(Entity):
             }
         )
 
-        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._SLUG, []):
+        if Codx._10E0 in self._msgs or Codx._10E0 in CODES_BY_DEV_SLUG.get(
+            self._SLUG, []
+        ):
             result.update({"_info": self.device_info})
 
-        result.update({"_bind": self._msg_value(_1FC9)})
+        result.update({"_bind": self._msg_value(Codx._1FC9)})
 
         return result
 
@@ -324,12 +244,14 @@ class DeviceInfo(Device):  # 10E0
         # if discover_flag & Discover.SCHEMA:
         if self._SLUG not in CODES_BY_DEV_SLUG or RP in CODES_BY_DEV_SLUG[
             self._SLUG
-        ].get(_10E0, {}):
-            self._add_discovery_task(_mk_cmd(RQ, _10E0, "00", self.id), 60 * 60 * 24)
+        ].get(Codx._10E0, {}):
+            self._add_discovery_task(
+                _mk_cmd(RQ, Codx._10E0, "00", self.id), 60 * 60 * 24
+            )
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
-        return self._msg_value(_10E0)
+        return self._msg_value(Codx._10E0)
 
 
 class Fakeable(Device):
@@ -373,7 +295,7 @@ class Fakeable(Device):
         # 00:25:02.944 045  I --- 01:145038 10:048122 --:------ 1FC9 006 00-FFFF-06368E
 
         _LOGGER.warning(f"Binding {self}: waiting for {code} for 300 secs")  # info
-        # SUPPORTED_CODES = (_0008,)
+        # SUPPORTED_CODES = (Codx._0008,)
 
         def proc_confirm(msg, *args) -> None:
             """Process the 3rd/final packet of the handshake."""
@@ -408,7 +330,8 @@ class Fakeable(Device):
         self._1fc9_state["code"] = code
         self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
-            f"{_1FC9}|{I_}|{NUL_DEV_ADDR.id}", {SZ_FUNC: proc_offer, SZ_TIMEOUT: 300}
+            f"{Codx._1FC9}|{I_}|{NUL_DEV_ADDR.id}",
+            {SZ_FUNC: proc_offer, SZ_TIMEOUT: 300},
         )
 
     def _bind_request(self, code, callback=None):
@@ -425,7 +348,7 @@ class Fakeable(Device):
         # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
 
         _LOGGER.warning(f"Binding {self}: requesting {code}")  # TODO: info
-        SUPPORTED_CODES = (_0002, _1260, _1290, _30C9)
+        SUPPORTED_CODES = (Codx._0002, Codx._1260, Codx._1290, Codx._30C9)
 
         def proc_accept(msg, *args) -> None:
             """Process the 2nd, and send the 3rd/final, packet of the handshake."""
@@ -472,13 +395,13 @@ class BatteryState(Device):  # 1060
     def battery_low(self) -> None | bool:  # 1060
         if self._faked:
             return False
-        return self._msg_value(_1060, key=self.BATTERY_LOW)
+        return self._msg_value(Codx._1060, key=self.BATTERY_LOW)
 
     @property
     def battery_state(self) -> Optional[dict]:  # 1060
         if self._faked:
             return None
-        return self._msg_value(_1060)
+        return self._msg_value(Codx._1060)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -521,13 +444,13 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         super()._handle_msg(msg)
 
         # the following is for aliased devices (not fully-faked devices)
-        if msg.code in (_3EF0,) and self._faked_bdr:
+        if msg.code in (Codx._3EF0,) and self._faked_bdr:
             self._faked_bdr._handle_msg(fake_addrs(msg, self._faked_bdr))
 
-        if msg.code in (_0002,) and self._faked_ext:
+        if msg.code in (Codx._0002,) and self._faked_ext:
             self._faked_ext._handle_msg(fake_addrs(msg, self._faked_ext))
 
-        if msg.code in (_30C9,) and self._faked_thm:
+        if msg.code in (Codx._30C9,) and self._faked_thm:
             self._faked_thm._handle_msg(fake_addrs(msg, self._faked_thm))
 
     def _create_fake_dev(self, dev_type, device_id) -> Device:  # TODO:
@@ -689,16 +612,16 @@ class DeviceHvac(Child, DeviceInfo):  # HVAC (ventilation, PIV, MV/HR)
     #     # if type(self) is DeviceHvac:
     #     #     if self.type == DEV_TYPE_MAP.RFG:  # self.__class__ is Device, DEX
     #     #         # TODO: the RFG codes need checking
-    #     #         if msg.code in (_31D9, _31DA) and msg.verb in (I_, RP):
+    #     #         if msg.code in (Codx._31D9, Codx._31DA) and msg.verb in (I_, RP):
     #     #             self.__class__ = HvacVentilator
-    #     #         elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
+    #     #         elif msg.code in (Codx._0006, Codx._0418, Codx._3220) and msg.verb == RQ:
     #     #             self.__class__ = RfgGateway
-    #     #         elif msg.code in (_313F,) and msg.verb == W_:
+    #     #         elif msg.code in (Codx._313F,) and msg.verb == W_:
     #     #             self.__class__ = RfgGateway
     #     #     if type(self) is not Device:
     #     #         _LOGGER.warning(f"Promoted a device type for: {self}")
 
-    #     if msg.code in (_1298, _12A0, _22F1, _22F3):
+    #     if msg.code in (Codx._1298, Codx._12A0, Codx._22F1, Codx._22F3):
     #         self._hvac_trick()
 
     pass

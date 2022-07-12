@@ -75,7 +75,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import InvalidPayloadError
-from .fingerprint import check_signature
+from .fingerprints import check_signature
 from .helpers import (
     bool_from_hex,
     date_from_hex,
@@ -1962,7 +1962,7 @@ def parser_31d9(payload, msg) -> dict:
 @parser_decorator  # ventilation state extended, HVAC
 def parser_31da(payload, msg) -> dict:
 
-    CODE_31DA_FAN_INFO = {
+    _31DA_FAN_INFO = {
         0x00: "off",
         0x01: "speed 1",
         0x02: "speed 2",
@@ -2013,7 +2013,7 @@ def parser_31da(payload, msg) -> dict:
         # assert payload[34:36] == "EF", payload[34:36]
         assert (
             payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18
-        ), f"invalid CODE_31DA_FAN_INFO: {payload[36:38]}"
+        ), f"invalid _31DA_FAN_INFO: {payload[36:38]}"
         assert int(payload[38:40], 16) <= 200 or payload[38:40] in (
             "EF",
             "FF",
@@ -2042,7 +2042,7 @@ def parser_31da(payload, msg) -> dict:
 
     return {
         SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # maybe 31D9[4:6] for some?
-        SZ_FAN_INFO: CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
+        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
         #
         SZ_AIR_QUALITY: percent(payload[2:4]),  # 12C8[2:4]

@@ -24,90 +24,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    Codx,
 )
 
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10E0,
-    _10E1,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
-)
 
 # these trade memory for speed
 _TD_SECONDS_000 = td(seconds=0)
@@ -275,23 +194,28 @@ def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
     if pkt.verb in (RQ, W_):
         return _TD_SECONDS_000
 
-    if pkt.code in (_0005, _000C, _0404, _10E0):  # 0404 expired by 0006
+    if pkt.code in (
+        Codx._0005,
+        Codx._000C,
+        Codx._0404,
+        Codx._10E0,
+    ):  # 0404 expired by 0006
         return None  # TODO: exclude/remove devices caused by corrupt ADDRs?
 
-    if pkt.code == _1FC9 and pkt.verb == RP:
+    if pkt.code == Codx._1FC9 and pkt.verb == RP:
         return None  # TODO: check other verbs, they seem variable
 
-    if pkt.code == _1F09:  # sends I /sync_cycle
+    if pkt.code == Codx._1F09:  # sends I /sync_cycle
         # can't do better than 300s with reading the payload
         return _TD_SECONDS_360 if pkt.verb == I_ else _TD_SECONDS_000
 
-    if pkt.code == _000A and pkt._has_array:
+    if pkt.code == Codx._000A and pkt._has_array:
         return _TD_MINUTES_060  # sends I /1h
 
-    if pkt.code in (_2309, _30C9) and pkt._has_array:  # sends I /sync_cycle
+    if pkt.code in (Codx._2309, Codx._30C9) and pkt._has_array:  # sends I /sync_cycle
         return _TD_SECONDS_360
 
-    if pkt.code == _3220:  # FIXME
+    if pkt.code == Codx._3220:  # FIXME
         # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Data:  # TODO
         #     return _TD_SECONDS_003
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
@@ -302,7 +226,7 @@ def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
             return STATUS_MSG_IDS[pkt.payload[4:6]]
         return _TD_MINUTES_005
 
-    # if pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
+    # if pkt.code in (Codx._3B00, Codx._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
 
     if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:

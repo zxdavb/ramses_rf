@@ -37,90 +37,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FA,
     FC,
     FF,
+    Codx,
 )
 
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _0150,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _0B04,
-    _1030,
-    _1060,
-    _1081,
-    _1090,
-    _1098,
-    _10A0,
-    _10B0,
-    _10E0,
-    _10E1,
-    _1100,
-    _11F0,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _12F0,
-    _1300,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FCA,
-    _1FD0,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2389,
-    _2400,
-    _2401,
-    _2410,
-    _2420,
-    _2D49,
-    _2E04,
-    _2E10,
-    _30C9,
-    _3110,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3200,
-    _3210,
-    _3220,
-    _3221,
-    _3223,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
-)
 
 DEV_MODE = __dev_mode__ and False
 
@@ -277,7 +196,7 @@ class Frame:
         #  I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
         #  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
         #  I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
-        if self.code == _1FC9:
+        if self.code == Codx._1FC9:
             self._has_array_ = self.verb != RQ  # safe to treat all as array, even len=1
 
         elif self.verb != I_ or self.code not in CODES_WITH_ARRAYS:
@@ -286,7 +205,7 @@ class Frame:
         elif self._len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
             self._has_array_ = False
             if (
-                self.code in (_22C9, _3150)  # only time 22C9 is seen
+                self.code in (Codx._22C9, Codx._3150)  # only time 22C9 is seen
                 and self.src.type == DEV_TYPE_MAP.UFC
                 and self.dst is self.src
                 and self.payload[:1] != "F"
@@ -342,13 +261,17 @@ class Frame:
         elif self.dst is self.src:  # (not needed?) & self.code == I_:
             _LOGGER.debug(
                 f"{self} < "
-                + ("HAS" if self.code in CODES_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
+                + (
+                    "HAS"
+                    if self.code in CODES_ONLY_FROM_CTL + [Codx._31D9, Codx._31DA]
+                    else "no"
+                )
                 + " controller (20)"
             )
             self._has_ctl_ = any(
                 (
-                    self.code == _3B00 and self.payload[:2] == FC,
-                    self.code in CODES_ONLY_FROM_CTL + [_31D9, _31DA],
+                    self.code == Codx._3B00 and self.payload[:2] == FC,
+                    self.code in CODES_ONLY_FROM_CTL + [Codx._31D9, Codx._31DA],
                 )
             )
 
@@ -403,9 +326,9 @@ class Frame:
             (
                 self._len == 1,
                 self.verb == RQ and self.code in RQ_NO_PAYLOAD,
-                self.verb == RQ and self._len == 2 and self.code != _0016,
+                self.verb == RQ and self._len == 2 and self.code != Codx._0016,
                 # self.verb == RQ and self._len == 2 and self.code in (
-                #   _2309, _2349, _3EF1
+                #   Codx._2309, Codx._2349, Codx._3EF1
                 # ),
             )
         )
@@ -426,9 +349,12 @@ class Frame:
         """
 
         if self._ctx_ is None:
-            if self.code in (_0005, _000C):  # zone_idx, zone_type (device_role)
+            if self.code in (
+                Codx._0005,
+                Codx._000C,
+            ):  # zone_idx, zone_type (device_role)
                 self._ctx_ = self.payload[:4]
-            elif self.code == _0404:  # zone_idx, frag_idx
+            elif self.code == Codx._0404:  # zone_idx, frag_idx
                 self._ctx_ = self._idx + self.payload[10:12]
             else:
                 self._ctx_ = self._idx
@@ -471,14 +397,14 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     # FIXME: 0016 is broken
 
     # mutex 2/4, CODE_IDX_COMPLEX: are not payload[:2]
-    if pkt.code == _0005:
+    if pkt.code == Codx._0005:
         return pkt._has_array
 
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
-    if pkt.code == _0009 and pkt.src.type == DEV_TYPE_MAP.OTB:  # DEX
+    if pkt.code == Codx._0009 and pkt.src.type == DEV_TYPE_MAP.OTB:  # DEX
         return False
 
-    if pkt.code == _000C:  # zone_idx/domain_id (complex, payload[0:4])
+    if pkt.code == Codx._000C:  # zone_idx/domain_id (complex, payload[0:4])
         if pkt.payload[2:4] == DEV_ROLE_MAP.APP:  # "000F"
             return FC
         if pkt.payload[0:4] == f"01{DEV_ROLE_MAP.HTG}":  # "010E"
@@ -490,16 +416,16 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
             return FA
         return pkt.payload[:2]
 
-    if pkt.code == _0404:  # assumes only 1 DHW zone (can be 2, but never seen)
+    if pkt.code == Codx._0404:  # assumes only 1 DHW zone (can be 2, but never seen)
         return "HW" if pkt.payload[2:4] == "23" else pkt.payload[:2]
 
-    if pkt.code == _0418:  # log_idx (payload[4:6])
+    if pkt.code == Codx._0418:  # log_idx (payload[4:6])
         return pkt.payload[4:6]
 
-    if pkt.code == _1100:  # TODO; can do in parser
+    if pkt.code == Codx._1100:  # TODO; can do in parser
         return pkt.payload[:2] if pkt.payload[:1] == "F" else False  # only FC
 
-    if pkt.code == _3220:  # msg_id/data_id (payload[4:6])
+    if pkt.code == Codx._3220:  # msg_id/data_id (payload[4:6])
         return pkt.payload[4:6]
 
     if pkt.code in CODE_IDX_COMPLEX:
@@ -557,7 +483,7 @@ def pkt_header(
     For rx_header=True, return the header of the response packet, if one is expected.
     """
 
-    if pkt.code == _1FC9:
+    if pkt.code == Codx._1FC9:
         #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
         #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
