@@ -348,7 +348,7 @@ OPENTHERM_SCHEMA: dict = {
             VAL: U8,
             VAR: "RemoteCommand",
         },
-        0x05: {  # 5, OEM Fault Code
+        0x05: {  # 5, OEM Fault code
             EN: "Fault flags & OEM fault code",
             DIR: READ_ONLY,
             VAL: {HB: FLAG8, LB: U8},
@@ -608,13 +608,13 @@ OPENTHERM_SCHEMA: dict = {
             VAL: U8,
             VAR: {HB: "VHControlSetpoint"},
         },
-        0x48: {  # 72, VH Fault Code
+        0x48: {  # 72, VH Fault code
             EN: "Fault flags/code ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: {HB: FLAG, LB: U8},
             VAR: {LB: "VHFaultCode"},
         },
-        0x49: {  # 73, VH Diagnostic Code
+        0x49: {  # 73, VH Diagnostic code
             EN: "Diagnostic code ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: U16,
@@ -743,7 +743,7 @@ OPENTHERM_SCHEMA: dict = {
             VAL: {HB: FLAG8, LB: U8},
             VAR: {HB: "RemoteOverrideFunction"},
         },
-        0x73: {  # 115, OEM Diagnostic Code
+        0x73: {  # 115, OEM Diagnostic code
             EN: "OEM diagnostic code",
             DIR: READ_ONLY,
             VAL: U16,
@@ -900,7 +900,7 @@ OTB_MSG_IDS: dict = {
     # 001: Control Setpoint i.e. CH water temperature Setpoint (°C)
     0x02: "Master configuration",
     # 002:HB0: Master configuration: Smart power
-    # 002:LB:  Master MemberID Code
+    # 002:LB:  Master MemberID code
     0x03: "Slave configuration",
     # 003:HB0: Slave configuration: DHW present
     # 003:HB1: Slave configuration: Control type

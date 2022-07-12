@@ -50,7 +50,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DEV_TYPE_MAP,
     ZON_ROLE,
     ZON_ROLE_MAP,
-    Codx,
+    Code,
 )
 
 

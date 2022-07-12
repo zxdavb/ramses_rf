@@ -35,7 +35,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    Codx,
+    Code,
 )
 
 
@@ -139,7 +139,7 @@ class Schedule:  # 0404
     def _handle_msg(self, msg: Message) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
 
-        if msg.code == Codx._0006:
+        if msg.code == Code._0006:
             self._global_ver = msg.payload[SZ_CHANGE_COUNTER]
             return
 

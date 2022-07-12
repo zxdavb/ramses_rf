@@ -62,7 +62,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    Codx,
+    Code,
 )
 
 
@@ -111,8 +111,8 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !FS - save autotune
 
 
-_P = TypeVar("_P", bound=asyncio.BaseProtocol)
-_T = TypeVar("_T", bound=asyncio.BaseTransport)
+_PacketProtocolT = TypeVar("_PacketProtocolT", bound=asyncio.BaseProtocol)
+_PacketTransportT = TypeVar("_PacketTransportT", bound=asyncio.BaseTransport)
 
 
 def _str(value: bytes) -> str:
@@ -230,7 +230,7 @@ def track_system_syncs(fnc: Callable):
             """Return True if a sync cycle is still pending (ignores drift)."""
             return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
 
-        if pkt.code != Codx._1F09 or pkt.verb != I_ or pkt._len != 3:
+        if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
             return fnc(self, pkt, *args, **kwargs)
 
         sync_cycles = deque(
@@ -923,7 +923,7 @@ def create_pkt_stack(
     ser_port: str = None,
     packet_log=None,
     packet_dict: dict = None,
-) -> tuple[_P, _T]:
+) -> tuple[_PacketProtocolT, _PacketTransportT]:
     """Utility function to provide a transport to the internal protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface) / log (file).
@@ -969,7 +969,7 @@ def create_pkt_stack(
             "(e.g. linux with a local serial port)"
         )
 
-    def protocol_factory_() -> type[_P]:
+    def protocol_factory_() -> type[_PacketProtocolT]:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
         elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
@@ -987,7 +987,7 @@ def create_pkt_stack(
     )  # do this first, in case raises a SerialException
 
     pkt_protocol = (protocol_factory or protocol_factory_)()
-    pkt_transport: type[_T] = None  # type: ignore[assignment]
+    pkt_transport: type[_PacketTransportT] = None  # type: ignore[assignment]
 
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]

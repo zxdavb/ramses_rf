@@ -35,7 +35,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    Codx,
+    Code,
 )
 
 __all__ = ["process_msg"]
@@ -120,7 +120,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
         return
 
     if slug not in CODES_BY_DEV_SLUG:
-        if msg.code != Codx._10E0 and msg.code not in CODES_HVAC_ONLY:
+        if msg.code != Code._10E0 and msg.code not in CODES_HVAC_ONLY:
             err_msg = f"Unknown src type: {msg.dst}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -183,7 +183,7 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 
     if msg.verb == I_:  # TODO: not common, unless src=dst
         return  # receiving an I isn't currently in the schema & cant yet be tested
-    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Codx._3EF1}",):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Code._3EF1}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # NOTE: not OK for Rx, DEX_done
@@ -200,10 +200,10 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         _LOGGER.warning(f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}")
         return
 
-    if f"{msg.verb}/{msg.code}" in (f"{W_}/{Codx._0001}",):
+    if f"{msg.verb}/{msg.code}" in (f"{W_}/{Code._0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
     if f"{slug}/{msg.verb}/{msg.code}" in (
-        f"{DEV_TYPE.BDR}/{RQ}/{Codx._3EF0}",
+        f"{DEV_TYPE.BDR}/{RQ}/{Code._3EF0}",
     ):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
@@ -230,7 +230,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         if (
             not prev
             or not prev._has_array
-            or this.code not in (Codx._000A, Codx._22C9)
+            or this.code not in (Code._000A, Code._22C9)
             or this.code != prev.code
             or this.verb != prev.verb != I_
             or this.src != prev.src
@@ -273,10 +273,10 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
             msg.src._handle_msg(msg)
 
         if msg.code not in (
-            Codx._0008,
-            Codx._0009,
-            Codx._3B00,
-            Codx._3EF1,
+            Code._0008,
+            Code._0009,
+            Code._3B00,
+            Code._3EF1,
         ):  # special case: are fakeable
             return
 

@@ -17,7 +17,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    Codx,
+    Code,
 )
 
 DEV_MODE = __dev_mode__ and False
@@ -39,25 +39,25 @@ EXPIRY = "expiry"
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
 CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
-    Codx._0001: {
+    Code._0001: {
         SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
         RQ: r"^00([28A]0)00(0[0-9A-F])(FF|04)$",  # HVAC
         RP: r"^00([28A]0)00(0[0-9A-F])",  # HVAC
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
-    Codx._0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
+    Code._0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
         SZ_NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
     },
-    Codx._0004: {  # zone_name
+    Code._0004: {  # zone_name
         SZ_NAME: "zone_name",
         I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
         EXPIRES: td(days=1),
     },
-    Codx._0005: {  # system_zones
+    Code._0005: {  # system_zones
         SZ_NAME: "system_zones",
         #  I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
@@ -65,19 +65,19 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RP: r"^00[01][0-9A-F]{3,5}$",
         EXPIRES: False,
     },
-    Codx._0006: {  # schedule_version  # TODO: what for DHW schedule?
+    Code._0006: {  # schedule_version  # TODO: what for DHW schedule?
         SZ_NAME: "schedule_version",
         RQ: r"^00$",
         RP: r"^0005[0-9A-F]{4}$",
     },
-    Codx._0008: {  # relay_demand, TODO: check RP
+    Code._0008: {  # relay_demand, TODO: check RP
         SZ_NAME: "relay_demand",
         # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
         I_: r"^((0[0-9A-F]|F[9AC])[0-9A-F]{2}|00[0-9A-F]{24})$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{2}$",  # seems only 13: RP (TODO: what about 10:, 08/31:)
     },
-    Codx._0009: {  # relay_failsafe (only is_controller, OTB send an 0009?)
+    Code._0009: {  # relay_failsafe (only is_controller, OTB send an 0009?)
         SZ_NAME: "relay_failsafe",
         #  I --- 01:145038 --:------ 01:145038 0009 006 FC01FFF901FF
         #  I --- 01:145038 --:------ 01:145038 0009 003 0700FF
@@ -85,7 +85,7 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         #  I --- --:------ --:------ 12:227486 0009 003 0000FF
         I_: r"^((0[0-9A-F]|F[9AC])0[0-1](00|FF))+$",
     },
-    Codx._000A: {  # zone_params
+    Code._000A: {  # zone_params
         SZ_NAME: "zone_params",
         I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
         W_: r"^0[0-9A-F][0-9A-F]{10}$",
@@ -97,48 +97,48 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
         EXPIRES: td(days=1),
     },
-    Codx._000C: {  # zone_devices, TODO: needs I/RP
+    Code._000C: {  # zone_devices, TODO: needs I/RP
         SZ_NAME: "zone_devices",
         # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
         I_: r"^(0[0-9A-F][01][0-9A-F](0[0-9A-F]|7F)[0-9A-F]{6}){1,8}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         EXPIRES: False,
     },
-    Codx._000E: {  # unknown_000e
+    Code._000E: {  # unknown_000e
         SZ_NAME: "message_000e",
         I_: r"^000014$",
     },
-    Codx._0016: {  # rf_check
+    Code._0016: {  # rf_check
         SZ_NAME: "rf_check",
         RQ: r"^0[0-9A-F]([0-9A-F]{2})?$",  # TODO: officially: r"^0[0-9A-F]{3}$"
         RP: r"^0[0-9A-F]{3}$",
     },
-    Codx._0100: {  # language
+    Code._0100: {  # language
         SZ_NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
         RP: r"^00[0-9A-F]{4}F{4}$",
         EXPIRES: td(days=1),  # TODO: make longer?
     },
-    Codx._0150: {  # unknown_0150
+    Code._0150: {  # unknown_0150
         SZ_NAME: "message_0150",
         RQ: r"^00$",
         RP: r"^000000$",
     },
-    Codx._01D0: {  # unknown_01d0, TODO: definitely a real code, zone_idx is a guess
+    Code._01D0: {  # unknown_01d0, TODO: definitely a real code, zone_idx is a guess
         SZ_NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
         #  W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
         #  I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
     },
-    Codx._01E9: {  # unknown_01e9, TODO: definitely a real code, zone_idx is a guess
+    Code._01E9: {  # unknown_01e9, TODO: definitely a real code, zone_idx is a guess
         SZ_NAME: "message_01e9",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
         #  W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
         #  I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
     },
-    Codx._0404: {  # zone_schedule
+    Code._0404: {  # zone_schedule
         SZ_NAME: "zone_schedule",
         I_: r"^0[0-9A-F](20|23)[0-9A-F]{2}08[0-9A-F]{6}$",
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
@@ -146,12 +146,12 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         W_: r"^0[0-9A-F](20|23)[0-9A-F]{2}08[0-9A-F]{6}[0-9A-F]{2,82}$",  # as per RP
         EXPIRES: None,
     },
-    Codx._0418: {  # system_fault
+    Code._0418: {  # system_fault
         SZ_NAME: "system_fault",
         I_: r"^00(00|40|C0)[0-3][0-9A-F]B0[0-9A-F]{6}0000[0-9A-F]{12}FFFF700[012][0-9A-F]{6}$",
         RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
     },
-    Codx._042F: {  # unknown_042f, # non-evohome are len==9, seen only once?
+    Code._042F: {  # unknown_042f, # non-evohome are len==9, seen only once?
         # .I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050
         # RP --- 10:048122 18:006402 --:------ 042F 009 000200001400163010
         SZ_NAME: "message_042f",
@@ -159,38 +159,38 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00([0-9A-F]{2}){7,8}$",
     },
-    Codx._0B04: {  # unknown_0b04
+    Code._0B04: {  # unknown_0b04
         #  I --- --:------ --:------ 12:207082 0B04 002 00C8
         SZ_NAME: "message_0b04",
         I_: r"^00(00|C8)$",
     },
-    Codx._1030: {  # mixvalve_params
+    Code._1030: {  # mixvalve_params
         SZ_NAME: "mixvalve_params",
         #  I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
     },
-    Codx._1060: {  # device_battery
+    Code._1060: {  # device_battery
         SZ_NAME: "device_battery",
         I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",  # HCW: r"^(FF|0[0-9A-F]...
         EXPIRES: td(days=1),
     },
-    Codx._1081: {  # max_ch_setpoint
+    Code._1081: {  # max_ch_setpoint
         SZ_NAME: "max_ch_setpoint",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    Codx._1090: {  # unknown_1090
+    Code._1090: {  # unknown_1090
         # 095 RP --- 23:100224 22:219457 --:------ 1090 005 00-7FFF-01F4
         SZ_NAME: "message_1090",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._1098: {  # unknown_1098
+    Code._1098: {  # unknown_1098
         SZ_NAME: "message_1098",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._10A0: {  # dhw_params
+    Code._10A0: {  # dhw_params
         SZ_NAME: "dhw_params",
         # RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
         # RP --- 10:048122 18:006402 --:------ 10A0 003 001B58
@@ -202,35 +202,35 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         W_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # TODO: needs checking
         EXPIRES: td(hours=4),
     },
-    Codx._10B0: {  # unknown_10b0
+    Code._10B0: {  # unknown_10b0
         SZ_NAME: "message_10b0",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{8}$",
     },
-    Codx._10D0: {  # filter_change
+    Code._10D0: {  # filter_change
         SZ_NAME: "filter_change",
         I_: r"^00[0-9A-F]{6}(0000)?$",
         RQ: r"^00(00)?$",
         W_: r"^00FF$",
     },
-    Codx._10E0: {  # device_info
+    Code._10E0: {  # device_info
         SZ_NAME: "device_info",
         I_: r"^00[0-9A-F]{30,}$",  # r"^[0-9A-F]{32,}$" might be OK
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
         EXPIRES: False,
     },
-    Codx._10E1: {  # device_id
+    Code._10E1: {  # device_id
         SZ_NAME: "device_id",
         RP: r"^00[0-9A-F]{6}$",
         RQ: r"^00$",
         EXPIRES: False,
     },
-    Codx._10E2: {  # unknown_10e2, HVAC?
+    Code._10E2: {  # unknown_10e2, HVAC?
         SZ_NAME: "unknown_10e2",
         I_: r"^00[0-9A-F]{4}$",
     },
-    Codx._1100: {  # tpi_params
+    Code._1100: {  # tpi_params
         SZ_NAME: "tpi_params",
         # RQ --- 01:145038 13:163733 --:------ 1100 008 00180400007FFF01  # boiler relay
         # RP --- 13:163733 01:145038 --:------ 1100 008 00180400FF7FFF01
@@ -241,11 +241,11 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?)?$",  # RQ/13:/00, or RQ/01:/FC:
         EXPIRES: td(days=1),
     },
-    Codx._11F0: {  # unknown_11f0, from heatpump relay
+    Code._11F0: {  # unknown_11f0, from heatpump relay
         SZ_NAME: "message_11f0",
         I_: r"^00",
     },
-    Codx._1260: {  # dhw_temp
+    Code._1260: {  # dhw_temp
         SZ_NAME: "dhw_temp",
         # RQ --- 30:185469 01:037519 --:------ 1260 001 00
         # RP --- 01:037519 30:185469 --:------ 1260 003 000837
@@ -256,20 +256,20 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^0[01](00)?$",  # TODO: officially: r"^0[01]$"
         EXPIRES: td(hours=1),
     },
-    Codx._1280: {  # outdoor_humidity
+    Code._1280: {  # outdoor_humidity
         SZ_NAME: "outdoor_humidity",
         I_: r"^00[0-9A-F]{2}[0-9A-F]{8}?$",
     },
-    Codx._1290: {  # outdoor_temp
+    Code._1290: {  # outdoor_temp
         SZ_NAME: "outdoor_temp",
         I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00$",
     },
-    Codx._1298: {  # co2_level
+    Code._1298: {  # co2_level
         SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
     },
-    Codx._12A0: {  # indoor_humidity
+    Code._12A0: {  # indoor_humidity
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
         # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
@@ -277,21 +277,21 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
         EXPIRES: td(hours=1),
     },
-    Codx._12B0: {  # window_state  (HVAC % window open)
+    Code._12B0: {  # window_state  (HVAC % window open)
         SZ_NAME: "window_state",
         I_: r"^0[0-9A-F](0000|C800|FFFF)$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F](00)?$",
         EXPIRES: td(hours=1),
     },
-    Codx._12C0: {  # displayed_temp (HVAC room temp)
+    Code._12C0: {  # displayed_temp (HVAC room temp)
         SZ_NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}0[01](FF)?$",
     },
-    Codx._12C8: {  # air_quality, HVAC
+    Code._12C8: {  # air_quality, HVAC
         SZ_NAME: "air_quality",
         I_: r"^00[0-9A-F]{4}$",
     },
-    Codx._12F0: {  # dhw_flow_rate
+    Code._12F0: {  # dhw_flow_rate
         # 2021-11-05T06:25:20.399400 065 RP --- 10:023327 18:131597 --:------ 12F0 003 000307
         # 2021-11-05T06:25:20.669382 066 RP --- 10:023327 18:131597 --:------ 3220 005 00C01307C0
         # 2021-11-05T06:35:20.450201 065 RP --- 10:023327 18:131597 --:------ 12F0 003 000023
@@ -302,38 +302,38 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F](4)$",
     },
-    Codx._1300: {  # cv water pressure (usu. for ch)
+    Code._1300: {  # cv water pressure (usu. for ch)
         SZ_NAME: "ch_pressure",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    Codx._1470: {  # programme_scheme, HVAC (1470, 1F70, 22B0)
+    Code._1470: {  # programme_scheme, HVAC (1470, 1F70, 22B0)
         SZ_NAME: "programme_scheme",
         RQ: r"^00$",
         I_: r"^00[0-9A-F]{14}$",
         W_: r"^00[0-9A-F]{2}0{4}800{6}$",
     },
-    Codx._1F09: {  # system_sync - FF (I), 00 (RP), F8 (W, after 1FC9)
+    Code._1F09: {  # system_sync - FF (I), 00 (RP), F8 (W, after 1FC9)
         SZ_NAME: "system_sync",
         I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",  # xx-secs
         W_: r"^F8[0-9A-F]{4}$",
     },
-    Codx._1F41: {  # dhw_mode
+    Code._1F41: {  # dhw_mode
         SZ_NAME: "dhw_mode",
         I_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         RQ: r"^0[01]$",  # will accept: r"^0[01](00)$"
         W_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         EXPIRES: td(hours=4),
     },
-    Codx._1F70: {  # programme_config, HVAC (1470, 1F70, 22B0)
+    Code._1F70: {  # programme_config, HVAC (1470, 1F70, 22B0)
         SZ_NAME: "programme_config",
         I_: r"^00[0-9A-F]{30}$",
         RQ: r"^00[0-9A-F]{30}$",
         W_: r"^00[0-9A-F]{30}$",
     },
-    Codx._1FC9: {  # rf_bind
+    Code._1FC9: {  # rf_bind
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
@@ -343,66 +343,66 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         I_: r"^((0[0-9A-F]|F[69ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
         W_: r"^((0[0-9A-F]|F[69ABCF])([0-9A-F]{10}))+$",
     },
-    Codx._1FCA: {  # unknown_1fca
+    Code._1FCA: {  # unknown_1fca
         SZ_NAME: "message_1fca",
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
     },
-    Codx._1FD0: {  # unknown_1fd0
+    Code._1FD0: {  # unknown_1fd0
         SZ_NAME: "message_1fd0",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._1FD4: {  # opentherm_sync
+    Code._1FD4: {  # opentherm_sync
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
-    Codx._2249: {  # setpoint_now?
+    Code._2249: {  # setpoint_now?
         SZ_NAME: "setpoint_now",  # setpt_now_next
         I_: r"^(0[0-9A-F]{13}){1,2}$",
     },  # TODO: This could be an array
-    Codx._22C9: {  # ufh_setpoint
+    Code._22C9: {  # ufh_setpoint
         #  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
         #  I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
         SZ_NAME: "ufh_setpoint",
         I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}$",  # ~000A array, but max_len 24, not 48!
         # RP: Appear wont get any?,
     },
-    Codx._22D0: {  # unknown_22d0, HVAC system switch?
+    Code._22D0: {  # unknown_22d0, HVAC system switch?
         SZ_NAME: "message_22d0",
         I_: r"^00",
     },
-    Codx._22D9: {  # boiler_setpoint
+    Code._22D9: {  # boiler_setpoint
         SZ_NAME: "boiler_setpoint",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    Codx._22F1: {  # fan_mode, HVAC
+    Code._22F1: {  # fan_mode, HVAC
         SZ_NAME: "fan_mode",
         I_: r"^(00|63)(0[0-9A-F]){1,2}$",
     },
-    Codx._22F3: {  # fan_boost, HVAC
+    Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes
-    Codx._22F7: {  # fan_bypass_mode (% open), HVAC
+    Code._22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
         I_: r"^00([0-9A-F]{2}){1,2}$",  # RP is the same
         RQ: r"^00$",
         W_: r"^00[0-9A-F]{2}(EF)?$",
     },
-    Codx._22F8: {  # fan_22f8 (moisture scenario?), HVAC
+    Code._22F8: {  # fan_22f8 (moisture scenario?), HVAC
         SZ_NAME: "fan_22f8",
         I_: r"^00[0-9A-F]{4}$",
     },
-    Codx._22B0: {  # programme_status, HVAC (1470, 1F70, 22B0)
+    Code._22B0: {  # programme_status, HVAC (1470, 1F70, 22B0)
         SZ_NAME: "programme_status",
         W_: r"^00[0-9A-F]{2}$",
         I_: r"^00[0-9A-F]{2}$",
     },
-    Codx._2309: {  # setpoint
+    Code._2309: {  # setpoint
         SZ_NAME: "setpoint",
         I_: r"^(0[0-9A-F]{5})+$",
         W_: r"^0[0-9A-F]{5}$",
@@ -410,7 +410,7 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
         EXPIRES: td(minutes=30),
     },
-    Codx._2349: {  # zone_mode
+    Code._2349: {  # zone_mode
         SZ_NAME: "zone_mode",
         I_: r"^0[0-9A-F]{5}0[0-4][0-9A-F]{6}([0-9A-F]{12})?$",
         W_: r"^0[0-9A-F]{5}0[0-4][0-9A-F]{6}([0-9A-F]{12})?$",
@@ -420,38 +420,38 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         # RQ --- 22:070483 01:063844 --:------ 2349 007 06-0708-03-000027
         EXPIRES: td(hours=4),
     },
-    Codx._2389: {  # unknown_2389 - CODE_IDX_COMPLEX?
+    Code._2389: {  # unknown_2389 - CODE_IDX_COMPLEX?
         #  I 024 03:052382 --:------ 03:052382 2389 003 02001B
         SZ_NAME: "unknown_2389",
         I_: r"^0[0-4][0-9A-F]{4}$",
     },
-    Codx._2400: {  # unknown_2400, from OTB
+    Code._2400: {  # unknown_2400, from OTB
         SZ_NAME: "message_2400",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._2401: {  # unknown_2401, from OTB
+    Code._2401: {  # unknown_2401, from OTB
         SZ_NAME: "message_2401",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._2410: {  # unknown_2410, from OTB
+    Code._2410: {  # unknown_2410, from OTB
         SZ_NAME: "message_2410",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._2411: {  # fan_params, HVAC
+    Code._2411: {  # fan_params, HVAC
         SZ_NAME: "fan_params",
         I_: r"^0000[0-9A-F]{6}([0-9A-F]{8}){4}[0-9A-F]{4}$",
         RQ: r"^0000[0-9A-F]{2}((00){19})?$",
         W_: r"^0000[0-9A-F]{6}[0-9A-F]{8}(([0-9A-F]{8}){3}[0-9A-F]{4})?$",
     },
-    Codx._2420: {  # unknown_2420, from OTB
+    Code._2420: {  # unknown_2420, from OTB
         SZ_NAME: "message_2420",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._2D49: {  # unknown_2d49
+    Code._2D49: {  # unknown_2d49
         SZ_NAME: "message_2d49",
         # 10:14:08.526 045  I --- 01:023389 --:------ 01:023389 2D49 003 010000
         # 10:14:12.253 047  I --- 01:023389 --:------ 01:023389 2D49 003 00C800
@@ -460,96 +460,96 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         # 10:14:12.399 048  I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
         I_: r"^(0[0-9A-F]|88|F6|FD)[0-9A-F]{2}(00||FF)$",
     },  # seen with Hometronic systems
-    Codx._2E04: {  # system_mode
+    Code._2E04: {  # system_mode
         SZ_NAME: "system_mode",
         I_: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
         EXPIRES: td(hours=4),
     },
-    Codx._2E10: {  # presence_detect - HVAC
+    Code._2E10: {  # presence_detect - HVAC
         SZ_NAME: "presence_detect",
         I_: r"^00(00|01)(00)?$",
     },
-    Codx._30C9: {  # temperature
+    Code._30C9: {  # temperature
         SZ_NAME: "temperature",
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         EXPIRES: td(hours=1),
     },
-    Codx._3110: {  # unknown_3110 - HVAC
+    Code._3110: {  # unknown_3110 - HVAC
         SZ_NAME: "message_3110",
         I_: r"^00",
     },
-    Codx._3120: {  # unknown_3120 - Error Report?
+    Code._3120: {  # unknown_3120 - Error Report?
         SZ_NAME: "message_3120",
         I_: r"^00[0-9A-F]{10}FF$",  # only ever: 34:/0070B0000000FF
         RQ: r"^00$",  # 20: will RP an RQ?
         # RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
-    Codx._313F: {  # datetime (time report)
+    Code._313F: {  # datetime (time report)
         SZ_NAME: "datetime",
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
         W_: r"^00[0-9A-F]{16}$",
         EXPIRES: td(seconds=3),
     },
-    Codx._3150: {  # heat_demand
+    Code._3150: {  # heat_demand
         SZ_NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
         EXPIRES: td(minutes=20),
     },
-    Codx._31D9: {  # fan_state
+    Code._31D9: {  # fan_state
         SZ_NAME: "fan_state",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
         I_: r"^(00|01|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|08)?)?$",  # 00-0004-FE
         RQ: r"^00$",
     },
-    Codx._31DA: {  # hvac_state (fan_state_extended)
+    Code._31DA: {  # hvac_state (fan_state_extended)
         SZ_NAME: "hvac_state",
         I_: r"^(00|01|21)[0-9A-F]{56}(00|20)?$",
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
-    Codx._31E0: {  # fan_demand
+    Code._31E0: {  # fan_demand
         # 10:15:42.712 077  I --- 29:146052 32:023459 --:------ 31E0 003 0000C8
         # 10:21:18.549 078  I --- 29:146052 32:023459 --:------ 31E0 003 000000
         # 07:56:50.522 095  I --- --:------ --:------ 07:044315 31E0 004 00006E00
         SZ_NAME: "fan_demand",
         I_: r"^00[0-9A-F]{4}(00|FF)?$",
     },
-    Codx._3200: {  # boiler output temp
+    Code._3200: {  # boiler output temp
         SZ_NAME: "boiler_output",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    Codx._3210: {  # boiler return temp
+    Code._3210: {  # boiler return temp
         SZ_NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    Codx._3220: {  # opentherm_msg
+    Code._3220: {  # opentherm_msg
         SZ_NAME: "opentherm_msg",
         RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
     },
-    Codx._3221: {  # unknown_3221, from OTB
+    Code._3221: {  # unknown_3221, from OTB
         SZ_NAME: "message_3221",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._3223: {  # unknown_3223, from OTB
+    Code._3223: {  # unknown_3223, from OTB
         SZ_NAME: "message_3223",
         RQ: r"^00$",
         RP: r"^00",
     },
-    Codx._3B00: {  # actuator_sync, NOTE: no RQ
+    Code._3B00: {  # actuator_sync, NOTE: no RQ
         SZ_NAME: "actuator_sync",
         I_: r"^(00|FC)(00|C8)$",
     },
-    Codx._3EF0: {  # actuator_state
+    Code._3EF0: {  # actuator_state
         SZ_NAME: "actuator_state",
         # .I --- 13:106039 --:------ 13:106039 3EF0 003 00-C8FF
         # .I --- 21:038634 --:------ 21:038634 3EF0 006 00-0000-0A0200  #                            # Itho spIDer
@@ -559,7 +559,7 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^00(00)?$",
         RP: r"^00((00|C8)FF|[0-9A-F]{10}|[0-9A-F]{16})$",
     },
-    Codx._3EF1: {  # actuator_cycle
+    Code._3EF1: {  # actuator_cycle
         SZ_NAME: "actuator_cycle",
         # RQ --- 31:004811 13:077615 --:------ 3EF1 001 00
         # RP --- 13:077615 31:004811 --:------ 3EF1 007 00024D001300FF
@@ -570,12 +570,12 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RQ: r"^00((00)?|[0-9A-F]{22})$",  # NOTE: latter is Japser
         RP: r"^00([0-9A-F]{12}|[0-9A-F]{34})$",  # NOTE: latter is Japser
     },
-    Codx._4401: {  # unknown_4401 - HVAC
+    Code._4401: {  # unknown_4401 - HVAC
         SZ_NAME: "unknown_4401",
         I_: r"^[0-9A-F]{40}$",
         RQ: r"^[0-9A-F]{40}$",  # NOTE: no RP!
     },
-    Codx._PUZZ: {
+    Code._PUZZ: {
         SZ_NAME: "puzzle_packet",
         I_: r"^00(([0-9A-F]){2})+$",
     },
@@ -586,28 +586,28 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
 #
 # I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
 CODES_WITH_ARRAYS: Dict[str, list] = {
-    Codx._0005: [4, ("34",)],
-    Codx._0009: [3, ("01", "12", "22")],
-    Codx._000A: [6, ("01", "12", "22")],  # single element I after a W
-    Codx._2309: [3, ("01", "12", "22")],
-    Codx._30C9: [3, ("01", "12", "22")],
-    Codx._2249: [7, ("23",)],
-    Codx._22C9: [6, ("02",)],  # *all* 22C9s are arrays (every 15min?)
-    Codx._3150: [2, ("02",)],
+    Code._0005: [4, ("34",)],
+    Code._0009: [3, ("01", "12", "22")],
+    Code._000A: [6, ("01", "12", "22")],  # single element I after a W
+    Code._2309: [3, ("01", "12", "22")],
+    Code._30C9: [3, ("01", "12", "22")],
+    Code._2249: [7, ("23",)],
+    Code._22C9: [6, ("02",)],  # *all* 22C9s are arrays (every 15min?)
+    Code._3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
 #
 RQ_IDX_COMPLEX: list = [
-    Codx._0005,  # context: zone_type
-    Codx._000A,  # optional payload
-    Codx._000C,  # context: index, zone_type
-    Codx._0016,  # optional payload
-    Codx._0100,  # optional payload
-    Codx._0404,  # context: index, fragment_idx (fragment_header)
-    Codx._10A0,  # optional payload
-    Codx._1100,  # optional payload
-    Codx._2309,  # optional payload
-    Codx._2349,  # optional payload
-    Codx._3220,  # context: msg_id, and payload
+    Code._0005,  # context: zone_type
+    Code._000A,  # optional payload
+    Code._000C,  # context: index, zone_type
+    Code._0016,  # optional payload
+    Code._0100,  # optional payload
+    Code._0404,  # context: index, fragment_idx (fragment_header)
+    Code._10A0,  # optional payload
+    Code._1100,  # optional payload
+    Code._2309,  # optional payload
+    Code._2349,  # optional payload
+    Code._3220,  # context: msg_id, and payload
 ]
 RQ_NO_PAYLOAD: list = [
     k
@@ -615,15 +615,15 @@ RQ_NO_PAYLOAD: list = [
     if v.get(RQ)
     in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F](00)?$", r"^0[0-9A-F]00$")
 ]
-RQ_NO_PAYLOAD.extend((Codx._0418,))
+RQ_NO_PAYLOAD.extend((Code._0418,))
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
 CODE_IDX_COMPLEX: List[str] = [
-    Codx._0005,
-    Codx._000C,
-    Codx._1100,
-    Codx._3220,
+    Code._0005,
+    Code._000C,
+    Code._1100,
+    Code._3220,
 ]  # TODO: 0005 to ..._NONE?
 # CODE_IDX_COMPLEX.sort()
 
@@ -638,7 +638,7 @@ CODE_IDX_SIMPLE: list = [
         or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
     )
 ]
-CODE_IDX_SIMPLE.extend((Codx._10A0, Codx._1260, Codx._1F41, Codx._3B00))
+CODE_IDX_SIMPLE.extend((Code._10A0, Code._1260, Code._1F41, Code._3B00))
 # CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
@@ -650,19 +650,19 @@ CODE_IDX_NONE: List[str] = [
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
 CODE_IDX_NONE.extend(
-    (Codx._0002, Codx._22F1, Codx._22F3, Codx._2389, Codx._2E04, Codx._31DA, Codx._4401)
+    (Code._0002, Code._22F1, Code._22F3, Code._2389, Code._2E04, Code._31DA, Code._4401)
 )  # 31DA does appear to have an idx?
 # CODE_IDX_NONE.sort()
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
 CODE_IDX_DOMAIN: Dict[str, str] = {
-    Codx._0001: "^F[ACF])",
-    Codx._0008: "^F[9AC]",
-    Codx._0009: "^F[9AC]",
-    Codx._1100: "^FC",
-    Codx._1FC9: "^F[9ABCF]",
-    Codx._3150: "^FC",
-    Codx._3B00: "^FC",
+    Code._0001: "^F[ACF])",
+    Code._0008: "^F[9AC]",
+    Code._0009: "^F[9AC]",
+    Code._1100: "^FC",
+    Code._1FC9: "^F[9ABCF]",
+    Code._3150: "^FC",
+    Code._3B00: "^FC",
 }
 
 #
@@ -671,347 +671,347 @@ CODE_IDX_DOMAIN: Dict[str, str] = {
 #
 _DEV_KLASSES_HEAT: Dict[SimpleNamespace, dict] = {
     DEV_TYPE.RFG: {  # RFG100: RF to Internet gateway (and others)
-        Codx._0002: {RQ: {}},
-        Codx._0004: {I_: {}, RQ: {}},
-        Codx._0005: {RQ: {}},
-        Codx._0006: {RQ: {}},
-        Codx._000A: {RQ: {}},
-        Codx._000C: {RQ: {}},
-        Codx._000E: {W_: {}},
-        Codx._0016: {RP: {}},
-        Codx._0404: {RQ: {}, W_: {}},
-        Codx._0418: {RQ: {}},
-        Codx._10A0: {RQ: {}},
-        Codx._10E0: {I_: {}, RQ: {}, RP: {}},
-        Codx._1260: {RQ: {}},
-        Codx._1290: {I_: {}},
-        Codx._1F41: {RQ: {}},
-        Codx._1FC9: {RP: {}, W_: {}},
-        Codx._22D9: {RQ: {}},
-        Codx._2309: {I_: {}},
-        Codx._2349: {RQ: {}, RP: {}, W_: {}},
-        Codx._2E04: {RQ: {}, I_: {}, W_: {}},
-        Codx._30C9: {RQ: {}},
-        Codx._313F: {RQ: {}, RP: {}, W_: {}},
-        Codx._3220: {RQ: {}},
-        Codx._3EF0: {RQ: {}},
+        Code._0002: {RQ: {}},
+        Code._0004: {I_: {}, RQ: {}},
+        Code._0005: {RQ: {}},
+        Code._0006: {RQ: {}},
+        Code._000A: {RQ: {}},
+        Code._000C: {RQ: {}},
+        Code._000E: {W_: {}},
+        Code._0016: {RP: {}},
+        Code._0404: {RQ: {}, W_: {}},
+        Code._0418: {RQ: {}},
+        Code._10A0: {RQ: {}},
+        Code._10E0: {I_: {}, RQ: {}, RP: {}},
+        Code._1260: {RQ: {}},
+        Code._1290: {I_: {}},
+        Code._1F41: {RQ: {}},
+        Code._1FC9: {RP: {}, W_: {}},
+        Code._22D9: {RQ: {}},
+        Code._2309: {I_: {}},
+        Code._2349: {RQ: {}, RP: {}, W_: {}},
+        Code._2E04: {RQ: {}, I_: {}, W_: {}},
+        Code._30C9: {RQ: {}},
+        Code._313F: {RQ: {}, RP: {}, W_: {}},
+        Code._3220: {RQ: {}},
+        Code._3EF0: {RQ: {}},
     },
     DEV_TYPE.CTL: {  # e.g. ATC928: Evohome Colour Controller
-        Codx._0001: {W_: {}},
-        Codx._0002: {I_: {}, RP: {}},
-        Codx._0004: {I_: {}, RP: {}},
-        Codx._0005: {I_: {}, RP: {}},
-        Codx._0006: {RP: {}},
-        Codx._0008: {I_: {}},
-        Codx._0009: {I_: {}},
-        Codx._000A: {I_: {}, RP: {}},
-        Codx._000C: {RP: {}},
-        Codx._0016: {RQ: {}, RP: {}},
-        Codx._0100: {RP: {}},
-        Codx._01D0: {I_: {}},
-        Codx._01E9: {I_: {}},
-        Codx._0404: {I_: {}, RP: {}},
-        Codx._0418: {I_: {}, RP: {}},
-        Codx._1030: {I_: {}},
-        Codx._10A0: {I_: {}, RP: {}},
-        Codx._10E0: {RP: {}},
-        Codx._1100: {I_: {}, RQ: {}, RP: {}, W_: {}},
-        Codx._1260: {RP: {}},
-        Codx._1290: {RP: {}},
-        Codx._12B0: {I_: {}, RP: {}},
-        Codx._1F09: {I_: {}, RP: {}, W_: {}},
-        Codx._1FC9: {I_: {}, RQ: {}, RP: {}, W_: {}},
-        Codx._1F41: {I_: {}, RP: {}},
-        Codx._2249: {I_: {}},  # Hometronics, not Evohome
-        Codx._22D9: {RQ: {}},
-        Codx._2309: {I_: {}, RP: {}},
-        Codx._2349: {I_: {}, RP: {}},
-        Codx._2D49: {I_: {}},
-        Codx._2E04: {I_: {}, RP: {}},
-        Codx._30C9: {I_: {}, RP: {}},
-        Codx._313F: {I_: {}, RP: {}, W_: {}},
-        Codx._3150: {I_: {}},
-        Codx._3220: {RQ: {}},
-        Codx._3B00: {I_: {}},
-        Codx._3EF0: {RQ: {}},
+        Code._0001: {W_: {}},
+        Code._0002: {I_: {}, RP: {}},
+        Code._0004: {I_: {}, RP: {}},
+        Code._0005: {I_: {}, RP: {}},
+        Code._0006: {RP: {}},
+        Code._0008: {I_: {}},
+        Code._0009: {I_: {}},
+        Code._000A: {I_: {}, RP: {}},
+        Code._000C: {RP: {}},
+        Code._0016: {RQ: {}, RP: {}},
+        Code._0100: {RP: {}},
+        Code._01D0: {I_: {}},
+        Code._01E9: {I_: {}},
+        Code._0404: {I_: {}, RP: {}},
+        Code._0418: {I_: {}, RP: {}},
+        Code._1030: {I_: {}},
+        Code._10A0: {I_: {}, RP: {}},
+        Code._10E0: {RP: {}},
+        Code._1100: {I_: {}, RQ: {}, RP: {}, W_: {}},
+        Code._1260: {RP: {}},
+        Code._1290: {RP: {}},
+        Code._12B0: {I_: {}, RP: {}},
+        Code._1F09: {I_: {}, RP: {}, W_: {}},
+        Code._1FC9: {I_: {}, RQ: {}, RP: {}, W_: {}},
+        Code._1F41: {I_: {}, RP: {}},
+        Code._2249: {I_: {}},  # Hometronics, not Evohome
+        Code._22D9: {RQ: {}},
+        Code._2309: {I_: {}, RP: {}},
+        Code._2349: {I_: {}, RP: {}},
+        Code._2D49: {I_: {}},
+        Code._2E04: {I_: {}, RP: {}},
+        Code._30C9: {I_: {}, RP: {}},
+        Code._313F: {I_: {}, RP: {}, W_: {}},
+        Code._3150: {I_: {}},
+        Code._3220: {RQ: {}},
+        Code._3B00: {I_: {}},
+        Code._3EF0: {RQ: {}},
     },
     DEV_TYPE.PRG: {  # e.g. HCF82/HCW82: Room Temperature Sensor
-        Codx._0009: {I_: {}},
-        Codx._1090: {RP: {}},
-        Codx._10A0: {RP: {}},
-        Codx._1100: {I_: {}},
-        Codx._1F09: {I_: {}},
-        Codx._2249: {I_: {}},
-        Codx._2309: {I_: {}},
-        Codx._30C9: {I_: {}},
-        Codx._3B00: {I_: {}},
-        Codx._3EF1: {RP: {}},
+        Code._0009: {I_: {}},
+        Code._1090: {RP: {}},
+        Code._10A0: {RP: {}},
+        Code._1100: {I_: {}},
+        Code._1F09: {I_: {}},
+        Code._2249: {I_: {}},
+        Code._2309: {I_: {}},
+        Code._30C9: {I_: {}},
+        Code._3B00: {I_: {}},
+        Code._3EF1: {RP: {}},
     },
     DEV_TYPE.THM: {  # e.g. Generic Thermostat
-        Codx._0001: {W_: {}},
-        Codx._0005: {I_: {}},
-        Codx._0008: {I_: {}},
-        Codx._0009: {I_: {}},
-        Codx._000A: {I_: {}, RQ: {}, W_: {}},
-        Codx._000C: {I_: {}},
-        Codx._000E: {I_: {}},
-        Codx._0016: {RQ: {}},
-        Codx._042F: {I_: {}},
-        Codx._1030: {I_: {}},
-        Codx._1060: {I_: {}},
-        Codx._1090: {RQ: {}},
-        Codx._10E0: {I_: {}},
-        Codx._1100: {I_: {}},
-        Codx._12C0: {I_: {}},
-        Codx._1F09: {I_: {}},
-        Codx._1FC9: {I_: {}},
-        Codx._2309: {I_: {}, RQ: {}, W_: {}},
-        Codx._2349: {RQ: {}, W_: {}},
-        Codx._30C9: {I_: {}},
-        Codx._3120: {I_: {}},
-        Codx._313F: {
+        Code._0001: {W_: {}},
+        Code._0005: {I_: {}},
+        Code._0008: {I_: {}},
+        Code._0009: {I_: {}},
+        Code._000A: {I_: {}, RQ: {}, W_: {}},
+        Code._000C: {I_: {}},
+        Code._000E: {I_: {}},
+        Code._0016: {RQ: {}},
+        Code._042F: {I_: {}},
+        Code._1030: {I_: {}},
+        Code._1060: {I_: {}},
+        Code._1090: {RQ: {}},
+        Code._10E0: {I_: {}},
+        Code._1100: {I_: {}},
+        Code._12C0: {I_: {}},
+        Code._1F09: {I_: {}},
+        Code._1FC9: {I_: {}},
+        Code._2309: {I_: {}, RQ: {}, W_: {}},
+        Code._2349: {RQ: {}, W_: {}},
+        Code._30C9: {I_: {}},
+        Code._3120: {I_: {}},
+        Code._313F: {
             I_: {}
         },  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
-        Codx._3B00: {I_: {}},
-        Codx._3EF0: {RQ: {}},  # when bound direct to a 13:
-        Codx._3EF1: {RQ: {}},  # when bound direct to a 13:
+        Code._3B00: {I_: {}},
+        Code._3EF0: {RQ: {}},  # when bound direct to a 13:
+        Code._3EF1: {RQ: {}},  # when bound direct to a 13:
     },
     DEV_TYPE.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
-        Codx._0001: {RP: {}, W_: {}},  # TODO: Ix RP
-        Codx._0005: {RP: {}},
-        Codx._0008: {I_: {}},
-        Codx._000A: {RP: {}},
-        Codx._000C: {RP: {}},
-        Codx._1FC9: {I_: {}},
-        Codx._10E0: {I_: {}, RP: {}},
-        Codx._22C9: {I_: {}},  # NOTE: No RP
-        Codx._22D0: {I_: {}, RP: {}},
-        Codx._2309: {RP: {}},
-        Codx._3150: {I_: {}},
+        Code._0001: {RP: {}, W_: {}},  # TODO: Ix RP
+        Code._0005: {RP: {}},
+        Code._0008: {I_: {}},
+        Code._000A: {RP: {}},
+        Code._000C: {RP: {}},
+        Code._1FC9: {I_: {}},
+        Code._10E0: {I_: {}, RP: {}},
+        Code._22C9: {I_: {}},  # NOTE: No RP
+        Code._22D0: {I_: {}, RP: {}},
+        Code._2309: {RP: {}},
+        Code._3150: {I_: {}},
     },
     DEV_TYPE.TRV: {  # e.g. HR92/HR91: Radiator Controller
-        Codx._0001: {W_: {r"^0[0-9A-F]"}},
-        Codx._0004: {RQ: {r"^0[0-9A-F]00$"}},
-        Codx._0016: {RQ: {}, RP: {}},
-        Codx._0100: {RQ: {r"^00"}},
-        Codx._01D0: {W_: {}},
-        Codx._01E9: {W_: {}},
-        Codx._1060: {I_: {r"^0[0-9A-F]{3}0[01]$"}},
-        Codx._10E0: {I_: {r"^00[0-9A-F]{30,}$"}},
-        Codx._12B0: {I_: {r"^0[0-9A-F]{3}00$"}},  # sends every 1h
-        Codx._1F09: {RQ: {r"^00$"}},
-        Codx._1FC9: {I_: {}, W_: {}},
-        Codx._2309: {I_: {r"^0[0-9A-F]{5}$"}},
-        Codx._30C9: {I_: {r"^0[0-9A-F]"}},
-        Codx._313F: {RQ: {r"^00$"}},
-        Codx._3150: {I_: {r"^0[0-9A-F]{3}$"}},
+        Code._0001: {W_: {r"^0[0-9A-F]"}},
+        Code._0004: {RQ: {r"^0[0-9A-F]00$"}},
+        Code._0016: {RQ: {}, RP: {}},
+        Code._0100: {RQ: {r"^00"}},
+        Code._01D0: {W_: {}},
+        Code._01E9: {W_: {}},
+        Code._1060: {I_: {r"^0[0-9A-F]{3}0[01]$"}},
+        Code._10E0: {I_: {r"^00[0-9A-F]{30,}$"}},
+        Code._12B0: {I_: {r"^0[0-9A-F]{3}00$"}},  # sends every 1h
+        Code._1F09: {RQ: {r"^00$"}},
+        Code._1FC9: {I_: {}, W_: {}},
+        Code._2309: {I_: {r"^0[0-9A-F]{5}$"}},
+        Code._30C9: {I_: {r"^0[0-9A-F]"}},
+        Code._313F: {RQ: {r"^00$"}},
+        Code._3150: {I_: {r"^0[0-9A-F]{3}$"}},
     },
     DEV_TYPE.DHW: {  # e.g. CS92: (DHW) Cylinder Thermostat
-        Codx._0016: {RQ: {}},
-        Codx._1060: {I_: {}},
-        Codx._10A0: {RQ: {}},  # This RQ/07/10A0 includes a payload
-        Codx._1260: {I_: {}},
-        Codx._1FC9: {I_: {}},
+        Code._0016: {RQ: {}},
+        Code._1060: {I_: {}},
+        Code._10A0: {RQ: {}},  # This RQ/07/10A0 includes a payload
+        Code._1260: {I_: {}},
+        Code._1FC9: {I_: {}},
     },
     DEV_TYPE.OTB: {  # e.g. R8810/R8820: OpenTherm Bridge
-        Codx._0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
-        Codx._0150: {RP: {}},  # R8820A only?
-        Codx._042F: {I_: {}, RP: {}},
-        Codx._1081: {RP: {}},  # R8820A only?
-        Codx._1098: {RP: {}},  # R8820A only?
-        Codx._10A0: {RP: {}},
-        Codx._10B0: {RP: {}},  # R8820A only?
-        Codx._10E0: {I_: {}, RP: {}},
-        Codx._10E1: {RP: {}},  # R8820A only?
-        Codx._1260: {RP: {}},
-        Codx._1290: {RP: {}},
-        Codx._12F0: {RP: {}},  # R8820A only?
-        Codx._1300: {RP: {}},  # R8820A only?
-        Codx._1FC9: {I_: {}, W_: {}},
-        Codx._1FD0: {RP: {}},  # R8820A only?
-        Codx._1FD4: {I_: {}},  # 2/min for R8810, every ~210 sec for R8820
-        Codx._22D9: {RP: {}},
-        Codx._2400: {RP: {}},  # R8820A only?
-        Codx._2401: {RP: {}},  # R8820A only?
-        Codx._2410: {RP: {}},  # R8820A only?
-        Codx._2420: {RP: {}},  # R8820A only?
-        Codx._3150: {I_: {}},
-        Codx._3200: {RP: {}},  # R8820A only?
-        Codx._3210: {RP: {}},  # R8820A only?
-        Codx._3220: {RP: {}},
-        Codx._3221: {RP: {}},  # R8820A only?
-        Codx._3223: {RP: {}},  # R8820A only?
-        Codx._3EF0: {I_: {}, RP: {}},
-        Codx._3EF1: {RP: {}},
+        Code._0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
+        Code._0150: {RP: {}},  # R8820A only?
+        Code._042F: {I_: {}, RP: {}},
+        Code._1081: {RP: {}},  # R8820A only?
+        Code._1098: {RP: {}},  # R8820A only?
+        Code._10A0: {RP: {}},
+        Code._10B0: {RP: {}},  # R8820A only?
+        Code._10E0: {I_: {}, RP: {}},
+        Code._10E1: {RP: {}},  # R8820A only?
+        Code._1260: {RP: {}},
+        Code._1290: {RP: {}},
+        Code._12F0: {RP: {}},  # R8820A only?
+        Code._1300: {RP: {}},  # R8820A only?
+        Code._1FC9: {I_: {}, W_: {}},
+        Code._1FD0: {RP: {}},  # R8820A only?
+        Code._1FD4: {I_: {}},  # 2/min for R8810, every ~210 sec for R8820
+        Code._22D9: {RP: {}},
+        Code._2400: {RP: {}},  # R8820A only?
+        Code._2401: {RP: {}},  # R8820A only?
+        Code._2410: {RP: {}},  # R8820A only?
+        Code._2420: {RP: {}},  # R8820A only?
+        Code._3150: {I_: {}},
+        Code._3200: {RP: {}},  # R8820A only?
+        Code._3210: {RP: {}},  # R8820A only?
+        Code._3220: {RP: {}},
+        Code._3221: {RP: {}},  # R8820A only?
+        Code._3223: {RP: {}},  # R8820A only?
+        Code._3EF0: {I_: {}, RP: {}},
+        Code._3EF1: {RP: {}},
     },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
     DEV_TYPE.BDR: {  # e.g. BDR91A/BDR91T: Wireless Relay Box
-        Codx._0008: {RP: {}},  # doesn't RP/0009
-        Codx._0016: {RP: {}},
-        # Codx._10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
-        Codx._1100: {I_: {}, RP: {}},
-        Codx._11F0: {I_: {}},  # BDR91T in heatpump mode
-        Codx._1FC9: {RP: {}, W_: {}},
-        Codx._2D49: {I_: {}},  # BDR91T in heatpump mode
-        Codx._3B00: {I_: {}},
-        Codx._3EF0: {I_: {}},
+        Code._0008: {RP: {}},  # doesn't RP/0009
+        Code._0016: {RP: {}},
+        # Code._10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
+        Code._1100: {I_: {}, RP: {}},
+        Code._11F0: {I_: {}},  # BDR91T in heatpump mode
+        Code._1FC9: {RP: {}, W_: {}},
+        Code._2D49: {I_: {}},  # BDR91T in heatpump mode
+        Code._3B00: {I_: {}},
+        Code._3EF0: {I_: {}},
         # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        Codx._3EF1: {RP: {}},
+        Code._3EF1: {RP: {}},
     },
     DEV_TYPE.OUT: {
-        Codx._0002: {I_: {}},
-        Codx._1FC9: {I_: {}},
+        Code._0002: {I_: {}},
+        Code._1FC9: {I_: {}},
     },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
     #
     DEV_TYPE.JIM: {  # Jasper Interface Module, 08
-        Codx._0008: {RQ: {}},
-        Codx._10E0: {I_: {}},
-        Codx._1100: {I_: {}},
-        Codx._3EF0: {I_: {}},
-        Codx._3EF1: {RP: {}},
+        Code._0008: {RQ: {}},
+        Code._10E0: {I_: {}},
+        Code._1100: {I_: {}},
+        Code._3EF0: {I_: {}},
+        Code._3EF1: {RP: {}},
     },
     DEV_TYPE.JST: {  # Jasper Stat, 31
-        Codx._0008: {I_: {}},
-        Codx._10E0: {I_: {}},
-        Codx._3EF1: {RQ: {}, RP: {}},
+        Code._0008: {I_: {}},
+        Code._10E0: {I_: {}},
+        Code._3EF1: {RQ: {}, RP: {}},
     },
     # DEV_TYPE.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
-    #     Codx._0005: {I_: {}},
-    #     Codx._0008: {I_: {}},
-    #     Codx._000A: {I_: {}, RQ: {}},
-    #     Codx._000C: {I_: {}},
-    #     Codx._000E: {I_: {}},
-    #     Codx._042F: {I_: {}},
-    #     Codx._1060: {I_: {}},
-    #     Codx._10E0: {I_: {}},
-    #     Codx._12C0: {I_: {}},
-    #     Codx._1FC9: {I_: {}},
-    #     Codx._1FD4: {I_: {}},
-    #     Codx._2309: {I_: {}, RQ: {}, W_: {}},
-    #     Codx._2349: {RQ: {}},
-    #     Codx._30C9: {I_: {}},
-    #     Codx._3120: {I_: {}},
-    #     Codx._313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
-    #     Codx._3EF0: {I_: {}, RQ: {}},  # when bound direct to a 13:
-    #     Codx._3EF1: {RQ: {}},  # when bound direct to a 13:
+    #     Code._0005: {I_: {}},
+    #     Code._0008: {I_: {}},
+    #     Code._000A: {I_: {}, RQ: {}},
+    #     Code._000C: {I_: {}},
+    #     Code._000E: {I_: {}},
+    #     Code._042F: {I_: {}},
+    #     Code._1060: {I_: {}},
+    #     Code._10E0: {I_: {}},
+    #     Code._12C0: {I_: {}},
+    #     Code._1FC9: {I_: {}},
+    #     Code._1FD4: {I_: {}},
+    #     Code._2309: {I_: {}, RQ: {}, W_: {}},
+    #     Code._2349: {RQ: {}},
+    #     Code._30C9: {I_: {}},
+    #     Code._3120: {I_: {}},
+    #     Code._313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
+    #     Code._3EF0: {I_: {}, RQ: {}},  # when bound direct to a 13:
+    #     Code._3EF1: {RQ: {}},  # when bound direct to a 13:
     # },
     # DEV_TYPE.DTS: {  # e.g. DTS92(E)
-    #     Codx._0001: {W_: {}},
-    #     Codx._0008: {I_: {}},
-    #     Codx._0009: {I_: {}},
-    #     Codx._000A: {I_: {}, RQ: {}, W_: {}},
-    #     Codx._0016: {RQ: {}},
+    #     Code._0001: {W_: {}},
+    #     Code._0008: {I_: {}},
+    #     Code._0009: {I_: {}},
+    #     Code._000A: {I_: {}, RQ: {}, W_: {}},
+    #     Code._0016: {RQ: {}},
     #     # "0B04": {I_: {}},
-    #     Codx._1030: {I_: {}},
-    #     Codx._1060: {I_: {}},
-    #     Codx._1090: {RQ: {}},
-    #     Codx._1100: {I_: {}},
-    #     Codx._1F09: {I_: {}},
-    #     Codx._1FC9: {I_: {}},
-    #     Codx._2309: {I_: {}, RQ: {}, W_: {}},
-    #     Codx._2349: {RQ: {}, W_: {}},
-    #     Codx._30C9: {I_: {}},
-    #     Codx._313F: {I_: {}},
-    #     Codx._3B00: {I_: {}},
-    #     Codx._3EF1: {RQ: {}},
+    #     Code._1030: {I_: {}},
+    #     Code._1060: {I_: {}},
+    #     Code._1090: {RQ: {}},
+    #     Code._1100: {I_: {}},
+    #     Code._1F09: {I_: {}},
+    #     Code._1FC9: {I_: {}},
+    #     Code._2309: {I_: {}, RQ: {}, W_: {}},
+    #     Code._2349: {RQ: {}, W_: {}},
+    #     Code._30C9: {I_: {}},
+    #     Code._313F: {I_: {}},
+    #     Code._3B00: {I_: {}},
+    #     Code._3EF1: {RQ: {}},
     # },
     # DEV_TYPE.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
-    #     Codx._0001: {W_: {}},
-    #     Codx._0002: {I_: {}},
-    #     Codx._0008: {I_: {}},
-    #     Codx._0009: {I_: {}},
-    #     Codx._1060: {I_: {}},
-    #     Codx._1100: {I_: {}},
-    #     Codx._1F09: {I_: {}},
-    #     Codx._1FC9: {I_: {}},
-    #     Codx._2309: {I_: {}},
-    #     Codx._2389: {I_: {}},
-    #     Codx._30C9: {I_: {}},
+    #     Code._0001: {W_: {}},
+    #     Code._0002: {I_: {}},
+    #     Code._0008: {I_: {}},
+    #     Code._0009: {I_: {}},
+    #     Code._1060: {I_: {}},
+    #     Code._1100: {I_: {}},
+    #     Code._1F09: {I_: {}},
+    #     Code._1FC9: {I_: {}},
+    #     Code._2309: {I_: {}},
+    #     Code._2389: {I_: {}},
+    #     Code._30C9: {I_: {}},
     # },
 }
 # TODO: add 1FC9 everywhere?
 _DEV_KLASSES_HVAC: Dict[SimpleNamespace, dict] = {
     DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a REM
-        Codx._0001: {RQ: {}},
-        Codx._042F: {I_: {}},
-        Codx._10E0: {I_: {}, RQ: {}},
-        Codx._1470: {RQ: {}},
-        Codx._1FC9: {I_: {}},
-        Codx._1F70: {I_: {}},
-        Codx._22F1: {I_: {}},
-        Codx._22F3: {I_: {}},
-        Codx._22F7: {RQ: {}, W_: {}},
-        Codx._22B0: {W_: {}},
-        Codx._2411: {RQ: {}, W_: {}},
-        Codx._313F: {RQ: {}},
-        Codx._31DA: {RQ: {}},
+        Code._0001: {RQ: {}},
+        Code._042F: {I_: {}},
+        Code._10E0: {I_: {}, RQ: {}},
+        Code._1470: {RQ: {}},
+        Code._1FC9: {I_: {}},
+        Code._1F70: {I_: {}},
+        Code._22F1: {I_: {}},
+        Code._22F3: {I_: {}},
+        Code._22F7: {RQ: {}, W_: {}},
+        Code._22B0: {W_: {}},
+        Code._2411: {RQ: {}, W_: {}},
+        Code._313F: {RQ: {}},
+        Code._31DA: {RQ: {}},
     },
     DEV_TYPE.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
-        Codx._1060: {I_: {}},
-        Codx._10E0: {I_: {}, RP: {}},
-        Codx._12C0: {I_: {}},
-        Codx._22C9: {I_: {}},
-        Codx._22F1: {I_: {}},
-        Codx._22F3: {I_: {}},
-        Codx._2E10: {I_: {}},
-        Codx._30C9: {I_: {}},
-        Codx._3110: {I_: {}},
-        Codx._3120: {I_: {}},
-        Codx._31D9: {RQ: {}},
-        Codx._31DA: {RQ: {}},
-        Codx._3EF0: {I_: {}},
+        Code._1060: {I_: {}},
+        Code._10E0: {I_: {}, RP: {}},
+        Code._12C0: {I_: {}},
+        Code._22C9: {I_: {}},
+        Code._22F1: {I_: {}},
+        Code._22F3: {I_: {}},
+        Code._2E10: {I_: {}},
+        Code._30C9: {I_: {}},
+        Code._3110: {I_: {}},
+        Code._3120: {I_: {}},
+        Code._31D9: {RQ: {}},
+        Code._31DA: {RQ: {}},
+        Code._3EF0: {I_: {}},
     },
     DEV_TYPE.FAN: {
-        Codx._0001: {RP: {}},
-        Codx._042F: {I_: {}},
-        Codx._10E0: {I_: {}, RP: {}},
-        Codx._1298: {I_: {}},
-        Codx._12A0: {I_: {}},
-        Codx._12C8: {I_: {}},
-        Codx._1470: {RP: {}},
-        Codx._1F09: {I_: {}, RP: {}},
-        Codx._1FC9: {W_: {}},
-        Codx._22F7: {I_: {}, RP: {}},
-        Codx._2411: {I_: {}, RP: {}},
-        Codx._3120: {I_: {}},
-        Codx._313F: {I_: {}, RP: {}},
-        Codx._31D9: {I_: {}, RP: {}},
-        Codx._31DA: {I_: {}, RP: {}},
-        # Codx._31E0: {I_: {}},
+        Code._0001: {RP: {}},
+        Code._042F: {I_: {}},
+        Code._10E0: {I_: {}, RP: {}},
+        Code._1298: {I_: {}},
+        Code._12A0: {I_: {}},
+        Code._12C8: {I_: {}},
+        Code._1470: {RP: {}},
+        Code._1F09: {I_: {}, RP: {}},
+        Code._1FC9: {W_: {}},
+        Code._22F7: {I_: {}, RP: {}},
+        Code._2411: {I_: {}, RP: {}},
+        Code._3120: {I_: {}},
+        Code._313F: {I_: {}, RP: {}},
+        Code._31D9: {I_: {}, RP: {}},
+        Code._31DA: {I_: {}, RP: {}},
+        # Code._31E0: {I_: {}},
     },
     DEV_TYPE.CO2: {
-        Codx._042F: {I_: {}},
-        Codx._10E0: {I_: {}, RP: {}},
-        Codx._1298: {I_: {}},
-        Codx._1FC9: {I_: {}},
-        Codx._2411: {RQ: {}},
-        Codx._2E10: {I_: {}},
-        Codx._3120: {I_: {}},
-        Codx._31DA: {RQ: {}},
-        Codx._31E0: {I_: {}},
+        Code._042F: {I_: {}},
+        Code._10E0: {I_: {}, RP: {}},
+        Code._1298: {I_: {}},
+        Code._1FC9: {I_: {}},
+        Code._2411: {RQ: {}},
+        Code._2E10: {I_: {}},
+        Code._3120: {I_: {}},
+        Code._31DA: {RQ: {}},
+        Code._31E0: {I_: {}},
     },
     DEV_TYPE.HUM: {
-        Codx._042F: {I_: {}},
-        Codx._1060: {I_: {}},
-        Codx._10E0: {I_: {}},
-        Codx._12A0: {I_: {}},
-        Codx._1FC9: {I_: {}},
-        Codx._31DA: {RQ: {}},
-        Codx._31E0: {I_: {}},
+        Code._042F: {I_: {}},
+        Code._1060: {I_: {}},
+        Code._10E0: {I_: {}},
+        Code._12A0: {I_: {}},
+        Code._1FC9: {I_: {}},
+        Code._31DA: {RQ: {}},
+        Code._31E0: {I_: {}},
     },
     DEV_TYPE.REM: {  # HVAC: two-way switch; also an "06/22F1"?
-        Codx._0001: {RQ: {}},  # from a VMI (only?)
-        Codx._042F: {I_: {}},  # from a VMI (only?)
-        Codx._1060: {I_: {}},
-        Codx._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
-        Codx._1470: {RQ: {}},  # from a VMI (only?)
-        Codx._1FC9: {I_: {}},
-        Codx._22F1: {I_: {}},
-        Codx._22F3: {I_: {}},
-        Codx._22F7: {RQ: {}, W_: {}},  # from a VMI (only?)
-        Codx._2411: {RQ: {}, W_: {}},  # from a VMI (only?)
-        Codx._313F: {RQ: {}, W_: {}},  # from a VMI (only?)
-        Codx._31DA: {RQ: {}},  # to a VMI (only?)
-        # Codx._31E0: {I_: {}},
+        Code._0001: {RQ: {}},  # from a VMI (only?)
+        Code._042F: {I_: {}},  # from a VMI (only?)
+        Code._1060: {I_: {}},
+        Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
+        Code._1470: {RQ: {}},  # from a VMI (only?)
+        Code._1FC9: {I_: {}},
+        Code._22F1: {I_: {}},
+        Code._22F3: {I_: {}},
+        Code._22F7: {RQ: {}, W_: {}},  # from a VMI (only?)
+        Code._2411: {RQ: {}, W_: {}},  # from a VMI (only?)
+        Code._313F: {RQ: {}, W_: {}},  # from a VMI (only?)
+        Code._31DA: {RQ: {}},  # to a VMI (only?)
+        # Code._31E0: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
     # None: {  # unknown, TODO: make generic HVAC
     #     _4401: {I_: {}},
@@ -1020,24 +1020,24 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, dict] = {
 
 CODES_BY_DEV_SLUG: Dict[SimpleNamespace, dict] = {
     DEV_TYPE.HGI: {  # HGI80: RF to (USB) serial gateway interface
-        Codx._PUZZ: {I_: {}, RQ: {}, W_: {}},
+        Code._PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
     **{k: v for k, v in _DEV_KLASSES_HVAC.items() if k is not None},
     **{k: v for k, v in _DEV_KLASSES_HEAT.items() if k is not None},
 }
 
 _CODES_EXCLUDED: tuple = (
-    Codx._0001,
-    Codx._0002,
-    Codx._000E,
-    Codx._0016,
-    Codx._0100,
-    Codx._0150,
-    Codx._01D0,
-    Codx._01E9,
-    Codx._0B04,
-    Codx._10E0,
-    Codx._1FC9,
+    Code._0001,
+    Code._0002,
+    Code._000E,
+    Code._0016,
+    Code._0100,
+    Code._0150,
+    Code._01D0,
+    Code._01E9,
+    Code._0B04,
+    Code._10E0,
+    Code._1FC9,
 )
 _CODES_HEAT = dict.fromkeys(
     c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLUDED
@@ -1058,10 +1058,10 @@ _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_TYPE.CTL].keys()
 
 _CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
 CODES_ONLY_FROM_CTL = [
-    Codx._1030,
-    Codx._1F09,
-    Codx._22D0,
-    Codx._313F,
+    Code._1030,
+    Code._1F09,
+    Code._22D0,
+    Code._313F,
 ]  # I packets, TODO: 31Dx too?
 
 # ### WIP:
@@ -1084,10 +1084,10 @@ CODES_ONLY_FROM_CTL = [
 
 
 _HVAC_VC_PAIR_BY_CLASS: Dict[SimpleNamespace, tuple] = {
-    DEV_TYPE.CO2: ((I_, Codx._1298),),
-    DEV_TYPE.FAN: ((I_, Codx._31D9), (I_, Codx._31DA), (RP, Codx._31DA)),
-    DEV_TYPE.HUM: ((I_, Codx._12A0),),
-    DEV_TYPE.REM: ((I_, Codx._22F1), (I_, Codx._22F3)),
+    DEV_TYPE.CO2: ((I_, Code._1298),),
+    DEV_TYPE.FAN: ((I_, Code._31D9), (I_, Code._31DA), (RP, Code._31DA)),
+    DEV_TYPE.HUM: ((I_, Code._12A0),),
+    DEV_TYPE.REM: ((I_, Code._22F1), (I_, Code._22F3)),
 }
 HVAC_KLASS_BY_VC_PAIR: dict = {
     t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v
@@ -1242,37 +1242,37 @@ _22F1_SCHEMES: Dict[str, dict] = {
 #
 # RAMSES_ZONES: Dict[str, str] = {
 #     "ALL": {
-#         Codx._0004: {I_: {}, RP: {}},
-#         Codx._000C: {RP: {}},
-#         Codx._000A: {I_: {}, RP: {}},
-#         Codx._2309: {I_: {}, RP: {}},
-#         Codx._2349: {I_: {}, RP: {}},
-#         Codx._30C9: {I_: {}, RP: {}},
+#         Code._0004: {I_: {}, RP: {}},
+#         Code._000C: {RP: {}},
+#         Code._000A: {I_: {}, RP: {}},
+#         Code._2309: {I_: {}, RP: {}},
+#         Code._2349: {I_: {}, RP: {}},
+#         Code._30C9: {I_: {}, RP: {}},
 #     },
 #     ZON_ROLE.RAD: {
-#         Codx._12B0: {I_: {}, RP: {}},
+#         Code._12B0: {I_: {}, RP: {}},
 #         "3150a": {},
 #     },
 #     ZON_ROLE.ELE: {
-#         Codx._0008: {I_: {}},
-#         Codx._0009: {I_: {}},
+#         Code._0008: {I_: {}},
+#         Code._0009: {I_: {}},
 #     },
 #     ZON_ROLE.VAL: {
-#         Codx._0008: {I_: {}},
-#         Codx._0009: {I_: {}},
+#         Code._0008: {I_: {}},
+#         Code._0009: {I_: {}},
 #         "3150a": {},
 #     },
 #     ZON_ROLE.UFH: {
-#         Codx._3150: {I_: {}},
+#         Code._3150: {I_: {}},
 #     },
 #     ZON_ROLE.MIX: {
-#         Codx._0008: {I_: {}},
+#         Code._0008: {I_: {}},
 #         "3150a": {},
 #     },
 #     ZON_ROLE.DHW: {
-#         Codx._10A0: {RQ: {}, RP: {}},
-#         Codx._1260: {I_: {}},
-#         Codx._1F41: {I_: {}},
+#         Code._10A0: {RQ: {}, RP: {}},
+#         Code._1260: {I_: {}},
+#         Code._1F41: {I_: {}},
 #     },
 # }
 # RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")

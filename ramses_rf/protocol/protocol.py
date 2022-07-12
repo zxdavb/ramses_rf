@@ -33,6 +33,10 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+_MessageProtocolT = TypeVar("_MessageProtocolT", bound="MessageProtocol")
+_MessageTransportT = TypeVar("_MessageTransportT", bound="MessageTransport")
+
+
 class AwaitableCallback:
     """Create an pair of functions so that the callback can be awaited.
 
@@ -576,10 +580,6 @@ class MessageProtocol(asyncio.Protocol):
         self._pause_writing = False
 
 
-_P = TypeVar("_P", bound=MessageProtocol)
-_T = TypeVar("_T", bound=MessageTransport)
-
-
 def create_protocol_factory(
     protocol_class: type[asyncio.Protocol], *args, **kwargs
 ) -> Callable:
@@ -591,7 +591,7 @@ def create_protocol_factory(
 
 def create_msg_stack(
     gwy, msg_callback: Callable, protocol_factory: Callable = None
-) -> tuple[_P, _T]:
+) -> tuple[_MessageProtocolT, _MessageTransportT]:
     """Utility function to provide a transport to a client protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).

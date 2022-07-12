@@ -9,7 +9,7 @@ Test the Command.put_*, Command.set_* APIs.
 from ramses_rf import RQ
 from ramses_rf.device.devices_heat import HEAT_CLASS_BY_SLUG
 from ramses_rf.device.devices_hvac import HVAC_CLASS_BY_SLUG
-from ramses_rf.protocol.const import DEV_TYPE, Codx
+from ramses_rf.protocol.const import DEV_TYPE, Code
 from ramses_rf.protocol.ramses import (
     _DEV_KLASSES_HEAT,
     _DEV_KLASSES_HVAC,
@@ -97,7 +97,7 @@ RQ_IDX_ONLY = [
     and RQ in v
     and (v[RQ] in (r"^0[0-9A-F]00$", r"^0[0-9A-F](00)?$"))
 ]
-RQ_IDX_ONLY.extend((Codx._0418,))
+RQ_IDX_ONLY.extend((Code._0418,))
 RQ_IDX_UNKNOWN = [
     k
     for k, v in CODES_SCHEMA.items()

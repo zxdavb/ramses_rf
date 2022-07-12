@@ -44,7 +44,7 @@ from .protocol.const import (
 )
 from .protocol.transport import DEV_HACK_REGEX, SZ_BLOCK_LIST, SZ_KNOWN_LIST
 
-# from .systems import _System  # circular import
+# from .systems import _SystemT  # circular import
 
 # TODO: move max_zones into system-specific location, ?profile
 

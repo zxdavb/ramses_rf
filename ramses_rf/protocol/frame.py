@@ -37,7 +37,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FA,
     FC,
     FF,
-    Codx,
+    Code,
 )
 
 
@@ -48,11 +48,11 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-Code = str
-DevId = str
-Payload = str
-Verb = str
-Header = str
+_CodeT = str
+_DevIdT = str
+_PayloadT = str
+_VerbT = str
+_HeaderT = str
 
 
 class Frame:
@@ -63,15 +63,15 @@ class Frame:
 
     _frame: str
 
-    verb: Verb
+    verb: _VerbT
     seqn: str  # TODO: or, better as int?
     src: Address
     dst: Address
     _addrs: tuple[Address, Address, Address]
-    code: Code
+    code: _CodeT
     len_: str
     _len: int  # int(len(payload) / 2)
-    payload: Payload
+    payload: _PayloadT
 
     def __init__(self, frame: str) -> None:
         """Create a frame from a string.
@@ -116,7 +116,9 @@ class Frame:
         self._has_payload_: bool = None  # type: ignore[assignment]
 
     @classmethod  # for internal use only
-    def _from_attrs(cls, verb: Verb, *addrs, code: Code, payload: Payload, seqn=None):
+    def _from_attrs(
+        cls, verb: _VerbT, *addrs, code: _CodeT, payload: _PayloadT, seqn=None
+    ):
         """Create a frame from its attributes (args, kwargs)."""
 
         seqn = seqn or "---"
@@ -196,7 +198,7 @@ class Frame:
         #  I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
         #  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
         #  I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
-        if self.code == Codx._1FC9:
+        if self.code == Code._1FC9:
             self._has_array_ = self.verb != RQ  # safe to treat all as array, even len=1
 
         elif self.verb != I_ or self.code not in CODES_WITH_ARRAYS:
@@ -205,7 +207,7 @@ class Frame:
         elif self._len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
             self._has_array_ = False
             if (
-                self.code in (Codx._22C9, Codx._3150)  # only time 22C9 is seen
+                self.code in (Code._22C9, Code._3150)  # only time 22C9 is seen
                 and self.src.type == DEV_TYPE_MAP.UFC
                 and self.dst is self.src
                 and self.payload[:1] != "F"
@@ -263,15 +265,15 @@ class Frame:
                 f"{self} < "
                 + (
                     "HAS"
-                    if self.code in CODES_ONLY_FROM_CTL + [Codx._31D9, Codx._31DA]
+                    if self.code in CODES_ONLY_FROM_CTL + [Code._31D9, Code._31DA]
                     else "no"
                 )
                 + " controller (20)"
             )
             self._has_ctl_ = any(
                 (
-                    self.code == Codx._3B00 and self.payload[:2] == FC,
-                    self.code in CODES_ONLY_FROM_CTL + [Codx._31D9, Codx._31DA],
+                    self.code == Code._3B00 and self.payload[:2] == FC,
+                    self.code in CODES_ONLY_FROM_CTL + [Code._31D9, Code._31DA],
                 )
             )
 
@@ -326,9 +328,9 @@ class Frame:
             (
                 self._len == 1,
                 self.verb == RQ and self.code in RQ_NO_PAYLOAD,
-                self.verb == RQ and self._len == 2 and self.code != Codx._0016,
+                self.verb == RQ and self._len == 2 and self.code != Code._0016,
                 # self.verb == RQ and self._len == 2 and self.code in (
-                #   Codx._2309, Codx._2349, Codx._3EF1
+                #   Code._2309, Code._2349, Code._3EF1
                 # ),
             )
         )
@@ -350,18 +352,18 @@ class Frame:
 
         if self._ctx_ is None:
             if self.code in (
-                Codx._0005,
-                Codx._000C,
+                Code._0005,
+                Code._000C,
             ):  # zone_idx, zone_type (device_role)
                 self._ctx_ = self.payload[:4]
-            elif self.code == Codx._0404:  # zone_idx, frag_idx
+            elif self.code == Code._0404:  # zone_idx, frag_idx
                 self._ctx_ = self._idx + self.payload[10:12]
             else:
                 self._ctx_ = self._idx
         return self._ctx_
 
     @property
-    def _hdr(self) -> Header:  # incl. self._ctx
+    def _hdr(self) -> _HeaderT:  # incl. self._ctx
         """Return the QoS header (fingerprint) of this packet (i.e. device_id/code/hdr).
 
         Used for QoS (timeouts, retries), callbacks, etc.
@@ -397,14 +399,14 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     # FIXME: 0016 is broken
 
     # mutex 2/4, CODE_IDX_COMPLEX: are not payload[:2]
-    if pkt.code == Codx._0005:
+    if pkt.code == Code._0005:
         return pkt._has_array
 
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
-    if pkt.code == Codx._0009 and pkt.src.type == DEV_TYPE_MAP.OTB:  # DEX
+    if pkt.code == Code._0009 and pkt.src.type == DEV_TYPE_MAP.OTB:  # DEX
         return False
 
-    if pkt.code == Codx._000C:  # zone_idx/domain_id (complex, payload[0:4])
+    if pkt.code == Code._000C:  # zone_idx/domain_id (complex, payload[0:4])
         if pkt.payload[2:4] == DEV_ROLE_MAP.APP:  # "000F"
             return FC
         if pkt.payload[0:4] == f"01{DEV_ROLE_MAP.HTG}":  # "010E"
@@ -416,16 +418,16 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
             return FA
         return pkt.payload[:2]
 
-    if pkt.code == Codx._0404:  # assumes only 1 DHW zone (can be 2, but never seen)
+    if pkt.code == Code._0404:  # assumes only 1 DHW zone (can be 2, but never seen)
         return "HW" if pkt.payload[2:4] == "23" else pkt.payload[:2]
 
-    if pkt.code == Codx._0418:  # log_idx (payload[4:6])
+    if pkt.code == Code._0418:  # log_idx (payload[4:6])
         return pkt.payload[4:6]
 
-    if pkt.code == Codx._1100:  # TODO; can do in parser
+    if pkt.code == Code._1100:  # TODO; can do in parser
         return pkt.payload[:2] if pkt.payload[:1] == "F" else False  # only FC
 
-    if pkt.code == Codx._3220:  # msg_id/data_id (payload[4:6])
+    if pkt.code == Code._3220:  # msg_id/data_id (payload[4:6])
         return pkt.payload[4:6]
 
     if pkt.code in CODE_IDX_COMPLEX:
@@ -477,13 +479,13 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
 
 def pkt_header(
     pkt, rx_header: bool = None
-) -> None | Header:  # NOTE: used in command.py
+) -> None | _HeaderT:  # NOTE: used in command.py
     """Return the QoS header of a packet (all packets have a header).
 
     For rx_header=True, return the header of the response packet, if one is expected.
     """
 
-    if pkt.code == Codx._1FC9:
+    if pkt.code == Code._1FC9:
         #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
         #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7

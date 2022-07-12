@@ -40,7 +40,7 @@ from ..device import (
     OtbGateway,
     Temperature,
     UfhController,
-    _Device,
+    _DeviceT,
 )
 from ..entity_base import Entity, Parent, class_by_attr
 from ..helpers import shrink
@@ -82,7 +82,7 @@ from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impo
     FA,
     FC,
     FF,
-    Codx,
+    Code,
 )
 
 
@@ -91,6 +91,9 @@ DEV_MODE = __dev_mode__
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+_SystemT = TypeVar("_SystemT", bound="System")
 
 
 SYS_KLASS = SimpleNamespace(
@@ -162,7 +165,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         # super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            _mk_cmd(RQ, Codx._000C, f"00{DEV_ROLE_MAP.HTG}", self.id),
+            _mk_cmd(RQ, Code._000C, f"00{DEV_ROLE_MAP.HTG}", self.id),
             60 * 60 * 24,
             delay=0,
         )
@@ -193,25 +196,25 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
             # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
 
-            if this.code not in (Codx._22D9, Codx._3220, Codx._3B00, Codx._3EF0):
+            if this.code not in (Code._22D9, Code._3220, Code._3B00, Code._3EF0):
                 return
 
             # note the order: most to least reliable
             app_cntrl = None
 
             if (
-                this.code in (Codx._22D9, Codx._3220) and this.verb == RQ
+                this.code in (Code._22D9, Code._3220) and this.verb == RQ
             ):  # TODO: RPs too?
                 if this.src is self.ctl and isinstance(this.dst, OtbGateway):
                     app_cntrl = this.dst
 
-            elif this.code == Codx._3EF0 and this.verb == RQ:
+            elif this.code == Code._3EF0 and this.verb == RQ:
                 if this.src is self.ctl and isinstance(
                     this.dst, (BdrSwitch, OtbGateway)
                 ):
                     app_cntrl = this.dst
 
-            elif this.code == Codx._3B00 and this.verb == I_ and prev is not None:
+            elif this.code == Code._3B00 and this.verb == I_ and prev is not None:
                 if this.src is self.ctl and isinstance(prev.src, BdrSwitch):
                     if prev.code == this.code and prev.verb == this.verb:
                         app_cntrl = prev.src
@@ -224,7 +227,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         super()._handle_msg(msg)
 
         if (
-            msg.code == Codx._000C
+            msg.code == Code._000C
             and msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP
             and (msg.payload[SZ_DEVICES])
         ):
@@ -233,7 +236,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             )  # sets self._app_cntrl
             return
 
-        if msg.code == Codx._0008:
+        if msg.code == Code._0008:
             if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
                 self._relay_demands[domain_id] = msg
                 if domain_id == F9:
@@ -247,10 +250,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
                 if False and device is not None:  # TODO: FIXME
                     qos = {"priority": Priority.LOW, "retries": 2}
-                    for code in (Codx._0008, Codx._3EF1):
+                    for code in (Code._0008, Code._3EF1):
                         device._make_cmd(code, qos)
 
-        elif msg.code == Codx._3150:
+        elif msg.code == Code._3150:
             if msg.payload.get(SZ_DOMAIN_ID) == FC and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
@@ -270,11 +273,11 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     @property
     def tpi_params(self) -> Optional[dict]:  # 1100
-        return self._msg_value(Codx._1100)
+        return self._msg_value(Code._1100)
 
     @property
     def heat_demand(self) -> None | float:  # 3150/FC
-        return self._msg_value(Codx._3150, domain_id=FC, key=SZ_HEAT_DEMAND)
+        return self._msg_value(Code._3150, domain_id=FC, key=SZ_HEAT_DEMAND)
 
     @property
     def is_calling_for_heat(self) -> None | bool:
@@ -340,7 +343,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         """Return the system's configuration."""
 
         params: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
-        params[SZ_TCS_SYSTEM]["tpi_params"] = self._msg_value(Codx._1100)
+        params[SZ_TCS_SYSTEM]["tpi_params"] = self._msg_value(Code._1100)
         return params
 
     @property
@@ -370,7 +373,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
             self._add_discovery_task(
-                _mk_cmd(RQ, Codx._0005, f"00{zone_type}", self.id),
+                _mk_cmd(RQ, Code._0005, f"00{zone_type}", self.id),
                 60 * 60 * 24,
                 delay=0,
             )
@@ -427,7 +430,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 return
 
             # TODO: use msgz/I, not RP
-            secs = self._msg_value(Codx._1F09, key="remaining_seconds")
+            secs = self._msg_value(Code._1F09, key="remaining_seconds")
             if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
                 return  # can only compare against 30C9 pkt from the last cycle
 
@@ -456,7 +459,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 if isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
                 and d.ctl in (self.ctl, None)
                 and d.temperature is not None
-                and d._msgs[Codx._30C9].dtm > prev.dtm  # changed during last cycle
+                and d._msgs[Code._30C9].dtm > prev.dtm  # changed during last cycle
             ]
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -545,7 +548,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 return
 
             # TODO: use msgz/I, not RP
-            secs = self._msg_value(Codx._1F09, key="remaining_seconds")
+            secs = self._msg_value(Code._1F09, key="remaining_seconds")
             if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
                 return  # can only compare against 30C9 pkt from the last cycle
 
@@ -569,7 +572,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 if isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
                 and d.ctl in (self.ctl, None)
                 and d.temperature is not None
-                and d._msgs[Codx._30C9].dtm > prev.dtm  # changed during last cycle
+                and d._msgs[Code._30C9].dtm > prev.dtm  # changed during last cycle
             }
             if not testable_sensors:
                 return  # no testable sensors
@@ -613,13 +616,13 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         super()._handle_msg(msg)
 
-        if msg.code not in (Codx._0005, Codx._000A, Codx._2309, Codx._30C9) and (
+        if msg.code not in (Code._0005, Code._000A, Code._2309, Code._30C9) and (
             SZ_ZONE_IDX not in msg.payload  # 0004,0008,0009,000C,0404,12B0,2349,3150
         ):
             return
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
-        if msg.code == Codx._0005:
+        if msg.code == Code._0005:
             if (zone_type := msg.payload[SZ_ZONE_TYPE]) in ZON_ROLE_MAP.HEAT_ZONES:
                 [
                     self.get_htg_zone(
@@ -637,7 +640,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             return
 
         if (
-            msg.code == Codx._000C
+            msg.code == Code._000C
             and msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES
         ):
             if msg.payload[SZ_DEVICES]:
@@ -648,8 +651,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and (
-            msg.code in (Codx._000A, Codx._2309, Codx._30C9) and msg._has_array
-        ):  # could do Codx._000A, but only 1/hr
+            msg.code in (Code._000A, Code._2309, Code._30C9) and msg._has_array
+        ):  # could do Code._000A, but only 1/hr
             eavesdrop_zones(msg)
 
         # Route all messages to their zones, incl. 000C, 0404, others
@@ -666,7 +669,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         # If some zones still don't have a sensor, maybe eavesdrop?
         if (  # TODO: edge case: 1 zone with CTL as SEN
             self._gwy.config.enable_eavesdrop
-            and msg.code == Codx._30C9
+            and msg.code == Code._30C9
             and (msg._has_array or len(self.zones) == 1)
             and any(z for z in self.zones if not z.sensor)
         ):
@@ -733,14 +736,14 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            _mk_cmd(RQ, Codx._0006, "00", self.id), 60 * 5, delay=5
+            _mk_cmd(RQ, Code._0006, "00", self.id), 60 * 5, delay=5
         )
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retreive the latest global change counter."""
         super()._handle_msg(msg)
 
-        if msg.code == Codx._0006:
+        if msg.code == Code._0006:
             self._msg_0006 = msg
 
     async def _schedule_version(self, *, force_io: bool = False) -> Tuple[int, bool]:
@@ -812,7 +815,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def params(self) -> dict[str, Any]:
         return {
             **super().params,
-            SZ_CHANGE_COUNTER: self._msg_value(Codx._0006, SZ_CHANGE_COUNTER),
+            SZ_CHANGE_COUNTER: self._msg_value(Code._0006, SZ_CHANGE_COUNTER),
         }
 
 
@@ -826,7 +829,7 @@ class Language(SystemBase):  # 0100
 
     @property
     def language(self) -> None | str:
-        return self._msg_value(Codx._0100, key=SZ_LANGUAGE)
+        return self._msg_value(Code._0100, key=SZ_LANGUAGE)
 
     @property
     def params(self) -> dict[str, Any]:
@@ -860,7 +863,7 @@ class Logbook(SystemBase):  # 0418
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
-        if msg.code != Codx._0418:
+        if msg.code != Code._0418:
             return
 
         if msg.payload["log_idx"] == "00":
@@ -948,7 +951,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         super()._setup_discovery_tasks()
 
         self._add_discovery_task(
-            _mk_cmd(RQ, Codx._000C, f"00{DEV_ROLE_MAP.DHW}", self.id),
+            _mk_cmd(RQ, Code._000C, f"00{DEV_ROLE_MAP.DHW}", self.id),
             60 * 60 * 24,
             delay=0,
         )
@@ -962,12 +965,12 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             or msg.payload.get(SZ_DHW_IDX) is None
             and msg.payload.get(SZ_DOMAIN_ID) not in (F9, FA)
             and msg.payload.get(SZ_ZONE_IDX) != "HW"
-        ):  # Codx._0008, Codx._000C, Codx._0404, Codx._10A0, Codx._1260, Codx._1F41
+        ):  # Code._0008, Code._000C, Code._0404, Code._10A0, Code._1260, Code._1F41
             return
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if (
-            msg.code == Codx._000C
+            msg.code == Code._000C
             and msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES
         ):
             if msg.payload[SZ_DEVICES]:
@@ -1010,15 +1013,15 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         return self._dhw
 
     @property
-    def dhw_sensor(self) -> None | _Device:
+    def dhw_sensor(self) -> None | _DeviceT:
         return self._dhw.sensor if self._dhw else None
 
     @property
-    def hotwater_valve(self) -> None | _Device:
+    def hotwater_valve(self) -> None | _DeviceT:
         return self._dhw.hotwater_valve if self._dhw else None
 
     @property
-    def heating_valve(self) -> None | _Device:
+    def heating_valve(self) -> None | _DeviceT:
         return self._dhw.heating_valve if self._dhw else None
 
     @property
@@ -1051,7 +1054,7 @@ class SysMode(SystemBase):  # 2E04
 
     @property
     def system_mode(self) -> Optional[dict]:  # 2E04
-        return self._msg_value(Codx._2E04)
+        return self._msg_value(Code._2E04)
 
     def set_mode(self, system_mode, *, until=None) -> Future:
         """Set a system mode for a specified duration, or indefinitely."""
@@ -1083,7 +1086,7 @@ class Datetime(SystemBase):  # 313F
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == Codx._313F and msg.verb in (I_, RP) and self._gwy.pkt_transport:
+        if msg.code == Code._313F and msg.verb in (I_, RP) and self._gwy.pkt_transport:
             diff = abs(dt.fromisoformat(msg.payload[SZ_DATETIME]) - self._gwy._dt_now())
             if diff > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
@@ -1139,19 +1142,19 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
 
         if SZ_DOMAIN_ID in msg.payload:
             idx = msg.payload[SZ_DOMAIN_ID]
-            if msg.code == Codx._0008:
+            if msg.code == Code._0008:
                 self._relay_demands[idx] = msg
-            elif msg.code == Codx._0009:
+            elif msg.code == Code._0009:
                 self._relay_failsafes[idx] = msg
-            elif msg.code == Codx._3150:
+            elif msg.code == Code._3150:
                 self._heat_demands[idx] = msg
             elif msg.code not in (
-                Codx._0001,
-                Codx._000C,
-                Codx._0404,
-                Codx._0418,
-                Codx._1100,
-                Codx._3B00,
+                Code._0001,
+                Code._000C,
+                Code._0404,
+                Code._0418,
+                Code._1100,
+                Code._3B00,
             ):
                 assert False, f"Unexpected code with a domain_id: {msg.code}"
 
@@ -1220,7 +1223,7 @@ class Hometronics(System):
     #     # will RP to: 0005/configured_zones_alt, but not: configured_zones
     #     # will RP to: 0004
 
-    RQ_SUPPORTED = (Codx._0004, Codx._000C, Codx._2E04, Codx._313F)  # TODO: WIP
+    RQ_SUPPORTED = (Code._0004, Code._000C, Code._2E04, Code._313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
 
 
@@ -1234,11 +1237,10 @@ class Sundial(Evohome):
     _SLUG: str = SYS_KLASS.SYS
 
 
-_System = TypeVar("_System", bound=System)
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(ctl, *, msg: Message = None, **schema) -> _System:
+def zx_system_factory(ctl, *, msg: Message = None, **schema) -> _SystemT:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
@@ -1247,7 +1249,7 @@ def zx_system_factory(ctl, *, msg: Message = None, **schema) -> _System:
         msg: Message = None,
         eavesdrop: bool = False,
         **schema,
-    ) -> _System:
+    ) -> type[_SystemT]:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         # a specified system class always takes precidence (even if it is wrong)...

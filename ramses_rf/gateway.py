@@ -64,7 +64,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     FA,
     FC,
     FF,
-    Codx,
+    Code,
 )
 
 
@@ -445,7 +445,7 @@ class Gateway(Engine):
             for msg in msgs
             if msg.verb in (I_, RP)
             and (
-                include_expired or msg.code == Codx._313F or not msg._expired
+                include_expired or msg.code == Code._313F or not msg._expired
             )  # 313F will be expired, but will be useful for back-back restarts
         }  # BUG: assumes pkts have unique dtms
 

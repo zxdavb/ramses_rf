@@ -24,7 +24,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    Codx,
+    Code,
 )
 
 
@@ -195,27 +195,27 @@ def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
         return _TD_SECONDS_000
 
     if pkt.code in (
-        Codx._0005,
-        Codx._000C,
-        Codx._0404,
-        Codx._10E0,
+        Code._0005,
+        Code._000C,
+        Code._0404,
+        Code._10E0,
     ):  # 0404 expired by 0006
         return None  # TODO: exclude/remove devices caused by corrupt ADDRs?
 
-    if pkt.code == Codx._1FC9 and pkt.verb == RP:
+    if pkt.code == Code._1FC9 and pkt.verb == RP:
         return None  # TODO: check other verbs, they seem variable
 
-    if pkt.code == Codx._1F09:  # sends I /sync_cycle
+    if pkt.code == Code._1F09:  # sends I /sync_cycle
         # can't do better than 300s with reading the payload
         return _TD_SECONDS_360 if pkt.verb == I_ else _TD_SECONDS_000
 
-    if pkt.code == Codx._000A and pkt._has_array:
+    if pkt.code == Code._000A and pkt._has_array:
         return _TD_MINUTES_060  # sends I /1h
 
-    if pkt.code in (Codx._2309, Codx._30C9) and pkt._has_array:  # sends I /sync_cycle
+    if pkt.code in (Code._2309, Code._30C9) and pkt._has_array:  # sends I /sync_cycle
         return _TD_SECONDS_360
 
-    if pkt.code == Codx._3220:  # FIXME
+    if pkt.code == Code._3220:  # FIXME
         # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Data:  # TODO
         #     return _TD_SECONDS_003
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
@@ -226,7 +226,7 @@ def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
             return STATUS_MSG_IDS[pkt.payload[4:6]]
         return _TD_MINUTES_005
 
-    # if pkt.code in (Codx._3B00, Codx._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
+    # if pkt.code in (Code._3B00, Code._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
 
     if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:

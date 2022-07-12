@@ -22,7 +22,7 @@ from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impo
     FA,
     FC,
     FF,
-    Codx,
+    Code,
 )
 
 
@@ -31,6 +31,9 @@ DEV_MODE = __dev_mode__
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+_HvacSystemT = TypeVar("_HvacSystemT", bound="HvacSystem")
 
 
 FAN_KLASS = SimpleNamespace(
@@ -51,11 +54,10 @@ class HvacSystem:
         self._relay_failsafes: dict[str, Any] = {}
 
 
-_HvacSystem = TypeVar("_HvacSystem", bound=HvacSystem)
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")
 
 
-def zx_system_factory(fan, *, msg: Message = None, **schema) -> _HvacSystem:
+def zx_system_factory(fan, *, msg: Message = None, **schema) -> _HvacSystemT:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
@@ -64,7 +66,7 @@ def zx_system_factory(fan, *, msg: Message = None, **schema) -> _HvacSystem:
         msg: Message = None,
         eavesdrop: bool = False,
         **schema,
-    ) -> _HvacSystem:
+    ) -> type[_HvacSystemT]:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         _LOGGER.debug(

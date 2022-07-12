@@ -17,7 +17,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    Codx,
+    Code,
 )
 
 # # skipcq: PY-W2000

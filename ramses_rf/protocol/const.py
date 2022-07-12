@@ -501,11 +501,11 @@ DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
 
 # Used by packet structure validators
 r = r"(-{3}|\d{3}|\.{3})"  # RSSI, '...' was used by an older version of evofw3
-v = r"( I|RP|RQ| W)"  # Verb
-d = r"(-{2}:-{6}|\d{2}:\d{6})"  # Device ID
-c = r"[0-9A-F]{4}"  # Code
-l = r"\d{3}"  # Length # noqa: E741
-p = r"([0-9A-F]{2}){1,48}"  # Payload
+v = r"( I|RP|RQ| W)"  # verb
+d = r"(-{2}:-{6}|\d{2}:\d{6})"  # device ID
+c = r"[0-9A-F]{4}"  # code
+l = r"\d{3}"  # length # noqa: E741
+p = r"([0-9A-F]{2}){1,48}"  # payload
 
 # DEVICE_ID_REGEX = re.compile(f"^{d}$")
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
@@ -581,7 +581,7 @@ RP = "RP"
 W_ = " W"
 
 
-class Codx(StrEnum):
+class Code(StrEnum):
     _0001 = "0001"
     _0002 = "0002"
     _0004 = "0004"

@@ -7,7 +7,7 @@ Schema processor.
 """
 from __future__ import annotations
 
-import voluptuous as vol
+import voluptuous as vol  # type: ignore[import]
 
 LOG_FILE_NAME = "file_name"
 LOG_ROTATE_BYTES = "rotate_bytes"

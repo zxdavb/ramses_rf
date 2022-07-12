@@ -28,7 +28,7 @@ from .const import (
     __dev_mode__,
 )
 from .protocol import CorruptStateError, Message
-from .protocol.frame import Code, DevId, Header, Verb
+from .protocol.frame import _CodeT, _DevIdT, _HeaderT, _VerbT
 from .protocol.ramses import CODES_SCHEMA
 from .protocol.transport import PacketProtocolPort
 from .schemas import SZ_CIRCUITS
@@ -43,7 +43,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FA,
     FC,
     FF,
-    Codx,
+    Code,
 )
 
 
@@ -82,8 +82,8 @@ class MessageDB:
     tcs: Any  # HACK
 
     def __init__(self, gwy) -> None:
-        self._msgs: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
-        self._msgz: dict[Code, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
+        self._msgs: dict[_CodeT, Message] = {}  # code, should be code/ctx? ?deprecate
+        self._msgz: dict[_CodeT, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
 
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
@@ -111,7 +111,7 @@ class MessageDB:
         """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    def _get_msg_by_hdr(self, hdr: Header) -> None | Message:
+    def _get_msg_by_hdr(self, hdr: _HeaderT) -> None | Message:
         """Return a msg, if any, that matches a header."""
 
         code, verb, _, *args = hdr.split("|")
@@ -133,20 +133,20 @@ class MessageDB:
 
         return msg
 
-    def _msg_flag(self, code: Code, key, idx) -> None | bool:
+    def _msg_flag(self, code: _CodeT, key, idx) -> None | bool:
 
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: Code, *args, **kwargs):
+    def _msg_value(self, code: _CodeT, *args, **kwargs):
 
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
     def _msg_value_code(
-        self, code: Code, verb: Verb = None, key=None, **kwargs
+        self, code: _CodeT, verb: _VerbT = None, key=None, **kwargs
     ) -> None | dict | list:
 
         assert (
@@ -178,7 +178,7 @@ class MessageDB:
         elif msg._expired:
             _delete_msg(msg)
 
-        if msg.code == Codx._1FC9:  # NOTE: list of lists/tuples
+        if msg.code == Code._1FC9:  # NOTE: list of lists/tuples
             return [x[1] for x in msg.payload]
 
         idx: None | str = None
@@ -235,7 +235,7 @@ class MessageDatabaseSql:
     def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
         pass
 
-    def _get_msg_by_hdr(self, hdr: Header) -> None | Message:
+    def _get_msg_by_hdr(self, hdr: _HeaderT) -> None | Message:
         pass
 
     def _msg_flag(self, code, key, idx) -> None | bool:
@@ -259,7 +259,7 @@ class Discovery(MessageDB):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._disc_tasks: dict[Header, dict] = {}
+        self._disc_tasks: dict[_HeaderT, dict] = {}
         self._disc_tasks_poller = None
 
         if not gwy.config.disable_discovery and isinstance(
@@ -326,7 +326,7 @@ class Discovery(MessageDB):
         command for later.
         """
 
-        def find_newer_msg(hdr: Header, task: dict) -> None | Message:
+        def find_newer_msg(hdr: _HeaderT, task: dict) -> None | Message:
             msgs: list[Message] = [
                 m
                 for m in [self._get_msg_by_hdr(hdr[:5] + v + hdr[7:]) for v in (I_, RP)]
@@ -342,8 +342,8 @@ class Discovery(MessageDB):
 
             # has the controller sent an array recently - use that instead?
             for code in (
-                Codx._000A,
-                Codx._30C9,
+                Code._000A,
+                Code._30C9,
             ):  # can't use 2309 (no mode) instead of 2349
                 try:
                     if task["command"].code == code and (
@@ -355,7 +355,7 @@ class Discovery(MessageDB):
 
             return None
 
-        def interval(hdr: Header, failures: int) -> td:
+        def interval(hdr: _HeaderT, failures: int) -> td:
             """Adjust the ineterval - backoff if any failures."""
 
             if failures > 5:
@@ -369,7 +369,7 @@ class Discovery(MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_task(hdr: Header, task: dict) -> None | Message:
+        async def send_disc_task(hdr: _HeaderT, task: dict) -> None | Message:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -439,7 +439,7 @@ class Entity(Discovery):
         super().__init__(gwy)
 
         self._gwy = gwy
-        self.id: DevId = None  # type: ignore[assignment]
+        self.id: _DevIdT = None  # type: ignore[assignment]
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
@@ -531,7 +531,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
-    actuator_by_id: dict[DevId, Entity]
+    actuator_by_id: dict[_DevIdT, Entity]
     actuators: list[Entity]
 
     circuit_by_id: dict[str, Any]
@@ -551,7 +551,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_ufh_circuits():
-            if msg.code == Codx._22C9:
+            if msg.code == Code._22C9:
                 #  I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
                 #  I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
                 circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
@@ -732,7 +732,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             if SZ_ZONE_IDX not in msg.payload:
                 return
 
-            if msg.code in (Codx._1060, Codx._12B0, Codx._2309, Codx._3150):  # not 30C9
+            if msg.code in (Code._1060, Code._12B0, Code._2309, Code._3150):  # not 30C9
                 self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
 
         super()._handle_msg(msg)
