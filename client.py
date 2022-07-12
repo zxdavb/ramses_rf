@@ -50,16 +50,7 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     RQ,
     W_,
     DEV_TYPE_MAP,
-)
-
-# skipcq: PY-W2000
-from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _0005,
-    _000A,
-    _000C,
-    _1F09,
-    _2309,
-    _30C9,
+    Code,
 )
 
 DEBUG_MODE = "debug_mode"
@@ -476,7 +467,7 @@ def print_summary(gwy, **kwargs):
     if kwargs.get("show_crazys"):
         for device in [d for d in gwy.devices if d.type == DEV_TYPE_MAP.CTL]:
             for code, verbs in device._msgz.items():
-                if code in (_0005, _000C):
+                if code in (Code._0005, Code._000C):
                     for verb in verbs.values():
                         for pkt in verb.values():
                             print(f"{pkt}")
@@ -513,9 +504,9 @@ async def main(command, lib_kwargs, **kwargs):
 
         if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
-        elif msg.code == _1F09 and msg.verb == I_:
+        elif msg.code == Code._1F09 and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
-        elif msg.code in (_000A, _2309, _30C9) and msg._has_array:
+        elif msg.code in (Code._000A, Code._2309, Code._30C9) and msg._has_array:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
