@@ -48,7 +48,7 @@ from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
-from .schemas import SERIAL_CONFIG_SCHEMA
+from .schemas import SCH_SERIAL_CONFIG
 from .version import VERSION
 
 # TODO: switch dtm from naive to aware
@@ -80,7 +80,7 @@ TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
 
-DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
+DEFAULT_SERIAL_CONFIG = SCH_SERIAL_CONFIG({})
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 

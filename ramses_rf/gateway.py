@@ -37,15 +37,15 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schemas import (
-    DEBUG_MODE,
-    ENFORCE_KNOWN_LIST,
-    INPUT_FILE,
     SCH_TRAITS,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
     SZ_CLASS,
     SZ_CONFIG,
+    SZ_DEBUG_MODE,
+    SZ_ENFORCE_KNOWN_LIST,
     SZ_FAKED,
+    SZ_INPUT_FILE,
     SZ_KNOWN_LIST,
     SZ_MAIN_CONTROLLER,
     SZ_ORPHANS,
@@ -283,7 +283,7 @@ class Gateway(Engine):
 
     def __init__(self, serial_port, loop=None, **kwargs) -> None:
 
-        if kwargs.pop(DEBUG_MODE, None):
+        if kwargs.pop(SZ_DEBUG_MODE, None):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting RAMSES RF, **kwargs = %s", kwargs)
 
@@ -291,7 +291,7 @@ class Gateway(Engine):
 
         self._tasks: list = []
 
-        self._input_file = kwargs.pop(INPUT_FILE, None)
+        self._input_file = kwargs.pop(SZ_INPUT_FILE, None)
 
         self._include: dict = {}  # the provided known_list (?and used as an allow_list)
         self._exclude: dict = {}  # the provided block_list
@@ -594,7 +594,7 @@ class Gateway(Engine):
         return {
             "_gateway_id": self.hgi.id if self.hgi else None,
             SZ_MAIN_CONTROLLER: self.tcs.id if self.tcs else None,
-            SZ_CONFIG: {ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
+            SZ_CONFIG: {SZ_ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
             SZ_KNOWN_LIST: self.known_list,
             SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
             "_unwanted": sorted(self.pkt_protocol._unwanted),

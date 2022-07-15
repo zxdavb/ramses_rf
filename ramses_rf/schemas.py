@@ -12,7 +12,7 @@ import re
 from types import SimpleNamespace
 from typing import Any
 
-import voluptuous as vol
+import voluptuous as vol  # type: ignore[import]
 
 from .const import (
     DEFAULT_MAX_ZONES,
@@ -31,7 +31,7 @@ from .const import (
     __dev_mode__,
 )
 from .helpers import shrink
-from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_CONFIG_SCHEMA
+from .protocol import SCH_PACKET_LOG, SCH_SERIAL_CONFIG, SZ_PACKET_LOG
 from .protocol.const import (
     SZ_ACTUATORS,
     SZ_DEVICES,
@@ -78,40 +78,39 @@ SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]  # ufh_controller
 SZ_CIRCUITS = "circuits"
 
-DEV_REGEX_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
-DEV_REGEX_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
-DEV_REGEX_CTL = vol.Match(DEVICE_ID_REGEX.CTL)
-DEV_REGEX_DHW = vol.Match(DEVICE_ID_REGEX.DHW)
-DEV_REGEX_HGI = vol.Match(DEVICE_ID_REGEX.HGI)
-DEV_REGEX_APP = vol.Match(DEVICE_ID_REGEX.APP)
-DEV_REGEX_BDR = vol.Match(DEVICE_ID_REGEX.BDR)
-DEV_REGEX_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
+SCH_DEVICE_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
+SCH_DEVICE_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
+SCH_DEVICE_CTL = vol.Match(DEVICE_ID_REGEX.CTL)
+SCH_DEVICE_DHW = vol.Match(DEVICE_ID_REGEX.DHW)
+SCH_DEVICE_HGI = vol.Match(DEVICE_ID_REGEX.HGI)
+SCH_DEVICE_APP = vol.Match(DEVICE_ID_REGEX.APP)
+SCH_DEVICE_BDR = vol.Match(DEVICE_ID_REGEX.BDR)
+SCH_DEVICE_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
 
 HEAT_ZONES_STRS = tuple(ZON_ROLE_MAP[t] for t in ZON_ROLE_MAP.HEAT_ZONES)
 
-DOMAIN_ID = vol.Match(r"^[0-9A-F]{2}$")
-UFH_IDX_REGEX = r"^0[0-8]$"
-UFH_IDX = vol.Match(UFH_IDX_REGEX)
-ZONE_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
+SCH_DOM_ID = vol.Match(r"^[0-9A-F]{2}$")
+SCH_UFH_IDX = vol.Match(r"^0[0-8]$")
+SCH_ZON_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
 
-INPUT_FILE = "input_file"
+SZ_INPUT_FILE = "input_file"
 
 # Config parameters
-DEBUG_MODE = "debug_mode"
+SZ_DEBUG_MODE = "debug_mode"
 
 SZ_CONFIG = "config"
-DISABLE_DISCOVERY = "disable_discovery"
-DISABLE_SENDING = "disable_sending"
-ENABLE_EAVESDROP = "enable_eavesdrop"
-ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
-EVOFW_FLAG = "evofw_flag"
+SZ_DISABLE_DISCOVERY = "disable_discovery"
+SZ_DISABLE_SENDING = "disable_sending"
+SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
+SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
+SZ_EVOFW_FLAG = "evofw_flag"
 SZ_MAX_ZONES = "max_zones"
-REDUCE_PROCESSING = "reduce_processing"
-SERIAL_CONFIG = "serial_config"
-USE_ALIASES = "use_aliases"  # use friendly device names from known_list
-USE_SCHEMA = "use_schema"
-USE_REGEX = "use_regex"
-USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
+SZ_REDUCE_PROCESSING = "reduce_processing"
+SZ_SERIAL_CONFIG = "serial_config"
+SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
+SZ_USE_SCHEMA = "use_schema"
+SZ_USE_REGEX = "use_regex"
+SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
 
 
 def renamed(new_key):
@@ -123,23 +122,23 @@ def renamed(new_key):
 
 # 1/3: Schemas for Configuration
 
-CONFIG_SCHEMA = vol.Schema(
+SCH_CONFIG = vol.Schema(
     {
-        vol.Optional(DISABLE_DISCOVERY, default=False): bool,
-        vol.Optional(DISABLE_SENDING, default=False): bool,
-        vol.Optional(ENABLE_EAVESDROP, default=False): bool,
-        vol.Optional(ENFORCE_KNOWN_LIST, default=None): vol.Any(None, bool),
-        vol.Optional(REDUCE_PROCESSING, default=0): vol.All(
+        vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
+        vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
+        vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
+        vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=None): vol.Any(None, bool),
+        vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
             int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
         ),
         vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
             int, vol.Range(min=1, max=16)
         ),
-        vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
-        vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
-        vol.Optional(USE_NATIVE_OT, default=True): bool,
-        vol.Optional(USE_REGEX, default={}): dict,
-        # vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
+        vol.Optional(SZ_EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional(SZ_USE_ALIASES, default=None): vol.Any(None, bool),
+        vol.Optional(SZ_USE_NATIVE_OT, default=True): bool,
+        vol.Optional(SZ_USE_REGEX, default={}): dict,
+        # vol.Optional(SZ_USE_SCHEMA, default=True): vol.Any(None, bool),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
@@ -157,7 +156,7 @@ SCH_TRAITS = vol.Any(
     },
 )
 SCH_DEVICE = vol.Schema(
-    {vol.Optional(DEV_REGEX_ANY): SCH_TRAITS},
+    {vol.Optional(SCH_DEVICE_ANY): SCH_TRAITS},
     extra=vol.PREVENT_EXTRA,
 )
 
@@ -166,7 +165,7 @@ SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 SCH_TCS = vol.Schema(
     {
-        vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(None, DEV_REGEX_APP),
+        vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(None, SCH_DEVICE_APP),
         vol.Optional("heating_control"): renamed(SZ_APPLIANCE_CONTROL),
         vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
@@ -174,35 +173,35 @@ SCH_TCS = vol.Schema(
 )
 SCH_DHW = vol.Schema(
     {
-        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
-        vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
-        vol.Optional(SZ_HTG_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
+        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_DHW),
+        vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, SCH_DEVICE_BDR),
+        vol.Optional(SZ_HTG_VALVE, default=None): vol.Any(None, SCH_DEVICE_BDR),
         vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
     }
 )
 SCH_UFC_CIRCUIT = vol.Schema(
     {
-        vol.Required(UFH_IDX): vol.Any(
-            {vol.Optional(SZ_ZONE_IDX): vol.Any(ZONE_IDX)},
+        vol.Required(SCH_UFH_IDX): vol.Any(
+            {vol.Optional(SZ_ZONE_IDX): vol.Any(SCH_ZON_IDX)},
         ),
     }
 )
 SCH_UFH = vol.Schema(
     {
-        vol.Required(DEV_REGEX_UFC): vol.Any(
+        vol.Required(SCH_DEVICE_UFC): vol.Any(
             None, {vol.Optional(SZ_CIRCUITS): vol.Any(None, dict)}
         )
     }
 )
 SCH_UFH = vol.All(SCH_UFH, vol.Length(min=1, max=3))
 
-SCH_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123456'])
+SCH_ZON = vol.Schema(  # vol.All([SCH_DEVICE_ANY], vol.Length(min=0))(['01:123456'])
     {
         vol.Optional(SZ_CLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
-        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_SEN),
+        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_SEN),
         vol.Optional(SZ_DEVICES): renamed(SZ_ACTUATORS),
         vol.Optional(SZ_ACTUATORS, default=[]): vol.All(
-            [DEV_REGEX_ANY], vol.Length(min=0)
+            [SCH_DEVICE_ANY], vol.Length(min=0)
         ),
         vol.Optional(SZ_ZONE_TYPE): renamed(SZ_CLASS),
         vol.Optional("zone_sensor"): renamed(SZ_SENSOR),
@@ -213,16 +212,16 @@ SCH_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123456
 )
 # SCH_ZON({SZ_CLASS: None, SZ_DEVICES: None})  # TODO: remove me
 SCH_ZONES = vol.All(
-    vol.Schema({vol.Required(ZONE_IDX): SCH_ZON}),
+    vol.Schema({vol.Required(SCH_ZON_IDX): SCH_ZON}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
 )
 SCH_SYS = vol.Schema(
     {
-        # vol.Required(SZ_CONTROLLER): DEV_REGEX_CTL,
+        # vol.Required(SZ_CONTROLLER): SCH_DEVICE_CTL,
         vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, SCH_TCS),
         vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_DHW),
         vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_UFH),
-        vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEV_REGEX_ANY]),
+        vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
         vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCH_ZONES),
     },
     extra=vol.PREVENT_EXTRA,
@@ -232,10 +231,10 @@ SCH_SYS = vol.Schema(
 # 3/3: Global Schemas
 SCH_GLOBAL_CONFIG = vol.Schema(
     {
-        vol.Required(SZ_CONFIG): CONFIG_SCHEMA.extend(
+        vol.Required(SZ_CONFIG): SCH_CONFIG.extend(
             {
-                vol.Optional(SERIAL_CONFIG): SERIAL_CONFIG_SCHEMA,
-                vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
+                vol.Optional(SZ_SERIAL_CONFIG): SCH_SERIAL_CONFIG,
+                vol.Optional(SZ_PACKET_LOG, default={}): vol.Any({}, SCH_PACKET_LOG),
             }
         ),
         vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
@@ -263,8 +262,8 @@ def load_config(
     block_list = config.pop(SZ_BLOCK_LIST)
     known_list = config.pop(SZ_KNOWN_LIST)
 
-    config = CONFIG_SCHEMA.extend(
-        {vol.Optional(SERIAL_CONFIG, default={}): SERIAL_CONFIG_SCHEMA}
+    config = SCH_CONFIG.extend(
+        {vol.Optional(SZ_SERIAL_CONFIG, default={}): SCH_SERIAL_CONFIG}
     )(config[SZ_CONFIG])
 
     if serial_port and input_file:
@@ -274,14 +273,14 @@ def load_config(
             input_file,
         )
     elif serial_port is None:
-        config[DISABLE_SENDING] = True
+        config[SZ_DISABLE_SENDING] = True
 
-    if config[DISABLE_SENDING]:
-        config[DISABLE_DISCOVERY] = True
+    if config[SZ_DISABLE_SENDING]:
+        config[SZ_DISABLE_DISCOVERY] = True
 
-    if config[ENABLE_EAVESDROP]:
+    if config[SZ_ENABLE_EAVESDROP]:
         _LOGGER.warning(
-            f"{ENABLE_EAVESDROP} enabled: this is discouraged for routine use"
+            f"{SZ_ENABLE_EAVESDROP} enabled: this is discouraged for routine use"
             " (there be dragons here)"
         )
 
@@ -294,27 +293,27 @@ def load_config(
 def update_config(config, known_list, block_list) -> None:
     """Determine which device filter to use, if any: known_list or block_list."""
 
-    if SZ_INBOUND not in config[USE_REGEX]:  # TODO: move to voluptuous
-        config[USE_REGEX][SZ_INBOUND] = {}
-    if SZ_OUTBOUND not in config[USE_REGEX]:
-        config[USE_REGEX][SZ_OUTBOUND] = {}
+    if SZ_INBOUND not in config[SZ_USE_REGEX]:  # TODO: move to voluptuous
+        config[SZ_USE_REGEX][SZ_INBOUND] = {}
+    if SZ_OUTBOUND not in config[SZ_USE_REGEX]:
+        config[SZ_USE_REGEX][SZ_OUTBOUND] = {}
 
     if DEV_HACK_REGEX:  # HACK: for DEV/TEST convenience, not for production
-        config[USE_REGEX][SZ_INBOUND].update(
+        config[SZ_USE_REGEX][SZ_INBOUND].update(
             {
                 "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
                 # "02:153425": "20:153425",
             }
         )
 
-    if config[ENFORCE_KNOWN_LIST] and not known_list:
+    if config[SZ_ENFORCE_KNOWN_LIST] and not known_list:
         _LOGGER.warning(
             f"An empty {SZ_KNOWN_LIST} was provided, so it cant be used "
             f"as a whitelist (device_id filter)"
         )
-        config[ENFORCE_KNOWN_LIST] = False
+        config[SZ_ENFORCE_KNOWN_LIST] = False
 
-    if config[ENFORCE_KNOWN_LIST]:
+    if config[SZ_ENFORCE_KNOWN_LIST]:
         _LOGGER.info(
             f"The {SZ_KNOWN_LIST} will be used "
             f"as a whitelist (device_id filter), length = {len(known_list)}"
@@ -331,14 +330,14 @@ def update_config(config, known_list, block_list) -> None:
     elif known_list:
         _LOGGER.warning(
             f"It is strongly recommended to use the {SZ_KNOWN_LIST} "
-            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWN_LIST} = True"
+            f"as a whitelist (device_id filter), configure: {SZ_ENFORCE_KNOWN_LIST} = True"
         )
         _LOGGER.debug(f"known_list = {known_list}")
 
     else:
         _LOGGER.warning(
             f"It is strongly recommended to provide a {SZ_KNOWN_LIST}, and use it "
-            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWN_LIST} = True"
+            f"as a whitelist (device_id filter), configure: {SZ_ENFORCE_KNOWN_LIST} = True"
         )
 
 

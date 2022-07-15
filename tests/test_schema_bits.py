@@ -6,7 +6,7 @@
 Test the Schema processor.
 """
 
-import voluptuous as vol
+import voluptuous as vol  # type: ignore[import]
 
 from ramses_rf.schemas import (
     SCH_DHW,

@@ -17,7 +17,7 @@ from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandl
 from typing import Callable
 
 from .const import __dev_mode__
-from .schemas import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
+from .schemas import SZ_LOG_FILE_NAME, SZ_LOG_ROTATE_BACKUPS, SZ_LOG_ROTATE_BYTES
 from .version import VERSION
 
 DEV_MODE = __dev_mode__ and False
@@ -251,9 +251,9 @@ def set_pkt_logging(logger, dt_now=None, cc_console: bool = False, **kwargs) -> 
     logger.propagate = False  # log file is distinct from any app/debug logging
     logger.setLevel(logging.DEBUG)  # must be at least .INFO
 
-    if file_name := kwargs.get(LOG_FILE_NAME):
-        max_bytes = kwargs.get(LOG_ROTATE_BYTES)
-        bkp_count = kwargs.get(LOG_ROTATE_COUNT, 0)
+    if file_name := kwargs.get(SZ_LOG_FILE_NAME):
+        bkp_count = kwargs.get(SZ_LOG_ROTATE_BACKUPS, 0)
+        max_bytes = kwargs.get(SZ_LOG_ROTATE_BYTES)
 
         if max_bytes:
             bkp_count = bkp_count or 2

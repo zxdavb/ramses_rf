@@ -9,24 +9,24 @@ from __future__ import annotations
 
 import voluptuous as vol  # type: ignore[import]
 
-LOG_FILE_NAME = "file_name"
-LOG_ROTATE_BYTES = "rotate_bytes"
-LOG_ROTATE_COUNT = "rotate_backups"
+SZ_LOG_FILE_NAME = "file_name"
+SZ_LOG_ROTATE_BYTES = "rotate_bytes"
+SZ_LOG_ROTATE_BACKUPS = "rotate_backups"
 
-PACKET_LOG = "packet_log"  # output
-PACKET_LOG_SCHEMA = vol.Schema(
+SZ_PACKET_LOG = "packet_log"  # output
+SCH_PACKET_LOG = vol.Schema(
     {
-        vol.Required(LOG_FILE_NAME): str,
-        vol.Optional(LOG_ROTATE_BYTES, default=None): vol.Any(None, int),
-        vol.Optional(LOG_ROTATE_COUNT, default=0): vol.Any(None, int),
+        vol.Required(SZ_LOG_FILE_NAME): str,
+        vol.Optional(SZ_LOG_ROTATE_BACKUPS, default=0): vol.Any(None, int),
+        vol.Optional(SZ_LOG_ROTATE_BYTES, default=None): vol.Any(None, int),
     },
     extra=vol.PREVENT_EXTRA,
 )
 
-PORT_NAME = "port_name"
-SERIAL_PORT = "serial_port"
+SZ_PORT_NAME = "port_name"
+SZ_SERIAL_PORT = "serial_port"
 
-SERIAL_CONFIG_SCHEMA = vol.Schema(
+SCH_SERIAL_CONFIG = vol.Schema(
     {
         vol.Optional("baudrate", default=115200): vol.All(
             vol.Coerce(int), vol.Any(57600, 115200)
@@ -38,12 +38,12 @@ SERIAL_CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
-SERIAL_PORT_SCHEMA = vol.Schema(
+SCH_SERIAL_PORT = vol.Schema(
     {
-        vol.Required(SERIAL_PORT): vol.Any(
+        vol.Required(SZ_SERIAL_PORT): vol.Any(
             None,
             str,
-            SERIAL_CONFIG_SCHEMA.extend({vol.Required(PORT_NAME): str}),
+            SCH_SERIAL_CONFIG.extend({vol.Required(SZ_PORT_NAME): str}),
         )
     }
 )
