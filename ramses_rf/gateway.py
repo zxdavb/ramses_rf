@@ -684,6 +684,8 @@ class Gateway(Engine):
 
 
 class GatewayWithSql(Gateway):
+    """The gateway class (with MySQL)."""
+
     def __init__(self, *args, **kwargs) -> None:
 
         import sqlite3

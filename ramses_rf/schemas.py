@@ -377,7 +377,6 @@ def load_schema(gwy, **kwargs) -> None:
     ]
     if kwargs.get(SZ_MAIN_CONTROLLER):
         gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
-
     [
         _get_device(gwy, device_id)
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)

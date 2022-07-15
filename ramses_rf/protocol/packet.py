@@ -161,8 +161,8 @@ class Packet(Frame):
             return False
 
         return fraction_expired(
-            self._gwy._dt_now() - self.dtm, self._timeout
-        )  # typx: ignore
+            self._gwy._dt_now() - self.dtm, self._timeout  # type: ignore[arg-type]
+        )
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):

@@ -191,11 +191,9 @@ class MessageTransport(asyncio.Transport):
             [p.connection_lost(None) for p in self._protocols]
 
         self._dispatcher = dispatcher  # type: ignore[assignment]
-        self._extra[self.WRITER] = self._loop.create_task(
-            pkt_dispatcher()
-        )  # typx:ignore
+        self._extra[self.WRITER] = self._loop.create_task(pkt_dispatcher())
 
-        return self._extra[self.WRITER]  # typx:ignore
+        return self._extra[self.WRITER]
 
     def _add_callback(self, header: str, callback: dict) -> None:
         callback[SZ_EXPIRES] = (
@@ -286,7 +284,7 @@ class MessageTransport(asyncio.Transport):
     def get_extra_info(self, name: str, default=None):
         """Get optional transport information."""
 
-        return self._extra.get(name, default)  # typx:ignore
+        return self._extra.get(name, default)
 
     def abort(self) -> None:
         """Close the transport immediately.
@@ -312,7 +310,7 @@ class MessageTransport(asyncio.Transport):
         self._is_closing = True
 
         self._pause_protocols()
-        if task := self._extra.get(self.WRITER):  # typx:ignore
+        if task := self._extra.get(self.WRITER):
             task.cancel()
 
         [self._loop.call_soon(p.connection_lost, None) for p in self._protocols]
