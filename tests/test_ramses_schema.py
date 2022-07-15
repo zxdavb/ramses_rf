@@ -7,8 +7,8 @@ Test the Command.put_*, Command.set_* APIs.
 """
 
 from ramses_rf import RQ
-from ramses_rf.device.devices_heat import HEAT_CLASS_BY_SLUG
-from ramses_rf.device.devices_hvac import HVAC_CLASS_BY_SLUG
+from ramses_rf.device.heat import HEAT_CLASS_BY_SLUG
+from ramses_rf.device.hvac import HVAC_CLASS_BY_SLUG
 from ramses_rf.protocol.const import DEV_TYPE, Code
 from ramses_rf.protocol.ramses import (
     _DEV_KLASSES_HEAT,

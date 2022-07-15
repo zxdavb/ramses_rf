@@ -21,7 +21,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 # skipcq: PY-W2000
-from .devices_base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _DeviceT,
     BASE_CLASS_BY_SLUG,
     Device,
@@ -31,7 +31,7 @@ from .devices_base import (  # noqa: F401, isort: skip, pylint: disable=unused-i
 )
 
 # skipcq: PY-W2000
-from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     HEAT_CLASS_BY_SLUG,
     BdrSwitch,
     Controller,
@@ -47,7 +47,7 @@ from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-i
 )
 
 # skipcq: PY-W2000
-from .devices_hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     HVAC_CLASS_BY_SLUG,
     HvacCarbonDioxideSensor,
     HvacHumiditySensor,

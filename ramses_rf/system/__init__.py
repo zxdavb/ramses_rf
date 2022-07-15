@@ -25,7 +25,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 # )
 
 # skipcq: PY-W2000
-from .systems_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     System,
     zx_system_factory,
 )
