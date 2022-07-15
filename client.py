@@ -54,6 +54,9 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 )
 
 DEBUG_MODE = "debug_mode"
+DEBUG_ADDR = "0.0.0.0"
+DEBUG_PORT = 5678
+
 
 # DEFAULT_SUMMARY can be: True, False, or None
 SHOW_SCHEMA = False
@@ -76,8 +79,6 @@ LISTEN = "listen"
 MONITOR = "monitor"
 PARSE = "parse"
 
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
 
 COLORS = {
     I_: Fore.GREEN,
