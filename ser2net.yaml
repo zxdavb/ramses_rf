@@ -1,0 +1,12 @@
+# HGI80-like ser2net connection that allows multiple connections
+connection: &con00
+  accepter: telnet(rfc2217),tcp,5001
+  timeout: 0
+  connector: serialdev,/dev/ttyUSB0,115200n81,local
+  options:
+    max-connections: 3
+
+# In HA:
+# evohome_cc:
+#   serial_port:
+#     port_name: rfc2217://localhost:5001
