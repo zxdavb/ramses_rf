@@ -183,7 +183,7 @@ async def test_rq_0006():
     await gwy.stop()
 
 
-async def test_0404_dhw():  # Needs mocking
+async def test_rq_0404_dhw():  # Needs mocking
 
     if SERIAL_PORT == MOCKED_PORT:
         return
@@ -197,7 +197,7 @@ async def test_0404_dhw():  # Needs mocking
     await gwy.stop()
 
 
-async def test_0404_zone():
+async def test_rq_0404_zone():
 
     gwy = await load_test_system(config={"disable_discovery": True})
     tcs = gwy.system_by_id[CTL_ID]
