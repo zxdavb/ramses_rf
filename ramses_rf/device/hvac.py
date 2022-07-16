@@ -106,18 +106,28 @@ class HvacHumiditySensor(BatteryState, DeviceHvac):  # HUM: I/12A0
         }
 
 
-class HvacCarbonDioxideSensor(DeviceHvac):  # CO2: I/1298
+class HvacCarbonDioxideSensor(Fakeable, DeviceHvac):  # CO2: I/1298
     """The Sensor class for a CO2 sensor.
 
     The cardinal code is 1298.
     """
 
-    # 22:42:22.889 050  I --- 37:154011 --:------ 37:154011 1FC9 030 0031E096599B 00129896599B 002E1096599B 0110E096599B 001FC996599B              # CO2, idx|10E0 == 01
-    # 22:42:22.995 083  W --- 28:126620 37:154011 --:------ 1FC9 012 0031D949EE9C 0031DA49EE9C                                                     # FAN, BRDG-02A55
-    # 22:42:23.014 050  I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
-    # 22:42:23.876 050  I --- 37:154011 63:262142 --:------ 10E0 038 0000010028090101FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000  # VMS-12C39, oem_code == 01
+    # .I --- 37:154011 --:------ 37:154011 1FC9 030 0031E096599B 00129896599B 002E1096599B 0110E096599B 001FC996599B              # CO2, idx|10E0 == 01
+    # .W --- 28:126620 37:154011 --:------ 1FC9 012 0031D949EE9C 0031DA49EE9C                                                     # FAN, BRDG-02A55
+    # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
 
     _SLUG: str = DEV_TYPE.CO2
+
+    def _bind(self):
+        # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
+        # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
+        # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
+
+        def callback(msg):
+            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+
+        super()._bind()
+        self._bind_request((Code._1298, Code._31E0), callback=callback)
 
     @property
     def co2_level(self) -> None | float:

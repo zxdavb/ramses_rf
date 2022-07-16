@@ -3,7 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the payload parsers and corresponding output (schema, traits, params, status).
+Test faking of Heat devices.
 """
 
 import asyncio
@@ -18,6 +18,7 @@ from tests.common import TEST_DIR
 
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
+CONFIG_FILE = "config_heat.json"
 
 
 if ports := [
@@ -35,14 +36,10 @@ else:
     GWY_ID = "01:000730"
 
 
-# import tracemalloc
-# tracemalloc.start()
-
-
 async def load_test_system(config: dict = None) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    with open(f"{WORK_DIR}/config.json") as f:
+    with open(f"{WORK_DIR}/{CONFIG_FILE}") as f:
         kwargs = json.load(f)
 
     if config:
@@ -54,15 +51,7 @@ async def load_test_system(config: dict = None) -> Gateway:
 
 
 # async def test_dhw_sensor():  # I/1260
-#     pass
-
-
-# async def test_fan_mode():  # I/22F1
-#     pass
-
-
 # async def test_weather_sensor():  # I/0002
-#     pass
 
 
 async def test_zone_sensor():  # I/30C9

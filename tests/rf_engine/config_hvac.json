@@ -1,0 +1,22 @@
+{
+    "config": {
+        "disable_discovery": true,
+        "disable_sending": false,
+        "enable_eavesdrop": false,
+        "enforce_known_list": true,
+        "use_aliases": false
+    },
+
+    "orphans_hvac": [
+        "29:155617",
+        "32:155617"
+    ],
+
+    "known_list": {
+        "32:155617": {"class": "FAN"},
+        "29:155617": {"class": "REM", "faked": true}
+    },
+
+    "block_list": {
+    }
+}
