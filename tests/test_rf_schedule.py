@@ -3,7 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the payload parsers and corresponding output (schema, traits, params, status).
+Test CH/DHW schedules with a mocked controller.
 """
 
 import json
@@ -22,12 +22,14 @@ from ramses_rf.system.schedule import (
     TIME_OF_DAY,
 )
 from tests.common import TEST_DIR
+from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
 # import tracemalloc
 # tracemalloc.start()
 
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
+CONFIG_FILE = "config_heat.json"
 
 
 if ports := [
@@ -39,24 +41,30 @@ if ports := [
     GWY_ID = "01:145038"
 
 else:
-    from tests.mock_gateway import MockGateway as Gateway
+    from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = "/dev/ttyMOCK"
+    SERIAL_PORT = MOCKED_PORT
     GWY_ID = "01:000730"
 
 
 async def load_test_system(config: dict = None) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    with open(f"{WORK_DIR}/config.json") as f:
+    with open(f"{WORK_DIR}/{CONFIG_FILE}") as f:
         kwargs = json.load(f)
 
     if config:
         kwargs.update(config)
 
     gwy = Gateway(SERIAL_PORT, **kwargs)
+    await gwy.start(start_discovery=False)  # may: SerialException
 
-    return gwy, gwy.system_by_id[GWY_ID]
+    if hasattr(
+        gwy.pkt_transport.serial, "mock_devices"
+    ):  # needs ser instance, so after gwy.start()
+        gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
+
+    return gwy
 
 
 def assert_schedule_dict(schedule_full):
@@ -114,7 +122,7 @@ async def write_schedule(zone) -> None:
 
     sch_end = await zone.set_schedule(sch_old)  # put things back
 
-    assert zone._gwy.pkt_transport.serial.port == "/dev/ttyMOCK" or (sch_end == sch_old)
+    assert zone._gwy.pkt_transport.serial.port == MOCKED_PORT or (sch_end == sch_old)
 
 
 async def read_schedule(zone) -> dict:
@@ -151,8 +159,8 @@ async def test_rq_0006():
         assert version == tcs._msgs[Code._0006].payload["change_counter"]
         return version
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
 
     # gwy.config.disable_sending = False
     version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
@@ -177,11 +185,11 @@ async def test_rq_0006():
 
 async def test_0404_dhw():  # Needs mocking
 
-    if SERIAL_PORT == "/dev/ttyMOCK":
+    if SERIAL_PORT == MOCKED_PORT:
         return
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
 
     if tcs.dhw:
         await read_schedule(tcs.dhw)
@@ -191,8 +199,8 @@ async def test_0404_dhw():  # Needs mocking
 
 async def test_0404_zone():
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
 
     if tcs.zones:
         await read_schedule(tcs.zones[0])
@@ -202,8 +210,8 @@ async def test_0404_zone():
 
 async def _test_ww_0404_dhw():
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
 
     if tcs.dhw:
         await write_schedule(tcs.dhw)
@@ -213,8 +221,8 @@ async def _test_ww_0404_dhw():
 
 async def _test_ww_0404_zone():
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
 
     if tcs.zones:
         await write_schedule(tcs.zones[0])

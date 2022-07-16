@@ -12,6 +12,7 @@ import json
 from serial.tools import list_ports
 
 from tests.common import TEST_DIR
+from tests.mock import MOCKED_PORT, MockDeviceCtl
 
 # import tracemalloc
 # tracemalloc.start()
@@ -27,13 +28,13 @@ if ports := [
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
-    GWY_ID = "01:145038"
+    CTL_ID = "01:145038"
 
 else:
-    from tests.mock_gateway import MockGateway as Gateway
+    from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = "/dev/ttyMOCK"
-    GWY_ID = "01:000730"
+    SERIAL_PORT = MOCKED_PORT
+    CTL_ID = "01:000730"
 
 
 async def load_test_system(config: dict = None) -> Gateway:
@@ -46,25 +47,26 @@ async def load_test_system(config: dict = None) -> Gateway:
         kwargs.update(config)
 
     gwy = Gateway(SERIAL_PORT, **kwargs)
+    await gwy.start(start_discovery=False)  # may: SerialException
 
-    return gwy, gwy.system_by_id[GWY_ID]
+    if hasattr(
+        gwy.pkt_transport.serial, "mock_devices"
+    ):  # needs ser instance, so after gwy.start()
+        gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
 
-
-# async def test_dhw_sensor():  # I/1260
-# async def test_weather_sensor():  # I/0002
+    return gwy
 
 
 async def test_zone_sensor():  # I/30C9
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
-
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
     zone = tcs.zones[0]
 
     # TODO: remove this block when can assure zone.sensor is not None
-    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:
+    if SERIAL_PORT != MOCKED_PORT and zone.sensor is None:
         await gwy.stop()
         return
 
@@ -94,15 +96,18 @@ async def test_zone_sensor():  # I/30C9
     await gwy.stop()
 
 
+# async def test_dhw_sensor():  # I/1260
+# async def test_weather_sensor():  # I/0002
+
+
 async def test_zone_sensor_unfaked():  # I/30C9
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
-
+    gwy = await load_test_system(config={"disable_discovery": True})
+    tcs = gwy.system_by_id[CTL_ID]
     zone = tcs.zones[0]
 
     # TODO: remove this block when can assure zone.sensor is not None
-    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:
+    if SERIAL_PORT != MOCKED_PORT and zone.sensor is None:
         await gwy.stop()
         return
 

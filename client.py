@@ -519,7 +519,7 @@ async def main(command, lib_kwargs, **kwargs):
 
     serial_port, lib_kwargs = normalise_config_schema(lib_kwargs)
     if serial_port == "/dev/ttyMOCK":
-        from tests.mock_gateway import MockGateway
+        from tests.mock import MockGateway
 
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:
