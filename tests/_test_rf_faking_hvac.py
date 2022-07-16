@@ -11,7 +11,9 @@ import json
 
 from serial.tools import list_ports
 
+from ramses_rf.device import HvacRemote, HvacVentilator
 from tests.common import TEST_DIR
+from tests.mock import MOCKED_PORT, MockDeviceFan
 
 # import tracemalloc
 # tracemalloc.start()
@@ -27,13 +29,13 @@ if ports := [
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
-    GWY_ID = "01:145038"
+    FAN_ID = "32:155617"
 
 else:
-    from tests.mock_gateway import MockGateway as Gateway
+    from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = "/dev/ttyMOCK"
-    GWY_ID = "01:000730"
+    SERIAL_PORT = MOCKED_PORT
+    FAN_ID = "32:155617"
 
 
 async def load_test_system(config: dict = None) -> Gateway:
@@ -46,42 +48,57 @@ async def load_test_system(config: dict = None) -> Gateway:
         kwargs.update(config)
 
     gwy = Gateway(SERIAL_PORT, **kwargs)
+    await gwy.start(start_discovery=False)  # may: SerialException
 
-    return gwy, gwy.system_by_id[GWY_ID]
+    if hasattr(
+        gwy.pkt_transport.serial, "mock_devices"
+    ):  # needs ser instance, so after gwy.start()
+        gwy.pkt_transport.serial.mock_devices = [MockDeviceFan(gwy, FAN_ID)]
+
+    return gwy  # , gwy.system_by_id[CTL_ID]
 
 
-# async def test_co2_sensor():  # I/1298
-# async def test_rh_sensor():  # I/12A0
+def find_test_devices(gwy: Gateway) -> tuple[HvacRemote, HvacVentilator]:
+
+    try:
+        fan = [d for d in gwy.devices if d._SLUG == "FAN"][0]
+    except IndexError:
+        fan = None
+
+    try:
+        rem = [d for d in gwy.devices if d._SLUG == "REM"][0]
+    except IndexError:
+        rem = None
+
+    return rem, fan
 
 
 async def test_fan_mode():  # I/22F1
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
-
-    zone = tcs.zones[0]
+    gwy = await load_test_system(config={"disable_discovery": True})
+    rem, fan = find_test_devices(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
-    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:
+    if SERIAL_PORT != MOCKED_PORT and rem is None:
         await gwy.stop()
         return
 
-    org_temp = zone.temperature  # may be None
-    old_temp = 19.5 if org_temp is None else org_temp  # HACK
+    org_rate = fan.fan_info  # may be None
+    org_rate = 19.5 if org_rate is None else org_rate  # HACK
 
-    zone.sensor.temperature = old_temp - 0.5
+    rem.fan_rate = old_temp - 0.5
 
     await asyncio.sleep(0.5)  # 0.3 is too low
-    new_temp = zone.sensor.temperature
-    assert new_temp == old_temp - 0.5, f"new: {new_temp}, old: {old_temp}"
+    new_rate = fan.fan_info
+    assert new_rate == old_rate - 0.5, f"new: {new_rate}, old: {old_rate}"
 
     # await gwy.async_send_cmd(Command.get_zone_temp(tcs.id, zone.idx))
     # zon_temp = zone.temperature
     # assert zon_temp == old_temp - 0.5, f"new: {new_temp}, old: {old_temp}"
 
-    zone.sensor.temperature = old_temp
+    rem.fan_rate = old_temp
 
     await asyncio.sleep(0.5)  # 0.3 is too low
     new_temp = zone.sensor.temperature
@@ -94,15 +111,17 @@ async def test_fan_mode():  # I/22F1
     await gwy.stop()
 
 
+# async def test_co2_sensor():  # I/1298
+# async def test_rh_sensor():  # I/12A0
+
+
 async def test_fan_mode_unfaked():  # I/22F1
 
-    gwy, tcs = await load_test_system(config={"disable_discovery": True})
-    await gwy.start(start_discovery=False)  # may: SerialException
-
-    zone = tcs.zones[0]
+    gwy = await load_test_system(config={"disable_discovery": True})
+    rem, fan = find_test_devices(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
-    if SERIAL_PORT != "/dev/ttyMOCK" and zone.sensor is None:
+    if SERIAL_PORT != MOCKED_PORT and rem is None:
         await gwy.stop()
         return
 
