@@ -8,6 +8,8 @@ A pseudo-mocked serial port used for testing.
 Will provide a fixed Tx for a given Rx.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime as dt
@@ -28,7 +30,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class MockSerial:  # all the 'mocking' is done here
+class MockSerial:  # most of the 'mocking' is done here
     """A pseudo-mocked serial port used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
@@ -86,11 +88,11 @@ class MockSerial:  # all the 'mocking' is done here
             await asyncio.sleep(0.001)
 
             try:
-                klass, _, data, rp_header = self._que.get_nowait()
+                priority, _, data, rp_header = self._que.get_nowait()
             except Empty:
                 continue
 
-            if klass == 3:
+            if priority == 3:  # only from HGI80
                 self._out_waiting -= len(data)
             self._rx_buffer += b"000 " + data
 
@@ -115,16 +117,18 @@ class MockSerial:  # all the 'mocking' is done here
         if data[7:16] == b"18:000730":
             data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
-            self._tx_data_to_ether(data, Command(data.decode("ascii")[:-2]))
+            self._tx_bytes_to_ether(data)
         except InvalidPacketError:
             pass
         return 0
 
-    def _tx_data_to_ether(self, data: str, cmd: Command) -> None:
+    def _tx_bytes_to_ether(self, data: str) -> None:
         """Transmit a packet to the ether from the gateway, usually an RQ."""
 
+        rx_header = Command(data.decode("ascii")[:-2]).rx_header
+
         try:
-            self._que.put_nowait((3, dt.now(), data, cmd.rx_header))
+            self._que.put_nowait((3, dt.now(), data, rx_header))
         except Full:
             return
         self._out_waiting += len(data)

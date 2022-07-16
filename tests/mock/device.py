@@ -6,12 +6,13 @@
 Mocked devices used for testing.Will provide an appropriate Tx for a given Rx.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Full
-from typing import Optional, Union
 
 from ramses_rf.const import SZ_ACTUATORS, SZ_CLASS, SZ_ZONES, ZON_ROLE_MAP
 from ramses_rf.protocol import InvalidPacketError
@@ -55,7 +56,7 @@ class MockCommand(Command):
         cls,
         src_id: str,
         dst_id: str,
-        zone_idx: Union[int, str],
+        zone_idx: int | str,
         zone_type: str,
         devices: tuple[str],
     ):
@@ -78,27 +79,35 @@ class MockDeviceBase:
         self.id = device_id
         self._tasks = []
 
-    def rx_frame_by_header(self, rp_header: str, pkts: tuple = None) -> None:
-        """Find/Create an encoded frame (via its hdr), and queue it for the gwy to Rx.
+    def rx_frame_by_header(self, rp_header: str) -> None:
+        """Find/Create an encoded frame (via its hdr), and place in on the ether.
 
         The rp_header is the sent cmd's rx_header (the header of the packet the gwy is
         waiting for).
         """
-        pkts = tuple() if pkts is None else pkts
 
-        for (priority, cmd) in pkts:
-            try:
-                self._ether.put_nowait(
-                    (priority, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None)
-                )
-            except Full:
-                pass
+        if response := RESPONSES.get(rp_header):
+            self._tx_response_cmds((self.make_response_pkt(response),))
 
-    def tx_response_pkt(self, frame: str) -> Optional[tuple]:
+    def make_response_pkt(self, frame: str) -> Command:
+        """Convert the response into a command."""
+
         try:
-            return 2, Command(frame)
+            return Command(frame)
         except InvalidPacketError as exc:
             raise InvalidPacketError(f"Invalid entry the response table: {exc}")
+
+    def _tx_response_cmds(self, cmds: Command | tuple[Command]) -> None:
+        """Queue pkts on the ether for the gwy to Rx."""
+
+        cmds = tuple() if cmds is None else cmds  # safety net
+
+        for cmd in cmds if isinstance(cmds, tuple) else (cmds,):
+            try:
+                frame = (0, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None)
+                self._ether.put_nowait(frame)
+            except Full:
+                pass
 
 
 class MockDeviceCtl(MockDeviceBase):
@@ -123,56 +132,53 @@ class MockDeviceCtl(MockDeviceBase):
         self._tasks = [self._loop.create_task(self.tx_sync_cycle())]
 
     def rx_frame_by_header(self, rp_header: str) -> None:
-        """Find/Create an encoded frame, and queue it for the gwy to Rx."""
+        """Find/Create an encoded frame, and place in on the ether."""
+
+        cmds: Command | tuple[Command] = None  # type: ignore[assignment]
+
         if rp_header == f"{Code._1F09}|{RP}|{CTL_ID}":
-            pkts = self.tx_response_1f09()
+            cmds = self.make_response_1f09()
 
         elif rp_header[:17] == f"{Code._0005}|{RP}|{CTL_ID}":
-            pkts = self.tx_response_0005(rp_header[18:])
+            cmds = self.make_response_0005(rp_header[18:])
 
         elif rp_header[:17] == f"{Code._0006}|{RP}|{CTL_ID}":
-            pkts = self.tx_response_0006(rp_header)
+            cmds = self.make_response_0006(rp_header)
 
         elif rp_header[:17] == f"{Code._000C}|{RP}|{CTL_ID}":
-            pkts = self.tx_response_000c(rp_header[18:])
+            cmds = self.make_response_000c(rp_header[18:])
 
         elif response := RESPONSES.get(rp_header):
             if rp_header[:17] == f"{Code._0404}|{I_}|{CTL_ID}":
                 self._change_counter += 2
-            pkts = self.tx_response_pkt(response)
+            cmds = self.make_response_pkt(response)
 
-        else:
-            pkts = tuple()
-
-        if pkts and isinstance(pkts[0], int):
-            pkts = ((pkts),)
-
-        super().rx_frame_by_header(rp_header, pkts=pkts)
+        if cmds:
+            self._tx_response_cmds(cmds)
 
     async def tx_sync_cycle(self) -> None:
-        """Periodically transmit sync_cycle packets from the controller."""
+        """Periodically queue sync_cycle pkts on the ether for the gwy to Rx."""
 
         while RUNNING:
             await asyncio.sleep((self.next_cycle - dt.now()).total_seconds())
 
             for cmd in sync_cycle_pkts(CTL_ID, self.SYNC_CYCLE_INTERVAL):
                 try:
-                    self._ether.put_nowait(
-                        (0, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None)
-                    )
+                    frame = (1, dt.now(), bytes(f"{cmd}\r\n", "ascii"), None)
+                    self._ether.put_nowait(frame)
                 except Full:
                     pass
                 await asyncio.sleep(0.02)
 
             self.next_cycle = dt.now() + td(seconds=self.SYNC_CYCLE_INTERVAL - 0.06)
 
-    def tx_response_1f09(self) -> Optional[tuple]:
+    def make_response_1f09(self) -> Command:
         interval = int((self.next_cycle - dt.now()).total_seconds() * 10)
-        return 1, Command._from_attrs(
+        return Command._from_attrs(
             RP, Code._1F09, f"00{interval:04X}", addr0=self.id, addr1=GWY_ID
         )
 
-    def tx_response_0005(self, context: str) -> Optional[tuple]:
+    def make_response_0005(self, context: str) -> None | Command:
         def is_type(idx, zone_type):
             return zones.get(f"{idx:02X}", {}).get(SZ_CLASS) == (
                 ZON_ROLE_MAP[zone_type]
@@ -185,17 +191,15 @@ class MockDeviceCtl(MockDeviceBase):
         zones = self._tcs.schema[SZ_ZONES]
         zone_mask = (is_type(idx, zone_type) for idx in range(0x10))
 
-        return 1, MockCommand._put_zone_types(
+        return MockCommand._put_zone_types(
             self.id, GWY_ID, zone_type, zone_mask, sub_idx=context[:2]
         )
 
-    def tx_response_0006(self, rp_header) -> Optional[tuple]:
+    def make_response_0006(self, rp_header) -> Command:
         payload = f"0005{self._change_counter:04X}"
-        return 1, Command._from_attrs(
-            RP, Code._0006, payload, addr0=self.id, addr1=GWY_ID
-        )
+        return Command._from_attrs(RP, Code._0006, payload, addr0=self.id, addr1=GWY_ID)
 
-    def tx_response_000c(self, context: str) -> Optional[tuple]:
+    def make_response_000c(self, context: str) -> None | Command:
         zone_idx, zone_type = context[:2], context[2:]
 
         if context == "000D":  # 01|DEV_ROLE_MAP.HTG
