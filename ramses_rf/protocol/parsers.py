@@ -1907,7 +1907,7 @@ def parser_3150(payload, msg) -> dict | list:
     return valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
 
 
-@parser_decorator  # ventilation state basic, HVAC
+@parser_decorator  # fan state (basic), HVAC
 def parser_31d9(payload, msg) -> dict:
     # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
     try:
@@ -1930,7 +1930,7 @@ def parser_31d9(payload, msg) -> dict:
         "filter_dirty": bool(bitmap & 0x20),
         "frost_cycle": bool(bitmap & 0x40),
         "has_fault": bool(bitmap & 0x80),
-        "flags": flag8(payload[2:4]),
+        "_flags": flag8(payload[2:4]),
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
@@ -1941,7 +1941,7 @@ def parser_31d9(payload, msg) -> dict:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    # result.update({f"_{SZ_UNKNOWN}_3": payload[6:8]})
+    result.update({f"_{SZ_UNKNOWN}_3": payload[6:8]})
 
     if msg.len == 4:  # usu: I -->20: (no seq#)
         return result
@@ -1954,12 +1954,12 @@ def parser_31d9(payload, msg) -> dict:
 
     return {
         **result,
-        # f"_{SZ_UNKNOWN}_4": payload[8:32],
-        # f"{SZ_UNKNOWN}_16": payload[32:],
+        f"_{SZ_UNKNOWN}_4": payload[8:32],
+        f"{SZ_UNKNOWN}_16": payload[32:],
     }
 
 
-@parser_decorator  # ventilation state extended, HVAC
+@parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
 
     _31DA_FAN_INFO = {
