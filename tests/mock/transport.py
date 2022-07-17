@@ -88,20 +88,21 @@ class MockSerial:  # most of the 'mocking' is done here
             await asyncio.sleep(0.001)
 
             try:
-                priority, _, data, rp_header = self._que.get_nowait()
+                priority, _, cmd = self._que.get_nowait()
             except Empty:
                 continue
 
+            # this is the mocked HGI80 receiving the frame
             if priority == 3:  # only from HGI80
-                self._out_waiting -= len(data)
-            self._rx_buffer += b"000 " + data
+                self._out_waiting -= len(str(cmd)) + 2
+            self._rx_buffer += b"000 " + bytes(f"{cmd}\r\n", "ascii")
 
-            if rp_header:
-                for device in self.mock_devices:
-                    try:
-                        device.rx_frame_by_header(rp_header)
-                    except (AttributeError, TypeError, ValueError) as exc:
-                        _LOGGER.exception(exc)
+            # this is the mocked devices receiving the frame
+            for device in self.mock_devices:
+                try:
+                    device.rx_frame_as_cmd(cmd)
+                except (AttributeError, TypeError, ValueError) as exc:
+                    _LOGGER.exception(exc)
             self._que.task_done()
 
     @property
@@ -122,16 +123,15 @@ class MockSerial:  # most of the 'mocking' is done here
             pass
         return 0
 
-    def _tx_bytes_to_ether(self, data: str) -> None:
-        """Transmit a packet to the ether from the gateway, usually an RQ."""
+    def _tx_bytes_to_ether(self, data: bytes) -> None:
+        """Transmit a packet from the gateway to the ether."""
 
-        rx_header = Command(data.decode("ascii")[:-2]).rx_header
-
+        cmd = Command(data.decode("ascii")[:-2])  # rx_header
         try:
-            self._que.put_nowait((3, dt.now(), data, rx_header))
+            self._que.put_nowait((3, dt.now(), cmd))
         except Full:
             return
-        self._out_waiting += len(data)
+        self._out_waiting += len(str(cmd)) + 2
 
 
 class SerTransportMock(SerTransportPoll):  # to gracefully close the mocked port
