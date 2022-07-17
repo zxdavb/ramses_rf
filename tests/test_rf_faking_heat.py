@@ -11,6 +11,7 @@ import json
 
 from serial.tools import list_ports
 
+from ramses_rf.system import System, Zone
 from tests.common import TEST_DIR
 from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
@@ -56,13 +57,18 @@ async def load_test_system(config: dict = None) -> Gateway:
     return gwy
 
 
-async def test_zone_sensor():  # I/30C9
+def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
+
+    tcs = gwy.system_by_id[CTL_ID]
+    return tcs, tcs.zones[0]
+
+
+async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
     gwy = await load_test_system(config={"disable_discovery": True})
-    tcs = gwy.system_by_id[CTL_ID]
-    zone = tcs.zones[0]
+    _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
     if SERIAL_PORT != MOCKED_PORT and zone.sensor is None:
@@ -95,11 +101,11 @@ async def test_zone_sensor():  # I/30C9
     await gwy.stop()
 
 
-# async def test_dhw_sensor():  # I/1260
-# async def test_weather_sensor():  # I/0002
+# async def test_dhw_sensor():  # I/1260 (DHW temp, 'C)
+# async def test_out_sensor():  # I/0002 (outside temp, 'C)
 
 
-async def test_zone_sensor_unfaked():  # I/30C9
+async def test_zon_sensor_unfaked():  # I/30C9
 
     gwy = await load_test_system(config={"disable_discovery": True})
     tcs = gwy.system_by_id[CTL_ID]
