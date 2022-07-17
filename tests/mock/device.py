@@ -24,7 +24,6 @@ from .const import GWY_ID, __dev_mode__
 DEV_MODE = __dev_mode__
 
 CTL_ID = "01:000730"
-FAN_ID = "32:155617"
 THM_ID = "03:123456"
 
 RUNNING = True
