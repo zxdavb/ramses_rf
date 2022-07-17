@@ -259,15 +259,14 @@ class Discovery(MessageDB):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._disc_tasks: dict[_HeaderT, dict] = {}
+        self._disc_tasks: dict[_HeaderT, dict] = None  # type: ignore[assignment]
         self._disc_tasks_poller = None
 
         if not gwy.config.disable_discovery and isinstance(
             gwy.pkt_protocol, PacketProtocolPort
         ):  # TODO: here, or in get_xxx()?
-            # delay = 0  # random.uniform(0.5, 1.5)
             # gwy._loop.call_soon_threadsafe(
-            #     gwy._loop.call_later, delay, self._start_discovery_poller
+            #     gwy._loop.call_later, random(0.5, 1.5), self._start_discovery_poller
             # )
             gwy._loop.call_soon(self._start_discovery_poller)
 
