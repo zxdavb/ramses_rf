@@ -16,11 +16,13 @@ from .const import (  # noqa: F401, pylint: disable=unused-import
 )
 from .device import (  # noqa: F401, F811, pylint: disable=unused-import
     CTL_ID,
-    FAN_ID,
     THM_ID,
     MockDeviceCtl,
-    MockDeviceFan,
     MockDeviceThm,
+)
+from .device_hvac import (  # noqa: F401, F811, pylint: disable=unused-import
+    FAN_ID,
+    MockDeviceFan,
 )
 from .transport import create_pkt_stack
 
