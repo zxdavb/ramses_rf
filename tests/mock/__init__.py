@@ -10,20 +10,19 @@ import logging
 
 from ramses_rf import Gateway
 
-from .transport import create_pkt_stack
-
-from .device import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # noqa: F401, pylint: disable=unused-import
+    MOCKED_PORT,
+    __dev_mode__,
+)
+from .device import (  # noqa: F401, F811, pylint: disable=unused-import
+    CTL_ID,
+    FAN_ID,
+    THM_ID,
     MockDeviceCtl,
     MockDeviceFan,
     MockDeviceThm,
 )
-
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    CTL_ID,
-    MOCKED_PORT,
-    THM_ID,
-    __dev_mode__,
-)
+from .transport import create_pkt_stack
 
 DEV_MODE = __dev_mode__
 

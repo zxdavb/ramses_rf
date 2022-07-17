@@ -19,9 +19,13 @@ from ramses_rf.protocol import InvalidPacketError
 from ramses_rf.protocol.command import Command, validate_api_params
 from ramses_rf.protocol.const import I_, RP, Code
 
-from .const import CTL_ID, GWY_ID, __dev_mode__
+from .const import GWY_ID, __dev_mode__
 
 DEV_MODE = __dev_mode__
+
+CTL_ID = "01:000730"
+FAN_ID = "32:155617"
+THM_ID = "03:123456"
 
 RUNNING = True
 

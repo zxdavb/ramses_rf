@@ -12,7 +12,7 @@ import json
 from serial.tools import list_ports
 
 from tests.common import TEST_DIR
-from tests.mock import MOCKED_PORT, MockDeviceCtl
+from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
 # import tracemalloc
 # tracemalloc.start()
@@ -28,13 +28,12 @@ if ports := [
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
-    CTL_ID = "01:145038"
+    CTL_ID = "01:145038"  # noqa: F811
 
 else:
     from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = MOCKED_PORT
-    CTL_ID = "01:000730"
+    SERIAL_PORT = MOCKED_PORT  # CTL_ID = CTL_ID
 
 
 async def load_test_system(config: dict = None) -> Gateway:

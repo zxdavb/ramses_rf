@@ -38,13 +38,12 @@ if ports := [
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
-    GWY_ID = "01:145038"
+    CTL_ID = "01:145038"  # noqa: F811
 
 else:
     from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = MOCKED_PORT
-    GWY_ID = "01:000730"
+    SERIAL_PORT = MOCKED_PORT  # CTL_ID = CTL_ID
 
 
 async def load_test_system(config: dict = None) -> Gateway:

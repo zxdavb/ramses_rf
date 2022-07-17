@@ -11,5 +11,3 @@ __dev_mode__ = False
 MOCKED_PORT = "/dev/ttyMOCK"
 
 GWY_ID = "18:181818"
-CTL_ID = "01:000730"
-THM_ID = "03:123456"

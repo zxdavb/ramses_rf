@@ -13,7 +13,7 @@ from serial.tools import list_ports
 
 from ramses_rf.device import HvacRemote, HvacVentilator
 from tests.common import TEST_DIR
-from tests.mock import MOCKED_PORT, MockDeviceFan
+from tests.mock import FAN_ID, MOCKED_PORT, MockDeviceFan
 
 # import tracemalloc
 # tracemalloc.start()
@@ -29,13 +29,12 @@ if ports := [
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
-    FAN_ID = "32:155617"
+    FAN_ID = "32:155617"  # noqa: F811
 
 else:
     from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = MOCKED_PORT
-    FAN_ID = "32:155617"
+    SERIAL_PORT = MOCKED_PORT  # FAN_ID = FAN_ID
 
 
 async def load_test_system(config: dict = None) -> Gateway:
