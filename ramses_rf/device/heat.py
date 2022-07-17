@@ -51,7 +51,7 @@ from ..protocol.opentherm import (
     OtMsgType,
 )
 from ..protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
-from ..schemas import SCH_SYS, SZ_ACTUATORS, SZ_CIRCUITS
+from ..schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from .base import BatteryState, DeviceHeat, Fakeable, _DeviceT
 
 # skipcq: PY-W2000
@@ -387,7 +387,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
             from ..system import zx_system_factory
 
-            schema = shrink(SCH_SYS(schema))
+            schema = shrink(SCH_TCS(schema))
 
             if not self.tcs:
                 self.tcs = zx_system_factory(self, msg=msg, **schema)

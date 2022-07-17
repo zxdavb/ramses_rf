@@ -60,7 +60,7 @@ SZ_SCHEMA = "schema"
 SZ_MAIN_CONTROLLER = "main_controller"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
-SZ_TCS_SYSTEM = "system"
+SZ_SYSTEM = "system"
 SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DEV_ROLE.APP]
 SZ_ORPHANS = "orphans"
 SZ_ORPHANS_HEAT = "orphans_heat"
@@ -163,7 +163,7 @@ SCH_DEVICE = vol.Schema(
 # 2/3: Schemas for Heating systems
 SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
-SCH_TCS = vol.Schema(
+SCH_SYS = vol.Schema(
     {
         vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(None, SCH_DEVICE_APP),
         vol.Optional("heating_control"): renamed(SZ_APPLIANCE_CONTROL),
@@ -215,10 +215,10 @@ SCH_ZONES = vol.All(
     vol.Schema({vol.Required(SCH_ZON_IDX): SCH_ZON}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
 )
-SCH_SYS = vol.Schema(
+SCH_TCS = vol.Schema(
     {
         # vol.Required(SZ_CONTROLLER): SCH_DEVICE_CTL,
-        vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, SCH_TCS),
+        vol.Optional(SZ_SYSTEM, default={}): vol.Any({}, SCH_SYS),
         vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_DHW),
         vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_UFH),
         vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [SCH_DEVICE_ANY]),

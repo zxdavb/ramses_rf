@@ -57,14 +57,14 @@ from ..protocol import (
 from ..protocol.command import FaultLog, _mk_cmd
 from ..schemas import (
     SCH_DHW,
-    SCH_SYS,
+    SCH_TCS,
     SCH_ZON,
     SZ_APPLIANCE_CONTROL,
     SZ_CLASS,
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
     SZ_ORPHANS,
-    SZ_TCS_SYSTEM,
+    SZ_SYSTEM,
     SZ_UFH_SYSTEM,
 )
 from .zones import DhwZone, Zone
@@ -133,10 +133,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        schema = shrink(SCH_SYS(schema))
+        schema = shrink(SCH_TCS(schema))
 
-        if schema.get(SZ_TCS_SYSTEM) and (
-            dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APPLIANCE_CONTROL)
+        if schema.get(SZ_SYSTEM) and (
+            dev_id := schema[SZ_SYSTEM].get(SZ_APPLIANCE_CONTROL)
         ):
             self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
 
@@ -288,10 +288,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     def schema(self) -> dict[str, Any]:
         """Return the system's schema."""
 
-        schema: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
-        # hema = {SZ_CONTROLLER: self.ctl.id, SZ_TCS_SYSTEM: {}}
+        schema: dict[str, Any] = {SZ_SYSTEM: {}}
+        # hema = {SZ_CONTROLLER: self.ctl.id, SZ_SYSTEM: {}}
 
-        schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL] = (
+        schema[SZ_SYSTEM][SZ_APPLIANCE_CONTROL] = (
             self.appliance_control.id if self.appliance_control else None
         )
 
@@ -313,14 +313,12 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         result: dict[str, None | str] = {SZ_CONTROLLER: self.id}
 
         try:
-            if (
-                schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL][:2] == DEV_TYPE_MAP.OTB
-            ):  # DEX
-                result[SZ_TCS_SYSTEM] = {
-                    SZ_APPLIANCE_CONTROL: schema[SZ_TCS_SYSTEM][SZ_APPLIANCE_CONTROL]
+            if schema[SZ_SYSTEM][SZ_APPLIANCE_CONTROL][:2] == DEV_TYPE_MAP.OTB:  # DEX
+                result[SZ_SYSTEM] = {
+                    SZ_APPLIANCE_CONTROL: schema[SZ_SYSTEM][SZ_APPLIANCE_CONTROL]
                 }
         except (IndexError, TypeError):
-            result[SZ_TCS_SYSTEM] = {SZ_APPLIANCE_CONTROL: None}
+            result[SZ_SYSTEM] = {SZ_APPLIANCE_CONTROL: None}
 
         zones = {}
         for idx, zone in schema[SZ_ZONES].items():
@@ -342,16 +340,16 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     def params(self) -> dict[str, Any]:
         """Return the system's configuration."""
 
-        params: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
-        params[SZ_TCS_SYSTEM]["tpi_params"] = self._msg_value(Code._1100)
+        params: dict[str, Any] = {SZ_SYSTEM: {}}
+        params[SZ_SYSTEM]["tpi_params"] = self._msg_value(Code._1100)
         return params
 
     @property
     def status(self) -> dict[str, Any]:
         """Return the system's current state."""
 
-        status: dict[str, Any] = {SZ_TCS_SYSTEM: {}}
-        status[SZ_TCS_SYSTEM]["heat_demand"] = self.heat_demand
+        status: dict[str, Any] = {SZ_SYSTEM: {}}
+        status[SZ_SYSTEM]["heat_demand"] = self.heat_demand
 
         status[SZ_DEVICES] = {d.id: d.status for d in sorted(self.childs)}
 
@@ -834,7 +832,7 @@ class Language(SystemBase):  # 0100
     @property
     def params(self) -> dict[str, Any]:
         params = super().params
-        params[SZ_TCS_SYSTEM][SZ_LANGUAGE] = self.language
+        params[SZ_SYSTEM][SZ_LANGUAGE] = self.language
         return params
 
 
@@ -1073,7 +1071,7 @@ class SysMode(SystemBase):  # 2E04
     @property
     def params(self) -> dict[str, Any]:
         params = super().params
-        params[SZ_TCS_SYSTEM][SZ_SYSTEM_MODE] = self.system_mode
+        params[SZ_SYSTEM][SZ_SYSTEM_MODE] = self.system_mode
         return params
 
 
@@ -1183,11 +1181,11 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         """Return the system's current state."""
 
         status = super().status
-        # assert SZ_TCS_SYSTEM in status  # TODO: removeme
+        # assert SZ_SYSTEM in status  # TODO: removeme
 
-        status[SZ_TCS_SYSTEM]["heat_demands"] = self.heat_demands
-        status[SZ_TCS_SYSTEM]["relay_demands"] = self.relay_demands
-        status[SZ_TCS_SYSTEM]["relay_failsafes"] = self.relay_failsafes
+        status[SZ_SYSTEM]["heat_demands"] = self.heat_demands
+        status[SZ_SYSTEM]["relay_demands"] = self.relay_demands
+        status[SZ_SYSTEM]["relay_failsafes"] = self.relay_failsafes
 
         return status
 
