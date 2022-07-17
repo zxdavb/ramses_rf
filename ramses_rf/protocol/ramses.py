@@ -1083,13 +1083,13 @@ CODES_ONLY_FROM_CTL = [
 # }
 
 
-_HVAC_VC_PAIR_BY_CLASS: Dict[SimpleNamespace, tuple] = {
+_HVAC_VC_PAIR_BY_CLASS: dict[SimpleNamespace, tuple] = {
     DEV_TYPE.CO2: ((I_, Code._1298),),
     DEV_TYPE.FAN: ((I_, Code._31D9), (I_, Code._31DA), (RP, Code._31DA)),
     DEV_TYPE.HUM: ((I_, Code._12A0),),
     DEV_TYPE.REM: ((I_, Code._22F1), (I_, Code._22F3)),
 }
-HVAC_KLASS_BY_VC_PAIR: dict = {
+HVAC_KLASS_BY_VC_PAIR: dict[tuple, SimpleNamespace] = {
     t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v
 }
 
@@ -1100,7 +1100,42 @@ SZ_MAX_VALUE = "max_value"
 SZ_PRECISION = "precision"
 SZ_DATA_TYPE = "data_type"
 
-_2411_PARAMS_SCHEMA: Dict[str, dict] = {  # unclear if true for only Orcon/*all* models
+_22F1_MODE_ITHO: dict[str, str] = {
+    "00": "off",  # not seen
+    "01": "trickle",  # not seen
+    "02": "low",
+    "03": "medium",
+    "04": "high",  # aka boost with 22F3
+}
+
+_22F1_MODE_NUAIRE: dict[str, str] = {
+    "00": "standby",
+    "01": "auto",
+    "02": "low",
+    "03": "medium",
+    "04": "high",  # boost
+    "09": "heater_off",
+    "0A": "heater_auto",
+}
+
+_22F1_MODE_ORCON: dict[str, str] = {
+    "00": "away",
+    "01": "low",
+    "02": "medium",
+    "03": "high",
+    "04": "auto",  # #   economy, as per RH and CO2 <= 1150 ppm (unsure which is which)
+    "05": "auto_alt",  # comfort, as per RH and CO2 <=  950 ppm (unsure which is which)
+    "06": "boost",
+    "07": "off",
+}
+
+_22F1_SCHEMES: dict[str, dict] = {
+    "itho": _22F1_MODE_ITHO,
+    "nuaire": _22F1_MODE_NUAIRE,
+    "orcon": _22F1_MODE_ORCON,
+}
+
+_2411_PARAMS_SCHEMA: dict[str, dict] = {  # unclear if true for only Orcon/*all* models
     "31": {  # slot 09
         SZ_DESCRIPTION: "Time to change filter (days)",
         SZ_MIN_VALUE: 0,
@@ -1201,40 +1236,41 @@ _2411_PARAMS_SCHEMA: Dict[str, dict] = {  # unclear if true for only Orcon/*all*
     },
 }
 
-_22F1_MODE_ITHO: Dict[str, str] = {
-    "00": "off",  # not seen
-    "01": "trickle",  # not seen
-    "02": "low",
-    "03": "medium",
-    "04": "high",  # aka boost with 22F3
+_31DA_FAN_INFO: dict[int, str] = {
+    0x00: "off",
+    0x01: "speed 1",
+    0x02: "speed 2",
+    0x03: "speed 3",
+    0x04: "speed 4",
+    0x05: "speed 5",
+    0x06: "speed 6",
+    0x07: "speed 7",
+    0x08: "speed 8",
+    0x09: "speed 9",
+    0x0A: "speed 10",
+    0x0B: "speed 1 temporary override",
+    0x0C: "speed 2 temporary override",
+    0x0D: "speed 3 temporary override",
+    0x0E: "speed 4 temporary override",
+    0x0F: "speed 5 temporary override",
+    0x10: "speed 6 temporary override",
+    0x11: "speed 7 temporary override",
+    0x12: "speed 8 temporary override",
+    0x13: "speed 9 temporary override",
+    0x14: "speed 10 temporary override",
+    0x15: "away",
+    0x16: "absolute minimum",  # trickle?
+    0x17: "absolute maximum",  # boost?
+    0x18: "auto",
+    0x19: "-unknown 0x19-",
+    0x1A: "-unknown 0x1A-",
+    0x1B: "-unknown 0x1B-",
+    0x1C: "-unknown 0x1C-",
+    0x1D: "-unknown 0x1D-",
+    0x1E: "-unknown 0x1E-",
+    0x1F: "-unknown 0x1F-",
 }
 
-_22F1_MODE_NUAIRE: Dict[str, str] = {
-    "00": "standby",
-    "01": "auto",
-    "02": "low",
-    "03": "medium",
-    "04": "high",  # boost
-    "09": "heater_off",
-    "0A": "heater_auto",
-}
-
-_22F1_MODE_ORCON: Dict[str, str] = {
-    "00": "away",
-    "01": "low",
-    "02": "medium",
-    "03": "high",
-    "04": "auto",  # #   economy, as per RH and CO2 <= 1150 ppm (unsure which is which)
-    "05": "auto_alt",  # comfort, as per RH and CO2 <=  950 ppm (unsure which is which)
-    "06": "boost",
-    "07": "off",
-}
-
-_22F1_SCHEMES: Dict[str, dict] = {
-    "itho": _22F1_MODE_ITHO,
-    "nuaire": _22F1_MODE_NUAIRE,
-    "orcon": _22F1_MODE_ORCON,
-}
 
 #
 ########################################################################################

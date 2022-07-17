@@ -89,7 +89,7 @@ from .helpers import (
     valve_demand,
 )
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
-from .ramses import _2411_PARAMS_SCHEMA
+from .ramses import _31DA_FAN_INFO, _2411_PARAMS_SCHEMA
 from .version import VERSION
 
 # Kudos & many thanks to:
@@ -1961,41 +1961,6 @@ def parser_31d9(payload, msg) -> dict:
 
 @parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
-
-    _31DA_FAN_INFO = {
-        0x00: "off",
-        0x01: "speed 1",
-        0x02: "speed 2",
-        0x03: "speed 3",
-        0x04: "speed 4",
-        0x05: "speed 5",
-        0x06: "speed 6",
-        0x07: "speed 7",
-        0x08: "speed 8",
-        0x09: "speed 9",
-        0x0A: "speed 10",
-        0x0B: "speed 1 temporary override",
-        0x0C: "speed 2 temporary override",
-        0x0D: "speed 3 temporary override",
-        0x0E: "speed 4 temporary override",
-        0x0F: "speed 5 temporary override",
-        0x10: "speed 6 temporary override",
-        0x11: "speed 7 temporary override",
-        0x12: "speed 8 temporary override",
-        0x13: "speed 9 temporary override",
-        0x14: "speed 10 temporary override",
-        0x15: "away",
-        0x16: "absolute minimum",  # trickle?
-        0x17: "absolute maximum",  # boost?
-        0x18: "auto",
-        0x19: "-unknown 0x19-",
-        0x1A: "-unknown 0x1A-",
-        0x1B: "-unknown 0x1B-",
-        0x1C: "-unknown 0x1C-",
-        0x1D: "-unknown 0x1D-",
-        0x1E: "-unknown 0x1E-",
-        0x1F: "-unknown 0x1F-",
-    }
 
     try:
         # assert (
