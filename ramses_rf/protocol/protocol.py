@@ -169,9 +169,10 @@ class MessageTransport(asyncio.Transport):
                 try:
                     cmd = self._que.get_nowait()
                 except Empty:
-                    if not self._is_closing:
-                        await asyncio.sleep(0.05)
-                        continue
+                    if self._is_closing:
+                        break
+                    await asyncio.sleep(0.05)
+                    continue
                 except AttributeError:  # when self._que == None, from abort()
                     break
 
