@@ -113,6 +113,10 @@ SZ_USE_REGEX = "use_regex"
 SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
 
 
+SZ_REMOTES = "remotes"
+SZ_SENSORS = "sensors"
+
+
 def renamed(new_key):
     def func(value):
         raise vol.Invalid(f"the key name has changed: rename it to '{new_key}'")
@@ -227,6 +231,13 @@ SCH_TCS = vol.Schema(
     extra=vol.PREVENT_EXTRA,
 )
 
+SCH_FAN = vol.Schema(
+    {
+        vol.Required(SZ_REMOTES, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
+        vol.Required(SZ_SENSORS, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
 
 # 3/3: Global Schemas
 SCH_GLOBAL_CONFIG = vol.Schema(
@@ -341,7 +352,7 @@ def update_config(config, known_list, block_list) -> None:
         )
 
 
-def _get_device(gwy, dev_id, **kwargs) -> Any:  # Device
+def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
     """Raise an LookupError if a device_id is filtered out by a list.
 
     The underlying method is wrapped only to provide a better error message.
@@ -370,12 +381,17 @@ def load_schema(gwy, **kwargs) -> None:
     """Process the schema, and the configuration and return True if it is valid."""
 
     [
-        load_system(gwy, ctl_id, schema)
+        load_tcs(gwy, ctl_id, schema)
         for ctl_id, schema in kwargs.items()
-        if re.match(DEVICE_ID_REGEX.ANY, ctl_id)
+        if re.match(DEVICE_ID_REGEX.ANY, ctl_id) and SZ_REMOTES not in schema
     ]
     if kwargs.get(SZ_MAIN_CONTROLLER):
         gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
+    # [
+    #     load_fan(gwy, fan_id, schema)
+    #     for fan_id, schema in kwargs.items()
+    #     if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
+    # ]
     [
         _get_device(gwy, device_id)
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
@@ -383,8 +399,17 @@ def load_schema(gwy, **kwargs) -> None:
     ]
 
 
-def load_system(gwy, ctl_id, schema) -> Any:
-    """Create a system using its schema."""
+def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
+    """Create a FAN using its schema (i.e. with remotes, sensors)."""
+
+    fan = _get_device(gwy, fan_id)
+    fan._update_schema(**schema)  # TODO
+
+    return fan
+
+
+def load_tcs(gwy, ctl_id: str, schema: dict) -> Any:  # System
+    """Create a TCS using its schema."""
     # print(schema)
     # schema = SCH_ZON(schema)
 

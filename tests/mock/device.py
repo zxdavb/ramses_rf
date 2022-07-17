@@ -236,15 +236,6 @@ class MockDeviceThm(MockDeviceBase):
         self.temperature = None  # TODO: maintain internal state (is needed?)
 
 
-class MockDeviceFan(MockDeviceBase):
-    """A pseudo-mocked ventilator used for testing."""
-
-    def __init__(self, gwy, device_id, *, schema=None) -> None:
-        super().__init__(gwy, device_id)
-
-        self.fan_rate = None  # TODO: maintain internal state (is needed?)
-
-
 def sync_cycle_pkts(ctl_id, seconds) -> tuple[Command, Command, Command]:
     """Return a sync_cycle set of packets as from a controller."""
     #  I --- 01:087939 --:------ 01:087939 1F09 003 FF0532
