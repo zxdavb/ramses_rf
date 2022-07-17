@@ -33,7 +33,7 @@ if ports := [c for c in list_ports.comports() if c.device[-7:-1] == "ttyACM"]:
     GWY_ID = "01:145038"
 
 else:
-    from tests.mock_gateway import MockGateway as Gateway
+    from tests.mock import MockGateway as Gateway
 
     SERIAL_PORT = "/dev/ttyMOCK"
     GWY_ID = "01:000730"
