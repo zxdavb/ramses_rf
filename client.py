@@ -560,12 +560,15 @@ async def main(command, lib_kwargs, **kwargs):
         msg = " - ended via: KeyboardInterrupt"
     except EvohomeError as err:
         msg = f" - ended via: EvohomeError: {err}"
-    else:  # if no Exceptions raised, e.g. EOF when parsing
+    else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = " - ended without error (e.g. EOF)"
 
-    # await gwy.stop()
+    await gwy.stop()
 
-    print("\r\nclient.py: Finished ramses_rf, results:\r\n")
+    print(f"\r\nclient.py: Engine stopped.\r\n{msg}\r\n")
+
+    # if kwargs["save_state"]:
+    #    _save_state(gwy)
 
     if kwargs["print_state"]:
         _print_engine_state(gwy, **kwargs)
@@ -575,10 +578,7 @@ async def main(command, lib_kwargs, **kwargs):
 
     print_summary(gwy, **kwargs)
 
-    # if kwargs["save_state"]:
-    #    _save_state(gwy)
-
-    print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
+    print("\r\nclient.py: Finished ramses_rf.")
 
 
 cli.add_command(parse)
