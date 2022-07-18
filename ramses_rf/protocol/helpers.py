@@ -100,7 +100,7 @@ def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
 
 
 @typechecked
-def double(value: str, factor: int = 1) -> Optional[float]:
+def double_from_hex(value: str, factor: int = 1) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")

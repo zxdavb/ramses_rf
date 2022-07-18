@@ -80,7 +80,7 @@ from .fingerprints import check_signature
 from .helpers import (
     bool_from_hex,
     date_from_hex,
-    double,
+    double_from_hex,
     dtm_from_hex,
     dts_from_hex,
     flag8,
@@ -1033,7 +1033,7 @@ def parser_1298(payload, msg) -> dict:
     if fault := FAULT_CODES_CO2.get(payload[:2]):
         return {"sensor_fault": fault}
 
-    return {SZ_CO2_LEVEL: double(payload[2:])}
+    return {SZ_CO2_LEVEL: double_from_hex(payload[2:])}
 
 
 @parser_decorator  # indoor_humidity
@@ -2007,24 +2007,24 @@ def parser_31da(payload, msg) -> dict:
     return {
         SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # maybe 31D9[4:6] for some?
         SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
-        SZ_REMAINING_TIME: double(payload[42:46]),  # mins, 22F3[2:6]
+        SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
         #
         SZ_AIR_QUALITY: percent(payload[2:4]),  # 12C8[2:4]
         SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 12C8[4:6]
-        SZ_CO2_LEVEL: double(payload[6:10]),  # ppm, 1298[2:6]
+        SZ_CO2_LEVEL: double_from_hex(payload[6:10]),  # ppm, 1298[2:6]
         SZ_INDOOR_HUMIDITY: percent(payload[10:12], high_res=False),  # 12A0?
         SZ_OUTDOOR_HUMIDITY: percent(payload[12:14], high_res=False),
-        SZ_EXHAUST_TEMPERATURE: double(payload[14:18], factor=100),
-        SZ_SUPPLY_TEMPERATURE: double(payload[18:22], factor=100),
-        SZ_INDOOR_TEMPERATURE: double(payload[22:26], factor=100),
-        SZ_OUTDOOR_TEMPERATURE: double(payload[26:30], factor=100),  # 1290?
+        SZ_EXHAUST_TEMPERATURE: double_from_hex(payload[14:18], factor=100),
+        SZ_SUPPLY_TEMPERATURE: double_from_hex(payload[18:22], factor=100),
+        SZ_INDOOR_TEMPERATURE: double_from_hex(payload[22:26], factor=100),
+        SZ_OUTDOOR_TEMPERATURE: double_from_hex(payload[26:30], factor=100),  # 1290?
         SZ_SPEED_CAP: int(payload[30:34], 16),
         SZ_BYPASS_POSITION: percent(payload[34:36]),
         SZ_SUPPLY_FAN_SPEED: percent(payload[40:42]),
         SZ_POST_HEAT: percent(payload[46:48], high_res=False),
         SZ_PRE_HEAT: percent(payload[48:50], high_res=False),
-        SZ_SUPPLY_FLOW: double(payload[50:54], factor=100),  # L/sec
-        SZ_EXHAUST_FLOW: double(payload[54:58], factor=100),  # L/sec
+        SZ_SUPPLY_FLOW: double_from_hex(payload[50:54], factor=100),  # L/sec
+        SZ_EXHAUST_FLOW: double_from_hex(payload[54:58], factor=100),  # L/sec
     }
 
 

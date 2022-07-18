@@ -13,7 +13,7 @@ from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.protocol.helpers import (
     bool_from_hex,
     bool_to_hex,
-    double,
+    double_from_hex,
     double_to_hex,
     dtm_from_hex,
     dtm_to_hex,
@@ -122,8 +122,8 @@ def test_field_parsers() -> None:
         assert val == bool_to_hex(bool_from_hex(val))
 
     for val in ("7FFF", "0000", "0001", "0010", "0100", "1000"):
-        assert val == double_to_hex(double(val))
-        assert val == double_to_hex(double(val, factor=100), factor=100)
+        assert val == double_to_hex(double_from_hex(val))
+        assert val == double_to_hex(double_from_hex(val, factor=100), factor=100)
 
     for val in (
         "FF" * 6,
