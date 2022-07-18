@@ -41,7 +41,16 @@ from .const import (
 )
 from .exceptions import ExpiredCallbackError
 from .frame import Frame, _CodeT, _DevIdT, _HeaderT, _PayloadT, _VerbT, pkt_header
-from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp, typechecked
+from .helpers import (
+    bool_from_hex,
+    double_to_hex,
+    dt_now,
+    dtm_to_hex,
+    str_to_hex,
+    temp_to_hex,
+    timestamp,
+    typechecked,
+)
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ
 from .ramses import _2411_PARAMS_SCHEMA
@@ -1306,6 +1315,48 @@ class Command(Frame):
             I_, Code._30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
+    @classmethod  # constructor for I|1298
+    @typechecked
+    @validate_api_params()
+    def put_co2_level(
+        cls, dev_id: _DevIdT, co2_level: Union[None, float, int], /, **kwargs
+    ):
+        """Constructor to announce the current co2 level of a sensor (1298)."""
+        # .I --- 37:039266 --:------ 37:039266 1298 003 000316
+
+        payload = f"00{double_to_hex(co2_level)}"
+        return cls._from_attrs(
+            I_, Code._1298, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
+
+    @classmethod  # constructor for I|12A0
+    @typechecked
+    @validate_api_params()
+    def put_indoor_humidity(
+        cls, dev_id: _DevIdT, humidity: Union[None, float, int], /, **kwargs
+    ):
+        """Constructor to announce the current humidity of a sensor (12A0)."""
+        # .I --- 37:039266 --:------ 37:039266 1298 003 000316
+
+        payload = f"00{int(humidity * 100):02X}"
+        return cls._from_attrs(
+            I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
+
+    @classmethod  # constructor for I|2E10
+    @typechecked
+    @validate_api_params()
+    def put_presence_detect(
+        cls, dev_id: _DevIdT, presence_detected: Union[None, bool], /, **kwargs
+    ):
+        """Constructor to announce the current presence state of a sensor (2E10)."""
+        # .I --- ...
+
+        payload = f"00{bool_from_hex(presence_detected)}"
+        return cls._from_attrs(
+            I_, Code._2E10, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
+
     @classmethod  # constructor for internal use only
     @typechecked
     def _puzzle(cls, msg_type: str = Optional[str], message: str = "", **kwargs):
@@ -1364,6 +1415,7 @@ CODE_API_MAP = {
     f"{W_}|{Code._1100}": Command.set_tpi_params,
     f"{RQ}|{Code._1260}": Command.get_dhw_temp,
     f"{I_}|{Code._1260}": Command.put_dhw_temp,
+    f"{I_}|{Code._1298}": Command.put_co2_level,
     f"{RQ}|{Code._12B0}": Command.get_zone_window_state,
     f"{RQ}|{Code._1F41}": Command.get_dhw_mode,
     f"{W_}|{Code._1F41}": Command.set_dhw_mode,

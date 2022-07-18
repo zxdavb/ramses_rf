@@ -11,6 +11,8 @@ Test the various helper APIs.
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.protocol.helpers import (
+    bool_from_hex,
+    bool_to_hex,
     double,
     double_to_hex,
     dtm_from_hex,
@@ -116,6 +118,9 @@ def test_demand_transform() -> None:
 
 
 def test_field_parsers() -> None:
+    for val in ("FF", "00", "C8"):
+        assert val == bool_to_hex(bool_from_hex(val))
+
     for val in ("7FFF", "0000", "0001", "0010", "0100", "1000"):
         assert val == double_to_hex(double(val))
         assert val == double_to_hex(double(val, factor=100), factor=100)

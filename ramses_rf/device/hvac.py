@@ -146,8 +146,8 @@ class PresenceDetect(Fakeable, DeviceHvac):  # 2E10
     def presence_detected(self, value) -> None:
         if not self._faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_presence_detected(self.id, value))
-        # lf._send_cmd(Command.get_presence_detected(...))
+        self._send_cmd(Command.put_presence_detect(self.id, value))
+        # lf._send_cmd(Command.get_presence_detect(...))
 
     @property
     def status(self) -> dict[str, Any]:

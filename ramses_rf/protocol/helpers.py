@@ -66,13 +66,23 @@ def dt_str() -> str:
 
 
 @typechecked
-def bool_from_hex(value: str) -> Optional[bool]:  # either 00 or C8
+def bool_from_hex(value: str) -> Optional[bool]:  # either False, True or None
     """Convert a 2-char hex string into a boolean."""
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
     if value == "FF":
         return None
     return {"00": False, "C8": True}[value]
+
+
+@typechecked
+def bool_to_hex(value: Optional[bool]) -> str:  # either 00, C8 or FF
+    """Convert a boolean into a 2-char hex string."""
+    if value is None:
+        return "FF"
+    if not isinstance(value, bool):
+        raise ValueError(f"Invalid value: {value}, is not bool")
+    return {False: "00", True: "C8"}[value]
 
 
 @typechecked
