@@ -197,8 +197,8 @@ class Weather(Fakeable, DeviceHeat):  # 0002
 
 class RelayDemand(Fakeable, DeviceHeat):  # 0008
     # Some either 00/C8, others 00-C8
-    # .I --- 01:145038 --:------ 01:145038 0008 002 0314  # zone valve zone (not electric?)
-    # .I --- 01:145038 --:------ 01:145038 0008 002 F914  # DHW valve
+    # .I --- 01:145038 --:------ 01:145038 0008 002 0314  # ZON valve zone (ELE too?)
+    # .I --- 01:145038 --:------ 01:145038 0008 002 F914  # HTG valve
     # .I --- 01:054173 --:------ 01:054173 0008 002 FA00  # DHW valve
     # .I --- 01:145038 --:------ 01:145038 0008 002 FC14  # appliance_relay
 
