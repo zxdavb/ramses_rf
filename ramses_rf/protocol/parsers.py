@@ -84,7 +84,7 @@ from .helpers import (
     dtm_from_hex,
     dts_from_hex,
     flag8,
-    percent,
+    percent_from_hex,
     str_from_hex,
     temp_from_hex,
     valve_demand,
@@ -320,7 +320,7 @@ def parser_0008(payload, msg) -> dict:
             "blob": payload[8:],
         }
 
-    return {SZ_RELAY_DEMAND: percent(payload[2:4])}  # 3EF0[2:4], 3EF1[10:12]
+    return {SZ_RELAY_DEMAND: percent_from_hex(payload[2:4])}  # 3EF0[2:4], 3EF1[10:12]
 
 
 @parser_decorator  # relay_failsafe
@@ -758,7 +758,7 @@ def parser_1060(payload, msg) -> dict:
 
     return {
         "battery_low": payload[4:] == "00",
-        "battery_level": percent(payload[2:4]),
+        "battery_level": percent_from_hex(payload[2:4]),
     }
 
 
@@ -790,7 +790,7 @@ def parser_1098(payload, msg) -> dict:
     return {
         f"_{SZ_PAYLOAD}": payload,
         f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
-            payload[2:], percent(payload[2:])
+            payload[2:], percent_from_hex(payload[2:])
         ),
     }
 
@@ -845,7 +845,7 @@ def parser_10b0(payload, msg) -> dict:
     return {
         f"_{SZ_PAYLOAD}": payload,
         f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
-            payload[2:], percent(payload[2:])
+            payload[2:], percent_from_hex(payload[2:])
         ),
     }
 
@@ -871,7 +871,7 @@ def parser_10d0(payload, msg) -> dict:
     if msg.len >= 3:
         result.update({"days_lifetime": int(payload[4:6], 16)})
     if msg.len >= 4:
-        result.update({"percent_remaining": percent(payload[6:8])})
+        result.update({"percent_remaining": percent_from_hex(payload[6:8])})
 
     return result
 
@@ -1003,7 +1003,7 @@ def parser_1260(payload, msg) -> dict:
 def parser_1280(payload, msg) -> dict:
     # educated guess - this packet never seen in the wild
 
-    rh = percent(payload[2:4], high_res=False)
+    rh = percent_from_hex(payload[2:4], high_res=False)
     if msg.len == 2:
         return {SZ_OUTDOOR_HUMIDITY: rh}
 
@@ -1066,7 +1066,7 @@ def parser_12a0(payload, msg) -> dict:
     # if (fault := FAULT_CODES_TEMP.get(payload[2:4])):
     #     return {"sensor_fault": fault}
 
-    rh = percent(payload[2:4], high_res=False)
+    rh = percent_from_hex(payload[2:4], high_res=False)
     if msg.len == 2:
         return {SZ_INDOOR_HUMIDITY: rh}
 
@@ -1113,7 +1113,7 @@ def parser_12c8(payload, msg) -> dict:
     # 04:51:41.192 078  I --- 37:261128 --:------ 37:261128 12C8 003 009540
 
     return {
-        SZ_AIR_QUALITY: percent(payload[2:4]),  # 31DA[2:4]
+        SZ_AIR_QUALITY: percent_from_hex(payload[2:4]),  # 31DA[2:4]
         SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 31DA[4:6]
     }
 
@@ -1658,7 +1658,7 @@ def parser_2401(payload, msg) -> dict:
         SZ_PAYLOAD: payload,
         "_value_2": int(payload[4:6], 0x10),
         "_flags_2": flag8(payload[4:6]),
-        "_percent_3": percent(payload[6:]),
+        "_percent_3": percent_from_hex(payload[6:]),
     }
 
 
@@ -1694,7 +1694,7 @@ def parser_2411(payload, msg) -> dict:
     _2411_DATA_TYPES = {
         "00": (2, counter),  # 4E (0-1), 54 (15-60)
         "01": (2, centile),  # 52 (0.0-25.0) (%)
-        "0F": (2, percent),  # xx (0.0-1.0) (%)
+        "0F": (2, percent_from_hex),  # xx (0.0-1.0) (%)
         "10": (4, counter),  # 31 (0-1800) (days)
         "92": (4, temp_from_hex),  # 75 (0-30) (C)
     }  # TODO: _2411_TYPES.get(payload[8:10], (8, no_op))
@@ -1825,7 +1825,7 @@ def parser_3110(payload, msg) -> dict:
 
     return {
         f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent(payload[4:6]),
+        "_percent_2": percent_from_hex(payload[4:6]),
         "_value_3": payload[6:],
     }
 
@@ -1922,7 +1922,7 @@ def parser_31d9(payload, msg) -> dict:
 
     # NOTE: 31D9[4:6] is fan_rate (itho?) *or* fan_mode (orcon?)
     result = {
-        SZ_EXHAUST_FAN_SPEED: percent(payload[4:6], high_res=True),  # itho
+        SZ_EXHAUST_FAN_SPEED: percent_from_hex(payload[4:6], high_res=True),  # itho
         SZ_FAN_MODE: payload[4:6],  # orcon
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),
@@ -2005,24 +2005,26 @@ def parser_31da(payload, msg) -> dict:
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
 
     return {
-        SZ_EXHAUST_FAN_SPEED: percent(payload[38:40]),  # maybe 31D9[4:6] for some?
+        SZ_EXHAUST_FAN_SPEED: percent_from_hex(
+            payload[38:40]
+        ),  # maybe 31D9[4:6] for some?
         SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
         #
-        SZ_AIR_QUALITY: percent(payload[2:4]),  # 12C8[2:4]
+        SZ_AIR_QUALITY: percent_from_hex(payload[2:4]),  # 12C8[2:4]
         SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 12C8[4:6]
         SZ_CO2_LEVEL: double_from_hex(payload[6:10]),  # ppm, 1298[2:6]
-        SZ_INDOOR_HUMIDITY: percent(payload[10:12], high_res=False),  # 12A0?
-        SZ_OUTDOOR_HUMIDITY: percent(payload[12:14], high_res=False),
+        SZ_INDOOR_HUMIDITY: percent_from_hex(payload[10:12], high_res=False),  # 12A0?
+        SZ_OUTDOOR_HUMIDITY: percent_from_hex(payload[12:14], high_res=False),
         SZ_EXHAUST_TEMPERATURE: double_from_hex(payload[14:18], factor=100),
         SZ_SUPPLY_TEMPERATURE: double_from_hex(payload[18:22], factor=100),
         SZ_INDOOR_TEMPERATURE: double_from_hex(payload[22:26], factor=100),
         SZ_OUTDOOR_TEMPERATURE: double_from_hex(payload[26:30], factor=100),  # 1290?
         SZ_SPEED_CAP: int(payload[30:34], 16),
-        SZ_BYPASS_POSITION: percent(payload[34:36]),
-        SZ_SUPPLY_FAN_SPEED: percent(payload[40:42]),
-        SZ_POST_HEAT: percent(payload[46:48], high_res=False),
-        SZ_PRE_HEAT: percent(payload[48:50], high_res=False),
+        SZ_BYPASS_POSITION: percent_from_hex(payload[34:36]),
+        SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
+        SZ_POST_HEAT: percent_from_hex(payload[46:48], high_res=False),
+        SZ_PRE_HEAT: percent_from_hex(payload[48:50], high_res=False),
         SZ_SUPPLY_FLOW: double_from_hex(payload[50:54], factor=100),  # L/sec
         SZ_EXHAUST_FLOW: double_from_hex(payload[54:58], factor=100),  # L/sec
     }
@@ -2081,7 +2083,7 @@ def parser_31e0(payload, msg) -> dict:
     # .I --- 37:258565 37:261128 --:------ 31E0 004 00-00-01-00
 
     return {
-        "vent_demand": percent(payload[4:6]),
+        "vent_demand": percent_from_hex(payload[4:6]),
         "flags_1": payload[2:4],
         f"_{SZ_UNKNOWN}_3": payload[6:],
     }
@@ -2255,13 +2257,13 @@ def parser_3ef0(payload, msg) -> dict:
         # .I --- 13:023770 --:------ 13:023770 3EF0 003 00C8FF
         assert payload[2:4] in ("00", "C8"), f"byte 1: {payload[2:4]}"
         assert payload[4:6] == "FF", f"byte 2: {payload[4:6]}"
-        mod_level = percent(payload[2:4])
+        mod_level = percent_from_hex(payload[2:4])
 
     if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 0000100000FF
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 003B100C00FF
         assert payload[4:6] in ("00", "10", "11"), f"byte 2: {payload[4:6]}"
-        mod_level = percent(payload[2:4], high_res=False)
+        mod_level = percent_from_hex(payload[2:4], high_res=False)
 
     result = {
         "modulation_level": mod_level,  # 0008[2:4], 3EF1[10:12]
@@ -2300,7 +2302,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "_flags_6": flag8(payload[12:14]),
                 "ch_enabled": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
-                "max_rel_modulation": percent(payload[16:18], high_res=False),
+                "max_rel_modulation": percent_from_hex(payload[16:18], high_res=False),
             }
         )
 
@@ -2346,7 +2348,7 @@ def parser_3ef1(payload, msg) -> dict:
         # assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
         #     int(payload[6:10], 16) <= 7200
         # ), f"byte 3: {payload[6:10]}"
-        assert percent(payload[10:12]) in (0, 1), f"byte 5: {payload[10:12]}"
+        assert percent_from_hex(payload[10:12]) in (0, 1), f"byte 5: {payload[10:12]}"
 
     else:  # is OTB
         # assert (
@@ -2354,12 +2356,12 @@ def parser_3ef1(payload, msg) -> dict:
         # ), "doesn't match: " + r"^00[0-9A-F]{10}10"
         assert payload[2:6] == "7FFF", f"byte 1: {payload[2:6]}"
         assert payload[6:10] == "003C", f"byte 3: {payload[6:10]}"  # 60 seconds
-        assert percent(payload[10:12]) <= 1, f"byte 5: {payload[10:12]}"
+        assert percent_from_hex(payload[10:12]) <= 1, f"byte 5: {payload[10:12]}"
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
-        "modulation_level": percent(payload[10:12]),  # 0008[2:4], 3EF0[2:4]
+        "modulation_level": percent_from_hex(payload[10:12]),  # 0008[2:4], 3EF0[2:4]
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,
         f"_{SZ_UNKNOWN}_0": payload[12:],

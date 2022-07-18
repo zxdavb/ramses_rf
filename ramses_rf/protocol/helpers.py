@@ -224,7 +224,9 @@ def flag8(byte: str, lsb: bool = False) -> list:  # TODO: should be tuple
 
 # TODO: add a wrapper for EF, & 0xF0
 @typechecked
-def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve_demand
+def percent_from_hex(
+    value: str, high_res: bool = True
+) -> Optional[float]:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
@@ -290,7 +292,7 @@ def temp_to_hex(value: Optional[float]) -> str:
 
 
 @typechecked
-def valve_demand(value: str) -> Optional[dict]:  # c.f. percent()
+def valve_demand(value: str) -> Optional[dict]:  # c.f. percent_from_hex()
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
