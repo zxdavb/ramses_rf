@@ -1122,7 +1122,7 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "00": "away",
     "01": "low",
     "02": "medium",
-    "03": "high",
+    "03": "high",  # # The order of the next two may be swapped
     "04": "auto",  # #   economy, as per RH and CO2 <= 1150 ppm (unsure which is which)
     "05": "auto_alt",  # comfort, as per RH and CO2 <=  950 ppm (unsure which is which)
     "06": "boost",
