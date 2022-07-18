@@ -10,6 +10,14 @@ Test the various helper APIs.
 
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
+from ramses_rf.protocol.helpers import (
+    double,
+    double_to_hex,
+    dtm_from_hex,
+    dtm_to_hex,
+    dts_from_hex,
+    dts_to_hex,
+)
 from ramses_rf.protocol.packet import Packet
 from ramses_rf.system.zones import _transform
 from tests.common import gwy  # noqa: F401
@@ -105,6 +113,24 @@ def test_attrdict_class() -> None:
 
 def test_demand_transform() -> None:
     assert [x[1] for x in TRANSFORMS] == [_transform(x[0]) for x in TRANSFORMS]
+
+
+def test_field_parsers() -> None:
+    for val in ("7FFF", "0000", "0001", "0010", "0100", "1000"):
+        assert val == double_to_hex(double(val))
+        assert val == double_to_hex(double(val, factor=100), factor=100)
+
+    for val in (
+        "FF" * 6,
+        "FF" * 7,
+        "00141B0A07E3",
+        "00110E0507E5",
+        "0400041C0A07E3",
+    ):
+        assert val == dtm_to_hex(dtm_from_hex(val), incl_seconds=(len(val) == 14))
+
+    for val in ("00000000007F",):
+        assert val == dts_to_hex(dts_from_hex(val))
 
 
 MAIN_DICT = {

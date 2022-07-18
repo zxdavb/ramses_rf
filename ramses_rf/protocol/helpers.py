@@ -100,6 +100,16 @@ def double(value: str, factor: int = 1) -> Optional[float]:
 
 
 @typechecked
+def double_to_hex(value: None | float, factor: int = 1) -> str:
+    """Convert a double into 4-char hex string."""
+    if value is None:
+        return "7FFF"
+    if not isinstance(value, float):
+        raise ValueError(f"Invalid value: {value}, is not a double (a float)")
+    return f"{int(value * factor):04X}"
+
+
+@typechecked
 def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
     """Convert a 12/14-char hex string to an isoformat datetime (naive, local)."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
@@ -107,7 +117,7 @@ def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
 
     if not isinstance(value, str) or len(value) not in (12, 14):
         raise ValueError(f"Invalid value: {value}, is not a 12/14-char hex string")
-    if value == "FF" * 6:
+    if value[-12:] == "FF" * 6:
         return None
     if len(value) == 12:
         value = f"00{value}"
