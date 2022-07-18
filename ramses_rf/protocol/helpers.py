@@ -110,7 +110,7 @@ def double_from_hex(value: str, factor: int = 1) -> Optional[float]:
 
 
 @typechecked
-def double_to_hex(value: None | float, factor: int = 1) -> str:
+def double_to_hex(value: Optional[float], factor: int = 1) -> str:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
