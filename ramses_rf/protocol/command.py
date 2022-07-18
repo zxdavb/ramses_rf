@@ -1175,7 +1175,7 @@ class Command(Frame):
 
         if src_id[:2] != DEV_TYPE_MAP.BDR:
             raise TypeError(
-                f"Faked device {src_id} has unsupported device type: "
+                f"Faked device {src_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
             )
 
@@ -1200,7 +1200,7 @@ class Command(Frame):
 
         if dev_id[:2] != DEV_TYPE_MAP.BDR:
             raise TypeError(
-                f"Faked device {dev_id} has unsupported device type: "
+                f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
             )
 
@@ -1263,7 +1263,7 @@ class Command(Frame):
 
         if dev_id[:2] != DEV_TYPE_MAP.DHW:
             raise TypeError(
-                f"Faked device {dev_id} has unsupported device type: "
+                f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
             )
 
@@ -1283,7 +1283,7 @@ class Command(Frame):
 
         if dev_id[:2] != DEV_TYPE_MAP.OUT:
             raise TypeError(
-                f"Faked device {dev_id} has unsupported device type: "
+                f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
             )
 
@@ -1306,7 +1306,7 @@ class Command(Frame):
 
         if dev_id[:2] != DEV_TYPE_MAP.HCW:
             raise TypeError(
-                f"Faked device {dev_id} has unsupported device type: "
+                f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
             )
 
@@ -1338,7 +1338,7 @@ class Command(Frame):
         """Constructor to announce the current humidity of a sensor (12A0)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
-        payload = f"00{int(humidity * 100):02X}"
+        payload = f"00{int(humidity * 100):02X}"  # percent_to_hex
         return cls._from_attrs(
             I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1416,6 +1416,7 @@ CODE_API_MAP = {
     f"{RQ}|{Code._1260}": Command.get_dhw_temp,
     f"{I_}|{Code._1260}": Command.put_dhw_temp,
     f"{I_}|{Code._1298}": Command.put_co2_level,
+    f"{I_}|{Code._12A0}": Command.put_indoor_humidity,
     f"{RQ}|{Code._12B0}": Command.get_zone_window_state,
     f"{RQ}|{Code._1F41}": Command.get_dhw_mode,
     f"{W_}|{Code._1F41}": Command.set_dhw_mode,
@@ -1426,6 +1427,7 @@ CODE_API_MAP = {
     f"{W_}|{Code._2411}": Command.set_fan_param,
     f"{RQ}|{Code._2E04}": Command.get_system_mode,
     f"{W_}|{Code._2E04}": Command.set_system_mode,
+    f"{I_}|{Code._2E10}": Command.put_presence_detect,
     f"{I_}|{Code._30C9}": Command.put_sensor_temp,
     f"{RQ}|{Code._30C9}": Command.get_zone_temp,
     f"{RQ}|{Code._313F}": Command.get_system_time,
