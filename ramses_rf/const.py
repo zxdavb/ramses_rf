@@ -32,6 +32,7 @@ from .protocol.const import (  # noqa: F401
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMPERATURE,
     SZ_FAN_INFO,
+    SZ_FAN_MODE,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,

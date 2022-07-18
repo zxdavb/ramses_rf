@@ -36,6 +36,7 @@ from .const import (
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMPERATURE,
     SZ_FAN_INFO,
+    SZ_FAN_MODE,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
@@ -1479,9 +1480,9 @@ def parser_22f1(payload, msg) -> dict:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
+        SZ_FAN_MODE: _22F1_FAN_MODE.get(payload[2:4], f"unknown_{payload[2:4]}"),
         "_mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
         "_mode_max": payload[4:6] or None,
-        "fan_mode": _22F1_FAN_MODE.get(payload[2:4], f"unknown_{payload[2:4]}"),
         "_scheme": _22f1_scheme,
     }
 
@@ -1919,12 +1920,10 @@ def parser_31d9(payload, msg) -> dict:
 
     bitmap = int(payload[2:4], 16)
 
-    # NOTE: 31D9[4:6] is fan_speed (itho?) *or* fan_mode (orcon?)
-    # TODO: 31D9[4:6] == 31DA[38:40] in some systems
-    # TODO: 31D9[4:6] == 31DA[36:38]??
+    # NOTE: 31D9[4:6] is fan_rate (itho?) *or* fan_mode (orcon?)
     result = {
-        SZ_EXHAUST_FAN_SPEED: percent(payload[4:6], high_res=True),
-        "fan_mode": payload[4:6],
+        SZ_EXHAUST_FAN_SPEED: percent(payload[4:6], high_res=True),  # itho
+        SZ_FAN_MODE: payload[4:6],  # orcon
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),
         "filter_dirty": bool(bitmap & 0x20),
@@ -2002,7 +2001,7 @@ def parser_31da(payload, msg) -> dict:
     # 12 Fan supply speed (%)                 SZ_SUPPLY_FAN_SPEED
     # 13 Remaining after run time (humidity scenario) (min.)  SZ_REMAINING_TIME
     # 14 Preheater control (MaxComfort) (%)   SZ_PRE_HEAT
-    # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW (Orcon is m3/h, others L/s)
+    # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW (Orcon is m3/h, data is L/s)
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
 
     return {
