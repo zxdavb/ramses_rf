@@ -286,7 +286,7 @@ def temp_to_hex(value: Optional[float]) -> str:
     if not isinstance(value, (float, int)):
         raise TypeError(f"Invalid temp: {value} is not a float")
     if not -(2**7) <= value < 2**7:  # TODO: tighten range
-        raise ValueError(f"Invalid temp: {value:02X} is out of range")
+        raise ValueError(f"Invalid temp: {value} is out of range")
     temp = int(value * 100)
     return f"{temp if temp >= 0 else temp + 2 ** 16:04X}"
 

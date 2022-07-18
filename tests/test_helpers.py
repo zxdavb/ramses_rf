@@ -19,6 +19,8 @@ from ramses_rf.protocol.helpers import (
     dtm_to_hex,
     dts_from_hex,
     dts_to_hex,
+    temp_from_hex,
+    temp_to_hex,
 )
 from ramses_rf.protocol.packet import Packet
 from ramses_rf.system.zones import _transform
@@ -136,6 +138,12 @@ def test_field_parsers() -> None:
 
     for val in ("00000000007F",):
         assert val == dts_to_hex(dts_from_hex(val))
+
+    for val in ("7FFF", "7EFF", "0000", "0010", "0200", "D000"):
+        assert val == temp_to_hex(temp_from_hex(val))
+
+    for val in (None, False, -127.99, -100, -22.5, -1.53, 0, 1.53, 22.5, 100, 127.98):
+        assert val == temp_from_hex(temp_to_hex(val))
 
 
 MAIN_DICT = {
