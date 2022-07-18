@@ -255,6 +255,21 @@ class DeviceInfo(Device):  # 10E0
 
 
 class Fakeable(Device):
+
+    # Faked Round Thermostat binding to a Evohome controller as a zone sensor
+    # STA set to BindState.OFFERING:  sends "1FC9| I|63:262142" to the ether (the controller is listening)
+    # - receives "1FC9| W|34:021943" to: Fakable._bind_request().proc_accept() via callback?
+    # STA set to BindState.ACCEPTING: sends "1FC9| I|01:145038" to the ether (the controller is ignoring?)
+    # - receives "1FC9| I|01:145038" to: Fakable._bind_request().proc_confirm() via callback -- OPTIONAL!!
+    # STA set to BindState.BOUND via callback, and...
+
+    # Faked Evohome controller binding to a Round Thermostat as a zone sensor
+    # CTL set to BindState.LISTENING
+    # - receives "1FC9| I|63:262142" to: Fakable._bind_waiting().proc_offer() via callback?
+    # CTL set to BindState.ACCEPTING: sends "1FC9| W|34:021943" to the ether
+    # - receives "1FC9| I|01:145038" to: Fakable._bind_waiting().proc_confirm() via callback -- OPTIONAL!!
+    # CTL set to BindState.BOUND
+
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
