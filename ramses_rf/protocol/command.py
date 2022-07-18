@@ -1333,12 +1333,12 @@ class Command(Frame):
     @typechecked
     @validate_api_params()
     def put_indoor_humidity(
-        cls, dev_id: _DevIdT, humidity: Union[None, float, int], /, **kwargs
+        cls, dev_id: _DevIdT, indoor_humidity: Union[None, float, int], /, **kwargs
     ):
         """Constructor to announce the current humidity of a sensor (12A0)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
-        payload = f"00{int(humidity * 100):02X}"  # percent_to_hex
+        payload = f"00{int(indoor_humidity * 100):02X}"  # percent_to_hex
         return cls._from_attrs(
             I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1346,7 +1346,7 @@ class Command(Frame):
     @classmethod  # constructor for I|2E10
     @typechecked
     @validate_api_params()
-    def put_presence_detect(
+    def put_presence_detected(
         cls, dev_id: _DevIdT, presence_detected: Union[None, bool], /, **kwargs
     ):
         """Constructor to announce the current presence state of a sensor (2E10)."""
@@ -1427,7 +1427,7 @@ CODE_API_MAP = {
     f"{W_}|{Code._2411}": Command.set_fan_param,
     f"{RQ}|{Code._2E04}": Command.get_system_mode,
     f"{W_}|{Code._2E04}": Command.set_system_mode,
-    f"{I_}|{Code._2E10}": Command.put_presence_detect,
+    f"{I_}|{Code._2E10}": Command.put_presence_detected,
     f"{I_}|{Code._30C9}": Command.put_sensor_temp,
     f"{RQ}|{Code._30C9}": Command.get_zone_temp,
     f"{RQ}|{Code._313F}": Command.get_system_time,
