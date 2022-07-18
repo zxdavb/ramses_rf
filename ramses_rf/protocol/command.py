@@ -1182,7 +1182,7 @@ class Command(Frame):
         payload = "00"
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
         payload += f"{actuator_countdown:04X}"
-        payload += f"{int(modulation_level * 200):02X}FF"
+        payload += f"{int(modulation_level * 200):02X}FF"  # percent_to_hex
         return cls._from_attrs(
             RP, Code._3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs
         )
