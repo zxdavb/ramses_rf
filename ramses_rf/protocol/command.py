@@ -286,7 +286,7 @@ class Command(Frame):
     They have QoS and/or callbacks (but no RSSI).
     """
 
-    def __init__(self, frame: str, qos: dict = None, cbk: dict = None) -> None:
+    def __init__(self, frame: str, qos: dict = None, callback: dict = None) -> None:
         """Create a command from a string (and its meta-attrs).
 
         Will raise InvalidPacketError if it is invalid.
@@ -295,7 +295,7 @@ class Command(Frame):
         super().__init__(frame)  # may raise InvalidPacketError if it is invalid
 
         # used by app layer: callback (protocol.py: func, args, daemon, timeout)
-        self._cbk = cbk or {}
+        self._cbk = callback or {}
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
         self._qos = _qos_params(self.verb, self.code, qos or {})
 
@@ -1245,7 +1245,7 @@ class Command(Frame):
         else:
             raise ValueError("Invalid parameters")
 
-        kwargs.update({"priority": Priority.HIGH, "retries": 3})
+        kwargs["qos"] = {"priority": Priority.HIGH, "retries": 3}
         return cls._from_attrs(
             verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )

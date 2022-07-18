@@ -66,14 +66,14 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-_DeviceT = TypeVar("_DeviceT", bound="Device")
+_DeviceT = TypeVar("_DeviceT", bound="Device")  # type: ignore[]
 
 
 def check_faking_enabled(fnc):
     def wrapper(self, *args, **kwargs):
         if not self._faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
-        return fnc(*args, **kwargs)
+        return fnc(self, *args, **kwargs)
 
     return wrapper
 
@@ -281,7 +281,7 @@ class Fakeable(Device):
             self._bind()
         return self
 
-    def _bind_waiting(self, code, idx="00", callback=None):
+    def _bind_waiting(self, codes, idx="00", callback=None):
         """Wait for (listen for) a bind handshake."""
 
         # Bind waiting: BDR set to listen, CTL initiates handshake
@@ -294,13 +294,13 @@ class Fakeable(Device):
         # 00:25:02.792 045  W --- 10:048122 01:145038 --:------ 1FC9 006 00-3EF0-28BBFA
         # 00:25:02.944 045  I --- 01:145038 10:048122 --:------ 1FC9 006 00-FFFF-06368E
 
-        _LOGGER.warning(f"Binding {self}: waiting for {code} for 300 secs")  # info
+        _LOGGER.warning(f"Binding {self}: waiting for {codes} for 300 secs")  # info
         # SUPPORTED_CODES = (Code._0008,)
 
         def proc_confirm(msg, *args) -> None:
             """Process the 3rd/final packet of the handshake."""
-            if not msg or msg.code != code:
-                return
+            # if not msg or msg.code not in codes:
+            #     return
 
             self._1fc9_state["state"] = BindState.BOUND
             if callback:
@@ -316,7 +316,7 @@ class Fakeable(Device):
             self._1fc9_state["state"] = BindState.ACCEPTING
             cmd = Command.put_bind(
                 W_,
-                code,
+                codes,
                 self.id,
                 idx=idx,  # zone_idx or domain_id
                 dst_id=msg.src.id,
@@ -327,14 +327,14 @@ class Fakeable(Device):
             )
             self._send_cmd(cmd)
 
-        self._1fc9_state["code"] = code
+        self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
             f"{Code._1FC9}|{I_}|{NUL_DEV_ADDR.id}",
             {SZ_FUNC: proc_offer, SZ_TIMEOUT: 300},
         )
 
-    def _bind_request(self, code, callback=None):
+    def _bind_request(self, codes, callback: dict = None) -> None:
         """Initiate a bind handshake: send the 1st packet of the handshake."""
 
         # Bind request: CTL set to listen, STA initiates handshake (note 3C09/2309)
@@ -347,8 +347,7 @@ class Fakeable(Device):
         # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
         # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
 
-        _LOGGER.warning(f"Binding {self}: requesting {code}")  # TODO: info
-        SUPPORTED_CODES = (Code._0002, Code._1260, Code._1290, Code._30C9)
+        _LOGGER.warning(f"Binding {self}: requesting {codes}")  # TODO: info
 
         def proc_accept(msg, *args) -> None:
             """Process the 2nd, and send the 3rd/final, packet of the handshake."""
@@ -358,19 +357,20 @@ class Fakeable(Device):
             self._1fc9_state["msg"] = msg  # the accept
 
             self._1fc9_state["state"] = BindState.CONFIRMING
-            cmd = Command.put_bind(I_, code, self.id, dst_id=msg.src.id)
+            cmd = Command.put_bind(I_, codes, self.id, dst_id=msg.src.id)
             self._send_cmd(cmd)
 
             self._1fc9_state["state"] = BindState.BOUND
             if callback:
                 callback(msg)
 
-        assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
+        if not isinstance(codes, tuple):
+            codes = (codes,)
 
-        self._1fc9_state["code"] = code
+        self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.OFFERING
         cmd = Command.put_bind(
-            I_, code, self.id, callback={SZ_FUNC: proc_accept, SZ_TIMEOUT: 3}
+            I_, codes, self.id, callback={SZ_FUNC: proc_accept, SZ_TIMEOUT: 3}
         )
         self._send_cmd(cmd)
 
