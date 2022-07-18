@@ -37,9 +37,11 @@ from ..const import (
     __dev_mode__,
 )
 from ..entity_base import class_by_attr
+from ..helpers import shrink
 from ..protocol import Address, Message
 from ..protocol.command import Command
 from ..protocol.ramses import CODES_HVAC_ONLY, HVAC_KLASS_BY_VC_PAIR
+from ..schemas import SCH_FAN, SZ_REMOTES, SZ_SENSORS
 from .base import BatteryState, DeviceHvac, Fakeable, _DeviceT
 
 # skipcq: PY-W2000
@@ -220,6 +222,20 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     # Orcon/Ventiline
 
     _SLUG: str = DEV_TYPE.FAN
+
+    def _update_schema(self, **schema):
+        """Update a FAN with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        schema = shrink(SCH_FAN(schema))
+
+        for dev_id in schema.get(SZ_REMOTES, {}).keys():
+            self._gwy.get_device(self._gwy, dev_id)
+
+        for dev_id in schema.get(SZ_SENSORS, {}).keys():
+            self._gwy.get_device(self._gwy, dev_id)
 
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
