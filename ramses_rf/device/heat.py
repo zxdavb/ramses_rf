@@ -76,7 +76,7 @@ if DEV_MODE:
 
 
 class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
-    #  I --- 13:109598 --:------ 13:109598 3EF0 003 00C8FF                # event-driven, 00/C8
+    # .I --- 13:109598 --:------ 13:109598 3EF0 003 00C8FF                # event-driven, 00/C8
     # RP --- 13:109598 18:002563 --:------ 0008 002 00C8                  # 00/C8, as abobe
     # RP --- 13:109598 18:002563 --:------ 3EF1 007 0000BF-00BFC8FF       # 00/C8, as above
 
@@ -85,7 +85,7 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
 
     # RP --- 10:047707 18:199952 --:------ 3EF0 009 001110-0A00FF-033100  # 10:s only RP
     # RP --- 10:138926 34:010253 --:------ 3EF0 006 002E11-0000FF         # 10:s only RP
-    #  I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # 13:s only  I
+    # .I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # 13:s only  I
 
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
@@ -197,10 +197,10 @@ class Weather(Fakeable, DeviceHeat):  # 0002
 
 class RelayDemand(Fakeable, DeviceHeat):  # 0008
     # Some either 00/C8, others 00-C8
-    #  I --- 01:145038 --:------ 01:145038 0008 002 0314  # zone valve zone (not electric?)
-    #  I --- 01:145038 --:------ 01:145038 0008 002 F914  # DHW valve
-    #  I --- 01:054173 --:------ 01:054173 0008 002 FA00  # DHW valve
-    #  I --- 01:145038 --:------ 01:145038 0008 002 FC14  # appliance_relay
+    # .I --- 01:145038 --:------ 01:145038 0008 002 0314  # zone valve zone (not electric?)
+    # .I --- 01:145038 --:------ 01:145038 0008 002 F914  # DHW valve
+    # .I --- 01:054173 --:------ 01:054173 0008 002 FA00  # DHW valve
+    # .I --- 01:145038 --:------ 01:145038 0008 002 FC14  # appliance_relay
 
     # RP --- 13:109598 18:199952 --:------ 0008 002 0000
     # RP --- 13:109598 18:199952 --:------ 0008 002 00C8
@@ -258,9 +258,9 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
             [self._send_cmd(cmd, **qos) for _ in range(1)]
 
     def _bind(self):
-        # I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
-        # W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
-        # I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
+        # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
+        # .W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
+        # .I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
 
         def callback(msg):
             pass
@@ -320,9 +320,9 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
-        # I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
-        # W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
-        # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
+        # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
+        # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+        # .I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
         def callback(msg):
             self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
@@ -515,8 +515,8 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             #         )
 
         elif msg.code == Code._22C9:  # ufh_setpoints
-            #  I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
-            #  I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
+            # .I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
+            # .I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
             self._setpoints = msg
 
         elif msg.code == Code._3150:  # heat_demands

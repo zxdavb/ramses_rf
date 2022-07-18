@@ -194,10 +194,10 @@ class Frame:
 
         # False -ves (array length is 1) are an acceptable compromise to extensive checking
 
-        #  W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
-        #  I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
-        #  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
-        #  I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
+        # .W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
+        # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
+        # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
+        # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
         if self.code == Code._1FC9:
             self._has_array_ = self.verb != RQ  # safe to treat all as array, even len=1
 
@@ -229,16 +229,16 @@ class Frame:
             ), f"{self} < array is from a non-controller (02)"
             self._has_array_ = True
 
-        #  I --- 10:040239 01:223036 --:------ 0009 003 000000        # not array
-        #  I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
-        #  I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
-        #  I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
-        #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC  # 2nd fragment
-        #  I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
-        #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
-        #  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF  # can have 2 zones
-        #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
-        #  I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
+        # .I --- 10:040239 01:223036 --:------ 0009 003 000000        # not array
+        # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
+        # .I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
+        # .I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
+        # .I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC  # 2nd fragment
+        # .I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
+        # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
+        # .I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF  # can have 2 zones
+        # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
+        # .I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
 
         return self._has_array_
 
@@ -259,7 +259,7 @@ class Frame:
             _LOGGER.debug(f"{self} # HAS controller (10)")
             self._has_ctl_ = True
 
-        #  I --- 12:010740 --:------ 12:010740 30C9 003 0008D9 # not ctl
+        # .I --- 12:010740 --:------ 12:010740 30C9 003 0008D9 # not ctl
         elif self.dst is self.src:  # (not needed?) & self.code == I_:
             _LOGGER.debug(
                 f"{self} < "
@@ -277,15 +277,15 @@ class Frame:
                 )
             )
 
-        #  I --- --:------ --:------ 10:050360 1FD4 003 002ABE # no ctl
-        #  I 095 --:------ --:------ 12:126457 1F09 003 000BC2 # HAS ctl
-        #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
+        # .I --- --:------ --:------ 10:050360 1FD4 003 002ABE # no ctl
+        # .I 095 --:------ --:------ 12:126457 1F09 003 000BC2 # HAS ctl
+        # .I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
         elif self.dst.id == NON_DEV_ADDR.id:
             _LOGGER.debug(f"{self} # HAS controller (21)")
             self._has_ctl_ = self.src.type != DEV_TYPE_MAP.OTB  # DEX
 
-        #  I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
-        #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
+        # .I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
+        # .I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
         elif self.dst.type in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2):  # DEX
             _LOGGER.debug(f"{self} # HAS controller (22)")
             self._has_ctl_ = True
@@ -302,8 +302,8 @@ class Frame:
         # RQ --- 30:258720 10:050360 --:------ 3EF0 001 00
         # RP --- 10:050360 30:258720 --:------ 3EF0 006 000011010A1C
 
-        #  I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
-        #  I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
+        # .I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
+        # .I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
         if self._has_ctl_ is None:
             if DEV_MODE and DEV_TYPE_MAP.HGI not in (
                 self.src.type,
@@ -402,7 +402,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     if pkt.code == Code._0005:
         return pkt._has_array
 
-    #  I --- 10:040239 01:223036 --:------ 0009 003 000000
+    # .I --- 10:040239 01:223036 --:------ 0009 003 000000
     if pkt.code == Code._0009 and pkt.src.type == DEV_TYPE_MAP.OTB:  # DEX
         return False
 
@@ -459,7 +459,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
         pkt._has_ctl
     ):  # risk of false -ves, TODO: pkt.src.type == DEV_TYPE_MAP.HGI too?  # DEX
         # 02:    22C9: would be picked up as an array, if len==1 counted
-        # 03:    #  I 028 03:094242 --:------ 03:094242 30C9 003 010B22  # ctl
+        # 03:    # .I 028 03:094242 --:------ 03:094242 30C9 003 010B22  # ctl
         # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
         # 23:    0009|10A0
         return pkt.payload[:2]  # pkt._gwy.config.max_zones checked elsewhere
@@ -486,9 +486,9 @@ def pkt_header(
     """
 
     if pkt.code == Code._1FC9:
-        #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
-        #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
-        #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
+        # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
+        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
+        # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
         if not rx_header:
             device_id = NUL_DEV_ADDR.id if pkt.src == pkt.dst else pkt.dst.id
             return "|".join((pkt.code, pkt.verb, device_id))

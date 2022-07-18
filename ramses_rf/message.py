@@ -225,8 +225,8 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
     def detect_array_fragment(this, prev) -> dict:
         """Return complete array if this pkt is the latter half of an array."""
         # This will work, even if the 2nd pkt._is_array == False as 1st == True
-        #  I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
-        #  I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
+        # .I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
+        # .I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
         if (
             not prev
             or not prev._has_array
@@ -280,8 +280,8 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         ):  # special case: are fakeable
             return
 
-        #  I --- 22:060293 --:------ 22:060293 0008 002 000C
-        #  I --- 01:054173 --:------ 01:054173 0008 002 03AA
+        # .I --- 22:060293 --:------ 22:060293 0008 002 000C
+        # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
         if msg.dst == msg.src and hasattr(msg.src, SZ_DEVICES):
             # needed for faked relays: each device will decide if the pkt is useful
             [

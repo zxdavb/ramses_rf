@@ -239,9 +239,9 @@ class MockDeviceThm(MockDeviceBase):
 
 def sync_cycle_pkts(ctl_id, seconds) -> tuple[Command, Command, Command]:
     """Return a sync_cycle set of packets as from a controller."""
-    #  I --- 01:087939 --:------ 01:087939 1F09 003 FF0532
-    #  I --- 01:087939 --:------ 01:087939 2309 009 0007D0-010640-0201F4
-    #  I --- 01:087939 --:------ 01:087939 30C9 009 0007A0-010634-020656
+    # .I --- 01:087939 --:------ 01:087939 1F09 003 FF0532
+    # .I --- 01:087939 --:------ 01:087939 2309 009 0007D0-010640-0201F4
+    # .I --- 01:087939 --:------ 01:087939 30C9 009 0007A0-010634-020656
 
     cmd_1f09 = Command._from_attrs(
         I_, Code._1F09, f"FF{seconds * 10:04X}", addr0=ctl_id, addr2=ctl_id

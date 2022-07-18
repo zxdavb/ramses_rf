@@ -197,7 +197,7 @@ class MessageDB:
             }
         else:
             # TODO: this isn't ideal: e.g. a controller is being treated like a 'stat
-            #  I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
+            # .I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
             msg_dict = msg.payload[0]
 
         assert (
@@ -551,8 +551,8 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_ufh_circuits():
             if msg.code == Code._22C9:
-                #  I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
-                #  I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
+                # .I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
+                # .I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
                 circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
 
                 for cct_idx in circuit_idxs:

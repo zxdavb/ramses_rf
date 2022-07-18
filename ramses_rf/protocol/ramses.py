@@ -59,7 +59,7 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
     },
     Code._0005: {  # system_zones
         SZ_NAME: "system_zones",
-        #  I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
+        # .I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
         RP: r"^00[01][0-9A-F]{3,5}$",
@@ -79,10 +79,10 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
     },
     Code._0009: {  # relay_failsafe (only is_controller, OTB send an 0009?)
         SZ_NAME: "relay_failsafe",
-        #  I --- 01:145038 --:------ 01:145038 0009 006 FC01FFF901FF
-        #  I --- 01:145038 --:------ 01:145038 0009 003 0700FF
-        #  I --- 10:040239 01:223036 --:------ 0009 003 000000
-        #  I --- --:------ --:------ 12:227486 0009 003 0000FF
+        # .I --- 01:145038 --:------ 01:145038 0009 006 FC01FFF901FF
+        # .I --- 01:145038 --:------ 01:145038 0009 003 0700FF
+        # .I --- 10:040239 01:223036 --:------ 0009 003 000000
+        # .I --- --:------ --:------ 12:227486 0009 003 0000FF
         I_: r"^((0[0-9A-F]|F[9AC])0[0-1](00|FF))+$",
     },
     Code._000A: {  # zone_params
@@ -128,15 +128,15 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         SZ_NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
-        #  W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
-        #  I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
+        # .W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
+        # .I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
     },
     Code._01E9: {  # unknown_01e9, TODO: definitely a real code, zone_idx is a guess
         SZ_NAME: "message_01e9",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
-        #  W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
-        #  I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
+        # .W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
+        # .I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
     },
     Code._0404: {  # zone_schedule
         SZ_NAME: "zone_schedule",
@@ -160,13 +160,13 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         RP: r"^00([0-9A-F]{2}){7,8}$",
     },
     Code._0B04: {  # unknown_0b04
-        #  I --- --:------ --:------ 12:207082 0B04 002 00C8
+        # .I --- --:------ --:------ 12:207082 0B04 002 00C8
         SZ_NAME: "message_0b04",
         I_: r"^00(00|C8)$",
     },
     Code._1030: {  # mixvalve_params
         SZ_NAME: "mixvalve_params",
-        #  I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
+        # .I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
     },
     Code._1060: {  # device_battery
@@ -251,7 +251,7 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         # RP --- 01:037519 30:185469 --:------ 1260 003 000837
         # RQ --- 18:200202 10:067219 --:------ 1260 002 0000
         # RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
-        #  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
+        # .I --- 07:045960 --:------ 07:045960 1260 003 0007A9
         I_: r"^0[01][0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^0[01](00)?$",  # TODO: officially: r"^0[01]$"
         EXPIRES: td(hours=1),
@@ -364,8 +364,8 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         I_: r"^(0[0-9A-F]{13}){1,2}$",
     },  # TODO: This could be an array
     Code._22C9: {  # ufh_setpoint
-        #  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
-        #  I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
+        # .I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
+        # .I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
         SZ_NAME: "ufh_setpoint",
         I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}$",  # ~000A array, but max_len 24, not 48!
         # RP: Appear wont get any?,
@@ -421,7 +421,7 @@ CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
         EXPIRES: td(hours=4),
     },
     Code._2389: {  # unknown_2389 - CODE_IDX_COMPLEX?
-        #  I 024 03:052382 --:------ 03:052382 2389 003 02001B
+        # .I 024 03:052382 --:------ 03:052382 2389 003 02001B
         SZ_NAME: "unknown_2389",
         I_: r"^0[0-4][0-9A-F]{4}$",
     },
@@ -584,7 +584,7 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 #
-# I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
+# .I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
 CODES_WITH_ARRAYS: Dict[str, list] = {
     Code._0005: [4, ("34",)],
     Code._0009: [3, ("01", "12", "22")],
@@ -771,7 +771,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, dict] = {
         Code._3120: {I_: {}},
         Code._313F: {
             I_: {}
-        },  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
+        },  # .W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
         Code._3B00: {I_: {}},
         Code._3EF0: {RQ: {}},  # when bound direct to a 13:
         Code._3EF1: {RQ: {}},  # when bound direct to a 13:

@@ -549,7 +549,7 @@ class Command(Frame):
         #  - are cast as a triplet, 0.1s apart?, with a seqn (000-255) and no src_id
         #  - triplet has same seqn, increased monotonically mod 256 after every triplet
         #  - only payloads seen: '(00|63)0[234]04', may accept '000.'
-        #  I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
+        # .I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
 
         # Scheme 1a: I --- --:------ --:------ 21:038634 (less common)
         #  - some systems that accept scheme 2 will accept this scheme
@@ -557,7 +557,7 @@ class Command(Frame):
         # Scheme 2: I --- 21:038634 18:126620 --:------ (less common)
         #  - are cast as a triplet, 0.085s apart, without a seqn (i.e. is ---)
         #  - only payloads seen: '000.0[47A]', may accept '000.'
-        #  I --- 21:038634 18:126620 --:------ 22F1 003 000507
+        # .I --- 21:038634 18:126620 --:------ 22F1 003 000507
 
         from .ramses import _22F1_MODE_ORCON
 
@@ -934,7 +934,7 @@ class Command(Frame):
         **kwargs,
     ):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
-        #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
+        # .W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
         dt_str = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
         return cls.from_attrs(W_, ctl_id, Code._313F, f"0060{dt_str}", **kwargs)
@@ -1076,8 +1076,8 @@ class Command(Frame):
         - mode == Temporary & until is None (will silently ignore ???)
         - until and duration are mutually exclusive
         """
-        #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
-        #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
+        # .W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
+        # .W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
         mode = _normalise_mode(mode, setpoint, until, duration)
 
@@ -1124,7 +1124,7 @@ class Command(Frame):
         cls, ctl_id: _DevIdT, zone_idx: _ZoneIdxT, setpoint: float, **kwargs
     ):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
-        #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
+        # .W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
         payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
         return cls.from_attrs(W_, ctl_id, Code._2309, payload, **kwargs)
@@ -1186,8 +1186,8 @@ class Command(Frame):
 
         This is for use by a faked BDR91A or similar.
         """
-        #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
-        #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
+        # .I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
+        # .I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
         if dev_id[:2] != DEV_TYPE_MAP.BDR:
             raise TypeError(
@@ -1218,9 +1218,9 @@ class Command(Frame):
     ):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
-        #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
-        #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
-        #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
+        # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
+        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
+        # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
 
         hex_id = Address.convert_to_hex(src_id)
         codes = ([codes] if isinstance(codes, _CodeT) else list(codes)) + [Code._1FC9]
@@ -1293,7 +1293,7 @@ class Command(Frame):
 
         This is for use by a faked DTS92(E) or similar.
         """
-        #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
+        # .I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
         if dev_id[:2] != DEV_TYPE_MAP.HCW:
             raise TypeError(

@@ -186,7 +186,7 @@ class Message:
         dict if there is none such, or None if undetermined.
         """
 
-        #  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
+        # .I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
 
         IDX_NAMES = {
             Code._0002: "other_idx",  # non-evohome: hometronics
@@ -208,9 +208,9 @@ class Message:
         if self.code in (Code._3220,):  # FIXME: should be _SIMPLE
             return {}
 
-        #  I 068 03:201498 --:------ 03:201498 30C9 003 0106D6 # rare
+        # .I 068 03:201498 --:------ 03:201498 30C9 003 0106D6 # rare
 
-        #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
+        # .I --- 00:034798 --:------ 12:126457 2309 003 0201F4
         if not {self.src.type, self.dst.type} & {
             DEV_TYPE_MAP.CTL,
             DEV_TYPE_MAP.UFC,
@@ -223,7 +223,7 @@ class Message:
             assert self._pkt._idx == "00", "What!! (AA)"
             return {}
 
-        #  I 035 --:------ --:------ 12:126457 30C9 003 017FFF
+        # .I 035 --:------ --:------ 12:126457 30C9 003 017FFF
         if self.src.type == self.dst.type and self.src.type not in (
             DEV_TYPE_MAP.CTL,
             DEV_TYPE_MAP.UFC,
@@ -234,14 +234,14 @@ class Message:
             assert self._pkt._idx == "00", "What!! (AB)"
             return {}
 
-        #  I --- 04:029362 --:------ 12:126457 3150 002 0162
+        # .I --- 04:029362 --:------ 12:126457 3150 002 0162
         # if not getattr(self.src, "_is_controller", True) and not getattr(
         #     self.dst, "_is_controller", True
         # ):
         #     assert self._pkt._idx == "00", "What!! (BA)"
         #     return {}
 
-        #  I --- 04:029362 --:------ 12:126457 3150 002 0162
+        # .I --- 04:029362 --:------ 12:126457 3150 002 0162
         # if not (
         #     getattr(self.src, "_is_controller", True)
         #     or getattr(self.dst, "_is_controller", True)
