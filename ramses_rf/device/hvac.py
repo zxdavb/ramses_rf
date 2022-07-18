@@ -61,66 +61,8 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
-    """The HGI80 base class."""
-
-    _SLUG: str = DEV_TYPE.RFS
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        self.ctl = None
-        self._child_id = "hv"  # NOTE: domain_id
-        self.tcs = None
-
-
-class HvacHumiditySensor(BatteryState, DeviceHvac):  # HUM: I/12A0
-    """The Sensor class for a humidity sensor.
-
-    The cardinal code is 12A0.
-    """
-
-    _SLUG: str = DEV_TYPE.HUM
-
-    REL_HUMIDITY = "indoor_humidity"  # percentage (0.0-1.0)
-    TEMPERATURE = SZ_TEMPERATURE  # celsius
-    DEWPOINT_TEMP = "dewpoint_temp"  # celsius
-
-    @property
-    def indoor_humidity(self) -> None | float:
-        return self._msg_value(Code._12A0, key=self.REL_HUMIDITY)
-
-    @property
-    def temperature(self) -> None | float:
-        return self._msg_value(Code._12A0, key=self.TEMPERATURE)
-
-    @property
-    def dewpoint_temp(self) -> None | float:
-        return self._msg_value(Code._12A0, key=self.DEWPOINT_TEMP)
-
-    @property
-    def status(self) -> dict[str, Any]:
-        return {
-            **super().status,
-            self.REL_HUMIDITY: self.indoor_humidity,
-            self.TEMPERATURE: self.temperature,
-            self.DEWPOINT_TEMP: self.dewpoint_temp,
-        }
-
-
-class HvacCarbonDioxideSensor(Fakeable, DeviceHvac):  # CO2: I/1298
-    """The Sensor class for a CO2 sensor.
-
-    The cardinal code is 1298.
-    """
-
-    _SLUG: str = DEV_TYPE.CO2
-
+class CarbonDioxide(Fakeable, DeviceHvac):  # 1298
     def _bind(self):
-        # .I --- 37:154011 --:------ 37:154011 1FC9 030 0031E096599B 00129896599B 002E1096599B 0110E096599B 001FC996599B              # CO2, idx|10E0 == 01
-        # .W --- 28:126620 37:154011 --:------ 1FC9 012 0031D949EE9C 0031DA49EE9C                                                     # FAN, BRDG-02A55
-        # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
-
         # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
         # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
         # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
@@ -135,12 +77,144 @@ class HvacCarbonDioxideSensor(Fakeable, DeviceHvac):  # CO2: I/1298
     def co2_level(self) -> None | float:
         return self._msg_value(Code._1298, key="co2_level")
 
+    # @check_faking_enabled
+    @co2_level.setter
+    def co2_level(self, value) -> None:
+        if not self._faked:
+            raise RuntimeError(f"Faking is not enabled for {self}")
+        self._send_cmd(Command.put_co2_level(self.id, value))
+        # lf._send_cmd(Command.get_co2_level(...))
+
     @property
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
             "co2_level": self.co2_level,
         }
+
+
+class IndoorHumidity(Fakeable, DeviceHvac):  # 12A0
+    def _bind(self):
+        #
+        #
+        #
+
+        def callback(msg):
+            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+
+        super()._bind()
+        self._bind_request((Code._12A0, Code._31E0), callback=callback)
+
+    @property
+    def indoor_humidity(self) -> None | float:
+        return self._msg_value(Code._12A0, key="indoor_humidity")
+
+    # @check_faking_enabled
+    @indoor_humidity.setter
+    def indoor_humidity(self, value) -> None:
+        if not self._faked:
+            raise RuntimeError(f"Faking is not enabled for {self}")
+        self._send_cmd(Command.put_indoor_humidity(self.id, value))
+        # lf._send_cmd(Command.get_indoor_humidity(...))
+
+    @property
+    def status(self) -> dict[str, Any]:
+        return {
+            **super().status,
+            "indoor_humidity": self.indoor_humidity,
+        }
+
+
+class PresenceDetect(Fakeable, DeviceHvac):  # 2E10
+    def _bind(self):
+        # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B              # CO2, idx|10E0 == 01
+        # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
+        # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
+
+        def callback(msg):
+            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+
+        super()._bind()
+        self._bind_request((Code._2E10, Code._31E0), callback=callback)
+
+    @property
+    def presence_detected(self) -> None | float:
+        return self._msg_value(Code._2E10, key="presence_detected")
+
+    # @check_faking_enabled
+    @presence_detected.setter
+    def presence_detected(self, value) -> None:
+        if not self._faked:
+            raise RuntimeError(f"Faking is not enabled for {self}")
+        self._send_cmd(Command.put_presence_detected(self.id, value))
+        # lf._send_cmd(Command.get_presence_detected(...))
+
+    @property
+    def status(self) -> dict[str, Any]:
+        return {
+            **super().status,
+            "presence_detected": self.presence_detected,
+        }
+
+
+class FilterChange(DeviceHvac):  # FAN: 10D0
+    def _setup_discovery_tasks(self) -> None:
+        super()._setup_discovery_tasks()
+
+        self._add_discovery_task(
+            Command.from_attrs(RQ, self.id, Code._10D0, "00"), 60 * 60 * 24, delay=30
+        )
+
+    @property
+    def filter_remaining(self) -> Optional[int]:
+        return self._msg_value(Code._31DA, key="days_remaining")
+
+
+class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
+    """The HGI80 base class."""
+
+    _SLUG: str = DEV_TYPE.RFS
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self.ctl = None
+        self._child_id = "hv"  # NOTE: domain_id
+        self.tcs = None
+
+
+class HvacHumiditySensor(BatteryState, IndoorHumidity, DeviceHvac):  # HUM: I/12A0
+    """The Sensor class for a humidity sensor.
+
+    The cardinal code is 12A0.
+    """
+
+    _SLUG: str = DEV_TYPE.HUM
+
+    @property
+    def temperature(self) -> None | float:  # Celsius
+        return self._msg_value(Code._12A0, key=SZ_TEMPERATURE)
+
+    @property
+    def dewpoint_temp(self) -> None | float:  # Celsius
+        return self._msg_value(Code._12A0, key="dewpoint_temp")
+
+    @property
+    def status(self) -> dict[str, Any]:
+        return {
+            **super().status,
+            SZ_TEMPERATURE: self.temperature,
+            "dewpoint_temp": self.dewpoint_temp,
+        }
+
+
+class HvacCarbonDioxideSensor(CarbonDioxide, DeviceHvac):  # CO2: I/1298
+    """The Sensor class for a CO2 sensor.
+
+    The cardinal code is 1298.
+    """
+
+    _SLUG: str = DEV_TYPE.CO2
 
 
 class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
@@ -195,19 +269,6 @@ class HvacDisplayRemote(HvacRemote):  # DIS
     """The FAN (switch) class, such as a 4-way switch."""
 
     _SLUG: str = DEV_TYPE.DIS
-
-
-class FilterChange(DeviceHvac):  # FAN: 10D0
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
-
-        self._add_discovery_task(
-            Command.from_attrs(RQ, self.id, Code._10D0, "00"), 60 * 60 * 24, delay=30
-        )
-
-    @property
-    def filter_remaining(self) -> Optional[int]:
-        return self._msg_value(Code._31DA, key="days_remaining")
 
 
 class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]

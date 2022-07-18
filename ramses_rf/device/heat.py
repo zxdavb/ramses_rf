@@ -316,9 +316,6 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
 
 
 class Temperature(Fakeable, DeviceHeat):  # 30C9
-
-    TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
-
     def _bind(self):
         # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
         # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
@@ -331,12 +328,12 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
         self._bind_request(Code._30C9, callback=callback)
 
     @property
-    def temperature(self) -> None | float:  # 30C9
-        return self._msg_value(Code._30C9, key=self.TEMPERATURE)
+    def temperature(self) -> None | float:  # degrees Celsius
+        return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)
 
     # @check_faking_enabled
     @temperature.setter
-    def temperature(self, value) -> None:  # 30C9
+    def temperature(self, value) -> None:
         if not self._faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_sensor_temp(self.id, value))
@@ -346,7 +343,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            self.TEMPERATURE: self.temperature,
+            SZ_TEMPERATURE: self.temperature,
         }
 
 
