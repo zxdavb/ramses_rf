@@ -43,12 +43,18 @@ from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command, Qos
 
 # skipcq: PY-W2000
-from .const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_INBOUND, SZ_OUTBOUND, __dev_mode__
+from .const import DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
-from .schemas import SCH_SERIAL_CONFIG
+from .schemas import (
+    SCH_CONFIG_SERIAL,
+    SZ_BLOCK_LIST,
+    SZ_INBOUND,
+    SZ_KNOWN_LIST,
+    SZ_OUTBOUND,
+)
 from .version import VERSION
 
 # TODO: switch dtm from naive to aware
@@ -67,20 +73,23 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
-DEV_HACK_REGEX = True
+DEV_HACK_REGEX = False
+
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
-SZ_BLOCK_LIST = "block_list"
-SZ_KNOWN_LIST = "known_list"
+
+_DEFAULT_USE_REGEX = {
+    SZ_INBOUND: {"( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00"},
+    SZ_OUTBOUND: {},
+}
+
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
-
-DEFAULT_SERIAL_CONFIG = SCH_SERIAL_CONFIG({})
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
@@ -939,7 +948,7 @@ def create_pkt_stack(
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
 
-        ser_config = {**DEFAULT_SERIAL_CONFIG, **ser_config}
+        ser_config = SCH_CONFIG_SERIAL(ser_config)
 
         try:
             ser_obj = serial_for_url(ser_name, **ser_config)

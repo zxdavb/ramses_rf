@@ -458,8 +458,6 @@ SZ_ZONES = "zones"
 
 SZ_ALIAS = "alias"
 SZ_CLASS = "class"
-SZ_INBOUND = "inbound"
-SZ_OUTBOUND = "outbound"
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12

@@ -28,7 +28,7 @@ from .message import Message
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_msg_stack
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA
-from .schemas import SCH_PACKET_LOG, SCH_SERIAL_CONFIG, SZ_PACKET_LOG, SZ_SERIAL_PORT
+from .schemas import SCH_CONFIG_LOGGER, SCH_CONFIG_SERIAL, SZ_SERIAL_PORT
 from .transport import SZ_POLLER_TASK, create_pkt_stack
 
 # noqa: F401, pylint: disable=unused-import

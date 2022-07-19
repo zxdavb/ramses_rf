@@ -38,7 +38,6 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schemas import (
-    SCH_CONFIG_ENGINE,
     SCH_TRAITS,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
@@ -97,7 +96,7 @@ class Engine:
             "01:000001",
         ]
 
-        self.config = SimpleNamespace(**SCH_CONFIG_ENGINE({}))  # default config for now
+        self.config = SimpleNamespace()  # **SCH_CONFIG_GWY({}))
 
         self.msg_protocol: MessageProtocol = None  # type: ignore[assignment]
         self.msg_transport: MessageTransport = None  # type: ignore[assignment]

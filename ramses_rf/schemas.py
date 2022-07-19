@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TextIO
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -31,18 +31,20 @@ from .const import (
     __dev_mode__,
 )
 from .helpers import shrink
-from .protocol import SCH_PACKET_LOG, SCH_SERIAL_CONFIG, SZ_PACKET_LOG
 from .protocol.const import (
     SZ_ACTUATORS,
     SZ_DEVICES,
-    SZ_INBOUND,
     SZ_NAME,
-    SZ_OUTBOUND,
     SZ_SENSOR,
     SZ_ZONE_TYPE,
     SZ_ZONES,
 )
-from .protocol.transport import DEV_HACK_REGEX, SZ_BLOCK_LIST, SZ_KNOWN_LIST
+from .protocol.schemas import (
+    SCH_CONFIG_ENGINE,
+    SZ_DISABLE_SENDING,
+    SZ_ENFORCE_KNOWN_LIST,
+)
+from .protocol.transport import SZ_BLOCK_LIST, SZ_KNOWN_LIST
 
 # from .systems import _SystemT  # circular import
 
@@ -97,16 +99,12 @@ SCH_ZON_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometr
 # Config parameters
 SZ_CONFIG = "config"
 SZ_DISABLE_DISCOVERY = "disable_discovery"
-SZ_DISABLE_SENDING = "disable_sending"
 SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
-SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
-SZ_EVOFW_FLAG = "evofw_flag"
 SZ_MAX_ZONES = "max_zones"
 SZ_REDUCE_PROCESSING = "reduce_processing"
 SZ_SERIAL_CONFIG = "serial_config"
 SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 SZ_USE_SCHEMA = "use_schema"
-SZ_USE_REGEX = "use_regex"
 SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
 
 
@@ -120,27 +118,6 @@ def renamed(new_key):
 
     return func
 
-
-# 1/5: Schema for Configuration of engine/parser
-SCH_CONFIG_ENGINE = vol.Schema(
-    {
-        vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
-        vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-        vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
-        vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
-        vol.Optional(SZ_EVOFW_FLAG, default=None): vol.Any(None, str),
-        vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
-            int, vol.Range(min=1, max=16)
-        ),
-        vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
-            int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
-        ),
-        vol.Optional(SZ_USE_ALIASES, default=False): bool,
-        vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
-        vol.Optional(SZ_USE_REGEX, default={}): dict,
-    },
-    extra=vol.PREVENT_EXTRA,
-)
 
 # 2/5: Schemas for Device traits (known_list, block_list)
 SCH_TRAITS_BASE = vol.Schema(
@@ -263,12 +240,27 @@ SCH_VCS_KEYS = vol.Schema(
 )
 SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 
+# 1/5: Schema for Configuration of engine/parser
+SCH_CONFIG_GWY = SCH_CONFIG_ENGINE.extend(
+    {
+        vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
+        vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
+        vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
+            int, vol.Range(min=1, max=16)
+        ),
+        vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
+            int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
+        ),
+        vol.Optional(SZ_USE_ALIASES, default=False): bool,
+        vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+
 # 5/5: the Global Schema
 SCH_GLOBAL_CONFIG = vol.Schema(
     {
-        vol.Required(SZ_SERIAL_CONFIG): SCH_SERIAL_CONFIG,
-        vol.Optional(SZ_PACKET_LOG, default={}): vol.Any({}, SCH_PACKET_LOG),
-        vol.Optional(SZ_CONFIG): SCH_CONFIG_ENGINE,
+        vol.Optional(SZ_CONFIG): SCH_CONFIG_GWY,
         vol.Optional(SCH_DEVICE_CTL): vol.All(SCH_TCS, vol.Length(min=0)),
         vol.Optional(SCH_DEVICE_ANY): vol.All(SCH_VCS, vol.Length(min=0)),
         vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
@@ -279,7 +271,7 @@ SCH_GLOBAL_CONFIG = vol.Schema(
 
 
 def load_config(
-    serial_port: None | str, input_file, **kwargs
+    serial_port: None | str, input_file: TextIO, **kwargs
 ) -> tuple[SimpleNamespace, dict, dict, dict]:
     """Process the configuration, including any filter lists.
 
@@ -291,7 +283,7 @@ def load_config(
     """
 
     schema = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
-    config = {k: schema.pop(k) for k in (SZ_CONFIG, SZ_PACKET_LOG, SZ_SERIAL_CONFIG)}
+    config = schema.pop(SZ_CONFIG)
     block_list = schema.pop(SZ_BLOCK_LIST)
     known_list = schema.pop(SZ_KNOWN_LIST)
 
@@ -313,35 +305,31 @@ def load_config(
             " for routine use (there be dragons here)"
         )
 
-    update_config(config, known_list, block_list)
+    config[SZ_ENFORCE_KNOWN_LIST] = select_filter_mode(
+        config[SZ_ENFORCE_KNOWN_LIST], known_list, block_list
+    )
 
     return (SimpleNamespace(**config), schema, known_list, block_list)
 
 
-def update_config(config, known_list, block_list) -> None:
-    """Determine which device filter to use, if any: known_list or block_list."""
+def select_filter_mode(
+    enforce_known_list: bool, known_list: list, block_list: list
+) -> bool:
+    """Determine which device filter to use, if any.
 
-    if SZ_INBOUND not in config[SZ_USE_REGEX]:  # TODO: move to voluptuous
-        config[SZ_USE_REGEX][SZ_INBOUND] = {}
-    if SZ_OUTBOUND not in config[SZ_USE_REGEX]:
-        config[SZ_USE_REGEX][SZ_OUTBOUND] = {}
+    Either:
+     - allow if device_id in known_list, or
+     - block if device_id in block_list (could be empty)
+    """
 
-    if DEV_HACK_REGEX:  # HACK: for DEV/TEST convenience, not for production
-        config[SZ_USE_REGEX][SZ_INBOUND].update(
-            {
-                "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
-                # "02:153425": "20:153425",
-            }
-        )
-
-    if config[SZ_ENFORCE_KNOWN_LIST] and not known_list:
+    if enforce_known_list and not known_list:
         _LOGGER.warning(
             f"An empty {SZ_KNOWN_LIST} was provided, so it cant be used "
             f"as a whitelist (device_id filter)"
         )
-        config[SZ_ENFORCE_KNOWN_LIST] = False
+        enforce_known_list = False
 
-    if config[SZ_ENFORCE_KNOWN_LIST]:
+    if enforce_known_list:
         _LOGGER.info(
             f"The {SZ_KNOWN_LIST} will be used "
             f"as a whitelist (device_id filter), length = {len(known_list)}"
@@ -367,6 +355,8 @@ def update_config(config, known_list, block_list) -> None:
             f"It is strongly recommended to provide a {SZ_KNOWN_LIST}, and use it "
             f"as a whitelist (device_id filter), configure: {SZ_ENFORCE_KNOWN_LIST} = True"
         )
+
+    return enforce_known_list
 
 
 def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
