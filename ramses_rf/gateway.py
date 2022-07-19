@@ -11,20 +11,21 @@ import asyncio
 import logging
 import os
 import signal
-from asyncio import Future
 from concurrent import futures
 from datetime import datetime as dt
 from threading import Lock
-from typing import Callable, Optional
+from types import SimpleNamespace
+from typing import Callable, Optional, TextIO
 
-from ramses_rf.device import DeviceHeat, DeviceHvac
+from ramses_rf.device import DeviceHeat, DeviceHvac, Fakeable
+from ramses_rf.protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
 from ramses_rf.protocol.protocol import MessageProtocol, MessageTransport
 from ramses_rf.protocol.transport import PacketProtocolBase
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .device import Device, zx_device_factory
 from .helpers import schedule_task, shrink
-from .message import Message, process_msg
+from .processor import Message, process_msg
 from .protocol import (
     SZ_POLLER_TASK,
     Address,
@@ -37,15 +38,14 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schemas import (
+    SCH_CONFIG_ENGINE,
     SCH_TRAITS,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
     SZ_CLASS,
     SZ_CONFIG,
-    SZ_DEBUG_MODE,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_FAKED,
-    SZ_INPUT_FILE,
     SZ_KNOWN_LIST,
     SZ_MAIN_CONTROLLER,
     SZ_ORPHANS,
@@ -78,20 +78,34 @@ if DEV_MODE:
 class Engine:
     """The engine class."""
 
-    def __init__(self, serial_port, loop=None) -> None:
-
-        self._loop = loop or asyncio.get_running_loop()
+    def __init__(
+        self,
+        serial_port: None | str,
+        input_file: None | TextIO = None,
+        loop: None | asyncio.AbstractEventLoop = None,
+    ) -> None:
 
         self.ser_name = serial_port
-        self._input_file = None
+        self._input_file = input_file
+        self._loop = loop or asyncio.get_running_loop()
+
+        self._include: dict[_DeviceIdT, dict] = {}  # aka known_list, and ?allow_list
+        self._exclude: dict[_DeviceIdT, dict] = {}  # aka block_list
+        self._unwanted: list[_DeviceIdT] = [
+            NON_DEV_ADDR.id,
+            NUL_DEV_ADDR.id,
+            "01:000001",
+        ]
+
+        self.config = SimpleNamespace(**SCH_CONFIG_ENGINE({}))  # default config for now
 
         self.msg_protocol: MessageProtocol = None  # type: ignore[assignment]
         self.msg_transport: MessageTransport = None  # type: ignore[assignment]
         self.pkt_protocol: PacketProtocolBase = None  # type: ignore[assignment]
-        self.pkt_transport = None  # type: ignore[assignment]
+        self.pkt_transport: asyncio.Transport = None  # type: ignore[assignment]
 
         self._engine_lock = Lock()
-        self._engine_state: None | tuple = None
+        self._engine_state: None | tuple[None | Callable, tuple] = None
 
     def __str__(self) -> str:
         hgi_id = self.pkt_protocol._hgi80[SZ_DEVICE_ID] if self.pkt_protocol else ""
@@ -114,7 +128,7 @@ class Engine:
         # return dt.now()
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
-    def create_client(self, msg_handler) -> tuple:
+    def create_client(self, msg_handler: Callable) -> tuple:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
@@ -180,7 +194,7 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to pause engine, it is already paused")
 
-        self._engine_state, callback = (None, None), None
+        self._engine_state, callback = (None, tuple()), None
         self._engine_lock.release()
 
         if self.pkt_protocol:
@@ -204,7 +218,10 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to resume engine, it was not paused")
 
+        callback: None | Callable
+        args: tuple
         callback, args = self._engine_state
+
         self._engine_lock.release()
 
         if self.pkt_protocol:
@@ -222,11 +239,15 @@ class Engine:
         return None
 
     @staticmethod
-    def create_cmd(verb, device_id, code, payload, **kwargs) -> Command:
+    def create_cmd(
+        verb: _VerbT, device_id: _DeviceIdT, code: _CodeT, payload: _PayloadT, **kwargs
+    ) -> Command:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
-    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
+    def send_cmd(
+        self, cmd: Command, callback: Callable = None, **kwargs
+    ) -> futures.Future[Optional[Message]]:
         """Send a command with the option to return any response message via callback.
 
         Response packets, if any (an RP/I will follow an RQ/W), and have the same code.
@@ -241,7 +262,7 @@ class Engine:
             self._loop,
         )
 
-    async def async_send_cmd(self, cmd: Command, **kwargs) -> Message:
+    async def async_send_cmd(self, cmd: Command, **kwargs) -> None | Message:
         """Send a command with the option to not wait for a response message.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
@@ -256,7 +277,7 @@ class Engine:
 
         while True:
             try:
-                result = fut.result(timeout=0)
+                result = fut.result()
 
             # except futures.CancelledError:  # fut ?was cancelled by a higher layer
             #     break
@@ -281,26 +302,27 @@ class Engine:
 class Gateway(Engine):
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **kwargs) -> None:
+    def __init__(
+        self,
+        serial_port: None | str,
+        debug_mode: None | bool = None,
+        input_file: None | TextIO = None,
+        loop: None | asyncio.AbstractEventLoop = None,
+        **kwargs,
+    ) -> None:
 
-        if kwargs.pop(SZ_DEBUG_MODE, None):
+        if debug_mode:
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting RAMSES RF, **kwargs = %s", kwargs)
 
-        super().__init__(serial_port, loop=loop)
+        super().__init__(serial_port, input_file=input_file, loop=loop)
 
-        self._tasks: list = []
-
-        self._input_file = kwargs.pop(SZ_INPUT_FILE, None)
-
-        self._include: dict = {}  # the provided known_list (?and used as an allow_list)
-        self._exclude: dict = {}  # the provided block_list
+        self._tasks: list = []  # TODO: used by discovery, move lower?
+        self._schema: dict[str, dict] = {}
 
         (self.config, self._schema, self._include, self._exclude) = load_config(
             self.ser_name, self._input_file, **kwargs
         )
-        self._unwanted = [NON_DEV_ADDR.id, NUL_DEV_ADDR.id, "01:000001"]
-
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self.config.packet_log,
@@ -310,9 +332,9 @@ class Gateway(Engine):
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         # if self.config.reduce_processing > 0:
-        self._tcs: None | System = None
+        self._tcs: None | System = None  # type: ignore[assignment]
         self.devices: list[Device] = []
-        self.device_by_id: dict = {}
+        self.device_by_id: dict[str, Device] = {}
 
         self._setup_event_handlers()
 
@@ -353,7 +375,7 @@ class Gateway(Engine):
         else:  # unsupported
             raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
-    async def start(self, *, start_discovery=True) -> None:
+    async def start(self, *, start_discovery: bool = True) -> None:
         def initiate_discovery(dev_list, sys_list) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
@@ -381,14 +403,14 @@ class Gateway(Engine):
         # if self._engine_state is None:
         #     self._pause()
 
-        if tasks := [t.cancel() for t in self._tasks if not t.done()]:
+        if [t.cancel() for t in self._tasks if not t.done()]:
             try:  # TODO: except asyncio.CancelledError:
-                await asyncio.gather(*tasks)
+                await asyncio.gather(*self._tasks)
             except TypeError:  # HACK
                 pass
         await super().stop()
 
-    def _pause(self, *args, clear_state=False) -> None:
+    def _pause(self, *args, clear_state: bool = False) -> None:
         """Pause the (unpaused) gateway."""
 
         super()._pause(
@@ -409,7 +431,7 @@ class Gateway(Engine):
             *args,
         ) = super()._resume()
 
-        return args
+        return args  # type: ignore[return-value]
 
     def _clear_state(self) -> None:
         _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
@@ -418,7 +440,7 @@ class Gateway(Engine):
         self.devices = []
         self.device_by_id = {}
 
-    def get_state(self, include_expired=None) -> tuple[dict, dict]:
+    def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
 
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
         self._pause()
@@ -430,7 +452,14 @@ class Gateway(Engine):
 
         return result
 
-    def _get_state(self, include_expired=None) -> tuple[dict, dict]:
+    def _get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
+        def wanted_msg(msg: Message) -> bool:
+            # 313F will usu. be expired, but will be useful for back-back restarts
+            if msg.code == Code._313F:
+                return True
+            # if msg.code == Code._1FC9 and msg.verb != RP:
+            #     return True
+            return not msg._expired
 
         msgs = [m for device in self.devices for m in device._msg_db]
 
@@ -443,15 +472,12 @@ class Gateway(Engine):
         pkts = {
             f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
             for msg in msgs
-            if msg.verb in (I_, RP)
-            and (
-                include_expired or msg.code == Code._313F or not msg._expired
-            )  # 313F will be expired, but will be useful for back-back restarts
+            if msg.verb in (I_, RP) and include_expired or wanted_msg(msg)
         }  # BUG: assumes pkts have unique dtms
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def set_state(self, packets, *, schema=None) -> None:
+    async def set_state(self, packets, *, schema: None | dict = None) -> None:
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
 
         if schema is None:  # TODO: also for known_list (device traits)?
@@ -466,7 +492,7 @@ class Gateway(Engine):
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
     async def _set_state(self, packets: dict, *, schema=None) -> None:
-        tmp_transport: PacketProtocolBase
+        tmp_transport: asyncio.Transport
 
         pkt_receiver = (
             self.msg_transport.get_extra_info(self.msg_transport.READER)
@@ -480,7 +506,13 @@ class Gateway(Engine):
         self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
 
     def get_device(
-        self, dev_id, *, msg=None, parent=None, child_id=None, is_sensor=None
+        self,
+        dev_id: _DeviceIdT,
+        *,
+        msg: None | Message = None,
+        parent=None,
+        child_id=None,
+        is_sensor: None | bool = None,
     ) -> Device:  # TODO: **schema) -> Device:
         """Return a device, create it if required.
 
@@ -491,7 +523,7 @@ class Gateway(Engine):
         If a device is created, attach it to the gateway.
         """
 
-        def check_filter_lists(dev_id: str) -> None:
+        def check_filter_lists(dev_id: _DeviceIdT) -> None:
             """Raise an LookupError if a device_id is filtered out by a list."""
 
             if dev_id in self._unwanted:
@@ -531,7 +563,10 @@ class Gateway(Engine):
             dev.set_parent(parent, child_id=child_id, is_sensor=is_sensor)
 
         if traits.get(SZ_FAKED):
-            dev._make_fake()
+            if isinstance(dev, Fakeable):
+                dev._make_fake()
+            else:
+                _LOGGER.warning(f"The device is not fakable: {dev}")
 
         if msg:
             dev._handle_msg(msg)
@@ -639,7 +674,9 @@ class Gateway(Engine):
     def status(self) -> dict:
         return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
-    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
+    def send_cmd(
+        self, cmd: Command, callback: Callable = None, **kwargs
+    ) -> futures.Future:
         """Send a command with the option to return any response via callback."""
 
         if self.config.disable_sending:
@@ -652,7 +689,10 @@ class Gateway(Engine):
         return fut
 
     def fake_device(
-        self, device_id, create_device=False, start_binding=False
+        self,
+        device_id: _DeviceIdT,
+        create_device: bool = False,
+        start_binding: bool = False,
     ) -> Device:
         """Create a faked device, and optionally set it to binding mode.
 
@@ -673,7 +713,9 @@ class Gateway(Engine):
         elif device_id in self._exclude:
             del self._exclude[device_id]
 
-        return self.get_device(device_id)._make_fake(bind=start_binding)
+        if (dev := self.get_device(device_id)) and isinstance(dev, Fakeable):
+            return dev._make_fake(bind=start_binding)
+        raise TypeError(f"The device is not fakable: {device_id}")
 
     def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> None:
         """Start a task after delay seconds and then repeat it every period seconds."""

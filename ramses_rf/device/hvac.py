@@ -41,8 +41,8 @@ from ..helpers import shrink
 from ..protocol import Address, Message
 from ..protocol.command import Command
 from ..protocol.ramses import CODES_HVAC_ONLY, HVAC_KLASS_BY_VC_PAIR
-from ..schemas import SCH_FAN, SZ_REMOTES, SZ_SENSORS
-from .base import BatteryState, DeviceHvac, Fakeable, _DeviceT
+from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
+from .base import BatteryState, Device, DeviceHvac, Fakeable
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -290,7 +290,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        schema = shrink(SCH_FAN(schema))
+        schema = shrink(SCH_VCS(schema))
 
         for dev_id in schema.get(SZ_REMOTES, {}).keys():
             self._gwy.get_device(self._gwy, dev_id)
@@ -432,7 +432,7 @@ HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidityS
 
 def class_dev_hvac(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
-) -> type[_DeviceT]:
+) -> type[Device]:
     """Return a device class, but only if the device must be from the HVAC group.
 
     May return a base clase, DeviceHvac, which will need promotion.

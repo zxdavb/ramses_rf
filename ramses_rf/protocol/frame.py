@@ -49,10 +49,10 @@ if DEV_MODE:
 
 
 _CodeT = str
-_DevIdT = str
+_DeviceIdT = str
+_HeaderT = str
 _PayloadT = str
 _VerbT = str
-_HeaderT = str
 
 
 class Frame:

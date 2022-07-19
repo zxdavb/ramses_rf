@@ -78,10 +78,10 @@ class AttrDict(dict):
     __delitem__ = __readonly
     __setitem__ = __readonly
     clear = __readonly
-    pop = __readonly
-    popitem = __readonly
-    setdefault = __readonly
-    update = __readonly
+    pop = __readonly  # type:ignore[assignment]
+    popitem = __readonly  # type:ignore[assignment]
+    setdefault = __readonly  # type:ignore[assignment]
+    update = __readonly  # type:ignore[assignment]
 
     del __readonly
 
@@ -249,6 +249,7 @@ DEV_ROLE_MAP = attr_dict_factory(
         "SENSORS": ("04", "0C", "0D"),
     },
 )
+
 
 # slugs for device entity types, used in device_ids
 DEV_TYPE = SimpleNamespace(

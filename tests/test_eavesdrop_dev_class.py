@@ -10,7 +10,7 @@ import json
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
-from ramses_rf.message import _create_devices_from_addrs
+from ramses_rf.processor import _create_devices_from_addrs
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
 from tests.common import gwy  # noqa: F401

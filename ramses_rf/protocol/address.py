@@ -16,7 +16,6 @@ from .helpers import typechecked
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
 
-
 DEVICE_LOOKUP: Dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
     for k in _DEV_TYPE_MAP.SLUGS

@@ -12,6 +12,8 @@ import json
 from serial.tools import list_ports
 
 from ramses_rf.device import HvacRemote, HvacVentilator
+from ramses_rf.protocol.ramses import _31DA_FAN_INFO
+
 from tests.common import TEST_DIR
 from tests.mock import FAN_ID, MOCKED_PORT, MockDeviceFan
 
@@ -72,25 +74,25 @@ def find_test_devices(gwy: Gateway) -> tuple[HvacRemote, HvacVentilator]:
     return rem, fan
 
 
-async def test_fan_mode():  # I/22F1
+async def test_fan_mode():  # I/22F1  (fan_mode)
 
-    # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
+    # TODO: ...
 
     gwy = await load_test_system(config={"disable_discovery": True})
     rem, fan = find_test_devices(gwy)
 
-    # TODO: remove this block when can assure zone.sensor is not None
+    # TODO: remove this block when can assure rem is not None
     if SERIAL_PORT != MOCKED_PORT and rem is None:
         await gwy.stop()
         return
 
-    org_rate = fan.fan_info  # may be None
-    org_rate = 19.5 if org_rate is None else org_rate  # HACK
+    org_rate = fan.fan_mode  # may be None
+    org_rate = _31DA_FAN_INFO[0x18] if org_rate is None else org_rate  # HACK
 
     rem.fan_rate = old_temp - 0.5
 
     await asyncio.sleep(0.5)  # 0.3 is too low
-    new_rate = fan.fan_info
+    new_rate = fan.fan_mode
     assert new_rate == old_rate - 0.5, f"new: {new_rate}, old: {old_rate}"
 
     # await gwy.async_send_cmd(Command.get_zone_temp(tcs.id, zone.idx))
@@ -110,8 +112,8 @@ async def test_fan_mode():  # I/22F1
     await gwy.stop()
 
 
-# async def test_co2_sensor():  # I/1298
-# async def test_rh_sensor():  # I/12A0
+# async def test_co2_sensor():  # I/1298 (CO2 concentration, ppm)
+# async def test_hum_sensor():  # I/12A0 (relative humidity, %)
 
 
 async def test_fan_mode_unfaked():  # I/22F1
@@ -123,22 +125,5 @@ async def test_fan_mode_unfaked():  # I/22F1
     if SERIAL_PORT != MOCKED_PORT and rem is None:
         await gwy.stop()
         return
-
-    org_temp = zone.temperature  # may be None
-    old_temp = 19.5 if org_temp is None else org_temp  # HACK
-
-    zone.sensor._faked = True
-    try:
-        zone.sensor.temperature = old_temp - 0.5
-    except RuntimeError:
-        assert False
-
-    zone.sensor._faked = False
-    try:
-        zone.sensor.temperature = old_temp - 0.5
-    except RuntimeError:
-        pass
-    else:
-        assert False
 
     await gwy.stop()

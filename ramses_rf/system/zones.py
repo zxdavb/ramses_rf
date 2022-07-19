@@ -44,8 +44,8 @@ from ..helpers import shrink
 from ..protocol import Address, Command, CorruptStateError, Message
 from ..protocol.command import _mk_cmd
 from ..schemas import (
-    SCH_DHW,
-    SCH_ZON,
+    SCH_TCS_DHW,
+    SCH_TCS_ZONES_ZON,
     SZ_ACTUATORS,
     SZ_CLASS,
     SZ_DEVICES,
@@ -302,7 +302,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         The I/1260 is not to/from a controller, so is not useful.
         """  # noqa: D402
 
-        schema = shrink(SCH_DHW(schema))
+        schema = shrink(SCH_TCS_DHW(schema))
 
         if dev_id := schema.get(SZ_SENSOR):
             self._dhw_sensor = self._gwy.get_device(
@@ -498,7 +498,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
-        schema = shrink(SCH_ZON(schema))
+        schema = shrink(SCH_TCS_ZONES_ZON(schema))
 
         if klass := schema.get(SZ_CLASS):
             set_zone_type(ZON_ROLE_MAP[klass])

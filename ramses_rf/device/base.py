@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional
 
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
@@ -66,9 +66,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-_DeviceT = TypeVar("_DeviceT", bound="Device")  # type: ignore[]
-
-
 def check_faking_enabled(fnc):
     def wrapper(self, *args, **kwargs):
         if not self._faked:
@@ -78,7 +75,7 @@ def check_faking_enabled(fnc):
     return wrapper
 
 
-class Device(Entity):
+class DeviceBase(Entity):
     """The Device base class - can also be used for unknown device types."""
 
     _SLUG: str = DEV_TYPE.DEV  # type: ignore[assignment]
@@ -215,9 +212,10 @@ class Device(Entity):
     @property
     def traits(self) -> dict[str, Any]:
         """Return the traits of the device."""
-        known_dev = self._gwy._include.get(self.id)
 
         result = super().traits
+
+        known_dev = self._gwy._include.get(self.id)
 
         result.update(
             {
@@ -227,17 +225,35 @@ class Device(Entity):
             }
         )
 
-        if Code._10E0 in self._msgs or Code._10E0 in CODES_BY_DEV_SLUG.get(
-            self._SLUG, []
-        ):
-            result.update({"_info": self.device_info})
-
-        result.update({"_bind": self._msg_value(Code._1FC9)})
-
-        return result
+        return result | {"_bind": self._msg_value(Code._1FC9)}
 
 
-class DeviceInfo(Device):  # 10E0
+class BatteryState(DeviceBase):  # 1060
+
+    BATTERY_LOW = "battery_low"  # boolean
+    BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
+
+    @property
+    def battery_low(self) -> None | bool:  # 1060
+        if self._faked:
+            return False
+        return self._msg_value(Code._1060, key=self.BATTERY_LOW)
+
+    @property
+    def battery_state(self) -> Optional[dict]:  # 1060
+        if self._faked:
+            return None
+        return self._msg_value(Code._1060)
+
+    @property
+    def status(self) -> dict[str, Any]:
+        return {
+            **super().status,
+            self.BATTERY_STATE: self.battery_state,
+        }
+
+
+class DeviceInfo(DeviceBase):  # 10E0
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
 
@@ -253,8 +269,21 @@ class DeviceInfo(Device):  # 10E0
     def device_info(self) -> Optional[dict]:  # 10E0
         return self._msg_value(Code._10E0)
 
+    @property
+    def traits(self) -> dict[str, Any]:
+        """Return the traits of the device."""
 
-class Fakeable(Device):
+        result = super().traits
+
+        if Code._10E0 in self._msgs or Code._10E0 in CODES_BY_DEV_SLUG.get(
+            self._SLUG, []
+        ):
+            result.update({"_info": self.device_info})
+
+        return result
+
+
+class Fakeable(DeviceBase):
 
     # Faked Round Thermostat binding to a Evohome controller as a zone sensor
     # STA set to BindState.OFFERING:  sends "1FC9| I|63:262142" to the ether (the controller is listening)
@@ -401,31 +430,6 @@ class Fakeable(Device):
         return result
 
 
-class BatteryState(Device):  # 1060
-
-    BATTERY_LOW = "battery_low"  # boolean
-    BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
-
-    @property
-    def battery_low(self) -> None | bool:  # 1060
-        if self._faked:
-            return False
-        return self._msg_value(Code._1060, key=self.BATTERY_LOW)
-
-    @property
-    def battery_state(self) -> Optional[dict]:  # 1060
-        if self._faked:
-            return None
-        return self._msg_value(Code._1060)
-
-    @property
-    def status(self) -> dict[str, Any]:
-        return {
-            **super().status,
-            self.BATTERY_STATE: self.battery_state,
-        }
-
-
 class HgiGateway(DeviceInfo):  # HGI (18:)
     """The HGI80 base class."""
 
@@ -547,9 +551,11 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         }
 
 
-class DeviceHeat(
-    Child, DeviceInfo
-):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
+class Device(Child, DeviceBase):
+    pass
+
+
+class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
     """The base class for Honeywell CH/DHW-compatible devices.
 
     Includes UFH and heatpumps (which can also cool).
@@ -611,7 +617,7 @@ class DeviceHeat(
         return self._parent
 
 
-class DeviceHvac(Child, DeviceInfo):  # HVAC (ventilation, PIV, MV/HR)
+class DeviceHvac(Device):  # HVAC (ventilation, PIV, MV/HR)
     """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
 
     _SLUG: str = DEV_TYPE.HVC  # these may be instantiated, and promoted later on

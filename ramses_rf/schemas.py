@@ -93,11 +93,8 @@ SCH_DOM_ID = vol.Match(r"^[0-9A-F]{2}$")
 SCH_UFH_IDX = vol.Match(r"^0[0-8]$")
 SCH_ZON_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
 
-SZ_INPUT_FILE = "input_file"
 
 # Config parameters
-SZ_DEBUG_MODE = "debug_mode"
-
 SZ_CONFIG = "config"
 SZ_DISABLE_DISCOVERY = "disable_discovery"
 SZ_DISABLE_SENDING = "disable_sending"
@@ -124,30 +121,29 @@ def renamed(new_key):
     return func
 
 
-# 1/3: Schemas for Configuration
-
-SCH_CONFIG = vol.Schema(
+# 1/5: Schema for Configuration of engine/parser
+SCH_CONFIG_ENGINE = vol.Schema(
     {
         vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
         vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
         vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
-        vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=None): vol.Any(None, bool),
-        vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
-            int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
-        ),
+        vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
+        vol.Optional(SZ_EVOFW_FLAG, default=None): vol.Any(None, str),
         vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
             int, vol.Range(min=1, max=16)
         ),
-        vol.Optional(SZ_EVOFW_FLAG, default=None): vol.Any(None, str),
-        vol.Optional(SZ_USE_ALIASES, default=None): vol.Any(None, bool),
-        vol.Optional(SZ_USE_NATIVE_OT, default=True): bool,
+        vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
+            int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
+        ),
+        vol.Optional(SZ_USE_ALIASES, default=False): bool,
+        vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
         vol.Optional(SZ_USE_REGEX, default={}): dict,
-        # vol.Optional(SZ_USE_SCHEMA, default=True): vol.Any(None, bool),
     },
-    extra=vol.ALLOW_EXTRA,  # TODO: remove for production
+    extra=vol.PREVENT_EXTRA,
 )
 
-SCH_TRAITS = vol.Any(
+# 2/5: Schemas for Device traits (known_list, block_list)
+SCH_TRAITS_BASE = vol.Schema(
     {
         vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
         vol.Optional(SZ_CLASS, default=None): vol.Any(
@@ -158,48 +154,61 @@ SCH_TRAITS = vol.Any(
         vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
         vol.Optional("_note"): str,  # only a convenience, not used
     },
+    extra=vol.PREVENT_EXTRA,
 )
+SCH_TRAITS_HEAT = SCH_TRAITS_BASE
+SCH_TRAITS_HVAC_BRANDS = ("itho", "nuaire", "orcon")
+SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
+    {
+        vol.Optional("style", default="orcon"): vol.Any(None, *SCH_TRAITS_HVAC_BRANDS),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+SCH_TRAITS = vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC)
 SCH_DEVICE = vol.Schema(
     {vol.Optional(SCH_DEVICE_ANY): SCH_TRAITS},
     extra=vol.PREVENT_EXTRA,
 )
 
-# 2/3: Schemas for Heating systems
-SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
-
-SCH_SYS = vol.Schema(
+# 3/5: Schemas for CH/DHW systems, aka Heat/TCS (temp control systems)
+SCH_TCS_SYS_CLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
+SCH_TCS_SYS = vol.Schema(
     {
         vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(None, SCH_DEVICE_APP),
         vol.Optional("heating_control"): renamed(SZ_APPLIANCE_CONTROL),
-        vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
+        vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SCH_TCS_SYS_CLASS),
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCH_DHW = vol.Schema(
+SCH_TCS_DHW = vol.Schema(
     {
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_DHW),
         vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, SCH_DEVICE_BDR),
         vol.Optional(SZ_HTG_VALVE, default=None): vol.Any(None, SCH_DEVICE_BDR),
         vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
-    }
+    },
+    extra=vol.PREVENT_EXTRA,
 )
-SCH_UFC_CIRCUIT = vol.Schema(
+_CH_TCS_UFH_CIRCUIT = vol.Schema(
     {
         vol.Required(SCH_UFH_IDX): vol.Any(
             {vol.Optional(SZ_ZONE_IDX): vol.Any(SCH_ZON_IDX)},
         ),
-    }
+    },
+    extra=vol.PREVENT_EXTRA,
 )
-SCH_UFH = vol.Schema(
-    {
-        vol.Required(SCH_DEVICE_UFC): vol.Any(
-            None, {vol.Optional(SZ_CIRCUITS): vol.Any(None, dict)}
-        )
-    }
+SCH_TCS_UFH = vol.All(
+    vol.Schema(
+        {
+            vol.Required(SCH_DEVICE_UFC): vol.Any(
+                None, {vol.Optional(SZ_CIRCUITS): vol.Any(None, dict)}
+            )
+        }
+    ),
+    vol.Length(min=1, max=3),
+    extra=vol.PREVENT_EXTRA,
 )
-SCH_UFH = vol.All(SCH_UFH, vol.Length(min=1, max=3))
-
-SCH_ZON = vol.Schema(  # vol.All([SCH_DEVICE_ANY], vol.Length(min=0))(['01:123456'])
+SCH_TCS_ZONES_ZON = vol.Schema(
     {
         vol.Optional(SZ_CLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_SEN),
@@ -214,49 +223,63 @@ SCH_ZON = vol.Schema(  # vol.All([SCH_DEVICE_ANY], vol.Length(min=0))(['01:12345
     },
     extra=vol.PREVENT_EXTRA,
 )
-# SCH_ZON({SZ_CLASS: None, SZ_DEVICES: None})  # TODO: remove me
-SCH_ZONES = vol.All(
-    vol.Schema({vol.Required(SCH_ZON_IDX): SCH_ZON}),
+SCH_TCS_ZONES = vol.All(
+    vol.Schema({vol.Required(SCH_ZON_IDX): SCH_TCS_ZONES_ZON}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
+    extra=vol.PREVENT_EXTRA,
 )
 SCH_TCS = vol.Schema(
     {
-        # vol.Required(SZ_CONTROLLER): SCH_DEVICE_CTL,
-        vol.Optional(SZ_SYSTEM, default={}): vol.Any({}, SCH_SYS),
-        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_DHW),
-        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_UFH),
+        vol.Optional(SZ_SYSTEM, default={}): vol.Any({}, SCH_TCS_SYS),
+        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_TCS_DHW),
+        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_TCS_UFH),
         vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
-        vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCH_ZONES),
+        vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCH_TCS_ZONES),
+        vol.Optional("is_tcs"): True,
     },
     extra=vol.PREVENT_EXTRA,
 )
 
-SCH_FAN = vol.Schema(
+# 4/5: Schemas for Ventilation control systems, aka HVAC/VCS
+SCH_VCS_DATA = vol.Schema(
     {
-        vol.Required(SZ_REMOTES, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
-        vol.Required(SZ_SENSORS, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
+        vol.Optional(SZ_REMOTES, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
+        vol.Optional(SZ_SENSORS, default=[]): vol.Any([], [SCH_DEVICE_ANY]),
+        vol.Optional("is_vcs"): True,
     },
     extra=vol.PREVENT_EXTRA,
 )
+SCH_VCS_KEYS = vol.Schema(
+    {
+        vol.Required(
+            vol.Any(SZ_REMOTES, SZ_SENSORS),
+            msg=(
+                "The ventilation control system schema must include at least "
+                f"one of [{SZ_REMOTES}, {SZ_SENSORS}]"
+            ),
+        ): object
+    },
+    extra=vol.ALLOW_EXTRA,  # must be ALLOW_EXTRA, as is a subset of SCH_VCS_DATA
+)
+SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 
-# 3/3: Global Schemas
+# 5/5: the Global Schema
 SCH_GLOBAL_CONFIG = vol.Schema(
     {
-        vol.Required(SZ_CONFIG): SCH_CONFIG.extend(
-            {
-                vol.Optional(SZ_SERIAL_CONFIG): SCH_SERIAL_CONFIG,
-                vol.Optional(SZ_PACKET_LOG, default={}): vol.Any({}, SCH_PACKET_LOG),
-            }
-        ),
+        vol.Required(SZ_SERIAL_CONFIG): SCH_SERIAL_CONFIG,
+        vol.Optional(SZ_PACKET_LOG, default={}): vol.Any({}, SCH_PACKET_LOG),
+        vol.Optional(SZ_CONFIG): SCH_CONFIG_ENGINE,
+        vol.Optional(SCH_DEVICE_CTL): vol.All(SCH_TCS, vol.Length(min=0)),
+        vol.Optional(SCH_DEVICE_ANY): vol.All(SCH_VCS, vol.Length(min=0)),
         vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
         vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
     },
-    extra=vol.REMOVE_EXTRA,
+    extra=vol.PREVENT_EXTRA,  # Also TCSs, VCSs, known_list and block_list
 )
 
 
 def load_config(
-    serial_port, input_file, **kwargs
+    serial_port: None | str, input_file, **kwargs
 ) -> tuple[SimpleNamespace, dict, dict, dict]:
     """Process the configuration, including any filter lists.
 
@@ -267,15 +290,10 @@ def load_config(
      - block_list (is a dict)
     """
 
-    config = SCH_GLOBAL_CONFIG(kwargs)
-    schema = {k: v for k, v in kwargs.items() if k not in config and k[:1] != "_"}
-
-    block_list = config.pop(SZ_BLOCK_LIST)
-    known_list = config.pop(SZ_KNOWN_LIST)
-
-    config = SCH_CONFIG.extend(
-        {vol.Optional(SZ_SERIAL_CONFIG, default={}): SCH_SERIAL_CONFIG}
-    )(config[SZ_CONFIG])
+    schema = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    config = {k: schema.pop(k) for k in (SZ_CONFIG, SZ_PACKET_LOG, SZ_SERIAL_CONFIG)}
+    block_list = schema.pop(SZ_BLOCK_LIST)
+    known_list = schema.pop(SZ_KNOWN_LIST)
 
     if serial_port and input_file:
         _LOGGER.warning(
@@ -291,14 +309,13 @@ def load_config(
 
     if config[SZ_ENABLE_EAVESDROP]:
         _LOGGER.warning(
-            f"{SZ_ENABLE_EAVESDROP} enabled: this is discouraged for routine use"
-            " (there be dragons here)"
+            f"{SZ_ENABLE_EAVESDROP} enabled: this is strongly discouraged"
+            " for routine use (there be dragons here)"
         )
 
     update_config(config, known_list, block_list)
-    config = SimpleNamespace(**config)
 
-    return (config, schema, known_list, block_list)
+    return (SimpleNamespace(**config), schema, known_list, block_list)
 
 
 def update_config(config, known_list, block_list) -> None:
@@ -387,11 +404,11 @@ def load_schema(gwy, **kwargs) -> None:
     ]
     if kwargs.get(SZ_MAIN_CONTROLLER):
         gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
-    # [
-    #     load_fan(gwy, fan_id, schema)
-    #     for fan_id, schema in kwargs.items()
-    #     if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
-    # ]
+    [
+        load_fan(gwy, fan_id, schema)
+        for fan_id, schema in kwargs.items()
+        if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
+    ]
     [
         _get_device(gwy, device_id)
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
@@ -403,7 +420,7 @@ def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
     """Create a FAN using its schema (i.e. with remotes, sensors)."""
 
     fan = _get_device(gwy, fan_id)
-    fan._update_schema(**schema)  # TODO
+    # fan._update_schema(**schema)  # TODO
 
     return fan
 
@@ -411,7 +428,7 @@ def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
 def load_tcs(gwy, ctl_id: str, schema: dict) -> Any:  # System
     """Create a TCS using its schema."""
     # print(schema)
-    # schema = SCH_ZON(schema)
+    # schema = SCH_TCS_ZONES_ZON(schema)
 
     ctl = _get_device(gwy, ctl_id)
     ctl.tcs._update_schema(**schema)  # TODO

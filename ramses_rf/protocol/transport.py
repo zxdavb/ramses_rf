@@ -461,7 +461,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
         self._gwy = gwy
         self._loop = gwy._loop
-        self._callback = pkt_handler  # Could be None
+        self._callback: None | Callable = pkt_handler
 
         self._transport: asyncio.Transport = None  # type: ignore[assignment]
         self._pause_writing = True

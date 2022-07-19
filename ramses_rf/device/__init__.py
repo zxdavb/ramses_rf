@@ -22,9 +22,9 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 # skipcq: PY-W2000
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    _DeviceT,
     BASE_CLASS_BY_SLUG,
     Device,
+    Fakeable,
     DeviceHeat,
     HgiGateway,
     DeviceHvac,
@@ -73,7 +73,7 @@ def best_dev_role(
     msg: Message = None,
     eavesdrop: bool = False,
     **schema,
-) -> type[_DeviceT]:
+) -> type[Device]:
     """Return the best device role (object class) for a given device id/msg/schema.
 
     Heat (CH/DHW) devices can reliably be determined by their address type (e.g. '04:').
@@ -83,7 +83,7 @@ def best_dev_role(
     The generic HVAC class can be promoted later on, when more information is available.
     """
 
-    cls: None | type[_DeviceT] = None
+    cls: None | type[Device] = None
     slug: None | str = None
 
     try:  # convert (say) 'dhw_sensor' to DHW
@@ -129,13 +129,13 @@ def best_dev_role(
 
 def zx_device_factory(
     gwy, dev_addr: Address, *, msg: Message = None, **schema
-) -> _DeviceT:
+) -> Device:
     """Return the initial device class for a given device id/msg/schema.
 
     Some devices are promotable to a compatible sub class.
     """
 
-    cls: type[_DeviceT] = best_dev_role(
+    cls: type[Device] = best_dev_role(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,

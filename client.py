@@ -37,7 +37,6 @@ from ramses_rf.schemas import (
     SZ_ENABLE_EAVESDROP,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
-    SZ_INPUT_FILE,
     SZ_KNOWN_LIST,
     SZ_PACKET_LOG,
     SZ_REDUCE_PROCESSING,
@@ -56,6 +55,8 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 SZ_DEBUG_MODE = "debug_mode"
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
+
+SZ_INPUT_FILE = "input_file"
 
 
 # DEFAULT_SUMMARY can be: True, False, or None

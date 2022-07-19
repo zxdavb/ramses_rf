@@ -40,7 +40,6 @@ from ..device import (
     OtbGateway,
     Temperature,
     UfhController,
-    _DeviceT,
 )
 from ..entity_base import Entity, Parent, class_by_attr
 from ..helpers import shrink
@@ -56,9 +55,9 @@ from ..protocol import (
 )
 from ..protocol.command import FaultLog, _mk_cmd
 from ..schemas import (
-    SCH_DHW,
     SCH_TCS,
-    SCH_ZON,
+    SCH_TCS_DHW,
+    SCH_TCS_ZONES_ZON,
     SZ_APPLIANCE_CONTROL,
     SZ_CLASS,
     SZ_CONTROLLER,
@@ -684,7 +683,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         from .zones import zx_zone_factory
 
-        schema = shrink(SCH_ZON(schema))
+        schema = shrink(SCH_TCS_ZONES_ZON(schema))
 
         zon = self.zone_by_idx.get(zone_idx)
         if not zon:
@@ -994,7 +993,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         from .zones import zx_zone_factory
 
-        schema = shrink(SCH_DHW(schema))
+        schema = shrink(SCH_TCS_DHW(schema))
 
         if not self._dhw:
             self._dhw = zx_zone_factory(self, "HW", msg=msg, **schema)
@@ -1011,15 +1010,15 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         return self._dhw
 
     @property
-    def dhw_sensor(self) -> None | _DeviceT:
+    def dhw_sensor(self) -> None | Device:
         return self._dhw.sensor if self._dhw else None
 
     @property
-    def hotwater_valve(self) -> None | _DeviceT:
+    def hotwater_valve(self) -> None | Device:
         return self._dhw.hotwater_valve if self._dhw else None
 
     @property
-    def heating_valve(self) -> None | _DeviceT:
+    def heating_valve(self) -> None | Device:
         return self._dhw.heating_valve if self._dhw else None
 
     @property

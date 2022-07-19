@@ -116,6 +116,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
 
     if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
         slug = getattr(msg.src, "_SLUG", DEV_TYPE.DEV)
+
     if slug in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
         return
 
@@ -134,8 +135,8 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
     #
     #
 
-    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # DEX_done
-        if slug != DEV_TYPE.DEV:  # DEX_done
+    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
+        if slug != DEV_TYPE.DEV:
             err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -153,7 +154,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
 
     #
     # (code := CODES_BY_DEV_SLUG[slug][msg.code]) and msg.verb not in code:
-    if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # DEX_done
+    if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # type: ignore[index]
         err_msg = f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
             raise InvalidPacketError(err_msg)
@@ -183,13 +184,13 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 
     if msg.verb == I_:  # TODO: not common, unless src=dst
         return  # receiving an I isn't currently in the schema & cant yet be tested
-    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Code._3EF1}",):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Code._3EF1}",):
         return  # HACK: an exception-to-the-rule that need sorting
 
-    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # NOTE: not OK for Rx, DEX_done
+    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
         if (
             slug != DEV_TYPE.HGI and msg.src.type != "18c"
-        ):  # NOTE: not yet needed because of 1st if, DEX_done
+        ):  # NOTE: not yet needed because of 1st if
             err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -202,14 +203,12 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{Code._0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
-    if f"{slug}/{msg.verb}/{msg.code}" in (
-        f"{DEV_TYPE.BDR}/{RQ}/{Code._3EF0}",
-    ):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"{DEV_TYPE.BDR}/{RQ}/{Code._3EF0}",):
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
     # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and verb not in code:
-    if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # DEX_done
+    if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # type: ignore[index]
         err_msg = f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
             raise InvalidPacketError(err_msg)

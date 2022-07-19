@@ -9,8 +9,8 @@ Test the Schema processor.
 import voluptuous as vol  # type: ignore[import]
 
 from ramses_rf.schemas import (
-    SCH_DHW,
-    SCH_ZON,
+    SCH_TCS_DHW,
+    SCH_TCS_ZONES_ZON,
     SZ_ACTUATORS,
     SZ_CLASS,
     SZ_DHW_VALVE,
@@ -30,14 +30,14 @@ def test_system_schema():
     """
 
     for dict_ in (
-        SCH_DHW({}),
+        SCH_TCS_DHW({}),
         {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
     ):
         assert dict_ == {SZ_SENSOR: None, "hotwater_valve": None, "heating_valve": None}
 
     for key in (SZ_SENSOR, SZ_DHW_VALVE, SZ_HTG_VALVE):
-        assert_raises(vol.error.MultipleInvalid, SCH_DHW, {key: "99:000000"})
-        assert SCH_DHW({key: None}) == {
+        assert_raises(vol.error.MultipleInvalid, SCH_TCS_DHW, {key: "99:000000"})
+        assert SCH_TCS_DHW({key: None}) == {
             SZ_SENSOR: None,
             SZ_DHW_VALVE: None,
             SZ_HTG_VALVE: None,
@@ -56,26 +56,26 @@ def test_zone_schema():
     """
 
     for dict_ in (
-        SCH_ZON({}),
+        SCH_TCS_ZONES_ZON({}),
         {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []},
     ):
         assert dict_ == {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []}
 
     for key in (SZ_CLASS, SZ_SENSOR):
-        assert_raises(vol.error.MultipleInvalid, SCH_ZON, {key: "99:000000"})
-        assert SCH_ZON({key: None}) == {
+        assert_raises(vol.error.MultipleInvalid, SCH_TCS_ZONES_ZON, {key: "99:000000"})
+        assert SCH_TCS_ZONES_ZON({key: None}) == {
             SZ_CLASS: None,
             SZ_SENSOR: None,
             SZ_ACTUATORS: [],
         }
 
-    assert SCH_ZON({SZ_CLASS: "radiator_valve"}) == {
+    assert SCH_TCS_ZONES_ZON({SZ_CLASS: "radiator_valve"}) == {
         SZ_CLASS: "radiator_valve",
         SZ_SENSOR: None,
         SZ_ACTUATORS: [],
     }
 
-    assert SCH_ZON({SZ_SENSOR: "34:111111"}) == {
+    assert SCH_TCS_ZONES_ZON({SZ_SENSOR: "34:111111"}) == {
         SZ_CLASS: None,
         SZ_ACTUATORS: [],
         SZ_SENSOR: "34:111111",
@@ -86,10 +86,10 @@ def test_zone_schema():
         "_invalid_",
         "13:111111",
     ):  # NOTE: should be a *list* of device_ids
-        assert_raises(vol.error.MultipleInvalid, SCH_ZON, {SZ_ACTUATORS: val})
+        assert_raises(vol.error.MultipleInvalid, SCH_TCS_ZONES_ZON, {SZ_ACTUATORS: val})
 
     for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
-        assert SCH_ZON({SZ_ACTUATORS: val}) == {
+        assert SCH_TCS_ZONES_ZON({SZ_ACTUATORS: val}) == {
             SZ_CLASS: None,
             SZ_ACTUATORS: val,
             SZ_SENSOR: None,

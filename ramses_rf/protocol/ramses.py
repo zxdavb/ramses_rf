@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta as td
-from types import SimpleNamespace
-from typing import Dict, List
 
 from .const import DEV_TYPE, SZ_NAME, __dev_mode__
 
@@ -38,7 +36,7 @@ EXPIRY = "expiry"
 ########################################################################################
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
-CODES_SCHEMA: Dict[str, dict] = {  # rf_unknown
+CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     Code._0001: {
         SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
@@ -585,7 +583,7 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
         code[RP] = code[I_]
 #
 # .I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
-CODES_WITH_ARRAYS: Dict[str, list] = {
+CODES_WITH_ARRAYS: dict[Code, list] = {
     Code._0005: [4, ("34",)],
     Code._0009: [3, ("01", "12", "22")],
     Code._000A: [6, ("01", "12", "22")],  # single element I after a W
@@ -596,7 +594,7 @@ CODES_WITH_ARRAYS: Dict[str, list] = {
     Code._3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
 #
-RQ_IDX_COMPLEX: list = [
+RQ_IDX_COMPLEX: list[Code] = [
     Code._0005,  # context: zone_type
     Code._000A,  # optional payload
     Code._000C,  # context: index, zone_type
@@ -609,7 +607,7 @@ RQ_IDX_COMPLEX: list = [
     Code._2349,  # optional payload
     Code._3220,  # context: msg_id, and payload
 ]
-RQ_NO_PAYLOAD: list = [
+RQ_NO_PAYLOAD: list[Code] = [
     k
     for k, v in CODES_SCHEMA.items()
     if v.get(RQ)
@@ -619,7 +617,7 @@ RQ_NO_PAYLOAD.extend((Code._0418,))
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
-CODE_IDX_COMPLEX: List[str] = [
+CODE_IDX_COMPLEX: list[Code] = [
     Code._0005,
     Code._000C,
     Code._1100,
@@ -629,7 +627,7 @@ CODE_IDX_COMPLEX: List[str] = [
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
-CODE_IDX_SIMPLE: list = [
+CODE_IDX_SIMPLE: list[Code] = [
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX
@@ -643,7 +641,7 @@ CODE_IDX_SIMPLE.extend((Code._10A0, Code._1260, Code._1F41, Code._3B00))
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
-CODE_IDX_NONE: List[str] = [
+CODE_IDX_NONE: list[Code] = [
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
@@ -655,7 +653,7 @@ CODE_IDX_NONE.extend(
 # CODE_IDX_NONE.sort()
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
-CODE_IDX_DOMAIN: Dict[str, str] = {
+CODE_IDX_DOMAIN: dict[Code, str] = {
     Code._0001: "^F[ACF])",
     Code._0008: "^F[9AC]",
     Code._0009: "^F[9AC]",
@@ -669,7 +667,8 @@ CODE_IDX_DOMAIN: Dict[str, str] = {
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
 #
-_DEV_KLASSES_HEAT: Dict[SimpleNamespace, dict] = {
+
+_DEV_KLASSES_HEAT: dict[str, dict] = {
     DEV_TYPE.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},
         Code._0004: {I_: {}, RQ: {}},
@@ -929,7 +928,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, dict] = {
     # },
 }
 # TODO: add 1FC9 everywhere?
-_DEV_KLASSES_HVAC: Dict[SimpleNamespace, dict] = {
+_DEV_KLASSES_HVAC: dict[str, dict] = {
     DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a REM
         Code._0001: {RQ: {}},
         Code._042F: {I_: {}},
@@ -1018,7 +1017,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, dict] = {
     # },
 }
 
-CODES_BY_DEV_SLUG: Dict[SimpleNamespace, dict] = {
+CODES_BY_DEV_SLUG: dict[str, dict] = {
     DEV_TYPE.HGI: {  # HGI80: RF to (USB) serial gateway interface
         Code._PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
@@ -1026,7 +1025,7 @@ CODES_BY_DEV_SLUG: Dict[SimpleNamespace, dict] = {
     **{k: v for k, v in _DEV_KLASSES_HEAT.items() if k is not None},
 }
 
-_CODES_EXCLUDED: tuple = (
+_CODES_EXCLUDED: tuple[Code, ...] = (
     Code._0001,
     Code._0002,
     Code._000E,
@@ -1039,30 +1038,42 @@ _CODES_EXCLUDED: tuple = (
     Code._10E0,
     Code._1FC9,
 )
-_CODES_HEAT = dict.fromkeys(
-    c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLUDED
+_CODES_HEAT: tuple[Code] = tuple(  # type: ignore[assignment]
+    dict.fromkeys(
+        c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLUDED
+    )
 )
-_CODES_HVAC = dict.fromkeys(
-    c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in _CODES_EXCLUDED
+_CODES_HVAC: tuple[Code] = tuple(  # type: ignore[assignment]
+    dict.fromkeys(
+        c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in _CODES_EXCLUDED
+    )
 )
-CODES_HEAT_ONLY = tuple(c for c in list(_CODES_HEAT) if c not in _CODES_HVAC)
-CODES_HVAC_ONLY = tuple(c for c in list(_CODES_HVAC) if c not in _CODES_HEAT)
+CODES_HEAT_ONLY: tuple[Code, ...] = tuple(
+    c for c in _CODES_HEAT if c not in _CODES_HVAC
+)
+CODES_HVAC_ONLY: tuple[Code, ...] = tuple(
+    c for c in _CODES_HVAC if c not in _CODES_HEAT
+)
 
-_CODE_FROM_NON_CTL = dict.fromkeys(
-    c
-    for k, v1 in CODES_BY_DEV_SLUG.items()
-    for c, v2 in v1.items()
-    if k != DEV_TYPE.CTL and (I_ in v2 or RP in v2)
+_CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
+    dict.fromkeys(
+        c
+        for k, v1 in CODES_BY_DEV_SLUG.items()
+        for c, v2 in v1.items()
+        if k != DEV_TYPE.CTL and (I_ in v2 or RP in v2)
+    )
 )
 _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_TYPE.CTL].keys()
 
-_CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
-CODES_ONLY_FROM_CTL = [
+_CODE_ONLY_FROM_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
+    c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL
+)
+CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
     Code._1030,
     Code._1F09,
     Code._22D0,
     Code._313F,
-]  # I packets, TODO: 31Dx too?
+)  # I packets, TODO: 31Dx too?
 
 # ### WIP:
 # _result = {}
@@ -1083,13 +1094,13 @@ CODES_ONLY_FROM_CTL = [
 # }
 
 
-_HVAC_VC_PAIR_BY_CLASS: dict[SimpleNamespace, tuple] = {
+_HVAC_VC_PAIR_BY_CLASS: dict[str, tuple] = {
     DEV_TYPE.CO2: ((I_, Code._1298),),
     DEV_TYPE.FAN: ((I_, Code._31D9), (I_, Code._31DA), (RP, Code._31DA)),
     DEV_TYPE.HUM: ((I_, Code._12A0),),
     DEV_TYPE.REM: ((I_, Code._22F1), (I_, Code._22F3)),
 }
-HVAC_KLASS_BY_VC_PAIR: dict[tuple, SimpleNamespace] = {
+HVAC_KLASS_BY_VC_PAIR: dict[tuple, str] = {
     t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v
 }
 
@@ -1276,7 +1287,7 @@ _31DA_FAN_INFO: dict[int, str] = {
 ########################################################################################
 # CODES_BY_ZONE_TYPE
 #
-# RAMSES_ZONES: Dict[str, str] = {
+# RAMSES_ZONES: dict[str, str] = {
 #     "ALL": {
 #         Code._0004: {I_: {}, RP: {}},
 #         Code._000C: {RP: {}},

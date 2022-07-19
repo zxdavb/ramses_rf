@@ -210,7 +210,7 @@ async def script_scan_full(gwy, dev_id: str):
             continue
 
         elif code in (Code._01D0, Code._01E9):
-            for zone_idx in ("00", "01", "FC"):
+            for zone_idx in ("00", "01", "FC"):  # type: ignore[assignment]
                 gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id, qos=qos))
                 gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id, qos=qos))
 

@@ -52,7 +52,7 @@ from ..protocol.opentherm import (
 )
 from ..protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
 from ..schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
-from .base import BatteryState, DeviceHeat, Fakeable, _DeviceT
+from .base import BatteryState, Device, DeviceHeat, Fakeable
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -238,7 +238,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
             cmd = Command.put_actuator_state(self.id, mod_level)
             qos = {"priority": Priority.HIGH, "retries": 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]
+            [self._send_cmd(cmd, **qos) for _ in range(1)]  # type: ignore[func-returns-value]
 
         elif msg.code == Code._0009:  # can only be I, from a controller
             pass
@@ -255,7 +255,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
             cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
             qos = {"priority": Priority.HIGH, "retries": 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]
+            [self._send_cmd(cmd, **qos) for _ in range(1)]  # type: ignore[func-returns-value]
 
     def _bind(self):
         # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
@@ -445,19 +445,20 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         self._add_discovery_task(
             _mk_cmd(RQ, Code._0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
         )
-        for ufh_idx in range(8):
-            payload = f"{ufh_idx:02X}{DEV_ROLE_MAP.UFH}"
+        # TODO: this needs work
+        # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
+        for ufc_idx in self.circuit_by_id:
             self._add_discovery_task(
-                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24
+                _mk_cmd(RQ, Code._000A, ufc_idx, self.id), 60 * 60 * 6
+            )
+            self._add_discovery_task(
+                _mk_cmd(RQ, Code._2309, ufc_idx, self.id), 60 * 60 * 6
             )
 
-        # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
-        for ufh_idx in self.circuit_by_id:
+        for ufc_idx in range(8):  # type: ignore[assignment]
+            payload = f"{ufc_idx:02X}{DEV_ROLE_MAP.UFH}"
             self._add_discovery_task(
-                _mk_cmd(RQ, Code._000A, ufh_idx, self.id), 60 * 60 * 6
-            )
-            self._add_discovery_task(
-                _mk_cmd(RQ, Code._2309, ufh_idx, self.id), 60 * 60 * 6
+                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24
             )
 
     def _handle_msg(self, msg: Message) -> None:
@@ -689,10 +690,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         self._msgz[Code._3220] = {RP: {}}  # for: self._msgz[Code._3220][RP][msg_id]
 
-        self._msgs_ot = {}
-        self._msgs_ot_supported = {}
+        self._msgs_ot: dict[str, Message] = {}
+        self._msgs_ot_supported: dict[str, None | bool] = {}
         # lf._msgs_ot_ctl_polled = {}
-        self._msgs_supported = {}
+        self._msgs_supported: dict[str, None | bool] = {}
 
     def _setup_discovery_tasks(self) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
@@ -1401,7 +1402,7 @@ _HEAT_VC_PAIR_BY_CLASS = {
 
 def class_dev_heat(
     dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
-) -> type[_DeviceT]:
+) -> type[Device]:
     """Return a device class, but only if the device must be from the CH/DHW group.
 
     May return a device class, DeviceHeat (which will need promotion).

@@ -28,7 +28,7 @@ from .const import (
     __dev_mode__,
 )
 from .protocol import CorruptStateError, Message
-from .protocol.frame import _CodeT, _DevIdT, _HeaderT, _VerbT
+from .protocol.frame import _CodeT, _DeviceIdT, _HeaderT, _VerbT
 from .protocol.ramses import CODES_SCHEMA
 from .protocol.transport import PacketProtocolPort
 from .schemas import SZ_CIRCUITS
@@ -69,7 +69,7 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
         getattr(c[1], attr): c[1]
         for c in getmembers(
             modules[name],
-            lambda m: isclass(m) and m.__module__ == name and getattr(m, attr, None),
+            lambda m: isclass(m) and m.__module__ == name and getattr(m, attr, None),  # type: ignore[arg-type, return-value]
         )
     }
 
@@ -438,7 +438,7 @@ class Entity(Discovery):
         super().__init__(gwy)
 
         self._gwy = gwy
-        self.id: _DevIdT = None  # type: ignore[assignment]
+        self.id: _DeviceIdT = None  # type: ignore[assignment]
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
@@ -530,7 +530,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
-    actuator_by_id: dict[_DevIdT, Entity]
+    actuator_by_id: dict[_DeviceIdT, Entity]
     actuators: list[Entity]
 
     circuit_by_id: dict[str, Any]
@@ -719,7 +719,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         self._parent = parent  # type: ignore[assignment]
         self._is_sensor = is_sensor  # type: ignore[assignment]
 
-        self._child_id: str = None  # type: ignore[assignment]
+        self._child_id: None | str = None  # TODO: should be: str?
 
     def _handle_msg(self, msg: Message) -> None:
         from .device import Controller, UfhController
@@ -747,7 +747,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
     def _get_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
-    ) -> tuple[Parent, str]:
+    ) -> tuple[Parent, None | str]:
         """Get the device's parent, after validating it."""
 
         # NOTE: here to prevent circular references
@@ -892,7 +892,6 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         parent, child_id = self._get_parent(
             parent, child_id=child_id, is_sensor=is_sensor
         )
-
         ctl = parent if isinstance(parent, UfhController) else parent.ctl
 
         if self.ctl and self.ctl is not ctl:
