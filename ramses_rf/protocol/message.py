@@ -203,7 +203,7 @@ class Message:
         }  # ALSO: SZ_DOMAIN_ID, SZ_ZONE_IDX
 
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
-            return {}  # above was: CODE_IDX_COMPLEX + [Code._3150]:
+            return {}  # above was: CODE_IDX_COMPLEX + (Code._3150):
 
         if self.code in (Code._3220,):  # FIXME: should be _SIMPLE
             return {}

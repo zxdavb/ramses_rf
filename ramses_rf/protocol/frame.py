@@ -265,7 +265,7 @@ class Frame:
                 f"{self} < "
                 + (
                     "HAS"
-                    if self.code in CODES_ONLY_FROM_CTL + [Code._31D9, Code._31DA]
+                    if self.code in CODES_ONLY_FROM_CTL + (Code._31D9, Code._31DA)
                     else "no"
                 )
                 + " controller (20)"
@@ -273,7 +273,7 @@ class Frame:
             self._has_ctl_ = any(
                 (
                     self.code == Code._3B00 and self.payload[:2] == FC,
-                    self.code in CODES_ONLY_FROM_CTL + [Code._31D9, Code._31DA],
+                    self.code in CODES_ONLY_FROM_CTL + (Code._31D9, Code._31DA),
                 )
             )
 
