@@ -20,7 +20,7 @@ from ramses_rf.schemas import (
 from tests.common import assert_raises
 
 
-def test_system_schema():
+def test_dhw_schema():
     """Test the DHW schema.
 
     dhw:
