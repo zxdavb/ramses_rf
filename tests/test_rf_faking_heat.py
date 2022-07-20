@@ -7,54 +7,16 @@ Test faking of Heat devices.
 """
 
 import asyncio
-import json
-
-from serial.tools import list_ports
 
 from ramses_rf.system import System, Zone
-from tests.common import TEST_DIR
-from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
-# import tracemalloc
-# tracemalloc.start()
-
+#
+from tests.common import SERIAL_PORT, TEST_DIR, Gateway
+from tests.common import load_test_system_alt as load_test_system
+from tests.mock import CTL_ID, MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"
-
-
-if ports := [
-    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
-]:
-    from ramses_rf import Gateway
-
-    SERIAL_PORT = ports[0].device
-    CTL_ID = "01:145038"  # noqa: F811
-
-else:
-    from tests.mock import MockGateway as Gateway
-
-    SERIAL_PORT = MOCKED_PORT  # CTL_ID = CTL_ID
-
-
-async def load_test_system(config: dict = None) -> Gateway:
-    """Create a system state from a packet log (using an optional configuration)."""
-
-    with open(f"{WORK_DIR}/{CONFIG_FILE}") as f:
-        kwargs = json.load(f)
-
-    if config:
-        kwargs.update(config)
-
-    gwy = Gateway(SERIAL_PORT, **kwargs)
-    await gwy.start(start_discovery=False)  # may: SerialException
-
-    if hasattr(
-        gwy.pkt_transport.serial, "mock_devices"
-    ):  # needs ser instance, so after gwy.start()
-        gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
-
-    return gwy
 
 
 def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
@@ -67,7 +29,7 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
-    gwy = await load_test_system(config={"disable_discovery": True})
+    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
     _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
@@ -107,7 +69,7 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
 async def test_zon_sensor_unfaked():  # I/30C9
 
-    gwy = await load_test_system(config={"disable_discovery": True})
+    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = gwy.system_by_id[CTL_ID]
     zone = tcs.zones[0]
 

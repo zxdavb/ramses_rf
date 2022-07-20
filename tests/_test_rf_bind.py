@@ -11,7 +11,8 @@ from copy import deepcopy
 
 from serial.tools import list_ports
 
-from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, _0006, _0404
+from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Code
+from ramses_rf.schemas import SZ_DISABLE_DISCOVERY
 from ramses_rf.system.schedule import (
     DAY_OF_WEEK,
     ENABLED,
@@ -21,7 +22,8 @@ from ramses_rf.system.schedule import (
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
-from tests.common import TEST_DIR
+
+from tests.common import TEST_DIR, load_test_system_alt as load_test_system
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
@@ -43,23 +45,9 @@ else:
 # tracemalloc.start()
 
 
-async def load_test_system(config: dict = None) -> Gateway:
-    """Create a system state from a packet log (using an optional configuration)."""
-
-    with open(f"{WORK_DIR}/config.json") as f:
-        kwargs = json.load(f)
-
-    if config:
-        kwargs.update(config)
-
-    gwy = Gateway(SERIAL_PORT, **kwargs)
-
-    return gwy, gwy.system_by_id[GWY_ID]
-
-
 # async def test_ww_0404_zone():
 
-#     gwy, tcs = await load_test_system(config={"disable_discovery": True})
+#     gwy, tcs = await load_test_system(config={SZ_DISABLE_DISCOVERY: True})
 #     await gwy.start(start_discovery=False)  # may: SerialException
 
 #     if tcs.zones:

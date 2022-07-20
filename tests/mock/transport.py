@@ -14,9 +14,18 @@ import asyncio
 import logging
 from datetime import datetime as dt
 from queue import Empty, Full, PriorityQueue
+from typing import Callable
 
 from ramses_rf.protocol import Command, InvalidPacketError
-from ramses_rf.protocol.transport import PacketProtocolPort, SerTransportPoll
+from ramses_rf.protocol.protocol import create_protocol_factory
+from ramses_rf.protocol.transport import (
+    PacketProtocolFile,
+    PacketProtocolPort,
+    SerTransportPoll,
+    SerTransportRead,
+    _PacketProtocolT,
+    _PacketTransportT,
+)
 
 from .const import GWY_ID, __dev_mode__
 
@@ -135,6 +144,9 @@ class MockSerial:  # most of the 'mocking' is done here
 
 
 class SerTransportMock(SerTransportPoll):  # to gracefully close the mocked port
+    def write(self, cmd) -> None:  # Does nothing, here as a convenience
+        super().write(cmd)
+
     def close(self) -> None:
         super().close()
 
@@ -143,16 +155,41 @@ class SerTransportMock(SerTransportPoll):  # to gracefully close the mocked port
 
 
 def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transport)
-    gwy, pkt_callback, *, ser_port: str = None
-) -> tuple[asyncio.Protocol, asyncio.Transport]:
+    gwy,
+    pkt_callback: Callable,
+    /,
+    *,
+    protocol_factory: Callable = None,
+    ser_port: str = None,
+    packet_log=None,
+    packet_dict: dict = None,
+) -> tuple[_PacketProtocolT, _PacketTransportT]:
     """Return a mocked packet stack.
 
     Must use SerTransportPoll and not SerTransportAsync.
     """
 
-    pkt_protocol = PacketProtocolPort(gwy, pkt_callback)
+    def protocol_factory_() -> type[_PacketProtocolT]:
+        if packet_log or packet_dict is not None:
+            return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
+        return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
+
+    if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
+        raise TypeError("serial port, log file & dict should be mutually exclusive")
 
     ser_instance = MockSerial(gwy, port=ser_port)
-    pkt_transport = SerTransportMock(gwy._loop, pkt_protocol, ser_instance)
+    #
+    #
+
+    pkt_protocol = protocol_factory_()
+    pkt_transport: type[_PacketTransportT] = None  # type: ignore[assignment]
+
+    if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
+        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
+        #
+        #
+        #
+    else:  # use the standard serial_asyncio library
+        pkt_transport = SerTransportMock(gwy._loop, pkt_protocol, ser_instance)
 
     return (pkt_protocol, pkt_transport)

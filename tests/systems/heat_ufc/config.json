@@ -1,13 +1,12 @@
 {
-    "notes": {
+    "_notes": {
         "A": "single UFH zone - multiple circuits/zone",
         "B": "has a SWI, 02:153425 !"
     },
     "config": {
         "enable_eavesdrop": false,
         "enforce_known_list": true,
-        "use_aliases": false,
-        "use_schema": false
+        "use_aliases": false
     },
     "01:087939": {
         "system": {

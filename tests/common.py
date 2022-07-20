@@ -13,12 +13,14 @@ from pathlib import Path
 from random import shuffle
 
 import pytest
+from serial.tools import list_ports
 
-from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
+from ramses_rf.schemas import SCH_GLOBAL_CONFIG
+from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
-# TEST_DIR = f"{os.path.dirname(__file__)}"
-TEST_DIR = Path(__file__).resolve().parent
+# import tracemalloc
+# tracemalloc.start()
 
 DEBUG_MODE = False
 DEBUG_ADDR = "0.0.0.0"
@@ -35,6 +37,23 @@ if DEBUG_MODE:
         debugpy.wait_for_client()
 
 logging.disable(logging.WARNING)  # usu. WARNING
+
+
+# TEST_DIR = f"{os.path.dirname(__file__)}"
+TEST_DIR = Path(__file__).resolve().parent
+
+if ports := [
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
+]:
+    from ramses_rf import Gateway
+
+    SERIAL_PORT = ports[0].device
+    CTL_ID = "01:145038"  # noqa: F811
+
+else:
+    from tests.mock import MockGateway as Gateway
+
+    SERIAL_PORT = MOCKED_PORT  # CTL_ID = CTL_ID
 
 
 @pytest.fixture
@@ -73,14 +92,16 @@ def assert_raises(exception, fnc, *args):
         assert False
 
 
-async def load_test_system(dir_name, config: dict = None) -> Gateway:
+async def load_test_system(dir_name, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
+
+    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(f"{dir_name}/config.json") as f:
-            kwargs = json.load(f)
+            config = json.load(f)
     except FileNotFoundError:
-        kwargs = {"config": {}}
+        config = {}
 
     if config:
         kwargs.update(config)
@@ -88,6 +109,28 @@ async def load_test_system(dir_name, config: dict = None) -> Gateway:
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, **kwargs)
         await gwy.start()
+
+    return gwy
+
+
+async def load_test_system_alt(config_file: str, **kwargs) -> Gateway:
+    """Create a system state from a packet log (using an optional configuration)."""
+
+    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+
+    with open(config_file) as f:
+        config = json.load(f)
+
+    if config:
+        kwargs.update(config)
+
+    gwy = Gateway(SERIAL_PORT, **kwargs)
+    await gwy.start(start_discovery=False)  # may: SerialException
+
+    if hasattr(
+        gwy.pkt_transport.serial, "mock_devices"
+    ):  # needs ser instance, so after gwy.start()
+        gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
 
     return gwy
 

@@ -38,6 +38,7 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schemas import (
+    SCH_GLOBAL_CONFIG,
     SCH_TRAITS,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
@@ -76,6 +77,9 @@ if DEV_MODE:
 
 class Engine:
     """The engine class."""
+
+    _create_msg_stack: Callable = create_msg_stack
+    _create_pkt_stack: Callable = create_pkt_stack
 
     def __init__(
         self,
@@ -129,7 +133,7 @@ class Engine:
 
     def create_client(self, msg_handler: Callable) -> tuple:
         """Create a client protocol for the RAMSES-II message transport."""
-        return create_msg_stack(self, msg_handler)
+        return self._create_msg_stack(msg_handler)
 
     async def start(self) -> None:
         self._start()
@@ -139,27 +143,24 @@ class Engine:
 
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
 
-        if self.ser_name:  # source of packets is a serial port
-            pkt_receiver = (
-                self.msg_transport.get_extra_info(self.msg_transport.READER)
-                if self.msg_transport
-                else None
-            )
-            self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, pkt_receiver, ser_port=self.ser_name
-            )  # TODO: can raise SerialException
-            if self.msg_transport:
-                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+        pkt_receiver = (
+            self.msg_transport.get_extra_info(self.msg_transport.READER)
+            if self.msg_transport
+            else None
+        )
 
+        if self.ser_name:
+            source = {"ser_port": self.ser_name}
+        else:
+            source = {"packet_log": self._input_file}
+
+        self.pkt_protocol, self.pkt_transport = self._create_pkt_stack(
+            pkt_receiver, **source
+        )  # TODO: may raise SerialException
+
+        if self.ser_name:  # and self.msg_transport:
+            self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
         else:  # if self._input_file:
-            pkt_receiver = (
-                self.msg_transport.get_extra_info(self.msg_transport.READER)
-                if self.msg_transport
-                else None
-            )
-            self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, pkt_receiver, packet_log=self._input_file
-            )
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
@@ -276,7 +277,7 @@ class Engine:
 
         while True:
             try:
-                result = fut.result()
+                result = fut.result(timeout=0)
 
             # except futures.CancelledError:  # fut ?was cancelled by a higher layer
             #     break
@@ -320,7 +321,9 @@ class Gateway(Engine):
         self._schema: dict[str, dict] = {}
 
         (self.config, self._schema, self._include, self._exclude) = load_config(
-            self.ser_name, self._input_file, **kwargs
+            self.ser_name,
+            self._input_file,
+            **SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"}),
         )
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
@@ -338,9 +341,6 @@ class Gateway(Engine):
         self._setup_event_handlers()
 
         load_schema(self, **self._schema)
-
-        # self._db = None
-        # self._cur = None
 
     def __repr__(self) -> str:
         return super().__str__()
@@ -498,7 +498,7 @@ class Gateway(Engine):
             if self.msg_transport
             else None
         )
-        _, tmp_transport = create_pkt_stack(self, pkt_receiver, packet_dict=packets)
+        _, tmp_transport = self._create_pkt_stack(pkt_receiver, packet_dict=packets)
         await tmp_transport.get_extra_info(SZ_POLLER_TASK)
 
         # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed

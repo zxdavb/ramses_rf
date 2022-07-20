@@ -13,8 +13,9 @@ from serial.tools import list_ports
 
 from ramses_rf.device import HvacRemote, HvacVentilator
 from ramses_rf.protocol.ramses import _31DA_FAN_INFO
+from ramses_rf.schemas import SZ_DISABLE_DISCOVERY
 
-from tests.common import TEST_DIR
+from tests.common import TEST_DIR, load_test_system_alt as load_test_system
 from tests.mock import FAN_ID, MOCKED_PORT, MockDeviceFan
 
 # import tracemalloc
@@ -39,26 +40,6 @@ else:
     SERIAL_PORT = MOCKED_PORT  # FAN_ID = FAN_ID
 
 
-async def load_test_system(config: dict = None) -> Gateway:
-    """Create a system state from a packet log (using an optional configuration)."""
-
-    with open(f"{WORK_DIR}/{CONFIG_FILE}") as f:
-        kwargs = json.load(f)
-
-    if config:
-        kwargs.update(config)
-
-    gwy = Gateway(SERIAL_PORT, **kwargs)
-    await gwy.start(start_discovery=False)  # may: SerialException
-
-    if hasattr(
-        gwy.pkt_transport.serial, "mock_devices"
-    ):  # needs ser instance, so after gwy.start()
-        gwy.pkt_transport.serial.mock_devices = [MockDeviceFan(gwy, FAN_ID)]
-
-    return gwy  # , gwy.system_by_id[CTL_ID]
-
-
 def find_test_devices(gwy: Gateway) -> tuple[HvacRemote, HvacVentilator]:
 
     try:
@@ -78,7 +59,7 @@ async def test_fan_mode():  # I/22F1  (fan_mode)
 
     # TODO: ...
 
-    gwy = await load_test_system(config={"disable_discovery": True})
+    gwy = await load_test_system(config={SZ_DISABLE_DISCOVERY: True})
     rem, fan = find_test_devices(gwy)
 
     # TODO: remove this block when can assure rem is not None
@@ -118,7 +99,7 @@ async def test_fan_mode():  # I/22F1  (fan_mode)
 
 async def test_fan_mode_unfaked():  # I/22F1
 
-    gwy = await load_test_system(config={"disable_discovery": True})
+    gwy = await load_test_system(config={SZ_DISABLE_DISCOVERY: True})
     rem, fan = find_test_devices(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None

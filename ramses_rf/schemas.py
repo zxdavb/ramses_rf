@@ -39,6 +39,7 @@ from .protocol.const import (
     SZ_ZONE_TYPE,
     SZ_ZONES,
 )
+from .protocol.frame import _DeviceIdT
 from .protocol.schemas import (
     SCH_CONFIG_ENGINE,
     SZ_DISABLE_SENDING,
@@ -260,18 +261,26 @@ SCH_CONFIG_GWY = SCH_CONFIG_ENGINE.extend(
 # 5/5: the Global Schema
 SCH_GLOBAL_CONFIG = vol.Schema(
     {
-        vol.Optional(SZ_CONFIG): SCH_CONFIG_GWY,
+        vol.Optional(SZ_CONFIG, default={}): SCH_CONFIG_GWY,
+        vol.Optional(SZ_MAIN_CONTROLLER): SCH_DEVICE_CTL,
         vol.Optional(SCH_DEVICE_CTL): vol.All(SCH_TCS, vol.Length(min=0)),
         vol.Optional(SCH_DEVICE_ANY): vol.All(SCH_VCS, vol.Length(min=0)),
+        vol.Optional(SZ_ORPHANS_HEAT): vol.All([SCH_DEVICE_ANY], vol.Length(min=0)),
+        vol.Optional(SZ_ORPHANS_HVAC): vol.All([SCH_DEVICE_ANY], vol.Length(min=0)),
         vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
         vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
     },
-    extra=vol.PREVENT_EXTRA,  # Also TCSs, VCSs, known_list and block_list
+    extra=vol.PREVENT_EXTRA,
 )
 
 
 def load_config(
-    serial_port: None | str, input_file: TextIO, **kwargs
+    serial_port: None | str,
+    input_file: TextIO,
+    config: dict[str, Any] = None,
+    block_list: dict[_DeviceIdT, dict] = None,
+    known_list: dict[_DeviceIdT, dict] = None,
+    **schema,
 ) -> tuple[SimpleNamespace, dict, dict, dict]:
     """Process the configuration, including any filter lists.
 
@@ -281,11 +290,6 @@ def load_config(
      - known_list (is a dict)
      - block_list (is a dict)
     """
-
-    schema = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
-    config = schema.pop(SZ_CONFIG)
-    block_list = schema.pop(SZ_BLOCK_LIST)
-    known_list = schema.pop(SZ_KNOWN_LIST)
 
     if serial_port and input_file:
         _LOGGER.warning(
@@ -305,14 +309,14 @@ def load_config(
             " for routine use (there be dragons here)"
         )
 
-    config[SZ_ENFORCE_KNOWN_LIST] = select_filter_mode(
+    config[SZ_ENFORCE_KNOWN_LIST] = _select_filter_mode(
         config[SZ_ENFORCE_KNOWN_LIST], known_list, block_list
     )
 
     return (SimpleNamespace(**config), schema, known_list, block_list)
 
 
-def select_filter_mode(
+def _select_filter_mode(
     enforce_known_list: bool, known_list: list, block_list: list
 ) -> bool:
     """Determine which device filter to use, if any.

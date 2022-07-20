@@ -66,5 +66,6 @@
             }
         }
     },
-    "orphans": []
+    "orphans_heat": [],
+    "orphans_hvac": []
 }

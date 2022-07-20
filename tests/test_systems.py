@@ -59,8 +59,8 @@ def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
 
 async def test_schemax_with_log_file(dir_name):
 
-    expected: dict = load_expected_results(dir_name)
-    gwy: Gateway = await load_test_system(dir_name, expected["schema"])  # noqa: F811
+    expected: dict = load_expected_results(dir_name) or {}
+    gwy: Gateway = await load_test_system(dir_name, **expected)  # noqa: F811
 
     schema, _ = gwy._get_state()
 
@@ -70,7 +70,7 @@ async def test_schemax_with_log_file(dir_name):
 async def test_systems_from_log_file(dir_name):
     """Compare the system built from a log file with the expected results."""
 
-    expected: dict = load_expected_results(dir_name)
+    expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
     assert_expected_set(gwy, expected)
@@ -78,7 +78,7 @@ async def test_systems_from_log_file(dir_name):
 
 async def test_restore_from_log_file(dir_name):
 
-    expected: dict = load_expected_results(dir_name)
+    expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
     _, packets = gwy._get_state(include_expired=True)
@@ -89,7 +89,7 @@ async def test_restore_from_log_file(dir_name):
 
 async def test_shuffle_from_log_file(dir_name):
 
-    expected: dict = load_expected_results(dir_name)
+    expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
     _, packets = gwy._get_state(include_expired=True)

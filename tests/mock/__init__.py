@@ -35,18 +35,5 @@ if DEV_MODE:
 
 
 class MockGateway(Gateway):  # to use a bespoke create_pkt_stack()
-    def _start(self) -> None:
-        """Initiate ad-hoc sending, and (polled) receiving."""
 
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
-
-        pkt_receiver = (
-            self.msg_transport.get_extra_info(self.msg_transport.READER)
-            if self.msg_transport
-            else None
-        )
-        self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-            self, pkt_receiver, ser_port=self.ser_name
-        )  # TODO: can raise SerialException
-        if self.msg_transport:
-            self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+    _create_pkt_stack = create_pkt_stack
