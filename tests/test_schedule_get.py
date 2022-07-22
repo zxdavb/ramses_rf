@@ -21,7 +21,7 @@ from ramses_rf.system.schedule import (
     fragments_to_schedule,
     schedule_to_fragments,
 )
-from tests.common import TEST_DIR, load_test_system
+from tests.common import TEST_DIR, load_test_gwy
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 
@@ -41,7 +41,7 @@ async def test_schedule_get(dir_name):
     with open(f"{dir_name}/schedule.json") as f:
         schedule = json.load(f)
 
-    gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
+    gwy: Gateway = await load_test_gwy(dir_name)  # noqa: F811
 
     zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
     assert zone.schedule == schedule[SZ_SCHEDULE]

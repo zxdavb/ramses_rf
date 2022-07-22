@@ -11,9 +11,14 @@ import asyncio
 from ramses_rf.system import System, Zone
 
 #
-from tests.common import SERIAL_PORT, TEST_DIR, Gateway
-from tests.common import load_test_system_alt as load_test_system
-from tests.mock import CTL_ID, MOCKED_PORT
+from tests.common import (
+    SERIAL_PORT,
+    TEST_DIR,
+    Gateway,
+    find_test_tcs,
+    load_test_gwy_alt,
+)
+from tests.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"
@@ -21,15 +26,15 @@ CONFIG_FILE = "config_heat.json"
 
 def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
 
-    tcs = gwy.system_by_id[CTL_ID]
-    return tcs, tcs.zones[0]
+    tcs = find_test_tcs(gwy)
+    return tcs, tcs.zone_by_idx["01"]
 
 
 async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
     _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
@@ -69,9 +74,8 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
 async def test_zon_sensor_unfaked():  # I/30C9
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
-    tcs = gwy.system_by_id[CTL_ID]
-    zone = tcs.zones[0]
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
     if SERIAL_PORT != MOCKED_PORT and zone.sensor is None:

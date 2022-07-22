@@ -21,6 +21,9 @@ from ramses_rf.schemas import (
     SCH_GLOBAL_SCHEMAS,
     SCH_GLOBAL_TRAITS,
 )
+from ramses_rf.system import System
+
+#
 from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
 # import tracemalloc
@@ -52,12 +55,20 @@ if ports := [
     from ramses_rf import Gateway
 
     SERIAL_PORT = ports[0].device
-    CTL_ID = "01:145038"  # noqa: F811
 
 else:
     from tests.mock import MockGateway as Gateway
 
-    SERIAL_PORT = MOCKED_PORT  # CTL_ID = CTL_ID
+    SERIAL_PORT = MOCKED_PORT
+
+
+def shuffle_dict(old_dict) -> dict:
+    keys = list(old_dict.keys())
+    shuffle(keys)
+    new_dict = dict()
+    for key in keys:
+        new_dict.update({key: old_dict[key]})
+    return new_dict
 
 
 @pytest.fixture
@@ -96,7 +107,7 @@ def assert_raises(exception, fnc, *args):
         assert False
 
 
-async def load_test_system(dir_name, **kwargs) -> Gateway:
+async def load_test_gwy(dir_name, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     kwargs = SCH_GLOBAL_GATEWAY_CONFIG(
@@ -116,18 +127,26 @@ async def load_test_system(dir_name, **kwargs) -> Gateway:
         gwy = Gateway(None, input_file=f, **kwargs)
         await gwy.start()
 
+    # if hasattr(
+    #     gwy.pkt_transport.serial, "mock_devices"
+    # ):  # needs ser instance, so after gwy.start()
+    #     gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
+
     return gwy
 
 
-async def load_test_system_alt(config_file: str, **kwargs) -> Gateway:
+async def load_test_gwy_alt(config_file: str, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     kwargs = SCH_GLOBAL_GATEWAY_CONFIG(
         {k: v for k, v in kwargs.items() if k[:1] != "_"}
     )
 
-    with open(config_file) as f:
-        config = json.load(f)
+    try:
+        with open(config_file) as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        config = {}
 
     if config:
         kwargs.update(config)
@@ -181,10 +200,8 @@ def load_expected_results(dir_name) -> dict:
     }
 
 
-def shuffle_dict(old_dict) -> dict:
-    keys = list(old_dict.keys())
-    shuffle(keys)
-    new_dict = dict()
-    for key in keys:
-        new_dict.update({key: old_dict[key]})
-    return new_dict
+def find_test_tcs(gwy: Gateway) -> System:
+    if SERIAL_PORT == MOCKED_PORT:
+        return gwy.system_by_id["01:000730"]
+    systems = [s for s in gwy.systems if s.id != "01:000730"]
+    return systems[0] if systems else gwy.system_by_id["01:000730"]

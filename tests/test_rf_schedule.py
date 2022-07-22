@@ -20,9 +20,8 @@ from ramses_rf.system.schedule import (
 )
 
 #
-from tests.common import SERIAL_PORT, TEST_DIR
-from tests.common import load_test_system_alt as load_test_system
-from tests.mock import CTL_ID, MOCKED_PORT
+from tests.common import SERIAL_PORT, TEST_DIR, find_test_tcs, load_test_gwy_alt
+from tests.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"
@@ -120,8 +119,8 @@ async def test_rq_0006():
         assert version == tcs._msgs[Code._0006].payload["change_counter"]
         return version
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
-    tcs = gwy.system_by_id[CTL_ID]
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    tcs = find_test_tcs(gwy)
 
     # gwy.config.disable_sending = False
     version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
@@ -149,8 +148,8 @@ async def test_rq_0404_dhw():  # Needs mocking
     if SERIAL_PORT == MOCKED_PORT:
         return
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
-    tcs = gwy.system_by_id[CTL_ID]
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
         await read_schedule(tcs.dhw)
@@ -160,8 +159,8 @@ async def test_rq_0404_dhw():  # Needs mocking
 
 async def test_rq_0404_zone():
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
-    tcs = gwy.system_by_id[CTL_ID]
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    tcs = find_test_tcs(gwy)
 
     if tcs.zones:
         await read_schedule(tcs.zones[0])
@@ -171,8 +170,8 @@ async def test_rq_0404_zone():
 
 async def _test_ww_0404_dhw():
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
-    tcs = gwy.system_by_id[CTL_ID]
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
         await write_schedule(tcs.dhw)
@@ -182,8 +181,8 @@ async def _test_ww_0404_dhw():
 
 async def _test_ww_0404_zone():
 
-    gwy = await load_test_system(f"{WORK_DIR}/{CONFIG_FILE}")
-    tcs = gwy.system_by_id[CTL_ID]
+    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    tcs = find_test_tcs(gwy)
 
     if tcs.zones:
         await write_schedule(tcs.zones[0])

@@ -23,7 +23,7 @@ from ramses_rf.system.schedule import (
     TIME_OF_DAY,
 )
 
-from tests.common import TEST_DIR, load_test_system_alt as load_test_system
+from tests.common import TEST_DIR, load_test_gwy_alt as load_test_gwy
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 
@@ -47,7 +47,7 @@ else:
 
 # async def test_ww_0404_zone():
 
-#     gwy, tcs = await load_test_system(config={SZ_DISABLE_DISCOVERY: True})
+#     gwy, tcs = await load_test_gwy(config={SZ_DISABLE_DISCOVERY: True})
 #     await gwy.start(start_discovery=False)  # may: SerialException
 
 #     if tcs.zones:

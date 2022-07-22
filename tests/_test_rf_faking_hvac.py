@@ -15,7 +15,7 @@ from ramses_rf.device import HvacRemote, HvacVentilator
 from ramses_rf.protocol.ramses import _31DA_FAN_INFO
 from ramses_rf.schemas import SZ_DISABLE_DISCOVERY
 
-from tests.common import TEST_DIR, load_test_system_alt as load_test_system
+from tests.common import TEST_DIR, load_test_gwy_alt as load_test_gwy
 from tests.mock import FAN_ID, MOCKED_PORT, MockDeviceFan
 
 # import tracemalloc
@@ -59,7 +59,7 @@ async def test_fan_mode():  # I/22F1  (fan_mode)
 
     # TODO: ...
 
-    gwy = await load_test_system(config={SZ_DISABLE_DISCOVERY: True})
+    gwy = await load_test_gwy(config={SZ_DISABLE_DISCOVERY: True})
     rem, fan = find_test_devices(gwy)
 
     # TODO: remove this block when can assure rem is not None
@@ -99,7 +99,7 @@ async def test_fan_mode():  # I/22F1  (fan_mode)
 
 async def test_fan_mode_unfaked():  # I/22F1
 
-    gwy = await load_test_system(config={SZ_DISABLE_DISCOVERY: True})
+    gwy = await load_test_gwy(config={SZ_DISABLE_DISCOVERY: True})
     rem, fan = find_test_devices(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
