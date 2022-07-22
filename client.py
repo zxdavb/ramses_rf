@@ -22,23 +22,21 @@ from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.protocol.exceptions import EvohomeError
-from ramses_rf.protocol.logger import (
-    CONSOLE_COLS,
-    DEFAULT_DATEFMT,
-    DEFAULT_FMT,
-    SZ_LOG_FILE_NAME,
-)
-from ramses_rf.protocol.schemas import SZ_SERIAL_PORT
-from ramses_rf.schemas import (
+from ramses_rf.protocol.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
+from ramses_rf.protocol.schemas import (
     SCH_PACKET_LOG,
-    SZ_CONFIG,
-    SZ_DISABLE_DISCOVERY,
     SZ_DISABLE_SENDING,
-    SZ_ENABLE_EAVESDROP,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
     SZ_KNOWN_LIST,
+    SZ_LOG_FILE_NAME,
     SZ_PACKET_LOG,
+    SZ_SERIAL_PORT,
+)
+from ramses_rf.schemas import (
+    SZ_CONFIG,
+    SZ_DISABLE_DISCOVERY,
+    SZ_ENABLE_EAVESDROP,
     SZ_REDUCE_PROCESSING,
 )
 
@@ -236,6 +234,7 @@ class FileCommand(click.Command):  # input-file file
         #         help="Log all packets to this file",
         #     ),
         # )
+        pass
 
 
 class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-flag xxx
