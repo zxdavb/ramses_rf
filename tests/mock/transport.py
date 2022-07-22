@@ -46,8 +46,8 @@ class MockSerial:  # most of the 'mocking' is done here
     Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
     """
 
-    def __init__(self, gwy, port=None, **kwargs) -> None:
-        self._loop = gwy._loop
+    def __init__(self, port, loop, **kwargs) -> None:
+        self._loop = loop
 
         self.port = port
         self._rx_buffer = bytes()
@@ -171,6 +171,9 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     Must use SerTransportPoll and not SerTransportAsync.
     """
 
+    def get_serial_instance(ser_name: str, loop) -> MockSerial:
+        return MockSerial(ser_name, loop)
+
     def protocol_factory_() -> type[_PacketProtocolT]:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
@@ -184,6 +187,6 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
 
-    ser_instance = MockSerial(gwy, port=ser_port)
+    ser_instance = get_serial_instance(ser_port, gwy._loop)
 
     return pkt_protocol, SerTransportMock(gwy._loop, pkt_protocol, ser_instance)

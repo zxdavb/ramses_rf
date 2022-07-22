@@ -999,9 +999,7 @@ def create_pkt_stack(
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
 
-    ser_instance = (
-        get_serial_instance(ser_port, gwy._port_config) if ser_port else None
-    )  # do this first, in case raises a SerialException
+    ser_instance = get_serial_instance(ser_port, gwy._port_config)
 
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()
