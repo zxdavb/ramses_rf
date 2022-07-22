@@ -995,7 +995,7 @@ def create_pkt_stack(
         raise TypeError("serial port, log file & dict should be mutually exclusive")
 
     ser_instance = (
-        get_serial_instance(ser_port, gwy.config.serial_config) if ser_port else None
+        get_serial_instance(ser_port, gwy._port_config) if ser_port else None
     )  # do this first, in case raises a SerialException
 
     pkt_protocol = (protocol_factory or protocol_factory_)()

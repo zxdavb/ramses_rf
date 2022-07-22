@@ -85,11 +85,13 @@ class Engine:
         self,
         serial_port: None | str,
         input_file: None | TextIO = None,
+        port_config: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
     ) -> None:
 
         self.ser_name = serial_port
         self._input_file = input_file
+        self._port_config = port_config or {}
         self._loop = loop or asyncio.get_running_loop()
 
         self._include: dict[_DeviceIdT, dict] = {}  # aka known_list, and ?allow_list
@@ -307,6 +309,7 @@ class Gateway(Engine):
         serial_port: None | str,
         debug_mode: None | bool = None,
         input_file: None | TextIO = None,
+        port_config: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
         **kwargs,
     ) -> None:
@@ -315,7 +318,9 @@ class Gateway(Engine):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting RAMSES RF, **kwargs = %s", kwargs)
 
-        super().__init__(serial_port, input_file=input_file, loop=loop)
+        super().__init__(
+            serial_port, input_file=input_file, port_config=port_config, loop=loop
+        )
 
         self._tasks: list = []  # TODO: used by discovery, move lower?
         self._schema: dict[str, dict] = {}

@@ -70,10 +70,14 @@ SCH_CONFIG_SERIAL = vol.Schema(
     extra=vol.PREVENT_EXTRA,
 )
 
-SZ_PORT_NAME = "port_name"
-SZ_PORT_PARAMS = "port_params"
 SZ_SERIAL_PORT = "serial_port"
+SZ_SERIAL_PORT_CONFIG = "port_config"
 
+SCH_SERIAL_PORT_CONFIG = vol.Schema(
+    {vol.Required(SZ_SERIAL_PORT_CONFIG, default={}): SCH_CONFIG_SERIAL}
+)
+
+SZ_PORT_NAME = "port_name"
 SCH_SERIAL_PORT_NAME = str
 SCH_SERIAL_PORT = vol.Schema(
     {
@@ -215,27 +219,3 @@ def select_filter_mode(
         )
 
     return enforce_known_list
-
-
-SCH_TEST_0 = vol.Schema(
-    {
-        vol.Optional(SZ_SERIAL_PORT): SCH_SERIAL_PORT_NAME,
-    },
-    extra=vol.PREVENT_EXTRA,
-)
-
-SCH_TEST_1 = SCH_TEST_0.extend(
-    {
-        vol.Optional(SZ_SERIAL_PORT, default=None): SCH_SERIAL_PORT_NAME,
-    },
-    extra=vol.PREVENT_EXTRA,
-)
-
-SCH_TEST_2 = SCH_TEST_1.extend(
-    {
-        vol.Optional(SZ_SERIAL_PORT, default={}): SCH_CONFIG_SERIAL.extend(
-            {vol.Optional(SZ_PORT_NAME): SCH_SERIAL_PORT_NAME}
-        ),
-    },
-    extra=vol.PREVENT_EXTRA,
-)
