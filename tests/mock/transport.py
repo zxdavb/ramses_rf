@@ -180,15 +180,10 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
         raise TypeError("serial port, log file & dict should be mutually exclusive")
 
     pkt_protocol = protocol_factory_()
-    pkt_transport: type[_PacketTransportT] = None  # type: ignore[assignment]
 
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
-        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
-        #
-        #
-        #
-    else:  # use the standard serial_asyncio library
-        ser_instance = MockSerial(gwy, port=ser_port)
-        pkt_transport = SerTransportMock(gwy._loop, pkt_protocol, ser_instance)
+        return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
 
-    return (pkt_protocol, pkt_transport)
+    ser_instance = MockSerial(gwy, port=ser_port)
+
+    return pkt_protocol, SerTransportMock(gwy._loop, pkt_protocol, ser_instance)

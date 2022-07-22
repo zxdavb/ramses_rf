@@ -994,19 +994,17 @@ def create_pkt_stack(
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
         raise TypeError("serial port, log file & dict should be mutually exclusive")
 
+    pkt_protocol = (protocol_factory or protocol_factory_)()
+
+    if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
+        return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
+
     ser_instance = (
         get_serial_instance(ser_port, gwy._port_config) if ser_port else None
     )  # do this first, in case raises a SerialException
 
-    pkt_protocol = (protocol_factory or protocol_factory_)()
-    pkt_transport: type[_PacketTransportT] = None  # type: ignore[assignment]
-
-    if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
-        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
-    elif os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
+    if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()
-        pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)  # type: ignore[arg-type, assignment]
-    else:  # use the standard serial_asyncio library
-        pkt_transport = SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
+        return pkt_protocol, SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)
 
-    return (pkt_protocol, pkt_transport)
+    return pkt_protocol, SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
