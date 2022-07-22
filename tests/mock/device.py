@@ -14,10 +14,10 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Full
 
-from ramses_rf.const import SZ_ACTUATORS, SZ_CLASS, SZ_ZONES, ZON_ROLE_MAP
+from ramses_rf.const import I_, RP, RQ, SZ_ACTUATORS, SZ_ZONES, W_, ZON_ROLE_MAP, Code
 from ramses_rf.protocol import InvalidPacketError
 from ramses_rf.protocol.command import Command, validate_api_params
-from ramses_rf.protocol.const import I_, RP, RQ, W_, Code
+from ramses_rf.schemas import SZ_CLASS
 
 from .const import GWY_ID, __dev_mode__
 

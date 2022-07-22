@@ -16,7 +16,11 @@ import pytest
 from serial.tools import list_ports
 
 from ramses_rf.helpers import shrink
-from ramses_rf.schemas import SCH_GLOBAL_CONFIG
+from ramses_rf.schemas import (
+    SCH_GLOBAL_GATEWAY_CONFIG,
+    SCH_GLOBAL_SCHEMAS,
+    SCH_GLOBAL_TRAITS,
+)
 from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
 # import tracemalloc
@@ -70,7 +74,7 @@ def assert_expected(actual, expected: dict = None) -> None:
     def assert_expected(actual, expect) -> None:
         assert actual == expect
 
-    if expected is not None:
+    if expected:
         assert_expected(shrink(actual), shrink(expected))
 
 
@@ -79,7 +83,7 @@ def assert_expected_set(gwy, expected) -> None:
 
     assert_expected(gwy.schema, expected.get("schema"))
     assert_expected(gwy.params, expected.get("params"))
-    # sert_expected(gwy.status, expected.get("status"))
+    assert_expected(gwy.status, expected.get("status"))
     assert_expected(gwy.known_list, expected.get("known_list"))
 
 
@@ -95,7 +99,9 @@ def assert_raises(exception, fnc, *args):
 async def load_test_system(dir_name, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    kwargs = SCH_GLOBAL_GATEWAY_CONFIG(
+        {k: v for k, v in kwargs.items() if k[:1] != "_"}
+    )
 
     try:
         with open(f"{dir_name}/config.json") as f:
@@ -116,7 +122,9 @@ async def load_test_system(dir_name, **kwargs) -> Gateway:
 async def load_test_system_alt(config_file: str, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    kwargs = SCH_GLOBAL_GATEWAY_CONFIG(
+        {k: v for k, v in kwargs.items() if k[:1] != "_"}
+    )
 
     with open(config_file) as f:
         config = json.load(f)
@@ -142,25 +150,27 @@ def load_expected_results(dir_name) -> dict:
         with open(f"{dir_name}/schema.json") as f:
             schema = json.load(f)
     except FileNotFoundError:
-        schema = None
+        schema = {}
+    schema = SCH_GLOBAL_SCHEMAS(schema)
 
     try:
         with open(f"{dir_name}/known_list.json") as f:
             known_list = json.load(f)["known_list"]
     except FileNotFoundError:
-        known_list = None
+        known_list = {}
+    known_list = SCH_GLOBAL_TRAITS({"known_list": shrink(known_list)})["known_list"]
 
     try:
         with open(f"{dir_name}/params.json") as f:
             params = json.load(f)["params"]
     except FileNotFoundError:
-        params = None
+        params = {}
 
     try:
         with open(f"{dir_name}/status.json") as f:
             status = json.load(f)["status"]
     except FileNotFoundError:
-        status = None
+        status = {}
 
     # TODO: do known_list, status
     return {
