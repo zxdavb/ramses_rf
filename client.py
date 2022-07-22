@@ -24,14 +24,13 @@ from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.protocol.exceptions import EvohomeError
 from ramses_rf.protocol.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_rf.protocol.schemas import (
-    SCH_PACKET_LOG,
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
     SZ_KNOWN_LIST,
-    SZ_LOG_FILE_NAME,
     SZ_PACKET_LOG,
     SZ_SERIAL_PORT,
+    normalise_packet_log_value,
 )
 from ramses_rf.schemas import (
     SZ_CONFIG,
@@ -102,13 +101,9 @@ def normalise_config_schema(config) -> tuple[str, dict]:
 
     serial_port = config[SZ_CONFIG].pop(SZ_SERIAL_PORT, None)
 
-    if config[SZ_CONFIG].get(SZ_PACKET_LOG):
-        if not isinstance(config[SZ_CONFIG][SZ_PACKET_LOG], dict):
-            config[SZ_CONFIG][SZ_PACKET_LOG] = SCH_PACKET_LOG(
-                {SZ_LOG_FILE_NAME: config[SZ_CONFIG][SZ_PACKET_LOG]}
-            )
-    else:
-        config[SZ_CONFIG][SZ_PACKET_LOG] = {}
+    config[SZ_CONFIG][SZ_PACKET_LOG] = normalise_packet_log_value(
+        config[SZ_CONFIG].get(SZ_PACKET_LOG)
+    )
 
     return serial_port, config
 

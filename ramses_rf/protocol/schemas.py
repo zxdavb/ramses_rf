@@ -37,16 +37,8 @@ SZ_LOG_FILE_NAME = "file_name"
 SZ_PACKET_LOG = "packet_log"
 
 SCH_PACKET_LOG_NAME = vol.Any(None, str)
-SCH_PACKET_LOG = vol.Schema(
-    {
-        vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
-            None,
-            SCH_PACKET_LOG_NAME,
-            SCH_CONFIG_LOGGER.extend(
-                {vol.Required(SZ_LOG_FILE_NAME): SCH_PACKET_LOG_NAME}
-            ),
-        )
-    }
+SCH_PACKET_LOG = SCH_CONFIG_LOGGER.extend(
+    {vol.Required(SZ_LOG_FILE_NAME): SCH_PACKET_LOG_NAME}
 )
 
 #
@@ -219,3 +211,12 @@ def select_filter_mode(
         )
 
     return enforce_known_list
+
+
+def normalise_packet_log_value(packet_log: None | dict | str) -> dict:
+    """Convert a HA/client config dict into the library's own format."""
+    if isinstance(packet_log, (type(None), dict)):
+        return packet_log  # is None, or dict
+    if isinstance(packet_log, str):
+        return {SZ_LOG_FILE_NAME: packet_log}
+    raise ValueError(f"expected None, dict or str, got: {type(packet_log)}")
