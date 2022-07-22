@@ -50,6 +50,8 @@ async def test_eavesdrop_off(dir_name):
     except FileNotFoundError:
         pass
 
+    await gwy.stop()
+
 
 async def test_eavesdrop_onn(dir_name):
 
@@ -65,3 +67,5 @@ async def test_eavesdrop_onn(dir_name):
             assert_expected(gwy.known_list, json.load(f).get("known_list"))
     except FileNotFoundError:
         pass
+
+    await gwy.stop()

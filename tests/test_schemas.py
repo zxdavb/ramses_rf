@@ -42,6 +42,8 @@ async def test_schema_discover_from_log(f_name):
 
         assert shrink(gwy.schema) == shrink(schema)
 
+    await gwy.stop()
+
 
 @pytest.mark.parametrize(
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/jsn_files").glob("*.json")]

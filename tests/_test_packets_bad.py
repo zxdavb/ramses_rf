@@ -32,3 +32,5 @@ async def test_log_file(f_name):
         await gwy.start()
 
     assert shrink(gwy.schema) == shrink(SCHEMA_EMPTY)
+
+    await gwy.stop()

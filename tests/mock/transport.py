@@ -57,7 +57,9 @@ class MockSerial:  # most of the 'mocking' is done here
         self.mock_devices = []
 
         self._que = PriorityQueue(maxsize=24)
-        self._next_bytes = self._loop.create_task(self._rx_bytes_from_ether())
+        self._rx_bytes_from_ether_task = self._loop.create_task(
+            self._rx_bytes_from_ether()
+        )
 
     def close(self, exc=None):
         """Close the port."""
@@ -68,7 +70,7 @@ class MockSerial:  # most of the 'mocking' is done here
         for device in self.mock_devices:
             for task in device._tasks:
                 task.cancel()
-        if task := self._next_bytes:
+        if task := self._rx_bytes_from_ether_task:
             task.cancel()
 
     @property

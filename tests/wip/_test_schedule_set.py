@@ -46,6 +46,8 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, schedule)
 
+        await self.gwy.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

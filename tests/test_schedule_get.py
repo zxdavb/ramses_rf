@@ -47,6 +47,8 @@ async def test_schedule_get(dir_name):
     assert zone.schedule == schedule[SZ_SCHEDULE]
     assert zone._schedule._schedule == schedule
 
+    await gwy.stop()
+
 
 async def test_schedule_helpers(dir_name):
     """Compare the schedule helpers."""
