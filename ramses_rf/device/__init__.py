@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 
-from ..const import DEV_TYPE_MAP, SZ_CLASS, SZ_FAKED, __dev_mode__
+from ..const import DEV_TYPE_MAP, __dev_mode__
 from ..protocol import Address, Message
+from ..schemas import SZ_CLASS, SZ_FAKED
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

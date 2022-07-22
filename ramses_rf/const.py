@@ -15,11 +15,9 @@ from .protocol.const import (  # noqa: F401
     SZ_ACTUATORS,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASE,
-    SZ_ALIAS,
     SZ_BOOST_TIMER,
     SZ_BYPASS_POSITION,
     SZ_CHANGE_COUNTER,
-    SZ_CLASS,
     SZ_CO2_LEVEL,
     SZ_DATETIME,
     SZ_DEVICE_ID,
@@ -114,8 +112,6 @@ Discover = SimpleNamespace(
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
-
-SZ_FAKED = "faked"
 
 SCHED_REFRESH_INTERVAL = 3  # minutes
 

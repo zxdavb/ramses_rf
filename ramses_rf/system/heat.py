@@ -55,6 +55,7 @@ from ..protocol import (
 )
 from ..protocol.command import FaultLog, _mk_cmd
 from ..schemas import (
+    DEFAULT_MAX_ZONES,
     SCH_TCS,
     SCH_TCS_DHW,
     SCH_TCS_ZONES_ZON,
@@ -62,6 +63,7 @@ from ..schemas import (
     SZ_CLASS,
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
+    SZ_MAX_ZONES,
     SZ_ORPHANS,
     SZ_SYSTEM,
     SZ_UFH_SYSTEM,
@@ -361,7 +363,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         self.zones = []
         self.zone_by_idx = {}
-        self.max_zones = self._gwy.config.max_zones
+        self._max_zones = getattr(self._gwy.config, SZ_MAX_ZONES, DEFAULT_MAX_ZONES)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 

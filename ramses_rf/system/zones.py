@@ -443,7 +443,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         if zone_idx in tcs.zone_by_idx:
             raise LookupError(f"Duplicate ZON for TCS: {tcs.id}_{zone_idx}")
-        if int(zone_idx, 16) >= tcs.max_zones:
+        if int(zone_idx, 16) >= tcs._max_zones:
             raise ValueError(f"Invalid zone_idx: {zone_idx} (exceeds max_zones)")
 
         super().__init__(tcs, zone_idx)

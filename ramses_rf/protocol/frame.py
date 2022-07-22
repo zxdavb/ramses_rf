@@ -462,7 +462,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
         # 03:    # .I 028 03:094242 --:------ 03:094242 30C9 003 010B22  # ctl
         # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
         # 23:    0009|10A0
-        return pkt.payload[:2]  # pkt._gwy.config.max_zones checked elsewhere
+        return pkt.payload[:2]  # tcs._max_zones checked elsewhere
 
     if pkt.payload[:2] != "00":
         raise InvalidPayloadError(

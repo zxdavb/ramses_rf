@@ -775,7 +775,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
                 parent: DhwZone = parent.get_dhw_zone()  # type: ignore[no-redef]
             # elif child_id == FC:
             #     pass
-            elif int(child_id, 16) < self._gwy.config.max_zones:
+            elif int(child_id, 16) < parent._max_zones:
                 parent: Zone = parent.get_htg_zone(child_id)  # type: ignore[no-redef, attr-defined]
 
         elif isinstance(parent, Zone) and not child_id:

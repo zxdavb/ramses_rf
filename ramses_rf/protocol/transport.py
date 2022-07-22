@@ -54,6 +54,7 @@ from .schemas import (
     SZ_INBOUND,
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
+    SZ_USE_REGEX,
 )
 from .version import VERSION
 
@@ -480,7 +481,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self._this_pkt: Packet = None  # type: ignore[assignment]
 
         self._disable_sending = gwy.config.disable_sending
-        self._evofw_flag = gwy.config.evofw_flag
+        self._evofw_flag = getattr(gwy.config, "evofw_flag", None)
 
         self.enforce_include = gwy.config.enforce_known_list
         if self.enforce_include:
@@ -496,6 +497,8 @@ class PacketProtocolBase(asyncio.Protocol):
             IS_EVOFW3: None,
             SZ_DEVICE_ID: HGI_DEV_ADDR.id,
         }  # also: "evofw3_ver"
+
+        self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(enforce_include={self.enforce_include})"
@@ -589,7 +592,7 @@ class PacketProtocolBase(asyncio.Protocol):
             pkt = Packet.from_port(
                 self._gwy,
                 dtm,
-                _regex_hack(line, self._gwy.config.use_regex.get(SZ_INBOUND, {})),
+                _regex_hack(line, self._use_regex.get(SZ_INBOUND, {})),
                 raw_line=raw_line,
             )  # should log all? invalid pkts appropriately
 
@@ -716,7 +719,7 @@ class PacketProtocolFile(PacketProtocolBase):
             pkt = Packet.from_file(
                 self._gwy,
                 dtm,
-                _regex_hack(line, self._gwy.config.use_regex.get(SZ_INBOUND, {})),
+                _regex_hack(line, self._use_regex.get(SZ_INBOUND, {})),
             )  # should log all invalid pkts appropriately
 
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
@@ -816,7 +819,7 @@ class PacketProtocolPort(PacketProtocolBase):
         data_bytes = bytes(
             _regex_hack(
                 data,
-                self._gwy.config.use_regex.get(SZ_OUTBOUND, {}),
+                self._use_regex.get(SZ_OUTBOUND, {}),
             ).encode("ascii")
         )
 

@@ -339,7 +339,7 @@ def parser_0009(payload, msg) -> dict | list:
     # .I --- 10:040239 01:223036 --:------ 0009 003 000000
 
     def _parser(seqx) -> dict:
-        assert seqx[:2] in (F9, FC) or int(seqx[:2], 16) < msg._gwy.config.max_zones
+        assert seqx[:2] in (F9, FC) or int(seqx[:2], 16) < 16
         return {
             SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
@@ -416,16 +416,14 @@ def parser_000c(payload, msg) -> dict:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
             return {SZ_DOMAIN_ID: FC}
 
-        assert (
-            int(seqx, 16) < msg._gwy.config.max_zones
-        ), f"invalid zone_idx: '{seqx}' (0x03)"
+        assert int(seqx, 16) < 16, f"invalid zone_idx: '{seqx}' (0x03)"
         return {SZ_ZONE_IDX: seqx}
 
     def _parser(seqx) -> dict:  # TODO: assumption that all id/idx are same is wrong!
         assert (
             seqx[:2] == payload[:2]
         ), f"idx != {payload[:2]} (seqx = {seqx}), short={is_short_000C(payload)}"
-        assert int(seqx[:2], 16) < msg._gwy.config.max_zones
+        assert int(seqx[:2], 16) < 16
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
         return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
 
@@ -639,7 +637,7 @@ def parser_0418(payload, msg) -> dict:
         assert payload[8:10] in FAULT_TYPE, f"fault type: {payload[8:10]}"
         assert payload[12:14] in FAULT_DEVICE_CLASS, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
-        assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
+        assert int(payload[10:12], 16) < 16 or (
             payload[10:12] in ("1C", F6, F9, FA, FC)
         ), f"domain id: {payload[10:12]}"
     except AssertionError as exc:
@@ -662,11 +660,7 @@ def parser_0418(payload, msg) -> dict:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HT1]  # speculative
 
     if payload[12:14] != "00":  # TODO: Controller
-        key_name = (
-            SZ_ZONE_IDX
-            if int(payload[10:12], 16) < msg._gwy.config.max_zones
-            else SZ_DOMAIN_ID
-        )
+        key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID
         result.update({key_name: payload[10:12]})
 
     if payload[38:] == "000002":  # "00:000002 for Unknown?
@@ -1288,7 +1282,7 @@ def parser_1fc9(payload, msg) -> list:
             FC,
             FF,
         ):  # or: not in DOMAIN_TYPE_MAP: ??
-            assert int(seqx[:2], 16) < msg._gwy.config.max_zones
+            assert int(seqx[:2], 16) < 16
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
     if payload == "00":
