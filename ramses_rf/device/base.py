@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
@@ -316,7 +316,7 @@ class Fakeable(DeviceBase):
     def _bind(self):
         self._1fc9_state["state"] = BindState.UNBOUND
 
-    def _make_fake(self, bind=None) -> Device:
+    def _make_fake(self, bind=None) -> Fakeable:
         if not self._faked:
             self._faked = True
             self._gwy._include[self.id] = {SZ_FAKED: True}
@@ -378,7 +378,7 @@ class Fakeable(DeviceBase):
             {SZ_FUNC: proc_offer, SZ_TIMEOUT: 300},
         )
 
-    def _bind_request(self, codes, callback: dict = None) -> None:
+    def _bind_request(self, codes, callback: Callable = None) -> None:
         """Initiate a bind handshake: send the 1st packet of the handshake."""
 
         # Bind request: CTL set to listen, STA initiates handshake (note 3C09/2309)
@@ -476,20 +476,22 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         if device_id[:2] != dev_type:
             raise TypeError(f"Invalid device ID {device_id} for type '{dev_type}:'")
 
-        dev = self.device_by_id.get(device_id)
-        if dev:  # TODO: BUG: is broken
-            _LOGGER.warning("Destroying %s", dev)
-            if dev._parent:
-                del dev._parent.child_by_id[dev.id]
-                dev._parent.childs.remove(dev)
-                dev._parent = None
-            del self.device_by_id[dev.id]
-            self.devices.remove(dev)
-            dev = None
+        # dev = self.device_by_id.get(device_id)
+        # if dev:  # TODO: BUG: is broken
+        #     _LOGGER.warning("Destroying %s", dev)
+        #     if dev._parent:
+        #         del dev._parent.child_by_id[dev.id]
+        #         dev._parent.childs.remove(dev)
+        #         dev._parent = None
+        #     del self.device_by_id[dev.id]
+        #     self.devices.remove(dev)
+        #     dev = None
 
-        dev = self._gwy.get_device(device_id)
-        dev._make_fake(bind=True)
-        return dev
+        # dev = self._gwy.get_device(device_id)
+        # dev._make_fake(bind=True)
+        # return dev
+
+        raise NotImplementedError
 
     def create_fake_bdr(self, device_id=DEFAULT_BDR_ID) -> Device:
         """Bind a faked relay (BDR91A) to a controller (i.e. to a domain/zone).

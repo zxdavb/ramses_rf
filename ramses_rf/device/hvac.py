@@ -245,7 +245,7 @@ class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
             raise RuntimeError(f"Faking is not enabled for {self}")
         for _ in range(3):
             self._send_cmd(
-                Command.set_fan_mode(self._ctl, int(4 * rate), 4, src_id=self.id)
+                Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
             )  # TODO: needs checking
 
     @property
