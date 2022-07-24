@@ -785,6 +785,7 @@ ramses_cc:
     zones:
       "07": {sensor: 01:111111}
 
+  orphans_heat: [02:123456]
   orphans_hvac: [30:111111, 32:333333, 32:555555, 32:666666]
 
   known_list:
@@ -792,6 +793,9 @@ ramses_cc:
     32:333333: {class: REM, faked: true}  # an impersonatable remote
     32:555555: {class: CO2, faked: true}  # a fully faked sensor
     32:666666: {class: HUM}
+
+  block_list:
+    23:111111: {}
     """,
 )
 
