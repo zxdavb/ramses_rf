@@ -16,11 +16,8 @@ import pytest
 from serial.tools import list_ports
 
 from ramses_rf.helpers import shrink
-from ramses_rf.schemas import (
-    SCH_GLOBAL_GATEWAY_CONFIG,
-    SCH_GLOBAL_SCHEMAS,
-    SCH_GLOBAL_TRAITS,
-)
+from ramses_rf.protocol.schemas import SCH_GLOBAL_TRAITS
+from ramses_rf.schemas import SCH_GLOBAL_GATEWAY, SCH_GLOBAL_SCHEMAS
 from ramses_rf.system import System
 
 #
@@ -110,9 +107,7 @@ def assert_raises(exception, fnc, *args):
 async def load_test_gwy(dir_name, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_GATEWAY_CONFIG(
-        {k: v for k, v in kwargs.items() if k[:1] != "_"}
-    )
+    kwargs = SCH_GLOBAL_GATEWAY({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(f"{dir_name}/config.json") as f:
@@ -138,9 +133,7 @@ async def load_test_gwy(dir_name, **kwargs) -> Gateway:
 async def load_test_gwy_alt(config_file: str, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_GATEWAY_CONFIG(
-        {k: v for k, v in kwargs.items() if k[:1] != "_"}
-    )
+    kwargs = SCH_GLOBAL_GATEWAY({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(config_file) as f:

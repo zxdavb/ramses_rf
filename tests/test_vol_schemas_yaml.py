@@ -18,8 +18,39 @@ from ramses_rf.protocol.schemas import (
 from ramses_rf.schemas import SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
 
 
+def no_duplicates_constructor(loader, node, deep=False):
+    """Check for duplicate keys."""
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                f"Duplicate key: {key} ('{mapping[key]}' overwrites '{value_node}')"
+            )
+        value = loader.construct_object(value_node, deep=deep)
+        mapping[key] = value
+    return loader.construct_mapping(node, deep)
+
+
+class CheckForDuplicatesLoader(yaml.Loader):
+    """Local class to prevent pollution of global yaml.Loader."""
+
+    pass
+
+
+CheckForDuplicatesLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates_constructor
+)
+
+
 def _test_schema(validator: vol.Schema, schema: str) -> dict:
-    return validator(yaml.safe_load(schema))
+    try:
+        return validator(
+            # yaml.safe_load(schema)
+            yaml.load(schema, CheckForDuplicatesLoader)
+        )  # pyaml swallows duplicate keys!
+    except (vol.MultipleInvalid, yaml.YAMLError) as exc:
+        raise TypeError(f"should be valid YAML, but isn't ({exc}): {schema}")
 
 
 def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
@@ -27,8 +58,10 @@ def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
         _test_schema(validator, schema)
     except (vol.MultipleInvalid, yaml.YAMLError):
         pass
+    except TypeError:
+        pass
     else:
-        raise TypeError  # should be invalid YAML, but isn't
+        raise TypeError(f"should be invalid YAML, but isn't: {schema}")
 
 
 KNOWN_LIST_BAD = (
@@ -319,8 +352,8 @@ SCHEMAS_VCS_BAD = (
     """,
     """
     32:111111: {remotes: [29:111111, 29:222222]}
-    32:222222: {remotes: [29:111111, 29:222222]}
-    32:111112: {remotes: [29:111111, 29:222222]}
+    32:111111: {remotes: [29:111111, 29:222222]}  # has duplicate key
+    32:333333: {remotes: [29:111111, 29:222222]}
     """,
 )
 SCHEMAS_VCS_GOOD = (

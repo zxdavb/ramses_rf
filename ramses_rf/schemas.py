@@ -229,11 +229,14 @@ SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 
 
 def HasUniqueKeys():
-    # import yaml
-    def has_unique_keys(value) -> None:
-        # schema = yaml.safe_load(value)
-        # print(value)
-        return len(value.keys()) == len(set(value.keys()))
+    def has_unique_keys(node_value) -> None:
+        if isinstance(node_value, dict) and (
+            not len(node_value.keys()) == len(set(node_value.keys()))
+        ):
+            raise ValueError("node keys are not unique")
+        return node_value
+
+    return has_unique_keys
 
 
 SCH_SYSTEM = vol.All({vol.Optional(SCH_DEVICE_ID_ANY): vol.Any(SCH_TCS, SCH_VCS)})
