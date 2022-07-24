@@ -104,7 +104,7 @@ SCH_TRAITS_BASE = vol.Schema(
             None,
         ),
         vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
-        vol.Optional("_note"): str,  # only for convenience, not used
+        vol.Optional(vol.Remove("_note")): str,  # only for convenience, not used
     },
     extra=vol.PREVENT_EXTRA,
 )

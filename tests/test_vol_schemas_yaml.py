@@ -7,12 +7,6 @@ Test the configuration parsers.
 """
 
 
-# TODO: This schema shoudl be invalid, but tests as valid
-#     """
-#     main_tcs: 01:111111
-#     """
-
-
 import pytest
 import voluptuous as vol
 import yaml
@@ -24,8 +18,20 @@ from ramses_rf.protocol.schemas import (
 )
 from ramses_rf.schemas import SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
 
-test_schemas_bad_failed = False
-test_schemas_good_failed = False
+# TODO: These schema pass testing, but shouldn't
+
+_FAIL_BUT_INVALID = ()
+_PASS_BUT_INVALID = (
+    """
+    main_tcs: 01:111111  # no TCS schema
+    """,
+    """
+    known_list:
+      01:111111: {}
+    block_list:
+      01:111111: {}  # also in known_list
+    """,
+)
 
 
 def no_duplicates_constructor(loader, node, deep=False):
@@ -88,6 +94,24 @@ KNOWN_LIST_BAD = (
     """
     known_list: []  # expected a dictionary for dictionary value @ data['known_list']
     """,
+    """
+    known_list:
+      01:111111: {class: xxx}
+    """,
+    """
+    known_list:
+      01:111111: {class: CTL, notes: this is invalid note}
+      02:111111: {class: UFC}
+    """,
+    """
+    known_list:
+      01:111111: {class: CTL}
+      01:111111: {class: UFC}
+    """,
+    """
+    known_list:
+      05:111111: {class: REM, scheme: xxxxxx}
+    """,
 )
 KNOWN_LIST_GOOD = (
     """
@@ -99,6 +123,41 @@ KNOWN_LIST_GOOD = (
     """
     known_list: {}
     block_list: {}
+    """,
+    """
+    known_list:
+      01:111111: {}
+    block_list:
+      01:222222: {}
+    """,
+    """
+    known_list:
+      01:111111: {class: CTL}
+      02:111111: {class: UFC}
+      03:111111: {class: THM, faked: true}
+      04:111111: {class: TRV}
+      07:111111: {class: DHW, faked: true}
+      10:111111: {class: OTB}
+      12:111111: {class: THM}
+      13:111111: {class: BDR}
+      17:111111: {class: OUT, faked: true}
+      18:111111: {class: HGI}
+      22:111111: {class: THM}
+      23:111111: {class: THM}
+      30:111111: {class: RFG}
+      34:111111: {class: THM, _note: this is a note}
+    """,
+    """
+    known_list:
+      01:111111: {class: FAN}
+      02:111111: {class: RFS}
+      03:111111: {class: CO2, faked: true}
+      04:111111: {class: HUM, faked: true}
+      05:111111: {class: REM, faked: true, scheme: nuaire}
+      06:111111:
+        class: DIS
+        scheme: orcon
+        _note: this is a note
     """,
 )
 
@@ -513,6 +572,10 @@ SCHEMAS_MIXED_BAD += tuple(
 SCHEMAS_MIXED_GOOD = tuple(
     x + y for x in SCHEMAS_TCS_GOOD[1:] for y in SCHEMAS_VCS_GOOD[1:]
 )
+
+
+test_schemas_bad_failed = False
+test_schemas_good_failed = False
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_BAD)))
