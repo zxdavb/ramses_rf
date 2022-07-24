@@ -12,11 +12,12 @@ import voluptuous as vol
 import yaml
 
 from ramses_rf.protocol.schemas import (
+    SCH_ENGINE,
     SCH_GLOBAL_TRAITS,
     SCH_PACKET_LOG,
     SCH_SERIAL_PORT,
 )
-from ramses_rf.schemas import SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
+from ramses_rf.schemas import SCH_GATEWAY, SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
 
 # TODO: These schema pass testing, but shouldn't
 
@@ -82,6 +83,121 @@ def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
     except (vol.MultipleInvalid, yaml.YAMLError) as exc:
         test_schemas_good_failed = True
         raise TypeError(f"should be valid YAML, but isn't ({exc}): {schema}")
+
+
+ENGINE_BAD = (
+    """
+    #  expected a dictionary
+    """,
+    """
+    other_key: null  # extra keys not allowed @ data['other_key']
+    """,
+    """
+    disable_sending: null
+    """,
+    """
+    evofw_flag: !V
+    """,
+    """
+    disable_sending: null
+    enforce_known_list: null
+    evofw_flag: null
+    use_regex: null
+    """,
+)
+ENGINE_GOOD = (
+    """
+    {}
+    """,
+    """
+    disable_sending: false
+    """,
+    """
+    disable_sending: false
+    enforce_known_list: false
+    evofw_flag: null
+    use_regex: {}
+    """,
+    """
+    disable_sending: true
+    enforce_known_list: true
+    evofw_flag: "!V"
+    use_regex:
+      inbound: {}
+      outbound: {}
+    """,
+)
+
+
+@pytest.mark.parametrize("index", range(len(ENGINE_BAD)))
+def test_engine_bad(index, schemas=ENGINE_BAD):
+    _test_schema_bad(SCH_ENGINE, schemas[index])
+
+
+@pytest.mark.parametrize("index", range(len(ENGINE_GOOD)))
+def test_engine_good(index, schemas=ENGINE_GOOD):
+    _test_schema_good(SCH_ENGINE, schemas[index])
+
+
+GATEWAY_BAD = (
+    """
+    #  expected a dictionary
+    """,
+    """
+    other_key: null  # extra keys not allowed @ data['other_key']
+    """,
+    """
+    disable_discovery: null
+    """,
+    """
+    max_zones: 19
+    """,
+    """
+    disable_discovery: null
+    enable_eavesdrop: null
+    max_zones: null
+    reduce_processing: null
+    use_aliases: null
+    use_native_ot: null
+    """,
+)
+GATEWAY_GOOD = (
+    """
+    {}
+    """,
+    """
+    disable_discovery: false
+    """,
+    """
+    max_zones: 16
+    """,
+    """
+    disable_discovery: false
+    enable_eavesdrop: false
+    max_zones: 12
+    reduce_processing: 0
+    use_aliases: false
+    use_native_ot: false
+    """,
+    """
+    disable_discovery: true
+    enable_eavesdrop: true
+    max_zones: 3
+    reduce_processing: 2
+    use_aliases: true
+    use_native_ot: true
+    """,
+)
+
+
+@pytest.mark.parametrize("index", range(len(GATEWAY_BAD)))
+def test_gateway_bad(index, schemas=GATEWAY_BAD):
+    _test_schema_bad(SCH_GATEWAY, schemas[index])
+
+
+@pytest.mark.parametrize("index", range(len(GATEWAY_GOOD)))
+def test_gateway_good(index, schemas=GATEWAY_GOOD):
+    _test_schema_good(SCH_GATEWAY, schemas[index])
 
 
 KNOWN_LIST_BAD = (

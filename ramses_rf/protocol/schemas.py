@@ -144,16 +144,12 @@ SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
 SZ_EVOFW_FLAG = "evofw_flag"
 SZ_USE_REGEX = "use_regex"
 
-#
-
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     vol.Optional(SZ_USE_REGEX): dict,
 }
-
-
 SCH_ENGINE = vol.Schema(SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
 
 SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
