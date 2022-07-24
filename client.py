@@ -101,8 +101,8 @@ def normalise_config_schema(config) -> tuple[str, dict]:
 
     serial_port = config[SZ_CONFIG].pop(SZ_SERIAL_PORT, None)
 
-    config[SZ_CONFIG][SZ_PACKET_LOG] = normalise_packet_log_value(
-        config[SZ_CONFIG].get(SZ_PACKET_LOG)
+    config[SZ_PACKET_LOG] = normalise_packet_log_value(
+        config[SZ_CONFIG].pop(SZ_PACKET_LOG, None)
     )
 
     return serial_port, config
