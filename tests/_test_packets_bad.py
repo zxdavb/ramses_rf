@@ -15,7 +15,7 @@ from tests.common import TEST_DIR  # noqa: F401
 
 WORK_DIR = f"{TEST_DIR}/logs"
 
-SCHEMA_EMPTY = {"known_list": {}, "main_controller": None, "orphans": []}
+SCHEMA_EMPTY = {"known_list": {}, "main_tcs": None, "orphans": []}
 
 
 def id_fnc(param):

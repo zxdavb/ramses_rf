@@ -2,7 +2,7 @@
     "data": {
         "client_state": {
             "schema": {
-                "main_controller": "01:145038",
+                "main_tcs": "01:145038",
                 "01:145038": {
                     "system": {
                         "tcs_relay": "10:048122"

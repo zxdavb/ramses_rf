@@ -7,7 +7,7 @@
         "use_aliases": false
     },
 
-    "main_controller": "01:000730",
+    "main_tcs": "01:000730",
 
     "01:145038": {
         "system": {

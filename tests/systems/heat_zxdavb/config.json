@@ -7,7 +7,7 @@
         "use_aliases": false
     },
 
-    "main_controller": "01:145038",
+    "main_tcs": "01:145038",
     "01:145038": {
         "system": {
             "appliance_control": "10:048122"

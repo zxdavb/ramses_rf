@@ -1,5 +1,5 @@
 {
-    "main_controller": "01:078710",
+    "main_tcs": "01:078710",
     "01:078710": {
         "system": {
             "appliance_control": "10:047707"

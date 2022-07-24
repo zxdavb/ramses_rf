@@ -1,5 +1,5 @@
 {
-    "main_controller": null,
+    "main_tcs": null,
     "orphans_hvac": [
         "30:079129",
         "32:166025",
