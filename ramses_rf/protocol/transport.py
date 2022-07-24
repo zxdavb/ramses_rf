@@ -49,7 +49,7 @@ from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
 from .schemas import (
-    SCH_CONFIG_SERIAL,
+    SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
@@ -584,6 +584,7 @@ class PacketProtocolBase(asyncio.Protocol):
     def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+
             _LOGGER.info("RF Rx: %s", raw_line)
 
         self._hgi80[IS_INITIALIZED], was_initialized = True, self._hgi80[IS_INITIALIZED]
@@ -826,7 +827,7 @@ class PacketProtocolPort(PacketProtocolBase):
         await self._sem.acquire()  # minimum time between Tx
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-            _LOGGER.info("RF Tx:     %s", data)
+            _LOGGER.info("RF Tx:     %s", data_bytes)
         self._transport.write(data_bytes + b"\r\n")
 
 
@@ -951,7 +952,7 @@ def create_pkt_stack(
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
 
-        ser_config = SCH_CONFIG_SERIAL(ser_config)
+        ser_config = SCH_SERIAL_PORT_CONFIG(ser_config)
 
         try:
             ser_obj = serial_for_url(ser_name, **ser_config)

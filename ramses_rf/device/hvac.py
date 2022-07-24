@@ -8,7 +8,7 @@ HVAC devices.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
 
 from ..const import (
     DEV_TYPE,
@@ -61,7 +61,19 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class CarbonDioxide(Fakeable, DeviceHvac):  # 1298
+_HvacRemoteBaseT = TypeVar("_HvacRemoteBaseT", bound="HvacRemoteBase")
+_HvacSensorBaseT = TypeVar("_HvacSensorBaseT", bound="HvacSensorBase")
+
+
+class HvacRemoteBase(DeviceHvac):
+    pass
+
+
+class HvacSensorBase(DeviceHvac):
+    pass
+
+
+class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
     def _bind(self):
         # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
         # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
@@ -93,7 +105,7 @@ class CarbonDioxide(Fakeable, DeviceHvac):  # 1298
         }
 
 
-class IndoorHumidity(Fakeable, DeviceHvac):  # 12A0
+class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
     def _bind(self):
         #
         #
@@ -125,7 +137,7 @@ class IndoorHumidity(Fakeable, DeviceHvac):  # 12A0
         }
 
 
-class PresenceDetect(Fakeable, DeviceHvac):  # 2E10
+class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
     def _bind(self):
         # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B              # CO2, idx|10E0 == 01
         # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
@@ -183,7 +195,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
         self.tcs = None
 
 
-class HvacHumiditySensor(BatteryState, IndoorHumidity, DeviceHvac):  # HUM: I/12A0
+class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -208,7 +220,7 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity, DeviceHvac):  # HUM: I/12
         }
 
 
-class HvacCarbonDioxideSensor(CarbonDioxide, DeviceHvac):  # CO2: I/1298
+class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
     """The Sensor class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -217,7 +229,7 @@ class HvacCarbonDioxideSensor(CarbonDioxide, DeviceHvac):  # CO2: I/1298
     _SLUG: str = DEV_TYPE.CO2
 
 
-class HvacRemote(BatteryState, Fakeable, DeviceHvac):  # REM: I/22F[13]
+class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.

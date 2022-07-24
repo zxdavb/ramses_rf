@@ -21,70 +21,67 @@ if DEV_MODE:
 
 
 #
-# Packet logger config
-SZ_LOG_ROTATE_BACKUPS = "rotate_backups"
-SZ_LOG_ROTATE_BYTES = "rotate_bytes"
+# Packet log configuration
+SZ_ROTATE_BACKUPS = "rotate_backups"
+SZ_ROTATE_BYTES = "rotate_bytes"
 
-SCH_CONFIG_LOGGER = vol.Schema(
-    {
-        vol.Optional(SZ_LOG_ROTATE_BACKUPS, default=0): vol.Any(None, int),
-        vol.Optional(SZ_LOG_ROTATE_BYTES): vol.Any(None, int),
-    },
-    extra=vol.PREVENT_EXTRA,
-)
+SCH_PACKET_LOG_CONFIG_DICT = {
+    vol.Optional(SZ_ROTATE_BACKUPS, default=0): vol.Any(None, int),
+    vol.Optional(SZ_ROTATE_BYTES): vol.Any(None, int),
+}
+SCH_PACKET_LOG_CONFIG = vol.Schema(SCH_PACKET_LOG_CONFIG_DICT, extra=vol.PREVENT_EXTRA)
 
-SZ_LOG_FILE_NAME = "file_name"
+SZ_FILE_NAME = "file_name"
+SCH_PACKET_LOG_NAME = str
+
 SZ_PACKET_LOG = "packet_log"
+SCH_PACKET_LOG_DICT = {
+    vol.Required(SZ_PACKET_LOG): vol.Any(
+        SCH_PACKET_LOG_NAME,
+        SCH_PACKET_LOG_CONFIG.extend({vol.Required(SZ_FILE_NAME): SCH_PACKET_LOG_NAME}),
+    )
+}
+SCH_PACKET_LOG = vol.Schema(SCH_PACKET_LOG_DICT, extra=vol.PREVENT_EXTRA)
 
-SCH_PACKET_LOG_NAME = vol.Any(None, str)
-SCH_PACKET_LOG = SCH_CONFIG_LOGGER.extend(
-    {vol.Required(SZ_LOG_FILE_NAME): SCH_PACKET_LOG_NAME}
-)
 
 #
-# Serial port config
+# Serial port configuration
 SZ_BAUDRATE = "baudrate"
 SZ_DSRDTR = "dsrdtr"
 SZ_RTSCTS = "rtscts"
 SZ_TIMEOUT = "timeout"
 SZ_XONXOFF = "xonxoff"
 
-SCH_CONFIG_SERIAL = vol.Schema(
-    {
-        vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
-            vol.Coerce(int), vol.Any(57600, 115200)
-        ),  # NB: HGI80 does not work, except at 115200 - so must be default
-        vol.Optional(SZ_DSRDTR, default=False): bool,
-        vol.Optional(SZ_RTSCTS, default=False): bool,
-        vol.Optional(SZ_TIMEOUT, default=0): vol.Any(None, int),  # TODO: default None?
-        vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
-    },
-    extra=vol.PREVENT_EXTRA,
-)
-
-SZ_SERIAL_PORT = "serial_port"
-SZ_SERIAL_PORT_CONFIG = "port_config"
-
+SCH_SERIAL_PORT_CONFIG_DICT = {
+    vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
+        vol.Coerce(int), vol.Any(57600, 115200)
+    ),  # NB: HGI80 does not work, except at 115200 - so must be default
+    vol.Optional(SZ_DSRDTR, default=False): bool,
+    vol.Optional(SZ_RTSCTS, default=False): bool,
+    vol.Optional(SZ_TIMEOUT, default=0): vol.Any(None, int),  # TODO: default None?
+    vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
+}
 SCH_SERIAL_PORT_CONFIG = vol.Schema(
-    {vol.Required(SZ_SERIAL_PORT_CONFIG, default={}): SCH_CONFIG_SERIAL}
+    SCH_SERIAL_PORT_CONFIG_DICT, extra=vol.PREVENT_EXTRA
 )
 
 SZ_PORT_NAME = "port_name"
 SCH_SERIAL_PORT_NAME = str
-SCH_SERIAL_PORT = vol.Schema(
-    {
-        vol.Required(SZ_SERIAL_PORT): vol.Any(
-            None,
-            SCH_SERIAL_PORT_NAME,
-            SCH_CONFIG_SERIAL.extend(
-                {vol.Required(SZ_PORT_NAME): SCH_SERIAL_PORT_NAME}
-            ),
-        )
-    }
-)
+
+SZ_SERIAL_PORT = "serial_port"
+SCH_SERIAL_PORT_DICT = {
+    vol.Required(SZ_SERIAL_PORT): vol.Any(
+        SCH_SERIAL_PORT_NAME,
+        SCH_SERIAL_PORT_CONFIG.extend(
+            {vol.Required(SZ_PORT_NAME): SCH_SERIAL_PORT_NAME}
+        ),
+    )
+}
+SCH_SERIAL_PORT = vol.Schema(SCH_SERIAL_PORT_DICT, extra=vol.PREVENT_EXTRA)
+
 
 #
-# Device traits (basic)  # TODO: move from ..const
+# Traits (of devices) configuraion (basic)  # TODO: moving from ..const
 SZ_ALIAS = "alias"
 SZ_CLASS = "class"
 SZ_FAKED = "faked"
@@ -107,63 +104,76 @@ SCH_TRAITS_BASE = vol.Schema(
             None,
         ),
         vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
-        vol.Optional("_note"): str,  # only a convenience, not used
+        vol.Optional("_note"): str,  # only for convenience, not used
     },
-    extra=vol.PREVENT_EXTRA,
-)
-SCH_TRAITS_HEAT = SCH_TRAITS_BASE
-SCH_TRAITS_HVAC_BRANDS = ("itho", "nuaire", "orcon")
-SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
-    {
-        vol.Optional("style", default="orcon"): vol.Any(None, *SCH_TRAITS_HVAC_BRANDS),
-    },
-    extra=vol.PREVENT_EXTRA,
-)
-SCH_TRAITS = vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC)
-SCH_DEVICE = vol.Schema(
-    {vol.Optional(SCH_DEVICE_ID_ANY): SCH_TRAITS},
     extra=vol.PREVENT_EXTRA,
 )
 
+SCH_TRAITS_HEAT = SCH_TRAITS_BASE
+
+SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
+SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
+    {
+        vol.Optional("scheme", default="orcon"): vol.Any(*SCH_TRAITS_HVAC_SCHEMES),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+
+SCH_TRAITS = vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC)
+SCH_DEVICE = vol.Schema(
+    {vol.Optional(SCH_DEVICE_ID_ANY): SCH_TRAITS}, extra=vol.PREVENT_EXTRA
+)
+
+
 #
-# Engine configuration
+# Device lists (Engine configuration)
 SZ_BLOCK_LIST = "block_list"
 SZ_KNOWN_LIST = "known_list"
 
+SCH_GLOBAL_TRAITS_DICT = {  # Filter lists with Device traits...
+    vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
+    vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
+}
+SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
+
+
+#
+# Engine configuration
 SZ_DISABLE_SENDING = "disable_sending"
 SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
 SZ_EVOFW_FLAG = "evofw_flag"
 SZ_USE_REGEX = "use_regex"
 
-SCH_CONFIG_ENGINE = vol.Schema(
-    {
-        vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-        vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
-        vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
-        vol.Optional(SZ_PACKET_LOG, default=None): vol.Any(None, SCH_PACKET_LOG),
-        vol.Optional(SZ_SERIAL_PORT): SCH_CONFIG_SERIAL,
-        vol.Optional(SZ_USE_REGEX): dict,
-    },
-    extra=vol.PREVENT_EXTRA,
-)  # TODO: add enforce_known_list
+#
+
+SCH_ENGINE_DICT = {
+    vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
+    vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
+    vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
+    vol.Optional(SZ_USE_REGEX): dict,
+}
+
+
+SCH_ENGINE = vol.Schema(SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
 
 SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
 SZ_OUTBOUND = "outbound"
 
-#
-# Global configuration for protocol layer
-SZ_CONFIG = "config"
 
-SCH_CONFIG_ENGINE_GLOBAL = vol.Schema(
+#
+# Global configuration for upper layer
+SZ_CONFIG = "config"
+SZ_PORT_CONFIG = "port_config"
+
+SCH_GLOBAL_ENGINE = vol.Schema(
     {
-        # Engine Configuraton, incl. packet_log, serial_port params...
-        vol.Optional(SZ_CONFIG, default={}): SCH_CONFIG_ENGINE,
-        # Filter lists with Device traits...
-        vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
-        vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
+        vol.Optional(SZ_CONFIG, default={}): SCH_ENGINE,
+        # packet_log: is optional, serial_port: params only...
+        vol.Optional(SZ_PACKET_LOG, default=None): vol.Any(None, SCH_PACKET_LOG),
+        vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
     },
     extra=vol.PREVENT_EXTRA,
-)
+).extend(SCH_GLOBAL_TRAITS_DICT)
 
 
 def select_filter_mode(
@@ -218,5 +228,5 @@ def normalise_packet_log_value(packet_log: None | dict | str) -> dict:
     if isinstance(packet_log, (type(None), dict)):
         return packet_log  # is None, or dict
     if isinstance(packet_log, str):
-        return {SZ_LOG_FILE_NAME: packet_log}
+        return {SZ_FILE_NAME: packet_log}
     raise ValueError(f"expected None, dict or str, got: {type(packet_log)}")

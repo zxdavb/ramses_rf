@@ -38,7 +38,7 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schemas import (
-    SCH_GLOBAL_GATEWAY_CONFIG,
+    SCH_GLOBAL_GATEWAY,
     SCH_TRAITS,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
@@ -47,7 +47,7 @@ from .schemas import (
     SZ_ENFORCE_KNOWN_LIST,
     SZ_FAKED,
     SZ_KNOWN_LIST,
-    SZ_MAIN_CONTROLLER,
+    SZ_MAIN_TCS,
     SZ_ORPHANS,
     load_config,
     load_schema,
@@ -290,6 +290,11 @@ class Engine:
             except TimeoutError as exc:  # raised by send_cmd()
                 raise TimeoutError(f"cmd ({cmd.tx_header}) timed out: {exc}")
 
+            # except RuntimeError as exc:  # raised by send_cmd()
+            #     _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
+            #     if self.msg_transport.is_closing:
+            #         pass
+
             except Exception as exc:
                 _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
                 raise exc
@@ -328,9 +333,7 @@ class Gateway(Engine):
         (self.config, self._schema, self._include, self._exclude) = load_config(
             self.ser_name,
             self._input_file,
-            **SCH_GLOBAL_GATEWAY_CONFIG(
-                {k: v for k, v in kwargs.items() if k[:1] != "_"}
-            ),
+            **SCH_GLOBAL_GATEWAY({k: v for k, v in kwargs.items() if k[:1] != "_"}),
         )
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
@@ -638,7 +641,7 @@ class Gateway(Engine):
 
         return {
             "_gateway_id": self.hgi.id if self.hgi else None,
-            SZ_MAIN_CONTROLLER: self.tcs.id if self.tcs else None,
+            SZ_MAIN_TCS: self.tcs.id if self.tcs else None,
             SZ_CONFIG: {SZ_ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
             SZ_KNOWN_LIST: self.known_list,
             SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
@@ -655,7 +658,7 @@ class Gateway(Engine):
         just like the other devices in the schema.
         """
 
-        schema = {SZ_MAIN_CONTROLLER: self.tcs.ctl.id if self.tcs else None}
+        schema = {SZ_MAIN_TCS: self.tcs.ctl.id if self.tcs else None}
 
         for tcs in self.systems:
             schema[tcs.ctl.id] = tcs.schema

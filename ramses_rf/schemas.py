@@ -38,7 +38,6 @@ from .protocol.const import (
 )
 from .protocol.frame import _DeviceIdT
 from .protocol.schemas import (  # noqa: F401
-    SCH_CONFIG_ENGINE,
     SCH_DEVICE,
     SCH_DEVICE_ID_ANY,
     SCH_DEVICE_ID_APP,
@@ -48,6 +47,8 @@ from .protocol.schemas import (  # noqa: F401
     SCH_DEVICE_ID_HGI,
     SCH_DEVICE_ID_SEN,
     SCH_DEVICE_ID_UFC,
+    SCH_ENGINE_DICT,
+    SCH_GLOBAL_TRAITS_DICT,
     SCH_PACKET_LOG,
     SCH_TRAITS,
     SCH_TRAITS_HEAT,
@@ -66,8 +67,6 @@ from .protocol.schemas import (  # noqa: F401
 
 # from .systems import _SystemT  # circular import
 
-# TODO: move max_zones into system-specific location, ?profile
-
 
 DEV_MODE = __dev_mode__ and False
 
@@ -75,10 +74,11 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
+
 #
 # schema strings
 SZ_SCHEMA = "schema"  # system schema, i.e. Heat & HVAC
-SZ_MAIN_CONTROLLER = "main_controller"
+SZ_MAIN_TCS = "main_controller"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
 SZ_SYSTEM = "system"
@@ -94,30 +94,15 @@ SZ_HTG_VALVE = DEV_ROLE_MAP[DEV_ROLE.HT1]
 
 SZ_SENSOR_FAKED = "sensor_faked"
 
-
 SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]  # ufh_controller
 SZ_CIRCUITS = "circuits"
-
 
 HEAT_ZONES_STRS = tuple(ZON_ROLE_MAP[t] for t in ZON_ROLE_MAP.HEAT_ZONES)
 
 SCH_DOM_ID = vol.Match(r"^[0-9A-F]{2}$")
 SCH_UFH_IDX = vol.Match(r"^0[0-8]$")
 SCH_ZON_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
-
-#
-# Config parameters
-SZ_DISABLE_DISCOVERY = "disable_discovery"
-SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
-SZ_MAX_ZONES = "max_zones"
-SZ_REDUCE_PROCESSING = "reduce_processing"
-SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
-SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
-
-
-SZ_REMOTES = "remotes"
-SZ_SENSORS = "sensors"
 
 
 def renamed(new_key):
@@ -140,6 +125,7 @@ SCH_TCS_SYS = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
+
 SCH_TCS_DHW = vol.Schema(
     {
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_ID_DHW),
@@ -149,6 +135,7 @@ SCH_TCS_DHW = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
+
 _CH_TCS_UFH_CIRCUIT = vol.Schema(
     {
         vol.Required(SCH_UFH_IDX): vol.Any(
@@ -168,6 +155,7 @@ SCH_TCS_UFH = vol.All(
     vol.Length(min=1, max=3),
     extra=vol.PREVENT_EXTRA,
 )
+
 SCH_TCS_ZONES_ZON = vol.Schema(
     {
         vol.Optional(SZ_CLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
@@ -185,28 +173,39 @@ SCH_TCS_ZONES_ZON = vol.Schema(
 )
 SCH_TCS_ZONES = vol.All(
     vol.Schema({vol.Required(SCH_ZON_IDX): SCH_TCS_ZONES_ZON}),
-    vol.Length(min=1, max=DEFAULT_MAX_ZONES),
+    vol.Length(min=1, max=12),
     extra=vol.PREVENT_EXTRA,
 )
+
 SCH_TCS = vol.Schema(
     {
         vol.Optional(SZ_SYSTEM, default={}): vol.Any({}, SCH_TCS_SYS),
         vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_TCS_DHW),
         vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_TCS_UFH),
-        vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [SCH_DEVICE_ID_ANY]),
+        vol.Optional(SZ_ORPHANS, default=[]): vol.Any(
+            [], vol.Unique([SCH_DEVICE_ID_ANY])
+        ),
         vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCH_TCS_ZONES),
-        vol.Optional("is_tcs"): True,
+        vol.Optional(vol.Remove("is_tcs")): vol.Coerce(bool),
     },
     extra=vol.PREVENT_EXTRA,
 )
 
+
 #
 # 4/5: Schemas for Ventilation control systems, aka HVAC/VCS
+SZ_REMOTES = "remotes"
+SZ_SENSORS = "sensors"
+
 SCH_VCS_DATA = vol.Schema(
     {
-        vol.Optional(SZ_REMOTES, default=[]): vol.Any([], [SCH_DEVICE_ID_ANY]),
-        vol.Optional(SZ_SENSORS, default=[]): vol.Any([], [SCH_DEVICE_ID_ANY]),
-        vol.Optional("is_vcs"): True,
+        vol.Optional(SZ_REMOTES, default=[]): vol.Any(
+            [], vol.Unique([SCH_DEVICE_ID_ANY])
+        ),
+        vol.Optional(SZ_SENSORS, default=[]): vol.Any(
+            [], vol.Unique([SCH_DEVICE_ID_ANY])
+        ),
+        vol.Optional(vol.Remove("is_vcs")): vol.Coerce(bool),
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -224,55 +223,95 @@ SCH_VCS_KEYS = vol.Schema(
 )
 SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 
-#
-# 1/5: Schema for Configuration of engine/parser
-SCH_CONFIG_GATEWAY = SCH_CONFIG_ENGINE.extend(
-    {
-        vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
-        vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
-        vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
-            int, vol.Range(min=1, max=16)
-        ),  # TODO: no default
-        vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
-            int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
-        ),
-        vol.Optional(SZ_USE_ALIASES, default=False): bool,
-        vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
-    },
-    extra=vol.PREVENT_EXTRA,
-)
 
 #
 # 5/5: Schema for Heat/HVAC systems
+
+
+def HasUniqueKeys():
+    # import yaml
+    def has_unique_keys(value) -> None:
+        # schema = yaml.safe_load(value)
+        # print(value)
+        return len(value.keys()) == len(set(value.keys()))
+
+
+SCH_SYSTEM = vol.All({vol.Optional(SCH_DEVICE_ID_ANY): vol.Any(SCH_TCS, SCH_VCS)})
+
 SCH_GLOBAL_SCHEMAS_DICT = {  # System schemas - can be 0-many Heat/HVAC schemas
     # orphans are devices to create that wont be in a (cached) schema...
-    vol.Optional(SZ_MAIN_CONTROLLER): vol.Any(None, SCH_DEVICE_ID_CTL),
-    vol.Optional(SCH_DEVICE_ID_CTL): vol.All(SCH_TCS, vol.Length(min=0)),
-    vol.Optional(SCH_DEVICE_ID_ANY): vol.All(SCH_VCS, vol.Length(min=0)),
-    vol.Optional(SZ_ORPHANS_HEAT): vol.All([SCH_DEVICE_ID_ANY], vol.Length(min=0)),
-    vol.Optional(SZ_ORPHANS_HVAC): vol.All([SCH_DEVICE_ID_ANY], vol.Length(min=0)),
+    vol.Optional(SZ_MAIN_TCS): vol.Any(None, SCH_DEVICE_ID_CTL),
+    vol.Optional(SCH_DEVICE_ID_CTL): vol.Any(SCH_TCS, SCH_VCS),
+    vol.Optional(SCH_DEVICE_ID_ANY): SCH_VCS,  # must be after SCH_DEVICE_ID_CTL
+    vol.Optional(SZ_ORPHANS_HEAT): vol.All(
+        vol.Unique([SCH_DEVICE_ID_ANY]), vol.Length(min=1)
+    ),
+    vol.Optional(SZ_ORPHANS_HVAC): vol.All(
+        vol.Unique([SCH_DEVICE_ID_ANY]), vol.Length(min=1)
+    ),
 }
-SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
+SCH_GLOBAL_SCHEMAS = vol.All(
+    vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA), HasUniqueKeys()
+)
 
-SCH_GLOBAL_TRAITS_DICT = {  # Filter lists with Device traits...
-    vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
-    vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
+
+#
+# Parser configuration
+SZ_DISABLE_DISCOVERY = "disable_discovery"
+SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
+SZ_MAX_ZONES = "max_zones"  # TODO: move to TCS-attr from GWY-layer
+SZ_REDUCE_PROCESSING = "reduce_processing"
+SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
+SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
+
+SCH_GATEWAY_DICT = {
+    vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
+    vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
+    vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
+        int, vol.Range(min=1, max=16)
+    ),  # TODO: no default
+    vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
+        int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
+    ),
+    vol.Optional(SZ_USE_ALIASES, default=False): bool,
+    vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
 }
-SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
+SCH_GATEWAY = vol.Schema(SCH_GATEWAY_DICT | SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
 
 #
 # 5/5: the Global Schema
-SCH_GLOBAL_GATEWAY_CONFIG = (
+
+SCH_GLOBAL_GATEWAY = (
     vol.Schema(
         {
             # Gateway/engine Configuraton, incl. packet_log, serial_port params...
-            vol.Optional(SZ_CONFIG, default={}): SCH_CONFIG_GATEWAY,
+            vol.Optional(SZ_CONFIG, default={}): SCH_GATEWAY_DICT,
         },
         extra=vol.PREVENT_EXTRA,
     )
     .extend(SCH_GLOBAL_SCHEMAS_DICT)
     .extend(SCH_GLOBAL_TRAITS_DICT)
 )
+
+
+#
+# 5/5: External Schemas, to be used by clients of this library
+SZ_RESTORE_CACHE = "restore_cache"
+SZ_RESTORE_SCHEMA = "restore_schema"
+SZ_RESTORE_STATE = "restore_state"
+
+SCH_RESTORE_CACHE_DICT = {
+    vol.Optional(SZ_RESTORE_CACHE, default=True): vol.Any(
+        bool,
+        vol.Schema(
+            {
+                vol.Optional(SZ_RESTORE_SCHEMA, default=True): bool,
+                vol.Optional(SZ_RESTORE_STATE, default=True): bool,
+            }
+        ),
+    )
+}
+SCH_RESTORE_CACHE = vol.Schema(SCH_RESTORE_CACHE_DICT)
 
 
 def load_config(
@@ -350,8 +389,8 @@ def load_schema(gwy, **kwargs) -> None:
         for ctl_id, schema in kwargs.items()
         if re.match(DEVICE_ID_REGEX.ANY, ctl_id) and SZ_REMOTES not in schema
     ]
-    if kwargs.get(SZ_MAIN_CONTROLLER):
-        gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
+    if kwargs.get(SZ_MAIN_TCS):
+        gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_TCS])
     [
         load_fan(gwy, fan_id, schema)
         for fan_id, schema in kwargs.items()
