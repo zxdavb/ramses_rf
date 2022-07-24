@@ -309,7 +309,8 @@ SCHEMAS_TCS_GOOD = (
       system:
         appliance_control: 10:111111
       zones:
-        "0B": {}
+        "0B":
+          sensor: 01:111111
     """,
     """
     01:111111:
@@ -317,9 +318,9 @@ SCHEMAS_TCS_GOOD = (
         appliance_control: 10:111111
       zones:
         "00": {}
-        "01": {}
-        "02": {}
-        "03": {}
+        "01": {sensor: 03:111111}
+        "02": {actuators: [04:111111, 04:222222]}
+        "03": {actuators: [13:111111, 13:222222]}
     """,
     """
     01:111111:
