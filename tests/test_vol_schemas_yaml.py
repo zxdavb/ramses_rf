@@ -6,6 +6,13 @@
 Test the configuration parsers.
 """
 
+
+# TODO: This schema shoudl be invalid, but tests as valid
+#     """
+#     main_tcs: 01:111111
+#     """
+
+
 import pytest
 import voluptuous as vol
 import yaml
@@ -17,6 +24,7 @@ from ramses_rf.protocol.schemas import (
 )
 from ramses_rf.schemas import SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
 
+test_schemas_bad_failed = False
 test_schemas_good_failed = False
 
 
@@ -51,11 +59,13 @@ def _test_schema(validator: vol.Schema, schema: str) -> dict:
 
 
 def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
+    global test_schemas_bad_failed
     try:
         _test_schema(validator, schema)
     except (vol.MultipleInvalid, yaml.YAMLError):
         pass
     else:
+        test_schemas_bad_failed = True
         raise TypeError(f"should *not* be valid YAML, but is: {schema}")
 
 
@@ -225,6 +235,79 @@ def test_restore_cache_good(index, schemas=RESTORE_CACHE_GOOD):
     _test_schema_good(SCH_RESTORE_CACHE, schemas[index])
 
 
+SERIAL_PORT_BAD = (
+    """
+    #  expected a dictionary
+    """,
+    """
+    {}  # required key not provided @ data['serial_port']
+    """,
+    """
+    other_key: null  # extra keys not allowed @ data['other_key']
+    """,
+    """
+    serial_name: /dev/ttyMOCK  # should be: serial_port:
+    """,
+    """
+    serial_port: /dev/ttyMOCK  # yaml.parser.ParserError
+      baudrate: 115200  # default
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+      baud_rate: 57600  # should be: baudrate:
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+        baudrate: 57600  # yaml.parser.ScannerError
+    """,
+)
+SERIAL_PORT_GOOD = (
+    """
+    serial_port: /dev/ttyMOCK
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+      baudrate: 115200  # default
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+      baudrate: 57600
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+      baudrate: 57600
+    """,
+    """
+    serial_port:
+      port_name: /dev/ttyMOCK
+      baudrate: 57600
+      dsrdtr: false
+      rtscts: false
+      timeout: 0
+      xonxoff: true
+    """,
+)
+
+
+@pytest.mark.parametrize("index", range(len(SERIAL_PORT_BAD)))
+def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD):
+    _test_schema_bad(SCH_SERIAL_PORT, schemas[index])
+
+
+@pytest.mark.parametrize("index", range(len(SERIAL_PORT_GOOD)))
+def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD):
+    _test_schema_good(SCH_SERIAL_PORT, schemas[index])
+
+
 SCHEMAS_TCS_BAD = (
     """
     #  expected a dictionary
@@ -309,6 +392,7 @@ SCHEMAS_TCS_GOOD = (
         appliance_control: 13:222222
     """,
     """
+    main_tcs: null
     01:111111:
       system:
         appliance_control: 10:111111
@@ -317,6 +401,7 @@ SCHEMAS_TCS_GOOD = (
           sensor: 01:111111
     """,
     """
+    main_tcs: 01:222222
     01:111111:
       system:
         appliance_control: 10:111111
@@ -327,7 +412,7 @@ SCHEMAS_TCS_GOOD = (
         "03": {actuators: [13:111111, 13:222222]}
     """,
     """
-    # main_tcs: 01:222222
+    main_tcs: 01:222222
     01:111111:
       system:
         appliance_control: 10:111111
@@ -421,79 +506,6 @@ def test_schemas_vcs_good(index, schemas=SCHEMAS_VCS_GOOD):
     _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
-SERIAL_PORT_BAD = (
-    """
-    #  expected a dictionary
-    """,
-    """
-    {}  # required key not provided @ data['serial_port']
-    """,
-    """
-    other_key: null  # extra keys not allowed @ data['other_key']
-    """,
-    """
-    serial_name: /dev/ttyMOCK  # should be: serial_port:
-    """,
-    """
-    serial_port: /dev/ttyMOCK  # yaml.parser.ParserError
-      baudrate: 115200  # default
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-      baud_rate: 57600  # should be: baudrate:
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-        baudrate: 57600  # yaml.parser.ScannerError
-    """,
-)
-SERIAL_PORT_GOOD = (
-    """
-    serial_port: /dev/ttyMOCK
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-      baudrate: 115200  # default
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-      baudrate: 57600
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-      baudrate: 57600
-    """,
-    """
-    serial_port:
-      port_name: /dev/ttyMOCK
-      baudrate: 57600
-      dsrdtr: false
-      rtscts: false
-      timeout: 0
-      xonxoff: true
-    """,
-)
-
-
-@pytest.mark.parametrize("index", range(len(SERIAL_PORT_BAD)))
-def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD):
-    _test_schema_bad(SCH_SERIAL_PORT, schemas[index])
-
-
-@pytest.mark.parametrize("index", range(len(SERIAL_PORT_GOOD)))
-def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD):
-    _test_schema_good(SCH_SERIAL_PORT, schemas[index])
-
-
 SCHEMAS_MIXED_BAD = tuple(x + y for x in SCHEMAS_TCS_GOOD for y in SCHEMAS_VCS_BAD[1:])
 SCHEMAS_MIXED_BAD += tuple(
     x + y for x in SCHEMAS_TCS_BAD[1:] for y in SCHEMAS_VCS_GOOD[1:]
@@ -505,7 +517,9 @@ SCHEMAS_MIXED_GOOD = tuple(
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_BAD)))
 def test_schemas_mixed_bad(index, schemas=SCHEMAS_MIXED_BAD):
-    _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
+    global test_schemas_bad_failed
+    if not test_schemas_bad_failed:
+        _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_GOOD)))

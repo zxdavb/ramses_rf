@@ -78,7 +78,7 @@ if DEV_MODE:
 #
 # schema strings
 SZ_SCHEMA = "schema"  # system schema, i.e. Heat & HVAC
-SZ_MAIN_TCS = "main_controller"
+SZ_MAIN_TCS = "main_tcs"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
 SZ_SYSTEM = "system"
