@@ -36,7 +36,8 @@ SCH_PACKET_LOG_NAME = str
 
 SZ_PACKET_LOG = "packet_log"
 SCH_PACKET_LOG_DICT = {
-    vol.Required(SZ_PACKET_LOG): vol.Any(
+    vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
+        None,
         SCH_PACKET_LOG_NAME,
         SCH_PACKET_LOG_CONFIG.extend({vol.Required(SZ_FILE_NAME): SCH_PACKET_LOG_NAME}),
     )

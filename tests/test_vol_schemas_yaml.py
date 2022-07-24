@@ -293,13 +293,7 @@ PACKET_LOG_BAD = (
     #  expected a dictionary
     """,
     """
-    {}  # required key not provided @ data['packet_log']
-    """,
-    """
     other_key: null  # extra keys not allowed @ data['other_key']
-    """,
-    """
-    packet_log: null  # expected str for dictionary value @ data['packet_log']
     """,
     """
     packet_log:
@@ -313,7 +307,13 @@ PACKET_LOG_BAD = (
 )
 PACKET_LOG_GOOD = (
     """
+    {}
+    """,
+    """
     packet_log: packet.log
+    """,
+    """
+    packet_log: null  # expected str for dictionary value @ data['packet_log']
     """,
     """
     packet_log:

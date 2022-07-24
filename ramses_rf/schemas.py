@@ -50,6 +50,7 @@ from .protocol.schemas import (  # noqa: F401
     SCH_ENGINE_DICT,
     SCH_GLOBAL_TRAITS_DICT,
     SCH_PACKET_LOG,
+    SCH_PACKET_LOG_DICT,
     SCH_TRAITS,
     SCH_TRAITS_HEAT,
     SCH_TRAITS_HVAC,
@@ -288,10 +289,11 @@ SCH_GLOBAL_GATEWAY = (
     vol.Schema(
         {
             # Gateway/engine Configuraton, incl. packet_log, serial_port params...
-            vol.Optional(SZ_CONFIG, default={}): SCH_GATEWAY_DICT,
+            vol.Optional(SZ_CONFIG, default={}): (SCH_GATEWAY_DICT | SCH_ENGINE_DICT)
         },
         extra=vol.PREVENT_EXTRA,
     )
+    .extend(SCH_PACKET_LOG_DICT)
     .extend(SCH_GLOBAL_SCHEMAS_DICT)
     .extend(SCH_GLOBAL_TRAITS_DICT)
 )
@@ -321,6 +323,7 @@ def load_config(
     serial_port: None | str,
     input_file: TextIO,
     config: dict[str, Any] = None,
+    packet_log: None | dict[str, Any] = None,
     block_list: dict[_DeviceIdT, dict] = None,
     known_list: dict[_DeviceIdT, dict] = None,
     **schema,
@@ -355,6 +358,8 @@ def load_config(
     config[SZ_ENFORCE_KNOWN_LIST] = select_filter_mode(
         config[SZ_ENFORCE_KNOWN_LIST], known_list, block_list
     )
+
+    config[SZ_PACKET_LOG] = packet_log
 
     return (SimpleNamespace(**config), schema, known_list, block_list)
 
