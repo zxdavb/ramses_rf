@@ -260,6 +260,12 @@ SCHEMAS_TCS_BAD = (
       zones:
         "1C": {}  # extra keys not allowed @ data['01:111111']['zones']['1C']
     """,
+    """
+    01:111111:
+      system:
+        appliance_control: 10:111111
+    01:111111: {remotes: [29:111111, 29:222222]}
+    """,
 )
 SCHEMAS_TCS_GOOD = (
     """
@@ -315,6 +321,14 @@ SCHEMAS_TCS_GOOD = (
         "02": {}
         "03": {}
     """,
+    """
+    01:111111:
+      system:
+        appliance_control: 10:111111
+    01:222222:
+      system:
+        appliance_control: 10:222222
+    """,
 )
 
 
@@ -361,7 +375,7 @@ SCHEMAS_VCS_GOOD = (
     {}
     """,
     """
-    01:111111:
+    01:333333:
       remotes: []
     """,
     """
@@ -472,3 +486,22 @@ def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD):
 @pytest.mark.parametrize("index", range(len(SERIAL_PORT_GOOD)))
 def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD):
     _test_schema(SCH_SERIAL_PORT, schemas[index])
+
+
+SCHEMAS_MIXED_BAD = tuple(x + y for x in SCHEMAS_TCS_GOOD for y in SCHEMAS_VCS_BAD[1:])
+SCHEMAS_MIXED_BAD += tuple(
+    x + y for x in SCHEMAS_TCS_BAD[1:] for y in SCHEMAS_VCS_GOOD[1:]
+)
+SCHEMAS_MIXED_GOOD = tuple(
+    x + y for x in SCHEMAS_TCS_GOOD[1:] for y in SCHEMAS_VCS_GOOD[1:]
+)
+
+
+@pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_BAD)))
+def test_schemas_mixed_bad(index, schemas=SCHEMAS_MIXED_BAD):
+    _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
+
+
+@pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_GOOD)))
+def test_schemas_mixed_good(index, schemas=SCHEMAS_MIXED_GOOD):
+    _test_schema(SCH_GLOBAL_SCHEMAS, schemas[index])
