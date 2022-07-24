@@ -764,7 +764,19 @@ ramses_cc:
 SCHEMAS_HASS_GOOD = (
     """
     ramses_cc:
+      serial_port: /dev/ttyACM0
+    """,
+    """
+    ramses_cc:
       serial_port: /dev/ttyUSB0
+    """,
+    """
+    ramses_cc:
+      serial_port: rfc2217://localhost:5001
+    """,
+    """
+    ramses_cc:
+      serial_port: /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
     """,
     """
 ramses_cc:
