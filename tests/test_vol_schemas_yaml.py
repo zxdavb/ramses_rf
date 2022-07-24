@@ -17,6 +17,8 @@ from ramses_rf.protocol.schemas import (
 )
 from ramses_rf.schemas import SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
 
+test_schemas_good_failed = False
+
 
 def no_duplicates_constructor(loader, node, deep=False):
     """Check for duplicate keys."""
@@ -44,13 +46,8 @@ CheckForDuplicatesLoader.add_constructor(
 
 
 def _test_schema(validator: vol.Schema, schema: str) -> dict:
-    try:
-        return validator(
-            # yaml.safe_load(schema)
-            yaml.load(schema, CheckForDuplicatesLoader)
-        )  # pyaml swallows duplicate keys!
-    except (vol.MultipleInvalid, yaml.YAMLError) as exc:
-        raise TypeError(f"should be valid YAML, but isn't ({exc}): {schema}")
+    # cant use yaml.safe_load(schema): PyYAML silently swallows duplicate dict keys!
+    return validator(yaml.load(schema, CheckForDuplicatesLoader))
 
 
 def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
@@ -58,10 +55,17 @@ def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
         _test_schema(validator, schema)
     except (vol.MultipleInvalid, yaml.YAMLError):
         pass
-    except TypeError:
-        pass
     else:
-        raise TypeError(f"should be invalid YAML, but isn't: {schema}")
+        raise TypeError(f"should *not* be valid YAML, but is: {schema}")
+
+
+def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
+    global test_schemas_good_failed
+    try:
+        _test_schema(validator, schema)
+    except (vol.MultipleInvalid, yaml.YAMLError) as exc:
+        test_schemas_good_failed = True
+        raise TypeError(f"should be valid YAML, but isn't ({exc}): {schema}")
 
 
 KNOWN_LIST_BAD = (
@@ -96,7 +100,7 @@ def test_known_list_bad(index, schemas=KNOWN_LIST_BAD):
 
 @pytest.mark.parametrize("index", range(len(KNOWN_LIST_GOOD)))
 def test_known_list_good(index, schemas=KNOWN_LIST_GOOD):
-    _test_schema(SCH_GLOBAL_TRAITS, schemas[index])
+    _test_schema_good(SCH_GLOBAL_TRAITS, schemas[index])
 
 
 PACKET_LOG_BAD = (
@@ -156,7 +160,7 @@ def test_packet_log_bad(index, schemas=PACKET_LOG_BAD):
 
 @pytest.mark.parametrize("index", range(len(PACKET_LOG_GOOD)))
 def test_packet_log_good(index, schemas=PACKET_LOG_GOOD):
-    _test_schema(SCH_PACKET_LOG, schemas[index])
+    _test_schema_good(SCH_PACKET_LOG, schemas[index])
 
 
 RESTORE_CACHE_BAD = (
@@ -218,7 +222,7 @@ def test_restore_cache_bad(index, schemas=RESTORE_CACHE_BAD):
 
 @pytest.mark.parametrize("index", range(len(RESTORE_CACHE_GOOD)))
 def test_restore_cache_good(index, schemas=RESTORE_CACHE_GOOD):
-    _test_schema(SCH_RESTORE_CACHE, schemas[index])
+    _test_schema_good(SCH_RESTORE_CACHE, schemas[index])
 
 
 SCHEMAS_TCS_BAD = (
@@ -323,6 +327,7 @@ SCHEMAS_TCS_GOOD = (
         "03": {actuators: [13:111111, 13:222222]}
     """,
     """
+    # main_tcs: 01:222222
     01:111111:
       system:
         appliance_control: 10:111111
@@ -340,7 +345,7 @@ def test_schemas_tcs_bad(index, schemas=SCHEMAS_TCS_BAD):
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_TCS_GOOD)))
 def test_schemas_tcs_good(index, schemas=SCHEMAS_TCS_GOOD):
-    _test_schema(SCH_GLOBAL_SCHEMAS, schemas[index])
+    _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
 SCHEMAS_VCS_BAD = (
@@ -413,7 +418,7 @@ def test_schemas_vcs_bad(index, schemas=SCHEMAS_VCS_BAD):
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_VCS_GOOD)))
 def test_schemas_vcs_good(index, schemas=SCHEMAS_VCS_GOOD):
-    _test_schema(SCH_GLOBAL_SCHEMAS, schemas[index])
+    _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
 SERIAL_PORT_BAD = (
@@ -486,7 +491,7 @@ def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD):
 
 @pytest.mark.parametrize("index", range(len(SERIAL_PORT_GOOD)))
 def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD):
-    _test_schema(SCH_SERIAL_PORT, schemas[index])
+    _test_schema_good(SCH_SERIAL_PORT, schemas[index])
 
 
 SCHEMAS_MIXED_BAD = tuple(x + y for x in SCHEMAS_TCS_GOOD for y in SCHEMAS_VCS_BAD[1:])
@@ -505,4 +510,6 @@ def test_schemas_mixed_bad(index, schemas=SCHEMAS_MIXED_BAD):
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_GOOD)))
 def test_schemas_mixed_good(index, schemas=SCHEMAS_MIXED_GOOD):
-    _test_schema(SCH_GLOBAL_SCHEMAS, schemas[index])
+    global test_schemas_good_failed
+    if not test_schemas_good_failed:
+        _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
