@@ -18,10 +18,8 @@ from ramses_rf.system.schedule import (
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
-
-#
-from tests.common import SERIAL_PORT, TEST_DIR, find_test_tcs, load_test_gwy_alt
-from tests.mock import MOCKED_PORT
+from tests_rf.common import SERIAL_PORT, TEST_DIR, find_test_tcs, load_test_gwy_alt
+from tests_rf.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"

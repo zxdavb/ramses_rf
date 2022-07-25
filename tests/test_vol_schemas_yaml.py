@@ -25,6 +25,7 @@ from ramses_rf.schemas import (
     SCH_GLOBAL_SCHEMAS,
     SCH_GLOBAL_SCHEMAS_DICT,
     SCH_RESTORE_CACHE,
+    SCH_RESTORE_CACHE_DICT,
 )
 
 # TODO: These schema pass testing, but shouldn't
@@ -763,24 +764,43 @@ ramses_cc:
 )
 SCHEMAS_HASS_GOOD = (
     """
-    ramses_cc:
-      serial_port: /dev/ttyACM0
+ramses_cc:
+  serial_port: /dev/ttyACM0
     """,
     """
-    ramses_cc:
-      serial_port: /dev/ttyUSB0
+ramses_cc:
+  serial_port: /dev/ttyUSB0
+  restore_cache: false
+  known_list:
     """,
     """
-    ramses_cc:
-      serial_port: rfc2217://localhost:5001
-    """,
-    """
-    ramses_cc:
-      serial_port: /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
+ramses_cc:
+  serial_port: rfc2217://localhost:5001
+  restore_cache:
+    restore_schema: true
+  known_list: {}
+  block_list:
     """,
     """
 ramses_cc:
   serial_port: /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
+  restore_cache:
+    restore_state: true
+  known_list:
+    30:111111:              # becomes empty {}
+    32:333333: {}           #
+    32:555555: {class: CO2} #
+  block_list: {}
+    """,
+    """
+ramses_cc:
+  serial_port: /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
+
+  scan_interval: 300
+
+  restore_cache:
+    restore_schema: true
+    restore_state: true
 
   packet_log:
     file_name: packet.log
@@ -808,27 +828,38 @@ ramses_cc:
 
   block_list:
     23:111111: {}
+
+  advanced_features:
+    send_packet: true
     """,
 )
 
 
-SCH_GLOBAL_HASS_BASE = (
-    vol.Schema({"ramses_rf": SCH_GATEWAY}, extra=vol.PREVENT_EXTRA)
+SCH_DOMAIN_CONFIG = (  # as per ramses_cc.schemas, TODO: add advanced_features
+    vol.Schema(
+        {
+            vol.Optional("ramses_rf", default={}): SCH_GATEWAY,
+            vol.Optional("scan_interval"): int,
+            vol.Optional("advanced_features", default={}): dict,
+        },
+        extra=vol.PREVENT_EXTRA,
+    )
     .extend(SCH_SERIAL_PORT_DICT)
     .extend(SCH_PACKET_LOG_DICT)
+    .extend(SCH_RESTORE_CACHE_DICT)
     .extend(SCH_GLOBAL_SCHEMAS_DICT)
     .extend(SCH_GLOBAL_TRAITS_DICT)
 )
 SCH_GLOBAL_HASS = vol.Schema(
-    {vol.Required("ramses_cc"): SCH_GLOBAL_HASS_BASE}, extra=vol.PREVENT_EXTRA
+    {vol.Required("ramses_cc"): SCH_DOMAIN_CONFIG}, extra=vol.PREVENT_EXTRA
 )
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_BAD)))
-def test_schemas_global_bad(index, schemas=SCHEMAS_HASS_BAD):
+def test_schemas_hass_bad(index, schemas=SCHEMAS_HASS_BAD):
     _test_schema_bad(SCH_GLOBAL_HASS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_GOOD)))
-def test_schemas_global_good(index, schemas=SCHEMAS_HASS_GOOD):
+def test_schemas_hass_good(index, schemas=SCHEMAS_HASS_GOOD):
     _test_schema_good(SCH_GLOBAL_HASS, schemas[index])

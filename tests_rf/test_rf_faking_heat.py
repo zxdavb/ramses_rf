@@ -9,16 +9,14 @@ Test faking of Heat devices.
 import asyncio
 
 from ramses_rf.system import System, Zone
-
-#
-from tests.common import (
+from tests_rf.common import (
     SERIAL_PORT,
     TEST_DIR,
     Gateway,
     find_test_tcs,
     load_test_gwy_alt,
 )
-from tests.mock import MOCKED_PORT
+from tests_rf.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"

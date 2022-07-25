@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Schema processor.
-"""
+"""RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import json
 import logging
@@ -13,24 +10,20 @@ from pathlib import Path
 from random import shuffle
 
 import pytest
-from serial.tools import list_ports
 
+from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.protocol.schemas import SCH_GLOBAL_TRAITS
 from ramses_rf.schemas import SCH_GLOBAL_GATEWAY, SCH_GLOBAL_SCHEMAS
-from ramses_rf.system import System
-
-#
-from tests.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
 # import tracemalloc
 # tracemalloc.start()
 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 DEBUG_MODE = False
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 if DEBUG_MODE:
     import debugpy
@@ -43,20 +36,7 @@ if DEBUG_MODE:
 logging.disable(logging.WARNING)  # usu. WARNING
 
 
-# TEST_DIR = f"{os.path.dirname(__file__)}"
-TEST_DIR = Path(__file__).resolve().parent
-
-if ports := [
-    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
-]:
-    from ramses_rf import Gateway
-
-    SERIAL_PORT = ports[0].device
-
-else:
-    from tests.mock import MockGateway as Gateway
-
-    SERIAL_PORT = MOCKED_PORT
+TEST_DIR = Path(__file__).resolve().parent  # TEST_DIR = f"{os.path.dirname(__file__)}"
 
 
 def shuffle_dict(old_dict) -> dict:
@@ -130,31 +110,6 @@ async def load_test_gwy(dir_name, **kwargs) -> Gateway:
     return gwy
 
 
-async def load_test_gwy_alt(config_file: str, **kwargs) -> Gateway:
-    """Create a system state from a packet log (using an optional configuration)."""
-
-    kwargs = SCH_GLOBAL_GATEWAY({k: v for k, v in kwargs.items() if k[:1] != "_"})
-
-    try:
-        with open(config_file) as f:
-            config = json.load(f)
-    except FileNotFoundError:
-        config = {}
-
-    if config:
-        kwargs.update(config)
-
-    gwy = Gateway(SERIAL_PORT, **kwargs)
-    await gwy.start(start_discovery=False)  # may: SerialException
-
-    if hasattr(
-        gwy.pkt_transport.serial, "mock_devices"
-    ):  # needs ser instance, so after gwy.start()
-        gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
-
-    return gwy
-
-
 def load_expected_results(dir_name) -> dict:
     """Return the expected (global) schema/params/status & traits (aka known_list)."""
 
@@ -191,10 +146,3 @@ def load_expected_results(dir_name) -> dict:
         "params": params,
         "status": status,
     }
-
-
-def find_test_tcs(gwy: Gateway) -> System:
-    if SERIAL_PORT == MOCKED_PORT:
-        return gwy.system_by_id["01:000730"]
-    systems = [s for s in gwy.systems if s.id != "01:000730"]
-    return systems[0] if systems else gwy.system_by_id["01:000730"]
