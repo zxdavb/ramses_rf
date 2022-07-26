@@ -14,14 +14,29 @@ import yaml
 from ramses_rf.protocol.schemas import (
     SCH_ENGINE,
     SCH_GLOBAL_TRAITS,
+    SCH_GLOBAL_TRAITS_DICT,
     SCH_PACKET_LOG,
+    SCH_PACKET_LOG_DICT,
     SCH_SERIAL_PORT,
+    SCH_SERIAL_PORT_DICT,
 )
-from ramses_rf.schemas import SCH_GATEWAY, SCH_GLOBAL_SCHEMAS, SCH_RESTORE_CACHE
+from ramses_rf.schemas import (
+    SCH_GATEWAY,
+    SCH_GLOBAL_SCHEMAS,
+    SCH_GLOBAL_SCHEMAS_DICT,
+    SCH_RESTORE_CACHE,
+)
 
 # TODO: These schema pass testing, but shouldn't
 
-_FAIL_BUT_INVALID = ()
+_FAIL_BUT_VALID = (
+    """
+    01:333333: {is_vcs: true}
+    """,
+    """
+    02:333333: {is_vcs: true}
+    """,
+)
 _PASS_BUT_INVALID = (
     """
     main_tcs: 01:111111  # no TCS schema
@@ -706,3 +721,114 @@ def test_schemas_mixed_good(index, schemas=SCHEMAS_MIXED_GOOD):
     global test_schemas_good_failed
     if not test_schemas_good_failed:
         _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
+
+
+SCHEMAS_HASS_BAD = (
+    """
+    #  expected a dictionary
+    """,
+    """
+    {}
+    """,
+    """
+    other_key: null  # extra keys not allowed @ data['other_key']
+    """,
+    """
+ramses_rf:
+  serial_port: /dev/ttyUSB0
+
+  ramses_rf:
+    enforce_known_list: true
+    """,
+    """
+ramses_cc:
+  serial_port: /dev/ttyUSB0
+
+  ramses_cc:
+    enforce_known_list: true
+    """,
+    """
+ramses_cc:
+  serial_port: /dev/ttyUSB0
+
+  schema:  # this not used
+    01:111111:  # Temperature control system (e.g. evohome)
+      system:
+        appliance_control: 10:123446
+      zones:
+        "07": {sensor: 01:111111}
+
+    orphans_hvac: [30:111111, 32:333333, 32:555555, 32:666666]
+    """,
+)
+SCHEMAS_HASS_GOOD = (
+    """
+    ramses_cc:
+      serial_port: /dev/ttyACM0
+    """,
+    """
+    ramses_cc:
+      serial_port: /dev/ttyUSB0
+    """,
+    """
+    ramses_cc:
+      serial_port: rfc2217://localhost:5001
+    """,
+    """
+    ramses_cc:
+      serial_port: /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
+    """,
+    """
+ramses_cc:
+  serial_port: /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
+
+  packet_log:
+    file_name: packet.log
+    rotate_backups: 28
+
+  ramses_rf:
+    enforce_known_list: true
+
+  main_tcs: 01:111111
+
+  01:111111:  # Temperature control system (e.g. evohome)
+    system:
+      appliance_control: 10:123446
+    zones:
+      "07": {sensor: 01:111111}
+
+  orphans_heat: [02:123456]
+  orphans_hvac: [30:111111, 32:333333, 32:555555, 32:666666]
+
+  known_list:
+    30:111111: {class: FAN}               # Orcon HRU
+    32:333333: {class: REM, faked: true}  # an impersonatable remote
+    32:555555: {class: CO2, faked: true}  # a fully faked sensor
+    32:666666: {class: HUM}
+
+  block_list:
+    23:111111: {}
+    """,
+)
+
+
+SCH_GLOBAL_HASS_BASE = (
+    vol.Schema({"ramses_rf": SCH_GATEWAY}, extra=vol.PREVENT_EXTRA)
+    .extend(SCH_SERIAL_PORT_DICT)
+    .extend(SCH_PACKET_LOG_DICT)
+    .extend(SCH_GLOBAL_SCHEMAS_DICT)
+    .extend(SCH_GLOBAL_TRAITS_DICT)
+)
+SCH_GLOBAL_HASS = vol.Schema(
+    {vol.Required("ramses_cc"): SCH_GLOBAL_HASS_BASE}, extra=vol.PREVENT_EXTRA
+)
+
+
+@pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_BAD)))
+def test_schemas_global_bad(index, schemas=SCHEMAS_HASS_BAD):
+    _test_schema_bad(SCH_GLOBAL_HASS, schemas[index])
+
+
+@pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_GOOD)))
+def test_schemas_global_good(index, schemas=SCHEMAS_HASS_GOOD):
+    _test_schema_good(SCH_GLOBAL_HASS, schemas[index])
