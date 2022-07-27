@@ -22,6 +22,19 @@ if DEV_MODE:
 
 #
 # Packet log configuration
+def NormalisePacketLog():
+    def normalise_packet_log(node_value: str | dict) -> dict:
+        if isinstance(node_value, str):
+            return {
+                SZ_FILE_NAME: node_value,
+                SZ_ROTATE_BACKUPS: 0,
+                SZ_ROTATE_BYTES: None,
+            }
+        return node_value
+
+    return normalise_packet_log
+
+
 SZ_ROTATE_BACKUPS = "rotate_backups"
 SZ_ROTATE_BYTES = "rotate_bytes"
 
@@ -38,7 +51,7 @@ SZ_PACKET_LOG = "packet_log"
 SCH_PACKET_LOG_DICT = {
     vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
         None,
-        SCH_PACKET_LOG_NAME,
+        vol.All(SCH_PACKET_LOG_NAME, NormalisePacketLog()),
         SCH_PACKET_LOG_CONFIG.extend({vol.Required(SZ_FILE_NAME): SCH_PACKET_LOG_NAME}),
     )
 }
@@ -47,6 +60,12 @@ SCH_PACKET_LOG = vol.Schema(SCH_PACKET_LOG_DICT, extra=vol.PREVENT_EXTRA)
 
 #
 # Serial port configuration
+def extract_serial_port(**kwargs: dict) -> tuple[str, dict]:
+    port_name = kwargs.pop(SZ_PORT_NAME)
+    port_config = {k: v for k, v in kwargs.items() if k != SZ_PORT_NAME}
+    return port_name, port_config
+
+
 SZ_BAUDRATE = "baudrate"
 SZ_DSRDTR = "dsrdtr"
 SZ_RTSCTS = "rtscts"
@@ -83,6 +102,15 @@ SCH_SERIAL_PORT = vol.Schema(SCH_SERIAL_PORT_DICT, extra=vol.PREVENT_EXTRA)
 
 #
 # Traits (of devices) configuraion (basic)  # TODO: moving from ..const
+def ConvertNullToDict():
+    def convert_null_to_dict(node_value) -> dict:
+        if node_value is None:
+            return {}
+        return node_value
+
+    return convert_null_to_dict
+
+
 SZ_ALIAS = "alias"
 SZ_CLASS = "class"
 SZ_FAKED = "faked"
@@ -122,7 +150,12 @@ SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
 
 SCH_TRAITS = vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC)
 SCH_DEVICE = vol.Schema(
-    {vol.Optional(SCH_DEVICE_ID_ANY): SCH_TRAITS}, extra=vol.PREVENT_EXTRA
+    {
+        vol.Optional(SCH_DEVICE_ID_ANY): vol.Any(
+            vol.All(None, ConvertNullToDict()), SCH_TRAITS
+        )
+    },
+    extra=vol.PREVENT_EXTRA,
 )
 
 
@@ -132,8 +165,14 @@ SZ_BLOCK_LIST = "block_list"
 SZ_KNOWN_LIST = "known_list"
 
 SCH_GLOBAL_TRAITS_DICT = {  # Filter lists with Device traits...
-    vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
-    vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(SCH_DEVICE, vol.Length(min=0)),
+    vol.Optional(SZ_KNOWN_LIST, default={}): vol.Any(
+        vol.All(None, ConvertNullToDict()),
+        vol.All(SCH_DEVICE, vol.Length(min=0)),
+    ),
+    vol.Optional(SZ_BLOCK_LIST, default={}): vol.Any(
+        vol.All(None, ConvertNullToDict()),
+        vol.All(SCH_DEVICE, vol.Length(min=0)),
+    ),
 }
 SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 
@@ -218,12 +257,3 @@ def select_filter_mode(
         )
 
     return enforce_known_list
-
-
-def normalise_packet_log_value(packet_log: None | dict | str) -> dict:
-    """Convert a HA/client config dict into the library's own format."""
-    if isinstance(packet_log, (type(None), dict)):
-        return packet_log  # is None, or dict
-    if isinstance(packet_log, str):
-        return {SZ_FILE_NAME: packet_log}
-    raise ValueError(f"expected None, dict or str, got: {type(packet_log)}")

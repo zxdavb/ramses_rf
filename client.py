@@ -28,16 +28,16 @@ from ramses_rf.protocol.schemas import (
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
     SZ_KNOWN_LIST,
-    SZ_PACKET_LOG,
     SZ_SERIAL_PORT,
-    normalise_packet_log_value,
 )
 from ramses_rf.schemas import (
+    SCH_GLOBAL_GATEWAY,
     SZ_CONFIG,
     SZ_DISABLE_DISCOVERY,
     SZ_ENABLE_EAVESDROP,
     SZ_REDUCE_PROCESSING,
 )
+from tests_rf.mock import MockGateway
 
 # skipcq: PY-W2000
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -48,6 +48,8 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     DEV_TYPE_MAP,
     Code,
 )
+
+DEV_MODE = False
 
 SZ_DEBUG_MODE = "debug_mode"
 DEBUG_ADDR = "0.0.0.0"
@@ -87,42 +89,29 @@ COLORS = {
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-LIB_KEYS = (
-    SZ_SERIAL_PORT,
-    SZ_INPUT_FILE,
-    SZ_EVOFW_FLAG,
-    SZ_PACKET_LOG,
-    SZ_REDUCE_PROCESSING,
-)
+LIB_KEYS = tuple(SCH_GLOBAL_GATEWAY({}).keys()) + (SZ_SERIAL_PORT,)
+LIB_CFG_KEYS = tuple(SCH_GLOBAL_GATEWAY({})[SZ_CONFIG].keys()) + (SZ_EVOFW_FLAG,)
 
 
-def normalise_config_schema(config) -> tuple[str, dict]:
+def normalise_config(lib_config: dict) -> tuple[str, dict]:
     """Convert a HA config dict into the client library's own format."""
 
-    serial_port = config[SZ_CONFIG].pop(SZ_SERIAL_PORT, None)
+    serial_port = lib_config.pop(SZ_SERIAL_PORT, None)
 
-    config[SZ_PACKET_LOG] = normalise_packet_log_value(
-        config[SZ_CONFIG].pop(SZ_PACKET_LOG, None)
+    return serial_port, lib_config
+
+
+def split_kwargs(obj: tuple[dict, dict], kwargs: dict) -> tuple[dict, dict]:
+    """Split kwargs into cli/library kwargs."""
+    cli_kwargs, lib_kwargs = obj
+
+    cli_kwargs.update(
+        {k: v for k, v in kwargs.items() if k not in LIB_KEYS + LIB_CFG_KEYS}
     )
+    lib_kwargs.update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
+    lib_kwargs[SZ_CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_CFG_KEYS})
 
-    return serial_port, config
-
-
-def _proc_kwargs(obj, kwargs) -> tuple[dict, dict]:
-    lib_kwargs, cli_kwargs = obj
-    lib_kwargs[SZ_CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
-    cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
-    return lib_kwargs, cli_kwargs
-
-
-def _convert_to_list(d: str) -> list:
-    if not d or not str(d):
-        return []
-    return [c.strip() for c in d.split(",") if c.strip()]
-
-
-def _arg_split(ctx, param, value):  # callback=_arg_split
-    return [x.strip() for x in value.split(",")]
+    return cli_kwargs, lib_kwargs
 
 
 class DeviceIdParamType(click.ParamType):
@@ -134,6 +123,7 @@ class DeviceIdParamType(click.ParamType):
         self.fail(f"{value!r} is not a valid device_id", param, ctx)
 
 
+# Args/Params for both RF and file
 @click.group(context_settings=CONTEXT_SETTINGS)  # , invoke_without_command=True)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-c", "--config-file", type=click.File("r"))
@@ -142,12 +132,8 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-lf", "--long-format", is_flag=True, help="dont truncate STDOUT")
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
 @click.option("-g", "--print-state", count=True, help="print state (g=schema, gg=all)")
-# @click.option(  # get_state
-#     "--get-state/--no-get-state", default=GET_STATE, help="get the engine state",
-# )
-# @click.option(  # set_state
-#     "--set-state/--no-set-state", default=SET_STATE, help="set the engine state",
-# )
+# @click.option("--get-state/--no-get-state", default=GET_STATE, help="get the engine state")
+# @click.option("--set-state/--no-set-state", default=SET_STATE, help="set the engine state")
 @click.option(  # show_schema
     "-k/-nk",
     "--show-schema/--no-show-schema",
@@ -185,43 +171,39 @@ class DeviceIdParamType(click.ParamType):
     help="display crazy things",
 )
 @click.pass_context
-def cli(ctx, config_file=None, **kwargs):
+def cli(ctx, config_file=None, eavesdrop: bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
-    # if ctx.invoked_subcommand is None:
-    #     pass
-
-    if 0 < kwargs[SZ_DEBUG_MODE] < 3:
+    if kwargs[SZ_DEBUG_MODE] > 0:  # Do first
         import debugpy
 
         debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-        print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
+        print(f" - Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}")
 
         if kwargs[SZ_DEBUG_MODE] == 1:
-            print(" - execution paused, waiting for debugger to attach...")
+            print("   - execution paused, waiting for debugger to attach...")
             debugpy.wait_for_client()
-            print(" - debugger is now attached, continuing execution.")
+            print("   - debugger is now attached, continuing execution.")
 
-    lib_kwargs, cli_kwargs = _proc_kwargs(({SZ_CONFIG: {}}, {}), kwargs)
+    kwargs, lib_kwargs = split_kwargs(({}, {SZ_CONFIG: {}}), kwargs)
 
-    if config_file:
-        lib_kwargs.update(json.load(config_file))
+    if eavesdrop is not None:
+        lib_kwargs[SZ_CONFIG][SZ_ENABLE_EAVESDROP] = eavesdrop
 
-    lib_kwargs[SZ_DEBUG_MODE] = cli_kwargs[SZ_DEBUG_MODE] > 1
-    lib_kwargs[SZ_CONFIG][SZ_REDUCE_PROCESSING] = kwargs[SZ_REDUCE_PROCESSING]
-    lib_kwargs[SZ_CONFIG][SZ_ENABLE_EAVESDROP] = bool(cli_kwargs.pop("eavesdrop"))
+    if config_file:  # TODO: validate with voluptuous, use YAML
+        lib_kwargs = json.load(config_file) | lib_kwargs  # CLI takes precidence
 
-    ctx.obj = lib_kwargs, kwargs
+    ctx.obj = kwargs, lib_kwargs
 
 
-class FileCommand(click.Command):  # input-file file
+# Args/Params for packet log only
+class FileCommand(click.Command):  # client.py parse <file>
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.params.insert(
+        self.params.insert(  # input_file
             0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
         )
-        # NOTE: The following is useful for only for test/dev
-        # self.params.insert(  # --packet-log
+        """ # self.params.insert(  # --packet-log  # NOTE: useful for only for test/dev
         #     1,
         #     click.Option(
         #         ("-o", "--packet-log"),
@@ -229,14 +211,17 @@ class FileCommand(click.Command):  # input-file file
         #         help="Log all packets to this file",
         #     ),
         # )
-        pass
+        """
 
 
-class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-flag xxx
+# Args/Params for RF packets only
+class PortCommand(
+    click.Command
+):  # client.py <command> <port> --packet-log xxx --evofw3-flag xxx
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.params.insert(0, click.Argument(("serial-port",)))
-        # self.params.insert(  # --no-discover
+        """ # self.params.insert(  # --no-discover
         #     1,
         #     click.Option(
         #         ("-d/-nd", "--discover/--no-discover"),
@@ -245,6 +230,7 @@ class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-
         #         help="Log all packets to this file",
         #     ),
         # )
+        # """
         self.params.insert(  # --packet-log
             2,
             click.Option(
@@ -263,18 +249,21 @@ class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-
         )
 
 
+#
+# 1/4: PARSE (a file, +/- eavesdrop)
 @click.command(cls=FileCommand)  # parse a packet log, then stop
 @click.pass_obj
 def parse(obj, **kwargs):
     """Parse a log file for messages/packets."""
+    config, lib_config = split_kwargs(obj, kwargs)
 
-    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+    lib_config[SZ_INPUT_FILE] = config.pop(SZ_INPUT_FILE)
 
-    lib_kwargs[SZ_INPUT_FILE] = lib_kwargs[SZ_CONFIG].pop(SZ_INPUT_FILE)
-
-    asyncio.run(main(PARSE, lib_kwargs, **cli_kwargs))
+    asyncio.run(main(PARSE, lib_config, **config))
 
 
+#
+# 2/4: MONITOR (listen to RF, +/- discovery, +/- eavesdrop)
 @click.command(cls=PortCommand)  # (optionally) execute a command/script, then monitor
 @click.option("-d/-nd", "--discover/--no-discover", default=None)  # --no-discover
 @click.option(  # --exec-cmd 'RQ 01:123456 1F09 00'
@@ -290,35 +279,23 @@ def parse(obj, **kwargs):
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
 )
 @click.pass_obj
-def monitor(obj, **kwargs):
+def monitor(obj, discover: bool = None, **kwargs):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
-    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+    config, lib_config = split_kwargs(obj, kwargs)
 
-    if cli_kwargs["discover"] is None:
-        cli_kwargs["discover"] = (
-            cli_kwargs["exec_scr"] is None and cli_kwargs["poll_devices"] is None
-        )
+    if discover is None:
+        if kwargs["exec_scr"] is None and kwargs["poll_devices"] is None:
+            print(" - Discovery is enabled...")
+            lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
+        else:
+            print(" - Discovery is disabled...")
+            lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
 
-    if cli_kwargs["discover"] is not None:
-        lib_kwargs[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
-
-    lib_kwargs[SZ_KNOWN_LIST] = lib_kwargs.get(SZ_KNOWN_LIST, {})
-    # allowed = lib_kwargs[SZ_KNOWN_LIST] = lib_kwargs.get(SZ_KNOWN_LIST, {})
-
-    # for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
-    #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
-    #     allowed.update({d: None for d in cli_kwargs[k] if d not in allowed})
-
-    # lib_kwargs[SZ_CONFIG]["poll_devices"] = _convert_to_list(
-    #     cli_kwargs.pop("poll_devices")
-    # )
-
-    # if lib_kwargs[SZ_KNOWN_LIST]:
-    #     lib_kwargs[SZ_CONFIG][SZ_ENFORCE_KNOWN_LIST] = True
-
-    asyncio.run(main(MONITOR, lib_kwargs, **cli_kwargs))
+    asyncio.run(main(MONITOR, lib_config, **config))
 
 
+#
+# 3/4: EXECUTE (send cmds to RF, +/- discovery, +/- eavesdrop)
 @click.command(cls=PortCommand)  # execute a (complex) script, then stop
 @click.option("-d/-nd", "--discover/--no-discover", default=None)  # --no-discover
 @click.option(  # --exec-cmd 'RQ 01:123456 1F09 00'
@@ -345,35 +322,40 @@ def execute(obj, **kwargs):
 
     Disables discovery, and enforces a strict allow_list.
     """
-    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+    config, lib_config = split_kwargs(obj, kwargs)
 
-    if lib_kwargs[SZ_CONFIG].get(SZ_DISABLE_DISCOVERY) is None:
-        lib_kwargs[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
+    print(" - Discovery is force-disabled...")
+    lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
 
-    if cli_kwargs[GET_FAULTS]:
-        lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
+    if kwargs[GET_FAULTS]:
+        known_list = {kwargs[GET_FAULTS][0]: {}}
+    elif kwargs[GET_SCHED][0]:
+        known_list = {kwargs[GET_SCHED][0]: {}}
+    elif kwargs[SET_SCHED][0]:
+        known_list = {kwargs[SET_SCHED][0]: {}}
+    else:
+        known_list = {}
 
-    elif cli_kwargs[GET_SCHED][0]:
-        lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[GET_SCHED][0]: {}}
+    if known_list:
+        print(" - Known list is force-configured/enforced...")
+        lib_config[SZ_KNOWN_LIST] = known_list
+        lib_config[SZ_CONFIG][SZ_ENFORCE_KNOWN_LIST] = True
 
-    elif cli_kwargs[SET_SCHED][0]:
-        lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
-
-    if lib_kwargs.get(SZ_KNOWN_LIST):
-        lib_kwargs[SZ_CONFIG][SZ_ENFORCE_KNOWN_LIST] = True
-
-    asyncio.run(main(EXECUTE, lib_kwargs, **cli_kwargs))
+    asyncio.run(main(EXECUTE, lib_config, **config))
 
 
+#
+# 4/4: LISTEN (to RF, +/- eavesdrop - NO sending/discovery)
 @click.command(cls=PortCommand)  # (optionally) execute a command, then listen
 @click.pass_obj
 def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
-    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+    config, lib_config = split_kwargs(obj, kwargs)
 
-    lib_kwargs[SZ_CONFIG][SZ_DISABLE_SENDING] = True
+    print(" - Sending is force-disabled...")
+    lib_config[SZ_CONFIG][SZ_DISABLE_SENDING] = True
 
-    asyncio.run(main(LISTEN, lib_kwargs, **cli_kwargs))
+    asyncio.run(main(LISTEN, lib_config, **config))
 
 
 def print_results(gwy, **kwargs):
@@ -405,9 +387,6 @@ def print_results(gwy, **kwargs):
     if kwargs[SET_SCHED][0]:
         system_id, _ = kwargs[GET_SCHED]
 
-    # else:
-    #     print(gwy.device_by_id[kwargs["device_id"]])
-
 
 def _save_state(gwy):
     schema, msgs = gwy._get_state()
@@ -426,7 +405,6 @@ def _print_engine_state(gwy, **kwargs):
         print(f"schema: {json.dumps(schema, indent=4)}\r\n")
     if kwargs["print_state"] > 1:
         print(f"packets: {json.dumps(packets, indent=4)}\r\n")
-    # [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
 
 
 def print_summary(gwy, **kwargs):
@@ -476,14 +454,15 @@ def print_summary(gwy, **kwargs):
             print()
 
 
-async def main(command, lib_kwargs, **kwargs):
+async def main(command: str, lib_kwargs: dict, **kwargs):
+    """Do certain things."""
+
     def process_msg(msg, prev_msg=None) -> None:
         """Process the message as it arrives (a callback).
 
         In this case, the message is merely printed.
         """
 
-        DEV_MODE = False
         if DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
             print(
                 f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
@@ -507,30 +486,26 @@ async def main(command, lib_kwargs, **kwargs):
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
 
-    print("\r\nclient.py: Starting ramses_rf...")
+    serial_port, lib_kwargs = normalise_config(lib_kwargs)
 
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    serial_port, lib_kwargs = normalise_config_schema(lib_kwargs)
     if serial_port == "/dev/ttyMOCK":
-        from tests.mock import MockGateway
-
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:
         gwy = Gateway(serial_port, **lib_kwargs)
 
-    if kwargs[SZ_REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
-        # no MSGs will be sent to STDOUT, so send PKTs instead
-        colorama_init(autoreset=True)  # TODO: remove strip=True
+    if lib_kwargs[SZ_CONFIG][SZ_REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
+        # library will not send MSGs to STDOUT, so we'll send PKTs instead
+        colorama_init(autoreset=True)  # WIP: remove strip=True
         gwy.create_client(process_msg)
 
-    try:  # main code here
-        if kwargs["restore_cache"]:
-            print("Restoring client schema/state cache...")
-            state = json.load(kwargs["restore_cache"])
-            await gwy._set_state(**state["data"]["restore_cache"])
+    if kwargs["restore_cache"]:
+        print("Restoring client schema/state cache...")
+        state = json.load(kwargs["restore_cache"])
+        await gwy._set_state(**state["data"]["restore_cache"])
 
+    print("client.py: Starting engine...")
+
+    try:  # main code here
         await gwy.start()
 
         if command == EXECUTE:
@@ -539,28 +514,25 @@ async def main(command, lib_kwargs, **kwargs):
 
         elif command in MONITOR:
             tasks = spawn_scripts(gwy, **kwargs)
-            # await asyncio.sleep(5)
-            # gwy.device_by_id["17:145039"].temperature = 19
-            # gwy.device_by_id["34:145039"].temperature = 21.3
             await gwy.pkt_source
 
         elif gwy.pkt_source:  # else:  # elif command in (LISTEN, PARSE):
             await gwy.pkt_source
 
     except asyncio.CancelledError:
-        msg = " - ended via: CancelledError (e.g. SIGINT)"
+        msg = "ended via: CancelledError (e.g. SIGINT)"
     except GracefulExit:
-        msg = " - ended via: GracefulExit"
+        msg = "ended via: GracefulExit"
     except KeyboardInterrupt:
-        msg = " - ended via: KeyboardInterrupt"
+        msg = "ended via: KeyboardInterrupt"
     except EvohomeError as err:
-        msg = f" - ended via: EvohomeError: {err}"
+        msg = f"ended via: EvohomeError: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
-        msg = " - ended without error (e.g. EOF)"
+        msg = "ended without error (e.g. EOF)"
+    finally:
+        await gwy.stop()
 
-    await gwy.stop()
-
-    print(f"\r\nclient.py: Engine stopped.\r\n{msg}\r\n")
+    print(f"client.py: Engine stopped: {msg}.")
 
     # if kwargs["save_state"]:
     #    _save_state(gwy)
@@ -573,8 +545,6 @@ async def main(command, lib_kwargs, **kwargs):
 
     print_summary(gwy, **kwargs)
 
-    print("\r\nclient.py: Finished ramses_rf.")
-
 
 cli.add_command(parse)
 cli.add_command(monitor)
@@ -582,7 +552,13 @@ cli.add_command(execute)
 cli.add_command(listen)
 
 if __name__ == "__main__":
+    print("\r\nclient.py: Starting ramses_rf...")
+
     # profile = cProfile.Profile()
+
+    if sys.platform == "win32":
+        print("Setting event_loop_policy...")
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     try:
         # profile.run("cli()")
@@ -592,3 +568,5 @@ if __name__ == "__main__":
 
     # ps = pstats.Stats(profile)
     # ps.sort_stats(pstats.SortKey.TIME).print_stats(60)
+
+    print("\r\nclient.py: Finished ramses_rf.")

@@ -227,8 +227,6 @@ SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 
 #
 # 5/5: Schema for Heat/HVAC systems
-
-
 def HasUniqueKeys():
     def has_unique_keys(node_value) -> None:
         if isinstance(node_value, dict) and (
@@ -301,13 +299,22 @@ SCH_GLOBAL_GATEWAY = (
 
 #
 # 5/5: External Schemas, to be used by clients of this library
+def NormaliseRestoreCache():
+    def normalise_restore_cache(node_value) -> None:
+        if not isinstance(node_value, bool):
+            return node_value
+        return {SZ_RESTORE_SCHEMA: node_value, SZ_RESTORE_STATE: node_value}
+
+    return normalise_restore_cache
+
+
 SZ_RESTORE_CACHE = "restore_cache"
 SZ_RESTORE_SCHEMA = "restore_schema"
 SZ_RESTORE_STATE = "restore_state"
 
 SCH_RESTORE_CACHE_DICT = {
     vol.Optional(SZ_RESTORE_CACHE, default=True): vol.Any(
-        bool,
+        vol.All(bool, NormaliseRestoreCache()),
         vol.Schema(
             {
                 vol.Optional(SZ_RESTORE_SCHEMA, default=True): bool,
