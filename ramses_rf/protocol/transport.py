@@ -993,7 +993,7 @@ def create_pkt_stack(
             )()  # NOTE: should be: PacketProtocolQos, not PacketProtocolPort
 
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
-        raise TypeError("serial port, log file & dict should be mutually exclusive")
+        raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
 
     pkt_protocol = (protocol_factory or protocol_factory_)()
 
