@@ -6,7 +6,39 @@ from __future__ import annotations
 
 import asyncio
 import re
+from copy import deepcopy
 from inspect import iscoroutinefunction
+
+
+def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to ramses_rf?
+    """Merge src dict (precident) into the dst dict and return the result.
+
+    run me with nosetests --with-doctest file.py
+
+    >>> a = {'first': {'all_rows': {'pass': 'dog', 'number': '1'}}}
+    >>> b = {'first': {'all_rows': {'fail': 'cat', 'number': '5'}}}
+    >>> _merge(b, a) == {'first': {'all_rows': {'pass': 'dog', 'fail': 'cat', 'number': '5'}}}
+    True
+    """
+
+    new_dst = dst if _dc else deepcopy(dst)  # start with copy of dst, merge src into it
+    for key, value in src.items():  # values are only: dict, list, value or None
+
+        if isinstance(value, dict):  # is dict
+            node = new_dst.setdefault(key, {})  # get node or create one
+            merge(value, node, _dc=True)
+
+        elif not isinstance(value, list):  # is value
+            new_dst[key] = value  # src takes precidence, assert will fail
+
+        elif key not in new_dst or not isinstance(new_dst[key], list):  # is list
+            new_dst[key] = src[key]  # shouldn't happen: assert will fail
+
+        else:
+            new_dst[key] = list(set(src[key] + new_dst[key]))  # will sort
+
+    # assert _is_subset(shrink(src), shrink(new_dst))
+    return new_dst
 
 
 def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> dict:
