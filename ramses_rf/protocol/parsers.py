@@ -1658,8 +1658,19 @@ def parser_2401(payload, msg) -> dict:
 
 @parser_decorator  # unknown_2410, from OTB, FAN
 def parser_2410(payload, msg) -> dict:
-    # RP --- 10:048122 18:006402 --:------ 2410 020 000000-0000-00000000-00000001-00000001-00-000C  # OTB
-    # RP --- 32:155617 18:005904 --:------ 2410 020 000000-3EE8-00000000-FFFFFFFF-00000000-10-02A6  # Orcon Fan
+    # RP --- 10:048122 18:006402 --:------ 2410 020 00-00000000-00000000-00000001-00000001-00000C  # OTB
+    # RP --- 32:155617 18:005904 --:------ 2410 020 00-00003EE8-00000000-FFFFFFFF-00000000-1002A6  # Orcon Fan
+
+    def unstuff(seqx: str) -> tuple:
+        val = int(seqx, 16)
+        # if val & 0x40:
+        #     raise TypeError
+        signed = bool(val & 0x80)
+        length = (val >> 3 & 0x07) or 1
+        d_type = {0b000: "a", 0b001: "b", 0b010: "c", 0b100: "d"}.get(
+            val & 0x07, val & 0x07
+        )
+        return signed, length, d_type
 
     assert payload[:6] == "00" * 3, _INFORM_DEV_MSG
     assert payload[10:18] == "00" * 4, _INFORM_DEV_MSG
@@ -1667,7 +1678,14 @@ def parser_2410(payload, msg) -> dict:
     assert payload[26:34] in ("00000001", "00000000"), _INFORM_DEV_MSG
 
     return {
-        SZ_PAYLOAD: payload,
+        "tail": payload[34:],
+        "xxx_34": unstuff(payload[34:36]),
+        "xxx_36": unstuff(payload[36:38]),
+        "xxx_38": unstuff(payload[38:]),
+        "cur_value": payload[2:10],
+        "min_value": payload[10:18],
+        "max_value": payload[18:26],
+        "oth_value": payload[26:34],
     }
 
 
