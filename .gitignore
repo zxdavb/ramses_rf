@@ -17,6 +17,9 @@
 !tests/**/*.json
 !tests/**/*.log
 
+!tests_rf/**/*.json
+!tests_rf/**/*.log
+
 !.flake8
 !.gitignore
 !.pre-commit-config.yaml
