@@ -14,11 +14,9 @@
 *.txt
 *.yaml
 
-!tests/**/*.json
-!tests/**/*.log
-
-!tests_rf/**/*.json
-!tests_rf/**/*.log
+!tests*/**/*.json
+!tests*/**/*.log
+!tests*/**/*.py
 
 !.flake8
 !.gitignore
