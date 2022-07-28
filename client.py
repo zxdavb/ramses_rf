@@ -127,7 +127,8 @@ class DeviceIdParamType(click.ParamType):
 @click.group(context_settings=CONTEXT_SETTINGS)  # , invoke_without_command=True)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-c", "--config-file", type=click.File("r"))
-@click.option("-rc", "--restore-cache", type=click.File("r"))
+@click.option("-rk", "--restore-schema", type=click.File("r"), help="from a HA store")
+@click.option("-rs", "--restore-state", type=click.File("r"), help=" from a HA store")
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-lf", "--long-format", is_flag=True, help="dont truncate STDOUT")
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
@@ -488,6 +489,11 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
 
     serial_port, lib_kwargs = normalise_config(lib_kwargs)
 
+    if kwargs["restore_schema"]:
+        print(" - Restoring client schema from a HA cache...")
+        state = json.load(kwargs["restore_schema"])["data"]["client_state"]
+        lib_kwargs = lib_kwargs | state["schema"]
+
     if serial_port == "/dev/ttyMOCK":
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:
@@ -498,10 +504,10 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         colorama_init(autoreset=True)  # WIP: remove strip=True
         gwy.create_client(process_msg)
 
-    if kwargs["restore_cache"]:
-        print("Restoring client schema/state cache...")
-        state = json.load(kwargs["restore_cache"])
-        await gwy._set_state(**state["data"]["restore_cache"])
+    if kwargs["restore_state"]:
+        print(" - Restoring client state from a HA cache...")
+        state = json.load(kwargs["restore_state"])["data"]["client_state"]
+        await gwy._set_state(packets=state["packets"])
 
     print("client.py: Starting engine...")
 
