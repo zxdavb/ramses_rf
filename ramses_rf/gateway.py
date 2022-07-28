@@ -83,13 +83,13 @@ class Engine:
 
     def __init__(
         self,
-        serial_port: None | str,
+        port_name: None | str,
         input_file: None | TextIO = None,
         port_config: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
     ) -> None:
 
-        self.ser_name = serial_port
+        self.ser_name = port_name
         self._input_file = input_file
         self._port_config = port_config or {}
         self._loop = loop or asyncio.get_running_loop()
@@ -311,20 +311,20 @@ class Gateway(Engine):
 
     def __init__(
         self,
-        serial_port: None | str,
+        port_name: None | str,
         debug_mode: None | bool = None,
         input_file: None | TextIO = None,
-        port_config: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
+        port_config: None | dict = None,
         **kwargs,
     ) -> None:
 
         if debug_mode:
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-        _LOGGER.debug("Starting RAMSES RF, **kwargs = %s", kwargs)
+        _LOGGER.debug("Starting RAMSES RF, **config = %s", kwargs)
 
         super().__init__(
-            serial_port, input_file=input_file, port_config=port_config, loop=loop
+            port_name, input_file=input_file, port_config=port_config, loop=loop
         )
 
         self._tasks: list = []  # TODO: used by discovery, move lower?

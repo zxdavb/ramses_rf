@@ -326,8 +326,34 @@ SCH_RESTORE_CACHE_DICT = {
 SCH_RESTORE_CACHE = vol.Schema(SCH_RESTORE_CACHE_DICT)
 
 
+# def extract_config(**kwargs) -> dict:
+#     """Return the config embedded with a global configuration."""
+#     return {
+#         k: v
+#         for k, v in kwargs.items()
+#         if not DEVICE_ID_REGEX.ANY.match(k) and k not in (
+#             SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC
+#         )
+#     }
+
+
+def extract_schema(**kwargs) -> dict:
+    """Return the schema embedded with a global configuration."""
+    return {
+        k: v
+        for k, v in kwargs.items()
+        if DEVICE_ID_REGEX.ANY.match(k)
+        or k in (SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
+    }
+
+
+# def split_configuration(**kwargs) -> tuple[dict, dict]:
+#     """Split a global configuration into non-schema (config) & schema."""
+#     return extract_config(**kwargs), extract_schema(**kwargs),
+
+
 def load_config(
-    serial_port: None | str,
+    port_name: None | str,
     input_file: TextIO,
     config: dict[str, Any] = None,
     packet_log: None | dict[str, Any] = None,
@@ -344,13 +370,13 @@ def load_config(
      - block_list (is a dict)
     """
 
-    if serial_port and input_file:
+    if port_name and input_file:
         _LOGGER.warning(
             "Serial port was specified (%s), so input file (%s) will be ignored",
-            serial_port,
+            port_name,
             input_file,
         )
-    elif serial_port is None:
+    elif port_name is None:
         config[SZ_DISABLE_SENDING] = True
 
     if config[SZ_DISABLE_SENDING]:
@@ -367,6 +393,8 @@ def load_config(
     )
 
     config[SZ_PACKET_LOG] = packet_log
+
+    # assert schema == extract_schema(**schema)
 
     return (SimpleNamespace(**config), schema, known_list, block_list)
 

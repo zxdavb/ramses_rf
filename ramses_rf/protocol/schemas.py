@@ -60,9 +60,9 @@ SCH_PACKET_LOG = vol.Schema(SCH_PACKET_LOG_DICT, extra=vol.PREVENT_EXTRA)
 
 #
 # Serial port configuration
-def extract_serial_port(**kwargs: dict) -> tuple[str, dict]:
-    port_name = kwargs.pop(SZ_PORT_NAME)
-    port_config = {k: v for k, v in kwargs.items() if k != SZ_PORT_NAME}
+def extract_serial_port(ser_config: dict) -> tuple[str, dict]:
+    port_name = ser_config.get(SZ_PORT_NAME)
+    port_config = {k: v for k, v in ser_config.items() if k != SZ_PORT_NAME}
     return port_name, port_config
 
 
