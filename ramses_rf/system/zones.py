@@ -526,10 +526,10 @@ class Zone(ZoneSchedule, ZoneBase):
             Command.get_zone_name(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
         )
 
-        self._add_discovery_task(
+        self._add_discovery_task(  # 2349 instead of 2309
             Command.get_zone_mode(self.ctl.id, self.idx), 60 * 5, delay=30
         )
-        self._add_discovery_task(
+        self._add_discovery_task(  # 30C9
             Command.get_zone_temp(self.ctl.id, self.idx), 60 * 5, delay=0
         )  # td should be > sync_cycle duration,?delay in hope of picking up cycle
         self._add_discovery_task(
