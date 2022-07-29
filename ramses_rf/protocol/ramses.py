@@ -503,7 +503,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
         I_: r"^(00|01|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|04|08)?)?$",  # 00-0004-FE
-        RQ: r"^00$",
+        RQ: r"^(00|01|21)$",
     },
     Code._31DA: {  # hvac_state (fan_state_extended)
         SZ_NAME: "hvac_state",
@@ -516,7 +516,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # 10:21:18.549 078  I --- 29:146052 32:023459 --:------ 31E0 003 000000
         # 07:56:50.522 095  I --- --:------ --:------ 07:044315 31E0 004 00006E00
         SZ_NAME: "fan_demand",
-        I_: r"^00[0-9A-F]{4}(00|FF)?$",
+        I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
     Code._3200: {  # boiler output temp
         SZ_NAME: "boiler_output",
