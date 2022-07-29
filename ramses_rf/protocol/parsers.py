@@ -1959,7 +1959,7 @@ def parser_31d9(payload, msg) -> dict:
 
     try:
         assert payload[8:32] in ("00" * 12, "20" * 12), f"byte 4: {payload[8:32]}"
-        assert payload[32:] in ("00", "08"), f"byte 16: {payload[32:]}"
+        assert payload[32:] in ("00", "04", "08"), f"byte 16: {payload[32:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
