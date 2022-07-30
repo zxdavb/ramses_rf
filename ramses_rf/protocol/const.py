@@ -675,4 +675,7 @@ class Code(StrEnum):
     _3EF0 = "3EF0"
     _3EF1 = "3EF1"
     _4401 = "4401"
+    _4E01 = "4E01"
+    _4E02 = "4E02"
+    _4E04 = "4E04"
     _PUZZ = "7FFF"
