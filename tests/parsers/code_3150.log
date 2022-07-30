@@ -1,3 +1,17 @@
 # Tests
-2021-11-28T14:54:25.139800 ...  I --- 02:123456 --:------ 02:123456 3150 002 00A2  # [{ 'ufx_idx': '00', 'heat_demand': 0.81}]  # dst == src, is an array of length 1
-2021-05-23T04:43:12.702136 ...  I --- 02:123456 --:------ 01:555555 3150 002 002C  #  {'zone_idx': '00', 'heat_demand': 0.22}   # dst != src, not an array
+2022-07-25T18:23:19.948534 053  I --- 01:223036 --:------ 01:223036 3150 002 FC00                  # {"has_array": False, "has_idx": 'FC' , "has_payload": True , "is_fragment": False}
+2022-07-25T18:23:37.280558 050  I --- 10:040239 --:------ 01:223036 3150 002 FC00                  # {"has_array": False, "has_idx": 'FC' , "has_payload": True , "is_fragment": False}
+2022-07-25T18:33:07.768035 053  I --- 04:231774 --:------ 01:223036 3150 002 0000                  # {"has_array": False, "has_idx": '00' , "has_payload": True , "is_fragment": False}
+2022-07-25T18:32:37.196346 045  I --- 04:155533 --:------ 01:223036 3150 002 0200                  # {"has_array": False, "has_idx": '02' , "has_payload": True , "is_fragment": False}
+
+2021-05-23T10:47:36.652875 059  I --- 02:044446 --:------ 02:044446 3150 010 000001AE02000300040A  # {"has_array": True , "has_idx": True , "has_payload": True , "is_fragment": False}
+2021-05-23T19:36:07.381437 046  I --- 02:044435 --:------ 02:044435 3150 006 0032012C0222          # {"has_array": True , "has_idx": True , "has_payload": True , "is_fragment": False}
+2022-02-03T17:23:48.974086 074  I --- 02:001786 --:------ 02:001786 3150 004 0000013E              # {"has_array": True , "has_idx": True , "has_payload": True , "is_fragment": False}
+
+2021-11-28T14:54:25.139800 ...  I --- 02:123456 --:------ 02:123456 3150 002 00A2                  # {"has_array": True,  "has_idx": True , "has_payload": True , "is_fragment": False}
+2021-05-23T04:43:12.702136 ...  I --- 02:123456 --:------ 01:555555 3150 002 002C                  # {"has_array": False, "has_idx": '00' , "has_payload": True , "is_fragment": False}
+2021-01-29T20:51:48.968664 075  I --- 02:000921 --:------ 01:191718 3150 002 06C4                  # {"has_array": False, "has_idx": '06' , "has_payload": True , "is_fragment": False}
+
+2021-11-28T14:54:25.139800 ...  I --- 02:123456 --:------ 02:123456 3150 002 00A2                  # [{ 'ufx_idx': '00', 'heat_demand': 0.81}]  # dst == src, is an array of length 1
+2021-05-23T04:43:12.702136 ...  I --- 02:123456 --:------ 01:555555 3150 002 002C                  #  {'zone_idx': '00', 'heat_demand': 0.22}   # dst != src, not an array
+2021-01-29T20:51:48.968664 075  I --- 02:000921 --:------ 01:191718 3150 002 06C4                  #  {'zone_idx': '06', 'heat_demand': 0.98}
