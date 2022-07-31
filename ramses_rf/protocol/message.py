@@ -93,7 +93,7 @@ class Message:
 
         self._str: str = None  # type: ignore[assignment]
         self._fraction_expired: float = None  # type: ignore[assignment]
-        self._is_fragment: bool = None  # type: ignore[assignment]
+        # self._is_fragment: bool = None  # type: ignore[assignment]
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -211,7 +211,7 @@ class Message:
         # .I 068 03:201498 --:------ 03:201498 30C9 003 0106D6 # rare
 
         # .I --- 00:034798 --:------ 12:126457 2309 003 0201F4
-        if not {self.src.type, self.dst.type} & {
+        if True and not {self.src.type, self.dst.type} & {
             DEV_TYPE_MAP.CTL,
             DEV_TYPE_MAP.UFC,
             DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
@@ -224,12 +224,17 @@ class Message:
             return {}
 
         # .I 035 --:------ --:------ 12:126457 30C9 003 017FFF
-        if self.src.type == self.dst.type and self.src.type not in (
-            DEV_TYPE_MAP.CTL,
-            DEV_TYPE_MAP.UFC,
-            DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
-            DEV_TYPE_MAP.HGI,
-            DEV_TYPE_MAP.PRG,
+        if (
+            True
+            and self.src.type == self.dst.type
+            and self.src.type
+            not in (
+                DEV_TYPE_MAP.CTL,
+                DEV_TYPE_MAP.UFC,
+                DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
+                DEV_TYPE_MAP.HGI,
+                DEV_TYPE_MAP.PRG,
+            )
         ):  # DEX
             assert self._pkt._idx == "00", "What!! (AB)"
             return {}
@@ -310,26 +315,6 @@ class Message:
 
         # and self.dtm >= self._gwy._dt_now() - td(days=7)  # TODO: should be none >7d?
         return self._fraction_expired > self.HAS_EXPIRED
-
-    @property
-    def _is_fragment_WIP(self) -> bool:
-        """Return True if the raw payload is a fragment of a message."""
-
-        if self._is_fragment is not None:
-            return self._is_fragment
-
-        # packets have a maximum length of 48 (decimal)
-        # if self.code == Code._000A and self.verb == I_:
-        #     self._is_fragment = True if len(???.zones) > 8 else None
-        # el
-        if self.code == Code._0404 and self.verb == RP:
-            self._is_fragment = True
-        elif self.code == Code._22C9 and self.verb == I_:
-            self._is_fragment = None  # max length 24!
-        else:
-            self._is_fragment = False
-
-        return self._is_fragment
 
     def _validate(self, raw_payload) -> dict | list:  # TODO: needs work
         """Validate the message, and parse the payload if so.
