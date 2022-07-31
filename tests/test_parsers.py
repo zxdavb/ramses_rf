@@ -38,7 +38,11 @@ def _proc_log_line(gwy, pkt_line):  # noqa: F811
     if not pkt_line:
         return
 
-    msg = Message(gwy, Packet.from_file(gwy, pkt_line[:26], pkt_line[27:]))
+    pkt = Packet.from_file(gwy, pkt_line[:26], pkt_line[27:])
+    msg = Message(gwy, pkt)
+
+    # assert bool(msg._is_fragment) == pkt._is_fragment
+    # assert bool(msg._idx): dict == pkt._idx: Optional[bool | str]  # not useful
 
     if not pkt_dict:
         return
@@ -48,12 +52,10 @@ def _proc_log_line(gwy, pkt_line):  # noqa: F811
         assert msg.payload == pkt_dict
         return
 
-    assert HAS_ARRAY not in pkt_dict or msg._has_array == pkt_dict[HAS_ARRAY]
-    assert HAS_IDX not in pkt_dict or msg._pkt._idx == pkt_dict[HAS_IDX]
-    assert HAS_PAYLOAD not in pkt_dict or msg._has_payload == pkt_dict[HAS_PAYLOAD]
-    assert (
-        IS_FRAGMENT not in pkt_dict or bool(msg._is_fragment) == pkt_dict[IS_FRAGMENT]
-    )
+    assert HAS_ARRAY not in pkt_dict or pkt._has_array == pkt_dict[HAS_ARRAY]
+    assert HAS_IDX not in pkt_dict or pkt._idx == pkt_dict[HAS_IDX]
+    assert HAS_PAYLOAD not in pkt_dict or pkt._has_payload == pkt_dict[HAS_PAYLOAD]
+    assert IS_FRAGMENT not in pkt_dict or pkt._is_fragment == pkt_dict[IS_FRAGMENT]
 
 
 def test_parsers_from_log_files(gwy, f_name):  # noqa: F811

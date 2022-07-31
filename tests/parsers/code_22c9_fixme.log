@@ -1,5 +1,5 @@
 # HVAC: 42:250708 was originally 02:250708
-2022-07-28T13:25:49.882528 072  I --- 21:064743 --:------ 21:064743 22C9 006 0007D0083402                                      # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
+# 22-07-28T13:25:49.882528 072  I --- 21:064743 --:------ 21:064743 22C9 006 0007D0083402                                      # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
 # 22-07-28T13:25:49.956834 073  W --- 21:064743 42:250708 --:------ 22C9 006 0307D0083402                                      # {"has_array": False, "has_idx": True , "has_payload": True , "is_fragment": False}
 # 22-07-28T13:25:50.012515 045  I --- 42:250708 21:064743 --:------ 22C9 008 0307D07FFF020203                                  # {"has_array": False, "has_idx": True , "has_payload": True , "is_fragment": False}
 
@@ -8,11 +8,11 @@
 # 22-07-28T13:25:50.012515 045  I --- 42:250708 21:064743 --:------ 22C9 008 0307D07FFF020203                                  # {'temp_low': 20.0, 'temp_high': None, '_unknown_0': '01', '_unknown_1': '0203'}
 
 # Heat
-# 21-05-23T06:14:59.344648 059  I --- 02:044446 --:------ 02:044446 22C9 024 00076C0A280101076C0A28010205DC0A28010305DC0A2801  # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }
-# 21-05-23T06:15:00.318107 059  I --- 02:044446 --:------ 02:044446 22C9 006 04076C0A2801                                      # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }
+2021-05-23T06:14:59.344648 059  I --- 02:044446 --:------ 02:044446 22C9 024 00076C0A280101076C0A28010205DC0A28010305DC0A2801  # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }
+2021-05-23T06:15:00.318107 059  I --- 02:044446 --:------ 02:044446 22C9 006 04076C0A2801                                      # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }
 
 # HVAC
-2022-02-14T23:56:55.172217 071  I --- 21:038682 --:------ 21:038682 22C9 006 000802086601                                      # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
+# 22-02-14T23:56:55.172217 071  I --- 21:038682 --:------ 21:038682 22C9 006 000802086601                                      # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
 2022-02-14T23:56:55.172217 071  I --- 21:038682 --:------ 21:038682 22C9 006 000802086601                                      # {'temp_low': 20.5, 'temp_high': 21.5, '_unknown_0': '01'}
 
 # Heat

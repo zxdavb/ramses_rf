@@ -1,0 +1,4 @@
+2020-01-20T15:10:12.744144 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF  # {"has_array": True , "has_idx": True , "has_payload": True , "is_fragment": False}
+
+2020-08-31T15:06:34.131590 045  I --- 01:145038 --:------ 01:145038 0009 006 FC01FFF901FF  # [{'domain_id': 'FC', 'failsafe_enabled': True , 'unknown_0': 'FF'}, {'domain_id': 'F9', 'failsafe_enabled': True , 'unknown_0': 'FF'}]
+2020-09-02T15:50:08.981931 061  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF  # [{'domain_id': 'FC', 'failsafe_enabled': False, 'unknown_0': 'FF'}, {'domain_id': 'F9', 'failsafe_enabled': False, 'unknown_0': 'FF'}]

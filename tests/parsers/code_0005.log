@@ -1,0 +1,8 @@
+# These have a Complex Index, so: "has_idx": False - strictly, there are arrays, but arrays are vanishingly rare (see 34:, below)
+2020-01-21T08:20:51.569738 045  I --- 01:145038 --:------ 01:145038 0005 004 0000FF03                  # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
+2021-01-25T23:28:18.432435 054 RP --- 01:037519 18:140805 --:------ 0005 004 000C0000                  # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
+2021-01-23T19:10:53.282939 055 RP --- 01:037519 30:185469 --:------ 0005 004 000E0300                  # {"has_array": False, "has_idx": False, "has_payload": True , "is_fragment": False}
+
+# Theses are from a RND - they have arrays(!), so: "has_idx": True (as has array)
+2021-04-22T21:49:40.669819 070  I --- 34:021943 --:------ 34:021943 0005 012 000A0000000F000000100000  # {"has_array": True , "has_idx": True , "has_payload": True , "is_fragment": False}
+2021-04-22T21:49:40.669819 070  I --- 34:021943 --:------ 34:021943 0005 012 000A0000000F000000100000  # [{'zone_type': '0A', 'zone_mask': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'zone_class': 'zone_valve'}, {'zone_type': '0F', 'zone_mask': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'zone_class': 'appliance_control'}, {'zone_type': '10', 'zone_mask': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'zone_class': 'remote_gateway'}]
