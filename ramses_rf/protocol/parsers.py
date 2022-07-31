@@ -1372,8 +1372,15 @@ def parser_22b0(payload, msg) -> dict:
 
 @parser_decorator  # ufh_setpoint, TODO: max length = 24?
 def parser_22c9(payload, msg) -> list:
+    # .I --- 02:001107 --:------ 02:001107 22C9 024 00-0834-0A28-01-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
+    # .I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
+
+    # .I --- 21:064743 --:------ 21:064743 22C9 006 00-07D0-0834-02
+    # .W --- 21:064743 02:250708 --:------ 22C9 006 03-07D0-0834-02
+    # .I --- 02:250708 21:064743 --:------ 22C9 008 03-07D0-7FFF-02-02-03
+
     def _parser(seqx) -> dict:
-        assert seqx[10:] == "01", f"is {seqx[10:]}, expecting 01"
+        assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01/02"
 
         return {
             "temp_low": temp_from_hex(seqx[2:6]),
@@ -1390,15 +1397,27 @@ def parser_22c9(payload, msg) -> list:
             for i in range(0, len(payload), 12)
         ]
 
-    return _parser(payload)
+    return _parser(payload[:12])  # TODO: [12:]
 
 
 @parser_decorator  # unknown_22d0, HVAC system switch?
 def parser_22d0(payload, msg) -> dict:
 
-    assert payload == "00000002", _INFORM_DEV_MSG
+    # 2020-03-02T19:20:02.716392 056  I --- 02:001107 --:------ 02:001107 22D0 004 00000002          # an UFC
+
+    # 2022-07-28T13:25:40.196523 074  W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020
+    # 2022-07-28T13:25:40.237555 045  I --- 02:250708 21:064743 --:------ 22D0 004 03130000
+    # 2022-07-28T13:25:40.642563 045  I --- 02:250708 --:------ 02:250708 22D0 004 00130000          # sends 3x, 1s apart
+
+    assert payload in (
+        "00000002",
+        "00130000",
+        "03130000",
+        "0314001E14030020",
+    ), _INFORM_DEV_MSG
 
     return {
+        "idx": payload[:2],
         SZ_PAYLOAD: payload[2:],
     }
 
@@ -1481,7 +1500,7 @@ def parser_22f1(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # switch_boost, HVAC
+@parser_decorator  # fan_boost, HVAC
 def parser_22f3(payload, msg) -> dict:
     # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
     # .I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
@@ -1492,7 +1511,7 @@ def parser_22f3(payload, msg) -> dict:
 
     # NOTE: for boost timer for high
     try:
-        assert payload[2:4] in ("00", "02"), f"byte 1: {flag8(payload[2:4])}"
+        # assert payload[2:4] in ("00", "02", "12", "x52"), f"byte 1: {flag8(payload[2:4])}"
         assert msg.len <= 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
@@ -2386,7 +2405,10 @@ def parser_3ef1(payload, msg) -> dict:
 @parser_decorator  # timestamp, HVAC
 def parser_4401(payload, msg) -> dict:
 
-    assert payload[:4] == "1000", _INFORM_DEV_MSG
+    if msg.verb == RP:
+        return {}
+
+    # assert payload[:4] == "1000", _INFORM_DEV_MSG
     # assert payload[24:] == "0000000000000063", _INFORM_DEV_MSG
 
     return {
@@ -2395,6 +2417,21 @@ def parser_4401(payload, msg) -> dict:
         "xxxxx_13": f"0x{payload[22:24]}",
         "epoch_13": f"0x{payload[26:34]}",
     }  # epoch are in seconds
+
+
+@parser_decorator  # hvac_4e01
+def parser_4e01(payload, msg) -> dict:
+    return {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
+
+
+@parser_decorator  # hvac_4e02
+def parser_4e02(payload, msg) -> dict:
+
+    return (
+        {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
+        | {"val_34": payload[34:36]}
+        | {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(36, 68, 4)}
+    )
 
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
