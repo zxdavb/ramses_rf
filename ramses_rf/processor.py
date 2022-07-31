@@ -221,7 +221,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
     # All methods require a valid message (payload), except create_devices(), which
     # requires a valid message only for 000C.
 
-    def detect_array_fragment(this, prev) -> dict:
+    def detect_array_fragment(this, prev) -> dict:  # _PayloadT
         """Return complete array if this pkt is the latter half of an array."""
         # This will work, even if the 2nd pkt._is_array == False as 1st == True
         # .I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
