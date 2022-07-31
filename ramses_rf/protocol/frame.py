@@ -180,8 +180,8 @@ class Frame:
             return f"{self!r} < {exc}"
 
     @property
-    def _has_array(self) -> None | bool:
-        """Return the True if the packet payload is an array, False if not.
+    def _has_array(self) -> None | bool:  # TODO: a mess - has false negatives
+        """Return the True if the payload is an array, False otherwise.
 
         May return false negatives (e.g. arrays of length 1), and None if undetermined.
 
@@ -204,18 +204,24 @@ class Frame:
         elif self.verb != I_ or self.code not in CODES_WITH_ARRAYS:
             self._has_array_ = False
 
-        elif self._len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
-            self._has_array_ = False
-            if (
-                self.code in (Code._22C9, Code._3150)  # only time 22C9 is seen
-                and self.src.type == DEV_TYPE_MAP.UFC
-                and self.dst is self.src
-                and self.payload[:1] != "F"
-            ):
-                self._has_array_ = True
+        elif self._len != CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
+            a, b = divmod(self._len, CODES_WITH_ARRAYS[self.code][0])
+            self._has_array_ = a > 0 and b == 0
+
+        elif (
+            self.code in (Code._22C9, Code._3150)
+            and self.src.type == DEV_TYPE_MAP.UFC
+            and self.dst is self.src
+            and self.payload[:1] != "F"
+        ):
+            self._has_array_ = True
 
         else:
+            self._has_array_ = False
+
+        if self._has_array_:
             len_ = CODES_WITH_ARRAYS[self.code][0]
+
             assert (
                 self._len % len_ == 0
             ), f"{self} < array has length ({self._len}) that is not multiple of {len_}"
@@ -227,7 +233,6 @@ class Frame:
                 self.src.type not in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2)
                 or self.dst.id == NON_DEV_ADDR.id  # DEX
             ), f"{self} < array is from a non-controller (02)"
-            self._has_array_ = True
 
         # .I --- 10:040239 01:223036 --:------ 0009 003 000000        # not array
         # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
@@ -315,8 +320,14 @@ class Frame:
         return self._has_ctl_
 
     @property
+    def _has_idx(self) -> bool:
+        """Return True if the payload has an index (or has an array), False otherwise."""
+
+        return self._idx is not False
+
+    @property
     def _has_payload(self) -> bool:
-        """Return True if the packet has a non-null payload, and False otherwise.
+        """Return True if the packet has a non-null payload, False otherwise.
 
         May return false positives. The payload may still have an idx.
         """
@@ -342,6 +353,18 @@ class Frame:
         self._ctx_ = None  # type: ignore[assignment]
         self._hdr_ = None  # type: ignore[assignment]
         self._idx_ = None  # type: ignore[assignment]
+
+    @property
+    def _is_fragment(self) -> bool:
+        """Return True is the payload *could* be a fragment, False otherwise."""
+        # .I 036 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8  # max 2 zones
+
+        return (
+            self.code in (Code._000A, Code._22C9)
+            and self.verb == I_
+            and self.src is self.dst
+            # and self._has_array  # not needed
+        ) or (self.code == Code._0404 and self.verb in (I_, RP))
 
     @property
     def _ctx(self) -> bool | str:  # incl. self._idx
@@ -386,6 +409,7 @@ class Frame:
         return self._idx_
 
 
+# TODO: a mess - has false negatives
 def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     """Return the payload's 2-byte context (e.g. zone_idx, domain_id or log_idx).
 
@@ -463,6 +487,9 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
         # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
         # 23:    0009|10A0
         return pkt.payload[:2]  # tcs._max_zones checked elsewhere
+
+    # if pkt.code in (Code._31D9,):
+    #     return pkt.payload[:2]
 
     if pkt.payload[:2] != "00":
         raise InvalidPayloadError(
