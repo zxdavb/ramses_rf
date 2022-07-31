@@ -362,15 +362,15 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         I_: r"^(0[0-9A-F]{13}){1,2}$",
     },  # TODO: This could be an array
     Code._22C9: {  # ufh_setpoint
-        # .I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
-        # .I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
         SZ_NAME: "ufh_setpoint",
-        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}$",  # ~000A array, but max_len 24, not 48!
+        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0203)?$",  # ~000A array, but max_len 24, not 48!
+        W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # ~000A array, but max_len 24, not 48!
         # RP: Appear wont get any?,
     },
     Code._22D0: {  # unknown_22d0, HVAC system switch?
         SZ_NAME: "message_22d0",
-        I_: r"^00",
+        I_: r"^(00|03)",
+        W_: r"^03",
     },
     Code._22D9: {  # boiler_setpoint
         SZ_NAME: "boiler_setpoint",
@@ -571,7 +571,22 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     Code._4401: {  # unknown_4401 - HVAC
         SZ_NAME: "unknown_4401",
         I_: r"^[0-9A-F]{40}$",
-        RQ: r"^[0-9A-F]{40}$",  # NOTE: no RP!
+        RP: r"^00$",
+        RQ: r"^[0-9A-F]{40}$",
+        W_: r"^[0-9A-F]{40}$",
+    },
+    Code._4E01: {  # hvac_4e01 - HVAC
+        SZ_NAME: "hvac_4e01",
+        I_: r"^00([0-9A-F]{4}){8}00$",
+    },
+    Code._4E02: {  # hvac_4e02 - HVAC
+        SZ_NAME: "hvac_4e02",
+        I_: r"^00([0-9A-F]{4}){8}02([0-9A-F]{4}){8}$",
+    },
+    Code._4E04: {  # hvac_4e04 - HVAC
+        SZ_NAME: "hvac_4e04",
+        I_: r"^00(00FF|01FE)$",
+        W_: r"^00(00FF|01FE)$",
     },
     Code._PUZZ: {
         SZ_NAME: "puzzle_packet",
@@ -590,7 +605,7 @@ CODES_WITH_ARRAYS: dict[Code, list] = {
     Code._2309: [3, ("01", "12", "22")],
     Code._30C9: [3, ("01", "12", "22")],
     Code._2249: [7, ("23",)],
-    Code._22C9: [6, ("02",)],  # *all* 22C9s are arrays (every 15min?)
+    Code._22C9: [6, ("02",)],
     Code._3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
 #
@@ -636,7 +651,9 @@ CODE_IDX_SIMPLE: list[Code] = [
         or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
     )
 ]
-CODE_IDX_SIMPLE.extend((Code._10A0, Code._1260, Code._1F41, Code._3B00))
+CODE_IDX_SIMPLE.extend(
+    (Code._10A0, Code._1260, Code._1F41, Code._22D0, Code._31D9, Code._3B00)
+)
 # CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
