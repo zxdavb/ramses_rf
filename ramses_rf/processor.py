@@ -27,7 +27,11 @@ from .protocol import (
     InvalidPacketError,
     Message,
 )
-from .protocol.ramses import CODES_HEAT_ONLY, CODES_HVAC_ONLY
+from .protocol.ramses import (
+    CODES_OF_HEAT_DOMAIN_ONLY,
+    CODES_OF_HVAC_DOMAIN,
+    CODES_OF_HVAC_DOMAIN_ONLY,
+)
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -100,9 +104,9 @@ def _check_msg_addrs(msg: Message) -> None:
         # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
         # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
         # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
-        if msg.code in CODES_HEAT_ONLY:
+        if msg.code in CODES_OF_HEAT_DOMAIN_ONLY:
             raise InvalidAddrSetError(f"Invalid src/dst addr pair: {msg.src}/{msg.dst}")
-        elif msg.code not in CODES_HVAC_ONLY:
+        elif msg.code not in CODES_OF_HVAC_DOMAIN:
             _LOGGER.warning(
                 f"{msg!r} < Invalid src/dst addr pair: {msg.src}/{msg.dst}, is it HVAC?"
             )
@@ -121,7 +125,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
         return
 
     if slug not in CODES_BY_DEV_SLUG:
-        if msg.code != Code._10E0 and msg.code not in CODES_HVAC_ONLY:
+        if msg.code != Code._10E0 and msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
             err_msg = f"Unknown src type: {msg.dst}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -173,7 +177,7 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         return
 
     if slug not in CODES_BY_DEV_SLUG:
-        if msg.code not in CODES_HVAC_ONLY:
+        if msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
             err_msg = f"Unknown dst type: {msg.dst}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)

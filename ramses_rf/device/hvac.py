@@ -40,7 +40,7 @@ from ..entity_base import class_by_attr
 from ..helpers import shrink
 from ..protocol import Address, Message
 from ..protocol.command import Command
-from ..protocol.ramses import CODES_HVAC_ONLY, HVAC_KLASS_BY_VC_PAIR
+from ..protocol.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
 from .base import BatteryState, Device, DeviceHvac, Fakeable
 
@@ -459,7 +459,7 @@ def class_dev_hvac(
     if klass := HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
         return HVAC_CLASS_BY_SLUG[klass]
 
-    if msg.code in CODES_HVAC_ONLY:
+    if msg.code in CODES_OF_HVAC_DOMAIN_ONLY:
         return DeviceHvac
 
     raise TypeError(f"No HVAC class for: {dev_addr} (insufficient meta-data)")

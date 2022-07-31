@@ -50,7 +50,11 @@ from ..protocol.opentherm import (
     VALUE,
     OtMsgType,
 )
-from ..protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
+from ..protocol.ramses import (
+    CODES_OF_HEAT_DOMAIN_ONLY,
+    CODES_ONLY_FROM_CTL,
+    CODES_SCHEMA,
+)
 from ..schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from .base import BatteryState, Device, DeviceHeat, Fakeable
 
@@ -1421,7 +1425,7 @@ def class_dev_heat(
     if not eavesdrop:
         raise TypeError(f"No CH/DHW class for: {dev_addr} (no eavesdropping)")
 
-    if msg and msg.code in CODES_HEAT_ONLY:
+    if msg and msg.code in CODES_OF_HEAT_DOMAIN_ONLY:
         return DeviceHeat
 
     raise TypeError(f"No CH/DHW class for: {dev_addr} (unknown type: {dev_addr.type})")

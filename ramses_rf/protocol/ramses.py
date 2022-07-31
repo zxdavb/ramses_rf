@@ -979,6 +979,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
     DEV_TYPE.FAN: {
         Code._0001: {RP: {}},
         Code._042F: {I_: {}},
+        Code._10D0: {I_: {}, RP: {}},
         Code._10E0: {I_: {}, RP: {}},
         Code._1298: {I_: {}},
         Code._12A0: {I_: {}},
@@ -1042,34 +1043,28 @@ CODES_BY_DEV_SLUG: dict[str, dict] = {
     **{k: v for k, v in _DEV_KLASSES_HEAT.items() if k is not None},
 }
 
-_CODES_EXCLUDED: tuple[Code, ...] = (
-    Code._0001,
-    Code._0002,
-    Code._000E,
-    Code._0016,
-    Code._0100,
-    Code._0150,
-    Code._01D0,
-    Code._01E9,
-    Code._0B04,
-    Code._10E0,
-    Code._1FC9,
+CODES_OF_HEAT_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
+    tuple(set(c for k in _DEV_KLASSES_HEAT.values() for c in k))
+    + (Code._22F8, Code._4401, Code._4E01, Code._4E02, Code._4E04)
 )
-_CODES_HEAT: tuple[Code] = tuple(  # type: ignore[assignment]
-    dict.fromkeys(
-        c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLUDED
-    )
+CODES_OF_HVAC_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
+    tuple(set(c for k in _DEV_KLASSES_HVAC.values() for c in k))
+    + (Code._0B04, Code._2389)
 )
-_CODES_HVAC: tuple[Code] = tuple(  # type: ignore[assignment]
-    dict.fromkeys(
-        c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in _CODES_EXCLUDED
-    )
+CODES_OF_HEAT_DOMAIN_ONLY: tuple[Code, ...] = tuple(
+    c for c in sorted(CODES_OF_HEAT_DOMAIN) if c not in CODES_OF_HVAC_DOMAIN
 )
-CODES_HEAT_ONLY: tuple[Code, ...] = tuple(
-    c for c in _CODES_HEAT if c not in _CODES_HVAC
+CODES_OF_HVAC_DOMAIN_ONLY: tuple[Code, ...] = tuple(
+    c for c in sorted(CODES_OF_HVAC_DOMAIN) if c not in CODES_OF_HEAT_DOMAIN
 )
-CODES_HVAC_ONLY: tuple[Code, ...] = tuple(
-    c for c in _CODES_HVAC if c not in _CODES_HEAT
+_CODES_OF_BOTH_DOMAINS: tuple[Code, ...] = sorted(
+    tuple(set(CODES_OF_HEAT_DOMAIN) & set(CODES_OF_HVAC_DOMAIN))
+)
+_CODES_OF_EITHER_DOMAIN: tuple[Code, ...] = sorted(
+    tuple(set(CODES_OF_HEAT_DOMAIN) | set(CODES_OF_HVAC_DOMAIN))
+)
+_CODES_OF_NO_DOMAIN: tuple[Code, ...] = tuple(
+    c for c in CODES_SCHEMA if c not in _CODES_OF_EITHER_DOMAIN
 )
 
 _CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
