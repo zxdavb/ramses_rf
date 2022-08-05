@@ -3,7 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the Command.put_*, Command.set_* APIs.
+Test the RAMSES II schema.
 """
 
 from ramses_rf import RQ
