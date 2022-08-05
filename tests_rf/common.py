@@ -54,6 +54,8 @@ rf_test_failed = False  # global
 
 
 def abort_if_rf_test_fails(fnc):
+    """Abort all remaining RF tests once any RF test fails."""
+
     async def check_serial_port(*args, **kwargs):
         global rf_test_failed
         if rf_test_failed:
@@ -79,21 +81,20 @@ def find_test_tcs(gwy: Gateway) -> System:
     return systems[0] if systems else gwy.system_by_id["01:000730"]
 
 
-async def load_test_gwy_alt(config_file: str, **kwargs) -> Gateway:
+async def load_test_gwy(config_file: str, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    config = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(config_file) as f:
-            config = json.load(f)
+            config.update(json.load(f))
     except FileNotFoundError:
-        config = {}
+        pass
 
-    if config:
-        kwargs.update(config)
+    config = SCH_GLOBAL_CONFIG(config)
 
-    gwy = Gateway(SERIAL_PORT, **kwargs)
+    gwy = Gateway(SERIAL_PORT, **config)
     await gwy.start(start_discovery=False)  # may: SerialException
 
     if hasattr(

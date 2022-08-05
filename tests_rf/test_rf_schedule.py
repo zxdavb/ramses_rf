@@ -23,7 +23,7 @@ from tests_rf.common import (
     TEST_DIR,
     abort_if_rf_test_fails,
     find_test_tcs,
-    load_test_gwy_alt,
+    load_test_gwy,
 )
 from tests_rf.mock import MOCKED_PORT
 
@@ -124,7 +124,7 @@ async def test_rq_0006():
         assert version == tcs._msgs[Code._0006].payload["change_counter"]
         return version
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     # gwy.config.disable_sending = False
@@ -154,7 +154,7 @@ async def test_rq_0404_dhw():  # Needs mocking
     if SERIAL_PORT == MOCKED_PORT:
         return
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
@@ -166,7 +166,7 @@ async def test_rq_0404_dhw():  # Needs mocking
 @abort_if_rf_test_fails
 async def test_rq_0404_zone():
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.zones:
@@ -178,7 +178,7 @@ async def test_rq_0404_zone():
 @abort_if_rf_test_fails
 async def _test_ww_0404_dhw():
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
@@ -190,7 +190,7 @@ async def _test_ww_0404_dhw():
 @abort_if_rf_test_fails
 async def _test_ww_0404_zone():
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.zones:

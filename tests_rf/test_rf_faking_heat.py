@@ -15,7 +15,7 @@ from tests_rf.common import (
     Gateway,
     abort_if_rf_test_fails,
     find_test_tcs,
-    load_test_gwy_alt,
+    load_test_gwy,
 )
 from tests_rf.mock import MOCKED_PORT
 
@@ -34,7 +34,7 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
@@ -75,7 +75,7 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 @abort_if_rf_test_fails
 async def test_zon_sensor_unfaked():  # I/30C9
 
-    gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
     _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
