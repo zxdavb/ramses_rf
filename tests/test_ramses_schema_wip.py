@@ -23,6 +23,11 @@ from ramses_rf.protocol.ramses import (
 )
 
 
+def test_code_count():  # TODO make ==, not >=
+    assert len(Code) >= len(CODES_SCHEMA)
+    assert not [c for c in CODES_SCHEMA if c not in Code]
+
+
 def test_verb_code_pairs():
     """Verb/code pairs are used to detect HVAC device classes: they should be unique."""
 
