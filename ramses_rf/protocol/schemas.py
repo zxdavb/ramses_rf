@@ -75,39 +75,60 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[str, vol.Schema]:
 
 #
 # 2/5: Serial port configuration
+SZ_PORT_CONFIG = "port_config"
+SZ_PORT_NAME = "port_name"
+SZ_SERIAL_PORT = "serial_port"
+
 SZ_BAUDRATE = "baudrate"
 SZ_DSRDTR = "dsrdtr"
 SZ_RTSCTS = "rtscts"
 SZ_TIMEOUT = "timeout"
 SZ_XONXOFF = "xonxoff"
 
-SZ_PORT_CONFIG = "port_config"
 
-SCH_SERIAL_PORT_CONFIG_DICT = {
-    vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
-        vol.Coerce(int), vol.Any(57600, 115200)
-    ),  # NB: HGI80 does not work, except at 115200 - so must be default
-    vol.Optional(SZ_DSRDTR, default=False): bool,
-    vol.Optional(SZ_RTSCTS, default=False): bool,
-    vol.Optional(SZ_TIMEOUT, default=0): vol.Any(None, int),  # TODO: default None?
-    vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
-}
-SCH_SERIAL_PORT_CONFIG = vol.Schema(
-    SCH_SERIAL_PORT_CONFIG_DICT, extra=vol.PREVENT_EXTRA
-)
+def sch_serial_port_dict_factory() -> dict[str, vol.Schema]:
+    """Return a serial port dict."""
 
-SZ_PORT_NAME = "port_name"
-SCH_SERIAL_PORT_NAME = str
+    # SCH_SERIAL_PORT = vol.Schema(
+    #     sch_serial_port_dict_factory(), extra=vol.PREVENT_EXTRA
+    # )
 
-SZ_SERIAL_PORT = "serial_port"
-SCH_SERIAL_PORT_DICT = {
-    vol.Required(SZ_SERIAL_PORT): vol.Any(
-        SCH_SERIAL_PORT_NAME,
-        SCH_SERIAL_PORT_CONFIG.extend(
-            {vol.Required(SZ_PORT_NAME): SCH_SERIAL_PORT_NAME}
-        ),
+    def NormaliseSerialPort():
+        def normalise_serial_port(node_value: str | dict) -> dict:
+            if isinstance(node_value, str):
+                return {SZ_PORT_NAME: node_value}
+            return node_value
+
+        return normalise_serial_port
+
+    SCH_SERIAL_PORT_CONFIG = vol.Schema(
+        {
+            vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
+                vol.Coerce(int), vol.Any(57600, 115200)
+            ),  # NB: HGI80 does not work, except at 115200 - so must be default
+            vol.Optional(SZ_DSRDTR, default=False): bool,
+            vol.Optional(SZ_RTSCTS, default=False): bool,
+            vol.Optional(SZ_TIMEOUT, default=0): vol.Any(
+                None, int
+            ),  # TODO: default None?
+            vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
+        },
+        extra=vol.PREVENT_EXTRA,
     )
-}
+
+    SCH_SERIAL_PORT_NAME = str
+
+    return {  # SCH_SERIAL_PORT_DICT
+        vol.Required(SZ_SERIAL_PORT): vol.Any(
+            vol.All(
+                SCH_SERIAL_PORT_NAME,
+                NormaliseSerialPort(),
+            ),
+            SCH_SERIAL_PORT_CONFIG.extend(
+                {vol.Required(SZ_PORT_NAME): SCH_SERIAL_PORT_NAME}
+            ),
+        )
+    }
 
 
 def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict]:

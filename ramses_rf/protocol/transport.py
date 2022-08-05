@@ -48,14 +48,7 @@ from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
-from .schemas import (
-    SCH_SERIAL_PORT_CONFIG,
-    SZ_BLOCK_LIST,
-    SZ_INBOUND,
-    SZ_KNOWN_LIST,
-    SZ_OUTBOUND,
-    SZ_USE_REGEX,
-)
+from .schemas import SZ_BLOCK_LIST, SZ_INBOUND, SZ_KNOWN_LIST, SZ_OUTBOUND, SZ_USE_REGEX
 from .version import VERSION
 
 # TODO: switch dtm from naive to aware
@@ -951,8 +944,6 @@ def create_pkt_stack(
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
-
-        ser_config = SCH_SERIAL_PORT_CONFIG(ser_config)
 
         try:
             ser_obj = serial_for_url(ser_name, **ser_config)

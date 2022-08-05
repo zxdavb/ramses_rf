@@ -14,8 +14,8 @@ import yaml
 from ramses_rf.protocol.schemas import (
     SCH_ENGINE_DICT,
     SCH_GLOBAL_TRAITS_DICT,
-    SCH_SERIAL_PORT_DICT,
     sch_packet_log_dict_factory,
+    sch_serial_port_dict_factory,
 )
 from ramses_rf.schemas import (
     SCH_GATEWAY_DICT,
@@ -24,6 +24,7 @@ from ramses_rf.schemas import (
 )
 
 SCH_PACKET_LOG_DICT = sch_packet_log_dict_factory(default_backups=7)
+SCH_SERIAL_PORT_DICT = sch_serial_port_dict_factory()
 
 SCH_GATEWAY = vol.Schema(SCH_GATEWAY_DICT | SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
 SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
@@ -94,7 +95,7 @@ def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
         pass
     else:
         test_schemas_bad_failed = True
-        raise TypeError(f"should *not* be valid YAML, but is: {schema}")
+        raise TypeError(f"should *not* be valid YAML, but parsed OK: {schema}")
 
 
 def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
@@ -103,7 +104,7 @@ def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
         _test_schema(validator, schema)
     except (vol.MultipleInvalid, yaml.YAMLError) as exc:
         test_schemas_good_failed = True
-        raise TypeError(f"should be valid YAML, but isn't ({exc}): {schema}")
+        raise TypeError(f"should be valid YAML, but didn't parse OK ({exc}): {schema}")
 
 
 GATEWAY_BAD = (
