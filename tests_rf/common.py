@@ -38,7 +38,7 @@ logging.disable(logging.WARNING)  # usu. WARNING
 TEST_DIR = Path(__file__).resolve().parent
 
 if ports := [
-    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyUSB", "ttyACM")
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
 ]:
     from ramses_rf import Gateway
 
