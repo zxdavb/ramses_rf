@@ -32,7 +32,7 @@ from ramses_rf.protocol.schemas import (
     SZ_SERIAL_PORT,
 )
 from ramses_rf.schemas import (
-    SCH_GLOBAL_GATEWAY,
+    SCH_GLOBAL_CONFIG,
     SZ_CONFIG,
     SZ_DISABLE_DISCOVERY,
     SZ_ENABLE_EAVESDROP,
@@ -90,8 +90,8 @@ COLORS = {
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-LIB_KEYS = tuple(SCH_GLOBAL_GATEWAY({}).keys()) + (SZ_SERIAL_PORT,)
-LIB_CFG_KEYS = tuple(SCH_GLOBAL_GATEWAY({})[SZ_CONFIG].keys()) + (SZ_EVOFW_FLAG,)
+LIB_KEYS = tuple(SCH_GLOBAL_CONFIG({}).keys()) + (SZ_SERIAL_PORT,)
+LIB_CFG_KEYS = tuple(SCH_GLOBAL_CONFIG({})[SZ_CONFIG].keys()) + (SZ_EVOFW_FLAG,)
 
 
 def normalise_config(lib_config: dict) -> tuple[str, dict]:

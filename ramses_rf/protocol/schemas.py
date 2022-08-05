@@ -21,56 +21,67 @@ if DEV_MODE:
 
 
 #
-# Packet log configuration
-def NormalisePacketLog():
-    def normalise_packet_log(node_value: str | dict) -> dict:
-        if isinstance(node_value, str):
-            return {
-                SZ_FILE_NAME: node_value,
-                SZ_ROTATE_BACKUPS: 0,
-                SZ_ROTATE_BYTES: None,
-            }
-        return node_value
-
-    return normalise_packet_log
-
-
+# 1/5: Packet log configuration
+SZ_FILE_NAME = "file_name"
+SZ_PACKET_LOG = "packet_log"
 SZ_ROTATE_BACKUPS = "rotate_backups"
 SZ_ROTATE_BYTES = "rotate_bytes"
 
-SCH_PACKET_LOG_CONFIG_DICT = {
-    vol.Optional(SZ_ROTATE_BACKUPS, default=0): vol.Any(None, int),
-    vol.Optional(SZ_ROTATE_BYTES): vol.Any(None, int),
-}
-SCH_PACKET_LOG_CONFIG = vol.Schema(SCH_PACKET_LOG_CONFIG_DICT, extra=vol.PREVENT_EXTRA)
 
-SZ_FILE_NAME = "file_name"
-SCH_PACKET_LOG_NAME = str
+def sch_packet_log_dict_factory(default_backups=0) -> dict[str, vol.Schema]:
+    """Return a packet log dict with a configurable default rotation policy."""
 
-SZ_PACKET_LOG = "packet_log"
-SCH_PACKET_LOG_DICT = {
-    vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
-        None,
-        vol.All(SCH_PACKET_LOG_NAME, NormalisePacketLog()),
-        SCH_PACKET_LOG_CONFIG.extend({vol.Required(SZ_FILE_NAME): SCH_PACKET_LOG_NAME}),
+    # SCH_PACKET_LOG_7 = vol.Schema(
+    #     packet_log_dict_factory(default_backups=7), extra=vol.PREVENT_EXTRA
+    # )
+
+    def NormalisePacketLog(rotate_backups=0):
+        def normalise_packet_log(node_value: str | dict) -> dict:
+            if isinstance(node_value, str):
+                return {
+                    SZ_FILE_NAME: node_value,
+                    SZ_ROTATE_BACKUPS: rotate_backups,
+                    SZ_ROTATE_BYTES: None,
+                }
+            return node_value
+
+        return normalise_packet_log
+
+    SCH_PACKET_LOG_CONFIG = vol.Schema(
+        {
+            vol.Optional(SZ_ROTATE_BACKUPS, default=default_backups): vol.Any(
+                None, int
+            ),
+            vol.Optional(SZ_ROTATE_BYTES): vol.Any(None, int),
+        },
+        extra=vol.PREVENT_EXTRA,
     )
-}
-SCH_PACKET_LOG = vol.Schema(SCH_PACKET_LOG_DICT, extra=vol.PREVENT_EXTRA)
+
+    SCH_PACKET_LOG_NAME = str
+
+    return {  # SCH_PACKET_LOG_DICT
+        vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
+            None,
+            vol.All(
+                SCH_PACKET_LOG_NAME,
+                NormalisePacketLog(rotate_backups=default_backups),
+            ),
+            SCH_PACKET_LOG_CONFIG.extend(
+                {vol.Required(SZ_FILE_NAME): SCH_PACKET_LOG_NAME}
+            ),
+        )
+    }
 
 
 #
-# Serial port configuration
-def extract_serial_port(ser_config: dict) -> tuple[str, dict]:
-    port_name = ser_config.get(SZ_PORT_NAME)
-    port_config = {k: v for k, v in ser_config.items() if k != SZ_PORT_NAME}
-    return port_name, port_config
-
-
+# 2/5: Serial port configuration
 SZ_BAUDRATE = "baudrate"
 SZ_DSRDTR = "dsrdtr"
 SZ_RTSCTS = "rtscts"
 SZ_TIMEOUT = "timeout"
 SZ_XONXOFF = "xonxoff"
+
+SZ_PORT_CONFIG = "port_config"
 
 SCH_SERIAL_PORT_CONFIG_DICT = {
     vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
@@ -97,11 +108,17 @@ SCH_SERIAL_PORT_DICT = {
         ),
     )
 }
-SCH_SERIAL_PORT = vol.Schema(SCH_SERIAL_PORT_DICT, extra=vol.PREVENT_EXTRA)
+
+
+def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict]:
+    """Extract a serial port, port_config_dict tuple from a sch_serial_port_dict."""
+    port_name = ser_port_dict.get(SZ_PORT_NAME)
+    port_config = {k: v for k, v in ser_port_dict.items() if k != SZ_PORT_NAME}
+    return port_name, port_config
 
 
 #
-# Traits (of devices) configuraion (basic)  # TODO: moving from ..const
+# 3/5: Traits (of devices) configuraion (basic)  # TODO: moving from ..const
 def ConvertNullToDict():
     def convert_null_to_dict(node_value) -> dict:
         if node_value is None:
@@ -174,45 +191,9 @@ SCH_GLOBAL_TRAITS_DICT = {  # Filter lists with Device traits...
         vol.All(SCH_DEVICE, vol.Length(min=0)),
     ),
 }
-SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 
 
-#
-# Engine configuration
-SZ_DISABLE_SENDING = "disable_sending"
-SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
-SZ_EVOFW_FLAG = "evofw_flag"
-SZ_USE_REGEX = "use_regex"
-
-SCH_ENGINE_DICT = {
-    vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-    vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
-    vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
-    vol.Optional(SZ_USE_REGEX): dict,
-}
-SCH_ENGINE = vol.Schema(SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
-
-SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
-SZ_OUTBOUND = "outbound"
-
-
-#
-# Global configuration for upper layer
-SZ_CONFIG = "config"
-SZ_PORT_CONFIG = "port_config"
-
-SCH_GLOBAL_ENGINE = vol.Schema(
-    {
-        vol.Optional(SZ_CONFIG, default={}): SCH_ENGINE,
-        # packet_log: is optional, serial_port: params only...
-        vol.Optional(SZ_PACKET_LOG, default=None): vol.Any(None, SCH_PACKET_LOG),
-        vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
-    },
-    extra=vol.PREVENT_EXTRA,
-).extend(SCH_GLOBAL_TRAITS_DICT)
-
-
-def select_filter_mode(
+def select_device_filter_mode(
     enforce_known_list: bool, known_list: list, block_list: list
 ) -> bool:
     """Determine which device filter to use, if any.
@@ -257,3 +238,21 @@ def select_filter_mode(
         )
 
     return enforce_known_list
+
+
+#
+# 4/5: Gateway (engine) configuration
+SZ_DISABLE_SENDING = "disable_sending"
+SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
+SZ_EVOFW_FLAG = "evofw_flag"
+SZ_USE_REGEX = "use_regex"
+
+SCH_ENGINE_DICT = {
+    vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
+    vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
+    vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
+    vol.Optional(SZ_USE_REGEX): dict,  # vol.All(ConvertNullToDict(), dict),
+}
+
+SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
+SZ_OUTBOUND = "outbound"

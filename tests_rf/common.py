@@ -10,7 +10,7 @@ from pathlib import Path
 
 from serial.tools import list_ports
 
-from ramses_rf.schemas import SCH_GLOBAL_GATEWAY
+from ramses_rf.schemas import SCH_GLOBAL_CONFIG
 from ramses_rf.system import System
 from tests_rf.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
 
@@ -59,7 +59,7 @@ def find_test_tcs(gwy: Gateway) -> System:
 async def load_test_gwy_alt(config_file: str, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_GATEWAY({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(config_file) as f:

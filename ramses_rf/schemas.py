@@ -49,21 +49,19 @@ from .protocol.schemas import (  # noqa: F401
     SCH_DEVICE_ID_UFC,
     SCH_ENGINE_DICT,
     SCH_GLOBAL_TRAITS_DICT,
-    SCH_PACKET_LOG,
-    SCH_PACKET_LOG_DICT,
     SCH_TRAITS,
     SCH_TRAITS_HEAT,
     SCH_TRAITS_HVAC,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
     SZ_CLASS,
-    SZ_CONFIG,
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_FAKED,
     SZ_KNOWN_LIST,
     SZ_PACKET_LOG,
-    select_filter_mode,
+    sch_packet_log_dict_factory,
+    select_device_filter_mode,
 )
 
 # from .systems import _SystemT  # circular import
@@ -77,8 +75,8 @@ if DEV_MODE:
 
 
 #
-# schema strings
-SZ_SCHEMA = "schema"  # system schema, i.e. Heat & HVAC
+# 0/5: Schema strings
+SZ_SCHEMA = "schema"
 SZ_MAIN_TCS = "main_tcs"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
@@ -106,22 +104,22 @@ SCH_UFH_IDX = vol.Match(r"^0[0-8]$")
 SCH_ZON_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
 
 
-def renamed(new_key):
-    def func(value):
+def ErrorRenamedKey(new_key):
+    def renamed_key(node_value):
         raise vol.Invalid(f"the key name has changed: rename it to '{new_key}'")
 
-    return func
+    return renamed_key
 
 
 #
-# 3/5: Schemas for CH/DHW systems, aka Heat/TCS (temp control systems)
+# 1/5: Schemas for CH/DHW systems, aka Heat/TCS (temp control systems)
 SCH_TCS_SYS_CLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 SCH_TCS_SYS = vol.Schema(
     {
         vol.Required(SZ_APPLIANCE_CONTROL, default=None): vol.Any(
             None, SCH_DEVICE_ID_APP
         ),
-        vol.Optional("heating_control"): renamed(SZ_APPLIANCE_CONTROL),
+        vol.Optional("heating_control"): ErrorRenamedKey(SZ_APPLIANCE_CONTROL),
         # vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SCH_TCS_SYS_CLASS),
     },
     extra=vol.PREVENT_EXTRA,
@@ -132,7 +130,7 @@ SCH_TCS_DHW = vol.Schema(
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_ID_DHW),
         vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, SCH_DEVICE_ID_BDR),
         vol.Optional(SZ_HTG_VALVE, default=None): vol.Any(None, SCH_DEVICE_ID_BDR),
-        vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
+        vol.Optional(SZ_DHW_SENSOR): ErrorRenamedKey(SZ_SENSOR),
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -161,12 +159,12 @@ SCH_TCS_ZONES_ZON = vol.Schema(
     {
         vol.Optional(SZ_CLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SCH_DEVICE_ID_SEN),
-        vol.Optional(SZ_DEVICES): renamed(SZ_ACTUATORS),
+        vol.Optional(SZ_DEVICES): ErrorRenamedKey(SZ_ACTUATORS),
         vol.Optional(SZ_ACTUATORS, default=[]): vol.All(
             [SCH_DEVICE_ID_ANY], vol.Length(min=0)
         ),
-        vol.Optional(SZ_ZONE_TYPE): renamed(SZ_CLASS),
-        vol.Optional("zone_sensor"): renamed(SZ_SENSOR),
+        vol.Optional(SZ_ZONE_TYPE): ErrorRenamedKey(SZ_CLASS),
+        vol.Optional("zone_sensor"): ErrorRenamedKey(SZ_SENSOR),
         # vol.Optional(SZ_SENSOR_FAKED): bool,
         vol.Optional(f"_{SZ_NAME}"): vol.Any(str, None),
     },
@@ -194,7 +192,7 @@ SCH_TCS = vol.Schema(
 
 
 #
-# 4/5: Schemas for Ventilation control systems, aka HVAC/VCS
+# 2/5: Schemas for Ventilation control systems, aka HVAC/VCS
 SZ_REMOTES = "remotes"
 SZ_SENSORS = "sensors"
 
@@ -226,20 +224,7 @@ SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 
 
 #
-# 5/5: Schema for Heat/HVAC systems
-def HasUniqueKeys():
-    def has_unique_keys(node_value) -> None:
-        if isinstance(node_value, dict) and (
-            not len(node_value.keys()) == len(set(node_value.keys()))
-        ):
-            raise ValueError("node keys are not unique")
-        return node_value
-
-    return has_unique_keys
-
-
-SCH_SYSTEM = vol.All({vol.Optional(SCH_DEVICE_ID_ANY): vol.Any(SCH_TCS, SCH_VCS)})
-
+# 3/5: Global Schema for Heat/HVAC systems
 SCH_GLOBAL_SCHEMAS_DICT = {  # System schemas - can be 0-many Heat/HVAC schemas
     # orphans are devices to create that wont be in a (cached) schema...
     vol.Optional(SZ_MAIN_TCS): vol.Any(None, SCH_DEVICE_ID_CTL),
@@ -253,13 +238,10 @@ SCH_GLOBAL_SCHEMAS_DICT = {  # System schemas - can be 0-many Heat/HVAC schemas
         vol.Unique([SCH_DEVICE_ID_ANY]), vol.Length(min=0)
     ),
 }
-SCH_GLOBAL_SCHEMAS = vol.All(
-    vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA), HasUniqueKeys()
-)
 
 
 #
-# Parser configuration
+# 4/5: Gateway (parser/state) configuration
 SZ_DISABLE_DISCOVERY = "disable_discovery"
 SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
 SZ_MAX_ZONES = "max_zones"  # TODO: move to TCS-attr from GWY-layer
@@ -267,7 +249,7 @@ SZ_REDUCE_PROCESSING = "reduce_processing"
 SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
 
-SCH_GATEWAY_DICT = {
+SCH_GATEWAY_DICT = SCH_ENGINE_DICT | {
     vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
     vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
     vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
@@ -279,27 +261,28 @@ SCH_GATEWAY_DICT = {
     vol.Optional(SZ_USE_ALIASES, default=False): bool,
     vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
 }
-SCH_GATEWAY = vol.Schema(SCH_GATEWAY_DICT | SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
+
 
 #
-# 5/5: the Global Schema
+# 5/5: the Global (gateway) Schema
+SZ_CONFIG = "config"
 
-SCH_GLOBAL_GATEWAY = (
+SCH_GLOBAL_CONFIG = vol.All(
     vol.Schema(
         {
             # Gateway/engine Configuraton, incl. packet_log, serial_port params...
-            vol.Optional(SZ_CONFIG, default={}): (SCH_GATEWAY_DICT | SCH_ENGINE_DICT)
+            vol.Optional(SZ_CONFIG, default={}): SCH_GATEWAY_DICT
         },
         extra=vol.PREVENT_EXTRA,
     )
-    .extend(SCH_PACKET_LOG_DICT)
     .extend(SCH_GLOBAL_SCHEMAS_DICT)
     .extend(SCH_GLOBAL_TRAITS_DICT)
+    .extend(sch_packet_log_dict_factory(default_backups=0)),
 )
 
 
 #
-# 5/5: External Schemas, to be used by clients of this library
+# 6/5: External Schemas, to be used by clients of this library
 def NormaliseRestoreCache():
     def normalise_restore_cache(node_value) -> None:
         if not isinstance(node_value, bool):
@@ -324,20 +307,10 @@ SCH_RESTORE_CACHE_DICT = {
         ),
     )
 }
-SCH_RESTORE_CACHE = vol.Schema(SCH_RESTORE_CACHE_DICT)
 
 
-# def extract_config(**kwargs) -> dict:
-#     """Return the config embedded with a global configuration."""
-#     return {
-#         k: v
-#         for k, v in kwargs.items()
-#         if not DEVICE_ID_REGEX.ANY.match(k) and k not in (
-#             SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC
-#         )
-#     }
-
-
+#
+# 6/5: Other stuff
 def extract_schema(**kwargs) -> dict:
     """Return the schema embedded with a global configuration."""
     return {
@@ -347,10 +320,21 @@ def extract_schema(**kwargs) -> dict:
         or k in (SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
     }
 
+    # def extract_config(**kwargs) -> dict:
+    #     """Return the config embedded with a global configuration."""
+    #     return {
+    #         k: v
+    #         for k, v in kwargs.items()
+    #         if not DEVICE_ID_REGEX.ANY.match(k) and k not in (
+    #             SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC
+    #         )
+    #     }
 
-# def split_configuration(**kwargs) -> tuple[dict, dict]:
-#     """Split a global configuration into non-schema (config) & schema."""
-#     return extract_config(**kwargs), extract_schema(**kwargs),
+    # def split_configuration(**kwargs) -> tuple[dict, dict]:
+    #     """Split a global configuration into non-schema (config) & schema."""
+    #     return extract_config(**kwargs), extract_schema(**kwargs),
+
+    pass
 
 
 def load_config(
@@ -389,7 +373,7 @@ def load_config(
             " for routine use (there be dragons here)"
         )
 
-    config[SZ_ENFORCE_KNOWN_LIST] = select_filter_mode(
+    config[SZ_ENFORCE_KNOWN_LIST] = select_device_filter_mode(
         config[SZ_ENFORCE_KNOWN_LIST], known_list, block_list
     )
 

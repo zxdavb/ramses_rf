@@ -38,7 +38,7 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schemas import (
-    SCH_GLOBAL_GATEWAY,
+    SCH_GLOBAL_CONFIG,
     SCH_TRAITS,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
@@ -333,7 +333,7 @@ class Gateway(Engine):
         (self.config, self._schema, self._include, self._exclude) = load_config(
             self.ser_name,
             self._input_file,
-            **SCH_GLOBAL_GATEWAY({k: v for k, v in kwargs.items() if k[:1] != "_"}),
+            **SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"}),
         )
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,

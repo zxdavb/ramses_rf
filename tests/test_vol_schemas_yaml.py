@@ -12,21 +12,26 @@ import voluptuous as vol
 import yaml
 
 from ramses_rf.protocol.schemas import (
-    SCH_ENGINE,
-    SCH_GLOBAL_TRAITS,
+    SCH_ENGINE_DICT,
     SCH_GLOBAL_TRAITS_DICT,
-    SCH_PACKET_LOG,
-    SCH_PACKET_LOG_DICT,
-    SCH_SERIAL_PORT,
     SCH_SERIAL_PORT_DICT,
+    sch_packet_log_dict_factory,
 )
 from ramses_rf.schemas import (
-    SCH_GATEWAY,
-    SCH_GLOBAL_SCHEMAS,
+    SCH_GATEWAY_DICT,
     SCH_GLOBAL_SCHEMAS_DICT,
-    SCH_RESTORE_CACHE,
     SCH_RESTORE_CACHE_DICT,
 )
+
+SCH_PACKET_LOG_DICT = sch_packet_log_dict_factory(default_backups=7)
+
+SCH_GATEWAY = vol.Schema(SCH_GATEWAY_DICT | SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
+SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
+SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
+SCH_PACKET_LOG = vol.Schema(SCH_PACKET_LOG_DICT, extra=vol.PREVENT_EXTRA)
+SCH_RESTORE_CACHE = vol.Schema(SCH_RESTORE_CACHE_DICT, extra=vol.PREVENT_EXTRA)
+SCH_SERIAL_PORT = vol.Schema(SCH_SERIAL_PORT_DICT, extra=vol.PREVENT_EXTRA)
+
 
 # TODO: These schema pass testing, but shouldn't
 
@@ -77,8 +82,8 @@ CheckForDuplicatesLoader.add_constructor(
 
 
 def _test_schema(validator: vol.Schema, schema: str) -> dict:
-    # cant use yaml.safe_load(schema): PyYAML silently swallows duplicate dict keys!
     return validator(yaml.load(schema, CheckForDuplicatesLoader))
+    # return validator(yaml.safe_load(schema))  # PyYAML silently swallows duplicate keys!
 
 
 def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
@@ -101,60 +106,6 @@ def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
         raise TypeError(f"should be valid YAML, but isn't ({exc}): {schema}")
 
 
-ENGINE_BAD = (
-    """
-    #  expected a dictionary
-    """,
-    """
-    other_key: null  # extra keys not allowed @ data['other_key']
-    """,
-    """
-    disable_sending: null
-    """,
-    """
-    evofw_flag: !V
-    """,
-    """
-    disable_sending: null
-    enforce_known_list: null
-    evofw_flag: null
-    use_regex: null
-    """,
-)
-ENGINE_GOOD = (
-    """
-    {}
-    """,
-    """
-    disable_sending: false
-    """,
-    """
-    disable_sending: false
-    enforce_known_list: false
-    evofw_flag: null
-    use_regex: {}
-    """,
-    """
-    disable_sending: true
-    enforce_known_list: true
-    evofw_flag: "!V"
-    use_regex:
-      inbound: {}
-      outbound: {}
-    """,
-)
-
-
-@pytest.mark.parametrize("index", range(len(ENGINE_BAD)))
-def test_engine_bad(index, schemas=ENGINE_BAD):
-    _test_schema_bad(SCH_ENGINE, schemas[index])
-
-
-@pytest.mark.parametrize("index", range(len(ENGINE_GOOD)))
-def test_engine_good(index, schemas=ENGINE_GOOD):
-    _test_schema_good(SCH_ENGINE, schemas[index])
-
-
 GATEWAY_BAD = (
     """
     #  expected a dictionary
@@ -167,6 +118,9 @@ GATEWAY_BAD = (
     """,
     """
     max_zones: 19
+    """,
+    """
+    use_regex:
     """,
     """
     disable_discovery: null
@@ -202,6 +156,15 @@ GATEWAY_GOOD = (
     reduce_processing: 2
     use_aliases: true
     use_native_ot: true
+    use_regex: {}
+    """,
+    """
+    disable_sending: true
+    enforce_known_list: true
+    evofw_flag: "!V"
+    use_regex:
+      inbound: {}
+      outbound: {}
     """,
 )
 
@@ -761,6 +724,12 @@ ramses_cc:
 
     orphans_hvac: [30:111111, 32:333333, 32:555555, 32:666666]
     """,
+    """
+ramses_cc:
+  serial_port: /dev/ttyACM0
+  01:123456: {}
+  01:123456: {}  # Duplicate key: 01:123456...
+    """,
 )
 SCHEMAS_HASS_GOOD = (
     """
@@ -832,10 +801,16 @@ ramses_cc:
   advanced_features:
     send_packet: true
     """,
+    """
+ramses_cc:
+  serial_port: /dev/ttyACM0
+  01:123456: {}
+  01:123457: {}
+    """,
 )
 
 
-SCH_DOMAIN_CONFIG = (  # as per ramses_cc.schemas, TODO: add advanced_features
+SCH_DOMAIN_CONFIG = vol.All(  # as per ramses_cc.schemas, TODO: add advanced_features
     vol.Schema(
         {
             vol.Optional("ramses_rf", default={}): SCH_GATEWAY,
@@ -844,12 +819,13 @@ SCH_DOMAIN_CONFIG = (  # as per ramses_cc.schemas, TODO: add advanced_features
         },
         extra=vol.PREVENT_EXTRA,
     )
-    .extend(SCH_SERIAL_PORT_DICT)
-    .extend(SCH_PACKET_LOG_DICT)
-    .extend(SCH_RESTORE_CACHE_DICT)
     .extend(SCH_GLOBAL_SCHEMAS_DICT)
     .extend(SCH_GLOBAL_TRAITS_DICT)
+    .extend(SCH_PACKET_LOG_DICT)
+    .extend(SCH_RESTORE_CACHE_DICT)
+    .extend(SCH_SERIAL_PORT_DICT),
 )
+
 SCH_GLOBAL_HASS = vol.Schema(
     {vol.Required("ramses_cc"): SCH_DOMAIN_CONFIG}, extra=vol.PREVENT_EXTRA
 )
