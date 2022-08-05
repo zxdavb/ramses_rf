@@ -13,6 +13,7 @@ from tests_rf.common import (
     SERIAL_PORT,
     TEST_DIR,
     Gateway,
+    abort_if_rf_test_fails,
     find_test_tcs,
     load_test_gwy_alt,
 )
@@ -28,6 +29,7 @@ def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
     return tcs, tcs.zone_by_idx["01"]
 
 
+@abort_if_rf_test_fails
 async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
@@ -70,6 +72,7 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 # async def test_out_sensor():  # I/0002 (outside temp, 'C)
 
 
+@abort_if_rf_test_fails
 async def test_zon_sensor_unfaked():  # I/30C9
 
     gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")

@@ -18,7 +18,13 @@ from ramses_rf.system.schedule import (
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
-from tests_rf.common import SERIAL_PORT, TEST_DIR, find_test_tcs, load_test_gwy_alt
+from tests_rf.common import (
+    SERIAL_PORT,
+    TEST_DIR,
+    abort_if_rf_test_fails,
+    find_test_tcs,
+    load_test_gwy_alt,
+)
 from tests_rf.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
@@ -111,6 +117,7 @@ async def read_schedule(zone) -> dict:
     return schedule
 
 
+@abort_if_rf_test_fails
 async def test_rq_0006():
     def assert_version(version):
         assert isinstance(version, int)
@@ -141,6 +148,7 @@ async def test_rq_0006():
     await gwy.stop()
 
 
+@abort_if_rf_test_fails
 async def test_rq_0404_dhw():  # Needs mocking
 
     if SERIAL_PORT == MOCKED_PORT:
@@ -155,6 +163,7 @@ async def test_rq_0404_dhw():  # Needs mocking
     await gwy.stop()
 
 
+@abort_if_rf_test_fails
 async def test_rq_0404_zone():
 
     gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
@@ -166,6 +175,7 @@ async def test_rq_0404_zone():
     await gwy.stop()
 
 
+@abort_if_rf_test_fails
 async def _test_ww_0404_dhw():
 
     gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")
@@ -177,6 +187,7 @@ async def _test_ww_0404_dhw():
     await gwy.stop()
 
 
+@abort_if_rf_test_fails
 async def _test_ww_0404_zone():
 
     gwy = await load_test_gwy_alt(f"{WORK_DIR}/{CONFIG_FILE}")

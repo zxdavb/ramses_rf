@@ -8,6 +8,7 @@ import logging
 import warnings
 from pathlib import Path
 
+from serial.serialutil import SerialException
 from serial.tools import list_ports
 
 from ramses_rf.schemas import SCH_GLOBAL_CONFIG
@@ -37,7 +38,7 @@ logging.disable(logging.WARNING)  # usu. WARNING
 TEST_DIR = Path(__file__).resolve().parent
 
 if ports := [
-    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyUSB", "ttyACM")
 ]:
     from ramses_rf import Gateway
 
@@ -47,6 +48,28 @@ else:
     from tests_rf.mock import MockGateway as Gateway
 
     SERIAL_PORT = MOCKED_PORT
+
+
+rf_test_failed = False  # global
+
+
+def abort_if_rf_test_fails(fnc):
+    async def check_serial_port(*args, **kwargs):
+        global rf_test_failed
+        if rf_test_failed:
+            raise SerialException
+
+        try:
+            await fnc(*args, **kwargs)
+        except SerialException:
+            rf_test_failed = True
+            raise
+
+        except AssertionError:
+            rf_test_failed = True
+            raise
+
+    return check_serial_port
 
 
 def find_test_tcs(gwy: Gateway) -> System:
