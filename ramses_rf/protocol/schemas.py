@@ -28,24 +28,15 @@ SZ_ROTATE_BACKUPS = "rotate_backups"
 SZ_ROTATE_BYTES = "rotate_bytes"
 
 
-def sch_packet_log_dict_factory(default_backups=0) -> dict[str, vol.Schema]:
-    """Return a packet log dict with a configurable default rotation policy."""
+def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any]:
+    """Return a packet log dict with a configurable default rotation policy.
 
-    # SCH_PACKET_LOG_7 = vol.Schema(
-    #     packet_log_dict_factory(default_backups=7), extra=vol.PREVENT_EXTRA
-    # )
+    usage:
 
-    def NormalisePacketLog(rotate_backups=0):
-        def normalise_packet_log(node_value: str | dict) -> dict:
-            if isinstance(node_value, str):
-                return {
-                    SZ_FILE_NAME: node_value,
-                    SZ_ROTATE_BACKUPS: rotate_backups,
-                    SZ_ROTATE_BYTES: None,
-                }
-            return node_value
-
-        return normalise_packet_log
+    SCH_PACKET_LOG_7 = vol.Schema(
+        packet_log_dict_factory(default_backups=7), extra=vol.PREVENT_EXTRA
+    )
+    """
 
     SCH_PACKET_LOG_CONFIG = vol.Schema(
         {
@@ -58,6 +49,18 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[str, vol.Schema]:
     )
 
     SCH_PACKET_LOG_NAME = str
+
+    def NormalisePacketLog(rotate_backups=0):
+        def normalise_packet_log(node_value: str | dict) -> dict:
+            if isinstance(node_value, str):
+                return {
+                    SZ_FILE_NAME: node_value,
+                    SZ_ROTATE_BACKUPS: rotate_backups,
+                    SZ_ROTATE_BYTES: None,
+                }
+            return node_value
+
+        return normalise_packet_log
 
     return {  # SCH_PACKET_LOG_DICT
         vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
@@ -86,20 +89,15 @@ SZ_TIMEOUT = "timeout"
 SZ_XONXOFF = "xonxoff"
 
 
-def sch_serial_port_dict_factory() -> dict[str, vol.Schema]:
-    """Return a serial port dict."""
+def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
+    """Return a serial port dict.
 
-    # SCH_SERIAL_PORT = vol.Schema(
-    #     sch_serial_port_dict_factory(), extra=vol.PREVENT_EXTRA
-    # )
+    usage:
 
-    def NormaliseSerialPort():
-        def normalise_serial_port(node_value: str | dict) -> dict:
-            if isinstance(node_value, str):
-                return {SZ_PORT_NAME: node_value}
-            return node_value
-
-        return normalise_serial_port
+    SCH_SERIAL_PORT = vol.Schema(
+        sch_serial_port_dict_factory(), extra=vol.PREVENT_EXTRA
+    )
+    """
 
     SCH_SERIAL_PORT_CONFIG = vol.Schema(
         {
@@ -108,15 +106,21 @@ def sch_serial_port_dict_factory() -> dict[str, vol.Schema]:
             ),  # NB: HGI80 does not work, except at 115200 - so must be default
             vol.Optional(SZ_DSRDTR, default=False): bool,
             vol.Optional(SZ_RTSCTS, default=False): bool,
-            vol.Optional(SZ_TIMEOUT, default=0): vol.Any(
-                None, int
-            ),  # TODO: default None?
+            vol.Optional(SZ_TIMEOUT, default=0): vol.Any(None, int),  # default None?
             vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
         },
         extra=vol.PREVENT_EXTRA,
     )
 
     SCH_SERIAL_PORT_NAME = str
+
+    def NormaliseSerialPort():
+        def normalise_serial_port(node_value: str | dict) -> dict:
+            if isinstance(node_value, str):
+                return {SZ_PORT_NAME: node_value} | SCH_SERIAL_PORT_CONFIG({})
+            return node_value
+
+        return normalise_serial_port
 
     return {  # SCH_SERIAL_PORT_DICT
         vol.Required(SZ_SERIAL_PORT): vol.Any(
