@@ -8,6 +8,7 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
+from typing import TextIO
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -18,6 +19,60 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+#
+# 0/5: Packet source configuration
+SZ_INPUT_FILE = "input_file"
+SZ_PACKET_SOURCE = "packet_source"
+
+
+def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
+    """Return a packet source dict.
+
+    usage:
+
+    SCH_PACKET_SOURCE = vol.Schema(
+        sch_packet_source_dict_factory(), extra=vol.PREVENT_EXTRA
+    )
+    """
+
+    SCH_PACKET_SOURCE_CONFIG = vol.Schema(
+        {},
+        extra=vol.PREVENT_EXTRA,
+    )
+
+    SCH_PACKET_SOURCE_FILE = TextIO
+
+    def NormalisePacketSource():
+        def normalise_packet_source(node_value: str | dict) -> dict:
+            if isinstance(node_value, str):
+                return {
+                    SZ_INPUT_FILE: node_value,
+                }
+            return node_value
+
+        return normalise_packet_source
+
+    return {  # SCH_PACKET_LOG_DICT
+        vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
+            None,
+            vol.All(
+                SCH_PACKET_SOURCE_FILE,
+                NormalisePacketSource(),
+            ),
+            SCH_PACKET_SOURCE_CONFIG.extend(
+                {vol.Required(SZ_INPUT_FILE): SCH_PACKET_SOURCE_FILE}
+            ),
+        )
+    }
+
+
+def extract_packet_source(pkt_source_dict: dict) -> tuple[str, dict]:
+    """Extract a pkt source, source_config_dict tuple from a sch_packet_source_dict."""
+    source_name = pkt_source_dict.get(SZ_INPUT_FILE)
+    source_config = {k: v for k, v in pkt_source_dict.items() if k != SZ_INPUT_FILE}
+    return source_name, source_config
 
 
 #
