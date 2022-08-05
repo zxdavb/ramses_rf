@@ -169,7 +169,8 @@ SCH_TRAITS = vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC)
 SCH_DEVICE = vol.Schema(
     {
         vol.Optional(SCH_DEVICE_ID_ANY): vol.Any(
-            vol.All(None, ConvertNullToDict()), SCH_TRAITS
+            vol.All(None, ConvertNullToDict()),
+            SCH_TRAITS,
         )
     },
     extra=vol.PREVENT_EXTRA,
