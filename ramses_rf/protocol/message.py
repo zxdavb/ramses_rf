@@ -108,7 +108,7 @@ class Message:
                 return f"({pkt.payload[:2]})"
             return ctx
 
-        def display_name(addr: Address) -> str:  # TODO: needs caching
+        def display_name(addr: Address) -> str:
             """Return a friendly name for an Address, or a Device.
 
             Use the alias, if one exists, or use a slug instead of a device type.
@@ -117,14 +117,10 @@ class Message:
             try:
                 if self._gwy.config.use_aliases:
                     return self._gwy._include[addr.id][SZ_ALIAS][:18]
+                else:
+                    return self._gwy.device_by_id[addr.id]._SLUG + addr.id[3:]
             except KeyError:
-                pass
-            try:
-                return f"{addr._SLUG}:{addr.id[3:]}"
-            except AttributeError:
-                pass
-
-            return Address._friendly(addr.id)
+                return addr.id
 
         if self._str is not None:
             return self._str
