@@ -655,13 +655,13 @@ class PacketProtocolBase(asyncio.Protocol):
 
             if dev_id in self._include or dev_id in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id):
                 # _LOGGER.debug(f"Allowed {dev_id} (in {SZ_BLOCK_LIST}, or is the gateway")
-                continue
+                continue  # or break?
 
             if dev_id == self._hgi80[SZ_DEVICE_ID]:
                 if self._include:
                     _LOGGER.warning(f"Allowing {dev_id} (is the gateway){TIP}")
                 self._include.append(dev_id)  # NOTE: only time include list is modified
-                continue
+                continue  # or break?
 
             if dev_id[:2] == DEV_TYPE_MAP.HGI and not self._hgi80[SZ_DEVICE_ID]:
                 _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
