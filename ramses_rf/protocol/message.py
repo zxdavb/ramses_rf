@@ -118,9 +118,9 @@ class Message:
                 if self._gwy.config.use_aliases:
                     return self._gwy._include[addr.id][SZ_ALIAS][:18]
                 else:
-                    return self._gwy.device_by_id[addr.id]._SLUG + addr.id[3:]
+                    return f"{self._gwy.device_by_id[addr.id]._SLUG}:{addr.id[3:]}"
             except KeyError:
-                return addr.id
+                return f" {addr.id}"
 
         if self._str is not None:
             return self._str
