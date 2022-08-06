@@ -1132,14 +1132,11 @@ _22F1_MODE_ITHO: dict[str, str] = {
 }
 
 _22F1_MODE_NUAIRE: dict[str, str] = {
-    "00": "standby",
-    "01": "auto",
-    "02": "low",
-    "03": "medium",
-    "04": "high",  # boost
+    "02": "normal",
+    "03": "boost",  # aka purge
     "09": "heater_off",
     "0A": "heater_auto",
-}
+}  # DRI-ECO-2S (normal/boost only), DRI-ECO-4S
 
 _22F1_MODE_ORCON: dict[str, str] = {
     "00": "away",
