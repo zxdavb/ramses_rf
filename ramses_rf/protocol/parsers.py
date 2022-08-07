@@ -1448,9 +1448,7 @@ def parser_22f1(payload, msg) -> dict:
     # Scheme x: 0|x standby/off, 1|x min, 2+|x rate as % of max (Itho?)
     # Scheme 4: 0|4 standby/off, 1|4 auto, 2|4 low, 3|4 med, 4|4 high/boost
     # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
-    # Scheme A: only seen 000[239A]0A -- ? off, auto, rate x/x, and?
-
-    # fan_mode = int(payload[2:4], 16)  # & 0b11110000
+    # Scheme A: only seen 000[239A]0A -- Normal, Boost (purge), HeaterOff & HeaterAuto
 
     try:
         assert payload[0:2] in ("00", "63")
@@ -1494,9 +1492,10 @@ def parser_22f1(payload, msg) -> dict:
 
     return {
         SZ_FAN_MODE: _22F1_FAN_MODE.get(payload[2:4], f"unknown_{payload[2:4]}"),
-        "_mode_idx": f"{int(payload[2:4], 16) & 0x07:02X}",
+        "scheme": _22f1_scheme,
+        "_mode_idx": f"{int(payload[2:4], 16) & 0x0F:02X}",
         "_mode_max": payload[4:6] or None,
-        "_scheme": _22f1_scheme,
+        "_payload": payload,
     }
 
 
