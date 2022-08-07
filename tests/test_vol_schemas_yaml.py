@@ -196,13 +196,13 @@ KNOWN_LIST_BAD = (
     """,
     """
     known_list:
-      01:111111: {class: CTL, notes: this is invalid note}
-      02:111111: {class: UFC}
+      01:111111: {class: CTL, notes: this is invalid _note}
+      02:111111: {class: UFC, extra: this is invalid too}
     """,
     """
     known_list:
       01:111111: {class: CTL}
-      01:111111: {class: UFC}
+      01:111111: {class: UFC}  # Duplicate key: 01:111111
     """,
     """
     known_list:

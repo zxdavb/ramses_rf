@@ -212,6 +212,9 @@ SZ_ALIAS = "alias"
 SZ_CLASS = "class"
 SZ_FAKED = "faked"
 
+SZ_BLOCK_LIST = "block_list"
+SZ_KNOWN_LIST = "known_list"
+
 SCH_DEVICE_ID_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
 SCH_DEVICE_ID_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
 SCH_DEVICE_ID_CTL = vol.Match(DEVICE_ID_REGEX.CTL)
@@ -221,57 +224,79 @@ SCH_DEVICE_ID_APP = vol.Match(DEVICE_ID_REGEX.APP)
 SCH_DEVICE_ID_BDR = vol.Match(DEVICE_ID_REGEX.BDR)
 SCH_DEVICE_ID_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
 
-SCH_TRAITS_BASE = vol.Schema(
-    {
-        vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
-        vol.Optional(SZ_CLASS, default=None): vol.Any(
-            *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.slugs()),
-            *(s for s in DEV_TYPE_MAP.slugs()),
-            None,
-        ),
-        vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
-        vol.Optional(vol.Remove("_note")): str,  # only for convenience, not used
-    },
-    extra=vol.PREVENT_EXTRA,
-)
+_SCH_TRAITS_DOMAINS = ("heat", "hvac")
+_SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
 
-SCH_TRAITS_HEAT = SCH_TRAITS_BASE
 
-SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
-SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
-    {
-        vol.Optional("scheme", default="orcon"): vol.Any(*SCH_TRAITS_HVAC_SCHEMES),
-    },
-    extra=vol.PREVENT_EXTRA,
-)
+def sch_global_traits_dict_factory(
+    heat_traits: dict[vol.Optional, vol.Any] = None,
+    hvac_traits: dict[vol.Optional, vol.Any] = None,
+) -> tuple[dict[vol.Optional, vol.Any], vol.Schema]:
+    """Return a global traits dict with a configurable extra traits.
 
-SCH_TRAITS = vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC)
-SCH_DEVICE = vol.Schema(
-    {
-        vol.Optional(SCH_DEVICE_ID_ANY): vol.Any(
+    usage:
+
+    SCH_GLOBAL_TRAITS = vol.Schema(
+        sch_global_traits_dict(heat=traits), extra=vol.PREVENT_EXTRA
+    )
+    """
+
+    heat_traits = heat_traits or {}
+    hvac_traits = hvac_traits or {}
+
+    SCH_TRAITS_BASE = vol.Schema(
+        {
+            vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
+            vol.Optional(SZ_CLASS, default=None): vol.Any(
+                *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.slugs()),
+                *(s for s in DEV_TYPE_MAP.slugs()),
+                None,
+            ),
+            vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
+            vol.Optional(vol.Remove("_note")): str,  # only for convenience, not used
+        },
+        extra=vol.PREVENT_EXTRA,
+    )
+
+    # TIP: the _domain key can be used to force whihc traits schema to use
+    SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend({vol.Optional("_domain"): "heat"})
+    SCH_TRAITS_HEAT = SCH_TRAITS_HEAT.extend(heat_traits)
+
+    SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend({vol.Optional("_domain"): "hvac"})
+    SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
+        {vol.Optional("scheme", default="orcon"): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
+    )
+    SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(hvac_traits)
+
+    SCH_TRAITS = vol.Any(
+        vol.All(None, ConvertNullToDict()),
+        vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC),
+        extra=vol.PREVENT_EXTRA,
+    )
+
+    SCH_DEVICE = vol.Schema(
+        {vol.Optional(SCH_DEVICE_ID_ANY): SCH_TRAITS},
+        extra=vol.PREVENT_EXTRA,
+    )
+
+    global_traits_dict = {  # Filter lists with Device traits...
+        vol.Optional(SZ_KNOWN_LIST, default={}): vol.Any(
             vol.All(None, ConvertNullToDict()),
-            SCH_TRAITS,
-        )
-    },
-    extra=vol.PREVENT_EXTRA,
-)
+            vol.All(SCH_DEVICE, vol.Length(min=0)),
+        ),
+        vol.Optional(SZ_BLOCK_LIST, default={}): vol.Any(
+            vol.All(None, ConvertNullToDict()),
+            vol.All(SCH_DEVICE, vol.Length(min=0)),
+        ),
+    }
 
+    return global_traits_dict, SCH_TRAITS
+
+
+SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 
 #
 # Device lists (Engine configuration)
-SZ_BLOCK_LIST = "block_list"
-SZ_KNOWN_LIST = "known_list"
-
-SCH_GLOBAL_TRAITS_DICT = {  # Filter lists with Device traits...
-    vol.Optional(SZ_KNOWN_LIST, default={}): vol.Any(
-        vol.All(None, ConvertNullToDict()),
-        vol.All(SCH_DEVICE, vol.Length(min=0)),
-    ),
-    vol.Optional(SZ_BLOCK_LIST, default={}): vol.Any(
-        vol.All(None, ConvertNullToDict()),
-        vol.All(SCH_DEVICE, vol.Length(min=0)),
-    ),
-}
 
 
 def select_device_filter_mode(

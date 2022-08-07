@@ -38,7 +38,6 @@ from .protocol.const import (
 )
 from .protocol.frame import _DeviceIdT
 from .protocol.schemas import (  # noqa: F401
-    SCH_DEVICE,
     SCH_DEVICE_ID_ANY,
     SCH_DEVICE_ID_APP,
     SCH_DEVICE_ID_BDR,
@@ -50,8 +49,6 @@ from .protocol.schemas import (  # noqa: F401
     SCH_ENGINE_DICT,
     SCH_GLOBAL_TRAITS_DICT,
     SCH_TRAITS,
-    SCH_TRAITS_HEAT,
-    SCH_TRAITS_HVAC,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
     SZ_CLASS,
