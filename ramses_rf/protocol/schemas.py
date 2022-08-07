@@ -260,20 +260,25 @@ def sch_global_traits_dict_factory(
 
     # TIP: the _domain key can be used to force whihc traits schema to use
     SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend({vol.Optional("_domain"): "heat"})
-    SCH_TRAITS_HEAT = SCH_TRAITS_HEAT.extend(heat_traits)
+    SCH_TRAITS_HEAT = SCH_TRAITS_HEAT.extend(
+        heat_traits,
+        extra=vol.PREVENT_EXTRA if heat_traits else vol.REMOVE_EXTRA,
+    )
 
     SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend({vol.Optional("_domain"): "hvac"})
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
         {vol.Optional("scheme", default="orcon"): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
     )
-    SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(hvac_traits)
+    SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
+        hvac_traits,
+        extra=vol.PREVENT_EXTRA if heat_traits else vol.REMOVE_EXTRA,
+    )
 
     SCH_TRAITS = vol.Any(
         vol.All(None, ConvertNullToDict()),
         vol.Any(SCH_TRAITS_HEAT, SCH_TRAITS_HVAC),
         extra=vol.PREVENT_EXTRA,
     )
-
     SCH_DEVICE = vol.Schema(
         {vol.Optional(SCH_DEVICE_ID_ANY): SCH_TRAITS},
         extra=vol.PREVENT_EXTRA,
