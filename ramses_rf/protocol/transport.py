@@ -497,7 +497,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self._hgi80 = {
             IS_INITIALIZED: False,
             IS_EVOFW3: None,
-            SZ_DEVICE_ID: HGI_DEV_ADDR.id,
+            SZ_DEVICE_ID: None,
         }  # also: "evofw3_ver"
 
         self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
@@ -570,23 +570,24 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def _check_set_hgi80(self, pkt):
         """Check/set HGI; log if it is a foreign HGI."""
-        assert pkt.src.type == DEV_TYPE_MAP.HGI and pkt.src.id != HGI_DEV_ADDR.id
+        assert pkt.src.id != HGI_DEV_ADDR.id
 
-        if self._hgi80[SZ_DEVICE_ID] is HGI_DEV_ADDR.id:
+        if pkt.src.id in self._exclude:  # or: self._unwanted
+            return
+
+        if self._hgi80[SZ_DEVICE_ID] is None:
             self._hgi80[SZ_DEVICE_ID] = pkt.src.id
 
-        elif (
-            self._hgi80[SZ_DEVICE_ID] != pkt.src.id and pkt.src.id not in self._unwanted
-        ):
-            _LOGGER.debug(
+        if self._hgi80[SZ_DEVICE_ID] != pkt.src.id:
+            _LOGGER.warning(
                 f"{pkt} < There appears to be more than one HGI80-compatible device"
-                f" (active gateway: {self._hgi80[SZ_DEVICE_ID]}), this is unsupported{TIP}"
+                f" (active gateway: {self._hgi80[SZ_DEVICE_ID]}),"
+                f" this is unsupported{TIP}"
             )
 
     def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-
             _LOGGER.info("RF Rx: %s", raw_line)
 
         self._hgi80[IS_INITIALIZED], was_initialized = True, self._hgi80[IS_INITIALIZED]
@@ -599,8 +600,6 @@ class PacketProtocolBase(asyncio.Protocol):
                 raw_line=raw_line,
             )  # should log all? invalid pkts appropriately
 
-            if pkt.src.type == DEV_TYPE_MAP.HGI:
-                self._check_set_hgi80(pkt)
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
                 self._hgi80[IS_EVOFW3] = True
@@ -612,6 +611,9 @@ class PacketProtocolBase(asyncio.Protocol):
             elif was_initialized and line and line[:1] != "#" and "*" not in line:
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
+
+        if pkt.src.type == DEV_TYPE_MAP.HGI:
+            self._check_set_hgi80(pkt)
 
         self._pkt_received(pkt)
 
@@ -649,30 +651,31 @@ class PacketProtocolBase(asyncio.Protocol):
                 return False
 
             if dev_id in self._exclude:
-                _LOGGER.info(f"Blocking {dev_id} (in {SZ_BLOCK_LIST})")
+                _LOGGER.debug(f"Blocking {dev_id} (in {SZ_BLOCK_LIST})")
                 self._unwanted.append(dev_id)
                 return False
 
             if dev_id in self._include or dev_id in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id):
-                # _LOGGER.debug(f"Allowed {dev_id} (in {SZ_BLOCK_LIST}, or is the gateway")
+                # _LOGGER.debug(f"Allowed {dev_id} (in {SZ_ALLOW_LIST}, or is the gateway")
                 continue  # or break?
 
-            if dev_id == self._hgi80[SZ_DEVICE_ID]:
-                if self._include:
-                    _LOGGER.warning(f"Allowing {dev_id} (is the gateway){TIP}")
-                self._include.append(dev_id)  # NOTE: only time include list is modified
-                continue  # or break?
+            if dev_id[:2] == DEV_TYPE_MAP.HGI:
+                if dev_id == self._hgi80[SZ_DEVICE_ID]:
+                    if self._include:
+                        _LOGGER.warning(f"Allowing {dev_id} (is the gateway){TIP}")
+                    self._include.append(dev_id)  # NOTE: only time _include is modified
+                    continue  # or break?
 
-            if dev_id[:2] == DEV_TYPE_MAP.HGI and not self._hgi80[SZ_DEVICE_ID]:
-                _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
-                continue
+                if self._hgi80[SZ_DEVICE_ID] is None:  # could be from HVAC domain
+                    _LOGGER.debug(f"Allowed {dev_id} (maybe the gateway?){TIP}")
+                    continue
 
-            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._gwy.ser_name:  # dex
-                (_LOGGER.debug if dev_id in self._exclude else _LOGGER.warning)(
-                    f"Blocking {dev_id} (is a foreign gateway){TIP}"
-                )
-                self._unwanted.append(dev_id)
-                return False
+                if self._gwy.ser_name:
+                    (_LOGGER.debug if dev_id in self._exclude else _LOGGER.warning)(
+                        f"Blocking {dev_id} (is a foreign gateway?){TIP}"
+                    )
+                    self._unwanted.append(dev_id)
+                    return False
 
             if self.enforce_include:
                 if self._exclude:
@@ -725,13 +728,12 @@ class PacketProtocolFile(PacketProtocolBase):
                 _regex_hack(line, self._use_regex.get(SZ_INBOUND, {})),
             )  # should log all invalid pkts appropriately
 
+            if pkt.src.type == DEV_TYPE_MAP.HGI:
+                self._check_set_hgi80(pkt)
+
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
 
-        if (
-            pkt.src.type == DEV_TYPE_MAP.HGI and pkt.src.id != HGI_DEV_ADDR.id
-        ):  # HACK 01: dex
-            self._check_set_hgi80(pkt)
         self._pkt_received(pkt)
 
 
