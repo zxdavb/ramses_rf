@@ -1492,10 +1492,10 @@ def parser_22f1(payload, msg) -> dict:
 
     return {
         SZ_FAN_MODE: _22F1_FAN_MODE.get(payload[2:4], f"unknown_{payload[2:4]}"),
-        "scheme": _22f1_scheme,
+        "_scheme": _22f1_scheme,
         "_mode_idx": f"{int(payload[2:4], 16) & 0x0F:02X}",
         "_mode_max": payload[4:6] or None,
-        "_payload": payload,
+        # "_payload": payload,
     }
 
 
