@@ -49,7 +49,7 @@ CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = __dev_mode__ and False  # set True for useful Tracebacks
+DEV_MODE = __dev_mode__ or True  # set True for useful Tracebacks
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -120,7 +120,6 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
 
     if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
         slug = getattr(msg.src, "_SLUG", DEV_TYPE.DEV)
-
     if slug in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
         return
 
@@ -129,13 +128,11 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
             err_msg = f"Unknown src type: {msg.dst}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
-            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
         return
 
-    #
-    #
     #
     #
 
@@ -144,15 +141,15 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
             err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
-            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         if msg.verb in (RQ, W_):
             return
-        _LOGGER.warning(f"{msg!r} < Invalid code for {msg.src} to Tx: {msg.code}")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            f"{msg!r} < Invalid code for {msg.src} to Tx: {msg.code}"
+        )
         return
 
-    #
-    #
     #
     #
 
@@ -162,7 +159,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
         err_msg = f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
             raise InvalidPacketError(err_msg)
-        _LOGGER.warning(f"{msg!r} < {err_msg}")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
 def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
@@ -181,7 +178,7 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
             err_msg = f"Unknown dst type: {msg.dst}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
-            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
         return
@@ -192,17 +189,17 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
-        if (
-            slug != DEV_TYPE.HGI and msg.src.type != "18c"
-        ):  # NOTE: not yet needed because of 1st if
+        if False and slug != DEV_TYPE.HGI:  # NOTE: not yet needed because of 1st if
             err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
-            _LOGGER.warning(f"{msg!r} < {err_msg}")
+            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         if msg.verb == RP:
             return
-        _LOGGER.warning(f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}"
+        )
         return
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{Code._0001}",):
@@ -216,7 +213,7 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         err_msg = f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
             raise InvalidPacketError(err_msg)
-        _LOGGER.warning(f"{msg!r} < {err_msg}")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
 def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
