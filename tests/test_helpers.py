@@ -9,6 +9,7 @@ Test the various helper APIs.
 # TODO: add test for ramses_rf.protocol.frame.pkt_header()
 
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
+from ramses_rf.helpers import merge
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.protocol.helpers import (
     bool_from_hex,
@@ -28,6 +29,17 @@ from tests.common import gwy  # noqa: F401
 from tests.common import TEST_DIR, assert_raises
 
 WORK_DIR = f"{TEST_DIR}/helpers"
+
+
+def test_merge_dicts() -> None:
+    """Deep merge a src dict (precident) into a dst dict and return the result."""
+    src = {"top": {"deep": {"in_both": "0", "in_src": "dog"}}}
+    dst = {"top": {"deep": {"in_both": "9", "in_dst": "cat"}}}
+    out = {"top": {"deep": {"in_both": "0", "in_src": "dog", "in_dst": "cat"}}}
+    assert out == merge(src, dst)
+    assert out != dst
+    assert out == merge(src, dst, _dc=True)
+    assert out == dst
 
 
 def test_pkt_addr_parser(gwy):  # noqa: F811
