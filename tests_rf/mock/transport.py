@@ -162,7 +162,8 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     /,
     *,
     protocol_factory: Callable = None,
-    ser_port: str = None,
+    port_name: str = None,
+    port_config: dict = None,
     packet_log=None,
     packet_dict: dict = None,
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
@@ -179,7 +180,7 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
         return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
 
-    if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
+    if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("serial port, log file & dict should be mutually exclusive")
 
     pkt_protocol = protocol_factory_()
@@ -187,6 +188,6 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
 
-    ser_instance = get_serial_instance(ser_port, gwy._loop)
+    ser_instance = get_serial_instance(port_name, gwy._loop)
 
     return pkt_protocol, SerTransportMock(gwy._loop, pkt_protocol, ser_instance)

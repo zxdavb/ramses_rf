@@ -11,9 +11,10 @@ from pathlib import Path
 from serial.serialutil import SerialException
 from serial.tools import list_ports
 
+from ramses_rf import Gateway
 from ramses_rf.schemas import SCH_GLOBAL_CONFIG
 from ramses_rf.system import System
-from tests_rf.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl
+from tests_rf.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl, MockGateway
 
 # import tracemalloc
 # tracemalloc.start()
@@ -37,18 +38,11 @@ logging.disable(logging.WARNING)  # usu. WARNING
 
 TEST_DIR = Path(__file__).resolve().parent
 
+test_ports = {MOCKED_PORT: MockGateway}
 if ports := [
-    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyxUSB")
 ]:
-    from ramses_rf import Gateway
-
-    SERIAL_PORT = ports[0].device
-
-else:
-    from tests_rf.mock import MockGateway as Gateway
-
-    SERIAL_PORT = MOCKED_PORT
-
+    test_ports[ports[0].device] = Gateway
 
 rf_test_failed = False  # global
 
@@ -56,13 +50,13 @@ rf_test_failed = False  # global
 def abort_if_rf_test_fails(fnc):
     """Abort all remaining RF tests once any RF test fails."""
 
-    async def check_serial_port(*args, **kwargs):
+    async def check_serial_port(test_port, *args, **kwargs):
         global rf_test_failed
         if rf_test_failed:
             raise SerialException
 
         try:
-            await fnc(*args, **kwargs)
+            await fnc(test_port, *args, **kwargs)
         except SerialException:
             rf_test_failed = True
             raise
@@ -75,13 +69,13 @@ def abort_if_rf_test_fails(fnc):
 
 
 def find_test_tcs(gwy: Gateway) -> System:
-    if SERIAL_PORT == MOCKED_PORT:
+    if isinstance(gwy, MockGateway):
         return gwy.system_by_id["01:000730"]
     systems = [s for s in gwy.systems if s.id != "01:000730"]
     return systems[0] if systems else gwy.system_by_id["01:000730"]
 
 
-async def load_test_gwy(config_file: str, **kwargs) -> Gateway:
+async def load_test_gwy(port_name, gwy_class, config_file: str, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     config = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
@@ -94,7 +88,7 @@ async def load_test_gwy(config_file: str, **kwargs) -> Gateway:
 
     config = SCH_GLOBAL_CONFIG(config)
 
-    gwy = Gateway(SERIAL_PORT, **config)
+    gwy = gwy_class(port_name, **config)
     await gwy.start(start_discovery=False)  # may: SerialException
 
     if hasattr(

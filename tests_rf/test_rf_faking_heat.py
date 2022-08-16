@@ -10,17 +10,21 @@ import asyncio
 
 from ramses_rf.system import System, Zone
 from tests_rf.common import (
-    SERIAL_PORT,
     TEST_DIR,
     Gateway,
+    MockGateway,
     abort_if_rf_test_fails,
     find_test_tcs,
     load_test_gwy,
+    test_ports,
 )
-from tests_rf.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"
+
+
+def pytest_generate_tests(metafunc):
+    metafunc.parametrize("test_port", test_ports.items())
 
 
 def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
@@ -30,15 +34,15 @@ def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
 
 
 @abort_if_rf_test_fails
-async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
+async def test_zon_sensor(test_port):  # I/30C9 (zone temp, 'C)
 
     # TODO: test mocked zone (not sensor) temp (i.e. at MockDeviceCtl)
 
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
-    if SERIAL_PORT != MOCKED_PORT and zone.sensor is None:
+    if not isinstance(gwy, MockGateway) and zone.sensor is None:
         await gwy.stop()
         return
 
@@ -73,13 +77,12 @@ async def test_zon_sensor():  # I/30C9 (zone temp, 'C)
 
 
 @abort_if_rf_test_fails
-async def test_zon_sensor_unfaked():  # I/30C9
-
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+async def test_zon_sensor_unfaked(test_port):  # I/30C9
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     _, zone = find_test_zone(gwy)
 
     # TODO: remove this block when can assure zone.sensor is not None
-    if SERIAL_PORT != MOCKED_PORT and zone.sensor is None:
+    if not isinstance(gwy, MockGateway) and zone.sensor is None:
         await gwy.stop()
         return
 

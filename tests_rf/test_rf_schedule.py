@@ -19,16 +19,20 @@ from ramses_rf.system.schedule import (
     TIME_OF_DAY,
 )
 from tests_rf.common import (
-    SERIAL_PORT,
     TEST_DIR,
     abort_if_rf_test_fails,
     find_test_tcs,
     load_test_gwy,
+    test_ports,
 )
 from tests_rf.mock import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/rf_engine"
 CONFIG_FILE = "config_heat.json"
+
+
+def pytest_generate_tests(metafunc):
+    metafunc.parametrize("test_port", test_ports.items())
 
 
 def assert_schedule_dict(schedule_full):
@@ -118,13 +122,13 @@ async def read_schedule(zone) -> dict:
 
 
 @abort_if_rf_test_fails
-async def test_rq_0006():
+async def test_rq_0006(test_port):
     def assert_version(version):
         assert isinstance(version, int)
         assert version == tcs._msgs[Code._0006].payload["change_counter"]
         return version
 
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     # gwy.config.disable_sending = False
@@ -149,12 +153,12 @@ async def test_rq_0006():
 
 
 @abort_if_rf_test_fails
-async def test_rq_0404_dhw():  # Needs mocking
+async def test_rq_0404_dhw(test_port):  # Needs mocking
 
-    if SERIAL_PORT == MOCKED_PORT:
+    if test_port[0] == MOCKED_PORT:
         return
 
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
@@ -164,9 +168,9 @@ async def test_rq_0404_dhw():  # Needs mocking
 
 
 @abort_if_rf_test_fails
-async def test_rq_0404_zone():
+async def test_rq_0404_zone(test_port):
 
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.zones:
@@ -176,9 +180,9 @@ async def test_rq_0404_zone():
 
 
 @abort_if_rf_test_fails
-async def _test_ww_0404_dhw():
+async def _test_ww_0404_dhw(test_port):
 
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
@@ -188,9 +192,9 @@ async def _test_ww_0404_dhw():
 
 
 @abort_if_rf_test_fails
-async def _test_ww_0404_zone():
+async def _test_ww_0404_zone(test_port):
 
-    gwy = await load_test_gwy(f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
     if tcs.zones:
