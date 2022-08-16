@@ -129,25 +129,27 @@ def best_dev_role(
 
 
 def zx_device_factory(
-    gwy, dev_addr: Address, *, msg: Message = None, **schema
+    gwy, dev_addr: Address, *, msg: Message = None, **traits
 ) -> Device:
-    """Return the initial device class for a given device id/msg/schema.
+    """Return the initial device class for a given device id/msg/traits.
 
-    Some devices are promotable to a compatible sub class.
+    Devices of certain classes are promotable to a compatible sub class.
     """
 
     cls: type[Device] = best_dev_role(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,
-        **schema,
+        **traits,
     )
 
     if (
         isinstance(cls, DeviceHvac)
-        and schema.get(SZ_CLASS) in (DEV_TYPE_MAP.HVC, None)
-        and schema.get(SZ_FAKED)
+        and traits.get(SZ_CLASS) in (DEV_TYPE_MAP.HVC, None)
+        and traits.get(SZ_FAKED)
     ):
-        raise TypeError("Faked HVAC devices must have an defined class: {dev_addr}")
+        raise TypeError(
+            "Faked devices from the HVAC domain must have an explicit class: {dev_addr}"
+        )
 
-    return cls.create_from_schema(gwy, dev_addr, **schema)
+    return cls.create_from_schema(gwy, dev_addr, **traits)
