@@ -11,7 +11,7 @@ from inspect import iscoroutinefunction
 
 
 def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to ramses_rf?
-    """Merge src dict (precident) into the dst dict and return the result.
+    """Deep merge a src dict (precident) into a dst dict and return the result.
 
     run me with nosetests --with-doctest file.py
 
