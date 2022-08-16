@@ -34,7 +34,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Awaitable, Callable, Iterable, Optional, TypeVar
+from typing import Awaitable, Callable, Iterable, Optional, TextIO, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
 from serial_asyncio import SerialTransport as SerTransportAsync  # type: ignore[import]
@@ -49,14 +49,12 @@ from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
 from .schemas import (
-    SZ_BAUDRATE,
+    SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
-    SZ_TIMEOUT,
     SZ_USE_REGEX,
-    SZ_XONXOFF,
 )
 from .version import VERSION
 
@@ -937,8 +935,9 @@ def create_pkt_stack(
     /,
     *,
     protocol_factory: Callable = None,
-    ser_port: str = None,
-    packet_log=None,
+    port_name: str = None,
+    port_config: dict = None,
+    packet_log: TextIO = None,
     packet_dict: dict = None,
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
     """Utility function to provide a transport to the internal protocol.
@@ -956,14 +955,7 @@ def create_pkt_stack(
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
 
-        if ser_config.get(SZ_BAUDRATE) is None:
-            ser_config[SZ_BAUDRATE] = 115200
-
-        if ser_config.get(SZ_TIMEOUT) is None:
-            ser_config[SZ_TIMEOUT] = 0
-
-        if ser_config.get(SZ_XONXOFF) is None:
-            ser_config[SZ_XONXOFF] = True
+        ser_config = SCH_SERIAL_PORT_CONFIG(ser_config or {})
 
         try:
             ser_obj = serial_for_url(ser_name, **ser_config)
@@ -1003,7 +995,7 @@ def create_pkt_stack(
                 PacketProtocolQos, gwy, pkt_callback
             )()  # NOTE: should be: PacketProtocolQos, not PacketProtocolPort
 
-    if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
+    if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
 
     pkt_protocol = (protocol_factory or protocol_factory_)()
@@ -1011,7 +1003,7 @@ def create_pkt_stack(
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
 
-    ser_instance = get_serial_instance(ser_port, gwy._port_config)
+    ser_instance = get_serial_instance(port_name, port_config)
 
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()

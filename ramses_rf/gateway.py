@@ -37,6 +37,7 @@ from .protocol import (
     set_pkt_logging_config,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from .protocol.schemas import SZ_PACKET_LOG, SZ_PORT_CONFIG, SZ_PORT_NAME
 from .schemas import (
     SCH_GLOBAL_CONFIG,
     SCH_TRAITS,
@@ -152,9 +153,9 @@ class Engine:
         )
 
         if self.ser_name:
-            source = {"ser_port": self.ser_name}
+            source = {SZ_PORT_NAME: self.ser_name, SZ_PORT_CONFIG: self._port_config}
         else:
-            source = {"packet_log": self._input_file}
+            source = {SZ_PACKET_LOG: self._input_file}
 
         self.pkt_protocol, self.pkt_transport = self._create_pkt_stack(
             pkt_receiver, **source
