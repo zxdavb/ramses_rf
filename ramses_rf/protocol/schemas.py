@@ -255,7 +255,9 @@ def sch_global_traits_dict_factory(
     )
 
     # TIP: the _domain key can be used to force which traits schema to use
-    heat_slugs = (s for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS)
+    heat_slugs = list(
+        s for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS
+    )
     SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend(
         {
             vol.Optional("_domain", default="heat"): "heat",
