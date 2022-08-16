@@ -248,31 +248,42 @@ def sch_global_traits_dict_factory(
     SCH_TRAITS_BASE = vol.Schema(
         {
             vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
-            vol.Optional(SZ_CLASS, default=None): vol.Any(
-                *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.slugs()),
-                *(s for s in DEV_TYPE_MAP.slugs()),
-                None,
-            ),
             vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
             vol.Optional(vol.Remove("_note")): str,  # only for convenience, not used
         },
         extra=vol.PREVENT_EXTRA,
     )
 
-    # TIP: the _domain key can be used to force whihc traits schema to use
-    SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend({vol.Optional("_domain"): "heat"})
+    # TIP: the _domain key can be used to force which traits schema to use
+    heat_slugs = (s for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS)
+    SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend(
+        {
+            vol.Optional("_domain", default="heat"): "heat",
+            vol.Optional(SZ_CLASS): vol.Any(
+                None, *heat_slugs, *(DEV_TYPE_MAP[s] for s in heat_slugs)
+            ),
+        }
+    )
     SCH_TRAITS_HEAT = SCH_TRAITS_HEAT.extend(
         heat_traits,
         extra=vol.PREVENT_EXTRA if heat_traits else vol.REMOVE_EXTRA,
     )
 
-    SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend({vol.Optional("_domain"): "hvac"})
+    hvac_slugs = DEV_TYPE_MAP.HVAC_SLUGS
+    SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
+        {
+            vol.Optional("_domain", default="hvac"): "hvac",
+            vol.Optional(SZ_CLASS, default="HVC"): vol.Any(
+                None, *hvac_slugs, *(DEV_TYPE_MAP[s] for s in hvac_slugs)
+            ),  # TODO: consider removing None
+        }
+    )
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
-        {vol.Optional("scheme", default="orcon"): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
+        {vol.Optional("scheme"): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
     )
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
         hvac_traits,
-        extra=vol.PREVENT_EXTRA if heat_traits else vol.REMOVE_EXTRA,
+        extra=vol.PREVENT_EXTRA if hvac_traits else vol.REMOVE_EXTRA,
     )
 
     SCH_TRAITS = vol.Any(
