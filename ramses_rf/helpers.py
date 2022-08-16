@@ -15,9 +15,9 @@ def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to rams
 
     run me with nosetests --with-doctest file.py
 
-    >>> a = {'first': {'all_rows': {'pass': 'dog', 'number': '1'}}}
-    >>> b = {'first': {'all_rows': {'fail': 'cat', 'number': '5'}}}
-    >>> _merge(b, a) == {'first': {'all_rows': {'pass': 'dog', 'fail': 'cat', 'number': '5'}}}
+    >>>            s = {'first': {'all_rows': {'pass': 'dog',                'number': '1'}}}
+    >>>            d = {'first': {'all_rows': {               'fail': 'cat', 'number': '5'}}}
+    >>> merge(s, d) == {'first': {'all_rows': {'pass': 'dog', 'fail': 'cat', 'number': '1'}}}
     True
     """
 
