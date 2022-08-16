@@ -23,7 +23,7 @@ from ramses_rf.protocol.protocol import MessageProtocol, MessageTransport
 from ramses_rf.protocol.transport import PacketProtocolBase
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
-from .device import Device, zx_device_factory
+from .device import Device, device_factory
 from .helpers import schedule_task, shrink
 from .processor import Message, process_msg
 from .protocol import (
@@ -562,7 +562,7 @@ class Gateway(Engine):
 
         dev = self.device_by_id.get(dev_id)
         if not dev:
-            dev = zx_device_factory(self, Address(dev_id), msg=msg, **traits)
+            dev = device_factory(self, Address(dev_id), msg=msg, **traits)
 
         # TODO: the exact order of the follwoing may need refining...
 

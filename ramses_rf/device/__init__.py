@@ -128,9 +128,7 @@ def best_dev_role(
     return DeviceHvac  # type: ignore[return-value]
 
 
-def zx_device_factory(
-    gwy, dev_addr: Address, *, msg: Message = None, **traits
-) -> Device:
+def device_factory(gwy, dev_addr: Address, *, msg: Message = None, **traits) -> Device:
     """Return the initial device class for a given device id/msg/traits.
 
     Devices of certain classes are promotable to a compatible sub class.

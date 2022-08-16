@@ -892,7 +892,7 @@ def _transform(valve_pos: float) -> float:
 ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 
-def zx_zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> _ZoneT:
+def zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> _ZoneT:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).

@@ -683,13 +683,13 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         If a zone is created, attach it to this TCS.
         """
 
-        from .zones import zx_zone_factory
+        from .zones import zone_factory
 
         schema = shrink(SCH_TCS_ZONES_ZON(schema))
 
         zon = self.zone_by_idx.get(zone_idx)
         if not zon:
-            zon = zx_zone_factory(self, zone_idx, msg=msg, **schema)
+            zon = zone_factory(self, zone_idx, msg=msg, **schema)
             self.zone_by_idx[zon.idx] = zon
             self.zones.append(zon)
 
@@ -993,12 +993,12 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         If a DHW zone is created, attach it to this TCS.
         """
 
-        from .zones import zx_zone_factory
+        from .zones import zone_factory
 
         schema = shrink(SCH_TCS_DHW(schema))
 
         if not self._dhw:
-            self._dhw = zx_zone_factory(self, "HW", msg=msg, **schema)
+            self._dhw = zone_factory(self, "HW", msg=msg, **schema)
 
         elif schema:
             self._dhw._update_schema(**schema)
@@ -1239,7 +1239,7 @@ class Sundial(Evohome):
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(ctl, *, msg: Message = None, **schema) -> _SystemT:
+def system_factory(ctl, *, msg: Message = None, **schema) -> _SystemT:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(

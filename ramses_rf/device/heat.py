@@ -386,12 +386,12 @@ class Controller(DeviceHeat):  # CTL (01):
             If a TCS is created, attach it to this device (which should be a CTL).
             """
 
-            from ..system import zx_system_factory
+            from ..system import system_factory
 
             schema = shrink(SCH_TCS(schema))
 
             if not self.tcs:
-                self.tcs = zx_system_factory(self, msg=msg, **schema)
+                self.tcs = system_factory(self, msg=msg, **schema)
 
             elif schema:
                 self.tcs._update_schema(**schema)

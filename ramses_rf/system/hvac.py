@@ -57,7 +57,7 @@ class HvacSystem:
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")
 
 
-def zx_system_factory(fan, *, msg: Message = None, **schema) -> _HvacSystemT:
+def TODO_system_factory(fan, *, msg: Message = None, **schema) -> _HvacSystemT:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
