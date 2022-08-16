@@ -33,13 +33,30 @@ WORK_DIR = f"{TEST_DIR}/helpers"
 
 def test_merge_dicts() -> None:
     """Deep merge a src dict (precident) into a dst dict and return the result."""
-    src = {"top": {"deep": {"in_both": "0", "in_src": "dog"}}}
+
+    src = {"top": {"deep": {"in_both": "1", "in_src": "dog"}}}
     dst = {"top": {"deep": {"in_both": "9", "in_dst": "cat"}}}
-    out = {"top": {"deep": {"in_both": "0", "in_src": "dog", "in_dst": "cat"}}}
+    out = {"top": {"deep": {"in_both": "1", "in_src": "dog", "in_dst": "cat"}}}
     assert out == merge(src, dst)
+
     assert out != dst
     assert out == merge(src, dst, _dc=True)
     assert out == dst
+
+    src = {"top": {"deep": {"in_both": [0, 1]}}}
+    dst = {"top": {"deep": {"in_both": [0, 9]}}}
+    out = {"top": {"deep": {"in_both": [0, 1, 9]}}}
+    assert out == merge(src, dst)
+
+    src = {"top": {"deep": {"in_both": "non-list"}}}
+    dst = {"top": {"deep": {"in_both": [0, 9]}}}
+    out = {"top": {"deep": {"in_both": "non-list"}}}
+    assert out == merge(src, dst)
+
+    src = {"top": {"deep": {"in_both": [0, 1]}}}
+    dst = {"top": {"deep": {"in_both": "non-list"}}}
+    out = {"top": {"deep": {"in_both": [0, 1]}}}
+    assert out == merge(src, dst)
 
 
 def test_pkt_addr_parser(gwy):  # noqa: F811
