@@ -452,10 +452,10 @@ class MessageTransport(asyncio.Transport):
             raise RuntimeError("MsgTransport is closing or has closed")
 
         if self._write_buffer_paused:
-            raise RuntimeError("MsgTransport: write buffer is paused")
+            raise RuntimeError("MsgTransport write buffer is paused")
 
         if self._gwy.config.disable_sending:
-            raise RuntimeError("MsgTransport: sending is disabled (cmd discarded)")
+            raise RuntimeError("MsgTransport sending is disabled (cmd discarded)")
 
         else:
             # if not self._dispatcher:  # TODO: do better?
