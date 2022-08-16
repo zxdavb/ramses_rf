@@ -421,11 +421,11 @@ def load_schema(gwy, **kwargs) -> None:
         for fan_id, schema in kwargs.items()
         if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
     ]
-    [
-        _get_device(gwy, device_id)
+    [  # NOTE: class favoured, domain ignored
+        _get_device(gwy, device_id)  # domain=key[-4:])
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
         for device_id in kwargs.pop(key, [])
-    ]
+    ]  # TODO: pass domain (Heat/HVAC), or generalise to SZ_ORPHANS
 
 
 def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
