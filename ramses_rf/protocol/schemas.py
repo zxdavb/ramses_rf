@@ -144,6 +144,20 @@ SZ_TIMEOUT = "timeout"
 SZ_XONXOFF = "xonxoff"
 
 
+SCH_SERIAL_PORT_CONFIG = vol.Schema(
+    {
+        vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
+            vol.Coerce(int), vol.Any(57600, 115200)
+        ),  # NB: HGI80 does not work, except at 115200 - so must be default
+        vol.Optional(SZ_DSRDTR, default=False): bool,
+        vol.Optional(SZ_RTSCTS, default=False): bool,
+        vol.Optional(SZ_TIMEOUT, default=0): vol.Any(None, int),  # default None?
+        vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+
+
 def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     """Return a serial port dict.
 
@@ -153,19 +167,6 @@ def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
         sch_serial_port_dict_factory(), extra=vol.PREVENT_EXTRA
     )
     """
-
-    SCH_SERIAL_PORT_CONFIG = vol.Schema(
-        {
-            vol.Optional(SZ_BAUDRATE, default=115200): vol.All(
-                vol.Coerce(int), vol.Any(57600, 115200)
-            ),  # NB: HGI80 does not work, except at 115200 - so must be default
-            vol.Optional(SZ_DSRDTR, default=False): bool,
-            vol.Optional(SZ_RTSCTS, default=False): bool,
-            vol.Optional(SZ_TIMEOUT, default=0): vol.Any(None, int),  # default None?
-            vol.Optional(SZ_XONXOFF, default=True): bool,  # set True to remove \x11
-        },
-        extra=vol.PREVENT_EXTRA,
-    )
 
     SCH_SERIAL_PORT_NAME = str
 
