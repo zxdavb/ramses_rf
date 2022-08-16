@@ -32,7 +32,7 @@ def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to rams
             new_dst[key] = value  # src takes precidence, assert will fail
 
         elif key not in new_dst or not isinstance(new_dst[key], list):  # is list
-            new_dst[key] = src[key]  # shouldn't happen: assert will fail
+            new_dst[key] = src[key]  # not expected, but maybe
 
         else:
             new_dst[key] = list(set(src[key] + new_dst[key]))  # will sort
