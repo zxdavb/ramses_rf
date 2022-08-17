@@ -353,9 +353,8 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(Code._31DA, key=SZ_CO2_LEVEL)
 
     @property
-    def exhaust_fan_speed(self) -> None | float:
-        # turn self._msg_value((Code._31D9, Code._31DA), key=SZ_EXHAUST_FAN_SPEED)
-        return self._msg_value((Code._31DA), key=SZ_EXHAUST_FAN_SPEED)
+    def exhaust_fan_speed(self) -> None | float:  # was from: (Code._31D9, Code._31DA)
+        return self._msg_value(Code._31DA, key=SZ_EXHAUST_FAN_SPEED)
 
     @property
     def exhaust_flow(self) -> None | float:
