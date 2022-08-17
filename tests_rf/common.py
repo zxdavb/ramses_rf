@@ -40,7 +40,7 @@ TEST_DIR = Path(__file__).resolve().parent
 
 test_ports = {MOCKED_PORT: MockGateway}
 if ports := [
-    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyxUSB")
+    c for c in list_ports.comports() if c.device[-7:-1] in ("ttyACM", "ttyUSB")
 ]:
     test_ports[ports[0].device] = Gateway
 
