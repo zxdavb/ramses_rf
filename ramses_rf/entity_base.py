@@ -51,6 +51,8 @@ _QOS_TX_LIMIT = 12  # TODO: needs work
 
 DEV_MODE = __dev_mode__ and False
 
+# USE_JMESPATH = False
+
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
@@ -143,6 +145,7 @@ class MessageDB:
 
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
+        # raise RuntimeError
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
     def _msg_value_code(
@@ -176,7 +179,7 @@ class MessageDB:
         if msg is None:
             return None
         elif msg._expired:
-            _delete_msg(msg)
+            _delete_msg(msg)  # TODO: call soon
 
         if msg.code == Code._1FC9:  # NOTE: list of lists/tuples
             return [x[1] for x in msg.payload]
@@ -211,45 +214,6 @@ class MessageDB:
             for k, v in msg_dict.items()
             if k not in ("dhw_idx", SZ_DOMAIN_ID, SZ_ZONE_IDX) and k[:1] != "_"
         }
-
-
-class MessageDatabaseSql:
-    """Maintain/utilize an entity's state database."""
-
-    CREATE_TABLE = """
-        CREATE TABLE msgs (
-            hdr data_type PRIMARY KEY,
-            ctx data_type DEFAULT "",
-            dtm data_type NOT NULL UNIQUE,
-            msg data_type NOT NULL,
-        ) [WITHOUT ROWID];
-    """
-
-    def __init__(self, gwy) -> None:
-        self._cur = gwy._cur  # gwy._db.cursor()
-
-    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
-        pass
-
-    @property
-    def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
-        pass
-
-    def _get_msg_by_hdr(self, hdr: _HeaderT) -> None | Message:
-        pass
-
-    def _msg_flag(self, code, key, idx) -> None | bool:
-        pass
-
-    def _msg_value(self, code, *args, **kwargs):
-        pass
-
-    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> None | dict:
-        pass
-
-    @staticmethod  # FIXME: messy (uses msg, others use code - move to Message?)
-    def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> None | dict:
-        pass
 
 
 class Discovery(MessageDB):

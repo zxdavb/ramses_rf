@@ -737,26 +737,3 @@ class Gateway(Engine):
         self._tasks.append(
             schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
         )
-
-
-class GatewayWithSql(Gateway):
-    """The gateway class (with MySQL)."""
-
-    def __init__(self, *args, **kwargs) -> None:
-
-        import sqlite3
-
-        self._db: sqlite3.Connection = sqlite3.connect("file::memory:?cache=shared")
-        self._cur = self._db.cursor()
-
-    async def start(self, *, start_discovery=True) -> None:
-        await super().start(start_discovery=start_discovery)
-
-    async def stop(self) -> None:
-        await super().stop()
-
-    def _get_state(self, include_expired=None) -> tuple[dict, dict]:
-        pass
-
-    async def _set_state(self, packets, *, schema=None) -> None:
-        pass
