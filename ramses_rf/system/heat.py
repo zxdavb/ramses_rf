@@ -814,7 +814,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def params(self) -> dict[str, Any]:
         return {
             **super().params,
-            SZ_CHANGE_COUNTER: self._msg_value(Code._0006, SZ_CHANGE_COUNTER),
+            SZ_CHANGE_COUNTER: self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER),
         }
 
 
