@@ -28,8 +28,8 @@ from .protocol import (
     Message,
 )
 from .protocol.ramses import (
+    CODES_OF_HEAT_DOMAIN,
     CODES_OF_HEAT_DOMAIN_ONLY,
-    CODES_OF_HVAC_DOMAIN,
     CODES_OF_HVAC_DOMAIN_ONLY,
 )
 
@@ -100,14 +100,22 @@ def _check_msg_addrs(msg: Message) -> None:
     Raise InvalidAddrSetError if the meta data is invalid, otherwise simply return.
     """
 
-    if msg.src.id != msg.dst.id and msg.src.type == msg.dst.type:
+    if (
+        msg.src.id != msg.dst.id
+        and msg.src.type == msg.dst.type
+        and msg.src.type in DEV_TYPE_MAP.HEAT_DEVICES  # could still be HVAC domain
+    ):
         # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
         # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
         # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
         if msg.code in CODES_OF_HEAT_DOMAIN_ONLY:
             raise InvalidAddrSetError(f"Invalid src/dst addr pair: {msg.src}/{msg.dst}")
-        elif msg.code not in CODES_OF_HVAC_DOMAIN:
+        elif msg.code in CODES_OF_HEAT_DOMAIN:
             _LOGGER.warning(
+                f"{msg!r} < Invalid src/dst addr pair: {msg.src}/{msg.dst}, is it HVAC?"
+            )
+        elif msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
+            _LOGGER.info(
                 f"{msg!r} < Invalid src/dst addr pair: {msg.src}/{msg.dst}, is it HVAC?"
             )
 
