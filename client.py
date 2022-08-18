@@ -14,6 +14,12 @@ import json
 import logging
 import sys
 
+if False:  # HACK
+    import debugpy
+
+    debugpy.listen(address=("0.0.0.0", 5678))
+    debugpy.wait_for_client()
+
 import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
