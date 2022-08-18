@@ -507,9 +507,19 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
 def pkt_header(
     pkt, rx_header: bool = None
 ) -> None | _HeaderT:  # NOTE: used in command.py
-    """Return the QoS header of a packet (all packets have a header).
+    """Return the header of a packet (all packets have a header).
 
-    For rx_header=True, return the header of the response packet, if one is expected.
+    Used for QoS, and others.
+
+    For rx_header=True, return instead the header of the response packet, if one is
+    expected, otherwise return None.
+
+    Examples include:
+     I --- 04:155407 --:------ 04:155407 30C9 003 00092F                   # 30C9| I|04:155407
+    RP --- 01:223036 18:005567 --:------ 2349 007 0404B000FFFFFF           # 2349|RP|01:223036|04
+     I --- 01:223036 --:------ 01:223036 3B00 002 FCC8                     # 3B00| I|01:223036|FC
+    RP --- 01:223036 18:005567 --:------ 000C 012 020800125F91020800125F8D # 000C|RP|01:223036|0208
+     I --- 01:223036 --:------ 01:223036 2309 030 00-0640 01-03E8 02-03... # 2309| I|01:223036 (True)
     """
 
     if pkt.code == Code._1FC9:

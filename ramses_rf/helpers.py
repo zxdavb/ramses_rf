@@ -11,13 +11,13 @@ from inspect import iscoroutinefunction
 
 
 def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to ramses_rf?
-    """Deep merge a src dict (precident) into a dst dict and return the result.
+    """Deep merge a src dict (precedent) into a dst dict and return the result.
 
     run me with nosetests --with-doctest file.py
 
-    >>>            s = {'first': {'all_rows': {'pass': 'dog',                'number': '1'}}}
-    >>>            d = {'first': {'all_rows': {               'fail': 'cat', 'number': '5'}}}
-    >>> merge(s, d) == {'first': {'all_rows': {'pass': 'dog', 'fail': 'cat', 'number': '1'}}}
+    >>>            s = {'data': {'rows': {'pass': 'dog',                'num': '1'}}}
+    >>>            d = {'data': {'rows': {               'fail': 'cat', 'num': '5'}}}
+    >>> merge(s, d) == {'data': {'rows': {'pass': 'dog', 'fail': 'cat', 'num': '1'}}}
     True
     """
 

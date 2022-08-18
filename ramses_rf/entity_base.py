@@ -116,10 +116,10 @@ class MessageDB:
     def _get_msg_by_hdr(self, hdr: _HeaderT) -> None | Message:
         """Return a msg, if any, that matches a header."""
 
-        code, verb, _, *args = hdr.split("|")
+        code, verb, _, *args = hdr.split("|")  # _ is device_id
 
         try:
-            if args and (ctx := args[0]):
+            if args and (ctx := args[0]):  # ctx may == True
                 msg = self._msgz[code][verb][ctx]
             elif False in self._msgz[code][verb]:
                 msg = self._msgz[code][verb][False]
@@ -171,15 +171,14 @@ class MessageDB:
 
         return self._msg_value_msg(msg, key=key, **kwargs)
 
-    @staticmethod  # FIXME: messy (uses msg, others use code - move to Message?)
     def _msg_value_msg(
-        msg: None | Message, key=None, zone_idx: str = None, domain_id=None
+        self, msg: None | Message, key=None, zone_idx: str = None, domain_id: str = None
     ) -> None | dict | list:
 
         if msg is None:
             return None
         elif msg._expired:
-            _delete_msg(msg)  # TODO: call soon
+            self._gwy._loop.call_soon(_delete_msg, msg)  # HA bugs without deferred call
 
         if msg.code == Code._1FC9:  # NOTE: list of lists/tuples
             return [x[1] for x in msg.payload]
