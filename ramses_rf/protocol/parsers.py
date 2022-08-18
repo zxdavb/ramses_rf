@@ -1327,6 +1327,17 @@ def parser_1fd4(payload, msg) -> dict:
     return {"ticker": int(payload[2:], 16)}
 
 
+@parser_decorator  # WIP: unknown, HVAC
+def parser_2210(payload, msg) -> dict:
+    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF00FFFFFF0000000000FFFFFFFFFF00FFFFFF0000000000FFFFFFFFFFFFFFFF000000000000000800
+
+    assert payload == (
+        "00" + "FF00FFFFFF0000000000FFFFFFFF" * 2 + "FFFFFFFF000000000000000800"
+    ), _INFORM_DEV_MSG
+
+    return {}
+
+
 @parser_decorator  # now_next_setpoint - Programmer/Hometronics
 def parser_2249(payload, msg) -> dict:
     # see: https://github.com/jrosser/honeymon/blob/master/decoder.cpp#L357-L370
