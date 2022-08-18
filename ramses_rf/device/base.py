@@ -173,13 +173,21 @@ class DeviceBase(Entity):
             cls = best_dev_role(
                 self.addr, msg=msg, eavesdrop=self._gwy.config.enable_eavesdrop
             )
-            if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
-                _LOGGER.warning(
-                    f"Promoting the device class of {self} to {cls._SLUG}"
-                    f" - use a {SZ_KNOWN_LIST} to explicitly set this device's"
-                    f" {SZ_CLASS} to '{DEV_TYPE_MAP[cls._SLUG]}'"
-                )
-                self.__class__ = cls
+            if cls._SLUG in (DEV_TYPE.DEV, self._SLUG):
+                return  # either a demotion (DEV), or not promotion (HEA/HVC)
+
+            if self._SLUG == DEV_TYPE.HEA and cls._SLUG in DEV_TYPE_MAP.HVAC_SLUGS:
+                return  # TODO: should raise error if CODES_OF_HVAC_DOMAIN_ONLY?
+
+            if self._SLUG == DEV_TYPE.HVC and cls._SLUG not in DEV_TYPE_MAP.HVAC_SLUGS:
+                return  # TODO: should raise error if CODES_OF_HEAT_DOMAIN_ONLY?
+
+            _LOGGER.warning(
+                f"Promoting the device class of {self} to {cls._SLUG}"
+                f" - use a {SZ_KNOWN_LIST} to explicitly set this device's"
+                f" {SZ_CLASS} to '{DEV_TYPE_MAP[cls._SLUG]}'"
+            )
+            self.__class__ = cls
 
     @property
     def has_battery(self) -> None | bool:  # 1060
