@@ -100,6 +100,8 @@ def _check_msg_addrs(msg: Message) -> None:
     Raise InvalidAddrSetError if the meta data is invalid, otherwise simply return.
     """
 
+    # TODO: needs work: doesn't take into account device's explicit class at this layer
+
     if (
         msg.src.id != msg.dst.id
         and msg.src.type == msg.dst.type
