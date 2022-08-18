@@ -1427,6 +1427,36 @@ def parser_22d9(payload, msg) -> dict:
     return {SZ_SETPOINT: temp_from_hex(payload[2:6])}
 
 
+@parser_decorator  # WIP: unknown, HVAC
+def parser_22e0(payload, msg) -> dict:
+    # RP --- 32:155617 18:005904 --:------ 22E0 004 00-34-A0-1E
+    # RP --- 32:153258 18:005904 --:------ 22E0 004 00-64-A0-1E
+    def _parser(seqx) -> dict:
+        assert int(seqx, 16) <= 200
+        return int(seqx, 16) / 200
+
+    return {
+        f"percent_{i}": percent_from_hex(payload[i : i + 2])
+        for i in range(2, len(payload), 2)
+    }
+
+
+@parser_decorator  # WIP: unknown, HVAC
+def parser_22e5(payload, msg) -> dict:
+    # RP --- 32:153258 18:005904 --:------ 22E5 004 00-96-C8-14
+    # RP --- 32:155617 18:005904 --:------ 22E5 004 00-72-C8-14
+
+    return parser_22e0(payload, msg)
+
+
+@parser_decorator  # WIP: unknown, HVAC
+def parser_22e9(payload, msg) -> dict:
+    # RP --- 32:153258 18:005904 --:------ 22E9 004 00C8C814
+    # RP --- 32:155617 18:005904 --:------ 22E9 004 008CC814
+
+    return parser_22e0(payload, msg)
+
+
 @parser_decorator  # fan_speed (switch_mode), HVAC
 def parser_22f1(payload, msg) -> dict:
     # Orcon wireless remote 15RF
@@ -1499,6 +1529,23 @@ def parser_22f1(payload, msg) -> dict:
     }
 
 
+@parser_decorator  # WIP: unknown, HVAC (flow rate?)
+def parser_22f2(payload, msg) -> dict:
+    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-019B 01-0201
+    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-0174 01-0208
+    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-01E5 01-0201
+
+    def _parser(seqx) -> dict:
+        assert seqx[:2] in ("00", "01"), f"is {seqx[:2]}, expecting 00/01"
+
+        return {
+            "hvac_idx": seqx[:2],
+            "measure": temp_from_hex(seqx[2:]),
+        }
+
+    return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
+
+
 @parser_decorator  # fan_boost, HVAC
 def parser_22f3(payload, msg) -> dict:
     # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
@@ -1556,6 +1603,21 @@ def parser_22f3(payload, msg) -> dict:
         result.update({f"_{SZ_UNKNOWN}_5": payload[10:]})
 
     return result
+
+
+@parser_decorator  # WIP: unknown, HVAC
+def parser_22f4(payload, msg) -> dict:
+    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60E6-00000000000000-200000
+    # RP --- 32:153258 18:005904 --:------ 22F4 013 00-60DD-00000000000000-200000
+    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-40B0-00000000000000-200000
+
+    assert payload[:2] == "00"
+    assert payload[6:] == "00000000000000200000"
+
+    return {
+        "value_02": payload[2:4],
+        "value_04": payload[4:6],
+    }
 
 
 @parser_decorator  # bypass_mode, HVAC
@@ -1881,6 +1943,22 @@ def parser_3120(payload, msg) -> dict:
         f"{SZ_UNKNOWN}_0": payload[2:10],
         f"{SZ_UNKNOWN}_5": payload[10:12],
         f"{SZ_UNKNOWN}_2": payload[12:],
+    }
+
+
+@parser_decorator  # WIP: unknown, HVAC
+def parser_313e(payload, msg) -> dict:
+    # 11:00:59.412 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007937-003C80-0000
+    # 11:02:23.961 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007B14-003C80-0000
+    # 11:03:32.193 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007C1C-003C80-0000
+
+    assert payload[:2] == "00"
+    assert payload[12:] == "003C800000"
+
+    return {
+        "value_02": payload[2:12],
+        "value_12": payload[12:18],
+        "value_18": payload[18:],
     }
 
 
@@ -2210,6 +2288,28 @@ def parser_3221(payload, msg) -> dict:
     return {
         f"_{SZ_PAYLOAD}": payload,
         SZ_VALUE: int(payload[2:], 16),
+    }
+
+
+@parser_decorator  # WIP: unknown, HVAC
+def parser_3222(payload, msg) -> dict:
+    # 06:30:14.322 RP --- 32:155617 18:005904 --:------ 3222 004 00-00-01-00
+    # 00:09:26.263 RP --- 32:155617 18:005904 --:------ 3222 005 00-00-02-0009
+    # 02:42:27.090 RP --- 32:155617 18:005904 --:------ 3222 007 00-06-04-            000F100E
+    # 22:06:45.771 RP --- 32:155617 18:005904 --:------ 3222 011 00-02-08-    0009000F000F100E
+    # 13:30:26.792 RP --- 32:155617 18:005904 --:------ 3222 012 00-01-09-  090009000F000F100E
+    # 06:29:40.767 RP --- 32:155617 18:005904 --:------ 3222 013 00-00-0A-00090009000F000F100E
+
+    assert payload[:2] == "00"
+
+    if msg.len == 3:
+        assert payload[4:] == "00"
+        return {"percentage": percent_from_hex(payload[2:4])}
+
+    return {
+        "start": payload[2:4],
+        "length": payload[4:6],
+        "data": f"{'..' * int(payload[2:4])}{payload[6:]}",
     }
 
 
