@@ -1907,11 +1907,13 @@ def parser_30c9(payload, msg) -> dict:
 
 @parser_decorator  # unknown_3110, HVAC
 def parser_3110(payload, msg) -> dict:
+    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
+    # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
 
     try:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
         assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
-        assert payload[6:] in ("10", "20"), f"byte 3: {payload[6:]}"
+        assert payload[6:] in ("00", "10", "20"), f"byte 3: {payload[6:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
