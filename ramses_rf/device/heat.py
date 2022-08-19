@@ -71,6 +71,40 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
+SZ_BURNER_HOURS = "burner_hours"
+SZ_BURNER_STARTS = "burner_starts"
+SZ_BURNER_FAILED_STARTS = "burner_failed_starts"
+SZ_CH_PUMP_HOURS = "ch_pump_hours"
+SZ_CH_PUMP_STARTS = "ch_pump_starts"
+SZ_DHW_BURNER_HOURS = "dhw_burner_hours"
+SZ_DHW_BURNER_STARTS = "dhw_burner_starts"
+SZ_DHW_PUMP_HOURS = "dhw_pump_hours"
+SZ_DHW_PUMP_STARTS = "dhw_pump_starts"
+SZ_FLAME_SIGNAL_LOW = "flame_signal_low"
+
+SZ_BOILER_OUTPUT_TEMP = "boiler_output_temp"
+SZ_BOILER_RETURN_TEMP = "boiler_return_temp"
+SZ_BOILER_SETPOINT = "boiler_setpoint"
+SZ_CH_MAX_SETPOINT = "ch_max_setpoint"
+SZ_CH_SETPOINT = "ch_setpoint"
+SZ_CH_WATER_PRESSURE = "ch_water_pressure"
+SZ_DHW_FLOW_RATE = "dhw_flow_rate"
+SZ_DHW_SETPOINT = "dhw_setpoint"
+SZ_DHW_TEMP = "dhw_temp"
+SZ_MAX_REL_MODULATION = "max_rel_modularion"
+SZ_OEM_CODE = "oem_code"
+SZ_OUTSIDE_TEMP = "outside_temp"
+SZ_REL_MODULATION_LEVEL = "rel_modulation_level"
+
+SZ_CH_ACTIVE = "ch_active"
+SZ_CH_ENABLED = "ch_enabled"
+SZ_COOLING_ACTIVE = "cooling_active"
+SZ_COOLING_ENABLED = "cooling_enabled"
+SZ_DHW_ACTIVE = "dhw_active"
+SZ_DHW_ENABLED = "dhw_enabled"
+SZ_FAULT_PRESENT = "fault_present"
+SZ_FLAME_ACTIVE = "flame_active"
+
 
 DEV_MODE = __dev_mode__  # and False
 
@@ -241,7 +275,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
                 mod_level = 1.0 if mod_level > 0 else 0
 
             cmd = Command.put_actuator_state(self.id, mod_level)
-            qos = {"priority": Priority.HIGH, "retries": 3}
+            qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
             [self._send_cmd(cmd, **qos) for _ in range(1)]  # type: ignore[func-returns-value]
 
         elif msg.code == Code._0009:  # can only be I, from a controller
@@ -258,7 +292,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
             mod_level = 1.0
 
             cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
-            qos = {"priority": Priority.HIGH, "retries": 3}
+            qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
             [self._send_cmd(cmd, **qos) for _ in range(1)]  # type: ignore[func-returns-value]
 
     def _bind(self):
@@ -418,7 +452,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
     HEAT_DEMAND = SZ_HEAT_DEMAND
 
-    _STATE_ATTR = "heat_demand"
+    _STATE_ATTR = SZ_HEAT_DEMAND
 
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
     # 12:27:24.546 068  I --- 02:000921 --:------ 01:191718 3150 002 065A
@@ -670,7 +704,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     _SLUG: str = DEV_TYPE.OTB
 
-    _STATE_ATTR = "rel_modulation_level"
+    _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
     OT_TO_RAMSES = {
         # "00": Code._3EF0,  # master/slave status (actuator_state)
@@ -910,7 +944,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
-        return self._msg_value(Code._3EF0, key="ch_setpoint")
+        return self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
 
     @property
     def ch_water_pressure(self) -> None | float:  # 3220|12, or 1300
@@ -923,7 +957,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def dhw_flow_rate(self) -> None | float:  # 3220|13, or 12F0
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("13")
-        return self._msg_value(Code._12F0, key="dhw_flow_rate")
+        return self._msg_value(Code._12F0, key=SZ_DHW_FLOW_RATE)
 
     @property
     def dhw_setpoint(self) -> None | float:  # 3220|38, or 10A0
@@ -943,7 +977,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     ) -> None | float:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_value("0E")  # needs confirming
-        return self._msg_value(Code._3EF0, key="max_rel_modulation")
+        return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
 
     @property
     def oem_code(self) -> None | float:  # 3220|73
@@ -969,19 +1003,19 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def ch_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 1)
-        return self._msg_value(Code._3EF0, key="ch_active")
+        return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
 
     @property
     def ch_enabled(self) -> None | bool:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 0)
-        return self._msg_value(Code._3EF0, key="ch_enabled")
+        return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
 
     @property
     def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
         if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 2)
-        return self._msg_value(Code._3EF0, key="dhw_active")
+        return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
 
     @property
     def dhw_enabled(self) -> None | bool:  # 3220|00
@@ -991,7 +1025,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
         if not self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 3)
-        return self._msg_value(Code._3EF0, key="flame_active")
+        return self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE)
 
     @property
     def cooling_active(self) -> None | bool:  # 3220|00
@@ -1021,16 +1055,16 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def opentherm_counters(self) -> dict:
         # for msg_id in ("71", "72", ...):
         return {
-            "burner_hours": self._ot_msg_value("78"),
-            "burner_starts": self._ot_msg_value("74"),
-            "burner_failed_starts": self._ot_msg_value("71"),
-            "ch_pump_hours": self._ot_msg_value("79"),
-            "ch_pump_starts": self._ot_msg_value("75"),
-            "dhw_burner_hours": self._ot_msg_value("7B"),
-            "dhw_burner_starts": self._ot_msg_value("77"),
-            "dhw_pump_hours": self._ot_msg_value("7A"),
-            "dhw_pump_starts": self._ot_msg_value("76"),
-            "flame_signal_low": self._ot_msg_value("72"),
+            SZ_BURNER_HOURS: self._ot_msg_value("78"),
+            SZ_BURNER_STARTS: self._ot_msg_value("74"),
+            SZ_BURNER_FAILED_STARTS: self._ot_msg_value("71"),
+            SZ_CH_PUMP_HOURS: self._ot_msg_value("79"),
+            SZ_CH_PUMP_STARTS: self._ot_msg_value("75"),
+            SZ_DHW_BURNER_HOURS: self._ot_msg_value("7B"),
+            SZ_DHW_BURNER_STARTS: self._ot_msg_value("77"),
+            SZ_DHW_PUMP_HOURS: self._ot_msg_value("7A"),
+            SZ_DHW_PUMP_STARTS: self._ot_msg_value("76"),
+            SZ_FLAME_SIGNAL_LOW: self._ot_msg_value("72"),
         }  # 0x73 is OEM diagnostic code...
 
     @property
@@ -1048,26 +1082,26 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     @property
     def opentherm_status(self) -> dict:
         return {
-            "boiler_output_temp": self._ot_msg_value("19"),
-            "boiler_return_temp": self._ot_msg_value("1C"),
-            "boiler_setpoint": self._ot_msg_value("01"),
-            "ch_max_setpoint": self._ot_msg_value("39"),
-            "ch_water_pressure": self._ot_msg_value("12"),
-            "dhw_flow_rate": self._ot_msg_value("13"),
-            "dhw_setpoint": self._ot_msg_value("38"),
-            "dhw_temp": self._ot_msg_value("1A"),
-            "oem_code": self._ot_msg_value("73"),
-            "outside_temp": self._ot_msg_value("1B"),
-            "rel_modulation_level": self.rel_modulation_level_ot,
+            SZ_BOILER_OUTPUT_TEMP: self._ot_msg_value("19"),
+            SZ_BOILER_RETURN_TEMP: self._ot_msg_value("1C"),
+            SZ_BOILER_SETPOINT: self._ot_msg_value("01"),
+            SZ_CH_MAX_SETPOINT: self._ot_msg_value("39"),
+            SZ_CH_WATER_PRESSURE: self._ot_msg_value("12"),
+            SZ_DHW_FLOW_RATE: self._ot_msg_value("13"),
+            SZ_DHW_SETPOINT: self._ot_msg_value("38"),
+            SZ_DHW_TEMP: self._ot_msg_value("1A"),
+            SZ_OEM_CODE: self._ot_msg_value("73"),
+            SZ_OUTSIDE_TEMP: self._ot_msg_value("1B"),
+            SZ_REL_MODULATION_LEVEL: self.rel_modulation_level_ot,
             #
-            "ch_active": self._ot_msg_flag("00", 8 + 1),
-            "ch_enabled": self._ot_msg_flag("00", 0),
-            "cooling_active": self._ot_msg_flag("00", 8 + 4),
-            "cooling_enabled": self._ot_msg_flag("00", 2),
-            "dhw_active": self._ot_msg_flag("00", 8 + 2),
-            "dhw_enabled": self._ot_msg_flag("00", 1),
-            "fault_present": self._ot_msg_flag("00", 8),
-            "flame_active": self._ot_msg_flag("00", 8 + 3),
+            SZ_CH_ACTIVE: self._ot_msg_flag("00", 8 + 1),
+            SZ_CH_ENABLED: self._ot_msg_flag("00", 0),
+            SZ_COOLING_ACTIVE: self._ot_msg_flag("00", 8 + 4),
+            SZ_COOLING_ENABLED: self._ot_msg_flag("00", 2),
+            SZ_DHW_ACTIVE: self._ot_msg_flag("00", 8 + 2),
+            SZ_DHW_ENABLED: self._ot_msg_flag("00", 1),
+            SZ_FAULT_PRESENT: self._ot_msg_flag("00", 8),
+            SZ_FLAME_ACTIVE: self._ot_msg_flag("00", 8 + 3),
         }
 
     @property
@@ -1077,28 +1111,28 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     @property
     def ramses_params(self) -> dict:
         return {
-            "max_rel_modulation": self.max_rel_modulation,
+            SZ_MAX_REL_MODULATION: self.max_rel_modulation,
         }
 
     @property
     def ramses_status(self) -> dict:
         return {
-            "boiler_output_temp": self._msg_value(Code._3200, key=SZ_TEMPERATURE),
-            "boiler_return_temp": self._msg_value(Code._3210, key=SZ_TEMPERATURE),
-            "boiler_setpoint": self._msg_value(Code._22D9, key=SZ_SETPOINT),
-            "ch_max_setpoint": self._msg_value(Code._1081, key=SZ_SETPOINT),
-            "ch_setpoint": self._msg_value(Code._3EF0, key="ch_setpoint"),
-            "ch_water_pressure": self._msg_value(Code._1300, key=SZ_PRESSURE),
-            "dhw_flow_rate": self._msg_value(Code._12F0, key="dhw_flow_rate"),
-            "dhw_setpoint": self._msg_value(Code._1300, key=SZ_SETPOINT),
-            "dhw_temp": self._msg_value(Code._1260, key=SZ_TEMPERATURE),
-            "outside_temp": self._msg_value(Code._1290, key=SZ_TEMPERATURE),
-            "rel_modulation_level": self.rel_modulation_level,
+            SZ_BOILER_OUTPUT_TEMP: self._msg_value(Code._3200, key=SZ_TEMPERATURE),
+            SZ_BOILER_RETURN_TEMP: self._msg_value(Code._3210, key=SZ_TEMPERATURE),
+            SZ_BOILER_SETPOINT: self._msg_value(Code._22D9, key=SZ_SETPOINT),
+            SZ_CH_MAX_SETPOINT: self._msg_value(Code._1081, key=SZ_SETPOINT),
+            SZ_CH_SETPOINT: self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT),
+            SZ_CH_WATER_PRESSURE: self._msg_value(Code._1300, key=SZ_PRESSURE),
+            SZ_DHW_FLOW_RATE: self._msg_value(Code._12F0, key=SZ_DHW_FLOW_RATE),
+            SZ_DHW_SETPOINT: self._msg_value(Code._1300, key=SZ_SETPOINT),
+            SZ_DHW_TEMP: self._msg_value(Code._1260, key=SZ_TEMPERATURE),
+            SZ_OUTSIDE_TEMP: self._msg_value(Code._1290, key=SZ_TEMPERATURE),
+            SZ_REL_MODULATION_LEVEL: self.rel_modulation_level,
             #
-            "ch_active": self._msg_value(Code._3EF0, key="ch_active"),
-            "ch_enabled": self._msg_value(Code._3EF0, key="ch_enabled"),
-            "dhw_active": self._msg_value(Code._3EF0, key="dhw_active"),
-            "flame_active": self._msg_value(Code._3EF0, key="flame_active"),
+            SZ_CH_ACTIVE: self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
+            SZ_CH_ENABLED: self._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
+            SZ_DHW_ACTIVE: self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
+            SZ_FLAME_ACTIVE: self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
         }
 
     @property
@@ -1304,7 +1338,7 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
     WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
 
-    _STATE_ATTR = "heat_demand"
+    _STATE_ATTR = SZ_HEAT_DEMAND
 
     @property
     def heat_demand(self) -> None | float:  # 3150
