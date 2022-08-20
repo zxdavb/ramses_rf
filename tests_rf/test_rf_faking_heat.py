@@ -24,7 +24,7 @@ CONFIG_FILE = "config_heat.json"
 
 
 def pytest_generate_tests(metafunc):
-    metafunc.parametrize("test_port", test_ports.items())
+    metafunc.parametrize("test_port", test_ports.items(), ids=test_ports.keys())
 
 
 def find_test_zone(gwy: Gateway) -> tuple[System, Zone]:
