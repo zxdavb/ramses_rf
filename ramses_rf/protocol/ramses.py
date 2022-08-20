@@ -95,10 +95,11 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
         EXPIRES: td(days=1),
     },
-    Code._000C: {  # zone_devices, TODO: needs I/RP
+    Code._000C: {  # zone_devices
         SZ_NAME: "zone_devices",
-        # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
-        I_: r"^(0[0-9A-F][01][0-9A-F](0[0-9A-F]|7F)[0-9A-F]{6}){1,8}$",
+        # RP --- 01:145038 18:013393 --:------ 000C 018 06-08-00-1099C3 06-08-00-1099C5 06-08-00-1099BF
+        # RP --- 01:145038 18:013393 --:------ 000C 016 05-08-00-109901    08-00-109902    08-00-109903
+        I_: r"^0[0-9A-F][01][0-9A-F]|7F[0-9A-F]{6}([0-9A-F]{10}|[0-9A-F]{12}){1,7}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         EXPIRES: False,
     },
@@ -298,7 +299,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # 2021-12-06T06:35:55.949502 071 RP --- 10:051349 18:135447 --:------ 3220 005 00C0130ECC
         SZ_NAME: "dhw_flow_rate",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F](4)$",
+        RP: r"^00[0-9A-F]{4}$",
     },
     Code._1300: {  # cv water pressure (usu. for ch)
         SZ_NAME: "ch_pressure",
@@ -357,6 +358,11 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
+    Code._2210: {  # unknown_2210, HVAC, NB: no I
+        SZ_NAME: "unknown_2210",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{82}$",
+    },
     Code._2249: {  # setpoint_now?
         SZ_NAME: "setpoint_now",  # setpt_now_next
         I_: r"^(0[0-9A-F]{13}){1,2}$",
@@ -377,14 +383,40 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
+    Code._22E0: {  # unknown_22e0, HVAC, NB: no I
+        SZ_NAME: "unknown_22e0",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{6}$",
+    },
+    Code._22E5: {  # unknown_22e5, HVAC, NB: no I
+        SZ_NAME: "unknown_22e5",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{6}$",
+    },
+    Code._22E9: {  # unknown_22e9, HVAC, NB: no I
+        SZ_NAME: "unknown_22e9",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{6}$",
+    },
     Code._22F1: {  # fan_mode, HVAC
         SZ_NAME: "fan_mode",
+        RQ: r"^00$",
         I_: r"^(00|63)(0[0-9A-F]){1,2}$",
+    },
+    Code._22F2: {  # unknown_22f2, HVAC, NB: no I
+        SZ_NAME: "unknown_22f2",
+        RQ: r"^00$",  # (00|01)?
+        RP: r"^00[0-9A-F]{4}(01[0-9A-F]{4})?$",
     },
     Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes
+    Code._22F4: {  # unknown_22f4, HVAC, NB: no I
+        SZ_NAME: "unknown_22f4",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{24}$",
+    },
     Code._22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
         I_: r"^00([0-9A-F]{2}){1,2}$",  # RP is the same
@@ -393,6 +425,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._22F8: {  # fan_22f8 (moisture scenario?), HVAC
         SZ_NAME: "fan_22f8",
+        RQ: r"^00$",
         I_: r"^00[0-9A-F]{4}$",
     },
     Code._22B0: {  # programme_status, HVAC (1470, 1F70, 22B0)
@@ -486,6 +519,11 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         RQ: r"^00$",  # 20: will RP an RQ?
         # RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
+    Code._313E: {  # unknown_313e, HVAC, NB: no I
+        SZ_NAME: "unknown_313e",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{20}$",
+    },
     Code._313F: {  # datetime (time report)
         SZ_NAME: "datetime",
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
@@ -502,7 +540,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "fan_state",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
-        I_: r"^(00|01|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|04|08)?)?$",  # 00-0004-FE
+        I_: r"^(00|01|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|01|04|08)?)?$",  # 00-0004-FE
         RQ: r"^(00|01|21)$",
     },
     Code._31DA: {  # hvac_state (fan_state_extended)
@@ -537,6 +575,11 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "message_3221",
         RQ: r"^00$",
         RP: r"^00",
+    },
+    Code._3222: {  # unknown_3222, HVAC, NB: no I
+        SZ_NAME: "unknown_3222",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4,20}$",
     },
     Code._3223: {  # unknown_3223, from OTB
         SZ_NAME: "message_3223",
