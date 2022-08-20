@@ -328,6 +328,11 @@ def select_device_filter_mode(
      - block if device_id in block_list (could be empty)
     """
 
+    if both := set(known_list) & set(block_list):
+        raise ValueError(
+            f"There are devices in both the {SZ_KNOWN_LIST} & {SZ_BLOCK_LIST}: {both}"
+        )
+
     if enforce_known_list and not known_list:
         _LOGGER.warning(
             f"An empty {SZ_KNOWN_LIST} was provided, so it cant be used "
