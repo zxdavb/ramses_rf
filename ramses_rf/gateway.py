@@ -538,7 +538,7 @@ class Gateway(Engine):
 
             if dev_id in self._unwanted:
                 # _LOGGER.warning()
-                raise LookupError(f"Can't create {dev_id}: it unwanted or invalid")
+                raise LookupError(f"Can't create {dev_id}: it is unwanted or invalid")
 
             if self.config.enforce_known_list and (
                 dev_id not in self._include
