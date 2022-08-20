@@ -2434,11 +2434,11 @@ def parser_3ef0(payload, msg) -> dict:
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 000110FA00FF  # ?corrupt
 
         # for OTB (there's no reliable) modulation_level <-> flame_state)
-        assert (
-            payload[6:8] == "FF" or int(payload[6:8], 16) & 0b11110000 == 0
-        ), f"byte 3: {payload[6:8]}"
+        # assert (
+        #     payload[6:8] == "FF" or int(payload[6:8], 16) & 0b11110000 == 0
+        # ), f"byte 3: {payload[6:8]}"
         assert int(payload[8:10], 16) & 0b11110000 == 0, f"byte 4: {payload[8:10]}"
-        assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
+        # assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
         result.update(
             {
