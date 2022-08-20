@@ -1443,13 +1443,20 @@ def parser_22e0(payload, msg) -> dict:
     # RP --- 32:155617 18:005904 --:------ 22E0 004 00-34-A0-1E
     # RP --- 32:153258 18:005904 --:------ 22E0 004 00-64-A0-1E
     def _parser(seqx) -> dict:
-        assert int(seqx, 16) <= 200
+        assert int(seqx, 16) <= 200 or seqx == "E6"  # only for 22E0, not 22E5/22E9
         return int(seqx, 16) / 200
 
-    return {
-        f"percent_{i}": percent_from_hex(payload[i : i + 2])
-        for i in range(2, len(payload), 2)
-    }
+    try:
+        return {
+            f"percent_{i}": percent_from_hex(payload[i : i + 2])
+            for i in range(2, len(payload), 2)
+        }
+    except ValueError:
+        return {
+            "percent_2": percent_from_hex(payload[2:4]),
+            "percent_4": _parser(payload[4:6]),
+            "percent_6": percent_from_hex(payload[6:8]),
+        }
 
 
 @parser_decorator  # WIP: unknown, HVAC
@@ -2194,7 +2201,7 @@ def parser_31e0(payload, msg) -> dict:
     }
     """
 
-    # .I --- 37:005302 32:132403 --:------ 31E0 008 00-0000-0001-0064-00  # RF15 CO2 to Orcon HRC400 series SmartComfort Valve
+    # .I --- 37:005302 32:132403 --:------ 31E0 008 00-0000-00 01-0064-00  # RF15 CO2 to Orcon HRC400 series SmartComfort Valve
 
     # .I --- 29:146052 32:023459 --:------ 31E0 003 00-0000
     # .I --- 29:146052 32:023459 --:------ 31E0 003 00-00C8
@@ -2206,11 +2213,18 @@ def parser_31e0(payload, msg) -> dict:
     # .I --- 32:168090 30:082155 --:------ 31E0 004 00-00C8-00
     # .I --- 37:258565 37:261128 --:------ 31E0 004 00-0001-00
 
-    return {
-        "vent_demand": percent_from_hex(payload[4:6]),
-        "flags_1": payload[2:4],
-        f"_{SZ_UNKNOWN}_3": payload[6:],
-    }
+    def _parser(seqx) -> dict:
+        assert seqx[6:] in ("", "00", "FF")
+        return {
+            # "hvac_idx": seqx[:2],
+            "flags": seqx[2:4],
+            "vent_demand": percent_from_hex(seqx[4:6]),
+            f"_{SZ_UNKNOWN}_3": payload[6:],
+        }
+
+    if len(payload) > 8:
+        return [_parser(payload[x : x + 8]) for x in range(0, len(payload), 8)]
+    return _parser(payload)
 
 
 @parser_decorator  # supplied boiler water (flow) temp
