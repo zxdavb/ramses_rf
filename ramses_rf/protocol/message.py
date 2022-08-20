@@ -397,17 +397,13 @@ def _check_msg_payload(msg: Message, payload: str) -> None:
             raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
 
     except InvalidPacketError as exc:  # incl. InvalidPayloadError
-        if DEV_TYPE_MAP.HGI not in (
-            msg.src.type,
-            msg.dst.type,
-        ):  # DEX, HGI80 can do what it likes
-            # _LOGGER.warning(f"{msg!r} < {exc}")
-            raise exc  # TODO: messy - these msgs not ignore
-
-    # TODO: put this back, or leave it to the parser?
-    # if msg.code == Code._3220:
-    #     msg_id = int(payload[4:6], 16)
-    #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
-    #         raise InvalidPayloadError(
-    #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
-    #         )
+        # HGI80s can do what they like...
+        if msg.src.type != DEV_TYPE_MAP.HGI:
+            raise
+        if not msg._gwy.pkt_protocol or (
+            hgi_id := msg._gwy.pkt_protocol._hgi80.get("device_id") is None
+        ):
+            _LOGGER.warning(f"{msg!r} < {exc}")
+            return
+        elif msg.src.id != hgi_id:
+            raise
