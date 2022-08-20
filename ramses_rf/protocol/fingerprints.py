@@ -10,7 +10,7 @@ __all__ = ["check_signature"]
 
 # incl. date_1. NB: date_2 can vary (firmware date), and _unknown_1 can vary for R8810A
 # fmt: off
-__DEVICE_INFO_DB: Dict[str, Tuple[str, str, str, str]] = {
+__DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     # Heating (device type implies a slug only for these)...
     "0002FF0119FFFFFFFF": ("CTL", "01", "2014-01-16", "EvoTouch Colour"),  # .              ATC928-G3-0xx Evo Mk3 - EvoTouch Colour (WiFi, 12 zones)
     "0002FF0163FFFFFFFF": ("CTL", "01", "2013-08-01", "Evo Color"),  # .                    ATP928-G2-080 Evo Mk2 - Color (no WiFi)
@@ -60,8 +60,9 @@ __DEVICE_INFO_DB: Dict[str, Tuple[str, str, str, str]] = {
     "0001C827070167FFFF": ("REM", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
     "0001C827090167FFFF": ("REM", "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
     "0001C85A01016CFFFF": ("REM", "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
-    # REM (display)
-    "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, ?22F3 (HRC Display recessed 15RF)
+    # REM (display, or with CO2 sensor)
+    "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, 22F3? (HRC Display recessed 15RF)
+    "0001C88D030167FEFF": ("REM", "37", "2021-07-28", "VMI-15MC01"),   # .       1298/31E0, 22F1, 22F3  (with integrated CO2 sensor)
     # RFS...
     "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
     "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
@@ -73,8 +74,8 @@ __DEVICE_INFO_DB: Dict[str, Tuple[str, str, str, str]] = {
 # fmt: on
 
 __DEVICE_INFO: Dict[str, List[str]] = {
-    t: [k for k, v in __DEVICE_INFO_DB.items() if v[1] == t]
-    for t in sorted(dict.fromkeys(v[1] for v in __DEVICE_INFO_DB.values()))
+    t: [k for k, v in __DEVICE_INFO_RAW.items() if v[1] == t]
+    for t in sorted(dict.fromkeys(v[1] for v in __DEVICE_INFO_RAW.values()))
 }  # convert to {dev_type: [signature, ...]}
 
 
