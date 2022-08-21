@@ -1363,12 +1363,12 @@ class Command(Frame):
 
     @classmethod  # constructor for internal use only
     @typechecked
-    def _puzzle(cls, msg_type: str = Optional[str], message: str = "", **kwargs):
+    def _puzzle(cls, msg_type: None | str = None, message: str = "", **kwargs):
 
         if msg_type is None:
             msg_type = "12" if message else "10"
 
-        assert msg_type in LOOKUP_PUZZ, "Invalid/deprecated Puzzle type"
+        assert msg_type in LOOKUP_PUZZ, f"Invalid/deprecated Puzzle type: {msg_type}"
 
         qos = kwargs.get("qos", {})
         qos["priority"] = qos.get("priority", Priority.HIGHEST)
