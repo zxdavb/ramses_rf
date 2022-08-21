@@ -255,7 +255,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
             self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
 
         super()._bind()
-        self._bind_request((Code._22F1, Code._31_22F2E0), callback=callback)
+        self._bind_request((Code._22F1, Code._22F3), callback=callback)
 
     @property
     def fan_rate(self) -> None | str:
