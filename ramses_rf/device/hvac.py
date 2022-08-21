@@ -28,6 +28,7 @@ from ..const import (
     SZ_OUTDOOR_TEMPERATURE,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
+    SZ_PRESENCE_DETECTED,
     SZ_REMAINING_TIME,
     SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
@@ -74,6 +75,8 @@ class HvacSensorBase(DeviceHvac):
 
 
 class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
+    """The CO2 sensor (cardinal code is 1298)."""
+
     def _bind(self):
         # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
         # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
@@ -87,7 +90,7 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
 
     @property
     def co2_level(self) -> None | float:
-        return self._msg_value(Code._1298, key="co2_level")
+        return self._msg_value(Code._1298, key=SZ_CO2_LEVEL)
 
     # @check_faking_enabled
     @co2_level.setter
@@ -101,15 +104,17 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            "co2_level": self.co2_level,
+            SZ_CO2_LEVEL: self.co2_level,
         }
 
 
 class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
+    """The relative humidity sensor (12A0)."""
+
     def _bind(self):
-        #
-        #
-        #
+        # .I ---
+        # .W ---
+        # .I ---
 
         def callback(msg):
             self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
@@ -119,7 +124,7 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
 
     @property
     def indoor_humidity(self) -> None | float:
-        return self._msg_value(Code._12A0, key="indoor_humidity")
+        return self._msg_value(Code._12A0, key=SZ_INDOOR_HUMIDITY)
 
     # @check_faking_enabled
     @indoor_humidity.setter
@@ -133,11 +138,13 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            "indoor_humidity": self.indoor_humidity,
+            SZ_INDOOR_HUMIDITY: self.indoor_humidity,
         }
 
 
 class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
+    """The presence sensor (2E10/31E0)."""
+
     def _bind(self):
         # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B              # CO2, idx|10E0 == 01
         # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
@@ -151,7 +158,7 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
 
     @property
     def presence_detected(self) -> None | float:
-        return self._msg_value(Code._2E10, key="presence_detected")
+        return self._msg_value(Code._2E10, key=SZ_PRESENCE_DETECTED)
 
     # @check_faking_enabled
     @presence_detected.setter
@@ -165,11 +172,13 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            "presence_detected": self.presence_detected,
+            SZ_PRESENCE_DETECTED: self.presence_detected,
         }
 
 
 class FilterChange(DeviceHvac):  # FAN: 10D0
+    """The filter state sensor (10D0)."""
+
     def _setup_discovery_tasks(self) -> None:
         super()._setup_discovery_tasks()
 
@@ -183,7 +192,7 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
 
 
 class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
-    """The HGI80 base class."""
+    """The spIDer gateway base class."""
 
     _SLUG: str = DEV_TYPE.RFS
 
@@ -196,7 +205,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
 
 
 class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
-    """The Sensor class for a humidity sensor.
+    """The class for a humidity sensor.
 
     The cardinal code is 12A0.
     """
@@ -221,7 +230,7 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
 
 
 class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
-    """The Sensor class for a CO2 sensor.
+    """The class for a CO2 sensor.
 
     The cardinal code is 1298.
     """
@@ -229,22 +238,24 @@ class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
     _SLUG: str = DEV_TYPE.CO2
 
 
-class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[13]
-    """The FAN (switch) class, such as a 4-way switch.
+class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
+    """The REM (remote/switch) class, such as a 4-way switch.
 
-    The cardinal codes are 22F1, 22F3.
+    The cardinal codes are 22F1, 22F3 (also 22F8?).
     """
 
-    # 11:19:47.199 074  I --- 29:156898 63:262142 --:------ 1FC9 024 001FC97664E2 0022F17664E2 0022F37664E2 6710E07664E2         # REM, idx|10E0 == 67
-    # 11:19:47.212 059  W --- 32:132125 29:156898 --:------ 1FC9 012 0031D982041D 0031DA82041D                                   # FAN, is: Orcon HRC500
-    # 11:19:47.275 074  I --- 29:156898 32:132125 --:------ 1FC9 001 00                                                          # REM, is: Orcon RF15
-    # 11:19:47.348 074  I --- 29:156898 63:262142 --:------ 10E0 029 000001C827050167FFFFFFFFFFFFFFFFFFFF564D4E2D31354C46303100  # VMN-15LF01, oem_code == 67
-
-    # every /15
-    # RQ --- 32:166025 30:079129 --:------ 31DA 001 21
-    # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
-
     _SLUG: str = DEV_TYPE.REM
+
+    def _bind(self):
+        # .I --- 37:155617 --:------ 37:155617 1FC9 024 0022F1965FE10022F3965FE16710E0965FE1001FC9965FE1
+        # .W --- 32:155617 37:155617 --:------ 1FC9 012 0031D9825FE10031DA825FE1
+        # .I --- 37:155617 32:155617 --:------ 1FC9 001 00
+
+        def callback(msg):
+            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+
+        super()._bind()
+        self._bind_request((Code._22F1, Code._31_22F2E0), callback=callback)
 
     @property
     def fan_rate(self) -> None | str:
@@ -278,13 +289,13 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[13]
 
 
 class HvacDisplayRemote(HvacRemote):  # DIS
-    """The FAN (switch) class, such as a 4-way switch."""
+    """The DIS (display switch)."""
 
     _SLUG: str = DEV_TYPE.DIS
 
 
 class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
-    """The Ventilation class.
+    """The FAN (ventilation) class.
 
     The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
     """
