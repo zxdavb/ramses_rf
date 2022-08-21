@@ -13,7 +13,7 @@ jobs:
       - checkout # check out source code to working directory
       # - run: sudo chown -R circleci:circleci /usr/local/bin
       # - run: sudo chown -R circleci:circleci /usr/local/lib/python*/site-packages
-      - run: sudo python3 -m pip install pylint
+      - run: pip3 install pylint
       - run: mkdir test-results
 
 
@@ -24,7 +24,7 @@ jobs:
       - checkout
       - run:
           command: |
-            sudo python3 -m pip install -r requirements-dev.txt
+            pip3 install -r requirements-dev.txt
             mkdir test-results
       - run:
           name: "Check formatting 1: black"
@@ -50,9 +50,9 @@ jobs:
       - checkout
       - run:
           command: |
-            sudo python3 -m pip install -r requirements.txt
-            sudo python3 -m pip install -r requirements-dev.txt
-            sudo python3 -m pip install -e .
+            pip3 install -r requirements.txt
+            pip3 install -r requirements-dev.txt
+            pip3 install -e .
       - run:
           name: "Run pytest"
           command: |
@@ -69,8 +69,8 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            sudo python3 -m pip install -r requirements.txt
-            sudo python3 -m pip install twine
+            pip3 install -r requirements.txt
+            pip3 install twine
       - run:
           name: Verify git tag vs. package version
           command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
