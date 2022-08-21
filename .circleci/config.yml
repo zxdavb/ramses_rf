@@ -69,8 +69,8 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            pip3 install -r requirements.txt
-            pip3 install twine
+            # pip3 install -r requirements.txt
+            pip3 install setuptools twine wheel
       - run:
           name: Verify git tag vs. package version
           command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
