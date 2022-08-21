@@ -61,6 +61,8 @@ SZ_SUPPLY_FLOW = "supply_flow"
 SZ_SUPPLY_TEMPERATURE = "supply_temperature"
 SZ_SPEED_CAP = "speed_cap"
 
+SZ_PRESENCE_DETECTED = "presence_detected"
+
 
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
