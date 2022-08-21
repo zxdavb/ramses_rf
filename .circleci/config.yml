@@ -56,7 +56,7 @@ jobs:
       - run:
           name: "Run pytest"
           command: |
-            python3 -m pytest tests -v
+            python3 -m pytest -v
 
 
   deploy:
