@@ -43,7 +43,7 @@ from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command, Qos
 
 # skipcq: PY-W2000
-from .const import DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
+from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -91,6 +91,7 @@ TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
+FINGERPRINT = "fingerprint"
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
@@ -489,10 +490,15 @@ class PacketProtocolBase(asyncio.Protocol):
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
         self._hgi80 = {
+            SZ_DEVICE_ID: None,
+            FINGERPRINT: None,
             IS_INITIALIZED: False,
             IS_EVOFW3: None,
-            SZ_DEVICE_ID: None,
+            "known_hgi": None,
         }  # also: "evofw3_ver"
+
+        if hgis := [k for k, v in gwy._include.items() if v == DEV_TYPE.HGI]:
+            self._hgi80["known_hgi"] = hgis[0]
 
         self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
 
@@ -511,6 +517,8 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug(f"{self}.connection_made({transport})")
 
         self._transport = transport
+
+        # self.resume_writing()  # executed in selected sub-classes
 
         if self.enforce_include:  # TODO: here, or in init?
             _LOGGER.info(
@@ -531,7 +539,7 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug(f"{self}.connection_lost(exc)")
         # serial.serialutil.SerialException: device reports error (poll)
 
-        self._pause_writing = True
+        self.pause_writing()
 
         if exc is not None:
             raise exc
@@ -562,23 +570,38 @@ class PacketProtocolBase(asyncio.Protocol):
         for dtm, raw_line in bytes_received(data):
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
-    def _check_set_hgi80(self, pkt):
-        """Check/set HGI; log if it is a foreign HGI."""
-        assert pkt.src.id != HGI_DEV_ADDR.id
+    def _check_set_hgi80(self, pkt: Packet):
+        """Check/set (a pkt with) src.type == 18: - is it the HGI, or a foreign HGI?"""
 
-        if pkt.src.id in self._include:
+        if pkt.src.id == self._hgi80[SZ_DEVICE_ID]:
             return
 
-        if self._hgi80[SZ_DEVICE_ID] is None:
-            self._hgi80[SZ_DEVICE_ID] = pkt.src.id
+        if self._hgi80[SZ_DEVICE_ID]:
+            if pkt.verb != RQ:  # HACK: to reduce logspam
+                return
 
-        elif self._hgi80[SZ_DEVICE_ID] != pkt.src.id:
-            assert self._is_wanted(pkt.src.id, pkt.dst.id)
-            _LOGGER.warning(
-                f"{pkt} < There appears to be more than one HGI80-compatible device"
-                f" (active gateway: {self._hgi80[SZ_DEVICE_ID]}),"
-                f" this is unsupported{TIP}"
+            _LOGGER.warning(  # more than one GWY
+                f"{pkt} < Appears to be a Foreign gateway: {pkt.src.id} (Active gateway: "
+                f"{self._hgi80[SZ_DEVICE_ID]}): this is unsupported{TIP}"
             )
+
+            if pkt.src.id not in self._include and self.enforce_include:
+                _LOGGER.info(f"Blacklisting {pkt.src.id} (is Foreign gateway?){TIP}")
+                self._unwanted.append(pkt.src.id)
+            return
+
+        if pkt.payload == self._hgi80[FINGERPRINT]:
+            self._hgi80[SZ_DEVICE_ID] = pkt.src.id
+            _LOGGER.warning(f"{pkt} < Active gateway set to: {pkt.src.id}")
+
+            if pkt.src.id not in self._include:
+                _LOGGER.info(f"Whitelisting {pkt.src.id} (is Active gateway){TIP}")
+                self._include.append(pkt.src.id)  # NOTE: only time _include is modified
+            return
+
+        if pkt.src.id == self._hgi80["known_hgi"]:
+            self._hgi80[SZ_DEVICE_ID] = pkt.src.id
+            _LOGGER.warning(f"{pkt} < Active gateway set to: {pkt.src.id}")
 
     def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
 
@@ -607,9 +630,6 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
-        if pkt.src.type == DEV_TYPE_MAP.HGI:
-            self._check_set_hgi80(pkt)
-
         self._pkt_received(pkt)
 
     def _pkt_received(self, pkt: Packet) -> None:
@@ -618,10 +638,11 @@ class PacketProtocolBase(asyncio.Protocol):
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
         if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
+
             if pkt.src.type == DEV_TYPE_MAP.HGI:
                 self._check_set_hgi80(pkt)
 
-            try:
+            try:  # why not call soon?
                 self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
 
             except AssertionError as exc:  # protect from upper-layer callbacks
@@ -635,9 +656,6 @@ class PacketProtocolBase(asyncio.Protocol):
         """
 
         for dev_id in dict.fromkeys((src_id, dst_id)):
-            if dev_id in self._include:
-                continue  # or break if not self.enforce_include?
-
             if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
                 return False
 
@@ -645,20 +663,13 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._unwanted.append(dev_id)
                 return False
 
-            if not self.enforce_include:
+            if dev_id in self._include:
+                continue  # TODO: or break if not self.enforce_include?
+
+            if not self._hgi80["known_hgi"] and dev_id[:2] == DEV_TYPE_MAP.HGI:
                 continue
 
-            if dev_id[:2] != DEV_TYPE_MAP.HGI:
-                return False
-
-            if dev_id == self._hgi80[SZ_DEVICE_ID]:
-                _LOGGER.warning(f"Whitelisting {dev_id} (is the gateway){TIP}")
-                self._include.append(dev_id)  # NOTE: only time _include is modified
-                continue  # or break if not self.enforce_include?
-
-            if self._hgi80[SZ_DEVICE_ID]:  # could be from HVAC domain
-                _LOGGER.warning(f"Blacklisting {dev_id} (is a foreign gateway?){TIP}")
-                self._unwanted.append(dev_id)
+            if self.enforce_include:  # TODO: omit if using break?
                 return False
 
         return True
@@ -745,12 +756,13 @@ class PacketProtocolPort(PacketProtocolBase):
         super().connection_made(transport)  # self._transport = transport
         # self._transport.serial.rts = False
 
-        # determine if using a evofw3 rather than a HGI80
-        self._transport.write(bytes("!V\r\n".encode("ascii")))
+        self._transport.write(bytes("!V\r\n".encode("ascii")))  # is evofw3 or HGI80?
 
         # add this to start of the pkt log, if any
-        if False and not self._disable_sending:
-            self._transport.write(bytes(str(Command._puzzle()), "ascii") + b"\r\n")
+        if not self._disable_sending:
+            cmd = Command._puzzle()
+            self._hgi80[FINGERPRINT] = cmd.payload
+            self._transport.write(bytes(str(cmd), "ascii") + b"\r\n")
 
         self.resume_writing()
 
