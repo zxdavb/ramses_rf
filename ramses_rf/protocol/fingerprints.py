@@ -50,6 +50,7 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     "00010028080101FEFF": ("CO2", "37", "2019-04-29", "VMS-12C39"),  # .                    1298, 31E0, 2E10, 3120, and I|22F1!
     "00010028090101FEFF": ("CO2", "37", "2021-01-20", "VMS-12C39"),  # .                    1298, 31E0, 2E10, 3120 (and I|042F)
     "0001C822060166FEFF": ("CO2", "37", "2016-12-22", "VMS-17C01"),  # .                    1298, 31E0
+    "0001C8500B0167FEFF": ("CO2", "29", "2017-03-09", "VMS-15C16"),  # .         CO2 sensor (no remote)
     "0001C85701016CFFFF": ("CO2", "32", "2016-06-17", "VMS-23C33"),  # .                    1298, 31E0 (and I|042F)
     # HUM
     "0001C825050266FFFF": ("HUM", "29", "2017-04-19", "VMS-17HB01"),  # .                   12A0, 31E0, 1060
@@ -114,12 +115,15 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMD-17RPS01  -
 
 # VMI-15WSJ53  - REM - Orcon HRC Interactive/Display 15RF
+# VMI-15MC01   - REM - Orcon 15RF with integrated CO2
+
 # VMN-15LF01   - REM - Orcon 15RF 6 button remote
 # VMN-23LM33   -
 # VMN-23LMH23  - REM - 4 button RF Switch
 
 # VMS-02MC05   - CO2 -
-# VMS-12C39    - CO2 - CO2 sensor, incl. integrated control, PIR
+# VMS-15C16    - CO2 - CO2 Sensor (no remote)
+# VMS-12C39    - CO2 - CO2 Sensor, incl. integrated control, PIR
 # VMS-15CM17   - CO2 - CO2 Sensor
 # VMS-17C01    -
 # VMS-17HB01   -
