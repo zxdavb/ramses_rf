@@ -45,6 +45,7 @@ from .protocol.const import (  # noqa: F401
     SZ_PAYLOAD,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
+    SZ_PRESENCE_DETECTED,
     SZ_PRESSURE,
     SZ_PRIORITY,
     SZ_RELAY_DEMAND,
