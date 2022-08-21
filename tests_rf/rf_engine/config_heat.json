@@ -13,9 +13,6 @@
         "system": {
             "appliance_control": "10:048122"
         },
-        "stored_hotwater": {
-            "sensor": "07:045960"
-        },
         "zones": {
             "01": {
                 "_name": "Main room",

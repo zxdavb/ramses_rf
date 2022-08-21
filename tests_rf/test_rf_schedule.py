@@ -32,7 +32,7 @@ CONFIG_FILE = "config_heat.json"
 
 
 def pytest_generate_tests(metafunc):
-    metafunc.parametrize("test_port", test_ports.items())
+    metafunc.parametrize("test_port", test_ports.items(), ids=test_ports.keys())
 
 
 def assert_schedule_dict(schedule_full):
@@ -155,13 +155,13 @@ async def test_rq_0006(test_port):
 @abort_if_rf_test_fails
 async def test_rq_0404_dhw(test_port):  # Needs mocking
 
-    if test_port[0] == MOCKED_PORT:
+    if test_port[0] == MOCKED_PORT:  # HACK/TODO: FIXME
         return
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
     tcs = find_test_tcs(gwy)
 
-    if tcs.dhw:
+    if tcs.dhw:  # issue here
         await read_schedule(tcs.dhw)
 
     await gwy.stop()
