@@ -86,8 +86,8 @@ jobs:
       - run:
           name: Build the package
           command: |
-            sudo python3 setup.py sdist        # create a source distribution
-            sudo python3 setup.py bdist_wheel  # create a wheel
+            python3 setup.py sdist        # create a source distribution
+            python3 setup.py bdist_wheel  # create a wheel
       - run:
           name: Create .pypirc
           command: |
