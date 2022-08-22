@@ -51,6 +51,7 @@ from .protocol import create_protocol_factory
 from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
+    SZ_CLASS,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
@@ -89,9 +90,9 @@ _DEFAULT_USE_REGEX = {
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
-IS_INITIALIZED = "is_initialized"
-IS_EVOFW3 = "is_evofw3"
-FINGERPRINT = "fingerprint"
+SZ_FINGERPRINT = "fingerprint"
+SZ_IS_EVOFW3 = "is_evofw3"
+SZ_KNOWN_HGI = "known_hgi"
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
@@ -491,14 +492,15 @@ class PacketProtocolBase(asyncio.Protocol):
 
         self._hgi80 = {
             SZ_DEVICE_ID: None,
-            FINGERPRINT: None,
-            IS_INITIALIZED: False,
-            IS_EVOFW3: None,
-            "known_hgi": None,
+            SZ_FINGERPRINT: None,
+            SZ_IS_EVOFW3: None,
+            SZ_KNOWN_HGI: None,
         }  # also: "evofw3_ver"
 
-        if hgis := [k for k, v in gwy._include.items() if v == DEV_TYPE.HGI]:
-            self._hgi80["known_hgi"] = hgis[0]
+        if known_hgis := [
+            k for k, v in gwy._include.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
+        ]:
+            self._hgi80[SZ_KNOWN_HGI] = known_hgis[0]
 
         self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
 
@@ -590,7 +592,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._unwanted.append(pkt.src.id)
             return
 
-        if pkt.payload == self._hgi80[FINGERPRINT]:
+        if pkt.payload == self._hgi80[SZ_FINGERPRINT]:
             self._hgi80[SZ_DEVICE_ID] = pkt.src.id
             _LOGGER.warning(f"{pkt} < Active gateway set to: {pkt.src.id}")
 
@@ -599,7 +601,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._include.append(pkt.src.id)  # NOTE: only time _include is modified
             return
 
-        if pkt.src.id == self._hgi80["known_hgi"]:
+        if pkt.src.id == self._hgi80[SZ_KNOWN_HGI]:
             self._hgi80[SZ_DEVICE_ID] = pkt.src.id
             _LOGGER.warning(f"{pkt} < Active gateway set to: {pkt.src.id}")
 
@@ -607,8 +609,6 @@ class PacketProtocolBase(asyncio.Protocol):
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Rx: %s", raw_line)
-
-        self._hgi80[IS_INITIALIZED], was_initialized = True, self._hgi80[IS_INITIALIZED]
 
         try:
             pkt = Packet.from_port(
@@ -619,15 +619,14 @@ class PacketProtocolBase(asyncio.Protocol):
             )  # should log all? invalid pkts appropriately
 
         except InvalidPacketError as exc:
-            if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
-                self._hgi80[IS_EVOFW3] = True
+            if "# evofw" in line and self._hgi80[SZ_IS_EVOFW3] is None:
+                self._hgi80[SZ_IS_EVOFW3] = True
                 self._hgi80["evofw3_ver"] = line
                 if self._evofw_flag not in (None, "!V"):
                     self._transport.write(
                         bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
                     )
-            elif was_initialized and line and line[:1] != "#" and "*" not in line:
-                _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
+            _LOGGER.debug("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
         self._pkt_received(pkt)
@@ -666,7 +665,7 @@ class PacketProtocolBase(asyncio.Protocol):
             if dev_id in self._include:
                 continue  # TODO: or break if not self.enforce_include?
 
-            if not self._hgi80["known_hgi"] and dev_id[:2] == DEV_TYPE_MAP.HGI:
+            if not self._hgi80[SZ_KNOWN_HGI] and dev_id[:2] == DEV_TYPE_MAP.HGI:
                 continue
 
             if self.enforce_include:  # TODO: omit if using break?
@@ -761,7 +760,7 @@ class PacketProtocolPort(PacketProtocolBase):
         # add this to start of the pkt log, if any
         if not self._disable_sending:
             cmd = Command._puzzle()
-            self._hgi80[FINGERPRINT] = cmd.payload
+            self._hgi80[SZ_FINGERPRINT] = cmd.payload
             self._transport.write(bytes(str(cmd), "ascii") + b"\r\n")
 
         self.resume_writing()
@@ -783,7 +782,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
     async def _handle_impersonation(self, cmd: Command) -> None:
         msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
-        if self._hgi80[IS_EVOFW3]:
+        if self._hgi80[SZ_IS_EVOFW3]:
             _LOGGER.info(msg)
         else:
             _LOGGER.warning(
