@@ -62,15 +62,22 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     "0001C827090167FFFF": ("REM", "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
     "0001C85A01016CFFFF": ("REM", "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
     # REM (display, or with CO2 sensor)
-    "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, 22F3? (HRC Display recessed 15RF)
+    "0001C88D020167FEFF": ("CO2", "37", "2020-04-21", "VMI-15MC01"),  # .                   1298, 31E0
     "0001C88D030167FEFF": ("REM", "37", "2021-07-28", "VMI-15MC01"),   # .       1298/31E0, 22F1, 22F3  (with integrated CO2 sensor)
+    "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, 22F3? (HRC Display recessed 15RF)
     # RFS...
-    "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
-    "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
+    "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
+    "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
+    "00010022370101F1FB": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9,                   30C9, 3110, 3120, 3EF0
+    "00010022370101FEFF": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060, 1290, 12C0, 22C9,                   30C9, 3110, 3120  (maybe incomplete)
     # TBA - broken as 18:...
     "0001FA100A0001FEFE": ("FAN", "18", "2019-04-11", "BRDG-02A55"),  # .        NOTE: 18:  31D9, 31DA, 1F09
     "0001FA100B0001FEFE": ("FAN", "18", "2019-07-22", "BRDG-02A55"),  # .        NOTE: 18:  31D9, 31DA, 1F09
     "0001C8820C006AFEFF": ("FAN", "18", "2019-08-20", "HRA82"),  # .             NOTE: 18:  (only I|042F, I|10E0)
+    #
+    "00010021030200FFFF": ("CO2", "37", "0000-00-00", "VMS-02J52"),  # .            1298, 22F3, 31E0
+    "0001C8930A0967FEFF": ("FAN", "32", "2020-10-06", "VMZ-15V13"),  # .          *Zone Valve*          1298, 22F3, 31E0
+    "0001C893090867FEFF": ("FAN", "32", "2020-06-19", "VMZ-15V13"),  # .          *Zone Valve*          1298, 22F3, 31E0
 }
 # fmt: on
 
@@ -121,6 +128,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMN-23LM33   -
 # VMN-23LMH23  - REM - 4 button RF Switch
 
+# VMS-02J52    - ???
 # VMS-02MC05   - CO2 -
 # VMS-15C16    - CO2 - CO2 Sensor (no remote)
 # VMS-12C39    - CO2 - CO2 Sensor, incl. integrated control, PIR
@@ -129,6 +137,9 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMS-17HB01   -
 # VMS-23C33    - CO2 - CO2 Sensor (no PIR) (e.g. Nuaire DRI-ECO-CO2)
 # VMS-23HB33   - HUM - RH/Temp Sensor      (e.g. Nuaire DRI-ECO-RH)
+
+# VMZ-15V13    - Itho Zone Valve (like a FAN?)
+
 # MVS-15RHB    - FAN - Orcon Smartline FAN (incl. Moisture sensor and transmitter)
 
 
