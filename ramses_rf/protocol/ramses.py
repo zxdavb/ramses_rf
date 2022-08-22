@@ -641,7 +641,7 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
         code[RP] = code[I_]
 #
 # .I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
-CODES_WITH_ARRAYS: dict[Code, list] = {
+CODES_WITH_ARRAYS: dict[Code, list] = {  # 000C/1FC9 are special
     Code._0005: [4, ("34",)],
     Code._0009: [3, ("01", "12", "22")],
     Code._000A: [6, ("01", "12", "22")],  # single element I after a W
