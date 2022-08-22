@@ -200,6 +200,7 @@ class Frame:
         # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
         if self.code == Code._1FC9:
             self._has_array_ = self.verb != RQ  # safe to treat all as array, even len=1
+            return self._has_array_  # don't do any checks for 1FC9 (they will fail)
 
         elif self.verb != I_ or self.code not in CODES_WITH_ARRAYS:
             self._has_array_ = False
@@ -215,6 +216,9 @@ class Frame:
             and self.payload[:1] != "F"
         ):
             self._has_array_ = True
+
+        # elif self.code == Code._000C:  # anachronism: variable array length
+        #     return
 
         else:
             self._has_array_ = False
