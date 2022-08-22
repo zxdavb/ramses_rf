@@ -12,7 +12,7 @@ from typing import TextIO
 
 import voluptuous as vol  # type: ignore[import]
 
-from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
+from .const import DEV_TYPE, DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
 
 DEV_MODE = __dev_mode__ and False
 
@@ -331,6 +331,15 @@ def select_device_filter_mode(
     if both := set(known_list) & set(block_list):
         raise ValueError(
             f"There are devices in both the {SZ_KNOWN_LIST} & {SZ_BLOCK_LIST}: {both}"
+        )
+
+    if (
+        known_hgis := [
+            k for k, v in known_list.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
+        ]
+    ) and len(known_hgis) > 1:
+        raise ValueError(
+            f"There should be maximum one HGI in the {SZ_KNOWN_LIST}: {known_hgis}"
         )
 
     if enforce_known_list and not known_list:
