@@ -39,7 +39,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class MockSerial:  # most of the 'mocking' is done here
+class MockSerial:  # most of the RF 'mocking' is done in here
     """A pseudo-mocked serial port used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
@@ -87,6 +87,7 @@ class MockSerial:  # most of the 'mocking' is done here
         data, self._rx_buffer = self._rx_buffer[:size], self._rx_buffer[size:]
         return data
 
+    # log HGI Rx from RF in here...
     async def _rx_bytes_from_ether(self) -> None:
         """Poll the queue and add bytes to the Rx buffer.
 
@@ -99,16 +100,18 @@ class MockSerial:  # most of the 'mocking' is done here
             await asyncio.sleep(0.001)
 
             try:
-                priority, _, cmd = self._que.get_nowait()
+                priority, _, cmd = self._que.get_nowait()  # log HGI Rx here
             except Empty:
                 continue
+
+            pass  # Suggest breakpoint here?
 
             # this is the mocked HGI80 receiving the frame
             if priority == 3:  # only from HGI80
                 self._out_waiting -= len(str(cmd)) + 2
             self._rx_buffer += b"000 " + bytes(f"{cmd}\r\n", "ascii")
 
-            # this is the mocked devices receiving the frame
+            # these are the mocked devices receiving the frame
             for device in self.mock_devices:
                 try:
                     device.rx_frame_as_cmd(cmd)
@@ -134,14 +137,18 @@ class MockSerial:  # most of the 'mocking' is done here
             pass
         return 0
 
+    # log HGI Tx to RF in here...
     def _tx_bytes_to_ether(self, data: bytes) -> None:
         """Transmit a packet from the gateway to the ether."""
 
         cmd = Command(data.decode("ascii")[:-2])  # rx_header
         try:
-            self._que.put_nowait((3, dt.now(), cmd))
+            self._que.put_nowait((3, dt.now(), cmd))  # log HGI Tx here
         except Full:
             return
+
+        pass  # Suggest breakpoint here?
+
         self._out_waiting += len(str(cmd)) + 2
 
 
