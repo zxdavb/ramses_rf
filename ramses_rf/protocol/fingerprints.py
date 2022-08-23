@@ -131,7 +131,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMS-02J52    - ???
 # VMS-02MC05   - CO2 -
 # VMS-15C16    - CO2 - CO2 Sensor (no remote)
-# VMS-12C39    - CO2 - CO2 Sensor, incl. integrated control, PIR
+# VMS-12C39    - CO2 - CO2 Sensor, incl. integrated control, PIR?
 # VMS-15CM17   - CO2 - CO2 Sensor
 # VMS-17C01    -
 # VMS-17HB01   -
