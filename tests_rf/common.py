@@ -83,7 +83,7 @@ async def load_test_gwy(port_name, gwy_class, config_file: str, **kwargs) -> Gat
     try:
         with open(config_file) as f:
             config.update(json.load(f))
-    except FileNotFoundError:
+    except (FileNotFoundError, TypeError):  # TypeError if config_file is None
         pass
 
     config = SCH_GLOBAL_CONFIG(config)
