@@ -1325,7 +1325,7 @@ _31DA_FAN_INFO: dict[int, str] = {
     0x16: "absolute minimum",  # trickle?
     0x17: "absolute maximum",  # boost?
     0x18: "auto",
-    0x19: "auto night",  # autonight?
+    0x19: "auto night",
     0x1A: "-unknown 0x1A-",
     0x1B: "-unknown 0x1B-",
     0x1C: "-unknown 0x1C-",

@@ -2106,7 +2106,7 @@ def parser_31da(payload, msg) -> dict:
         # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
         # assert payload[34:36] == "EF", payload[34:36]
         assert (
-            payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18
+            payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x19
         ), f"invalid _31DA_FAN_INFO: {payload[36:38]}"
         assert int(payload[38:40], 16) <= 200 or payload[38:40] in (
             "EF",
