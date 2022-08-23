@@ -16,6 +16,7 @@ from datetime import datetime as dt
 from queue import Empty, Full, PriorityQueue
 from typing import Callable
 
+from ramses_rf.const import Code
 from ramses_rf.protocol import Command, InvalidPacketError
 from ramses_rf.protocol.protocol import create_protocol_factory
 from ramses_rf.protocol.transport import (
@@ -104,7 +105,8 @@ class MockSerial:  # most of the RF 'mocking' is done in here
             except Empty:
                 continue
 
-            pass  # Suggest breakpoint here?
+            if cmd.code != Code._7FFF:  # Suggest breakpoint under here?
+                pass
 
             # this is the mocked HGI80 receiving the frame
             if priority == 3:  # only from HGI80
@@ -147,7 +149,8 @@ class MockSerial:  # most of the RF 'mocking' is done in here
         except Full:
             return
 
-        pass  # Suggest breakpoint here?
+        if cmd.code != Code._7FFF:  # Suggest breakpoint under here?
+            pass
 
         self._out_waiting += len(str(cmd)) + 2
 
