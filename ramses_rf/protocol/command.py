@@ -1522,7 +1522,8 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
             else:
                 self._faultlog_done = True
 
-        # TODO: (make method) register callback for null response (no payload)
+        # register callback for null response, which has no ctx (no frag_id),
+        # and so a different header
         null_header = "|".join((RP, self.id, Code._0418))
         if null_header not in self._gwy.msg_transport._callbacks:
             self._gwy.msg_transport._callbacks[null_header] = {
