@@ -361,7 +361,9 @@ class SerTransportBase(asyncio.ReadTransport):
 
         self._is_closing = False
 
-    async def _polling_loop(self):
+    async def _polling_loop(self):  # TODO: make into a thread, as doing I/O
+        # self._protocol.connection_made(self)
+
         raise NotImplementedError
 
     def close(self):
@@ -632,7 +634,10 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pkt_received(pkt)
 
     def _pkt_received(self, pkt: Packet) -> None:
-        """Pass any valid/wanted packets to the callback."""
+        """Pass any valid/wanted packets to the callback.
+
+        Called by data_received(bytes) -> line_received(frame) -> pkt_received(pkt).
+        """
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
@@ -767,6 +772,10 @@ class PacketProtocolPort(PacketProtocolBase):
 
     @track_system_syncs
     def _pkt_received(self, pkt: Packet) -> None:
+        """Pass any valid/wanted packets to the callback.
+
+        Called by data_received(bytes) -> line_received(frame) -> pkt_received(pkt).
+        """
         super()._pkt_received(pkt)
 
     async def send_data(self, cmd: Command) -> None:
@@ -776,11 +785,11 @@ class PacketProtocolPort(PacketProtocolBase):
             raise RuntimeError("Sending is disabled")
 
         if cmd.src.id != HGI_DEV_ADDR.id:
-            await self._handle_impersonation(cmd)
+            await self._alert_is_impersonating(cmd)
 
         await self._send_data(str(cmd))
 
-    async def _handle_impersonation(self, cmd: Command) -> None:
+    async def _alert_is_impersonating(self, cmd: Command) -> None:
         msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
         if self._hgi80[SZ_IS_EVOFW3]:
             _LOGGER.info(msg)
@@ -857,7 +866,7 @@ class PacketProtocolQos(PacketProtocolPort):
             raise RuntimeError("Sending is disabled")
 
         if cmd.src.id != HGI_DEV_ADDR.id:
-            await self._handle_impersonation(cmd)
+            await self._alert_is_impersonating(cmd)
 
         def expires(timeout, disable_backoff, retry_count):
             """Return a dtm for expiring the Tx (or Rx), with an optional backoff."""
@@ -931,8 +940,8 @@ def create_pkt_stack(
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface) / log (file).
 
     The msg/pkt interface is via:
-     - PktProtocol.data_received           to (pkt_callback) MsgTransport._pkt_receiver
-     - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
+    - PktProtocol.data_received           to (pkt_callback) MsgTransport._pkt_receiver
+    - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
     def get_serial_instance(ser_name: str, ser_config: dict) -> SerialBase:
