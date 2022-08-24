@@ -1233,7 +1233,7 @@ class Command(Frame):
 
         # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
         # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
-        # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
+        # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7  # or, simply: 00
 
         hex_id = Address.convert_to_hex(src_id)
         codes = ([codes] if isinstance(codes, _CodeT) else list(codes)) + [Code._1FC9]
@@ -1241,6 +1241,10 @@ class Command(Frame):
         if dst_id is None and verb == I_:
             payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
             addr2 = src_id
+
+        # elif dst_id and verb == I_:  # optional, ? must be 00 for HVAC, but not Heat
+        #     payload = "00"
+        #     addr2 = NON_DEV_ADDR.id
 
         elif dst_id and verb in (I_, W_):
             payload = f"00{codes[0]}{hex_id}"
