@@ -58,6 +58,10 @@ BindState = SimpleNamespace(
     BOUND="bound",  # bound:               rcvd confirm
 )
 
+BIND_WAITING_TIMEOUT = 300  # how long to wait, listening for an offer
+BIND_REQUEST_TIMEOUT = 5  # how long to wait for an accept after sending an offer
+BIND_CONFIRM_TIMEOUT = 5  # how long to wait for a confirm after sending an accept
+
 
 DEV_MODE = __dev_mode__  # and False
 
@@ -351,6 +355,9 @@ class Fakeable(DeviceBase):
 
         def proc_confirm(msg, *args) -> None:
             """Process the 3rd/final packet of the handshake."""
+            # if self._1fc9_state["state"] != BindState.ACCEPTING:
+            #     return
+
             # if not msg or msg.code not in codes:
             #     return
 
@@ -360,30 +367,37 @@ class Fakeable(DeviceBase):
 
         def proc_offer(msg, *args) -> None:
             """Process the 1st, and send the 2nd, packet of the handshake."""
+            # if self._1fc9_state["state"] != BindState.LISTENING:
+            #     return
+
             if not msg:
                 return
-            # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
+                # self._1fc9_state["state"] == BindState.UNKNOWN
+
+            # TODO: is payload.code in in self._1fc9_state["codes"] (the wanted offer)
+
             self._1fc9_state["msg"] = msg  # the offer
 
             self._1fc9_state["state"] = BindState.ACCEPTING
             cmd = Command.put_bind(
                 W_,
-                codes,
+                self._1fc9_state["codes"],
                 self.id,
                 idx=idx,  # zone_idx or domain_id
                 dst_id=msg.src.id,
                 callback={
                     SZ_FUNC: proc_confirm,
-                    SZ_TIMEOUT: 3,
+                    SZ_TIMEOUT: BIND_CONFIRM_TIMEOUT,
                 },  # re-Tx W until Rx an I
             )
             self._send_cmd(cmd)
 
+        # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
         self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
             f"{Code._1FC9}|{I_}|{NUL_DEV_ADDR.id}",
-            {SZ_FUNC: proc_offer, SZ_TIMEOUT: 300},
+            {SZ_FUNC: proc_offer, SZ_TIMEOUT: BIND_WAITING_TIMEOUT},
         )
 
     def _bind_request(self, codes, callback: Callable = None) -> None:
@@ -403,12 +417,15 @@ class Fakeable(DeviceBase):
 
         def proc_accept(msg, *args) -> None:
             """Process the 2nd, and send the 3rd/final, packet of the handshake."""
-            if not msg or msg.dst is not self:
+            # if self._1fc9_state["state"] != BindState.OFFERING:
+            #     return
+
+            if not msg or msg.dst.id != self.id:  # BUG (fixed): can't: msg.dst is self
                 return
 
             self._1fc9_state["msg"] = msg  # the accept
 
-            self._1fc9_state["state"] = BindState.CONFIRMING
+            # self._1fc9_state["state"] = BindState.CONFIRMING  # BUG: is no CONFIRMING
             cmd = Command.put_bind(I_, codes, self.id, dst_id=msg.src.id)
             self._send_cmd(cmd)
 
@@ -421,10 +438,8 @@ class Fakeable(DeviceBase):
 
         self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.OFFERING
-        cmd = Command.put_bind(
-            I_, codes, self.id, callback={SZ_FUNC: proc_accept, SZ_TIMEOUT: 3}
-        )
-        self._send_cmd(cmd)
+        cbk = {SZ_FUNC: proc_accept, SZ_TIMEOUT: BIND_REQUEST_TIMEOUT}
+        self._send_cmd(Command.put_bind(I_, codes, self.id, callback=cbk))
 
     @property
     def is_faked(self) -> bool:
