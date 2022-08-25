@@ -37,7 +37,7 @@ _MessageProtocolT = TypeVar("_MessageProtocolT", bound="MessageProtocol")
 _MessageTransportT = TypeVar("_MessageTransportT", bound="MessageTransport")
 
 
-class AwaitableCallback:
+class CallbackAsAwaitable:
     """Create an pair of functions so that the callback can be awaited.
 
     The awaitable (getter) starts its `timeout` timer only when it is invoked.
@@ -94,7 +94,7 @@ class AwaitableCallback:
 
 def awaitable_callback(loop) -> tuple[Callable[..., Awaitable[Message]], Callable]:
     """Create a pair of functions, so that a callback can be awaited."""
-    obj = AwaitableCallback(loop)
+    obj = CallbackAsAwaitable(loop)
     return obj.getter, obj.putter  # awaitable, callback
 
 
@@ -220,7 +220,7 @@ class MessageTransport(asyncio.Transport):
             ):
                 # see  also: PktProtocolQos.send_data()
                 _LOGGER.warning("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback[SZ_FUNC](AwaitableCallback.HAS_TIMED_OUT)  # ZX: 1/3
+                callback[SZ_FUNC](CallbackAsAwaitable.HAS_TIMED_OUT)  # ZX: 1/3
                 callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
 
         # HACK: 2nd, discard any expired callbacks
@@ -562,7 +562,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if _make_awaitable:
-            return await awaitable()  # AwaitableCallback.getter(timeout: float = ...)
+            return await awaitable()  # CallbackAsAwaitable.getter(timeout: float = ...)
         return None
 
     def connection_lost(self, exc: Optional[Exception]) -> None:

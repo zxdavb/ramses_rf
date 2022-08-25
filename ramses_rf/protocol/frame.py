@@ -115,6 +115,8 @@ class Frame:
         self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
         self._has_payload_: bool = None  # type: ignore[assignment]
 
+        self._repr = None
+
     @classmethod  # for internal use only
     def _from_attrs(
         cls, verb: _VerbT, *addrs, code: _CodeT, payload: _PayloadT, seqn=None
@@ -159,16 +161,18 @@ class Frame:
         """Return a unambiguous string representation of this object."""
         # repr(self) == repr(cls(repr(self)))
 
-        return " ".join(
-            (
-                self.verb,
-                self.seqn,
-                *(repr(a) for a in self._addrs),
-                self.code,
-                self.len_,
-                self.payload,
+        if self._repr is None:
+            self._repr = " ".join(
+                (
+                    self.verb,
+                    self.seqn,
+                    *(repr(a) for a in self._addrs),
+                    self.code,
+                    self.len_,
+                    self.payload,
+                )
             )
-        )
+        return self._repr
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""

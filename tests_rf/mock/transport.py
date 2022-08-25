@@ -16,7 +16,8 @@ from datetime import datetime as dt
 from queue import Empty, Full, PriorityQueue
 from typing import Callable
 
-from ramses_rf.protocol import Command, InvalidPacketError
+from ramses_rf.const import Code
+from ramses_rf.protocol import Command, InvalidPacketError, Packet
 from ramses_rf.protocol.protocol import create_protocol_factory
 from ramses_rf.protocol.transport import (
     PacketProtocolFile,
@@ -39,7 +40,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class MockSerial:  # most of the 'mocking' is done here
+class MockSerial:  # most of the RF 'mocking' is done in here
     """A pseudo-mocked serial port used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
@@ -85,8 +86,9 @@ class MockSerial:  # most of the 'mocking' is done here
     def read(self, size: int = 1) -> bytes:
         """Read max size bytes from the serial port."""
         data, self._rx_buffer = self._rx_buffer[:size], self._rx_buffer[size:]
-        return data
+        return data  # good place for a breakpoint
 
+    # can log HGI Rx from RF in here...
     async def _rx_bytes_from_ether(self) -> None:
         """Poll the queue and add bytes to the Rx buffer.
 
@@ -99,21 +101,26 @@ class MockSerial:  # most of the 'mocking' is done here
             await asyncio.sleep(0.001)
 
             try:
-                priority, _, cmd = self._que.get_nowait()
+                priority, _, cmd = self._que.get_nowait()  # log HGI Rx here
             except Empty:
                 continue
+
+            if cmd.code != Code._PUZZ:  # Suggest breakpoint under here?
+                pass
 
             # this is the mocked HGI80 receiving the frame
             if priority == 3:  # only from HGI80
                 self._out_waiting -= len(str(cmd)) + 2
             self._rx_buffer += b"000 " + bytes(f"{cmd}\r\n", "ascii")
 
-            # this is the mocked devices receiving the frame
+            # these are the mocked devices (if any) receiving the frame
             for device in self.mock_devices:
                 try:
                     device.rx_frame_as_cmd(cmd)
                 except (AttributeError, TypeError, ValueError) as exc:
                     _LOGGER.exception(exc)
+
+            cmd = None
             self._que.task_done()
 
     @property
@@ -129,31 +136,50 @@ class MockSerial:  # most of the 'mocking' is done here
         if data[7:16] == b"18:000730":
             data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
-            self._tx_bytes_to_ether(data)
+            self._tx_bytes_to_ether(data)  # good place for a breakpoint
         except InvalidPacketError:
             pass
         return 0
 
+    # can log HGI Tx to RF in here...
     def _tx_bytes_to_ether(self, data: bytes) -> None:
         """Transmit a packet from the gateway to the ether."""
 
         cmd = Command(data.decode("ascii")[:-2])  # rx_header
+
+        if cmd.code != Code._PUZZ:  # Suggest breakpoint under here?
+            pass
+
         try:
-            self._que.put_nowait((3, dt.now(), cmd))
+            self._que.put_nowait((3, dt.now(), cmd))  # log HGI Tx here
         except Full:
             return
+
         self._out_waiting += len(str(cmd)) + 2
 
 
-class SerTransportMock(SerTransportPoll):  # to gracefully close the mocked port
-    def write(self, cmd) -> None:  # Does nothing, here as a convenience
-        super().write(cmd)
+class SerTransportMock(SerTransportPoll):  # can breakpoint in write()
+    def write(self, cmd) -> None:
+        if cmd[:1] == b"!" or b" 7FFF " in cmd:
+            return
+
+        super().write(cmd)  # good place for a breakpoint
 
     def close(self) -> None:
+        """Gracefully close the mocked serial port."""
         super().close()
 
         if self.serial:
             self.serial.close()
+
+
+class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received()
+    def _pkt_received(self, pkt: Packet) -> None:
+        super()._pkt_received(pkt)  # good place for a breakpoint
+
+    async def _alert_is_impersonating(self, cmd: Command) -> None:
+        """Stifle impersonation alerts when mocking."""
+        pass
 
 
 def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transport)
@@ -178,7 +204,7 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     def protocol_factory_() -> type[_PacketProtocolT]:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
-        return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
+        return create_protocol_factory(PacketProtocolMock, gwy, pkt_callback)()
 
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("serial port, log file & dict should be mutually exclusive")
