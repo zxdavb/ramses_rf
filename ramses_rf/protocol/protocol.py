@@ -218,8 +218,10 @@ class MessageTransport(asyncio.Transport):
             if callback.get(SZ_EXPIRES, dt.max) < pkt.dtm and not callback.get(
                 SZ_EXPIRED
             ):
-                # see  also: PktProtocolQos.send_data()
-                _LOGGER.warning("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
+                # see also: PktProtocolQos.send_data()
+                (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+                    "MsgTransport._pkt_receiver(%s): Expired callback", hdr
+                )
                 callback[SZ_FUNC](CallbackAsAwaitable.HAS_TIMED_OUT)  # ZX: 1/3
                 callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
 
