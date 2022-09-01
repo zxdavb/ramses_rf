@@ -156,7 +156,7 @@ class MessageTransport(asyncio.Transport):
         async def call_send_data(cmd):
             _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd._cbk:
-                self._add_callback(cmd.rx_header, cmd._cbk)
+                self._add_callback(cmd.rx_header, cmd._cbk, cmd=cmd)
 
             if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
                 _LOGGER.info("SENT: %s", cmd)
@@ -196,12 +196,18 @@ class MessageTransport(asyncio.Transport):
 
         return self._extra[self.WRITER]
 
-    def _add_callback(self, header: str, callback: dict) -> None:
+    def _add_callback(
+        self, header: str, callback: dict, cmd: None | Command = None
+    ) -> None:
+        assert header not in self._callbacks  # CBK, below
+        # self._callbacks[header] = CallbackWrapper(header, callback, cmd=cmd)
+
         callback[SZ_EXPIRES] = (
             dt.max
             if callback.get(SZ_DAEMON)
             else dt.now() + td(seconds=callback.get(SZ_TIMEOUT, 1))
         )
+        callback["cmd"] = cmd
         self._callbacks[header] = callback
 
     def _pkt_receiver(self, pkt: Packet) -> None:
@@ -246,8 +252,7 @@ class MessageTransport(asyncio.Transport):
 
         # HACK: 3rd, invoke any callback
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
-        if self._callbacks and msg._pkt._hdr in self._callbacks:
-            callback = self._callbacks[msg._pkt._hdr]
+        if self._callbacks and (callback := self._callbacks.get(msg._pkt._hdr)):
             callback[SZ_FUNC](msg)  # ZX: 2/3
             if not callback.get(SZ_DAEMON):
                 del self._callbacks[msg._pkt._hdr]
