@@ -7,7 +7,7 @@
         "use_aliases": false
     },
 
-    "main_tcs": "01:000730",
+    "main_tcs": "01:888888",
 
     "01:145038": {
         "system": {
@@ -59,13 +59,13 @@
         }
     },
 
-    "01:000730": {
+    "01:888888": {
         "system": {
-            "appliance_control": "10:000730"
+            "appliance_control": "10:555555"
         },
 
         "stored_hotwater": {
-            "sensor": "07:000730",
+            "sensor": "07:123456",
             "hotwater_valve": "13:111111",
             "heating_valve": "13:222222"
         },

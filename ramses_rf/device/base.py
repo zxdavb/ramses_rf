@@ -33,9 +33,9 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-DEFAULT_BDR_ID = "13:000730"
-DEFAULT_EXT_ID = "17:000730"
-DEFAULT_THM_ID = "03:000730"
+DEFAULT_BDR_ID = "13:888888"
+DEFAULT_EXT_ID = "17:888888"
+DEFAULT_THM_ID = "03:888888"
 
 BindState = SimpleNamespace(
     #
@@ -519,7 +519,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
     def create_fake_bdr(self, device_id=DEFAULT_BDR_ID) -> Device:
         """Bind a faked relay (BDR91A) to a controller (i.e. to a domain/zone).
 
-        Will alias the gateway (as "13:000730"), or create a fully-faked 13:.
+        Will alias the gateway (as "13:888888", TBD), or create a fully-faked 13:.
 
         HGI80s can only alias one device of a type (use_gateway), but evofw3-based
         gateways can also fully fake multiple devices of the same type.
@@ -535,7 +535,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
     def create_fake_ext(self, device_id=DEFAULT_EXT_ID) -> Device:
         """Bind a faked external sensor (???) to a controller.
 
-        Will alias the gateway (as "17:000730"), or create a fully-faked 17:.
+        Will alias the gateway (as "17:888888", TBD), or create a fully-faked 17:.
 
         HGI80s can only alias one device of a type (use_gateway), but evofw3-based
         gateways can also fully fake multiple devices of the same type.
@@ -552,8 +552,8 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
     def create_fake_thm(self, device_id=DEFAULT_THM_ID) -> Device:
         """Bind a faked zone sensor (TR87RF) to a controller (i.e. to a zone).
 
-        Will alias the gateway (as "03:000730"), or create a fully-faked 34:, albeit
-        named "03:xxxxxx".
+        Will alias the gateway (as "03:888888", TBD), or create a fully-faked 34:,
+        albeit named "03:xxxxxx".
 
         HGI80s can only alias one device of a type (use_gateway), but evofw3-based
         gateways can also fully fake multiple devices of the same type.
