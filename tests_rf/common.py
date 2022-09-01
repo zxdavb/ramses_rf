@@ -48,9 +48,13 @@ rf_test_failed = False  # global
 
 
 def abort_if_rf_test_fails(fnc):
-    """Abort all remaining RF tests once any RF test fails."""
+    """Abort all non-mocked RF tests once any such test raises a SerialException."""
 
     async def check_serial_port(test_port, *args, **kwargs):
+        if test_port[0] == MOCKED_PORT:
+            await fnc(test_port, *args, **kwargs)
+            return
+
         global rf_test_failed
         if rf_test_failed:
             raise SerialException
@@ -58,10 +62,6 @@ def abort_if_rf_test_fails(fnc):
         try:
             await fnc(test_port, *args, **kwargs)
         except SerialException:
-            rf_test_failed = True
-            raise
-
-        except AssertionError:
             rf_test_failed = True
             raise
 
