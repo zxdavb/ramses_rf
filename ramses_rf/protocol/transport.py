@@ -34,7 +34,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Awaitable, Callable, Iterable, Optional, TextIO, TypeVar
+from typing import Any, Awaitable, Callable, Iterable, Optional, TextIO, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
 from serial_asyncio import SerialTransport as SerTransportAsync  # type: ignore[import]
@@ -350,7 +350,7 @@ class SerTransportBase(asyncio.ReadTransport):
 
     _extra: dict
 
-    def __init__(self, loop, extra=None):
+    def __init__(self, loop: asyncio.AbstractEventLoop, extra=None):
         super().__init__(extra=extra)
 
         self._loop = loop
@@ -387,7 +387,13 @@ class SerTransportBase(asyncio.ReadTransport):
 class SerTransportRead(SerTransportBase):
     """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
-    def __init__(self, loop, protocol: PacketProtocolBase, packet_source, extra=None):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        protocol: _PacketProtocolT,
+        packet_source,
+        extra=None,
+    ):
         super().__init__(loop, extra=extra)
 
         self._protocol = protocol
@@ -417,18 +423,24 @@ class SerTransportRead(SerTransportBase):
         raise NotImplementedError
 
 
-class SerTransportPoll(SerTransportBase):
+class SerTransportPoll(SerTransportBase, asyncio.WriteTransport):
     """Interface for a packet transport using polling."""
 
     MAX_BUFFER_SIZE = 500
 
-    def __init__(self, loop, protocol: PacketProtocolBase, ser_instance, extra=None):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        protocol: _PacketProtocolT,
+        ser_instance: SerialBase,
+        extra=None,
+    ):
         super().__init__(loop, extra=extra)
 
         self._protocol = protocol
         self.serial = ser_instance
 
-        self._is_closing = None
+        self._is_closing: bool = None  # type: ignore[assignment]
         self._write_queue: Queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
 
     async def _polling_loop(self):
@@ -492,7 +504,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self._include = list(gwy._include.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        self._hgi80 = {
+        self._hgi80: dict[str, Any] = {
             SZ_DEVICE_ID: None,
             SZ_FINGERPRINT: None,
             SZ_IS_EVOFW3: None,
@@ -926,10 +938,10 @@ class PacketProtocolQos(PacketProtocolPort):
 
 def create_pkt_stack(
     gwy,
-    pkt_callback: Callable,
+    pkt_callback: Callable[[Packet], None],
     /,
     *,
-    protocol_factory: Callable = None,
+    protocol_factory: Callable[[], _PacketProtocolT] = None,
     port_name: str = None,
     port_config: dict = None,
     packet_log: TextIO = None,
@@ -980,7 +992,7 @@ def create_pkt_stack(
             "(e.g. linux with a local serial port)"
         )
 
-    def protocol_factory_() -> type[_PacketProtocolT]:
+    def protocol_factory_() -> _PacketProtocolT:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
         elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
@@ -998,6 +1010,8 @@ def create_pkt_stack(
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
         return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
 
+    assert port_name is not None  # instead of: _type: ignore[arg-type]
+    assert port_config is not None  # instead of: _type: ignore[arg-type]
     ser_instance = get_serial_instance(port_name, port_config)
 
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):

@@ -134,7 +134,9 @@ class Engine:
         # return dt.now()
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
-    def create_client(self, msg_handler: Callable) -> tuple:
+    def create_client(
+        self, msg_handler: Callable[[Message, Optional[Message]], None]
+    ) -> tuple:
         """Create a client protocol for the RAMSES-II message transport."""
         return self._create_msg_stack(msg_handler)
 

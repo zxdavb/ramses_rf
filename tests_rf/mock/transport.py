@@ -14,7 +14,7 @@ import asyncio
 import logging
 from datetime import datetime as dt
 from queue import Empty, Full, PriorityQueue
-from typing import Callable
+from typing import Callable, TextIO
 
 from ramses_rf.const import Code
 from ramses_rf.protocol import Command, InvalidPacketError, Packet
@@ -47,17 +47,17 @@ class MockSerial:  # most of the RF 'mocking' is done in here
     Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
     """
 
-    def __init__(self, port, loop, **kwargs) -> None:
+    def __init__(self, port: str, loop: asyncio.AbstractEventLoop, **kwargs) -> None:
         self._loop = loop
 
         self.port = port
         self._rx_buffer = bytes()
         self._out_waiting = 0
-        self.is_open = None
+        self.is_open: bool = None  # type: ignore[assignment]
 
-        self.mock_devices = []
+        self.mock_devices: list = []  # list[MockDeviceBase]
 
-        self._que = PriorityQueue(maxsize=24)
+        self._que: PriorityQueue = PriorityQueue(maxsize=24)
         self._rx_bytes_from_ether_task = self._loop.create_task(
             self._rx_bytes_from_ether()
         )
@@ -191,13 +191,13 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
 
 def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transport)
     gwy,
-    pkt_callback: Callable,
+    pkt_callback: Callable[[Packet], None],
     /,
     *,
-    protocol_factory: Callable = None,
+    protocol_factory: Callable[[], _PacketProtocolT] = None,
     port_name: str = None,
     port_config: dict = None,
-    packet_log=None,
+    packet_log: TextIO = None,
     packet_dict: dict = None,
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
     """Return a mocked packet stack.
@@ -205,10 +205,12 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     Must use SerTransportPoll and not SerTransportAsync.
     """
 
-    def get_serial_instance(ser_name: str, loop) -> MockSerial:
+    def get_serial_instance(
+        ser_name: str, loop: asyncio.AbstractEventLoop
+    ) -> MockSerial:
         return MockSerial(ser_name, loop)
 
-    def protocol_factory_() -> type[_PacketProtocolT]:
+    def protocol_factory_() -> _PacketProtocolT:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
         return create_protocol_factory(PacketProtocolMock, gwy, pkt_callback)()
@@ -219,8 +221,9 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     pkt_protocol = protocol_factory_()
 
     if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
-        return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)  # type: ignore[arg-type, assignment]
+        return pkt_protocol, SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
 
+    assert port_name is not None  # instead of: type: ignore[arg-type]
     ser_instance = get_serial_instance(port_name, gwy._loop)
 
     return pkt_protocol, SerTransportMock(gwy._loop, pkt_protocol, ser_instance)

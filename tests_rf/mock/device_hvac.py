@@ -70,11 +70,11 @@ class MockDeviceFan(MockDeviceBase):
         if cmds:
             self.tx_frames_as_cmds(cmds)
 
-    def make_response_22f1(self) -> Command:
-        return  # 31D9, 31DA
+    def make_response_22f1(self) -> Command:  # TODO
+        return  # type: ignore[return-value]
 
 
-RESPONSES = {}  # "pkt_header": "response_pkt"
+RESPONSES: dict[str, str] = {}  # "pkt_header": "response_pkt"
 
 """
 2022-06-01T12:12:35.694033 070  I --- 29:155617 --:------ 29:155617 22F1 003 000004                                                        # {'_mode_idx': '00', 'fan_mode': 'away',                                                           '_mode_max': '04', '_scheme': 'orcon'}
