@@ -199,7 +199,7 @@ class MessageTransport(asyncio.Transport):
     def _add_callback(
         self, header: str, callback: dict, cmd: None | Command = None
     ) -> None:
-        assert header not in self._callbacks  # CBK, below
+        # assert header not in self._callbacks  # CBK, below
         # self._callbacks[header] = CallbackWrapper(header, callback, cmd=cmd)
 
         callback[SZ_EXPIRES] = (
@@ -217,12 +217,9 @@ class MessageTransport(asyncio.Transport):
             _LOGGER.info("rcvd: %s", pkt)
 
         # HACK: 1st, notify all expired callbacks
-        for (
-            hdr,
-            callback,
-        ) in self._callbacks.items():
-            if callback.get(SZ_EXPIRES, dt.max) < pkt.dtm and not callback.get(
-                SZ_EXPIRED
+        for hdr, callback in self._callbacks.items():
+            if not callback.get(SZ_EXPIRED) and (
+                callback.get(SZ_EXPIRES, dt.max) < pkt.dtm
             ):
                 # see also: PktProtocolQos.send_data()
                 (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
@@ -252,7 +249,7 @@ class MessageTransport(asyncio.Transport):
 
         # HACK: 3rd, invoke any callback
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
-        if self._callbacks and (callback := self._callbacks.get(msg._pkt._hdr)):
+        if self._callbacks and (callback := self._callbacks.get(msg._pkt._hdr)):  # type: ignore[assignment]
             callback[SZ_FUNC](msg)  # ZX: 2/3
             if not callback.get(SZ_DAEMON):
                 del self._callbacks[msg._pkt._hdr]
@@ -596,7 +593,11 @@ def create_protocol_factory(
 
 
 def create_msg_stack(
-    gwy, msg_callback: Callable, protocol_factory: Callable = None
+    gwy,
+    msg_callback: Callable[[Message, Optional[Message]], None],
+    /,
+    *,
+    protocol_factory: Callable[[], _MessageProtocolT] = None,
 ) -> tuple[_MessageProtocolT, _MessageTransportT]:
     """Utility function to provide a transport to a client protocol.
 
