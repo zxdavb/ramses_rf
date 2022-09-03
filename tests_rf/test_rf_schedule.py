@@ -9,6 +9,7 @@ Test CH/DHW schedules with a mocked controller.
 from copy import deepcopy
 
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Code
+from ramses_rf.protocol import Message
 from ramses_rf.system.schedule import (
     DAY_OF_WEEK,
     ENABLED,
@@ -101,7 +102,7 @@ async def read_schedule(zone) -> dict:
 
     if schedule is None:
         assert zone._msgs[Code._0404].payload[SZ_TOTAL_FRAGS] is None
-        return
+        return None  # TODO
 
     schedule = assert_schedule_dict(zone._schedule._schedule)
 
@@ -121,22 +122,54 @@ async def read_schedule(zone) -> dict:
     return schedule
 
 
+flow_marker = None
+
+
 @abort_if_rf_test_fails
 async def test_rq_0006(test_port):
-    def assert_version(version):
-        assert isinstance(version, int)
-        assert version == tcs._msgs[Code._0006].payload["change_counter"]
-        return version
+    global flow_marker
+
+    def assert_packet_flow(msg: Message, *args, **kwargs):
+        global flow_marker
+
+        # get the schedule version number
+        if msg._pkt._hdr == f"0006|RQ|{tcs.id}":
+            assert flow_marker % 10 == 0
+            flow_marker += 1
+        elif msg._pkt._hdr == f"0006|RP|{tcs.id}":
+            assert flow_marker % 10 == 1
+            flow_marker += 1
+
+        elif msg.code == Code._0006:
+            assert False, msg
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy.create_client(assert_packet_flow)
+
     tcs = find_test_tcs(gwy)
 
-    # gwy.config.disable_sending = False
-    version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
-    version = assert_version(version)
+    flow_marker = 0
+    version = (await tcs._schedule_version(force_io=False))[
+        0
+    ]  # RQ|0006, may: TimeoutError
+    assert flow_marker == 2
+
+    assert isinstance(version, int)
+    assert version == tcs._msgs[Code._0006].payload["change_counter"]
+
+    assert version == (await tcs._schedule_version(force_io=False))[0]
+    assert flow_marker == 2
+
+    flow_marker = 10
+    version = (await tcs._schedule_version(force_io=True))[
+        0
+    ]  # RQ|0006, may: TimeoutError
+    assert flow_marker == 12
 
     gwy.config.disable_sending = True
-    assert version == (await tcs._schedule_version(force_io=False))[0]
+
+    version = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
+    assert flow_marker == 12
 
     try:
         await tcs._schedule_version(force_io=True)
@@ -145,44 +178,131 @@ async def test_rq_0006(test_port):
     else:
         assert False
 
-    gwy.config.disable_sending = False
-    version, _ = await tcs._schedule_version()  # RQ|0006, may: TimeoutError
-    version = assert_version(version)
+    assert flow_marker == 12
 
     await gwy.stop()
 
 
 @abort_if_rf_test_fails
-async def test_rq_0404_dhw(test_port):  # Needs mocking
+async def test_rq_0404_dhw(test_port):  # TODO: Needs mocking
 
-    if test_port[0] == MOCKED_PORT:  # HACK/TODO: FIXME
+    if test_port[0] == MOCKED_PORT:  # HACK/FIXME
         return
 
+    global flow_marker
+
+    def assert_packet_flow(msg: Message, *args, **kwargs):
+        global flow_marker
+
+        # get the schedule version number
+        if msg._pkt._hdr == f"0006|RQ|{tcs.id}":
+            assert flow_marker % 10 == 0
+            flow_marker += 1
+        elif msg._pkt._hdr == f"0006|RP|{tcs.id}":
+            assert flow_marker % 10 == 1
+            flow_marker += 1
+
+        # get the first schedule fragment, is possibly the last fragment too
+        elif msg._pkt._hdr == f"0404|RQ|{tcs.id}|{tcs.zones[0].idx}01":
+            assert flow_marker % 10 == 2
+            flow_marker += 1
+        elif msg._pkt._hdr == f"0404|RP|{tcs.id}|{tcs.zones[0].idx}01":
+            assert flow_marker % 10 == 3
+            if msg.payload["frag_number"] < msg.payload["total_frags"]:
+                flow_marker += 1
+            else:
+                flow_marker += 2
+
+        # get the subsequent schedule fragments, until the last fragment
+        elif msg._pkt._hdr[:20] == f"0404|RQ|{tcs.id}|{tcs.zones[0].idx}":
+            assert flow_marker % 10 == 4
+            flow_marker += 1
+        elif msg._pkt._hdr[:20] == f"0404|RP|{tcs.id}|{tcs.zones[0].idx}":
+            assert flow_marker % 10 == 5
+            if msg.payload["frag_number"] < msg.payload["total_frags"]:
+                flow_marker -= 1
+            else:
+                flow_marker += 1
+
+        elif msg.code in (Code._0006, Code._0404):
+            assert False, msg
+
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy.create_client(assert_packet_flow)
+
     tcs = find_test_tcs(gwy)
 
+    flow_marker = 0
     if tcs.dhw:  # issue here
         await read_schedule(tcs.dhw)
+    assert flow_marker == 6
 
     await gwy.stop()
 
 
 @abort_if_rf_test_fails
 async def test_rq_0404_zone(test_port):
+    global flow_marker
+
+    def assert_packet_flow(msg: Message, *args, **kwargs):
+        global flow_marker
+
+        # get the schedule version number
+        if msg._pkt._hdr == f"0006|RQ|{tcs.id}":
+            assert flow_marker % 10 == 0
+            flow_marker += 1
+        elif msg._pkt._hdr == f"0006|RP|{tcs.id}":
+            assert flow_marker % 10 == 1
+            flow_marker += 1
+
+        # get the first schedule fragment, is possibly the last fragment too
+        elif msg._pkt._hdr == f"0404|RQ|{tcs.id}|{tcs.zones[0].idx}01":
+            assert flow_marker % 10 == 2
+            flow_marker += 1
+        elif msg._pkt._hdr == f"0404|RP|{tcs.id}|{tcs.zones[0].idx}01":
+            assert flow_marker % 10 == 3
+            if msg.payload["frag_number"] < msg.payload["total_frags"]:
+                flow_marker += 1
+            else:
+                flow_marker += 2
+
+        # get the subsequent schedule fragments, until the last fragment
+        elif msg._pkt._hdr[:20] == f"0404|RQ|{tcs.id}|{tcs.zones[0].idx}":
+            assert flow_marker % 10 == 4
+            flow_marker += 1
+        elif msg._pkt._hdr[:20] == f"0404|RP|{tcs.id}|{tcs.zones[0].idx}":
+            assert flow_marker % 10 == 5
+            if msg.payload["frag_number"] < msg.payload["total_frags"]:
+                flow_marker -= 1
+            else:
+                flow_marker += 1
+
+        elif msg.code in (Code._0006, Code._0404):
+            assert False, msg
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy.create_client(assert_packet_flow)
+
     tcs = find_test_tcs(gwy)
 
-    if tcs.zones:
-        await read_schedule(tcs.zones[0])
+    flow_marker = 0
+    # if tcs.zones:
+    await read_schedule(tcs.zones[0])
+    assert flow_marker == 6
 
     await gwy.stop()
 
 
 @abort_if_rf_test_fails
 async def _test_ww_0404_dhw(test_port):
+    global flow_marker
+
+    def assert_packet_flow(msg: Message, *args, **kwargs):
+        global flow_marker
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy.create_client(assert_packet_flow)
+
     tcs = find_test_tcs(gwy)
 
     if tcs.dhw:
