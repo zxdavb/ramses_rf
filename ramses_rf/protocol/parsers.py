@@ -1285,19 +1285,29 @@ def parser_1fc9(payload, msg) -> list:
             assert int(seqx[:2], 16) < 16
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
+    if msg.verb == I_ and msg.src is msg.dst:
+        bind_step = "offer"
+    elif msg.verb == I_:
+        bind_step = "accept"
+    elif msg.verb == W_ and msg.src is not msg.dst:
+        bind_step = "confirm"  # payload could be "00"
+    else:
+        bind_step = None  # unknown
+
     if payload == "00":
-        return []
+        return {"phase": bind_step, "payload": []}
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
     # assert (
     #     msg.src.id == hex_id_to_dev_id(payload[6:12])
     # ), f"{payload[6:12]} ({hex_id_to_dev_id(payload[6:12])})"  # NOTE: use_regex
-    return [
+    payload = [
         _parser(payload[i : i + 12])
         for i in range(0, len(payload), 12)
         # if payload[i : i + 2] != "90"  # TODO: WIP, what is 90?
     ]
+    return {"phase": bind_step, "payload": payload}
 
 
 @parser_decorator  # unknown_1fca, HVAC?
