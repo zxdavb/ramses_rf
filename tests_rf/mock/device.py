@@ -221,6 +221,7 @@ class MockDeviceCtl(MockDeviceBase):
         }
 
         LOOKUP_OTH = {
+            Code._0404: self._proc_0404,
             Code._3150: self._proc_3150,
         }
 
@@ -232,11 +233,11 @@ class MockDeviceCtl(MockDeviceBase):
         if cmd.verb == RQ and (fnc := LOOKUP_RQ.get(cmd.code)):
             self.tx_frames_as_cmds(fnc(dest_id=cmd.src.id))
 
+        elif cmd.verb != RQ and (fnc := LOOKUP_OTH.get(cmd.code)):
+            self.tx_frames_as_cmds(fnc(cmd))
+
         elif response := RESPONSES.get(cmd.tx_header):
             self.tx_frames_as_cmds(self.make_response_pkt(response))
-
-        elif cmd.verb == RQ and (fnc := LOOKUP_OTH.get(cmd.code)):
-            self.tx_frames_as_cmds(fnc(cmd))
 
     async def tx_1f09_cycle(self) -> None:  # 1F09, 2309/30C9 or 000A
         """Periodically queue sync_cycle pkts on the ether for the gwy to Rx."""
@@ -343,10 +344,13 @@ class MockDeviceCtl(MockDeviceBase):
 
     def _proc_0404(self, pkt: Command) -> Command:
         """Process an inbound 0404 packet."""
-        if pkt.verb == W_:
-            self._change_counter += 2
-            return RESPONSES.get(pkt.tx_header)
-        return None
+        if pkt.verb not in (W_, RQ):
+            return None
+
+        if response := RESPONSES.get(pkt.tx_header):
+            if pkt.verb == W_:
+                self._change_counter += 2
+            return self.make_response_pkt(response)
 
     def _make_1100(self, dest_id: None | _DeviceIdT = None) -> Command:  # TODO
         """Craft a stateful 1100 array pkt (is WIP)."""
@@ -366,7 +370,7 @@ class MockDeviceCtl(MockDeviceBase):
         else:
             # assert 0 < self._sync_cycle_remaining < 5  # required?
             verb = I_
-            payload = f"FF{_1F09_CYCLE_DURATION * 10:04X}"
+            payload = f"FF{_1F09_CYCLE_DURATION * 10:04X}"  # TypeError: unsupported format string passed to datetime.timedelta.__format__
             addrs = {"addr0": self.id, "addr2": self.id}
 
         return Command._from_attrs(verb, Code._1F09, payload, **addrs)
@@ -440,19 +444,19 @@ RESPONSES: dict[str, str] = {
     f"0404|RQ|{CTL_ID}|0102": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 0120000829020339DEBC8DBE1EFBDB5EDBA8DDB92DBEDFADDAB6671179E4FF4EC153F0143C05CFC033F00C3C03CFC173",
     f"0404|RQ|{CTL_ID}|0103": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 046 01200008270303F01C3C072FC00BF002BC00AF7CFEB6DEDE46BBB721EE6DBA78095E8297E0E5CF5BF50DA0291B9C",
     # RQ schedule for DHW
-    f"0404|RQ|{CTL_ID}|FA01": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 0023000829010468816DCDD10980300C45D1BE24CD9713398093388BF33981A3882842B5BDE9571F178E4ABB4DA5E879",
-    f"0404|RQ|{CTL_ID}|FA02": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 00230008290204EDCEF7F3DD761BBBC9C7EEF0B15BEABF13B80257E00A5C812B700D5C03D7C035700D5C03D7C175701D",
-    f"0404|RQ|{CTL_ID}|FA03": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 002300082903045C07D7C1757003DC0037C00D7003DC00B7827B6FB38D5DEF56702BB8F7B6766E829BE026B8096E829B",
-    f"0404|RQ|{CTL_ID}|FA04": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 014 002300080704041FF702BAC2188E",
+    f"0404|RQ|{CTL_ID}|HW01": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 0023000829010468816DCDD10980300C45D1BE24CD9713398093388BF33981A3882842B5BDE9571F178E4ABB4DA5E879",
+    f"0404|RQ|{CTL_ID}|HW02": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 00230008290204EDCEF7F3DD761BBBC9C7EEF0B15BEABF13B80257E00A5C812B700D5C03D7C035700D5C03D7C175701D",
+    f"0404|RQ|{CTL_ID}|HW03": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 048 002300082903045C07D7C1757003DC0037C00D7003DC00B7827B6FB38D5DEF56702BB8F7B6766E829BE026B8096E829B",
+    f"0404|RQ|{CTL_ID}|HW04": f"RP --- {CTL_ID} {GWY_ID} --:------ 0404 014 002300080704041FF702BAC2188E",
     # W schedule for zone 01
     f"0404| W|{CTL_ID}|0101": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290103",
     f"0404| W|{CTL_ID}|0102": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290203",
     f"0404| W|{CTL_ID}|0103": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280300",
     # W schedule for DHW
-    f"0404| W|{CTL_ID}|FA01": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290104",
-    f"0404| W|{CTL_ID}|FA02": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290204",
-    f"0404| W|{CTL_ID}|FA03": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280304",
-    f"0404| W|{CTL_ID}|FA04": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280400",
+    f"0404| W|{CTL_ID}|HW01": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290104",
+    f"0404| W|{CTL_ID}|HW02": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008290204",
+    f"0404| W|{CTL_ID}|HW03": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280304",
+    f"0404| W|{CTL_ID}|HW04": f" I --- {CTL_ID} {GWY_ID} --:------ 0404 007 01200008280400",
     #
     f"2309|RQ|{CTL_ID}|00": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 0007D0",
     f"2309|RQ|{CTL_ID}|01": f"RP --- {CTL_ID} --:------ {GWY_ID} 2309 003 010640",

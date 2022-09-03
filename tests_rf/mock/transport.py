@@ -115,9 +115,13 @@ class MockSerial:  # most of the RF 'mocking' is done in here
 
             # these are the mocked devices (if any) receiving the frame
             for device in self.mock_devices:
+                if cmd.src.id == device.id:
+                    continue
+                if cmd.dst.id != device.id and cmd.code != Code._1FC9:
+                    continue
+
                 try:
-                    if cmd.dst.id == device.id:  # or cmd.code == Code._1FC9:
-                        device.rx_frame_as_cmd(cmd)
+                    device.rx_frame_as_cmd(cmd)
                 except AssertionError as exc:
                     _LOGGER.exception(exc)
 
