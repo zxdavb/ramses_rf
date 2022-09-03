@@ -586,7 +586,9 @@ def parser_0404(payload, msg) -> dict:
 
     assert payload[4:6] in ("00", payload[:2]), _INFORM_DEV_MSG
 
-    if int(payload[8:10], 16) * 2 != len(payload[14:]):
+    if int(payload[8:10], 16) * 2 != (frag_length := len(payload[14:])) and (
+        msg.verb != I_ or frag_length != 0
+    ):
         raise InvalidPayloadError(f"Incorrect fragment length: 0x{payload[8:10]}")
 
     if msg.verb == RQ:  # have a ctx: idx|frag_idx
