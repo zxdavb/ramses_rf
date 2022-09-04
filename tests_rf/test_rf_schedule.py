@@ -283,7 +283,7 @@ async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
 
 
 @abort_if_rf_test_fails
-async def test_rq_0006(test_port):
+async def test_rq_0006_ver(test_port):
     """Test the TCS._schedule_version() method."""
 
     def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
@@ -321,7 +321,7 @@ async def test_rq_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-async def test_rq_0404_zone(test_port):
+async def test_rq_0404_zon(test_port):
     """Test the zone.get_schedule() method."""
 
     def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
@@ -361,7 +361,7 @@ async def test_ww_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-async def test_ww_0404_zone(test_port):
+async def test_ww_0404_zon(test_port):
     """Test the zone.set_schedule() method (uses get_schedule)."""
 
     def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
