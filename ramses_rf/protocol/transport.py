@@ -34,7 +34,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Any, Awaitable, Callable, Iterable, Optional, TextIO, TypeVar
+from typing import Any, Awaitable, Callable, Iterable, TextIO, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
 from serial_asyncio import SerialTransport as SerTransportAsync  # type: ignore[import]
@@ -550,7 +550,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 "is strongly recommended)"
             )
 
-    def connection_lost(self, exc: Optional[Exception]) -> None:
+    def connection_lost(self, exc: None | Exception) -> None:
         """Called when the connection is lost or closed."""
         _LOGGER.debug(f"{self}.connection_lost(exc)")
         # serial.serialutil.SerialException: device reports error (poll)
@@ -755,7 +755,7 @@ class PacketProtocolPort(PacketProtocolBase):
             except ValueError:
                 pass
 
-    def connection_lost(self, exc: Optional[Exception]) -> None:
+    def connection_lost(self, exc: None | Exception) -> None:
         """Called when the connection is lost or closed."""
 
         if self._leaker:
@@ -871,7 +871,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
         super()._pkt_received(pkt)
 
-    async def send_data(self, cmd: Command) -> Optional[Packet]:  # type: ignore[override]
+    async def send_data(self, cmd: Command) -> None | Packet:  # type: ignore[override]
         """Called when packets are to be sent (not a callback)."""
 
         if self._disable_sending:
@@ -903,7 +903,7 @@ class PacketProtocolQos(PacketProtocolPort):
                 cmd._qos.tx_timeout, cmd._qos.disable_backoff, retry_count
             )
             while tx_expires > dt.now():  # Step 1: wait for Tx to echo
-                await asyncio.sleep(Qos.POLL_INTERVAL)
+                await asyncio.sleep(Qos.POLL_INTERVAL)  # 0.002
                 if self._tx_rcvd or self._rx_rcvd:
                     break
             else:
