@@ -894,7 +894,7 @@ class PacketProtocolQos(PacketProtocolPort):
         self._tx_rcvd = None
 
         retry_count = 0
-        while retry_count <= min(cmd._qos.retry_limit, Qos.RETRY_LIMIT_MAX):  # 5
+        while retry_count <= min(cmd._qos.retry_limit, Qos.RETRY_LIMIT_MAX):
 
             self._rx_rcvd = None
             await super()._send_data(str(cmd))
