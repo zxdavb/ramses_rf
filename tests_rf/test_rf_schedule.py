@@ -53,10 +53,11 @@ W__0404_OTHER_EXPECTED = 32
 I__0404_OTHER_EXPECTED = 33
 I__0404_FINAL_RECEIVED = 34
 
-flow_marker = None  # NOTE: used as a global
+# NOTE: used as a global
+flow_marker: int = None  # type: ignore[assignment]
 
 
-def assert_packet_flow(msg, tcs_id, zone_idx=None):
+def track_packet_flow(msg, tcs_id, zone_idx=None):
     """Test the flow of packets (messages)."""
 
     global flow_marker
@@ -68,6 +69,7 @@ def assert_packet_flow(msg, tcs_id, zone_idx=None):
     if msg._pkt._hdr == f"0006|RQ|{tcs_id}":
         assert flow_marker == RQ_0006_EXPECTED
         flow_marker = RP_0006_EXPECTED
+
     elif msg._pkt._hdr == f"0006|RP|{tcs_id}":
         assert flow_marker == RP_0006_EXPECTED
         flow_marker = RP_0006_RECEIVED  # RQ_0404_FIRST_EXPECTED
@@ -76,6 +78,7 @@ def assert_packet_flow(msg, tcs_id, zone_idx=None):
     elif msg._pkt._hdr == f"0404|RQ|{tcs_id}|{zone_idx}01":
         assert flow_marker in (RQ_0404_FIRST_EXPECTED, RP_0006_RECEIVED)
         flow_marker = RP_0404_FIRST_EXPECTED
+
     elif msg._pkt._hdr == f"0404|RP|{tcs_id}|{zone_idx}01":
         assert flow_marker == RP_0404_FIRST_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
@@ -87,6 +90,7 @@ def assert_packet_flow(msg, tcs_id, zone_idx=None):
     elif msg._pkt._hdr[:20] == f"0404|RQ|{tcs_id}|{zone_idx}":
         assert flow_marker == RQ_0404_OTHER_EXPECTED
         flow_marker = RP_0404_OTHER_EXPECTED
+
     elif msg._pkt._hdr[:20] == f"0404|RP|{tcs_id}|{zone_idx}":
         assert flow_marker == RP_0404_OTHER_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
@@ -102,6 +106,7 @@ def assert_packet_flow(msg, tcs_id, zone_idx=None):
             RP_0404_FINAL_RECEIVED,
         )
         flow_marker = I__0404_FIRST_EXPECTED
+
     elif msg._pkt._hdr == f"0404| I|{tcs_id}|{zone_idx}01":
         assert flow_marker == I__0404_FIRST_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
@@ -113,6 +118,7 @@ def assert_packet_flow(msg, tcs_id, zone_idx=None):
     elif msg._pkt._hdr[:20] == f"0404| W|{tcs_id}|{zone_idx}":
         assert flow_marker == W__0404_OTHER_EXPECTED
         flow_marker = I__0404_OTHER_EXPECTED
+
     elif msg._pkt._hdr[:20] == f"0404| I|{tcs_id}|{zone_idx}":
         assert flow_marker == I__0404_OTHER_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
@@ -124,7 +130,12 @@ def assert_packet_flow(msg, tcs_id, zone_idx=None):
         assert False, msg
 
 
-def assert_schedule_dict(schedule_full):
+def assert_schedule_dict(zone: DhwZone | Zone):
+
+    schedule_full = zone._schedule._schedule
+
+    assert schedule_full[SZ_ZONE_IDX] == zone.idx
+    assert schedule_full[SZ_SCHEDULE] == zone.schedule
 
     if schedule_full[SZ_ZONE_IDX] == "HW":
         SCH_SCHEDULE_DHW(schedule_full)
@@ -146,30 +157,35 @@ def assert_schedule_dict(schedule_full):
                 assert isinstance(switchpoint[HEAT_SETPOINT], float)
             else:
                 assert isinstance(switchpoint[ENABLED], bool)
+
     return schedule
 
 
-async def read_schedule(zone: DhwZone | Zone) -> list:
+async def read_schedule(zone: DhwZone | Zone) -> list:  # uses: flow_marker
     """Test the get_schedule() method for a Zone or for DHW."""
 
     # [{  'day_of_week': 0,
     #     'switchpoints': [{'time_of_day': '06:30', 'heat_setpoint': 21.0}, ...], }]
 
+    global flow_marker
+
     # zone._gwy.config.disable_sending = False
 
+    flow_marker = RQ_0006_EXPECTED
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
+    assert flow_marker == RP_0404_FINAL_RECEIVED
 
-    if schedule is None:
+    if not schedule:  # valid test?
         assert zone._msgs[Code._0404].payload[SZ_TOTAL_FRAGS] is None
         return []
 
-    schedule = assert_schedule_dict(zone._schedule._schedule)
-
-    assert zone._schedule._schedule[SZ_ZONE_IDX] == zone.idx
-    assert zone._schedule._schedule[SZ_SCHEDULE] == zone.schedule == schedule
+    schedule = assert_schedule_dict(zone)
 
     zone._gwy.config.disable_sending = True
+
+    flow_marker = RQ_0006_EXPECTED
     assert schedule == await zone.get_schedule(force_io=False)
+    assert flow_marker == RQ_0006_EXPECTED
 
     try:
         await zone.get_schedule(force_io=True)
@@ -181,7 +197,40 @@ async def read_schedule(zone: DhwZone | Zone) -> list:
     return schedule
 
 
-async def write_schedule(zone: DhwZone | Zone) -> None:
+async def read_schedule_ver(tcs: System) -> list:  # uses: flow_marker
+    """Test the get_schedule() method for a Zone or for DHW."""
+
+    global flow_marker
+
+    flow_marker = RQ_0006_EXPECTED
+    ver = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
+    assert flow_marker == RP_0006_RECEIVED
+
+    assert isinstance(ver, int)
+    assert ver == tcs._msgs[Code._0006].payload["change_counter"]
+
+    flow_marker = RQ_0006_EXPECTED  # actually, is not expected
+    assert ver == (await tcs._schedule_version(force_io=False))[0]
+    assert flow_marker == RQ_0006_EXPECTED
+
+    ver = (await tcs._schedule_version(force_io=True))[0]  # RQ|0006, may: TimeoutError
+    assert flow_marker == RP_0006_RECEIVED
+
+    tcs._gwy.config.disable_sending = True
+
+    flow_marker = RQ_0006_EXPECTED  # actually, is not expected
+    ver = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
+    assert flow_marker == RQ_0006_EXPECTED
+
+    try:
+        await tcs._schedule_version(force_io=True)
+    except RuntimeError:  # sending is disabled
+        pass
+    else:
+        assert False
+
+
+async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
     """Test the set_schedule() method for a Zone or for DHW."""
 
     # FYI: [{  'day_of_week': 0,
@@ -237,150 +286,95 @@ async def write_schedule(zone: DhwZone | Zone) -> None:
 async def test_rq_0006(test_port):
     """Test the TCS._schedule_version() method."""
 
-    global flow_marker
-
-    def assert_packet_flow_wrapper(msg: Message, *args, **kwargs):
-        assert_packet_flow(msg, tcs.id)
+    def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
+        track_packet_flow(msg, tcs.id)
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
-    gwy.create_client(assert_packet_flow_wrapper)
+    gwy.create_client(track_packet_flow_wrapper)
 
     tcs: System = find_test_tcs(gwy)
 
-    flow_marker = RQ_0006_EXPECTED
-    version = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
-    assert flow_marker == RP_0006_RECEIVED
-
-    assert isinstance(version, int)
-    assert version == tcs._msgs[Code._0006].payload["change_counter"]
-
-    assert version == (await tcs._schedule_version(force_io=False))[0]
-    assert flow_marker == RP_0006_RECEIVED
-
-    flow_marker = RQ_0006_EXPECTED
-    version = (await tcs._schedule_version(force_io=True))[
-        0
-    ]  # RQ|0006, may: TimeoutError
-    assert flow_marker == RP_0006_RECEIVED
-
-    gwy.config.disable_sending = True
-
-    version = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
-    assert flow_marker == RP_0006_RECEIVED
-
     try:
-        await tcs._schedule_version(force_io=True)
-    except RuntimeError:  # sending is disabled
-        assert True
-    else:
-        assert False
-
-    assert flow_marker == RP_0006_RECEIVED
-
-    await gwy.stop()
+        await read_schedule_ver(tcs)
+    finally:
+        await gwy.stop()
 
 
 @abort_if_rf_test_fails
-async def test_rq_0404_dhw(test_port):  # TODO: Needs mocking
+async def test_rq_0404_dhw(test_port):
     """Test the dhw.get_schedule() method."""
 
-    # if test_port[0] == MOCKED_PORT:  # HACK/FIXME
-    #     return
-
-    global flow_marker
-
-    def assert_packet_flow_wrapper(msg: Message, *args, **kwargs):
-        assert_packet_flow(msg, tcs.id, dhw.idx)
+    def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
+        track_packet_flow(msg, tcs.id, dhw.idx)
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
-    gwy.create_client(assert_packet_flow_wrapper)
+    gwy.create_client(track_packet_flow_wrapper)
 
     tcs: System = find_test_tcs(gwy)
     dhw: DhwZone = tcs.dhw
 
-    if not dhw and test_port[0] != MOCKED_PORT:  # mocked port shoudl have a DHW zone
-        await gwy.stop()
-        return
-
-    flow_marker = RQ_0006_EXPECTED
     try:
-        await read_schedule(dhw)
+        if dhw or test_port[0] == MOCKED_PORT:  # mocked port should have DHW
+            await read_schedule(dhw)
     finally:
         await gwy.stop()
-
-    assert flow_marker == RP_0404_FINAL_RECEIVED
 
 
 @abort_if_rf_test_fails
 async def test_rq_0404_zone(test_port):
     """Test the zone.get_schedule() method."""
 
-    global flow_marker
-
-    def assert_packet_flow_wrapper(msg: Message, *args, **kwargs):
-        assert_packet_flow(msg, tcs.id, zon.idx)
+    def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
+        track_packet_flow(msg, tcs.id, zon.idx)
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
-    gwy.create_client(assert_packet_flow_wrapper)
+    gwy.create_client(track_packet_flow_wrapper)
 
     tcs: System = find_test_tcs(gwy)
     zon: Zone = tcs.zones[0]
 
-    # if zon:
-    flow_marker = RQ_0006_EXPECTED
     try:
+        # if zon:
         await read_schedule(zon)
     finally:
         await gwy.stop()
 
-    assert flow_marker == RP_0404_FINAL_RECEIVED
-
 
 @abort_if_rf_test_fails
-async def _test_ww_0404_dhw(test_port):
+async def test_ww_0404_dhw(test_port):
+    """Test the dhw.set_schedule() method (uses get_schedule)."""
 
-    # if test_port[0] == MOCKED_PORT:  # HACK/FIXME
-    #     return
-
-    global flow_marker
-
-    def assert_packet_flow_wrapper(msg: Message, *args, **kwargs):
-        assert_packet_flow(msg, tcs.id, dhw.idx)
+    def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
+        track_packet_flow(msg, tcs.id, dhw.idx)
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
+    gwy.create_client(track_packet_flow_wrapper)
 
-    tcs = find_test_tcs(gwy)
+    tcs: System = find_test_tcs(gwy)
     dhw: DhwZone = tcs.dhw
 
-    if not dhw and test_port[0] != MOCKED_PORT:  # mocked port shoudl have a DHW zone
-        await gwy.stop()
-        return
-
     try:
-        await write_schedule(tcs.dhw)
+        if dhw or test_port[0] == MOCKED_PORT:  # mocked port should have DHW
+            await write_schedule(dhw)
     finally:
         await gwy.stop()
-
-    assert flow_marker == RP_0404_FINAL_RECEIVED
 
 
 @abort_if_rf_test_fails
 async def test_ww_0404_zone(test_port):
     """Test the zone.set_schedule() method (uses get_schedule)."""
 
-    global flow_marker
-
-    def assert_packet_flow_wrapper(msg: Message, *args, **kwargs):
-        assert_packet_flow(msg, tcs.id, zon.idx)
+    def track_packet_flow_wrapper(msg: Message, *args, **kwargs):
+        track_packet_flow(msg, tcs.id, zon.idx)
 
     gwy = await load_test_gwy(*test_port, f"{WORK_DIR}/{CONFIG_FILE}")
-    gwy.create_client(assert_packet_flow_wrapper)
+    gwy.create_client(track_packet_flow_wrapper)
 
     tcs: System = find_test_tcs(gwy)
     zon: Zone = tcs.zones[0]
 
-    # if zon:
     try:
+        # if zon:
         await write_schedule(zon)
     finally:
         await gwy.stop()
