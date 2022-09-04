@@ -880,7 +880,7 @@ class PacketProtocolQos(PacketProtocolPort):
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._alert_is_impersonating(cmd)
 
-        def expires(timeout, disable_backoff, retry_count):
+        def get_expiry_time(timeout, disable_backoff, retry_count):
             """Return a dtm for expiring the Tx (or Rx), with an optional backoff."""
             if disable_backoff:
                 return dt.now() + timeout
@@ -899,7 +899,7 @@ class PacketProtocolQos(PacketProtocolPort):
             self._rx_rcvd = None
             await super()._send_data(str(cmd))
 
-            tx_expires = expires(
+            tx_expires = get_expiry_time(
                 cmd._qos.tx_timeout, cmd._qos.disable_backoff, retry_count
             )
             while tx_expires > dt.now():  # Step 1: wait for Tx to echo
