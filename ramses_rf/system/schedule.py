@@ -188,7 +188,7 @@ class Schedule:  # 0404
         global change counter has not increased.
         Otherwise, RQ the latest schedule from the controller and return that.
 
-        If `force_io`, then the latest schedule is guaranteed (it forces an RQ).
+        If `force_io`, then the latest schedule is guaranteed (it forces an RQ|0006).
         """
 
         try:
