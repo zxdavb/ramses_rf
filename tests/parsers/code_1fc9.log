@@ -1,31 +1,31 @@
 ### Heat domain ###
 
-# CTL binding to a OTB (FC|0008, FC|3150, FB|3150, 07|1FC9): : Domain id FC/FB
+# CTL binding to an OTB (FC|0008, FC|3150, FB|3150, 07|1FC9): : Domain id FC/FB
 2020-11-23T14:35:23.043166 045  I --- 01:078710 --:------ 01:078710 1FC9 024 FC0008053376FC3150053376FB3150053376FC1FC9053376  # {'phase': 'offer',   'bindings': [['FC', '0008', '01:078710'], ['FC', '3150', '01:078710'], ['FB', '3150', '01:078710'], ['FC', '1FC9', '01:078710']]}
 2020-11-23T14:35:23.253575 045  W --- 10:067219 01:078710 --:------ 1FC9 006 003EF0290693                                      # {'phase': 'accept',  'bindings': [['00', '3EF0', '10:067219']]}
 2020-11-23T14:35:23.270245 045  I --- 01:078710 10:067219 --:------ 1FC9 006 00FFFF053376                                      # {'phase': 'confirm', 'bindings': [['00', 'FFFF', '01:078710']]}
 
-# BDR91T binding to a CTL as heat pump relay (FC|0008, FC|3150, FB|3150, FC|11F0, FC|1FC9): Domain id FC/FB
+# CTL binding to a BDR91T as heat pump relay (FC|0008, FC|3150, FB|3150, FC|11F0, FC|1FC9): Domain id FC/FB
 2020-08-31T14:23:50.151453 045  I --- 01:145038 --:------ 01:145038 1FC9 030 FC000806368EFC315006368EFB315006368EFC11F006368EFC1FC906368E  # {'phase': 'offer',   'bindings': [['FC', '0008', '01:145038'], ['FC', '3150', '01:145038'], ['FB', '3150', '01:145038'], ['FC', '11F0', '01:145038'], ['FC', '1FC9', '01:145038']]}
 2020-08-31T14:23:50.941391 045  W --- 13:035462 01:145038 --:------ 1FC9 012 003EF0348A860011F0348A86                                      # {'phase': 'accept',  'bindings': [['00', '3EF0', '13:035462'], ['00', '11F0', '13:035462']]}
 2020-08-31T14:23:50.956363 045  I --- 01:145038 13:035462 --:------ 1FC9 006 00FFFF06368E                                                  # {'phase': 'confirm', 'bindings': [['00', 'FFFF', '01:145038']]}
 
-# BDR91A binding to a CTL as boiler relay (FC|0008, FC|3150, FB|3150, FC|1FC9): Domain id FC/FB
+# CTL binding to a BDR91A as boiler relay (FC|0008, FC|3150, FB|3150, FC|1FC9): Domain id FC/FB
 2020-08-15T17:20:53.540766 056  I --- 01:145038 --:------ 01:145038 1FC9 024 FC000806368EFC315006368EFB315006368EFC1FC906368E  # {'phase': 'offer',   'bindings': [['FC', '0008', '01:145038'], ['FC', '3150', '01:145038'], ['FB', '3150', '01:145038'], ['FC', '1FC9', '01:145038']]}
 2020-08-15T17:20:54.933419 056  W --- 13:106039 01:145038 --:------ 1FC9 012 003EF0359E37003B00359E37                          # {'phase': 'accept',  'bindings': [['00', '3EF0', '13:106039'], ['00', '3B00', '13:106039']]}
 2020-08-15T17:20:54.947357 056  I --- 01:145038 13:106039 --:------ 1FC9 006 00FFFF06368E                                      # {'phase': 'confirm', 'bindings': [['00', 'FFFF', '01:145038']]}
 
-# BDR binding to a CTL as Zone valve / Electric relay (07|0008, FC|3B00, 07|1FC9): Zone idx 07
+# CTL binding to a BDR as Zone valve / Electric relay (07|0008, FC|3B00, 07|1FC9): Zone idx 07
 2021-05-02T17:46:45.566380 ...  I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368EFC3B0006368E071FC906368E              # {'phase': 'offer',   'bindings': [['07', '0008', '01:145038'], ['FC', '3B00', '01:145038'], ['07', '1FC9', '01:145038']]}
 2021-05-02T17:46:46.450337 ...  W --- 13:049798 01:145038 --:------ 1FC9 006 003EF034C286                                      # {'phase': 'accept',  'bindings': [['00', '3EF0', '13:049798']]}
 2021-05-02T17:46:46.464399 ...  I --- 01:145038 13:049798 --:------ 1FC9 006 00FFFF06368E                                      # {'phase': 'confirm', 'bindings': [['00', 'FFFF', '01:145038']]}
 
-# BDR binding to a CTL as heating valve relay (FA|0008, FC|3B00, FA|1FC9): Domain id FA (HTG)
+# CTL binding to a BDR as heating valve relay (FA|0008, FC|3B00, FA|1FC9): Domain id FA (HTG)
 2020-08-15T17:03:35.012706 ...  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E              # {'phase': 'offer',   'bindings': [['FA', '0008', '01:145038'], ['FC', '3B00', '01:145038'], ['FA', '1FC9', '01:145038']]}
 2020-08-15T17:03:35.658983 ...  W --- 13:081807 01:145038 --:------ 1FC9 006 003EF0353F8F                                      # {'phase': 'accept',  'bindings': [['00', '3EF0', '13:081807']]}
 2020-08-15T17:03:35.675856 ...  I --- 01:145038 13:081807 --:------ 1FC9 006 00FFFF06368E                                      # {'phase': 'confirm', 'bindings': [['00', 'FFFF', '01:145038']]}
 
-# BDR binding to a CTL as HW relay (F9|0008, FC|3B00, F9|1FC9): Domain id F9 (HT1)
+# CTL binding to a BDR as HW relay (F9|0008, FC|3B00, F9|1FC9): Domain id F9 (HT1)
 2020-08-15T17:03:55.131533 ...  I --- 01:145038 --:------ 01:145038 1FC9 018 F9000806368EFC3B0006368EF91FC906368E              # {'phase': 'offer',   'bindings': [['F9', '0008', '01:145038'], ['FC', '3B00', '01:145038'], ['F9', '1FC9', '01:145038']]}
 2020-08-15T17:03:56.600574 ...  W --- 13:106039 01:145038 --:------ 1FC9 006 003EF0359E37                                      # {'phase': 'accept',  'bindings': [['00', '3EF0', '13:106039']]}
 2020-08-15T17:03:56.615859 ...  I --- 01:145038 13:106039 --:------ 1FC9 006 00FFFF06368E                                      # {'phase': 'confirm', 'bindings': [['00', 'FFFF', '01:145038']]}
