@@ -1289,9 +1289,9 @@ def parser_1fc9(payload, msg) -> list:
 
     if msg.verb == I_ and msg.src is msg.dst:
         bind_step = "offer"
-    elif msg.verb == I_:
-        bind_step = "accept"
     elif msg.verb == W_ and msg.src is not msg.dst:
+        bind_step = "accept"
+    elif msg.verb == I_:
         bind_step = "confirm"  # payload could be "00"
     else:
         bind_step = None  # unknown
