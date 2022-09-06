@@ -200,22 +200,22 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self._dhw_valve: BdrSwitch = None  # type: ignore[assignment]
         self._htg_valve: BdrSwitch = None  # type: ignore[assignment]
 
-    def _setup_discovery_tasks(self) -> None:
-        # super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        # super()._setup_discovery_cmds()
 
         for payload in (
             f"00{DEV_ROLE_MAP.DHW}",
             f"00{DEV_ROLE_MAP.HTG}",
             f"01{DEV_ROLE_MAP.HTG}",
         ):
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24
             )
 
-        self._add_discovery_task(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
+        self._add_discovery_cmd(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
 
-        self._add_discovery_task(Command.get_dhw_mode(self.ctl.id), 60 * 5)
-        self._add_discovery_task(Command.get_dhw_temp(self.ctl.id), 60 * 15)
+        self._add_discovery_cmd(Command.get_dhw_mode(self.ctl.id), 60 * 5)
+        self._add_discovery_cmd(Command.get_dhw_temp(self.ctl.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_dhw_sensor(this, *, prev=None) -> None:
@@ -494,7 +494,7 @@ class Zone(ZoneSchedule, ZoneBase):
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
             # TODO: broken fixme
-            # self._gwy._loop.call_soon(self._setup_discovery_tasks)  # TODO: check this
+            # self._gwy._loop.call_soon(self._setup_discovery_cmds)  # TODO: check this
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
@@ -509,49 +509,49 @@ class Zone(ZoneSchedule, ZoneBase):
         for dev_id in schema.get(SZ_ACTUATORS, []):
             self._gwy.get_device(dev_id, parent=self)
 
-    def _setup_discovery_tasks(self) -> None:
-        # super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        # super()._setup_discovery_cmds()
 
         for dev_role in (self._ROLE_ACTUATORS, DEV_ROLE_MAP.SEN):
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._000C, f"{self.idx}{dev_role}", self.ctl.id),
                 60 * 60 * 24,
                 delay=0.5,
             )
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_zone_config(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
         )  # td should be > long sync_cycle duration (> 1hr)
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_zone_name(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
         )
 
-        self._add_discovery_task(  # 2349 instead of 2309
+        self._add_discovery_cmd(  # 2349 instead of 2309
             Command.get_zone_mode(self.ctl.id, self.idx), 60 * 5, delay=30
         )
-        self._add_discovery_task(  # 30C9
+        self._add_discovery_cmd(  # 30C9
             Command.get_zone_temp(self.ctl.id, self.idx), 60 * 5, delay=0
         )  # td should be > sync_cycle duration,?delay in hope of picking up cycle
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_zone_window_state(self.ctl.id, self.idx), 60 * 15, delay=60 * 5
         )  # longer dt as low yield (factory duration is 30 min): prefer eavesdropping
 
-    def _add_discovery_task(
+    def _add_discovery_cmd(
         self, cmd, interval, *, delay: float = 0, timeout: float = None
     ):
         """Schedule a command to run periodically."""
-        super()._add_discovery_task(cmd, interval, delay=delay, timeout=timeout)
+        super()._add_discovery_cmd(cmd, interval, delay=delay, timeout=timeout)
 
         if cmd.code != Code._000C:  # or cmd._ctx == f"{self.idx}{ZON_ROLE_MAP.SEN}":
             return
 
-        if [t for t in self._disc_tasks if t[-2:] in ZON_ROLE_MAP.HEAT_ZONES] and (
-            self._disc_tasks.pop(f"{self.idx}{ZON_ROLE_MAP.ACT}", None)
+        if [t for t in self._discovery_cmds if t[-2:] in ZON_ROLE_MAP.HEAT_ZONES] and (
+            self._discovery_cmds.pop(f"{self.idx}{ZON_ROLE_MAP.ACT}", None)
         ):
             _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
-        if self._disc_tasks.get(f"{self.idx}{ZON_ROLE_MAP.VAL}") and (
-            self._disc_tasks[f"{self.idx}{ZON_ROLE_MAP.ELE}"]
+        if self._discovery_cmds.get(f"{self.idx}{ZON_ROLE_MAP.VAL}") and (
+            self._discovery_cmds[f"{self.idx}{ZON_ROLE_MAP.ELE}"]
         ):
             _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
@@ -821,10 +821,10 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     _SLUG: str = ZON_ROLE.MIX
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.MIX
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_mix_valve_params(self.ctl.id, self.idx), 60 * 60 * 6
         )
 

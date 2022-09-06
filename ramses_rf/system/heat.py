@@ -162,15 +162,15 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     def __repr__(self) -> str:
         return f"{self.ctl.id} ({self._SLUG})"
 
-    def _setup_discovery_tasks(self) -> None:
-        # super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        # super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             _mk_cmd(RQ, Code._000C, f"00{DEV_ROLE_MAP.HTG}", self.id),
             60 * 60 * 24,
             delay=0,
         )
-        self._add_discovery_task(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
+        self._add_discovery_cmd(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_appliance_control(this, *, prev=None) -> None:
@@ -367,11 +367,11 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
         for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._0005, f"00{zone_type}", self.id),
                 60 * 60 * 24,
                 delay=0,
@@ -731,12 +731,10 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self.zone_lock = Lock()  # used to stop concurrent get_schedules
         self.zone_lock_idx = None
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
-            _mk_cmd(RQ, Code._0006, "00", self.id), 60 * 5, delay=5
-        )
+        self._add_discovery_cmd(_mk_cmd(RQ, Code._0006, "00", self.id), 60 * 5, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retreive the latest global change counter."""
@@ -819,10 +817,10 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
 
 class Language(SystemBase):  # 0100
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_system_language(self.id), 60 * 60 * 24, delay=60 * 15
         )
 
@@ -851,10 +849,10 @@ class Logbook(SystemBase):  # 0418
         self._faultlog: FaultLog = None  # type: ignore[assignment]
         self._faultlog_outdated: bool = True
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_system_log_entry(self.ctl.id, 0), 60 * 5, delay=5
         )
         # self._gwy.add_task(self._loop.create_task(self.get_faultlog()))
@@ -946,10 +944,10 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         super().__init__(*args, **kwargs)
         self._dhw: DhwZone = None  # type: ignore[assignment]
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             _mk_cmd(RQ, Code._000C, f"00{DEV_ROLE_MAP.DHW}", self.id),
             60 * 60 * 24,
             delay=0,
@@ -1046,10 +1044,10 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
 
 class SysMode(SystemBase):  # 2E04
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(Command.get_system_mode(self.id), 60 * 5, delay=5)
+        self._add_discovery_cmd(Command.get_system_mode(self.id), 60 * 5, delay=5)
 
     @property
     def system_mode(self) -> Optional[dict]:  # 2E04
@@ -1077,10 +1075,10 @@ class SysMode(SystemBase):  # 2E04
 
 
 class Datetime(SystemBase):  # 313F
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(Command.get_system_time(self.id), 60 * 60, delay=0)
+        self._add_discovery_cmd(Command.get_system_time(self.id), 60 * 60, delay=0)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -1216,8 +1214,8 @@ class Hometronics(System):
     _SLUG: str = SYS_KLASS.SYS
 
     #
-    # def _setup_discovery_tasks(self) -> None:
-    #     # super()._setup_discovery_tasks()
+    # def _setup_discovery_cmds(self) -> None:
+    #     # super()._setup_discovery_cmds()
 
     #     # will RP to: 0005/configured_zones_alt, but not: configured_zones
     #     # will RP to: 0004

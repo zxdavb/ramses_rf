@@ -245,11 +245,11 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
     RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
         if not self._faked:  # discover_flag & Discover.STATUS and
-            self._add_discovery_task(Command.get_relay_demand(self.id), 60 * 15)
+            self._add_discovery_cmd(Command.get_relay_demand(self.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         if msg.src.id == self.id:
@@ -475,27 +475,27 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         self._iz_controller = True
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             _mk_cmd(RQ, Code._0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
         )
         # TODO: this needs work
         # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
         for ufc_idx in self.circuit_by_id:
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._000A, ufc_idx, self.id), 60 * 60 * 6
             )
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._2309, ufc_idx, self.id), 60 * 60 * 6
             )
 
         for ufc_idx in range(8):  # type: ignore[assignment]
             payload = f"{ufc_idx:02X}{DEV_ROLE_MAP.UFH}"
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24
             )
 
@@ -733,9 +733,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # lf._msgs_ot_ctl_polled = {}
         self._msgs_supported: dict[str, None | bool] = {}
 
-    def _setup_discovery_tasks(self) -> None:
+    def _setup_discovery_cmds(self) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
-        super()._setup_discovery_tasks()
+        super()._setup_discovery_cmds()
 
         # the following are test/dev
         if DEV_MODE:
@@ -744,40 +744,38 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._3221,  # R8810A/20A
                 Code._3223,  # R8810A/20A
             ):  # TODO: these are WIP, but do vary in payload
-                self._add_discovery_task(_mk_cmd(RQ, code, "00", self.id), 60)
+                self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60)
 
         for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
             if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
-                self._add_discovery_task(
+                self._add_discovery_cmd(
                     Command.get_opentherm_data(self.id, m), 60 * 60 * 24, delay=60 * 3
                 )
 
         for m in PARAMS_MSG_IDS:  # or L/T state
             if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
-                self._add_discovery_task(
+                self._add_discovery_cmd(
                     Command.get_opentherm_data(self.id, m), 60 * 60, delay=90
                 )
 
         for msg_id in STATUS_MSG_IDS:
             if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
-                self._add_discovery_task(
+                self._add_discovery_cmd(
                     Command.get_opentherm_data(self.id, msg_id), 60 * 5, delay=15
                 )
 
         # TODO: both modulation level?
-        self._add_discovery_task(_mk_cmd(RQ, Code._2401, "00", self.id), 60 * 5)
-        self._add_discovery_task(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60 * 5)
+        self._add_discovery_cmd(_mk_cmd(RQ, Code._2401, "00", self.id), 60 * 5)
+        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60 * 5)
 
         if self._gwy.config.use_native_ot:
             return
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
-            self._add_discovery_task(
-                _mk_cmd(RQ, code, "00", self.id), 60 * 60, delay=90
-            )
+            self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60 * 60, delay=90)
 
         for code in [v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS]:
-            self._add_discovery_task(_mk_cmd(RQ, code, "00", self.id), 60 * 5)
+            self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60 * 5)
 
         if False and DEV_MODE:
             # TODO: these are WIP, appear fixed in payload, to test against BDR91T
@@ -790,7 +788,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._2410,  # payload always "000000000000000000000000010000000100000C"
                 Code._2420,  # payload always "0000001000000...
             ):
-                self._add_discovery_task(
+                self._add_discovery_cmd(
                     _mk_cmd(RQ, code, "00", self.id), 60 * 5, delay=60 * 5
                 )
 
@@ -1252,7 +1250,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     #     if kwargs.get(SZ_DOMAIN_ID) == FC:  # TODO: F9/FA/FC, zone_idx
     #         self.ctl._set_app_cntrl(self)
 
-    def _setup_discovery_tasks(self) -> None:
+    def _setup_discovery_cmds(self) -> None:
         """Discover BDRs.
 
         The BDRs have one of six roles:
@@ -1268,18 +1266,18 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
          - a BDR91A will *periodically* send an I/3B00/00C8 if it is the heater relay
         """
 
-        super()._setup_discovery_tasks()
+        super()._setup_discovery_cmds()
 
         if self._faked:
             return
 
         # discover_flag & Discover.PARAMS and
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.get_tpi_params(self.id), 60 * 60 * 6
         )  # also: self.ctl.id
 
         # discover_flag & Discover.STATUS and
-        self._add_discovery_task(_mk_cmd(RQ, Code._3EF1, "00", self.id), 60 * 60 * 5)
+        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF1, "00", self.id), 60 * 60 * 5)
 
     @property
     def active(self) -> None | bool:  # 3EF0, 3EF1

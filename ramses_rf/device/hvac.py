@@ -179,10 +179,10 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
 class FilterChange(DeviceHvac):  # FAN: 10D0
     """The filter state sensor (10D0)."""
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.from_attrs(RQ, self.id, Code._10D0, "00"), 60 * 60 * 24, delay=30
         )
 
@@ -321,11 +321,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         for dev_id in schema.get(SZ_SENSORS, {}).keys():
             self._gwy.get_device(self._gwy, dev_id)
 
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
         # RP --- 32:155617 18:005904 --:------ 22F1 003 000207
-        self._add_discovery_task(
+        self._add_discovery_cmd(
             Command.from_attrs(RQ, self.id, Code._22F1, "00"), 60 * 60 * 24, delay=15
         )  # to learn scheme: orcon/itho/other (04/07/0?)
 
@@ -338,12 +338,12 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             Code._22F4,
             Code._22F8,
         ):
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=15
             )
 
         for code in (Code._313E, Code._3222):
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 Command.from_attrs(RQ, self.id, code, "00"), 60 * 30, delay=30
             )
 
