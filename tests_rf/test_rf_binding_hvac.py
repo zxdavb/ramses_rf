@@ -7,6 +7,8 @@ Test binding of Heat devices.
 """
 
 import asyncio
+from datetime import datetime as dt
+from datetime import timedelta as td
 
 from ramses_rf.const import DEV_TYPE, SZ_SENSOR, SZ_ZONES, Code
 from ramses_rf.device import HvacRemote, HvacVentilator
@@ -20,6 +22,7 @@ from ramses_rf.protocol.schemas import (
 )
 from ramses_rf.schemas import (
     SZ_CONFIG,
+    SZ_DISABLE_DISCOVERY,
     SZ_ENABLE_EAVESDROP,
     SZ_ORPHANS_HEAT,
     SZ_ORPHANS_HVAC,
@@ -86,25 +89,25 @@ async def test_hvac_bind_remote(test_port):
         track_packet_flow(msg, rem.id, fan.id, Code._22F1)
 
     config = {
-        SZ_CONFIG: {SZ_ENABLE_EAVESDROP: False, SZ_ENFORCE_KNOWN_LIST: True},
+        SZ_CONFIG: {SZ_DISABLE_DISCOVERY: False, SZ_ENFORCE_KNOWN_LIST: True},
         SZ_ORPHANS_HVAC: [FAN_ID, REM_ID],
         SZ_KNOWN_LIST: {
-            CTL_ID: {},
             FAN_ID: {SZ_CLASS: DEV_TYPE.FAN},
             REM_ID: {SZ_CLASS: DEV_TYPE.REM, SZ_FAKED: True},
         },
     }
 
-    gwy = await load_test_gwy(*test_port, None, **config)
+    gwy = await load_test_gwy(*test_port, None, devices=[], **config)
     gwy.create_client(track_packet_flow_wrapper)
 
     fan: HvacVentilator = gwy.device_by_id[FAN_ID]
 
-    # make an unfakeable be fakeable...
+    # make an unfakeable device be fakeable...
     fan.__class__ = HvacVentilatorFakable
     setattr(fan, "_faked", None)
     setattr(fan, "_1fc9_state", {"state": BindState.UNKNOWN})
 
+    # then enable faking on this device
     fan._make_fake()
     fan._bind_waiting(Code._22F1)
 
@@ -112,9 +115,15 @@ async def test_hvac_bind_remote(test_port):
 
     flow_marker = BIND_REQUEST_EXPECTED
     rem._bind()
-    await asyncio.sleep(90)
+
+    dtm = dt.now() + td(seconds=5)
+    while dtm > dt.now():
+        await asyncio.sleep(0.002)
+        if flow_marker == BIND_COMPLETED:
+            break
 
     await gwy.stop()
+    assert flow_marker == BIND_COMPLETED
 
 
 @abort_if_rf_test_fails
