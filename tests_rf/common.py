@@ -75,7 +75,9 @@ def find_test_tcs(gwy: Gateway) -> System:
     return systems[0] if systems else gwy.system_by_id[CTL_ID]
 
 
-async def load_test_gwy(port_name, gwy_class, config_file: str, **kwargs) -> Gateway:
+async def load_test_gwy(
+    port_name, gwy_class, config_file: str, devices=None, **kwargs
+) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     config = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
@@ -91,9 +93,11 @@ async def load_test_gwy(port_name, gwy_class, config_file: str, **kwargs) -> Gat
     gwy = gwy_class(port_name, **config)
     await gwy.start(start_discovery=False)  # may: SerialException
 
-    if hasattr(
+    if hasattr(  # TODO: move out of this routine
         gwy.pkt_transport.serial, "mock_devices"
     ):  # needs ser instance, so after gwy.start()
-        gwy.pkt_transport.serial.mock_devices = [MockDeviceCtl(gwy, CTL_ID)]
+        gwy.pkt_transport.serial.mock_devices = (
+            [MockDeviceCtl(gwy, CTL_ID)] if devices is None else devices
+        )
 
     return gwy
