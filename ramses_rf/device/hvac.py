@@ -41,6 +41,7 @@ from ..entity_base import class_by_attr
 from ..helpers import shrink
 from ..protocol import Address, Message
 from ..protocol.command import Command
+from ..protocol.const import SZ_BINDINGS
 from ..protocol.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
 from .base import BatteryState, Device, DeviceHvac, Fakeable
@@ -83,7 +84,9 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
         # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
 
         def callback(msg):
-            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+            """Use the accept pkt to determine the zone/domain id."""
+            _ = msg.payload[SZ_BINDINGS][0][0]
+            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
 
         super()._bind()
         self._bind_request((Code._1298, Code._31E0), callback=callback)
@@ -117,7 +120,9 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
         # .I ---
 
         def callback(msg):
-            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+            """Use the accept pkt to determine the zone/domain id."""
+            _ = msg.payload[SZ_BINDINGS][0][0]
+            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
 
         super()._bind()
         self._bind_request((Code._12A0, Code._31E0), callback=callback)
@@ -151,7 +156,9 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
         # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
 
         def callback(msg):
-            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+            """Use the accept pkt to determine the zone/domain id."""
+            _ = msg.payload[SZ_BINDINGS][0][0]
+            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
 
         super()._bind()
         self._bind_request((Code._2E10, Code._31E0), callback=callback)
@@ -251,8 +258,10 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         # .W --- 32:155617 37:155617 --:------ 1FC9 012 0031D9825FE10031DA825FE1
         # .I --- 37:155617 32:155617 --:------ 1FC9 001 00
 
-        def callback(msg):
-            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+        def callback(msg):  # TODO: set_parent()
+            """Use the accept pkt to determine the zone/domain id."""
+            _ = msg.payload[SZ_BINDINGS][0][0]
+            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
 
         super()._bind()
         self._bind_request((Code._22F1, Code._22F3), callback=callback)

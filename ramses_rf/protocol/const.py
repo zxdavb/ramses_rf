@@ -433,6 +433,7 @@ SYS_MODE_MAP = attr_dict_factory(
 
 SZ_ACTUATOR = "actuator"
 SZ_ACTUATORS = "actuators"
+SZ_BINDINGS = "bindings"
 SZ_DATETIME = "datetime"
 SZ_DEVICE_CLASS = "device_class"  # used in 0418 only?
 SZ_DEVICE_ID = "device_id"

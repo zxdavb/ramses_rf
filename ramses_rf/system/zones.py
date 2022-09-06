@@ -43,6 +43,7 @@ from ..entity_base import Child, Entity, Parent, class_by_attr
 from ..helpers import shrink
 from ..protocol import Address, Command, CorruptStateError, Message
 from ..protocol.command import _mk_cmd
+from ..protocol.const import SZ_PAYLOAD
 from ..schemas import (
     SCH_TCS_DHW,
     SCH_TCS_ZONES_ZON,
@@ -127,7 +128,7 @@ class ZoneBase(Child, Parent, Entity):
         return self.idx < other.idx
 
     def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
-        payload = kwargs.pop("payload", f"{self.idx}00")
+        payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")
         super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property

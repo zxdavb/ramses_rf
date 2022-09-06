@@ -38,6 +38,7 @@ from ..helpers import shrink
 from ..protocol import Address, Command, Message, Priority
 from ..protocol.address import NON_DEV_ADDR
 from ..protocol.command import _mk_cmd
+from ..protocol.const import SZ_BINDINGS
 from ..protocol.exceptions import InvalidPayloadError
 from ..protocol.opentherm import (
     MSG_ID,
@@ -359,8 +360,10 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
         # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
         # .I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
-        def callback(msg):
-            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
+        def callback(msg):  # TODO: needs work
+            """Use the accept pkt to determine the zone/domain id."""
+            child_id = msg.payload[SZ_BINDINGS][0][0]
+            self.set_parent(msg.src, child_id=child_id, is_sensor=True)
 
         super()._bind()
         self._bind_request(Code._30C9, callback=callback)
