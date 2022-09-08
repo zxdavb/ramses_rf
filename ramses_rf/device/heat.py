@@ -798,12 +798,15 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == Code._3220 and msg.payload[MSG_TYPE] != OtMsgType.RESERVED:
+        if msg.code == Code._3220:
             self._handle_3220(msg)
         elif msg.code in self.OT_TO_RAMSES.values():
             self._handle_code(msg)
 
     def _handle_3220(self, msg: Message) -> None:
+        if msg.payload[MSG_TYPE] == OtMsgType.RESERVED:  # workaround
+            return
+
         msg_id = f"{msg.payload[MSG_ID]:02X}"
         self._msgs_ot[msg_id] = msg
 
