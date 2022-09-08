@@ -250,9 +250,7 @@ class Engine:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
-    def send_cmd(
-        self, cmd: Command, callback: Callable = None, **kwargs
-    ) -> futures.Future[Optional[Message]]:
+    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs):  # FIXME
         """Send a command with the option to return any response message via callback.
 
         Response packets, if any (an RP/I will follow an RQ/W), and have the same code.
@@ -262,12 +260,15 @@ class Engine:
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
 
-        return asyncio.run_coroutine_threadsafe(
-            self.msg_protocol.send_data(cmd, callback=callback, **kwargs),
-            self._loop,
-        )
+        # self._loop.call_soon_threadsafe(
+        #     self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
+        # )
+        coro = self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
+        fut: futures.Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        # fut: asyncio.Future = asyncio.wrap_future(fut)
+        return fut
 
-    async def async_send_cmd(self, cmd: Command, **kwargs) -> None | Message:
+    async def async_send_cmd(self, cmd: Command, **kwargs) -> None | Message:  # FIXME
         """Send a command with the option to not wait for a response message.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
@@ -410,16 +411,31 @@ class Gateway(Engine):
         elif start_discovery:  # source of packets is a serial port
             initiate_discovery(self.devices, self.systems)
 
-    async def stop(self) -> None:
+    async def stop(self) -> None:  # FIXME: a mess
         """Cancel all outstanding tasks."""
         # if self._engine_state is None:
         #     self._pause()
 
+        # (t for t in self._tasks if not isinstance(t, asyncio.Task))
+
         if [t.cancel() for t in self._tasks if not t.done()]:
-            try:  # TODO: except asyncio.CancelledError:
-                await asyncio.gather(*self._tasks)
-            except TypeError:  # HACK
+            await asyncio.gather(*(t for t in self._tasks if asyncio.isfuture(t)))
+
+        # this doesn't work...
+        for t in [t for t in self._tasks if isinstance(t, futures.Future)]:
+            try:
+                await asyncio.wrap_future(t, loop=self._loop)
+            except asyncio.CancelledError:
                 pass
+
+        # this doesn't work either
+        # for device in self.devices:
+        #     await device._stop_discovery_poller()
+        # for system in self.systems:
+        #     await system._stop_discovery_poller()
+        #     for zone in system.zones:
+        #         await zone._stop_discovery_poller()
+
         await super().stop()
 
     def _pause(self, *args, clear_state: bool = False) -> None:
@@ -690,7 +706,7 @@ class Gateway(Engine):
     def status(self) -> dict:
         return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
-    def send_cmd(
+    def send_cmd(  # FIXME
         self, cmd: Command, callback: Callable = None, **kwargs
     ) -> futures.Future:
         """Send a command with the option to return any response via callback."""
@@ -733,9 +749,9 @@ class Gateway(Engine):
             return dev._make_fake(bind=start_binding)
         raise TypeError(f"The device is not fakable: {device_id}")
 
-    def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> None:
+    def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
         """Start a task after delay seconds and then repeat it every period seconds."""
         self._tasks = [t for t in self._tasks if not t.done()]
-        self._tasks.append(
-            schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
-        )
+        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
+        self._tasks.append(task)
+        return task

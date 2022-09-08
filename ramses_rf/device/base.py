@@ -146,13 +146,13 @@ class DeviceBase(Entity):
         dev._update_traits(**schema)  # TODO: split traits/schema
         return dev
 
-    def _setup_discovery_tasks(self) -> None:
-        # super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        # super()._setup_discovery_cmds()
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         # if discover_flag & Discover.TRAITS:
-        # self._add_discovery_task(_mk_cmd(RQ, Code._1FC9, "00", self.id), 60 * 60 * 24)
-        # self._add_discovery_task(_mk_cmd(RQ, Code._0016, "00", self.id), 60 * 60)
+        # self._add_discovery_cmd(_mk_cmd(RQ, Code._1FC9, "00", self.id), 60 * 60 * 24)
+        # self._add_discovery_cmd(_mk_cmd(RQ, Code._0016, "00", self.id), 60 * 60)
 
         pass
 
@@ -266,14 +266,14 @@ class BatteryState(DeviceBase):  # 1060
 
 
 class DeviceInfo(DeviceBase):  # 10E0
-    def _setup_discovery_tasks(self) -> None:
-        super()._setup_discovery_tasks()
+    def _setup_discovery_cmds(self) -> None:
+        super()._setup_discovery_cmds()
 
         # if discover_flag & Discover.SCHEMA:
         if self._SLUG not in CODES_BY_DEV_SLUG or RP in CODES_BY_DEV_SLUG[
             self._SLUG
         ].get(Code._10E0, {}):
-            self._add_discovery_task(
+            self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._10E0, "00", self.id), 60 * 60 * 24
             )
 

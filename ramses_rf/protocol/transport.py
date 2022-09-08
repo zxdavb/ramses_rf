@@ -354,17 +354,35 @@ class SerTransportBase(asyncio.ReadTransport):
         super().__init__(extra=extra)
 
         self._loop = loop
-        self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
+
+        task = self._loop.create_task(self._polling_loop())
+        task.add_done_callback(self._handle_polling_loop_result)
+        self._extra[SZ_POLLER_TASK] = task
 
         # for sig in (signal.SIGINT, signal.SIGTERM):
         #     self._loop.add_signal_handler(sig, self.abort)
 
         self._is_closing = False
 
-    async def _polling_loop(self):  # TODO: make into a thread, as doing I/O
+    async def _polling_loop(self) -> None:  # TODO: make into a thread, as doing I/O
+        """Poll the packet source for packets, also calls connection_made/lost()."""
         # self._protocol.connection_made(self)
-
         raise NotImplementedError
+        # self._protocol.connection_lost(None)
+
+    def _handle_polling_loop_result(self, task: asyncio.Task) -> None:
+        """Call connection_lost(exc) if there was an Exception from the polling_loop.
+
+        The polling_loop should call connection_lost(None) if there is no exception.
+        """
+        try:
+            task.result()
+        # except (KeyboardInterrupt, SystemExit):
+        #     pass  # no value in raising
+        except asyncio.CancelledError:
+            pass  # self._protocol.connection_lost(None)
+        except Exception as exc:  # pylint: disable=broad-except
+            self._protocol.connection_lost(exc)
 
     def close(self):
         """Close the transport."""
@@ -373,11 +391,11 @@ class SerTransportBase(asyncio.ReadTransport):
             return
         self._is_closing = True
 
-        self._protocol.pause_writing()
         if task := self._extra.get(SZ_POLLER_TASK):
             task.cancel()
 
         self._loop.call_soon(self._protocol.connection_lost, None)
+        # cause: self._protocol.pause_writing()
 
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
@@ -401,7 +419,8 @@ class SerTransportRead(SerTransportBase):
 
         self._protocol.pause_writing()
 
-    async def _polling_loop(self):  # TODO: harden with try
+    async def _polling_loop(self):  # TODO: harden: wrap d_r() with try
+        """Poll the packet source for packets, also calls connection_made/lost()."""
         self._protocol.connection_made(self)
 
         if isinstance(self._packets, dict):  # can assume dtm_str is OK
@@ -443,7 +462,8 @@ class SerTransportPoll(SerTransportBase, asyncio.WriteTransport):
         self._is_closing: bool = None  # type: ignore[assignment]
         self._write_queue: Queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
 
-    async def _polling_loop(self):
+    async def _polling_loop(self) -> None:
+        """Poll the packet source for packets, also calls connection_made/lost()."""
         self._protocol.connection_made(self)
 
         while self.serial.is_open:
@@ -552,12 +572,13 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def connection_lost(self, exc: None | Exception) -> None:
         """Called when the connection is lost or closed."""
-        _LOGGER.debug(f"{self}.connection_lost(exc)")
         # serial.serialutil.SerialException: device reports error (poll)
+        if exc:
+            _LOGGER.error("Exception raised by transport: %s", exc)
 
         self.pause_writing()
 
-        if exc is not None:
+        if exc:
             raise exc
 
     def pause_writing(self) -> None:

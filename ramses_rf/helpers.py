@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from copy import deepcopy
 from inspect import iscoroutinefunction
 
@@ -83,19 +82,13 @@ def schedule_task(fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task
             await asyncio.sleep(delay)
 
         if not period:
-            asyncio.create_task(execute_func(fnc, *args, **kwargs))
+            asyncio.create_task(execute_func(fnc, *args, **kwargs), name=str(fnc))
             return
 
         while period:
-            asyncio.create_task(execute_func(fnc, *args, **kwargs))
+            asyncio.create_task(execute_func(fnc, *args, **kwargs), name=str(fnc))
             await asyncio.sleep(period)
 
-    return asyncio.create_task(schedule_func(delay, period, fnc, *args, **kwargs))
-
-
-def _out_slugify_string(key: str) -> str:
-    """Convert a string to snake_case."""
-    string = re.sub(r"[\-\.\s]", "_", str(key))
-    return (string[0]).lower() + re.sub(
-        r"[A-Z]", lambda matched: f"_{matched.group(0).lower()}", string[1:]  # type: ignore[str-bytes-safe]
+    return asyncio.create_task(
+        schedule_func(delay, period, fnc, *args, **kwargs), name=str(fnc)
     )

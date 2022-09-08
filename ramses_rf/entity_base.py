@@ -222,8 +222,8 @@ class Discovery(MessageDB):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._disc_tasks: dict[_HeaderT, dict] = None  # type: ignore[assignment]
-        self._disc_tasks_poller = None
+        self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
+        self._discovery_poller = None
 
         if not gwy.config.disable_discovery and isinstance(
             gwy.pkt_protocol, PacketProtocolPort
@@ -233,10 +233,10 @@ class Discovery(MessageDB):
             # )
             gwy._loop.call_soon(self._start_discovery_poller)
 
-    def _setup_discovery_tasks(self) -> None:
+    def _setup_discovery_cmds(self) -> None:
         raise NotImplementedError
 
-    def _add_discovery_task(
+    def _add_discovery_cmd(
         self, cmd, interval, *, timeout: float = None, delay: float = 0
     ):
         """Schedule a command to run periodically.
@@ -250,7 +250,7 @@ class Discovery(MessageDB):
             _LOGGER.warning(f"cmd({cmd}): invalid (null) header not added to discovery")
             return
 
-        if cmd.rx_header in self._disc_tasks:
+        if cmd.rx_header in self._discovery_cmds:
             _LOGGER.info(f"cmd({cmd}): duplicate header not added to discovery")
             return
 
@@ -260,7 +260,7 @@ class Discovery(MessageDB):
             timeout or (cmd._qos.retry_limit + 1) * cmd._qos.rx_timeout.total_seconds()
         )
 
-        self._disc_tasks[cmd.rx_header] = {
+        self._discovery_cmds[cmd.rx_header] = {
             "command": cmd,
             "interval": td(seconds=max(interval, self.MAX_CYCLE_SECS)),
             "last_msg": None,
@@ -270,18 +270,24 @@ class Discovery(MessageDB):
         }
 
     def _start_discovery_poller(self) -> None:
-        if self._disc_tasks is None:
-            self._disc_tasks = {}
-            self._setup_discovery_tasks()
+        if self._discovery_cmds is None:
+            self._discovery_cmds = {}
+            self._setup_discovery_cmds()
 
-        if not self._disc_tasks_poller or self._disc_tasks_poller.done():
-            self._disc_tasks_poller = self._gwy.add_task(self._poll_discovery_tasks)
+        if not self._discovery_poller or self._discovery_poller.done():
+            self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
+            self._discovery_poller.set_name(f"{self.id}_discovery_poller")
+            pass
 
-    def _stop_discovery_poller(self) -> None:
-        if self._disc_tasks_poller and not self._disc_tasks_poller.done():
-            self._disc_tasks_poller.cancel()
+    async def _stop_discovery_poller(self) -> None:
+        if self._discovery_poller and not self._discovery_poller.done():
+            self._discovery_poller.cancel()
+            try:
+                await self._discovery_poller
+            except asyncio.CancelledError:
+                pass
 
-    async def _poll_discovery_tasks(self) -> None:
+    async def _poll_discovery_cmds(self) -> None:
         """Send any outstanding commands that are past due.
 
         If a relevant message was received recently enough, reschedule the corresponding
@@ -359,7 +365,7 @@ class Discovery(MessageDB):
                 await asyncio.sleep(self.MIN_CYCLE_SECS)
                 continue
 
-            for hdr, task in self._disc_tasks.items():
+            for hdr, task in self._discovery_cmds.items():
                 dt_now = dt.now()
 
                 if msg := find_newer_msg(hdr, task):
@@ -377,9 +383,9 @@ class Discovery(MessageDB):
                     task["failures"] += 1
                     task["next_due"] = dt_now + interval(hdr, task["failures"])
 
-            if self._disc_tasks:
+            if self._discovery_cmds:
                 seconds = (
-                    min(t["next_due"] for t in self._disc_tasks.values()) - dt.now()
+                    min(t["next_due"] for t in self._discovery_cmds.values()) - dt.now()
                 ).total_seconds()
                 await asyncio.sleep(
                     min(max(seconds, self.MIN_CYCLE_SECS), self.MAX_CYCLE_SECS)

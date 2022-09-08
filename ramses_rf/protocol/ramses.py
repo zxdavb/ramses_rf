@@ -568,7 +568,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._3220: {  # opentherm_msg
         SZ_NAME: "opentherm_msg",
-        RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
+        RQ: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
     },
     Code._3221: {  # unknown_3221, from OTB

@@ -65,7 +65,16 @@ SZ_PRESENCE_DETECTED = "presence_detected"
 
 
 def slug(string: str) -> str:
+    """Convert a string to snake_case."""
     return re.sub(r"[\W_]+", "_", string.lower())
+
+
+def _alt_slugify_string(key: str) -> str:
+    """Convert a string to snake_case."""
+    string = re.sub(r"[\-\.\s]", "_", str(key))
+    return (string[0]).lower() + re.sub(
+        r"[A-Z]", lambda matched: f"_{matched.group(0).lower()}", string[1:]  # type: ignore[str-bytes-safe]
+    )
 
 
 class AttrDict(dict):
@@ -424,6 +433,7 @@ SYS_MODE_MAP = attr_dict_factory(
 
 SZ_ACTUATOR = "actuator"
 SZ_ACTUATORS = "actuators"
+SZ_BINDINGS = "bindings"
 SZ_DATETIME = "datetime"
 SZ_DEVICE_CLASS = "device_class"  # used in 0418 only?
 SZ_DEVICE_ID = "device_id"
