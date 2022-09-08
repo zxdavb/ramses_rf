@@ -24,8 +24,8 @@ from ramses_rf.protocol.transport import PacketProtocolBase
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .device import Device, device_factory
+from .dispatcher import Message, process_msg
 from .helpers import schedule_task, shrink
-from .processor import Message, process_msg
 from .protocol import (
     SZ_POLLER_TASK,
     Address,

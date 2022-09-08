@@ -131,7 +131,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
     if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
         slug = getattr(msg.src, "_SLUG", DEV_TYPE.DEV)
     if slug in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
-        return
+        return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
         if msg.code != Code._10E0 and msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
@@ -181,7 +181,7 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
     if slug is None:
         slug = getattr(msg.dst, "_SLUG", None)
     if slug in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
-        return
+        return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
         if msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
@@ -264,11 +264,11 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
 
     msg._payload = detect_array_fragment(msg, prev_msg)  # HACK: needs rethinking?
 
-    try:  # process the packet payload
+    try:  # validate / dispatch the packet
 
         _check_msg_addrs(msg)  # ? InvalidAddrSetError
 
-        # TODO: any value in not creating a device unless the message is valid?
+        # TODO: any use in creating a device only if the payload is valid?
         if gwy.config.reduce_processing < DONT_CREATE_ENTITIES:
             _create_devices_from_addrs(gwy, msg)
 
@@ -279,31 +279,26 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             return
 
+        # NOTE: here, msgs are routed only to devices: routing to other entities (i.e.
+        # systems, zones, circuits) is done by those devices (e.g. UFC to UfhCircuit)
+
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
             msg.src._handle_msg(msg)
 
-        if msg.code not in (
-            Code._0008,
-            Code._0009,
-            Code._3B00,
-            Code._3EF1,
-        ):  # special case: are fakeable
-            return
+        # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
+        if msg.dst is not msg.src:
+            devices = (msg.dst,)
 
-        # .I --- 22:060293 --:------ 22:060293 0008 002 000C
-        # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
-        if msg.dst == msg.src and hasattr(msg.src, SZ_DEVICES):
-            # needed for faked relays: each device will decide if the pkt is useful
-            [
-                d._handle_msg(msg)
-                for d in msg.src.devices
-                if getattr(d, "_is_faked", False)  # and d.xxx = "BDR"
-            ]
+        elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":
+            devices = (d for d in msg._gwy.devices if d is not msg.src)
 
-        # NOTE: msgs are routed only to devices here: routing to other entities (e.g.
-        # (systems, zones, circuits) is done by those devices (e.g. UFC to UfhCircuit)
-        elif getattr(msg.dst, "_is_faked", False):
-            msg.dst._handle_msg(msg)
+        elif hasattr(msg.src, SZ_DEVICES):
+            # .I --- 22:060293 --:------ 22:060293 0008 002 000C
+            # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
+            # needed for (e.g.) faked relays: each device decides if the pkt is useful
+            devices = msg.src.devices  # if d._SLUG = "BDR"
+
+        [d._handle_msg(msg) for d in devices if getattr(d, "_faked", False)]
 
     except (AssertionError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(

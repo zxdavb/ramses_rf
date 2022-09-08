@@ -1222,7 +1222,7 @@ class Command(Frame):
     def put_bind(
         cls,
         verb: _VerbT,
-        codes: _CodeT | Iterable[_CodeT],
+        codes: None | _CodeT | Iterable[_CodeT],
         src_id: _DeviceIdT,
         *,
         idx="00",
@@ -1236,6 +1236,7 @@ class Command(Frame):
         # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7  # or, simply: 00
 
         hex_id = Address.convert_to_hex(src_id)
+        codes = [] if codes is None else codes  # TODO: untidy
         codes = ([codes] if isinstance(codes, _CodeT) else list(codes)) + [Code._1FC9]
 
         if dst_id is None and verb == I_:

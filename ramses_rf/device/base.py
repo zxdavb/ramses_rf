@@ -8,15 +8,15 @@ Base for all devices.
 from __future__ import annotations
 
 import logging
-from types import SimpleNamespace
+from datetime import timedelta as td
 from typing import Any, Callable, Optional
 
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
-from ..protocol.address import NUL_DEV_ADDR, Address
+from ..protocol.address import Address
+from ..protocol.backports import StrEnum
 from ..protocol.command import Command, _mk_cmd
-from ..protocol.const import SZ_FUNC, SZ_TIMEOUT
 from ..protocol.message import Message
 from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
@@ -37,7 +37,8 @@ DEFAULT_BDR_ID = "13:888888"
 DEFAULT_EXT_ID = "17:888888"
 DEFAULT_THM_ID = "03:888888"
 
-BindState = SimpleNamespace(
+
+class BindState(StrEnum):
     #
     #       DHW/THM, TRV -> CTL     (temp, valve_position), or:
     #                CTL -> BDR/OTB (heat_demand)
@@ -49,14 +50,14 @@ BindState = SimpleNamespace(
     # (confirming) bound -> accepting
     #              bound -- bound
     #
-    UNKNOWN=None,
-    UNBOUND="unb",  # unbound
-    LISTENING="l",  # waiting for offer
-    OFFERING="of",  # waiting for accept:              -> sent offer
-    ACCEPTING="a",  # waiting for confirm: rcvd offer  -> sent accept
-    # NFIRMED="c",  # bound:               rcvd accept -> sent confirm
-    BOUND="bound",  # bound:               rcvd confirm
-)
+    UNKNOWN = ("None",)
+    UNBOUND = ("unb",)  # unbound
+    LISTENING = ("l",)  # waiting for offer
+    OFFERING = ("of",)  # waiting for accept:              -> sent offer
+    ACCEPTING = ("a",)  # waiting for confirm: rcvd offer  -> sent accept
+    # NFIRMED = "c",  # bound:               rcvd accept -> sent confirm
+    BOUND = ("bound",)  # bound:               rcvd confirm
+
 
 BIND_WAITING_TIMEOUT = 300  # how long to wait, listening for an offer
 BIND_REQUEST_TIMEOUT = 5  # how long to wait for an accept after sending an offer
@@ -166,7 +167,9 @@ class DeviceBase(Entity):
         super()._send_cmd(cmd, **kwargs)
 
     def _handle_msg(self, msg: Message) -> None:
-        assert msg.src is self, f"msg from {msg.src} inappropriately routed to {self}"
+        assert msg.src is self or (
+            msg.code == Code._1FC9 and msg.payload["phase"] == "offer"
+        ), f"msg from {msg.src} inappropriately routed to {self}"
 
         super()._handle_msg(msg)
 
@@ -296,6 +299,15 @@ class DeviceInfo(DeviceBase):  # 10E0
 
 
 class Fakeable(DeviceBase):
+    """There are two types of Faking: impersonation (of real devices) and full-faking.
+
+    Impersonation of physical devices simply means sending packets on their behalf. This
+    is straight-forward for sensors & remotes (they do not usually receive pkts).
+
+    Faked (virtual) devices must have any packet addressed to them sent to their
+    handle_msg() method by the dispatcher. Impersonated devices will simply pick up
+    such packets via RF.
+    """
 
     # Faked Round Thermostat binding to a Evohome controller as a zone sensor
     # STA set to BindState.OFFERING:  sends "1FC9| I|63:262142" to the ether (the controller is listening)
@@ -353,54 +365,10 @@ class Fakeable(DeviceBase):
         _LOGGER.warning(f"Binding {self}: waiting for {codes} for 300 secs")  # info
         # SUPPORTED_CODES = (Code._0008,)
 
-        def proc_confirm_callback(msg, *args) -> None:  # process 3rd pkt of handshake
-            """Process the 3rd/final packet of the handshake."""
-            assert msg and msg.payload["phase"] == "confirm"
-            # if self._1fc9_state["state"] != BindState.ACCEPTING:
-            #     return
-
-            # if not msg or msg.code not in codes:
-            #     return
-
-            self._1fc9_state["state"] = BindState.BOUND
-            if callback:
-                callback(msg)
-
-        def proc_offer_callback(msg, *args) -> None:  # process 1st pkt of handshake
-            """Process the 1st, and send the 2nd, packet of the handshake."""
-            assert msg and msg.payload["phase"] == "offer"
-            # if self._1fc9_state["state"] != BindState.LISTENING:
-            #     return
-
-            if not msg:
-                return
-                # self._1fc9_state["state"] == BindState.UNKNOWN
-
-            # TODO: is payload.code in in self._1fc9_state["codes"] (the wanted offer)
-
-            self._1fc9_state["msg"] = msg  # the offer
-
-            self._1fc9_state["state"] = BindState.ACCEPTING
-            cmd = Command.put_bind(
-                W_,
-                self._1fc9_state["codes"],
-                self.id,
-                idx=idx,  # zone_idx or domain_id
-                dst_id=msg.src.id,
-                callback={
-                    SZ_FUNC: proc_confirm_callback,
-                    SZ_TIMEOUT: BIND_CONFIRM_TIMEOUT,
-                },  # re-Tx W until Rx an I
-            )
-            self._send_cmd(cmd)
-
         # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
         self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.LISTENING
-        self._gwy.msg_transport._add_callback(
-            f"{Code._1FC9}|{I_}|{NUL_DEV_ADDR.id}",
-            {SZ_FUNC: proc_offer_callback, SZ_TIMEOUT: BIND_WAITING_TIMEOUT},
-        )
+        self._1fc9_state["timeout"] = self._gwy._dt_now() + td(seconds=300)
 
     def _bind_request(self, codes, callback: Callable = None) -> None:
         """Initiate a bind handshake: send the 1st packet of the handshake."""
@@ -417,32 +385,99 @@ class Fakeable(DeviceBase):
 
         _LOGGER.warning(f"Binding {self}: requesting {codes}")  # TODO: info
 
-        def proc_accept_callback(msg, *args) -> None:  # process 2nd pkt of handshake
-            """Process the 2nd, and send the 3rd/final, packet of the handshake."""
-            assert msg and msg.payload["phase"] == "accept"
-            # if self._1fc9_state["state"] != BindState.OFFERING:
-            #     return
-
-            if not msg or msg.dst.id != self.id:  # BUG (fixed): can't: msg.dst is self
-                return
-
-            self._1fc9_state["msg"] = msg  # the accept
-
-            # self._1fc9_state["state"] = BindState.CONFIRMING  # BUG: is no CONFIRMING
-            cmd = Command.put_bind(I_, codes, self.id, dst_id=msg.src.id)
-            self._send_cmd(cmd)
-
-            self._1fc9_state["state"] = BindState.BOUND
-            if callback:
-                callback(msg)
-
         if not isinstance(codes, tuple):
             codes = (codes,)
 
         self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.OFFERING
-        cbk = {SZ_FUNC: proc_accept_callback, SZ_TIMEOUT: BIND_REQUEST_TIMEOUT}
-        self._send_cmd(Command.put_bind(I_, codes, self.id, callback=cbk))
+        self._1fc9_state["timeout"] = self._gwy._dt_now() + td(seconds=60)
+
+        self._send_cmd(Command.put_bind(I_, codes, self.id))
+
+    def _handle_msg(self, msg: Message) -> None:
+        def proc_offer_and_accept(msg: Message):  # . process 1st pkt of handshake
+            """Accept a valid offer (if listening).
+
+            If able to do so, update the binding state.
+            """
+            assert msg and msg.payload["phase"] == "offer"
+            assert self._1fc9_state["state"] == BindState.LISTENING
+
+            if self._1fc9_state["timeout"] < self._gwy._dt_now():
+                return BindState.UNKNOWN
+
+            if msg.verb != I_ or msg.src is not msg.dst:  # or msg.dst is self
+                return self._1fc9_state["state"]
+
+            cmd = Command.put_bind(
+                W_,
+                self._1fc9_state["codes"],
+                self.id,
+                idx="00",  # self._1fc9_state["idx"],
+                dst_id=msg.src.id,
+            )
+            self._send_cmd(cmd)
+
+            self._1fc9_state["msg"] = msg  # the offer
+            return BindState.ACCEPTING
+
+        def proc_accept_and_confirm(msg: Message):  # process 2nd pkt of handshake
+            """Confirm a valid accept (if offering).
+
+            If able to do so, update the binding state.
+            """
+            assert msg and msg.payload["phase"] == "accept"
+            assert self._1fc9_state["state"] == BindState.OFFERING
+
+            if self._1fc9_state["timeout"] < self._gwy._dt_now():
+                return BindState.UNKNOWN
+
+            if msg.verb != W_:
+                return self._1fc9_state["state"]
+
+            cmd = Command.put_bind(I_, None, self.id, dst_id=msg.src.id)
+            self._send_cmd(cmd)
+
+            self._1fc9_state["msg"] = msg  # the offer
+            return BindState.BOUND
+
+        def proc_confirm_and_done(msg: Message):  # . process 3rd pkt of handshake
+            """Process a valid confirmation (if accepting).
+
+            If able to do so, update the binding state.
+            """
+            assert msg and msg.payload["phase"] == "confirm"
+            assert self._1fc9_state["state"] == BindState.ACCEPTING
+
+            if self._1fc9_state["timeout"] < self._gwy._dt_now():
+                return BindState.BOUND  # HACK?
+
+            if msg.verb != I_:
+                return self._1fc9_state["state"]
+
+            # self._1fc9_state["msg"] = msg  # keep offer, not confirm
+            return BindState.BOUND
+
+        if msg.code != Code._1FC9:
+            super()._handle_msg(msg)
+
+        if msg.payload["phase"] == "offer":
+            if msg.src is self:
+                return
+            assert self._1fc9_state["state"] == BindState.LISTENING
+            self._1fc9_state["state"] = proc_offer_and_accept(msg)
+
+        elif msg.payload["phase"] == "accept":
+            if msg.src is self:
+                return
+            assert self._1fc9_state["state"] == BindState.OFFERING
+            self._1fc9_state["state"] = proc_accept_and_confirm(msg)
+
+        elif msg.payload["phase"] == "confirm":
+            assert self._1fc9_state["state"] == BindState.ACCEPTING
+            self._1fc9_state["state"] = proc_confirm_and_done(msg)
+
+        super()._handle_msg(msg)
 
     @property
     def is_faked(self) -> bool:
