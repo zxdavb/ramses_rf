@@ -915,7 +915,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
             rx_expires = dt.now() + cmd._qos.rx_timeout
             while rx_expires > dt.now():  # Step 2: wait for Rx to arrive
-                await asyncio.sleep(0.001)
+                await asyncio.sleep(Qos.POLL_INTERVAL)
                 if self._rx_rcvd:
                     break
             else:
