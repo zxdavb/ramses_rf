@@ -353,8 +353,9 @@ class Fakeable(DeviceBase):
         _LOGGER.warning(f"Binding {self}: waiting for {codes} for 300 secs")  # info
         # SUPPORTED_CODES = (Code._0008,)
 
-        def proc_confirm(msg, *args) -> None:
+        def proc_confirm_callback(msg, *args) -> None:  # process 3rd pkt of handshake
             """Process the 3rd/final packet of the handshake."""
+            assert msg and msg.payload["phase"] == "confirm"
             # if self._1fc9_state["state"] != BindState.ACCEPTING:
             #     return
 
@@ -365,8 +366,9 @@ class Fakeable(DeviceBase):
             if callback:
                 callback(msg)
 
-        def proc_offer(msg, *args) -> None:
+        def proc_offer_callback(msg, *args) -> None:  # process 1st pkt of handshake
             """Process the 1st, and send the 2nd, packet of the handshake."""
+            assert msg and msg.payload["phase"] == "offer"
             # if self._1fc9_state["state"] != BindState.LISTENING:
             #     return
 
@@ -386,7 +388,7 @@ class Fakeable(DeviceBase):
                 idx=idx,  # zone_idx or domain_id
                 dst_id=msg.src.id,
                 callback={
-                    SZ_FUNC: proc_confirm,
+                    SZ_FUNC: proc_confirm_callback,
                     SZ_TIMEOUT: BIND_CONFIRM_TIMEOUT,
                 },  # re-Tx W until Rx an I
             )
@@ -397,7 +399,7 @@ class Fakeable(DeviceBase):
         self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
             f"{Code._1FC9}|{I_}|{NUL_DEV_ADDR.id}",
-            {SZ_FUNC: proc_offer, SZ_TIMEOUT: BIND_WAITING_TIMEOUT},
+            {SZ_FUNC: proc_offer_callback, SZ_TIMEOUT: BIND_WAITING_TIMEOUT},
         )
 
     def _bind_request(self, codes, callback: Callable = None) -> None:
@@ -415,8 +417,9 @@ class Fakeable(DeviceBase):
 
         _LOGGER.warning(f"Binding {self}: requesting {codes}")  # TODO: info
 
-        def proc_accept(msg, *args) -> None:
+        def proc_accept_callback(msg, *args) -> None:  # process 2nd pkt of handshake
             """Process the 2nd, and send the 3rd/final, packet of the handshake."""
+            assert msg and msg.payload["phase"] == "accept"
             # if self._1fc9_state["state"] != BindState.OFFERING:
             #     return
 
@@ -438,7 +441,7 @@ class Fakeable(DeviceBase):
 
         self._1fc9_state["codes"] = codes
         self._1fc9_state["state"] = BindState.OFFERING
-        cbk = {SZ_FUNC: proc_accept, SZ_TIMEOUT: BIND_REQUEST_TIMEOUT}
+        cbk = {SZ_FUNC: proc_accept_callback, SZ_TIMEOUT: BIND_REQUEST_TIMEOUT}
         self._send_cmd(Command.put_bind(I_, codes, self.id, callback=cbk))
 
     @property
