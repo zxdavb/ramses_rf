@@ -758,10 +758,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                     Command.get_opentherm_data(self.id, m), 60 * 60, delay=90
                 )
 
-        for msg_id in STATUS_MSG_IDS:
+        for m in STATUS_MSG_IDS:
             if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
                 self._add_discovery_task(
-                    Command.get_opentherm_data(self.id, msg_id), 60 * 5, delay=15
+                    Command.get_opentherm_data(self.id, m), 60 * 5, delay=15
                 )
 
         # TODO: both modulation level?
