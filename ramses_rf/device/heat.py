@@ -1023,7 +1023,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if not self._gwy.config.use_native_ot:
+        if self._gwy.config.use_native_ot:
             return self._ot_msg_flag("00", 8 + 3)
         return self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE)
 
