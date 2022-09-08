@@ -158,7 +158,8 @@ class Schedule:  # 0404
         schedule was changed only very recently and a cached global version was
         used.
 
-        If `force_io`, then a true negative is guaranteed (it forces an RQ).
+        If `force_io`, then a true negative is guaranteed (it forces an RQ|0006 unless
+        self._global_ver > self._sched_ver).
         """
 
         # this will not cause an I/O...
