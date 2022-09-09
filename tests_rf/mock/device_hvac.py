@@ -14,7 +14,7 @@ from ramses_rf.protocol.command import Command, validate_api_params
 from ramses_rf.protocol.const import I_, RP, Code
 
 from .const import __dev_mode__
-from .device import MockDeviceBase
+from .device_heat import MockDeviceBase
 
 DEV_MODE = __dev_mode__
 

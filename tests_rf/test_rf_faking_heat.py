@@ -91,7 +91,7 @@ async def _test_zon_sensor(gwy, tcs, zone, sensor):
     msg_3 = await gwy.async_send_cmd(Command.get_zone_temp(tcs.id, zone.idx))
     assert msg_3 and flow_marker == RP_ZONE_TEMP_RECEIVED
 
-    if isinstance(gwy, MockGateway):  # FIXME: MockCTL
+    if isinstance(gwy, MockGateway):  # FIXME: MockCTL needs improving
         return
 
     assert zone.temperature == set_temp
@@ -104,7 +104,8 @@ async def _test_zon_sensor(gwy, tcs, zone, sensor):
     msg_4 = await gwy.async_send_cmd(Command.put_sensor_temp(sensor.id, set_temp))
     assert msg_4 and flow_marker == PUT_SENSOR_TEMP_RECEIVED
 
-    # assert zone.temperature == org_temp  # TODO: doesn't work!
+    # TODO: doesn't work! ?ignored by CTL as too soon after previous put_sensor_temp
+    # assert zone.temperature == org_temp
     pass
 
 

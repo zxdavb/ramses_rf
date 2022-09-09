@@ -218,10 +218,12 @@ class MockDeviceCtl(MockDeviceBase):
             Code._0006: self._make_0006,
             Code._000C: self._make_000c,
             Code._1F09: self._make_1f09,
+            # Code._30C9: self._make_30c9,
         }
 
         LOOKUP_OTH = {
             Code._0404: self._proc_0404,
+            # Code._30C9: self._proc_30c9,
             Code._3150: self._proc_3150,
         }
 
@@ -399,8 +401,8 @@ class MockDeviceCtl(MockDeviceBase):
             I_, Code._30C9, payload, addr0=self.id, addr2=self.id
         )
 
-    def _proc_3150(self, pkt: Command) -> None:
-        """Process an inbound 3150 packet."""
+    def _proc_30c9(self, cmd: Command) -> None:  # WIP
+        """Process an inbound 30C9 packet."""
         pass
 
     def _make_3150(  # WIP
@@ -412,6 +414,10 @@ class MockDeviceCtl(MockDeviceBase):
         return Command._from_attrs(
             I_, Code._30C9, payload, addr0=self.id, addr2=self.id
         )
+
+    def _proc_3150(self, cmd: Command) -> None:  # WIP
+        """Process an inbound 3150 packet."""
+        pass
 
     def _make_3b00(self) -> Command:
         """Craft a 3B00 pkt."""

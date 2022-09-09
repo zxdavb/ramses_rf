@@ -14,7 +14,7 @@ from .const import (  # noqa: F401, pylint: disable=unused-import
     MOCKED_PORT,
     __dev_mode__,
 )
-from .device import (  # noqa: F401, F811, pylint: disable=unused-import
+from .device_heat import (  # noqa: F401, F811, pylint: disable=unused-import
     CTL_ID,
     THM_ID,
     MockDeviceCtl,
