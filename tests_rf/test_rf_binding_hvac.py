@@ -73,7 +73,7 @@ def track_packet_flow(msg, requestor_id, listener_id, *args, **kwargs):
 
 
 @abort_if_rf_test_fails
-async def test_hvac_bind_remote(test_port):
+async def test_hvac_bind_rem(test_port):
     """Bind a REM (remote) to a FAN (ventilation unit)."""
 
     global flow_marker

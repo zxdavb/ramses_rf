@@ -203,6 +203,10 @@ class DeviceBase(Entity):
         return isinstance(self, BatteryState) or Code._1060 in self._msgz
 
     @property
+    def is_faked(self) -> bool:  # TODO: impersonated vs virtual
+        return bool(self._faked)
+
+    @property
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
         return any(
@@ -236,7 +240,7 @@ class DeviceBase(Entity):
             {
                 SZ_CLASS: DEV_TYPE_MAP[self._SLUG],
                 SZ_ALIAS: known_dev.get(SZ_ALIAS) if known_dev else None,
-                SZ_FAKED: None,
+                SZ_FAKED: self.is_faked,
             }
         )
 
@@ -349,7 +353,7 @@ class Fakeable(DeviceBase):
             self._bind()
         return self
 
-    def _bind_waiting(self, codes, idx="00", callback=None):
+    def _bind_waiting(self, codes, idx="00", callback: Callable = None) -> None:
         """Wait for (listen for) a bind handshake."""
 
         # Bind waiting: BDR set to listen, CTL initiates handshake
@@ -478,17 +482,6 @@ class Fakeable(DeviceBase):
             self._1fc9_state["state"] = proc_confirm_and_done(msg)
 
         super()._handle_msg(msg)
-
-    @property
-    def is_faked(self) -> bool:
-        return bool(self._faked)
-
-    @property
-    def traits(self) -> dict:
-
-        result = super().traits
-        result[SZ_FAKED] = self.is_faked
-        return result
 
 
 class HgiGateway(DeviceInfo):  # HGI (18:)

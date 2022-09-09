@@ -29,7 +29,7 @@ from tests_rf.common import (
 )
 from tests_rf.mock import MOCKED_PORT
 
-WORK_DIR = f"{TEST_DIR}/rf_engine"
+WORK_DIR = f"{TEST_DIR}/configs"
 CONFIG_FILE = "config_heat.json"
 
 
