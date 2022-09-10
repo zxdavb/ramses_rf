@@ -1313,7 +1313,14 @@ class Command(Frame):
         """
         # .I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
-        if dev_id[:2] != DEV_TYPE_MAP.HCW:
+        if dev_id[:2] not in (
+            DEV_TYPE_MAP.TR0,  # 00
+            DEV_TYPE_MAP.HCW,  # 03
+            DEV_TYPE_MAP.TRV,  # 04
+            DEV_TYPE_MAP.DTS,  # 12
+            DEV_TYPE_MAP.DT2,  # 22
+            DEV_TYPE_MAP.RND,  # 34
+        ):
             raise TypeError(
                 f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
