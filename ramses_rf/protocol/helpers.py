@@ -11,7 +11,11 @@ import ctypes
 import sys
 import time
 from datetime import datetime as dt
-from typing import Optional, Union  # typeguard doesn't support PEP604 on 3.9.x
+from typing import (  # typeguard doesn't support PEP604 on 3.9.x
+    Iterable,
+    Optional,
+    Union,
+)
 
 try:
     from typeguard import typechecked  # type: ignore[reportMissingImports]
@@ -202,24 +206,29 @@ def dts_to_hex(dtm: Union[None, dt, str]) -> str:  # TODO: WIP
 
 
 @typechecked
-def flag8(byte: str, lsb: bool = False) -> list:  # TODO: should be tuple
+def flag8_from_hex(byte: str, lsb: bool = False) -> list[int]:  # TODO: use tuple
     """Split a hex str (a byte) into a list of 8 bits, MSB as first bit by default.
 
-    The `lsb` boolean is used so that flag[0] is `zone_idx["00]`, etc.
+    The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
     """
-    # the following might need to be 02X, 04X, etc.
-    # assert "61" == f"{sum(b<<i for i, b in enumerate(flag8('61', lsb=True))):02X}"
-    # assert "61" == f"{sum(b<<i for i, b in enumerate(reversed(flag8('61')))):02X}"
     if not isinstance(byte, str) or len(byte) != 2:
         raise ValueError(f"Invalid value: '{byte}', is not a 2-char hex string")
-    # bits = len(byte) * 4  # TODO: use 2, 4 (or more) char next strings
+    if lsb:  # make LSB is first bit
+        return list((int(byte, 16) & (1 << x)) >> x for x in range(8))
+    return list((int(byte, 16) & (1 << x)) >> x for x in reversed(range(8)))
+
+
+@typechecked
+def flag8_to_hex(flags: Iterable[int], lsb: bool = False) -> str:
+    """Convert a list of 8 bits, MSB as first bit by default, into an ASCII hex string.
+
+    The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
+    """
+    if not isinstance(flags, list) or len(flags) != 8:
+        raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        # [(int("C001", 16) & (1 << x)) >> x for x in range(16)]
-        # [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]
-        return [(int(byte, 16) & (1 << x)) >> x for x in range(8)]
-    # [(int("C001", 16) & (1 << x)) >> x for x in reversed(range(16))]
-    # [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-    return [(int(byte, 16) & (1 << x)) >> x for x in reversed(range(8))]
+        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
+    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
 
 
 # TODO: add a wrapper for EF, & 0xF0

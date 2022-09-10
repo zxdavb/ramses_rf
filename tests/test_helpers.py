@@ -20,6 +20,8 @@ from ramses_rf.protocol.helpers import (
     dtm_to_hex,
     dts_from_hex,
     dts_to_hex,
+    flag8_from_hex,
+    flag8_to_hex,
     temp_from_hex,
     temp_to_hex,
 )
@@ -167,6 +169,10 @@ def test_field_parsers() -> None:
 
     for val in ("00000000007F",):
         assert val == dts_to_hex(dts_from_hex(val))
+
+    for val in ("00", "01", "08", "10", "E0", "CC", "FF"):
+        assert val == flag8_to_hex(flag8_from_hex(val))
+        assert val == flag8_to_hex(flag8_from_hex(val, lsb=True), lsb=True)
 
     for val in ("7FFF", "7EFF", "0000", "0010", "0200", "D000"):
         assert val == temp_to_hex(temp_from_hex(val))

@@ -84,7 +84,7 @@ from .helpers import (
     double_from_hex,
     dtm_from_hex,
     dts_from_hex,
-    flag8,
+    flag8_from_hex,
     percent_from_hex,
     str_from_hex,
     temp_from_hex,
@@ -256,11 +256,13 @@ def parser_0005(payload, msg) -> dict | list[dict]:  # TODO: needs a cleanup
 
     def _parser(seqx) -> dict:
         if msg.src.type == DEV_TYPE_MAP.UFC:  # DEX, or use: seqx[2:4] == ...
-            zone_mask = flag8(seqx[6:8], lsb=True)
+            zone_mask = flag8_from_hex(seqx[6:8], lsb=True)
         elif msg.len == 3:  # ATC928G1000 - 1st gen monochrome model, max 8 zones
-            zone_mask = flag8(seqx[4:6], lsb=True)
+            zone_mask = flag8_from_hex(seqx[4:6], lsb=True)
         else:
-            zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
+            zone_mask = flag8_from_hex(seqx[4:6], lsb=True) + flag8_from_hex(
+                seqx[6:8], lsb=True
+            )
         zone_class = ZON_ROLE_MAP.get(seqx[2:4], DEV_ROLE_MAP[seqx[2:4]])
         return {
             SZ_ZONE_TYPE: seqx[2:4],
@@ -1624,7 +1626,7 @@ def parser_22f3(payload, msg) -> dict:
     if msg.len >= 3:
         result = {
             "minutes" if units != "index" else "index": duration,
-            "flags": flag8(payload[2:4]),
+            "flags": flag8_from_hex(payload[2:4]),
             "_new_speed_mode": new_speed,
             "_fallback_speed_mode": fallback_speed,
         }
@@ -1756,7 +1758,9 @@ def parser_2401(payload, msg) -> dict:
 
     try:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
-        assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
+        assert (
+            int(payload[4:6], 16) & 0b11110000 == 0
+        ), f"byte 2: {flag8_from_hex(payload[4:6])}"
         assert int(payload[6:], 0x10) <= 200, f"byte 3: {payload[6:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
@@ -1764,7 +1768,7 @@ def parser_2401(payload, msg) -> dict:
     return {
         SZ_PAYLOAD: payload,
         "_value_2": int(payload[4:6], 0x10),
-        "_flags_2": flag8(payload[4:6]),
+        "_flags_2": flag8_from_hex(payload[4:6]),
         "_percent_3": percent_from_hex(payload[6:]),
     }
 
@@ -2072,7 +2076,7 @@ def parser_31d9(payload, msg) -> dict:
         "filter_dirty": bool(bitmap & 0x20),
         "frost_cycle": bool(bitmap & 0x40),
         "has_fault": bool(bitmap & 0x80),
-        "_flags": flag8(payload[2:4]),
+        "_flags": flag8_from_hex(payload[2:4]),
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
@@ -2457,7 +2461,7 @@ def parser_3ef0(payload, msg) -> dict:
 
         result.update(
             {
-                "_flags_3": flag8(payload[6:8]),
+                "_flags_3": flag8_from_hex(payload[6:8]),
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
@@ -2474,7 +2478,7 @@ def parser_3ef0(payload, msg) -> dict:
 
         result.update(
             {
-                "_flags_6": flag8(payload[12:14]),
+                "_flags_6": flag8_from_hex(payload[12:14]),
                 "ch_enabled": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
                 "max_rel_modulation": percent_from_hex(payload[16:18], high_res=False),
