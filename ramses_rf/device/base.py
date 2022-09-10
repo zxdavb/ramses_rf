@@ -464,6 +464,7 @@ class Fakeable(DeviceBase):
 
         if msg.code != Code._1FC9:
             super()._handle_msg(msg)
+            return
 
         if msg.payload["phase"] == "offer":
             if msg.src is self:

@@ -287,7 +287,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
 
         # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
         if msg.dst is not msg.src:
-            devices = (msg.dst,)
+            devices = (msg.dst,)  # dont: msg.dst._handle_msg(msg)
 
         elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":
             devices = (d for d in msg._gwy.devices if d is not msg.src)
@@ -297,6 +297,9 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
             # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
             # needed for (e.g.) faked relays: each device decides if the pkt is useful
             devices = msg.src.devices  # if d._SLUG = "BDR"
+
+        else:
+            return
 
         [d._handle_msg(msg) for d in devices if getattr(d, "_faked", False)]
 

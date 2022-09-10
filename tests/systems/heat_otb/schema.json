@@ -1,0 +1,12 @@
+{
+    "main_tcs": "01:145038",
+    "01:145038": {
+        "system": {
+            "appliance_control": "10:048122"
+        },
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {}
+    }
+}
