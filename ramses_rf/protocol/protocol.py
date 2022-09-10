@@ -46,8 +46,8 @@ class CallbackAsAwaitable:
     The callback (putter) may put the message in the queue before the getter is invoked.
     """
 
-    SAFETY_TIMEOUT_DEFAULT = 30.0  # used to prevent waiting forever
-    SAFETY_TIMEOUT_MINIMUM = 10.0
+    SAFETY_TIMEOUT_DEFAULT = 9.9  # used to prevent waiting forever
+    SAFETY_TIMEOUT_MINIMUM = 5.0
     HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
@@ -61,8 +61,8 @@ class CallbackAsAwaitable:
     async def getter(self, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> Message:
         """Poll the queue until the message arrives, or the timer expires."""
 
-        if timeout is None or timeout <= self.SAFETY_TIMEOUT_MINIMUM:
-            timeout = self.SAFETY_TIMEOUT_DEFAULT
+        if timeout <= self.SAFETY_TIMEOUT_MINIMUM:
+            timeout = self.SAFETY_TIMEOUT_MINIMUM
         self.expires = dt.now() + td(seconds=timeout)
 
         while dt.now() < self.expires:
@@ -81,15 +81,10 @@ class CallbackAsAwaitable:
         return msg
 
     # the callback...
-    def putter(self, msg: Message, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> None:
+    def putter(self, msg: Message) -> None:
         """Put the message in the queue (when invoked)."""
 
-        if timeout is None or timeout <= self.SAFETY_TIMEOUT_MINIMUM:
-            timeout = self.SAFETY_TIMEOUT_DEFAULT
-        self.expires = dt.now() + td(seconds=timeout)
-
-        # self._queue.put_nowait(msg)  # ...so should not raise Full
-        self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
+        self._queue.put_nowait(msg)
 
 
 def awaitable_callback(loop) -> tuple[Callable[..., Awaitable[Message]], Callable]:
@@ -156,7 +151,7 @@ class MessageTransport(asyncio.Transport):
         async def call_send_data(cmd):
             _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd._cbk:
-                self._add_callback(cmd.rx_header, cmd._cbk, cmd=cmd)
+                self._add_callback(cmd.rx_header or cmd.tx_header, cmd._cbk, cmd=cmd)
 
             if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
                 _LOGGER.info("SENT: %s", cmd)
