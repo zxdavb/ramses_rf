@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 
-from ramses_rf.protocol.command import Command, validate_api_params
-from ramses_rf.protocol.const import I_, RP, Code
+from ramses_rf.protocol.command import Command
+from ramses_rf.protocol.const import I_, Code
 
 from .const import __dev_mode__
 from .device_heat import MockDeviceBase
@@ -26,24 +26,6 @@ RUNNING = True
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-class MockCommand(Command):
-    @classmethod  # constructor for I|31D9
-    @validate_api_params()
-    def _put_fan_state(
-        cls,
-        fan_id: str,
-        _flags: str,  # payload[2:4]
-        fan_mode: str,  # payload[4:6]
-        *,
-        sub_idx: str = "00",
-    ):
-        """Constructor for I|31DA."""
-
-        payload = f"{sub_idx}{_flags}{fan_mode}"
-
-        return cls._from_attrs(RP, Code._31D9, payload, addr0=fan_id, addr2=fan_id)
 
 
 class MockDeviceFan(MockDeviceBase):

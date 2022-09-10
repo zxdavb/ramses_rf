@@ -131,6 +131,299 @@ DEFAULT_3B00_CYCLE_RATE = 3  # default 3/hr?
 DEFAULT_3B00_CYCLE_DURATION = td(seconds=60 * 60 / DEFAULT_3B00_CYCLE_RATE)
 _3B00_CYCLE_REMAINING = td(seconds=9 * 60)
 
+DeviceIdT = str
+ZoneIdT = str
+ZoneIdxT = str
+ZoneNameT = str
+ZoneParamsT = dict[str, None | bool | float | int]
+ZoneSetpointT = float
+ZoneTypeT = str
+
+
+SZ_HEATING_TYPE = "heating_type"
+SZ_MAX_SETPOINT = "max_setpoint"
+SZ_MIN_SETPOINT = "min_setpoint"
+SZ_NAME = "name"
+SZ_USE_EVOTOUCH = "use_evotouch"
+
+DEFAULT_MAX_SETPOINT = 35.0
+DEFAULT_MIN_SETPOINT = 5.0
+
+SZ_ACTUATOR_RUN_TIME = "actuator_run_time"
+SZ_LOCAL_OVERRIDE = "local_override"
+SZ_MAX_FLOW_TEMP = "max_flow_temp"
+SZ_MIN_FLOW_TEMP = "min_flow_temp"
+SZ_MULTI_ROOM_MODE = "multi_room_mode"
+SZ_PUMP_RUN_TIME = "pump_run_time"
+SZ_WINDOW_OPEN = "window_open"
+
+MIX_ZONE_PARAMS = (
+    SZ_ACTUATOR_RUN_TIME,
+    SZ_MAX_FLOW_TEMP,
+    SZ_MIN_FLOW_TEMP,
+    SZ_PUMP_RUN_TIME,
+)
+RAD_ZONE_PARAMS = (SZ_LOCAL_OVERRIDE, SZ_MULTI_ROOM_MODE, SZ_WINDOW_OPEN)
+
+ACTUATOR_RUN_TIME_DEFAULT: int = 150  # (10-240/ secs)
+LOCAL_OVERRIDE_DEFAULT: bool = False  # TODO: check
+MAX_FLOW_TEMP_DEFAULT: float = 55.0  # (0.0-99.0/0.5 'C)
+MIN_FLOW_TEMP_DEFAULT: float = 15.0  # (0.0-50.0/0.5 'C)
+MULTI_ROOM_MODE_DEFAULT: bool = False  # TODO: check
+PUMP_RUN_TIME_DEFAULT: int = 15  # (0-99/1 mins)
+WINDOW_OPEN_DEFAULT = False  # TODO: check
+
+
+class MockWRB:  # BDR91A/T
+    pass
+
+
+class MockOTB:  # R8810/20
+    pass
+
+
+class MockDhwZone:
+    pass
+
+
+class MockZone:
+    """A mocked zone."""
+
+    _name: ZoneNameT
+    _heating_type: ZoneTypeT
+
+    _max_setpoint: ZoneSetpointT
+    _min_setpoint: ZoneSetpointT
+    _parameters: ZoneParamsT
+
+    _actuators: list[DeviceIdT]
+    _sensor_id: None | DeviceIdT
+
+    def __init__(
+        self,
+        ctl,
+        zone_idx,
+        name: ZoneNameT,
+        heating_type: ZoneTypeT,
+        use_evotouch: bool,
+        **kwargs,
+    ) -> None:
+        """Instantiate a zone."""
+
+        if zone_idx in ctl._zones:
+            raise KeyError(f"Duplicate zone_idx: {zone_idx}")
+
+        self._ctl = ctl
+        self._idx = zone_idx
+
+        self._actuators = []
+        self._sensor_id = None
+
+        self.name = name
+        self.heating_type = heating_type
+        if use_evotouch:
+            self._use_evotouch(use_evotouch)  # sets self._sensor_id
+
+        self._max_setpoint = 35.0  # initial default
+        self._min_setpoint = 5.0  # initial default
+        self.parameters = kwargs
+
+    @property
+    def name(self) -> ZoneNameT:
+        """Return the name of the zone."""
+        return self._name
+
+    @name.setter
+    def name(self, value: ZoneNameT) -> None:
+        """Set the name of the zone."""
+
+        if not isinstance(value, ZoneNameT):
+            raise TypeError(f"Invalid {SZ_NAME} parameter for zone: {value}")
+        self._name = value[:12]  # evotouch limits to 12, RAMSES allows more
+
+    @property
+    def heating_type(self) -> ZoneTypeT:
+        """Return the heating_type of the zone."""
+        return self._heating_type
+
+    @heating_type.setter
+    def heating_type(self, value: ZoneTypeT) -> None:
+        """Set the heating_type of the zone (ELE, MIX, RAD, UFH, or ZON)."""
+
+        if value == self._heating_type:
+            return
+        if value not in ("ELE", "MIX", "RAD", "UFH", "ZON"):
+            raise TypeError(f"Invalid {SZ_HEATING_TYPE} parameter for zone: {value}")
+
+        self._heating_type = value
+        self.parameters = {}  # use setter: will set params to defaults
+
+    @property
+    def use_evotouch(self) -> bool:
+        """Return True if the controller is the zone sensor."""
+        return self.sensor == self._ctl.id
+
+    def _use_evotouch(self, value: bool) -> None:
+        """Set (or unset) the controller as the zone sensor.
+
+        If the controller (even indirectly) invokes this method with value == False,
+        (e.g. when instaintiating the zone) then it should immediately invoke the
+        _set_sensor() method.
+        """
+
+        if value == self.use_evotouch:
+            return
+        if not isinstance(value, bool):
+            raise TypeError(f"Invalid {SZ_USE_EVOTOUCH} parameter for zone: {value}")
+        self._sensor_id = self._ctl.id if value else None
+
+    @property
+    def max_setpoint(self) -> float:
+        """Return the max_setpoint of the zone (in °C)."""
+        return self._max_setpoint
+
+    @max_setpoint.setter
+    def max_setpoint(self, value: None | float) -> None:
+        """Set the max_setpoint of the zone (in °C).
+
+        None is a sentinel for the default value, 35.0.
+        """
+
+        value = DEFAULT_MAX_SETPOINT if value is None else value
+        if not isinstance(value, float) or not 5.0 <= value <= 35.0:
+            raise TypeError(f"Invalid {SZ_MAX_SETPOINT} parameter for zone: {value}")
+        self._max_setpoint = value
+
+    @property
+    def min_setpoint(self) -> float:
+        """Return the min_setpoint of the zone (in °C)."""
+        return self._min_setpoint
+
+    @min_setpoint.setter
+    def min_setpoint(self, value: None | float) -> None:
+        """Set the min_setpoint of the zone (in °C).
+
+        None is a sentinel for the default value, 5.0.
+        """
+
+        value = DEFAULT_MIN_SETPOINT if value is None else value
+        if not isinstance(value, float) or not 5.0 <= value <= 35.0:
+            raise TypeError(f"Invalid {SZ_MIN_SETPOINT} parameter for zone: {value}")
+        self._min_setpoint = value
+
+    @property
+    def parameters(self) -> ZoneParamsT:
+        """Return the parameters of the zone (can include min/max setpoint)."""
+        return self._parameters
+
+    @parameters.setter
+    def parameters(self, params: ZoneParamsT) -> None:
+        """Set the parameters of the zone (can include min/max setpoint).
+
+        In each case, None is a sentinel for the default value.
+        """
+
+        PARAM_TABLE = {
+            SZ_ACTUATOR_RUN_TIME: (
+                ACTUATOR_RUN_TIME_DEFAULT,
+                lambda x: isinstance(x, int) and 10 <= x <= 240,
+            ),
+            SZ_LOCAL_OVERRIDE: (
+                LOCAL_OVERRIDE_DEFAULT,
+                lambda x: isinstance(x, bool),
+            ),
+            SZ_MAX_FLOW_TEMP: (
+                MAX_FLOW_TEMP_DEFAULT,
+                lambda x: isinstance(x, float) and 0.0 <= x <= 99.0,
+            ),
+            SZ_MIN_FLOW_TEMP: (
+                MIN_FLOW_TEMP_DEFAULT,
+                lambda x: isinstance(x, float) and 0.0 <= x <= 50.0,
+            ),
+            SZ_MULTI_ROOM_MODE: (
+                MULTI_ROOM_MODE_DEFAULT,
+                lambda x: isinstance(x, bool),
+            ),
+            SZ_PUMP_RUN_TIME: (
+                PUMP_RUN_TIME_DEFAULT,
+                lambda x: isinstance(x, int) and 0 <= x <= 99,
+            ),
+            SZ_WINDOW_OPEN: (
+                WINDOW_OPEN_DEFAULT,
+                lambda x: isinstance(x, bool),
+            ),
+        }
+
+        def param_value(
+            param_name: str, new_params: ZoneParamsT, old_params: ZoneParamsT
+        ) -> bool | float | int:
+            """Return a valid parameter value."""
+            default_value, is_valid = PARAM_TABLE.get[param_name]
+            if param_name not in new_params:
+                return old_params.get(param_name, default_value)
+            elif (new_value := new_params[param_name]) is None:  # sentinel for default
+                return default_value
+            elif is_valid(new_value):
+                return new_value  # may raise TypeError
+            else:
+                raise TypeError(f"Invalid parameter for zone: {param_name}={new_value}")
+
+        def update_params_mix(old: ZoneParamsT, new: ZoneParamsT) -> ZoneParamsT:
+            """Configure the parameters specific to a Mixing valve zone."""
+            return {p: param_value(p, old, new) for p in MIX_ZONE_PARAMS}
+
+        def update_params_rad(old: ZoneParamsT, new: ZoneParamsT) -> ZoneParamsT:
+            """Configure the parameters specific to a Radiator zone."""
+            return {p: param_value(p, old, new) for p in RAD_ZONE_PARAMS}
+
+        if SZ_MAX_SETPOINT in params:
+            self.max_setpoint = params.pop(params, SZ_MAX_SETPOINT)
+        if SZ_MIN_SETPOINT in params:
+            self.min_setpoint = params.pop(params, SZ_MIN_SETPOINT)
+
+        if self.heating_type == "MIX":
+            self._parameters = update_params_mix(self._parameters, params)
+        elif self.heating_type == "RAD":
+            self._parameters = update_params_rad(self._parameters, params)
+        else:
+            self._parameters = {}
+
+    @property
+    def sensor(self) -> DeviceIdT:
+        """Return the zone sensor's device_id."""
+        return self._sensor_id
+
+    def _set_sensor(self, device_id: None | DeviceIdT) -> None:
+        """Set a new zone sensor.
+
+        If `device_id` is None, simply clear the current sensor.
+        Otherwise, the controller should have bound with the sensor immediately before
+        invoking this method (unless the controller is the sensor).
+        """
+
+        if device_id == self._sensor_id:
+            return
+        if not isinstance(device_id, (type(None), DeviceIdT)):
+            raise TypeError(f"Invalid device_id for zone sensor: {device_id}")
+        self._sensor_id = device_id
+
+    @property
+    def actuators(self) -> list[DeviceIdT]:
+        """Return the zone actuators' device_ids."""
+        return self._actuators
+
+    def _add_actuator(self, device_id: DeviceIdT) -> None:
+        """Add an actuator to the zone.
+
+        The controller should have bound with the actuator immediately before invoking
+        this method.
+        """
+        # The command code will depend upon the zone.heating_type
+
+        if not isinstance(device_id, DeviceIdT):
+            raise TypeError(f"Invalid device_id for zone actuator: {device_id}")
+        self._actuators.add(device_id)
+
 
 class MockDeviceCtl(MockDeviceBase):
     """A pseudo-mocked controller used for testing.
@@ -140,6 +433,10 @@ class MockDeviceCtl(MockDeviceBase):
     """
 
     _1F09_DURATION = _1F09_CYCLE_DURATION  # varies between controllers
+
+    _appliance_control: MockWRB | MockOTB  # TBA: | MockHPR (heat pump relay)
+    _dhw_zone: MockDhwZone
+    _zones: MockZone
 
     def __init__(
         self, gwy, device_id, *, cycle_rate: int = DEFAULT_3B00_CYCLE_RATE
@@ -432,6 +729,106 @@ class MockDeviceCtl(MockDeviceBase):
         # does 13: Tx at end of cycle?
 
         return Command._from_attrs(I_, Code._30C9, "FCC8", addr0=self.id, addr2=self.id)
+
+    def add_zone(
+        self,
+        name: ZoneNameT,
+        heating_type: ZoneTypeT,
+        use_evotouch: bool = False,
+        **params: ZoneParamsT,
+    ) -> ZoneIdxT:
+        """Add a zone."""
+
+        zone_idx: ZoneIdxT = f"{[i for i in range(12) if i not in self._zones][0]:02X}"
+        self._zones[zone_idx] = MockZone(
+            self, zone_idx, name, heating_type, use_evotouch, **params
+        )
+
+        # send 0005
+
+        # self.bind_zone_sensor(zone_idx, use_evotouch=use_evotouch)
+        # self.bind_zone_actuator(zone_idx)
+        return zone_idx
+
+    def bind_zone_sensor(self, zone_idx: ZoneIdxT, use_evotouch: bool = None) -> None:
+        """Bind a sensor to a zone.
+
+        Clear the old sensor, if there was one.
+        """
+
+        def callback(msg, *args, **kwargs) -> None:
+            """If the bind was successful, set the zone sensor."""
+            if msg:
+                zone._set_sensor(msg.src.id)
+
+        zone: MockZone = self._zones[zone_idx]
+
+        if use_evotouch is True:
+            zone._set_sensor(self._ref.id)
+        elif use_evotouch is False or use_evotouch is None:
+            zone._set_sensor(None)
+            self._ref._bind_waiting("30C9", idx=zone_idx, callback=callback)
+        else:
+            raise TypeError(
+                f"Invalid {SZ_USE_EVOTOUCH} parameter for zone: {use_evotouch}"
+            )
+
+        # send 000C
+
+    def bind_zone_actuator(self, zone_idx: ZoneIdxT):
+        """Bind an actuator a zone.
+
+        Don't clear any previous actuators.
+        """
+        pass
+
+    def configure_zone(
+        self,
+        zone_idx: ZoneIdxT,
+        name: ZoneNameT = None,
+        heating_type: ZoneTypeT = None,
+        use_evotouch: bool = False,
+        **params: ZoneParamsT,
+    ):
+        """Configure a zone."""
+        zone: MockZone = self._zone[zone_idx]
+
+        if name is not None:
+            zone.name = name
+        if heating_type is not None:
+            zone.heating_type = heating_type
+        if use_evotouch is not None:
+            self.bind_zone_sensor(zone_idx, use_evotouch=use_evotouch)
+        if params:
+            zone.parameters = params
+
+    def del_zone(self, zone_idx: ZoneIdxT):
+        """Delete a zone."""
+        del self._zones[zone_idx]
+
+    def factory_reset(self):
+        """Perform a factory reset."""
+        self._appliance_control = None
+        self._dhw_zone = None
+        self._zones = []
+
+        # send 0005, etc.
+
+    def bind_appliance_control(self, appliance_type: str = "WRB"):  # to check UI
+        """Bind the appliance controller: WRB (BDR), OTB, or HPR (BDR91T)."""
+        pass
+
+    def add_dhw(self):  # to check UI
+        """Add the DHW zone."""
+        self._dhw_zone = None
+
+    def bind_dhw_sensor(self):  # to check UI
+        """Bind a sensor to the DHW zone."""
+        pass
+
+    def del_dhw(self):  # to check UI
+        """Delete the DHW zone."""
+        self._dhw_zone = None
 
 
 class MockDeviceThm(MockDeviceBase):
