@@ -54,6 +54,15 @@ jobs:
             pip3 install -r requirements-dev.txt
             pip3 install -e .
       - run:
+          name: Clear the DEV_MODE flags, if set
+          command: |
+            sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/const.py
+            sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/protocol/const.py
+      - run:
+          name: Clear any DEV_HACK_* flags, if set
+          command: |
+            sed -i -e '/DEV_HACK_REGEX =/ s/= .*/= False/' ramses_rf/protocol/transport.py
+      - run:
           name: "Run pytest"
           command: |
             python3 -m pytest tests -v
@@ -105,20 +114,20 @@ workflows:
   build-and-deploy:
     jobs:
       # - build:
-      #     filters: # required since `check_lint` has tag filters AND requires `build`
-      #       tags:
+      #     filters:
+      #       tags:  # required since check_lint\run_pytest have tag filters
       #         only: /.*/
       - check_lint:
           # requires:
           #   - build
-          filters: # required since `deploy` has tag filters AND requires `check_lint`
-            tags:
+          filters:
+            tags:  # required since deploy has tag filters
               only: /.*/
       - run_pytest:
           # requires:
           #   - build
-          filters: # required since `deploy` has tag filters AND requires `check_lint`
-            tags:
+          filters:
+            tags:  # required since deploy has tag filters
               only: /.*/
       - deploy:
           requires:
