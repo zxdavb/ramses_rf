@@ -61,7 +61,6 @@ from ..schemas import (
     SCH_TCS_ZONES_ZON,
     SZ_APPLIANCE_CONTROL,
     SZ_CLASS,
-    SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
     SZ_MAX_ZONES,
     SZ_ORPHANS,
@@ -290,7 +289,6 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         """Return the system's schema."""
 
         schema: dict[str, Any] = {SZ_SYSTEM: {}}
-        # hema = {SZ_CONTROLLER: self.ctl.id, SZ_SYSTEM: {}}
 
         schema[SZ_SYSTEM][SZ_APPLIANCE_CONTROL] = (
             self.appliance_control.id if self.appliance_control else None
@@ -308,10 +306,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     @property
     def _schema_min(self) -> dict[str, Any]:
-        """Return the global schema."""
+        """Return the system's minimal-alised schema."""
 
         schema: dict[str, Any] = self.schema
-        result: dict[str, None | str] = {SZ_CONTROLLER: self.id}
+        result: dict[str, Any] = {}
 
         try:
             if schema[SZ_SYSTEM][SZ_APPLIANCE_CONTROL][:2] == DEV_TYPE_MAP.OTB:  # DEX
@@ -335,7 +333,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if zones:
             result[SZ_ZONES] = zones
 
-        return result
+        return result  # TODO: check against vol schema
 
     @property
     def params(self) -> dict[str, Any]:
