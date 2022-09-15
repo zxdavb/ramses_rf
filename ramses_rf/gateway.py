@@ -523,7 +523,7 @@ class Gateway(Engine):
         parent=None,
         child_id=None,
         is_sensor: None | bool = None,
-    ) -> Device:  # TODO: **schema) -> Device:
+    ) -> Device:  # TODO: **schema) -> Device:  # may: LookupError
         """Return a device, create it if required.
 
         First, use the traits to create/update it, then pass it any msg to handle.
@@ -533,11 +533,10 @@ class Gateway(Engine):
         If a device is created, attach it to the gateway.
         """
 
-        def check_filter_lists(dev_id: _DeviceIdT) -> None:
+        def check_filter_lists(dev_id: _DeviceIdT) -> None:  # may: LookupError
             """Raise an LookupError if a device_id is filtered out by a list."""
 
             if dev_id in self._unwanted:
-                # _LOGGER.warning()
                 raise LookupError(f"Can't create {dev_id}: it is unwanted or invalid")
 
             if self.config.enforce_known_list and (
@@ -564,7 +563,7 @@ class Gateway(Engine):
         if not dev:
             dev = device_factory(self, Address(dev_id), msg=msg, **traits)
 
-        # TODO: the exact order of the follwoing may need refining...
+        # TODO: the exact order of the following may need refining...
 
         # if schema:  # Step 2: Only controllers have a schema...
         #     dev._update_schema(**schema)  # TODO: schema/traits
