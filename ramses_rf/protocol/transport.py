@@ -44,7 +44,7 @@ from .command import Command, Qos
 
 # skipcq: PY-W2000
 from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
-from .exceptions import InvalidPacketError
+from .exceptions import ForeignGatewayError, InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
@@ -535,6 +535,8 @@ class PacketProtocolBase(asyncio.Protocol):
             k for k, v in gwy._include.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
         ]:
             self._hgi80[SZ_KNOWN_HGI] = known_hgis[0]
+        else:
+            _LOGGER.info(f"The {SZ_KNOWN_LIST} should specify the gateway (HGI) device")
 
         self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
 
@@ -607,39 +609,6 @@ class PacketProtocolBase(asyncio.Protocol):
         for dtm, raw_line in bytes_received(data):
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
-    def _check_set_hgi80(self, pkt: Packet):
-        """Check/set (a pkt with) src.type == 18: - is it the HGI, or a foreign HGI?"""
-
-        if pkt.src.id == self._hgi80[SZ_DEVICE_ID]:
-            return
-
-        if self._hgi80[SZ_DEVICE_ID]:
-            if pkt.verb != RQ:  # HACK: to reduce logspam
-                return
-
-            _LOGGER.warning(  # more than one GWY
-                f"{pkt} < Appears to be a Foreign gateway: {pkt.src.id} (Active gateway: "
-                f"{self._hgi80[SZ_DEVICE_ID]}): this is unsupported{TIP}"
-            )
-
-            if pkt.src.id not in self._include and self.enforce_include:
-                _LOGGER.info(f"Blacklisting {pkt.src.id} (is Foreign gateway?){TIP}")
-                self._unwanted.append(pkt.src.id)
-            return
-
-        if pkt.payload == self._hgi80[SZ_FINGERPRINT]:
-            self._hgi80[SZ_DEVICE_ID] = pkt.src.id
-            _LOGGER.warning(f"{pkt} < Active gateway set to: {pkt.src.id}")
-
-            if pkt.src.id not in self._include:
-                _LOGGER.info(f"Whitelisting {pkt.src.id} (is Active gateway){TIP}")
-                self._include.append(pkt.src.id)  # NOTE: only time _include is modified
-            return
-
-        if pkt.src.id == self._hgi80[SZ_KNOWN_HGI]:
-            self._hgi80[SZ_DEVICE_ID] = pkt.src.id
-            _LOGGER.warning(f"{pkt} < Active gateway set to: {pkt.src.id}")
-
     def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
@@ -672,44 +641,45 @@ class PacketProtocolBase(asyncio.Protocol):
         Called by data_received(bytes) -> line_received(frame) -> pkt_received(pkt).
         """
 
+        def is_wanted_addrs(src_id: str, dst_id: str) -> bool:
+            """Return True if the packet is not to be filtered out.
+
+            In any one packet, an excluded device_id 'trumps' an included device_id.
+            """
+
+            for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
+                # _unwanted exists because (in future) stale entries need to be removed
+                if dev_id in self._exclude or dev_id in self._unwanted:
+                    return False
+                if dev_id == self._hgi80[SZ_DEVICE_ID]:  # even if not in include list
+                    continue
+                if dev_id not in self._include and self.enforce_include:
+                    return False
+                if dev_id[:2] != DEV_TYPE_MAP.HGI:
+                    continue
+                if dev_id not in self._include and self._hgi80[SZ_DEVICE_ID]:
+                    self._unwanted.append(dev_id)
+                    raise ForeignGatewayError(
+                        f"Blacklisting a Foreign gateway (or is it HVAC?): {dev_id}"
+                        f" (Active gateway: {self._hgi80[SZ_DEVICE_ID]}){TIP}"
+                    )
+                if dev_id == self._hgi80[SZ_KNOWN_HGI] or (
+                    dev_id == pkt.src.id and pkt.payload == self._hgi80[SZ_FINGERPRINT]
+                ):
+                    self._hgi80[SZ_DEVICE_ID] = dev_id
+                    if dev_id not in self._include:
+                        _LOGGER.warning(f"Active gateway set to: {dev_id}{TIP}")
+            return True
+
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
-        if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
-
-            if pkt.src.type == DEV_TYPE_MAP.HGI:
-                self._check_set_hgi80(pkt)
-
-            try:  # why not call soon?
+        try:  # TODO: why not call soon?
+            if self._callback and is_wanted_addrs(pkt.src.id, pkt.dst.id):
                 self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
-
-            except AssertionError as exc:  # protect from upper-layer callbacks
-                _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
-
-    def _is_wanted(self, src_id: str, dst_id: str) -> bool:
-        """Parse the packet, return True if the packet is not to be filtered out.
-
-        An unwanted device_id will 'trump' a whitelisted device_id in the same packet
-        because there is a significant chance that the packet is simply corrupt.
-        """
-
-        for dev_id in dict.fromkeys((src_id, dst_id)):
-            if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
-                return False
-
-            if dev_id in self._exclude:
-                self._unwanted.append(dev_id)
-                return False
-
-            if dev_id in self._include:
-                continue  # TODO: or break if not self.enforce_include?
-
-            if not self._hgi80[SZ_KNOWN_HGI] and dev_id[:2] == DEV_TYPE_MAP.HGI:
-                continue
-
-            if self.enforce_include:  # TODO: omit if using break?
-                return False
-
-        return True
+        except AssertionError as exc:  # protect from upper-layer callbacks
+            _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
+        except ForeignGatewayError as exc:
+            _LOGGER.error("%s < exception from pkt layer: %s", pkt, exc)
 
     async def send_data(self, cmd: Command) -> None:
         raise NotImplementedError

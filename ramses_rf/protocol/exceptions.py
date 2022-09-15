@@ -92,15 +92,19 @@ class CorruptStateError(CorruptEvohomeError):
         return f"{err_msg} {err_tip}"
 
 
-class MultipleControllerError(CorruptStateError):
-    """Raised when there is more than one controller."""
+class ForeignGatewayError(EvohomeError):
+    """Raised when a foreign gateway is detected.
+
+    These devices may not be gateways (set a class), or belong to a neighbout (exclude
+    via block_list/known_list), or should be allowed (known_list).
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
-        err_msg = "There is more than one Evohome controller"
+        err_msg = "There is more than one HGI80-compatible gateway"
         err_tip = " (consider enforcing a known_list)"
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
