@@ -6,9 +6,6 @@
 ramses_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
-# import cProfile
-# import pstats
-
 import asyncio
 import json
 import logging
@@ -61,6 +58,11 @@ DEV_MODE = False
 SZ_DEBUG_MODE = "debug_mode"
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
+
+PROFILE = False
+if PROFILE:
+    import cProfile
+    import pstats
 
 SZ_INPUT_FILE = "input_file"
 
@@ -567,19 +569,21 @@ cli.add_command(listen)
 if __name__ == "__main__":
     print("\r\nclient.py: Starting ramses_rf...")
 
-    # profile = cProfile.Profile()
-
     if sys.platform == "win32":
         print("Setting event_loop_policy...")
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     try:
-        # profile.run("cli()")
-        cli()
+        if PROFILE:
+            profile = cProfile.Profile()
+            profile.run("cli()")
+        else:
+            cli()
     except SystemExit:
         pass
 
-    # ps = pstats.Stats(profile)
-    # ps.sort_stats(pstats.SortKey.TIME).print_stats(60)
+    if PROFILE:
+        ps = pstats.Stats(profile)
+        ps.sort_stats(pstats.SortKey.TIME).print_stats(20)
 
     print("\r\nclient.py: Finished ramses_rf.")
