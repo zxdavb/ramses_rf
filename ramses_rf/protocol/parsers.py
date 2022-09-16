@@ -262,9 +262,9 @@ def parser_0005(payload, msg) -> dict | list[dict]:  # TODO: needs a cleanup
             zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
         zone_class = ZON_ROLE_MAP.get(seqx[2:4], DEV_ROLE_MAP[seqx[2:4]])
         return {
-            SZ_ZONE_TYPE: seqx[2:4],
+            SZ_ZONE_TYPE: seqx[2:4],  # TODO: ?remove & keep zone_class?
             SZ_ZONE_MASK: zone_mask,
-            SZ_ZONE_CLASS: zone_class,
+            SZ_ZONE_CLASS: zone_class,  # TODO: ?remove & keep zone_type?
         }
 
     if msg.verb == RQ:  # RQs have a context: zone_type
