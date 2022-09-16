@@ -8,6 +8,7 @@ Mocked devices used for testing.Will provide an appropriate Tx for a given Rx.
 
 from __future__ import annotations
 
+from ramses_rf.protocol.address import NON_DEV_ADDR
 from ramses_rf.protocol.command import Command, validate_api_params
 from ramses_rf.protocol.const import I_, RP, Code
 from ramses_rf.protocol.helpers import flag8_to_hex
@@ -29,15 +30,15 @@ class MockCommand(Command):
 
         if dst_id is None:
             verb = I_
-            addr2 = "63:262142"
+            addr2 = src_id
         else:
             verb = RP
-            addr2 = src_id
+            addr2 = NON_DEV_ADDR.id
 
         zone_mask = flag8_to_hex(zone_mask[:8], lsb=True) + flag8_to_hex(
             zone_mask[8:], lsb=True
         )
-        payload = f"00{zone_type:02X}{zone_mask}"
+        payload = f"00{zone_type}{zone_mask}"
 
         return cls._from_attrs(
             verb, Code._0005, payload, addr0=src_id, addr1=dst_id, addr2=addr2
