@@ -341,7 +341,8 @@ def select_device_filter_mode(
     ]
     if len(hgi_list) != 1:
         _LOGGER.warning(
-            f"Best practice is exactly one HGI in the {SZ_KNOWN_LIST}: {hgi_list}"
+            f"Best practice is exactly one gateway (HGI) in the {SZ_KNOWN_LIST}: %s",
+            hgi_list,
         )
 
     if enforce_known_list and not known_list:
