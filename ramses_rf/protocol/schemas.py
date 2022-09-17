@@ -336,11 +336,12 @@ def select_device_filter_mode(
     hgi_list = [
         k
         for k, v in known_list.items()
-        if v.get(SZ_CLASS, DEV_TYPE.HGI) in (DEV_TYPE.HGI, DEV_TYPE_MAP[DEV_TYPE.HGI])
+        if k[:2] == DEV_TYPE_MAP._hex(DEV_TYPE.HGI)
+        and v.get(SZ_CLASS) in (None, DEV_TYPE.HGI, DEV_TYPE_MAP[DEV_TYPE.HGI])
     ]
-    if len(hgi_list) > 1:
+    if len(hgi_list) != 1:
         _LOGGER.warning(
-            f"There should be only one HGI in the {SZ_KNOWN_LIST}: {hgi_list}"
+            f"Best practice is exactly one HGI in the {SZ_KNOWN_LIST}: {hgi_list}"
         )
 
     if enforce_known_list and not known_list:
