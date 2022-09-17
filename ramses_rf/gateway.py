@@ -624,7 +624,7 @@ class Gateway(Engine):
         be given these traits.
         """
 
-        result = self._include
+        result = self._include  # could be devices here, not (yet) in gwy.devices
         result.update(
             {
                 d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
