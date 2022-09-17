@@ -112,7 +112,7 @@ class DeviceBase(Entity):
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
-            return f"{self.id} {self._SLUG}): {getattr(self, self._STATE_ATTR)}"
+            return f"{self.id} ({self._SLUG}): {getattr(self, self._STATE_ATTR)}"
         return f"{self.id} ({self._SLUG})"
 
     def __lt__(self, other) -> bool:
@@ -348,7 +348,7 @@ class Fakeable(DeviceBase):
         if not self._faked:
             self._faked = True
             self._gwy._include[self.id] = {SZ_FAKED: True}
-            _LOGGER.warning(f"Faking now enabled for {self}")  # TODO: be info/debug
+            _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
         if bind:
             self._bind()
         return self
