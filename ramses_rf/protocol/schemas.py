@@ -333,13 +333,14 @@ def select_device_filter_mode(
             f"There are devices in both the {SZ_KNOWN_LIST} & {SZ_BLOCK_LIST}: {both}"
         )
 
-    if (
-        known_hgis := [
-            k for k, v in known_list.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
-        ]
-    ) and len(known_hgis) > 1:
-        raise ValueError(
-            f"There should be maximum one HGI in the {SZ_KNOWN_LIST}: {known_hgis}"
+    hgi_list = [
+        k
+        for k, v in known_list.items()
+        if v.get(SZ_CLASS, DEV_TYPE.HGI) in (DEV_TYPE.HGI, DEV_TYPE_MAP[DEV_TYPE.HGI])
+    ]
+    if len(hgi_list) > 1:
+        _LOGGER.warning(
+            f"There should be only one HGI in the {SZ_KNOWN_LIST}: {hgi_list}"
         )
 
     if enforce_known_list and not known_list:
