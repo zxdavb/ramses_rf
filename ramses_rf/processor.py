@@ -19,14 +19,8 @@ from .const import (
     __dev_mode__,
 )
 from .device import Device
-from .protocol import (
-    CODES_BY_DEV_SLUG,
-    CODES_SCHEMA,
-    CorruptStateError,
-    InvalidAddrSetError,
-    InvalidPacketError,
-    Message,
-)
+from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA, Message
+from .protocol.exceptions import EvohomeError, InvalidAddrSetError, InvalidPacketError
 from .protocol.ramses import (
     CODES_OF_HEAT_DOMAIN,
     CODES_OF_HEAT_DOMAIN_ONLY,
@@ -80,16 +74,17 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
     #  - eavesdrop: from packet fingerprint, incl. payloads
 
     if not isinstance(this.src, Device):
-        this.src = gwy.get_device(this.src.id)
+        this.src = gwy.get_device(this.src.id)  # may: LookupError (don't swallow)
         if this.dst.id == this.src.id:
             this.dst = this.src
             return
 
-    if not isinstance(this.dst, Device) and (
-        gwy.config.enable_eavesdrop and this.src != gwy.hgi
-    ):  # the above can't / shouldn't be eavesdropped for dst device
+    if not gwy.config.enable_eavesdrop:
+        return
+
+    if not isinstance(this.dst, Device) and this.src is not gwy.hgi:
         try:
-            this.dst = gwy.get_device(this.dst.id)
+            this.dst = gwy.get_device(this.dst.id)  # may: LookupError (but swallow it)
         except LookupError:
             pass
 
@@ -270,7 +265,13 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
 
         # TODO: any value in not creating a device unless the message is valid?
         if gwy.config.reduce_processing < DONT_CREATE_ENTITIES:
-            _create_devices_from_addrs(gwy, msg)
+            try:
+                _create_devices_from_addrs(gwy, msg)
+            except LookupError as exc:
+                (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+                    "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
+                )
+                return
 
         _check_msg_src(msg)  # ? InvalidPacketError
         if msg.dst is not msg.src or msg.verb != I_:
@@ -305,18 +306,12 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         elif getattr(msg.dst, "_is_faked", False):
             msg.dst._handle_msg(msg)
 
-    except (AssertionError, NotImplementedError) as exc:
+    except (AssertionError, EvohomeError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "%s < %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
+            "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
         )
-        raise
 
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s < %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
+            "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
         )
-        raise
-
-    except (CorruptStateError, InvalidPacketError) as exc:  # TODO: CorruptEvohomeError
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, exc)
-        raise  # TODO: bad pkt, or Schema
