@@ -23,7 +23,7 @@ from .ramses import (
     RQ_NO_PAYLOAD,
 )
 
-# TODO: add _has_idx (ass func return only one type, or raise)
+# TODO: add _has_idx (as func return only one type, or raise)
 
 
 # skipcq: PY-W2000
