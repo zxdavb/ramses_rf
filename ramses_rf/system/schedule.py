@@ -130,8 +130,8 @@ class Schedule:  # 0404
         self._rx_frags: list = self._init_set()
         self._tx_frags: list = self._init_set()
 
-        self._global_ver: int = None  # type: ignore[assignment]
-        self._sched_ver: int = 0
+        self._global_ver: None | int = None  # None is a sentinel for 'dont know'
+        self._sched_ver: int = 0  # TODO: start with None
 
     def __str__(self) -> str:
         return f"{self._zone} (schedule)"
@@ -354,9 +354,13 @@ class Schedule:  # 0404
 
     @property
     def schedule(self) -> None | dict:
-        if not self._schedule:
-            return None
-        return self._schedule[SZ_SCHEDULE]
+        """Return the current schedule, if any."""
+        return self._schedule[SZ_SCHEDULE] if self._schedule else None
+
+    @property
+    def version(self) -> None | int:
+        """Return the version associated with the current schedule, if any."""
+        return self._sched_ver if self._schedule else None
 
 
 def fragments_to_schedule(fragments: Iterable) -> dict:
