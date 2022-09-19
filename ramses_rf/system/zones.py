@@ -20,7 +20,6 @@ from ..const import (
     SZ_NAME,
     SZ_RELAY_DEMAND,
     SZ_RELAY_FAILSAFE,
-    SZ_SCHEDULE,
     SZ_SETPOINT,
     SZ_TEMPERATURE,
     SZ_WINDOW_OPEN,
@@ -169,16 +168,19 @@ class ZoneSchedule:  # 0404
 
     @property
     def schedule(self) -> None | dict:
-        """Return the latest known schedule (not guaranteed to be up to date)."""
-        if self._schedule._schedule:
-            return self._schedule._schedule[SZ_SCHEDULE]
-        return None
+        """Return the latest retreived schedule (not guaranteed to be up to date)."""
+        return self._schedule.schedule
+
+    @property
+    def schedule_version(self) -> None | int:
+        """Return the version number associated with the latest retrieved schedule."""
+        return self._schedule.version
 
     @property
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            SZ_SCHEDULE: self.schedule,
+            "schedule_version": self.schedule_version,
         }
 
 
