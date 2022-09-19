@@ -809,10 +809,14 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self.zone_lock.release()
 
     @property
-    def params(self) -> dict[str, Any]:
+    def schedule_version(self) -> None | int:
+        return self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER)
+
+    @property
+    def status(self) -> dict[str, Any]:
         return {
-            **super().params,
-            SZ_CHANGE_COUNTER: self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER),
+            **super().status,
+            "schedule_version": self.schedule_version,
         }
 
 
