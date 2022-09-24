@@ -611,7 +611,9 @@ class Zone(ZoneSchedule, ZoneBase):
 
         super()._handle_msg(msg)
 
-        if msg.code == Code._000C and msg.payload[SZ_DEVICES]:
+        if msg.code == Code._000C:
+            if not msg.payload[SZ_DEVICES]:
+                return
 
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.SEN:
                 dev_id = msg.payload[SZ_DEVICES][0]
@@ -632,7 +634,7 @@ class Zone(ZoneSchedule, ZoneBase):
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
                 self._make_cmd(Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
 
-        if msg.code == Code._30C9 and msg._has_array and self._multiroom_mode:
+        if msg.code == Code._2309 and msg._has_array and self._multiroom_mode:
             # the CTL does not announce temps for multiroom_mode zones
             self._get_temp()
 
