@@ -632,6 +632,10 @@ class Zone(ZoneSchedule, ZoneBase):
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
                 self._make_cmd(Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
 
+        if msg.code == Code._30C9 and msg._has_array and self._multiroom_mode:
+            # the CTL does not announce temps for multiroom_mode zones
+            self._get_temp()
+
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (
             None,
@@ -643,7 +647,12 @@ class Zone(ZoneSchedule, ZoneBase):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
     @property
-    def sensor(self) -> Device:
+    def _multiroom_mode(self) -> None | bool:
+        if self.config:
+            return self.config["multiroom_mode"]
+
+    @property
+    def sensor(self) -> None | Device:
         return self._sensor
 
     @property
@@ -662,11 +671,11 @@ class Zone(ZoneSchedule, ZoneBase):
         self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, value))
 
     @property
-    def config(self) -> Optional[dict]:  # 000A
+    def config(self) -> None | dict:  # 000A
         return self._msg_value(Code._000A)
 
     @property
-    def mode(self) -> Optional[dict]:  # 2349
+    def mode(self) -> None | dict:  # 2349
         return self._msg_value(Code._2349)
 
     @property
