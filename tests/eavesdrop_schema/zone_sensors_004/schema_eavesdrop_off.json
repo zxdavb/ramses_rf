@@ -1,0 +1,39 @@
+{
+    "main_tcs": "01:205114",
+    "01:205114": {
+        "system": {"appliance_control": null},
+        "zones": {
+            "00": {
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:164227"]
+            },
+            "01": {
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:014696", "04:014708", "04:164041"]
+            },
+            "02": {
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:014712"]
+            },
+            "04": {
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:164247"]
+            },
+            "05": {
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:122639"]
+            },
+            "06": {
+                "class": "radiator_valve",
+                "sensor": null,
+                "actuators": ["04:079671"]
+            }
+        }
+    },
+    "orphans_heat": ["03:256014", "04:014710", "34:018143"]
+}
