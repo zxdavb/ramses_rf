@@ -206,7 +206,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
                 < SYNC_WINDOW_UPPER
             )
 
-        start = perf_counter()
+        start = perf_counter()  # TODO: remove
 
         # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
         while any(is_imminent(p) for p in sync_cycles):
@@ -215,7 +215,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
         # wait for the remainder of sync cycle (I|2309/30C9) to complete
         if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
             await asyncio.sleep(SYNC_WAIT_LONG)
-            # FIXME: remove this block
+            # FIXME: remove this block, and merge both ifs
             times_0.append(x)
             _LOGGER.warning(
                 f"*** sync cycle stats: {x:.3f}, "
@@ -231,7 +231,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
 
 
 def track_system_syncs(fnc: Callable):
-    """Track/remember the most recent sync cycle for a controller."""
+    """Track/remember the any new/outstanding TCS sync cycle."""
 
     MAX_SYNCS_TRACKED = 3
 
@@ -248,9 +248,9 @@ def track_system_syncs(fnc: Callable):
         sync_cycles = deque(
             p for p in sync_cycles if p.src != pkt.src and is_pending(p)
         )
-        sync_cycles.append(pkt)
+        sync_cycles.append(pkt)  # TODO: sort
 
-        if len(sync_cycles) > MAX_SYNCS_TRACKED:
+        if len(sync_cycles) > MAX_SYNCS_TRACKED:  # safety net for corrupted payloads
             sync_cycles.popleft()
 
         fnc(self, pkt, *args, **kwargs)
