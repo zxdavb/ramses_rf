@@ -21,6 +21,7 @@ def id_fnc(param):
 
 def pytest_generate_tests(metafunc):
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]
+    folders.sort()
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
