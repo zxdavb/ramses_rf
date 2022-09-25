@@ -618,7 +618,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         ):
             return
 
-        # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
+        # TODO: a I/0005 may have changed: del or add zones
         if msg.code == Code._0005:
             if (zone_type := msg.payload[SZ_ZONE_TYPE]) in ZON_ROLE_MAP.HEAT_ZONES:
                 [
@@ -636,15 +636,21 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 ]
             return
 
-        if (
-            msg.code == Code._000C
-            and msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES
-        ):
+        # TODO: a I/000C may have changed: del or add devices
+        if msg.code == Code._000C:
+            if msg.payload[SZ_ZONE_TYPE] not in DEV_ROLE_MAP.HEAT_DEVICES:
+                return
             if msg.payload[SZ_DEVICES]:
                 self.get_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
             elif zon := self.zone_by_idx.get(msg.payload[SZ_ZONE_IDX]):
                 zon._handle_msg(msg)  # tell existing zone: no device
             return
+
+        # the CTL knows, but does not announce temps for multiroom_mode zones
+        if msg.code == Code._30C9 and msg._has_array:
+            for z in self.zones:
+                if z.idx not in (x[SZ_ZONE_IDX] for x in msg.payload):
+                    z._get_temp()
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and (

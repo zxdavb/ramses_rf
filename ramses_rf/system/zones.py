@@ -634,10 +634,6 @@ class Zone(ZoneSchedule, ZoneBase):
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
                 self._make_cmd(Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
 
-        if msg.code == Code._2309 and msg._has_array and self._multiroom_mode:
-            # the CTL does not announce temps for multiroom_mode zones
-            self._get_temp()
-
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (
             None,
@@ -647,11 +643,6 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def _msg_value(self, *args, **kwargs):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
-
-    @property
-    def _multiroom_mode(self) -> None | bool:
-        if self.config:
-            return self.config["multiroom_mode"]
 
     @property
     def sensor(self) -> None | Device:
@@ -711,7 +702,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return an estimate of the zone's current window_open state."""
         return self._msg_value(Code._12B0, key=SZ_WINDOW_OPEN)
 
-    def _get_temp(self) -> Future:  # TODO: messy - needs tidy up
+    def _get_temp(self) -> Future:
         """Get the zone's latest temp from the Controller."""
         return self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
 
