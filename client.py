@@ -6,6 +6,8 @@
 ramses_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -41,7 +43,6 @@ from ramses_rf.schemas import (
     SZ_ENABLE_EAVESDROP,
     SZ_REDUCE_PROCESSING,
 )
-from tests_rf.mock import MockGateway
 
 # skipcq: PY-W2000
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -504,6 +505,8 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         lib_kwargs = lib_kwargs | state["schema"]
 
     if serial_port == "/dev/ttyMOCK":
+        from tests_rf.mock import MockGateway  # a special case
+
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:
         gwy = Gateway(serial_port, **lib_kwargs)
