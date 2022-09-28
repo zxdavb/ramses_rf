@@ -12,6 +12,7 @@ import re
 from .const import SZ_SCHEDULE, SZ_ZONE_IDX, __dev_mode__
 from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.command import _mk_cmd
+from .protocol.const import SZ_DISABLE_BACKOFF, SZ_PRIORITY, SZ_RETRIES
 from .protocol.opentherm import OTB_MSG_IDS
 
 # Beware, none of this is reliable - it is all subject to random change
@@ -41,8 +42,8 @@ SCAN_XXXX = "scan_xxxx"
 
 # DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
-QOS_SCAN = {"priority": Priority.LOW, "retries": 0}
-QOS_HIGH = {"priority": Priority.HIGH, "retries": 3}
+QOS_SCAN = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 0}
+QOS_HIGH = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
 
 DEV_MODE = __dev_mode__ and False
 
@@ -54,12 +55,16 @@ if DEV_MODE:
 def script_decorator(fnc):
     def wrapper(gwy, *args, **kwargs):
 
-        highest = {"priority": Priority.HIGHEST, "retries": 3, "disable_backoff": True}
+        highest = {
+            SZ_PRIORITY: Priority.HIGHEST,
+            SZ_RETRIES: 3,
+            SZ_DISABLE_BACKOFF: True,
+        }
         gwy.send_cmd(Command._puzzle(message="Script begins:", qos=highest))
 
         result = fnc(gwy, *args, **kwargs)
 
-        lowest = {"priority": Priority.LOWEST, "retries": 3, "disable_backoff": True}
+        lowest = {SZ_PRIORITY: Priority.LOWEST, SZ_RETRIES: 3, SZ_DISABLE_BACKOFF: True}
         gwy.send_cmd(Command._puzzle(message="Script done.", qos=lowest))
 
         return result
@@ -119,7 +124,7 @@ async def exec_cmd(gwy, **kwargs):
 # @script_decorator
 # async def script_scan_001(gwy, dev_id: str):
 #     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
-#     qos = {"priority": Priority.LOW, "retries": 3}
+#     qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 3}
 #     for idx in range(0x10):
 #         gwy.send_cmd(_mk_cmd(W_, Code._000E, f"{idx:02X}0050", dev_id, qos=qos))
 #         gwy.send_cmd(_mk_cmd(RQ, Code._000E, f"{idx:02X}00C8", dev_id, qos=qos))
@@ -193,10 +198,10 @@ async def script_scan_disc(gwy, dev_id: str):
 async def script_scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
-    qos = {"priority": Priority.DEFAULT, "retries": 5}
+    qos = {SZ_PRIORITY: Priority.DEFAULT, SZ_RETRIES: 5}
     gwy.send_cmd(_mk_cmd(RQ, Code._0016, "0000", dev_id, qos=qos))
 
-    qos = {"priority": Priority.DEFAULT, "retries": 1}
+    qos = {SZ_PRIORITY: Priority.DEFAULT, SZ_RETRIES: 1}
     for code in sorted(CODES_SCHEMA):
         if code == Code._0005:
             for zone_type in range(20):  # known up to 18
@@ -246,7 +251,7 @@ async def script_scan_full(gwy, dev_id: str):
             gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, qos=qos))
 
     # these are possible/difficult codes
-    qos = {"priority": Priority.DEFAULT, "retries": 2}
+    qos = {SZ_PRIORITY: Priority.DEFAULT, SZ_RETRIES: 2}
     for code in (Code._0150, Code._2389):
         gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id, qos=qos))
 
@@ -265,7 +270,7 @@ async def script_scan_hard(gwy, dev_id: str, *, start_code: int = None):
 @script_decorator
 async def script_scan_fan(gwy, dev_id: str):
     _LOGGER.warning("scan_fan() invoked - expect a lot of nonsense")
-    qos = {"priority": Priority.LOW, "retries": 3}
+    qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 3}
 
     from ramses_rf.protocol.ramses import _DEV_KLASSES_HVAC
 
@@ -314,7 +319,7 @@ async def script_scan_fan(gwy, dev_id: str):
 async def script_scan_otb(gwy, dev_id: str):
     _LOGGER.warning("script_scan_otb_full invoked - expect a lot of nonsense")
 
-    qos = {"priority": Priority.LOW, "retries": 1}
+    qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1}
     for msg_id in OTB_MSG_IDS:
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, qos=qos))
 

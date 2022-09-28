@@ -54,6 +54,7 @@ from ..protocol import (
     Priority,
 )
 from ..protocol.command import FaultLog, _mk_cmd
+from ..protocol.const import SZ_PRIORITY, SZ_RETRIES
 from ..schemas import (
     DEFAULT_MAX_ZONES,
     SCH_TCS,
@@ -249,7 +250,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
                     device = None
 
                 if False and device is not None:  # TODO: FIXME
-                    qos = {"priority": Priority.LOW, "retries": 2}
+                    qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 2}
                     for code in (Code._0008, Code._3EF1):
                         device._make_cmd(code, qos)
 

@@ -879,7 +879,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
         # self._qos_lock.acquire()
         if self._qos_cmd:
-            raise RuntimeError
+            raise RuntimeError  # TODO: remove me
         self._qos_cmd = cmd
         # self._qos_lock.release()
         self._tx_rcvd = None

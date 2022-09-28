@@ -29,9 +29,11 @@ from .const import (
     SZ_BACKOFF,
     SZ_DAEMON,
     SZ_DHW_IDX,
+    SZ_DISABLE_BACKOFF,
     SZ_DOMAIN_ID,
     SZ_FUNC,
     SZ_PRIORITY,
+    SZ_QOS,
     SZ_RETRIES,
     SZ_TIMEOUT,
     SZ_ZONE_IDX,
@@ -1240,7 +1242,7 @@ class Command(Frame):
         else:
             raise ValueError("Invalid parameters")
 
-        kwargs["qos"] = {"priority": Priority.HIGH, "retries": 3}
+        kwargs[SZ_QOS] = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
         return cls._from_attrs(
             verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )
@@ -1368,12 +1370,12 @@ class Command(Frame):
 
         assert msg_type in LOOKUP_PUZZ, f"Invalid/deprecated Puzzle type: {msg_type}"
 
-        qos = kwargs.get("qos", {})
-        qos["priority"] = qos.get("priority", Priority.HIGHEST)
+        qos = kwargs.get(SZ_QOS, {})
+        qos[SZ_PRIORITY] = qos.get(SZ_PRIORITY, Priority.HIGHEST)
         if msg_type == "10":
-            qos["disable_backoff"] = qos.get("disable_backoff", True)
-            qos["retries"] = qos.get("retries", 12)
-        kwargs["qos"] = qos
+            qos[SZ_DISABLE_BACKOFF] = qos.get(SZ_DISABLE_BACKOFF, True)
+            qos[SZ_RETRIES] = qos.get(SZ_RETRIES, 12)
+        kwargs[SZ_QOS] = qos
 
         payload = f"00{msg_type}"
 

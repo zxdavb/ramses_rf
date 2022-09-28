@@ -14,7 +14,9 @@ DEV_MODE = __dev_mode__
 
 # used by tansport QoS...
 SZ_BACKOFF = "backoff"
+SZ_DISABLE_BACKOFF = "disable_backoff"
 SZ_PRIORITY = "priority"
+SZ_QOS = "qos"
 SZ_RETRIES = "retries"
 SZ_TIMEOUT = "timeout"
 
