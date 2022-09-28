@@ -105,30 +105,18 @@ class Qos:
     QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT, SZ_BACKOFF)
 
     DEFAULT_QOS = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
-    DEFAULT_QOS_TABLE = (
-        {  # priority, retries, timeout, (enable_)backoff, c.f. DEFAULT_QOS
-            f"{RQ}|{Code._0016}": (Priority.HIGH, 5, None, True),
-            f"{RQ}|{Code._0006}": (Priority.HIGH, 5, None, True),
-            f"{I_}|{Code._0404}": (
-                Priority.HIGH,
-                3,
-                td(seconds=0.30),
-                True,
-            ),  # short Tx
-            f"{RQ}|{Code._0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
-            f"{W_}|{Code._0404}": (
-                Priority.HIGH,
-                3,
-                td(seconds=1.00),
-                True,
-            ),  # but long Rx
-            f"{RQ}|{Code._0418}": (Priority.LOW, 3, None, None),
-            f"{RQ}|{Code._1F09}": (Priority.HIGH, 5, None, True),
-            f"{I_}|{Code._1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
-            f"{RQ}|{Code._3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
-            f"{W_}|{Code._3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
-        }
-    )  # The long timeout for the OTB is for total RTT to slave (boiler)
+    DEFAULT_QOS_TABLE = {  # priority, retries, timeout, (enable_)backoff
+        f"{RQ}|{Code._0016}": (Priority.HIGH, 5, None, True),
+        f"{RQ}|{Code._0006}": (Priority.HIGH, 5, None, True),
+        f"{I_}|{Code._0404}": (Priority.HIGH, 3, td(seconds=0.30), True),
+        f"{RQ}|{Code._0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
+        f"{W_}|{Code._0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
+        f"{RQ}|{Code._0418}": (Priority.LOW, 3, None, None),
+        f"{RQ}|{Code._1F09}": (Priority.HIGH, 5, None, True),
+        f"{I_}|{Code._1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
+        f"{RQ}|{Code._3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
+        f"{W_}|{Code._3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
+    }  # The long timeout for the OTB is for total RTT to slave (boiler)
 
     def __init__(
         self,
