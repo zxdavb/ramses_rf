@@ -139,13 +139,11 @@ class Qos:
         backoff=None,
     ) -> None:
 
-        self.priority = priority if priority is not None else self.DEFAULT_QOS[0]
-        self.retry_limit = retries if retries is not None else self.DEFAULT_QOS[1]
+        self.priority = self.DEFAULT_QOS[0] if priority is None else priority
+        self.retry_limit = self.DEFAULT_QOS[1] if retries is None else retries
         self.tx_timeout = self.DEFAULT_TX_TIMEOUT
-        self.rx_timeout = timeout if timeout is not None else self.DEFAULT_QOS[2]
-        self.disable_backoff = not (
-            backoff if backoff is not None else self.DEFAULT_QOS[3]
-        )
+        self.rx_timeout = self.DEFAULT_QOS[2] if timeout is None else timeout
+        self.disable_backoff = not (self.DEFAULT_QOS[3] if backoff is None else backoff)
 
     @classmethod  # constructor from verb|code pair
     def verb_code(cls, verb, code, **kwargs) -> Qos:
