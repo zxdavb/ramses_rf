@@ -275,7 +275,7 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
 
 
 def _qos_params(verb: _VerbT, code: _CodeT, qos: dict) -> Qos:
-    """Class constrcutor wrapped to prevent cyclic reference."""
+    """Class constructor wrapped to prevent cyclic reference."""
     return Qos.verb_code(verb, code, **qos)
 
 
