@@ -284,12 +284,10 @@ class Command(Frame):
 
         # used by app layer: callback (protocol.py: func, args, daemon, timeout)
         self._cbk = callback or {}
+        # used by msg layer (for which cmd to send next, with _qos.priority)
+        self._dtm = dt_now()
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
         self._qos = _qos_params(self.verb, self.code, qos or {})
-
-        # used for by msg layer (for which cmd to send next)
-        self._priority = self._qos.priority  # TODO: should only be a QoS attr
-        self._dtm = dt_now()
 
         self._rx_header: None | str = None
         self._source_entity = None
@@ -430,16 +428,20 @@ class Command(Frame):
     def __eq__(self, other: Any) -> bool:
         if not self._is_valid_operand(other):
             return NotImplemented
-        return (self._priority, self._dtm) == (other._priority, other._dtm)
+        return (self._qos.priority, self._dtm) == (other._qos.priority, other._dtm)
 
     def __lt__(self, other: Any) -> bool:
         if not self._is_valid_operand(other):
             return NotImplemented
-        return (self._priority, self._dtm) < (other._priority, other._dtm)
+        return (self._qos.priority, self._dtm) < (other._qos.priority, other._dtm)
 
     @staticmethod
     def _is_valid_operand(other: Any) -> bool:
-        return hasattr(other, "_priority") and hasattr(other, "_dtm")
+        return (
+            hasattr(other, "_dtm")
+            and hasattr(other, "_qos")
+            and hasattr(other._qos, "priority")
+        )
 
     @property
     def tx_header(self) -> _HeaderT:
