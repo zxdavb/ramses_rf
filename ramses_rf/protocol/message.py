@@ -24,7 +24,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import InvalidPacketError, InvalidPayloadError
-from .packet import fraction_expired
+from .packet import Packet, fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
 from .schemas import SZ_ALIAS
@@ -68,7 +68,7 @@ class Message:
     IS_EXPIRING = 0.8  # expected lifetime == 1.0
     HAS_EXPIRED = 2.0  # incl. any value >= HAS_EXPIRED
 
-    def __init__(self, gwy, pkt) -> None:
+    def __init__(self, gwy, pkt: Packet) -> None:
         """Create a message from a valid packet.
 
         Will raise InvalidPacketError if it is invalid.
