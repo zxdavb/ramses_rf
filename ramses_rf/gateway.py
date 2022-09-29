@@ -481,13 +481,18 @@ class Gateway(Engine):
         return result
 
     def _get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
-        def wanted_msg(msg: Message) -> bool:
-            # 313F will usu. be expired, but will be useful for back-back restarts
+        def wanted_msg(msg: Message, include_expired: bool = False) -> bool:
             if msg.code == Code._313F:
-                return True
+                return msg.verb in (I_, RP)  # usu. expired, useful 4 back-back restarts
+            if msg._expired and not include_expired:
+                return False
+            if msg.code == Code._0404:
+                return msg.verb in (I_, W_) and msg._pkt._len > 7
+            if msg.verb in (W_, RQ):
+                return False
             # if msg.code == Code._1FC9 and msg.verb != RP:
             #     return True
-            return not msg._expired
+            return include_expired or not msg._expired
 
         msgs = [m for device in self.devices for m in device._msg_db]
 
@@ -500,7 +505,7 @@ class Gateway(Engine):
         pkts = {
             f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
             for msg in msgs
-            if msg.verb in (I_, RP) and include_expired or wanted_msg(msg)
+            if wanted_msg(msg, include_expired=include_expired)
         }  # BUG: assumes pkts have unique dtms
 
         return self.schema, dict(sorted(pkts.items()))
