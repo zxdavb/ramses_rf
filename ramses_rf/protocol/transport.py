@@ -875,7 +875,7 @@ class PacketProtocolQos(PacketProtocolPort):
             """Return a dtm for expiring the Tx (or Rx), with an optional backoff."""
             if disable_backoff:
                 return dt.now() + timeout
-            return dt.now() + timeout * 2 ** min(retry_count, Qos.MAX_BACKOFF_FACTOR)
+            return dt.now() + timeout * 2 ** min(retry_count, Qos.TX_BACKOFFS_MAX)
 
         # self._qos_lock.acquire()
         if self._qos_cmd:
@@ -885,7 +885,7 @@ class PacketProtocolQos(PacketProtocolPort):
         self._tx_rcvd = None
 
         retry_count = 0
-        while retry_count <= min(cmd._qos.retry_limit, Qos.RETRY_LIMIT_MAX):
+        while retry_count <= min(cmd._qos.retry_limit, Qos.TX_RETRIES_MAX):
 
             self._rx_rcvd = None
             await super()._send_data(str(cmd))

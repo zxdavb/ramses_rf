@@ -96,18 +96,21 @@ class Qos:
 
     POLL_INTERVAL = 0.002
 
-    # tx (from sent to gwy, to get back from gwy) seems to takes appDEFAULT_KEYSrox. 0.025s
-    DEFAULT_TX_TIMEOUT = td(seconds=0.2)  # 0.20 OK, but too high?
-    DEFAULT_TX_RETRIES = 2
-    RETRY_LIMIT_MAX = 5
+    TX_PRIORITY_DEFAULT = Priority.DEFAULT
 
-    DEFAULT_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
-    MAX_BACKOFF_FACTOR = 2  # i.e. tx_timeout 2 ** MAX_BACKOFF
+    # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
+    TX_RETRIES_DEFAULT = 2
+    TX_RETRIES_MAX = 5
+    TX_TIMEOUT_DEFAULT = td(seconds=0.2)  # 0.20 OK, but too high?
+
+    RX_TIMEOUT_DEFAULT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
+
+    TX_BACKOFFS_MAX = 2  # i.e. tx_timeout 2 ** MAX_BACKOFF
 
     QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT, SZ_BACKOFF)
-
-    DEFAULT_QOS = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
-    DEFAULT_QOS_TABLE = {  # priority, retries, timeout, (enable_)backoff
+    # priority, retries, rx_timeout, backoff
+    DEFAULT_QOS = (Priority.DEFAULT, TX_RETRIES_DEFAULT, TX_TIMEOUT_DEFAULT, True)
+    DEFAULT_QOS_TABLE = {
         f"{RQ}|{Code._0016}": (Priority.HIGH, 5, None, True),
         f"{RQ}|{Code._0006}": (Priority.HIGH, 5, None, True),
         f"{I_}|{Code._0404}": (Priority.HIGH, 3, td(seconds=0.30), True),
@@ -131,9 +134,11 @@ class Qos:
 
         self.priority = self.DEFAULT_QOS[0] if priority is None else priority
         self.retry_limit = self.DEFAULT_QOS[1] if retries is None else retries
-        self.tx_timeout = self.DEFAULT_TX_TIMEOUT
+        self.tx_timeout = self.TX_TIMEOUT_DEFAULT
         self.rx_timeout = self.DEFAULT_QOS[2] if timeout is None else timeout
         self.disable_backoff = not (self.DEFAULT_QOS[3] if backoff is None else backoff)
+
+        self.retry_limit = min(self.retry_limit, Qos.TX_RETRIES_MAX)
 
     @classmethod  # constructor from verb|code pair
     def verb_code(cls, verb, code, **kwargs) -> Qos:
