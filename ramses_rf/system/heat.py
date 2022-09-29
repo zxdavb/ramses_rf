@@ -165,11 +165,15 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     def _setup_discovery_cmds(self) -> None:
         # super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(
-            _mk_cmd(RQ, Code._000C, f"00{DEV_ROLE_MAP.HTG}", self.id),
-            60 * 60 * 24,
-            delay=0,
-        )
+        for payload in (
+            f"00{DEV_ROLE_MAP.APP}",  # appliance_control
+            f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
+            f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
+        ):
+            self._add_discovery_cmd(
+                _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24, delay=0
+            )
+
         self._add_discovery_cmd(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:
@@ -816,11 +820,14 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(
-            _mk_cmd(RQ, Code._000C, f"00{DEV_ROLE_MAP.DHW}", self.id),
-            60 * 60 * 24,
-            delay=0,
-        )
+        for payload in (
+            f"00{DEV_ROLE_MAP.DHW}",  # dhw_sensor
+            # f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
+            # f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
+        ):
+            self._add_discovery_cmd(
+                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24, delay=0
+            )
 
     def _handle_msg(self, msg: Message) -> None:
 
