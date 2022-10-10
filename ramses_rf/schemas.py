@@ -256,7 +256,9 @@ SCH_GATEWAY_DICT = SCH_ENGINE_DICT | {
         int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
     ),
     vol.Optional(SZ_USE_ALIASES, default=False): bool,
-    vol.Optional(SZ_USE_NATIVE_OT, default=False): bool,
+    vol.Optional(SZ_USE_NATIVE_OT, default="prefer"): vol.Any(
+        "always", "prefer", "avoid", "never"
+    ),
 }
 
 

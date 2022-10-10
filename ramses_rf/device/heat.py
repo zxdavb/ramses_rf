@@ -723,6 +723,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         "38": Code._10A0,  # dhw_setpoint (is a PARAM)
         "39": Code._1081,  # ch_max_setpoint (is a PARAM)
     }
+    RAMSES_TO_OT = {v: k for k, v in OT_TO_RAMSES.items()}
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -740,8 +741,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
         super()._setup_discovery_cmds()
 
+        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 300)  # status
+
         # the following are test/dev
-        if DEV_MODE:
+        if True or DEV_MODE:
             for code in (
                 Code._2401,  # WIP - modulation_level + flags?
                 Code._3221,  # R8810A/20A
@@ -749,36 +752,28 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             ):  # TODO: these are WIP, but do vary in payload
                 self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60)
 
-        for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
-            if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
-                self._add_discovery_cmd(
-                    Command.get_opentherm_data(self.id, m), 60 * 60 * 24, delay=60 * 3
-                )
+        prefer_ot = self._gwy.config.use_native_ot in ("always", "prefer")
 
-        for m in PARAMS_MSG_IDS:  # or L/T state
-            if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
-                self._add_discovery_cmd(
-                    Command.get_opentherm_data(self.id, m), 60 * 60, delay=90
-                )
+        for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
+            if prefer_ot or m not in self.OT_TO_RAMSES:
+                cmd = Command.get_opentherm_data(self.id, m)
+            else:
+                cmd = _mk_cmd(RQ, self.OT_TO_RAMSES[m], "00", self.id)  # won't be any
+            self._add_discovery_cmd(cmd, 24 * 3600, delay=180)
+
+        for m in PARAMS_MSG_IDS:  # params or L/T state
+            if prefer_ot or m not in self.OT_TO_RAMSES:
+                cmd = Command.get_opentherm_data(self.id, m)
+            else:
+                cmd = _mk_cmd(RQ, self.OT_TO_RAMSES[m], "00", self.id)
+            self._add_discovery_cmd(cmd, 3600, delay=90)
 
         for m in STATUS_MSG_IDS:
-            if self._gwy.config.use_native_ot or m not in self.OT_TO_RAMSES:
-                self._add_discovery_cmd(
-                    Command.get_opentherm_data(self.id, m), 60 * 5, delay=15
-                )
-
-        # TODO: both modulation level?
-        self._add_discovery_cmd(_mk_cmd(RQ, Code._2401, "00", self.id), 60 * 5)
-        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60 * 5)
-
-        if self._gwy.config.use_native_ot:
-            return
-
-        for code in [v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS]:
-            self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60 * 60, delay=90)
-
-        for code in [v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS]:
-            self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60 * 5)
+            if prefer_ot or m not in self.OT_TO_RAMSES:
+                cmd = Command.get_opentherm_data(self.id, m)
+            else:
+                cmd = _mk_cmd(RQ, self.OT_TO_RAMSES[m], "00", self.id)
+            self._add_discovery_cmd(cmd, 300, delay=15)
 
         if False and DEV_MODE:
             # TODO: these are WIP, appear fixed in payload, to test against BDR91T
@@ -791,9 +786,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._2410,  # payload always "000000000000000000000000010000000100000C"
                 Code._2420,  # payload always "0000001000000...
             ):
-                self._add_discovery_cmd(
-                    _mk_cmd(RQ, code, "00", self.id), 60 * 5, delay=60 * 5
-                )
+                cmd = _mk_cmd(RQ, code, "00", self.id)
+                self._add_discovery_cmd(cmd, 300, delay=300)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -890,158 +884,175 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             return msg.payload.get(VALUE)
         return None
 
+    def _msg_value_which_source(self, result_ot, result_ramses) -> None | Any:
+        """Return a flag using OpenTherm or RAMSES as per `config.use_native_ot`."""
+        if self._gwy.config.use_native_ot == "never":
+            return result_ramses
+        if self._gwy.config.use_native_ot == "avoid" and result_ramses is not None:
+            return result_ramses
+        if self._gwy.config.use_native_ot == "prefer" and result_ot is None:
+            return result_ramses
+        return result_ot  # self._gwy.config.use_native_ot == "always"
+
+    def _msg_value(self, code, *args, **kwargs) -> None | Any:
+        """Return a value using OpenTherm or RAMSES as per `config.use_native_ot`."""
+        if code not in self.RAMSES_TO_OT and code != (Code._3EF0, Code._3EF1):
+            return super()._msg_value(code, *args, **kwargs)
+
+        if not kwargs.get("key"):  # code in (Code._3EF0, Code._3EF1)
+            return super()._msg_value(code, *args, **kwargs)
+
+        if self._gwy.config.use_native_ot == "never":
+            return super()._msg_value(code, *args, **kwargs)
+
+        result_ramses = super()._msg_value(code, *args, **kwargs)
+        if self._gwy.config.use_native_ot == "avoid" and result_ramses is not None:
+            return result_ramses
+
+        if code == (Code._3EF0, Code._3EF1):
+            msg_id = "11"  # SZ_REL_MODULATION
+        elif code == Code._3EF0 and kwargs["key"] == SZ_MAX_REL_MODULATION:
+            msg_id = "0E"
+        else:
+            msg_id = self.RAMSES_TO_OT[code]
+
+        result_ot = self._ot_msg_value(msg_id)
+        if self._gwy.config.use_native_ot == "prefer" and result_ot is None:
+            return result_ramses
+
+        return result_ot  # if self._gwy.config.use_native_ot == "always":
+
     @property
-    def bit_2_4(self) -> None | bool:  # 2401 - WIP
+    def _bit_2_4(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 4)
 
     @property
-    def bit_2_5(self) -> None | bool:  # 2401 - WIP
+    def _bit_2_5(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 5)
 
     @property
-    def bit_2_6(self) -> None | bool:  # 2401 - WIP
+    def _bit_2_6(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 6)
 
     @property
-    def bit_2_7(self) -> None | bool:  # 2401 - WIP
+    def _bit_2_7(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 7)
 
     @property
-    def bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
+    def _bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
         return self._msg_flag(Code._3EF0, "_flags_3", 7)
 
     @property
-    def bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
+    def _bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
         return self._msg_flag(Code._3EF0, "_flags_3", 6)
 
     @property
-    def percent(self) -> None | float:  # 2401 - WIP
+    def _percent(self) -> None | float:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_percent_3")
 
     @property
-    def value(self) -> Optional[int]:  # 2401 - WIP
+    def _value(self) -> Optional[int]:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_value_2")
 
     @property
     def boiler_output_temp(self) -> None | float:  # 3220|19, or 3200
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("19")
         return self._msg_value(Code._3200, key=SZ_TEMPERATURE)
 
     @property
     def boiler_return_temp(self) -> None | float:  # 3220|1C, or 3210
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("1C")
         return self._msg_value(Code._3210, key=SZ_TEMPERATURE)
 
     @property
     def boiler_setpoint(self) -> None | float:  # 3220|01, or 22D9
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("01")
         return self._msg_value(Code._22D9, key=SZ_SETPOINT)
 
     @property
+    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
+        return self._msg_value_which_source(
+            None, self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
+        )
+
+    @property
     def ch_max_setpoint(self) -> None | float:  # 3220|39, or 1081
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("39")
         return self._msg_value(Code._1081, key=SZ_SETPOINT)
 
     @property
-    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
-        return self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
-
-    @property
     def ch_water_pressure(self) -> None | float:  # 3220|12, or 1300
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("12")
         result = self._msg_value(Code._1300, key=SZ_PRESSURE)
         return None if result == 25.5 else result  # HACK: to make more rigourous
 
     @property
     def dhw_flow_rate(self) -> None | float:  # 3220|13, or 12F0
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("13")
         return self._msg_value(Code._12F0, key=SZ_DHW_FLOW_RATE)
 
     @property
     def dhw_setpoint(self) -> None | float:  # 3220|38, or 10A0
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("38")
         return self._msg_value(Code._10A0, key=SZ_SETPOINT)
 
     @property
     def dhw_temp(self) -> None | float:  # 3220|1A, or 1260
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("1A")
         return self._msg_value(Code._1260, key=SZ_TEMPERATURE)
 
     @property
     def max_rel_modulation(
         self,
     ) -> None | float:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("0E")  # needs confirming
         return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
 
     @property
     def oem_code(self) -> None | float:  # 3220|73
-        return self._ot_msg_value("73")
+        return self._msg_value_which_source(self._ot_msg_value("73"), None)
 
     @property
     def outside_temp(self) -> None | float:  # 3220|1B, 1290
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_value("1B")
         return self._msg_value(Code._1290, key=SZ_TEMPERATURE)
 
     @property
-    def rel_modulation_level(self) -> None | float:  # 3EF0/3EF1
-        """Return the relative modulation level from RAMSES_II."""
+    def rel_modulation_level(self) -> None | float:  # 3220|11, or 3EF0/3EF1
         return self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
 
     @property
-    def rel_modulation_level_ot(self) -> None | float:  # 3220|11
-        """Return the relative modulation level from OpenTherm."""
-        return self._ot_msg_value("11")
-
-    @property
     def ch_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_flag("00", 8 + 1)
-        return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
+        return self._msg_value_which_source(
+            self._ot_msg_flag("00", 8 + 1),
+            self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
+        )
 
     @property
     def ch_enabled(self) -> None | bool:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_flag("00", 0)
-        return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
-
-    @property
-    def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_flag("00", 8 + 2)
-        return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
-
-    @property
-    def dhw_enabled(self) -> None | bool:  # 3220|00
-        return self._ot_msg_flag("00", 1)
-
-    @property
-    def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if self._gwy.config.use_native_ot:
-            return self._ot_msg_flag("00", 8 + 3)
-        return self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE)
+        return self._msg_value_which_source(
+            self._ot_msg_flag("00", 0), self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
+        )
 
     @property
     def cooling_active(self) -> None | bool:  # 3220|00
-        return self._ot_msg_flag("00", 8 + 4)
+        return self._msg_value_which_source(self._ot_msg_flag("00", 8 + 4), None)
 
     @property
     def cooling_enabled(self) -> None | bool:  # 3220|00
-        return self._ot_msg_flag("00", 2)
+        return self._msg_value_which_source(self._ot_msg_flag("00", 2), None)
+
+    @property
+    def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
+        return self._msg_value_which_source(
+            self._ot_msg_flag("00", 8 + 2),
+            self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
+        )
+
+    @property
+    def dhw_enabled(self) -> None | bool:  # 3220|00
+        return self._msg_value_which_source(self._ot_msg_flag("00", 1), None)
 
     @property
     def fault_present(self) -> None | bool:  # 3220|00
-        return self._ot_msg_flag("00", 8)
+        return self._msg_value_which_source(self._ot_msg_flag("00", 8), None)
+
+    @property
+    def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
+        return self._msg_value_which_source(
+            self._ot_msg_flag("00", 8 + 3),
+            self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
+        )
 
     @property
     def opentherm_schema(self) -> dict:
@@ -1096,7 +1107,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             SZ_DHW_TEMP: self._ot_msg_value("1A"),
             SZ_OEM_CODE: self._ot_msg_value("73"),
             SZ_OUTSIDE_TEMP: self._ot_msg_value("1B"),
-            SZ_REL_MODULATION_LEVEL: self.rel_modulation_level_ot,
+            SZ_REL_MODULATION_LEVEL: self._ot_msg_value("11"),
             #
             SZ_CH_ACTIVE: self._ot_msg_flag("00", 8 + 1),
             SZ_CH_ENABLED: self._ot_msg_flag("00", 0),
@@ -1121,22 +1132,24 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     @property
     def ramses_status(self) -> dict:
         return {
-            SZ_BOILER_OUTPUT_TEMP: self._msg_value(Code._3200, key=SZ_TEMPERATURE),
-            SZ_BOILER_RETURN_TEMP: self._msg_value(Code._3210, key=SZ_TEMPERATURE),
-            SZ_BOILER_SETPOINT: self._msg_value(Code._22D9, key=SZ_SETPOINT),
-            SZ_CH_MAX_SETPOINT: self._msg_value(Code._1081, key=SZ_SETPOINT),
-            SZ_CH_SETPOINT: self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT),
-            SZ_CH_WATER_PRESSURE: self._msg_value(Code._1300, key=SZ_PRESSURE),
-            SZ_DHW_FLOW_RATE: self._msg_value(Code._12F0, key=SZ_DHW_FLOW_RATE),
-            SZ_DHW_SETPOINT: self._msg_value(Code._1300, key=SZ_SETPOINT),
-            SZ_DHW_TEMP: self._msg_value(Code._1260, key=SZ_TEMPERATURE),
-            SZ_OUTSIDE_TEMP: self._msg_value(Code._1290, key=SZ_TEMPERATURE),
-            SZ_REL_MODULATION_LEVEL: self.rel_modulation_level,
+            SZ_BOILER_OUTPUT_TEMP: super()._msg_value(Code._3200, key=SZ_TEMPERATURE),
+            SZ_BOILER_RETURN_TEMP: super()._msg_value(Code._3210, key=SZ_TEMPERATURE),
+            SZ_BOILER_SETPOINT: super()._msg_value(Code._22D9, key=SZ_SETPOINT),
+            SZ_CH_MAX_SETPOINT: super()._msg_value(Code._1081, key=SZ_SETPOINT),
+            SZ_CH_SETPOINT: super()._msg_value(Code._3EF0, key=SZ_CH_SETPOINT),
+            SZ_CH_WATER_PRESSURE: super()._msg_value(Code._1300, key=SZ_PRESSURE),
+            SZ_DHW_FLOW_RATE: super()._msg_value(Code._12F0, key=SZ_DHW_FLOW_RATE),
+            SZ_DHW_SETPOINT: super()._msg_value(Code._1300, key=SZ_SETPOINT),
+            SZ_DHW_TEMP: super()._msg_value(Code._1260, key=SZ_TEMPERATURE),
+            SZ_OUTSIDE_TEMP: super()._msg_value(Code._1290, key=SZ_TEMPERATURE),
+            SZ_REL_MODULATION_LEVEL: super()._msg_value(
+                (Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL
+            ),
             #
-            SZ_CH_ACTIVE: self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
-            SZ_CH_ENABLED: self._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
-            SZ_DHW_ACTIVE: self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
-            SZ_FLAME_ACTIVE: self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
+            SZ_CH_ACTIVE: super()._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
+            SZ_CH_ENABLED: super()._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
+            SZ_DHW_ACTIVE: super()._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
+            SZ_FLAME_ACTIVE: super()._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
         }
 
     @property
@@ -1156,7 +1169,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def traits(self) -> dict:
+    def traits(self) -> dict[str, Any]:
         return {
             **super().traits,
             "opentherm_traits": self._supported_ot_msgs,
@@ -1183,8 +1196,31 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def status(self) -> dict[str, Any]:
         return {
             **super().status,  # incl. actuator_cycle, actuator_state
-            "opentherm_status": self.opentherm_status,
-            "ramses_ii_status": self.ramses_status,
+            #
+            SZ_BOILER_OUTPUT_TEMP: self.boiler_output_temp,
+            SZ_BOILER_RETURN_TEMP: self.boiler_return_temp,
+            SZ_BOILER_SETPOINT: self.boiler_setpoint,
+            SZ_CH_SETPOINT: self.ch_setpoint,
+            SZ_CH_MAX_SETPOINT: self.ch_max_setpoint,
+            SZ_CH_WATER_PRESSURE: self.ch_water_pressure,
+            SZ_DHW_FLOW_RATE: self.dhw_flow_rate,
+            SZ_DHW_SETPOINT: self.dhw_setpoint,
+            SZ_DHW_TEMP: self.dhw_temp,
+            SZ_OEM_CODE: self.oem_code,
+            SZ_OUTSIDE_TEMP: self.outside_temp,
+            SZ_REL_MODULATION_LEVEL: self.rel_modulation_level,
+            #
+            SZ_CH_ACTIVE: self.ch_active,
+            SZ_CH_ENABLED: self.ch_enabled,
+            SZ_COOLING_ACTIVE: self.cooling_active,
+            SZ_COOLING_ENABLED: self.cooling_enabled,
+            SZ_DHW_ACTIVE: self.dhw_active,
+            SZ_DHW_ENABLED: self.dhw_enabled,
+            SZ_FAULT_PRESENT: self.fault_present,
+            SZ_FLAME_ACTIVE: self.flame_active,
+            #
+            # "status_opentherm": self.opentherm_status,
+            # "status_ramses_ii": self.ramses_status,
         }
 
 
@@ -1277,13 +1313,8 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         if self._faked:
             return
 
-        # discover_flag & Discover.PARAMS and
-        self._add_discovery_cmd(
-            Command.get_tpi_params(self.id), 60 * 60 * 6
-        )  # also: self.ctl.id
-
-        # discover_flag & Discover.STATUS and
-        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF1, "00", self.id), 60 * 60 * 5)
+        self._add_discovery_cmd(Command.get_tpi_params(self.id), 6 * 3600)  # params
+        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF1, "00", self.id), 300)  # status
 
     @property
     def active(self) -> None | bool:  # 3EF0, 3EF1
