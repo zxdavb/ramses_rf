@@ -114,8 +114,16 @@ class Engine:
         self._engine_state: None | tuple[None | Callable, tuple] = None
 
     def __str__(self) -> str:
-        hgi_id = self.pkt_protocol._hgi80[SZ_DEVICE_ID] if self.pkt_protocol else ""
-        return (hgi_id or HGI_DEV_ADDR.id) + f" ({self.ser_name})"
+        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
+            return f"{self.pkt_protocol._hgi80[SZ_DEVICE_ID]} ({self.ser_name})"
+        return f"{HGI_DEV_ADDR.id} ({self.ser_name})"
+
+    @property
+    def hgi(self) -> None | Device:
+        """Return the active HGI80-compatible gateway device, if known."""
+        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
+            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
+        return None
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         def handle_exception(loop, context):
@@ -559,12 +567,11 @@ class Gateway(Engine):
         def check_filter_lists(dev_id: _DeviceIdT) -> None:  # may: LookupError
             """Raise an LookupError if a device_id is filtered out by a list."""
 
-            if dev_id in self._unwanted:
+            if dev_id in self._unwanted:  # TODO: shoudln't invalidate a msg
                 raise LookupError(f"Can't create {dev_id}: it is unwanted or invalid")
 
             if self.config.enforce_known_list and (
-                dev_id not in self._include
-                and dev_id != self.pkt_protocol._hgi80[SZ_DEVICE_ID]
+                dev_id not in self._include and dev_id != getattr(self.hgi, "id", None)
             ):
                 self._unwanted.append(dev_id)
                 raise LookupError(
@@ -604,13 +611,6 @@ class Gateway(Engine):
             dev._handle_msg(msg)
 
         return dev
-
-    @property
-    def hgi(self) -> Optional[Device]:
-        """Return the HGI80-compatible gateway device."""
-        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
-            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
-        return None
 
     @property
     def tcs(self) -> Optional[System]:
