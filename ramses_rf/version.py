@@ -6,5 +6,5 @@
 The RAMSES-II system (controllers, zones, devices).
 """
 
-__version__ = "0.21.0"
+__version__ = "0.21.6"
 VERSION = __version__
