@@ -214,7 +214,7 @@ class FileCommand(click.Command):  # client.py parse <file>
         self.params.insert(  # input_file
             0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
         )
-        """ # self.params.insert(  # --packet-log  # NOTE: useful for only for test/dev
+        # self.params.insert(  # --packet-log  # NOTE: useful for only for test/dev
         #     1,
         #     click.Option(
         #         ("-o", "--packet-log"),
@@ -222,7 +222,6 @@ class FileCommand(click.Command):  # client.py parse <file>
         #         help="Log all packets to this file",
         #     ),
         # )
-        """
 
 
 # Args/Params for RF packets only
