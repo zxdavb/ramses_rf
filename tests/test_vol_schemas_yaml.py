@@ -148,7 +148,7 @@ GATEWAY_GOOD = (
     max_zones: 12
     reduce_processing: 0
     use_aliases: false
-    use_native_ot: false
+    use_native_ot: prefer
     """,
     """
     disable_discovery: true
@@ -156,7 +156,7 @@ GATEWAY_GOOD = (
     max_zones: 3
     reduce_processing: 2
     use_aliases: true
-    use_native_ot: true
+    use_native_ot: never
     use_regex: {}
     """,
     """
