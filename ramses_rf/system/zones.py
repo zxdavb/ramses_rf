@@ -577,9 +577,8 @@ class Zone(ZoneSchedule, ZoneBase):
                 ), self._SLUG
 
                 if self._SLUG is None:
-                    self._update_schema(
-                        {SZ_CLASS: ZON_ROLE.ELE}
-                    )  # might eventually be: ZON_ROLE.VAL
+                    # this might eventually be: ZON_ROLE.VAL
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.ELE]})
 
             elif this.code == Code._3150:  # TODO: and this.verb in (I_, RP)?
                 # MIX/ELE don't 3150
@@ -591,11 +590,11 @@ class Zone(ZoneSchedule, ZoneBase):
                 ), self._SLUG
 
                 if isinstance(this.src, TrvActuator):
-                    self._update_schema({SZ_CLASS: ZON_ROLE.RAD})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.RAD]})
                 elif isinstance(this.src, BdrSwitch):
-                    self._update_schema({SZ_CLASS: ZON_ROLE.VAL})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.VAL]})
                 elif isinstance(this.src, UfhController):
-                    self._update_schema({SZ_CLASS: ZON_ROLE.UFH})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.UFH]})
 
             assert (
                 msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC
@@ -790,7 +789,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         super()._handle_msg(msg)
 
         # if msg.code == Code._0008:  # ZON zones are ELE zones that also call for heat
-        #     self._update_schema({SZ_CLASS: ZON_ROLE.VAL})
+        #     self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.VAL]})
         if msg.code == Code._3150:
             raise TypeError("WHAT 1")
         elif msg.code == Code._3EF0:
