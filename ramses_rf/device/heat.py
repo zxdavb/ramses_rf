@@ -723,9 +723,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         self._msgz[Code._3220] = {RP: {}}  # for: self._msgz[Code._3220][RP][msg_id]
 
         self._msgs_ot: dict[str, Message] = {}
-        self._msgs_ot_supported: dict[str, None | bool] = {}
         # lf._msgs_ot_ctl_polled = {}
-        self._msgs_supported: dict[str, None | bool] = {}
 
     def _setup_discovery_cmds(self) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
@@ -734,7 +732,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 300)  # status
 
         # the following are test/dev
-        if True or DEV_MODE:
+        if False and DEV_MODE:
             for code in (
                 Code._2401,  # WIP - modulation_level + flags?
                 Code._3221,  # R8810A/20A
@@ -806,14 +804,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
-            if msg_id not in self._msgs_ot_supported:
-                self._msgs_ot_supported[msg_id] = None
+            if msg_id not in self._msgs_supported_ot:
+                self._msgs_supported_ot[msg_id] = None
 
-            elif self._msgs_ot_supported[msg_id] is None:
-                self._msgs_ot_supported[msg_id] = False
-                _LOGGER.warning(
-                    f"{msg!r} < OTB: deprecating msg_id "
-                    f"0x{msg_id}: it appears unsupported",
+            elif self._msgs_supported_ot[msg_id] is None:
+                self._msgs_supported_ot[msg_id] = False
+                _LOGGER.error(
+                    f"{msg!r} < Deprecating (i.e. will stop polling for) "
+                    f"OT msg_id=0x{msg_id}: it appears unsupported",
                 )
 
         else:
@@ -821,7 +819,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             # 18:50:32.547 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # -reserved-
             # 18:55:32.601 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
             # 18:55:32.630 ... RP --- 10:048122 18:013393 --:------ 3220 005 00C07300CB  # Read-Ack, 'value': 203
-            self._msgs_ot_supported[msg_id] = msg.payload[MSG_TYPE] not in (
+            self._msgs_supported_ot[msg_id] = msg.payload[MSG_TYPE] not in (
                 OtMsgType.DATA_INVALID,
                 OtMsgType.UNKNOWN_DATAID,
                 # OtMsgType.RESERVED,  # some always reserved, others sometimes so
@@ -839,16 +837,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
         ):
-            if msg.code not in self._msgs_supported:
-                self._msgs_supported[msg.code] = None
-
-            elif self._msgs_supported[msg.code] is None:
-                self._msgs_supported[msg.code] = False
-                _LOGGER.warning(
-                    f"{msg!r} < OTB: deprecating code "
-                    f"0x{msg.code}: it appears unsupported",
-                )
-
+            self._deprecate_code(msg)
         else:
             self._msgs_supported.pop(msg.code, None)
 
@@ -868,7 +857,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _ot_msg_value(self, msg_id) -> None | float:
         if (
             (msg := self._msgs_ot.get(msg_id))
-            and self._msgs_ot_supported[msg_id]
+            and self._msgs_supported_ot[msg_id]
             and not msg._expired
         ):
             return msg.payload.get(VALUE)
@@ -913,35 +902,35 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return result_ot  # if self._gwy.config.use_native_ot == "always":
 
     @property
-    def _bit_2_4(self) -> None | bool:  # 2401 - WIP
+    def bit_2_4(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 4)
 
     @property
-    def _bit_2_5(self) -> None | bool:  # 2401 - WIP
+    def bit_2_5(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 5)
 
     @property
-    def _bit_2_6(self) -> None | bool:  # 2401 - WIP
+    def bit_2_6(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 6)
 
     @property
-    def _bit_2_7(self) -> None | bool:  # 2401 - WIP
+    def bit_2_7(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 7)
 
     @property
-    def _bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
+    def bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
         return self._msg_flag(Code._3EF0, "_flags_3", 7)
 
     @property
-    def _bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
+    def bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
         return self._msg_flag(Code._3EF0, "_flags_3", 6)
 
     @property
-    def _percent(self) -> None | float:  # 2401 - WIP
+    def percent(self) -> None | float:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_percent_3")
 
     @property
-    def _value(self) -> Optional[int]:  # 2401 - WIP
+    def value(self) -> Optional[int]:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_value_2")
 
     @property
@@ -957,14 +946,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._msg_value(Code._22D9, key=SZ_SETPOINT)
 
     @property
-    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
-        return self._msg_value_which_source(
-            None, self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
-        )
-
-    @property
     def ch_max_setpoint(self) -> None | float:  # 3220|39, or 1081
         return self._msg_value(Code._1081, key=SZ_SETPOINT)
+
+    @property
+    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
+        return self._msg_value_which_source(
+            None, super()._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
+        )
 
     @property
     def ch_water_pressure(self) -> None | float:  # 3220|12, or 1300
@@ -1005,13 +994,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def ch_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
         return self._msg_value_which_source(
             self._ot_msg_flag("00", 8 + 1),
-            self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
+            super()._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
         )
 
     @property
     def ch_enabled(self) -> None | bool:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
         return self._msg_value_which_source(
-            self._ot_msg_flag("00", 0), self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
+            self._ot_msg_flag("00", 0),
+            super()._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
         )
 
     @property
@@ -1026,7 +1016,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
         return self._msg_value_which_source(
             self._ot_msg_flag("00", 8 + 2),
-            self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
+            super()._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
         )
 
     @property
@@ -1041,7 +1031,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
         return self._msg_value_which_source(
             self._ot_msg_flag("00", 8 + 3),
-            self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
+            super()._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
         )
 
     @property
@@ -1049,7 +1039,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._msgs_ot_supported.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
+            if self._msgs_supported_ot.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}
@@ -1077,7 +1067,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._msgs_ot_supported.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
+            if self._msgs_supported_ot.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}
@@ -1154,7 +1144,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _supported_ot_msgs(self) -> dict:
         return {
             k: OPENTHERM_MESSAGES[int(k, 16)].get("var", k)
-            for k, v in sorted(self._msgs_ot_supported.items())
+            for k, v in sorted(self._msgs_supported_ot.items())
             if v is not False
         }
 

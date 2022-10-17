@@ -225,6 +225,9 @@ class Discovery(MessageDB):
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller = None
 
+        self._msgs_supported: dict[str, None | bool] = {}
+        self._msgs_supported_ot: dict[str, None | bool] = {}
+
         if not gwy.config.disable_discovery and isinstance(
             gwy.pkt_protocol, PacketProtocolPort
         ):  # TODO: here, or in get_xxx()?
@@ -294,45 +297,33 @@ class Discovery(MessageDB):
         command for later.
         """
 
-        def find_newer_msg(hdr: _HeaderT, task: dict) -> None | Message:
+        def find_latest_msg(hdr: _HeaderT, task: dict) -> None | Message:
+            """Return the latest message for a header from any source (not just RPs)."""
             msgs: list[Message] = [
                 m
                 for m in [self._get_msg_by_hdr(hdr[:5] + v + hdr[7:]) for v in (I_, RP)]
                 if m is not None
             ]
 
-            if (
-                msgs
-                and (msg := max(msgs))
-                and msg.dtm > task["next_due"] - task["interval"]
-            ):
-                return msg
+            try:
+                if task["command"].code in (Code._000A, Code._30C9):
+                    msgs += [self.tcs._msgz[task["command"].code][I_][True]]
+            except KeyError:
+                pass
 
-            # has the controller sent an array recently - use that instead?
-            for code in (
-                Code._000A,
-                Code._30C9,
-            ):  # can't use 2309 (no mode) instead of 2349
-                try:
-                    if task["command"].code == code and (
-                        msg := self.tcs._msgz[code][I_][True]
-                    ):
-                        return msg
-                except KeyError:
-                    pass
+            return (msgs and max(msgs)) or None
 
-            return None
-
-        def interval(hdr: _HeaderT, failures: int) -> td:
-            """Adjust the ineterval - backoff if any failures."""
+        def backoff(hdr: _HeaderT, failures: int) -> td:
+            """Backoff the interval if there are/were any failures."""
 
             if failures > 5:
-                secs = 60 * 60 * 24
-                _LOGGER.warning(f"No response for task({hdr}): throttling to 1/24h")
+                secs = 60 * 60 * 6
+                _LOGGER.warning(f"No response for task({hdr}): throttling to 1/6h")
             elif failures > 2:
-                _LOGGER.debug(f"No response for task({hdr}): throttling")
+                _LOGGER.debug(f"No response for task({hdr}): retrying in 30s")
                 secs = self.MAX_CYCLE_SECS
             else:
+                # _LOGGER.info(f"No response for task({hdr}): retrying in 3s")
                 secs = self.MIN_CYCLE_SECS
 
             return td(seconds=secs)
@@ -368,30 +359,63 @@ class Discovery(MessageDB):
             for hdr, task in self._discovery_cmds.items():
                 dt_now = dt.now()
 
-                if msg := find_newer_msg(hdr, task):
+                if (msg := find_latest_msg(hdr, task)) and (
+                    task["next_due"] < msg.dtm + task["interval"]
+                ):  # if a newer message is available, take it
+                    task["failures"] = 0  # only if task["last_msg"].verb == RP?
                     task["last_msg"] = msg
-                elif task["next_due"] <= dt_now:
-                    task["next_due"] = dt_now + task["interval"]
-                    task["last_msg"] = await send_disc_task(hdr, task)
-                else:
+                    task["next_due"] = msg.dtm + task["interval"]
+
+                if task["next_due"] > dt_now:
+                    continue  # if (most recent) last_msg is is not yet due...
+
+                # since we may do I/O, check if the code|msg_id is deprecated
+                task["next_due"] = dt_now + task["interval"]  # might undeprecate later
+
+                if (
+                    hasattr(self, "_msgs_supported")
+                    and self._msgs_supported.get(task["command"].code) is False
+                ):
                     continue
 
-                if task["last_msg"]:
+                if (
+                    task["command"].code == Code._3220
+                    and hasattr(self, "_msgs_supported_ot")
+                    and self._msgs_supported_ot.get(task["command"].payload[4:6])
+                    is False
+                ):
+                    continue
+
+                # we'll have to do I/O...
+                task["next_due"] = dt_now + backoff(hdr, task["failures"])  # JIC
+
+                if msg := await send_disc_task(hdr, task):  # TODO: OK 4 some exceptions
                     task["failures"] = 0  # only if task["last_msg"].verb == RP?
-                    task["next_due"] = task["last_msg"].dtm + task["interval"]
+                    task["last_msg"] = msg
+                    task["next_due"] = msg.dtm + task["interval"]
                 else:
                     task["failures"] += 1
-                    task["next_due"] = dt_now + interval(hdr, task["failures"])
+                    task["last_msg"] = None
+                    task["next_due"] = dt_now + backoff(hdr, task["failures"])
 
             if self._discovery_cmds:
-                seconds = (
-                    min(t["next_due"] for t in self._discovery_cmds.values()) - dt.now()
-                ).total_seconds()
-                await asyncio.sleep(
-                    min(max(seconds, self.MIN_CYCLE_SECS), self.MAX_CYCLE_SECS)
-                )
+                next_due = min(t["next_due"] for t in self._discovery_cmds.values())
+                delay = max((next_due - dt.now()).total_seconds(), self.MIN_CYCLE_SECS)
             else:
-                await asyncio.sleep(self.MAX_CYCLE_SECS)
+                delay = self.MAX_CYCLE_SECS
+
+            await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
+
+    def _deprecate_code(self, msg) -> None:
+        if msg.code not in self._msgs_supported:
+            self._msgs_supported[msg.code] = None
+
+        elif self._msgs_supported[msg.code] is None:
+            self._msgs_supported[msg.code] = False
+            _LOGGER.warning(
+                f"{msg!r} < Deprecating (i.e. will stop polling for) "
+                f"code=0x{msg.code}: it appears unsupported",
+            )
 
 
 class Entity(Discovery):
