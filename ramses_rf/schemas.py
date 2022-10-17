@@ -448,7 +448,7 @@ def load_tcs(gwy, ctl_id: str, schema: dict) -> Any:  # System
     ctl.tcs._update_schema(**schema)  # TODO
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
-        _get_device(gwy, dev_id, parent=ctl)  # , **_schema)
+        _get_device(gwy, dev_id, parent=ctl.tcs)  # , **_schema)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, parent=ctl)
