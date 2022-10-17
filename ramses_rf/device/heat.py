@@ -468,7 +468,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         self._child_id = FA  # NOTE: domain_id, HACK: UFC
 
-        self.circuit_by_id: dict[str, Any] = {}
+        self.circuit_by_id = {f"{i:02X}": {} for i in range(8)}
 
         self._setpoints: Message = None  # type: ignore[assignment]
         self._heat_demand: Message = None  # type: ignore[assignment]
@@ -505,20 +505,21 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
+        # Several assumptions ar emade, regarding 000C pkts:
+        # - UFC bound only to CTL (not, e.g. SEN)
+        # - all circuits bound to the same controller
+
         if msg.code == Code._0005:  # system_zones
-            if msg.payload[SZ_ZONE_TYPE] not in (
-                ZON_ROLE_MAP.ACT,
-                ZON_ROLE_MAP.SEN,
-                ZON_ROLE_MAP.UFH,
-            ):
-                return  # ALL, SENsor, UFH
+            # {'zone_type': '09', 'zone_mask': [1, 1, 1, 1, 1, 0, 0, 0], 'zone_class': 'underfloor_heating'}
+
+            if msg.payload[SZ_ZONE_TYPE] not in (ZON_ROLE_MAP.ACT, ZON_ROLE_MAP.UFH):
+                return  # ignoring ZON_ROLE_MAP.SEN for now
 
             for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK]):
                 ufh_idx = f"{idx:02X}"
                 if not flag:
-                    self.circuit_by_id.pop(ufh_idx, None)
-                elif SZ_ZONE_IDX not in self.circuit_by_id.get(ufh_idx, {}):
                     self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: None}
+                elif SZ_ZONE_IDX not in self.circuit_by_id[ufh_idx]:
                     self._make_cmd(Code._000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}")
 
         elif msg.code == Code._0008:  # relay_demand, TODO: use msg DB?
@@ -528,30 +529,19 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                 self._relay_demand_fa = msg
 
         elif msg.code == Code._000C:  # zone_devices
-            if not msg.payload[SZ_DEVICES]:
-                return
-            if msg.payload[SZ_ZONE_TYPE] not in (
-                ZON_ROLE_MAP.ACT,
-                ZON_ROLE_MAP.SEN,
-                ZON_ROLE_MAP.UFH,
-            ):
-                return  # ALL, SENsor, UFH
+            # {'zone_type': '09', 'ufh_idx': '00', 'zone_idx': '09', 'device_role': 'ufh_actuator', 'devices': ['01:095421']}
+            # {'zone_type': '09', 'ufh_idx': '07', 'zone_idx': None, 'device_role': 'ufh_actuator', 'devices': []}
 
-            ufh_idx = msg.payload[SZ_UFH_IDX]
+            if msg.payload[SZ_ZONE_TYPE] not in (ZON_ROLE_MAP.ACT, ZON_ROLE_MAP.UFH):
+                return  # ignoring ZON_ROLE_MAP.SEN for now
 
-            if not msg.payload[SZ_ZONE_IDX]:
-                self.circuit_by_id.pop(ufh_idx, None)
-                return
+            ufh_idx = msg.payload[SZ_UFH_IDX]  # circuit idx
             self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: msg.payload[SZ_ZONE_IDX]}
-
-            # TODO: REFACTOR
-            # if dev_ids := msg.payload[SZ_DEVICES]:
-            #     # self.circuit_by_id[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
-            #     if ctl := self._set_ctl(self._gwy.get_device(dev_ids[0])):
-            #         # self.circuit_by_id[ufh_idx][SZ_DEVICES] = ctl.id  # better
-            #         self.set_parent(
-            #             ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
-            #         )
+            if msg.payload[SZ_ZONE_IDX] is not None:  # [SZ_DEVICES][0] will be the CTL
+                self.set_parent(
+                    self._gwy.get_device(msg.payload[SZ_DEVICES][0]).tcs,
+                    # child_id=msg.payload[SZ_ZONE_IDX],
+                )
 
         elif msg.code == Code._22C9:  # ufh_setpoints
             # .I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
