@@ -8,7 +8,7 @@ Heating devices.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from ..const import (
     DEV_ROLE_MAP,
@@ -148,11 +148,11 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             self._make_cmd(Code._3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
 
     @property
-    def actuator_cycle(self) -> Optional[dict]:  # 3EF1
+    def actuator_cycle(self) -> None | dict:  # 3EF1
         return self._msg_value(Code._3EF1)
 
     @property
-    def actuator_state(self) -> Optional[dict]:  # 3EF0
+    def actuator_state(self) -> None | dict:  # 3EF0
         return self._msg_value(Code._3EF0)
 
     @property
@@ -598,20 +598,20 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         return self._msg_value_msg(self._heat_demand, key=self.HEAT_DEMAND)
 
     @property
-    def heat_demands(self) -> Optional[dict]:  # 3150|ufh_idx array
+    def heat_demands(self) -> None | dict:  # 3150|ufh_idx array
         # return self._heat_demands.payload if self._heat_demands else None
         return self._msg_value_msg(self._heat_demands)
 
     @property
-    def relay_demand(self) -> Optional[dict]:  # 0008|FC
+    def relay_demand(self) -> None | dict:  # 0008|FC
         return self._msg_value_msg(self._relay_demand, key=SZ_RELAY_DEMAND)
 
     @property
-    def relay_demand_fa(self) -> Optional[dict]:  # 0008|FA
+    def relay_demand_fa(self) -> None | dict:  # 0008|FA
         return self._msg_value_msg(self._relay_demand_fa, key=SZ_RELAY_DEMAND)
 
     @property
-    def setpoints(self) -> Optional[dict]:  # 22C9|ufh_idx array
+    def setpoints(self) -> None | dict:  # 22C9|ufh_idx array
         if self._setpoints is None:
             return
 
@@ -670,7 +670,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
             self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 
     @property
-    def dhw_params(self) -> Optional[dict]:  # 10A0
+    def dhw_params(self) -> None | dict:  # 10A0
         return self._msg_value(Code._10A0)
 
     @property
@@ -930,7 +930,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._msg_value(Code._2401, key="_percent_3")
 
     @property
-    def value(self) -> Optional[int]:  # 2401 - WIP
+    def value(self) -> None | int:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_value_2")
 
     @property
@@ -1321,7 +1321,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         return None
 
     @property
-    def tpi_params(self) -> Optional[dict]:  # 1100
+    def tpi_params(self) -> None | dict:  # 1100
         return self._msg_value(Code._1100)
 
     @property

@@ -332,7 +332,7 @@ class Fakeable(DeviceBase):
 
         self._faked: bool = None  # type: ignore[assignment]
 
-        self._1fc9_state = {"state": BindState.UNKNOWN}
+        self._1fc9_state: dict[str, Any] = {"state": BindState.UNKNOWN}
 
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
