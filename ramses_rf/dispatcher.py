@@ -310,6 +310,4 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         )
 
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
-        )
+        _LOGGER.exception("%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc)
