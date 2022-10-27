@@ -441,7 +441,7 @@ class Discovery(MessageDB):
                 supported_dict[idx] = None
             elif supported_dict[idx] is None:
                 _LOGGER.warning(
-                    f"{pkt} < Polling now deprecated for ctx={idx}: "
+                    f"{pkt} < Polling now deprecated for code|ctx={idx}: "
                     "it appears to be unsupported"
                 )
                 supported_dict[idx] = False
@@ -449,7 +449,7 @@ class Discovery(MessageDB):
         def reinstate(supported_dict, idx):
             if self.is_pollable_cmd(idx, None) is False:
                 _LOGGER.warning(
-                    f"{pkt} < Polling now reinstated for ctx={idx}: "
+                    f"{pkt} < Polling now reinstated for code|ctx={idx}: "
                     "it now appears supported"
                 )
             if idx in supported_dict:
