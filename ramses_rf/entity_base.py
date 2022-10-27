@@ -15,7 +15,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     SZ_ACTUATORS,
@@ -27,8 +27,9 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .protocol import CorruptStateError, Message
+from .protocol import CorruptStateError
 from .protocol.frame import _CodeT, _DeviceIdT, _HeaderT, _VerbT
+from .protocol.opentherm import OPENTHERM_MESSAGES
 from .protocol.ramses import CODES_SCHEMA
 from .protocol.transport import PacketProtocolPort
 from .schemas import SZ_CIRCUITS
@@ -45,6 +46,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FF,
     Code,
 )
+
+if TYPE_CHECKING:
+    from .protocol import Command, Message, Packet
 
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -225,23 +229,53 @@ class Discovery(MessageDB):
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller = None
 
-        self._msgs_supported: dict[str, None | bool] = {}
-        self._msgs_supported_ot: dict[str, None | bool] = {}
+        self._supported_cmds: dict[str, None | bool] = {}
+        self._supported_cmds_ctx: dict[str, None | bool] = {}
 
         if not gwy.config.disable_discovery and isinstance(
             gwy.pkt_protocol, PacketProtocolPort
         ):  # TODO: here, or in get_xxx()?
             # gwy._loop.call_soon_threadsafe(
-            #     gwy._loop.call_later, random(0.5, 1.5), self._start_discovery_poller
+            #     gwy._loop.call_later, random(0.5, 1.5), self.start_discovery_poller
             # )
             gwy._loop.call_soon(self._start_discovery_poller)
+
+    @property
+    def supported_cmds(self) -> dict:
+        """Return the current list of pollable command codes."""
+        return {
+            code: (CODES_SCHEMA[code][SZ_NAME] if code in CODES_SCHEMA else None)
+            for code in sorted(self._msgz)
+            if self._msgz[code].get(RP) and self.is_pollable_cmd(code)
+        }
+
+    @property
+    def supported_cmds_ot(self) -> dict:
+        """Return the current list of pollable OT msg_ids."""
+        return {
+            msg_id: OPENTHERM_MESSAGES[int(msg_id, 16)].get("var")
+            for msg_id in sorted(self._msgz[Code._3220].get(RP, []))
+            if self.is_pollable_cmd(Code._3220, ctx=msg_id)
+        }
+
+    def is_pollable_cmd(self, code, ctx=None) -> bool:
+        """Return True if the code|ctx pair is not deprecated."""
+
+        if ctx is None:
+            supported_cmds = self._supported_cmds
+            idx = code
+        else:
+            supported_cmds = self._supported_cmds_ctx
+            idx = f"{code}|{ctx}"
+
+        return supported_cmds.get(idx, None) is not False
 
     def _setup_discovery_cmds(self) -> None:
         raise NotImplementedError
 
     def _add_discovery_cmd(
-        self, cmd, interval, *, timeout: float = None, delay: float = 0
-    ):
+        self, cmd: Command, interval, *, timeout: float = None, delay: float = 0
+    ) -> None:
         """Schedule a command to run periodically.
 
         Both `timeout` and `delay` are in seconds.
@@ -372,18 +406,11 @@ class Discovery(MessageDB):
                 # since we may do I/O, check if the code|msg_id is deprecated
                 task["next_due"] = dt_now + task["interval"]  # might undeprecate later
 
-                if (
-                    hasattr(self, "_msgs_supported")
-                    and self._msgs_supported.get(task["command"].code) is False
-                ):
+                if not self.is_pollable_cmd(task["command"].code):
                     continue
-
-                if (
-                    task["command"].code == Code._3220
-                    and hasattr(self, "_msgs_supported_ot")
-                    and self._msgs_supported_ot.get(task["command"].payload[4:6])
-                    is False
-                ):
+                if not self.is_pollable_cmd(
+                    task["command"].code, ctx=task["command"].payload[4:6]
+                ):  # only for Code._3220
                     continue
 
                 # we'll have to do I/O...
@@ -406,16 +433,36 @@ class Discovery(MessageDB):
 
             await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
 
-    def _deprecate_code(self, msg) -> None:
-        if msg.code not in self._msgs_supported:
-            self._msgs_supported[msg.code] = None
+    def deprecate_cmd(self, pkt: Packet, ctx: str = None, reset: bool = False) -> None:
+        """If a code|ctx is deprecated twice, stop polling for it."""
 
-        elif self._msgs_supported[msg.code] is None:
-            self._msgs_supported[msg.code] = False
-            _LOGGER.warning(
-                f"{msg!r} < Deprecating (i.e. will stop polling for) "
-                f"code=0x{msg.code}: it appears unsupported",
-            )
+        def deprecate(supported_dict, idx):
+            if idx not in supported_dict:
+                supported_dict[idx] = None
+            elif supported_dict[idx] is None:
+                _LOGGER.warning(
+                    f"{pkt} < Polling now deprecated for ctx={idx}: "
+                    "it appears to be unsupported"
+                )
+                supported_dict[idx] = False
+
+        def reinstate(supported_dict, idx):
+            if self.is_pollable_cmd(idx, None) is False:
+                _LOGGER.warning(
+                    f"{pkt} < Polling now reinstated for ctx={idx}: "
+                    "it now appears supported"
+                )
+            if idx in supported_dict:
+                supported_dict.pop(idx)
+
+        if ctx is None:
+            supported_dict = self._supported_cmds
+            idx = pkt.code
+        else:
+            supported_dict = self._supported_cmds_ctx
+            idx = f"{pkt.code}|{ctx}"  # msg._pkt._ctx
+
+        (reinstate if reset else deprecate)(supported_dict, idx)
 
 
 class Entity(Discovery):
@@ -438,7 +485,9 @@ class Entity(Discovery):
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
-    def _qos_function(self, pkt, reset=False) -> None:
+    def deprecate(self, pkt, reset=False) -> None:
+        """If an entity is deprecated enough times, stop sending to it."""
+
         if reset:
             self._qos_tx_count = 0
             return
@@ -459,7 +508,7 @@ class Entity(Discovery):
             self._gwy.pkt_protocol is None
             or msg.src.id != self._gwy.pkt_protocol._hgi80.get(SZ_DEVICE_ID)
         ):
-            self._qos_function(msg._pkt, reset=True)
+            self.deprecate(msg._pkt, reset=True)
 
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
@@ -470,7 +519,7 @@ class Entity(Discovery):
             return None
 
         if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
+            _LOGGER.info(f"{cmd} < Sending now deprecated for {self}")
             return None
 
         cmd._source_entity = self
@@ -490,7 +539,7 @@ class Entity(Discovery):
         return {"_sent": list(codes.keys())}
 
 
-def _delete_msg(msg) -> None:
+def _delete_msg(msg: Message) -> None:
     """Remove the msg from all state databases."""
 
     entities = [msg.src]
