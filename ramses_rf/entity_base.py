@@ -18,6 +18,7 @@ from sys import modules
 from typing import TYPE_CHECKING, Any
 
 from .const import (
+    DEV_TYPE_MAP,
     SZ_ACTUATORS,
     SZ_DEVICE_ID,
     SZ_DOMAIN_ID,
@@ -773,13 +774,14 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             if SZ_ZONE_IDX not in msg.payload:
                 return
 
-            if msg.code in (Code._2309,):  # TODO: not 30C9? why?
+            # the follwing is a mess - may just be better off deprecating it
+            if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:
+                self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
+
+            elif self.type in DEV_TYPE_MAP.THM_DEVICES:
                 self.set_parent(
                     msg.dst, child_id=msg.payload[SZ_ZONE_IDX], is_sensor=True
                 )
-
-            elif msg.code in (Code._1060, Code._12B0, Code._3150):
-                self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
 
         super()._handle_msg(msg)
 
