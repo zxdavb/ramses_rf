@@ -209,6 +209,7 @@ def dts_to_hex(dtm: Union[None, dt, str]) -> str:  # TODO: WIP
 def flag8_from_hex(byte: str, lsb: bool = False) -> list[int]:  # TODO: use tuple
     """Split a hex str (a byte) into a list of 8 bits, MSB as first bit by default.
 
+    If lsb==True, then the LSB is first.
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
     """
     if not isinstance(byte, str) or len(byte) != 2:
