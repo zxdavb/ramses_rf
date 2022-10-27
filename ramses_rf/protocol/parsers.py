@@ -2424,27 +2424,31 @@ def parser_3b00(payload, msg) -> dict:
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
 
-    if msg.src.type in DEV_TYPE_MAP.JIM:  # Honeywell Jasper, DEX
+    if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",
             "blob": payload[8:],
         }
 
-    assert msg.len in (3, 6, 9)  # [2 + (4, 10, 16)]/2
+    # TODO: These two should be picked up by the regex
+    assert msg.len in (3, 6, 9), f"Invalid payload length: {msg.len}"
+    assert payload[:2] == "00", f"Invalid payload context: {payload[:2]}"
 
-    if msg.len == 3:  # I|BDR|003
+    if msg.len == 3:  # I|BDR|003 (the following are the only two payloads ever seen)
         # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
         # .I --- 13:023770 --:------ 13:023770 3EF0 003 00C8FF
-        assert payload[2:4] in ("00", "C8"), f"byte 1: {payload[2:4]}"
-        assert payload[4:6] == "FF", f"byte 2: {payload[4:6]}"
-        mod_level = percent_from_hex(payload[2:4])
+        assert payload[2:4] in ("00", "C8"), f"byte 1: {payload[2:4]} (not 00/C8)"
+        assert payload[4:6] == "FF", f"byte 2: {payload[4:6]} (not FF)"
+        mod_level = percent_from_hex(payload[2:4])  # , high_res=True)
 
-    if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
-        # RP --- 10:105624 01:133689 --:------ 3EF0 006 0000100000FF
-        # RP --- 10:105624 01:133689 --:------ 3EF0 006 003B100C00FF
-        assert payload[4:6] in ("00", "10", "11"), f"byte 2: {payload[4:6]}"
-        mod_level = percent_from_hex(payload[2:4], high_res=False)
+    else:  # msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
+        # RP --- 10:004598 34:003611 --:------ 3EF0 006 0000100000FF
+        # RP --- 10:004598 34:003611 --:------ 3EF0 006 0000110000FF
+        # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100C00FF
+        # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100200FF
+        assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"  # maybe 00 too?
+        mod_level = percent_from_hex(payload[2:4], high_res=False)  # 00-64 (or FF)
 
     result = {
         "modulation_level": mod_level,  # 0008[2:4], 3EF1[10:12]
@@ -2455,11 +2459,11 @@ def parser_3ef0(payload, msg) -> dict:
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 000110FA00FF  # ?corrupt
 
         # for OTB (there's no reliable) modulation_level <-> flame_state)
+
         # assert (
         #     payload[6:8] == "FF" or int(payload[6:8], 16) & 0b11110000 == 0
         # ), f"byte 3: {payload[6:8]}"
         assert int(payload[8:10], 16) & 0b11110000 == 0, f"byte 4: {payload[8:10]}"
-        # assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
         result.update(
             {
@@ -2467,8 +2471,8 @@ def parser_3ef0(payload, msg) -> dict:
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
-                f"_{SZ_UNKNOWN}_4": payload[8:10],
-                f"_{SZ_UNKNOWN}_5": payload[10:12],  # rel_modulation?
+                "_flags_4": payload[8:10],  # FF, 00, 01, 0A
+                f"_{SZ_UNKNOWN}_5": payload[10:12],  # FF, 1C, ?others
             }
         )
 
@@ -2487,13 +2491,27 @@ def parser_3ef0(payload, msg) -> dict:
             }
         )
 
-    try:
+    try:  # Trying to decode flags...
+        assert payload[4:6] != "11" or (
+            payload[2:4] == "00"
+        ), f"bytes 1+2: {payload[2:6]}"  # usu. 00 when 11, but not always
+
+        assert payload[4:6] in ("FF", "10", "11"), f"byte 2: {payload[4:6]}"
+
         assert "_flags_3" not in result or (
-            [result["_flags_3"][i] for i in (0, 1, 2, 3)] == [0] * 4
-        ), result["_flags_3"]
+            int(payload[6:8], 0x10) & 0b11110001 == 0
+        ), f'byte 3: {result["_flags_3"]}'
+
+        assert "_flags_4" not in result or (
+            payload[8:10] in ("FF", "00", "01", "0A")
+        ), f"byte 4: {flag8_from_hex(payload[8:10])}"
+
+        assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
+
         assert "_flags_6" not in result or (
-            [result["_flags_6"][i] for i in (0, 1, 2, 3, 4, 5)] == [0] * 6
-        ), result["_flags_6"]
+            int(payload[12:14], 0x10) & 0b000000010 == 0
+        ), f'byte 6: {result["_flags_6"]}'
+
     except AssertionError as exc:
         _LOGGER.warning(
             f"{msg!r} < {_INFORM_DEV_MSG} ({exc}), with a description of your system"
