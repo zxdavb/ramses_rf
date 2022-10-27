@@ -100,9 +100,12 @@ SZ_CH_ENABLED = "ch_enabled"
 SZ_COOLING_ACTIVE = "cooling_active"
 SZ_COOLING_ENABLED = "cooling_enabled"
 SZ_DHW_ACTIVE = "dhw_active"
+SZ_DHW_BLOCKING = "dhw_blocking"
 SZ_DHW_ENABLED = "dhw_enabled"
 SZ_FAULT_PRESENT = "fault_present"
 SZ_FLAME_ACTIVE = "flame_active"
+SZ_SUMMER_MODE = "summer_mode"
+SZ_OTC_ACTIVE = "otc_active"
 
 
 DEV_MODE = __dev_mode__  # and False
@@ -1139,9 +1142,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             SZ_COOLING_ACTIVE: self._ot_msg_flag("00", 8 + 4),
             SZ_COOLING_ENABLED: self._ot_msg_flag("00", 2),
             SZ_DHW_ACTIVE: self._ot_msg_flag("00", 8 + 2),
+            SZ_DHW_BLOCKING: self._ot_msg_flag("00", 6),
             SZ_DHW_ENABLED: self._ot_msg_flag("00", 1),
             SZ_FAULT_PRESENT: self._ot_msg_flag("00", 8),
             SZ_FLAME_ACTIVE: self._ot_msg_flag("00", 8 + 3),
+            SZ_SUMMER_MODE: self._ot_msg_flag("00", 5),
+            SZ_OTC_ACTIVE: self._ot_msg_flag("00", 3),
         }
 
     @property
