@@ -2460,11 +2460,6 @@ def parser_3ef0(payload, msg) -> dict:
 
         # for OTB (there's no reliable) modulation_level <-> flame_state)
 
-        # assert (
-        #     payload[6:8] == "FF" or int(payload[6:8], 16) & 0b11110000 == 0
-        # ), f"byte 3: {payload[6:8]}"
-        assert int(payload[8:10], 16) & 0b11110000 == 0, f"byte 4: {payload[8:10]}"
-
         result.update(
             {
                 "_flags_3": flag8_from_hex(payload[6:8]),
