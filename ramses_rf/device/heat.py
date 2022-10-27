@@ -1230,9 +1230,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             SZ_COOLING_ACTIVE: self.cooling_active,
             SZ_COOLING_ENABLED: self.cooling_enabled,
             SZ_DHW_ACTIVE: self.dhw_active,
+            SZ_DHW_BLOCKING: self.dhw_blocking,
             SZ_DHW_ENABLED: self.dhw_enabled,
             SZ_FAULT_PRESENT: self.fault_present,
             SZ_FLAME_ACTIVE: self.flame_active,
+            SZ_SUMMER_MODE: self.summer_mode,
+            SZ_OTC_ACTIVE: self.otc_active,
             #
             # "status_opentherm": self.opentherm_status,
             # "status_ramses_ii": self.ramses_status,
