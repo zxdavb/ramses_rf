@@ -2492,14 +2492,14 @@ def parser_3ef0(payload, msg) -> dict:
         )
 
     try:  # Trying to decode flags...
-        assert payload[4:6] != "11" or (
-            payload[2:4] == "00"
-        ), f"bytes 1+2: {payload[2:6]}"  # usu. 00 when 11, but not always
+        # assert payload[4:6] != "11" or (
+        #     payload[2:4] == "00"
+        # ), f"bytes 1+2: {payload[2:6]}"  # 97% is 00 when 11, but not always
 
         assert payload[4:6] in ("FF", "10", "11"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
-            int(payload[6:8], 0x10) & 0b11110001 == 0
+            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b11110000 == 0
         ), f'byte 3: {result["_flags_3"]}'
 
         assert "_flags_4" not in result or (
@@ -2509,7 +2509,7 @@ def parser_3ef0(payload, msg) -> dict:
         assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
         assert "_flags_6" not in result or (
-            int(payload[12:14], 0x10) & 0b000000010 == 0
+            int(payload[12:14], 0x10) & 0b11111100 == 0
         ), f'byte 6: {result["_flags_6"]}'
 
     except AssertionError as exc:
