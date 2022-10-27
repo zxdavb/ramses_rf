@@ -2494,12 +2494,14 @@ def parser_3ef0(payload, msg) -> dict:
         assert payload[4:6] in ("FF", "10", "11"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
-            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b11110000 == 0
+            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
         ), f'byte 3: {result["_flags_3"]}'
+        # only 01:10:040239 does 0b01000000
 
         assert "_flags_4" not in result or (
-            payload[8:10] in ("FF", "00", "01", "0A")
-        ), f"byte 4: {flag8_from_hex(payload[8:10])}"
+            payload[8:10] in ("FF", "00", "01", "04", "0A")
+        ), f"byte 4: {payload[8:10]}"
+        # only 10:040239 does 04
 
         assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
