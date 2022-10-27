@@ -2466,7 +2466,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
-                "_flags_4": payload[8:10],  # FF, 00, 01, 0A
+                "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
                 f"_{SZ_UNKNOWN}_5": payload[10:12],  # FF, 1C, ?others
             }
         )
@@ -2498,7 +2498,7 @@ def parser_3ef0(payload, msg) -> dict:
         ), f'byte 3: {result["_flags_3"]}'
         # only 01:10:040239 does 0b01000000
 
-        assert "_flags_4" not in result or (
+        assert "_unknown_4" not in result or (
             payload[8:10] in ("FF", "00", "01", "04", "0A")
         ), f"byte 4: {payload[8:10]}"
         # only 10:040239 does 04
