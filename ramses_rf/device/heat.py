@@ -1061,12 +1061,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         )
 
     @property
-    def summer_mode(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 5), None)
-
-    @property
     def otc_active(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 3), None)
+
+    @property
+    def summer_mode(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 5), None)
 
     @property
     def opentherm_schema(self) -> dict:
