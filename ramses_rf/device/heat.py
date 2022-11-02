@@ -723,7 +723,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         self._child_id = FC  # NOTE: domain_id
 
-        self._msgz[Code._3220] = {RP: {}}  # for: self._msgz[Code._3220][RP][msg_id]
+        self._msgz[str(Code._3220)] = {RP: {}}  # self._msgz[Code._3220][RP][msg_id]
 
         # lf._use_ot = self._gwy.config.use_native_ot
         self._msgs_ot: dict[str, Message] = {}
@@ -905,35 +905,35 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             return result_ot
         return result_ramses  # incl. use_native_ot == "never"
 
-    @property
+    @property  # TODO
     def bit_2_4(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 4)
 
-    @property
+    @property  # TODO
     def bit_2_5(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 5)
 
-    @property
+    @property  # TODO
     def bit_2_6(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 6)
 
-    @property
+    @property  # TODO
     def bit_2_7(self) -> None | bool:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 7)
 
-    @property
+    @property  # TODO
     def bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
         return self._msg_flag(Code._3EF0, "_flags_3", 7)
 
-    @property
+    @property  # TODO
     def bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
         return self._msg_flag(Code._3EF0, "_flags_3", 6)
 
-    @property
+    @property  # TODO
     def percent(self) -> None | float:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_percent_3")
 
-    @property
+    @property  # TODO
     def value(self) -> None | int:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_value_2")
 
@@ -954,10 +954,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._result_by_lookup(Code._1081, key=SZ_SETPOINT)
 
     @property  # TODO
-    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?)
+    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?), TODO: no OT
         return self._result_by_value(
-            None,
-            self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT),
+            None, self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
         )
 
     @property
@@ -981,14 +980,16 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def max_rel_modulation(
         self,
     ) -> None | float:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK
+            return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
         return self._result_by_value(
             self._ot_msg_value("0E"),
             self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION),
         )
 
     @property
-    def oem_code(self) -> None | float:  # 3220|73
-        return self._result_by_value(self._ot_msg_value("73"), None)
+    def oem_code(self) -> None | float:  # 3220|73, no known RAMSES equivalent
+        return self._ot_msg_value("73")
 
     @property
     def outside_temp(self) -> None | float:  # 3220|1B, 1290
@@ -996,7 +997,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property  # HACK
     def rel_modulation_level(self) -> None | float:  # 3220|11, or 3EF0/3EF1
-        if self._gwy.config.use_native_ot == "prefer":  # HACK
+        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
             return self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
         return self._result_by_value(
             self._ot_msg_value("11"),
@@ -1005,8 +1006,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property  # HACK
     def ch_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK
-        #     return ...
+        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+            return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
         return self._result_by_value(
             self._ot_msg_flag("00", 8 + 1),
             self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
@@ -1014,73 +1015,58 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property  # HACK
     def ch_enabled(self) -> None | bool:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+            return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
         return self._result_by_value(
             self._ot_msg_flag("00", 0),
             self._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
         )
 
-    @property  # HACK
-    def cooling_active(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 4),
-            None,
-        )
+    @property
+    def cooling_active(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 8 + 4), None)
 
-    @property  # HACK
-    def cooling_enabled(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 2),
-            None,
-        )
+    @property
+    def cooling_enabled(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 2), None)
 
     @property  # HACK
     def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+            return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
         return self._result_by_value(
             self._ot_msg_flag("00", 8 + 2),
             self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
         )
 
-    @property  # HACK
-    def dhw_blocking(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 6),
-            None,
-        )
+    @property
+    def dhw_blocking(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 6), None)
 
-    @property  # HACK
-    def dhw_enabled(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 1),
-            None,
-        )
+    @property
+    def dhw_enabled(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 1), None)
 
-    @property  # HACK
-    def fault_present(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 8),
-            None,
-        )
+    @property
+    def fault_present(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 8), None)
 
     @property  # HACK
     def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+            return self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE)
         return self._result_by_value(
             self._ot_msg_flag("00", 8 + 3),
             self._msg_value(Code._3EF0, key=SZ_FLAME_ACTIVE),
         )
 
-    @property  # HACK
-    def summer_mode(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 5),
-            None,
-        )
+    @property
+    def summer_mode(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 5), None)
 
-    @property  # HACK
-    def otc_active(self) -> None | bool:  # 3220|00
-        return self._result_by_value(
-            self._ot_msg_flag("00", 3),
-            None,
-        )
+    @property
+    def otc_active(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+        return self._result_by_value(self._ot_msg_flag("00", 3), None)
 
     @property
     def opentherm_schema(self) -> dict:
