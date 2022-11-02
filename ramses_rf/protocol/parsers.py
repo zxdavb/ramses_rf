@@ -1202,7 +1202,7 @@ def parser_1f41(payload, msg) -> dict:
 
 
 @parser_decorator  # programme_config, HVAC
-def parser_1F70(payload, msg) -> dict:
+def parser_1f70(payload, msg) -> dict:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
     try:
@@ -1431,11 +1431,17 @@ def parser_22c9(payload, msg) -> list:
 @parser_decorator  # unknown_22d0, HVAC system switch?
 def parser_22d0(payload, msg) -> dict:
 
-    # 2020-03-02T19:20:02.716392 056  I --- 02:001107 --:------ 02:001107 22D0 004 00000002          # an UFC
+    # When closing H/C contact (or enabling cooling mode with buttons when H/C contact is closed) on HCE80 it sends following packet:
+    # .I — 02:044994 --:------ 02:044994 22D0 004 0010000A < AssertionError…
 
-    # 2022-07-28T13:25:40.196523 074  W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020
-    # 2022-07-28T13:25:40.237555 045  I --- 02:250708 21:064743 --:------ 22D0 004 03130000
-    # 2022-07-28T13:25:40.642563 045  I --- 02:250708 --:------ 02:250708 22D0 004 00130000          # sends 3x, 1s apart
+    # When H/C contact is opened, it send the following packet (although this packet is not transmitted, when cooling mode is disabled with buttons):
+    # .I — 02:044994 --:------ 02:044994 22D0 004 0000000A < AssertionError…
+
+    # .I --- 02:001107 --:------ 02:001107 22D0 004 00000002          # an UFC
+
+    # .W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020
+    # .I --- 02:250708 21:064743 --:------ 22D0 004 03130000
+    # .I --- 02:250708 --:------ 02:250708 22D0 004 00130000          # sends 3x, 1s apart
 
     assert payload in (
         "00000002",
@@ -2503,7 +2509,9 @@ def parser_3ef0(payload, msg) -> dict:
         ), f"byte 4: {payload[8:10]}"
         # only 10:040239 does 04
 
-        assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
+        assert "_unknown_5" not in result or (
+            payload[10:12] in ("00", "1C", "FF")
+        ), f"byte 5: {payload[10:12]}"
 
         assert "_flags_6" not in result or (
             int(payload[12:14], 0x10) & 0b11111100 == 0
@@ -2661,5 +2669,5 @@ def parser_unknown(payload, msg) -> dict:
 PAYLOAD_PARSERS = {
     k[7:].upper(): v
     for k, v in locals().items()
-    if callable(v) and k.startswith("parser_") and k != "parser_unknown"
+    if callable(v) and k.startswith("parser_") and len(k) == 11
 }
