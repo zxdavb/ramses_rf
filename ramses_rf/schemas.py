@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from types import SimpleNamespace
-from typing import Any, TextIO
+from typing import Any, Callable, TextIO
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -101,8 +101,8 @@ SCH_UFH_IDX = vol.Match(r"^0[0-8]$")
 SCH_ZON_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
 
 
-def ErrorRenamedKey(new_key):
-    def renamed_key(node_value):
+def ErrorRenamedKey(new_key: str) -> Callable[[Any], None]:
+    def renamed_key(node_value: Any) -> None:
         raise vol.Invalid(f"the key name has changed: rename it to '{new_key}'")
 
     return renamed_key
