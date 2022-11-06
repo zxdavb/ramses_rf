@@ -189,9 +189,9 @@ def script_poll_device(gwy, dev_id) -> list:
 
 @script_decorator
 async def script_scan_disc(gwy, dev_id: str):
-    _LOGGER.warning("scan_quick() invoked...")
+    _LOGGER.warning("scan_disc() invoked...")
 
-    gwy.get_device(dev_id)._discover()  # discover_flag=Discover.DEFAULT)
+    await gwy.get_device(dev_id)._discover()  # discover_flag=Discover.DEFAULT)
 
 
 @script_decorator

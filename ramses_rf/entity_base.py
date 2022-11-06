@@ -332,6 +332,22 @@ class Discovery(MessageDB):
         command for later.
         """
 
+        while True:
+            if self._gwy.config.disable_discovery:  # TODO: remove?
+                await asyncio.sleep(self.MIN_CYCLE_SECS)
+                continue
+
+            self._discover()
+
+            if self._discovery_cmds:
+                next_due = min(t["next_due"] for t in self._discovery_cmds.values())
+                delay = max((next_due - dt.now()).total_seconds(), self.MIN_CYCLE_SECS)
+            else:
+                delay = self.MAX_CYCLE_SECS
+
+            await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
+
+    async def _discover(self) -> None:
         def find_latest_msg(hdr: _HeaderT, task: dict) -> None | Message:
             """Return the latest message for a header from any source (not just RPs)."""
             msgs: list[Message] = [
@@ -386,53 +402,40 @@ class Discovery(MessageDB):
 
             return None
 
-        while True:
-            if self._gwy.config.disable_discovery:
-                await asyncio.sleep(self.MIN_CYCLE_SECS)
+        for hdr, task in self._discovery_cmds.items():
+            dt_now = dt.now()
+
+            if (msg := find_latest_msg(hdr, task)) and (
+                task["next_due"] < msg.dtm + task["interval"]
+            ):  # if a newer message is available, take it
+                task["failures"] = 0  # only if task["last_msg"].verb == RP?
+                task["last_msg"] = msg
+                task["next_due"] = msg.dtm + task["interval"]
+
+            if task["next_due"] > dt_now:
+                continue  # if (most recent) last_msg is is not yet due...
+
+            # since we may do I/O, check if the code|msg_id is deprecated
+            task["next_due"] = dt_now + task["interval"]  # might undeprecate later
+
+            if not self.is_pollable_cmd(task["command"].code):
+                continue
+            if not self.is_pollable_cmd(
+                task["command"].code, ctx=task["command"].payload[4:6]
+            ):  # only for Code._3220
                 continue
 
-            for hdr, task in self._discovery_cmds.items():
-                dt_now = dt.now()
+            # we'll have to do I/O...
+            task["next_due"] = dt_now + backoff(hdr, task["failures"])  # JIC
 
-                if (msg := find_latest_msg(hdr, task)) and (
-                    task["next_due"] < msg.dtm + task["interval"]
-                ):  # if a newer message is available, take it
-                    task["failures"] = 0  # only if task["last_msg"].verb == RP?
-                    task["last_msg"] = msg
-                    task["next_due"] = msg.dtm + task["interval"]
-
-                if task["next_due"] > dt_now:
-                    continue  # if (most recent) last_msg is is not yet due...
-
-                # since we may do I/O, check if the code|msg_id is deprecated
-                task["next_due"] = dt_now + task["interval"]  # might undeprecate later
-
-                if not self.is_pollable_cmd(task["command"].code):
-                    continue
-                if not self.is_pollable_cmd(
-                    task["command"].code, ctx=task["command"].payload[4:6]
-                ):  # only for Code._3220
-                    continue
-
-                # we'll have to do I/O...
-                task["next_due"] = dt_now + backoff(hdr, task["failures"])  # JIC
-
-                if msg := await send_disc_task(hdr, task):  # TODO: OK 4 some exceptions
-                    task["failures"] = 0  # only if task["last_msg"].verb == RP?
-                    task["last_msg"] = msg
-                    task["next_due"] = msg.dtm + task["interval"]
-                else:
-                    task["failures"] += 1
-                    task["last_msg"] = None
-                    task["next_due"] = dt_now + backoff(hdr, task["failures"])
-
-            if self._discovery_cmds:
-                next_due = min(t["next_due"] for t in self._discovery_cmds.values())
-                delay = max((next_due - dt.now()).total_seconds(), self.MIN_CYCLE_SECS)
+            if msg := await send_disc_task(hdr, task):  # TODO: OK 4 some exceptions
+                task["failures"] = 0  # only if task["last_msg"].verb == RP?
+                task["last_msg"] = msg
+                task["next_due"] = msg.dtm + task["interval"]
             else:
-                delay = self.MAX_CYCLE_SECS
-
-            await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
+                task["failures"] += 1
+                task["last_msg"] = None
+                task["next_due"] = dt_now + backoff(hdr, task["failures"])
 
     def deprecate_cmd(self, pkt: Packet, ctx: str = None, reset: bool = False) -> None:
         """If a code|ctx is deprecated twice, stop polling for it."""
