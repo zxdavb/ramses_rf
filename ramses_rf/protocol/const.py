@@ -493,14 +493,16 @@ F6, F7, F8, F9, FA, FB, FC, FD, FE, FF = (f"{x:02X}" for x in range(0xF6, 0x100)
 
 DOMAIN_TYPE_MAP = {
     F6: "cooling_valve",  # cooling
-    F8: None,
+    F7: "domain_f7",
+    F8: "domain_f8",
     F9: DEV_ROLE_MAP[DEV_ROLE.HT1],  # Heating Valve
     FA: DEV_ROLE_MAP[DEV_ROLE.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
-    FB: None,
+    FB: "domain_fb",  # also: cooling valve?
     FC: DEV_ROLE_MAP[DEV_ROLE.APP],  # appliance_control
-    FD: "unknown",  # seen with hometronics
+    FD: "domain_fd",  # seen with hometronics
+    # "FE": ???
     # FF: "system",  # TODO: remove this, is not a domain
-}  # "21": "Ventilation",
+}  # "21": "Ventilation", "88": ???
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != FF}
 
 DHW_STATE_MAP = {"00": "off", "01": "on"}

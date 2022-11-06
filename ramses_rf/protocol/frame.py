@@ -480,7 +480,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
         return True  # excludes len==1 for 000A, 2309, 30C9
 
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
-    if pkt.payload[:2] in (F8, F9, FA, FC):  # TODO: FB, FD
+    if pkt.payload[:2] in (F8, F9, FA, FC):  # TODO: F6, F7?, FB, FD
         if pkt.code not in CODE_IDX_DOMAIN:
             raise InvalidPayloadError(
                 f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"
