@@ -144,13 +144,7 @@ class ZoneSchedule:  # 0404
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._schedule = Schedule(self)
-
-    def OUT_discover(self) -> None:
-        super()._discover()
-
-        if False:
-            self._loop.create_task(self.get_schedule())  # 0404
+        self._schedule = Schedule(self)  # ? add to discovery
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
