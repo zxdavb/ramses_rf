@@ -21,54 +21,56 @@ if DEV_MODE:
 # R8810A/R8820A-specific msg_ids, as used by Packet (pkt_timeout) & OtbGateway classes
 SCHEMA_MSG_IDS: tuple = (
     "03",  # ..3: "Slave configuration",
-    "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
-    "7D",  # 125: "Opentherm version Slave",                            # not native
+    "06",  # ..6: "Remote boiler parameter flags",                     # see: 0x38, 0x39
+    "7D",  # 125: "Opentherm version Slave",
     "7F",  # 127: "Slave product version number and type",
-    # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
-    "71",  # 113: "Number of un-successful burner starts",
-    "72",  # 114: "Number of times flame signal was too low",
-    "74",  # 116: "Number of starts burner",
-    "75",  # 117: "Number of starts central heating pump",
-    "76",  # 118: "Number of starts DHW pump/valve",
-    "77",  # 119: "Number of starts burner during DHW mode",
-    "78",  # 120: "Number of hours burner is in operation (i.e. flame on)",
-    "79",  # 121: "Number of hours central heating pump has been running",
-    "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
-    "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
+    # These are STATUS seen RQ'd by 01:/30:, but here to retrieve less frequently
+    "71",  # 113: "Number of un-successful burner starts",                      # is R/W
+    "72",  # 114: "Number of times flame signal was too low",                   # is R/W
+    "74",  # 116: "Number of starts burner",                                    # is R/W
+    "75",  # 117: "Number of starts central heating pump",                      # is R/W
+    "76",  # 118: "Number of starts DHW pump/valve",                            # is R/W
+    "77",  # 119: "Number of starts burner during DHW mode",                    # is R/W
+    "78",  # 120: "Number of hours burner is in operation (i.e. flame on)",     # is R/W
+    "79",  # 121: "Number of hours central heating pump has been running",      # is R/W
+    "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",  # is R/W
+    "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",  # is R/W
 )
 # SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
 _PARAMS_MSG_IDS: tuple = (
-    "0E",  # .14: "Maximum relative modulation level setting (%)"
+    "0E",  # .14: "Maximum relative modulation level setting (%)",    # NOTE: is W only!
     "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
     "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
     "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
-    "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
-    "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
+    "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",          # see: 0x06, is R/W
+    "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)", # see: 0x06, is R/W
 )
 PARAMS_MSG_IDS: dict = {k: td(hours=6) for k in _PARAMS_MSG_IDS}
 _STATUS_MSG_IDS: tuple = (
-    "00",  # ..0: "Master/Slave status flags",                          # not RAMSES
-    "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
+    "00",  # ..0: "Master/Slave status flags",
+    "01",  # ..1: "CH water temperature Setpoint (°C)",               # NOTE: is W only!
     "11",  # .17: "Relative Modulation Level (%)",
     "12",  # .18: "Water pressure in CH circuit (bar)",
     "13",  # .19: "Water flow rate in DHW circuit. (L/min)",
     "19",  # .25: "Boiler flow water temperature (°C)",
     "1A",  # .26: "DHW temperature (°C)",
-    "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?
+    "1B",  # .27: "Outside temperature (°C)",          # TODO: any value here?  # is R/W
     "1C",  # .28: "Return water temperature (°C)",
     # These are error/state codes...
-    "05",  # ..5: "Fault flags & OEM codes",                            # not RAMSES
-    "73",  # 115: "OEM diagnostic code",                                # not RAMSES
+    "05",  # ..5: "Fault flags & OEM codes",
+    "73",  # 115: "OEM diagnostic code",
 )
 STATUS_MSG_IDS: dict = {k: td(minutes=5) for k in _STATUS_MSG_IDS}
 _WRITE_MSG_IDS: tuple = (  # Write-Data, NB: some are also Read-Data
-    "01",  # ..1:  -see above-
+    "01",  # ..1: "CH water temperature Setpoint (°C)",
     "02",  # ..2: "Master configuration",
+    "09",  # ..9: "Remote override room Setpoint (°C)",
     "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
     "10",  # .16: "Room Setpoint (°C)",     # tell slave the room setpoint?
     "18",  # .24: "Room temperature (°C)",  # tell slave the room temp?
-    "38",  # .56:  -see above-
-    "39",  # .57:  -see above-
+    "1B",  # .27: "Outside temperature (°C)",                                   # is R/W
+    "38",  # .56:  -see above-                                                  # is R/W
+    "39",  # .57:  -see above-                                                  # is R/W
     "7C",  # 124: "Opentherm version Master",
     "7E",  # 126: "Master product version number and type",
 )
