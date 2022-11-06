@@ -426,7 +426,7 @@ def load_schema(gwy, **kwargs) -> None:
     [  # NOTE: class favoured, domain ignored
         _get_device(gwy, device_id)  # domain=key[-4:])
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
-        for device_id in kwargs.pop(key, [])
+        for device_id in kwargs.get(key, [])
     ]  # TODO: pass domain (Heat/HVAC), or generalise to SZ_ORPHANS
 
 
