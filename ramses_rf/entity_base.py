@@ -337,7 +337,7 @@ class Discovery(MessageDB):
                 await asyncio.sleep(self.MIN_CYCLE_SECS)
                 continue
 
-            self._discover()
+            await self._discover()
 
             if self._discovery_cmds:
                 next_due = min(t["next_due"] for t in self._discovery_cmds.values())
