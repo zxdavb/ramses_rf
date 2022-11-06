@@ -337,7 +337,7 @@ class Discovery(MessageDB):
                 await asyncio.sleep(self.MIN_CYCLE_SECS)
                 continue
 
-            await self._discover()
+            await self.discover()
 
             if self._discovery_cmds:
                 next_due = min(t["next_due"] for t in self._discovery_cmds.values())
@@ -347,7 +347,7 @@ class Discovery(MessageDB):
 
             await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
 
-    async def _discover(self) -> None:
+    async def discover(self) -> None:
         def find_latest_msg(hdr: _HeaderT, task: dict) -> None | Message:
             """Return the latest message for a header from any source (not just RPs)."""
             msgs: list[Message] = [
