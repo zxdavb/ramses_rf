@@ -697,11 +697,13 @@ class OutSensor(Weather):  # OUT: 17
 class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
+    # see: https://www.opentherm.eu/request-details/?post_ids=2944
+    # see: https://www.automatedhome.co.uk/vbulletin/showthread.php?6400-(New)-cool-mode-in-Evohome
+
     _SLUG: str = DEV_TYPE.OTB
 
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
-    # see: https://www.opentherm.eu/request-details/?post_ids=2944
     OT_TO_RAMSES = {
         "00": Code._3EF0,  # master/slave status (actuator_state)
         "01": Code._22D9,  # boiler_setpoint
