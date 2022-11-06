@@ -73,6 +73,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
+_PacketProtocolT = TypeVar("_PacketProtocolT", bound="PacketProtocolBase")
+_PacketTransportT = TypeVar("_PacketTransportT", bound=asyncio.BaseTransport)
+
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
 DEV_HACK_REGEX = False
@@ -121,10 +124,6 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !F  - indicate autotune status
 # !FT - start autotune
 # !FS - save autotune
-
-
-_PacketProtocolT = TypeVar("_PacketProtocolT", bound=asyncio.BaseProtocol)
-_PacketTransportT = TypeVar("_PacketTransportT", bound=asyncio.BaseTransport)
 
 
 def _str(value: bytes) -> str:

@@ -21,6 +21,10 @@ from .exceptions import CorruptStateError, InvalidPacketError
 from .message import Message
 from .packet import Packet
 
+_MessageProtocolT = TypeVar("_MessageProtocolT", bound="MessageProtocol")
+_MessageTransportT = TypeVar("_MessageTransportT", bound="MessageTransport")
+
+
 DONT_CREATE_MESSAGES = 3  # duplicate
 
 SZ_WRITER_TASK = "writer_task"
@@ -31,10 +35,6 @@ _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-_MessageProtocolT = TypeVar("_MessageProtocolT", bound="MessageProtocol")
-_MessageTransportT = TypeVar("_MessageTransportT", bound="MessageTransport")
 
 
 class CallbackAsAwaitable:

@@ -19,8 +19,8 @@ from typing import Callable, Optional, TextIO
 
 from ramses_rf.device import DeviceHeat, DeviceHvac, Fakeable
 from ramses_rf.protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
-from ramses_rf.protocol.protocol import MessageProtocol, MessageTransport
-from ramses_rf.protocol.transport import PacketProtocolBase
+from ramses_rf.protocol.protocol import _MessageProtocolT, _MessageTransportT
+from ramses_rf.protocol.transport import _PacketProtocolT, _PacketTransportT
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .device import Device, device_factory
@@ -105,10 +105,10 @@ class Engine:
 
         self.config = SimpleNamespace()  # **SCH_CONFIG_GATEWAY({}))
 
-        self.msg_protocol: MessageProtocol = None  # type: ignore[assignment]
-        self.msg_transport: MessageTransport = None  # type: ignore[assignment]
-        self.pkt_protocol: PacketProtocolBase = None  # type: ignore[assignment]
-        self.pkt_transport: asyncio.Transport = None  # type: ignore[assignment]
+        self.msg_protocol: _MessageProtocolT = None  # type: ignore[assignment]
+        self.msg_transport: _MessageTransportT = None  # type: ignore[assignment]
+        self.pkt_protocol: _PacketProtocolT = None  # type: ignore[assignment]
+        self.pkt_transport: _PacketTransportT = None  # type: ignore[assignment]
 
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
@@ -143,9 +143,16 @@ class Engine:
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
     def create_client(
-        self, msg_handler: Callable[[Message, Optional[Message]], None]
-    ) -> tuple:
+        self,
+        msg_handler: Callable[[Message, Optional[Message]], None],
+        # msg_filter: Callable[[Message], bool] | None = None,
+    ) -> tuple[_MessageProtocolT, _MessageTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
+
+        # The optional filter will return True if the message is to be handled.
+        # """  # TODO
+        # if msg_filter is not None and not is_callback(msg_filter):
+        #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
         return self._create_msg_stack(msg_handler)
 
     async def start(self) -> None:
