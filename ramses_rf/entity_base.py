@@ -241,6 +241,14 @@ class Discovery(MessageDB):
             # )
             gwy._loop.call_soon(self._start_discovery_poller)
 
+    @property  # TODO: needs tidy up
+    def discovery_cmds(self) -> dict:
+        """Return the pollable commands."""
+        if self._discovery_cmds is None:
+            self._discovery_cmds = {}
+            self._setup_discovery_cmds()
+        return self._discovery_cmds
+
     @property
     def supported_cmds(self) -> dict:
         """Return the current list of pollable command codes."""
@@ -288,7 +296,7 @@ class Discovery(MessageDB):
             _LOGGER.warning(f"cmd({cmd}): invalid (null) header not added to discovery")
             return
 
-        if cmd.rx_header in self._discovery_cmds:
+        if cmd.rx_header in self.discovery_cmds:
             _LOGGER.info(f"cmd({cmd}): duplicate header not added to discovery")
             return
 
@@ -298,7 +306,7 @@ class Discovery(MessageDB):
             timeout or (cmd._qos.retry_limit + 1) * cmd._qos.rx_timeout.total_seconds()
         )
 
-        self._discovery_cmds[cmd.rx_header] = {
+        self.discovery_cmds[cmd.rx_header] = {
             "command": cmd,
             "interval": td(seconds=max(interval, self.MAX_CYCLE_SECS)),
             "last_msg": None,
@@ -308,10 +316,6 @@ class Discovery(MessageDB):
         }
 
     def _start_discovery_poller(self) -> None:
-        if self._discovery_cmds is None:
-            self._discovery_cmds = {}
-            self._setup_discovery_cmds()
-
         if not self._discovery_poller or self._discovery_poller.done():
             self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
             self._discovery_poller.set_name(f"{self.id}_discovery_poller")
@@ -339,8 +343,8 @@ class Discovery(MessageDB):
 
             await self.discover()
 
-            if self._discovery_cmds:
-                next_due = min(t["next_due"] for t in self._discovery_cmds.values())
+            if self.discovery_cmds:
+                next_due = min(t["next_due"] for t in self.discovery_cmds.values())
                 delay = max((next_due - dt.now()).total_seconds(), self.MIN_CYCLE_SECS)
             else:
                 delay = self.MAX_CYCLE_SECS
@@ -402,7 +406,7 @@ class Discovery(MessageDB):
 
             return None
 
-        for hdr, task in self._discovery_cmds.items():
+        for hdr, task in self.discovery_cmds.items():
             dt_now = dt.now()
 
             if (msg := find_latest_msg(hdr, task)) and (
