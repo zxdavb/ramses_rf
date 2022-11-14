@@ -221,10 +221,12 @@ def _normalise_mode(mode, target, until, duration) -> str:
             mode = ZON_MODE_MAP.COUNTDOWN
         else:
             mode = ZON_MODE_MAP.PERMANENT  # TODO: advanced_override?
-    elif mode not in ZON_MODE_MAP:  # may raise KeyError
-        mode = ZON_MODE_MAP._hex(f"{mode:02X}" if isinstance(mode, int) else mode)
+    elif isinstance(mode, int):
+        mode = f"{mode:02X}"
+    if mode not in ZON_MODE_MAP:
+        mode = ZON_MODE_MAP._hex(mode)  # may raise KeyError
 
-    if mode != ZON_MODE_MAP.FOLLOW_SCHEDULE and target is None:
+    if mode != ZON_MODE_MAP.FOLLOW and target is None:
         raise ValueError(
             f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
         )
@@ -596,7 +598,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1F41
     @typechecked
-    @validate_api_params()
+    @validate_api_params()  # TODO: has_dhw=True)
     def get_dhw_mode(cls, ctl_id: _DeviceIdT, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
 
@@ -605,7 +607,7 @@ class Command(Frame):
 
     @classmethod  # constructor for W|1F41
     @typechecked
-    @validate_api_params()
+    @validate_api_params()  # TODO: has_dhw=True)
     def set_dhw_mode(
         cls,
         ctl_id: _DeviceIdT,
@@ -620,13 +622,10 @@ class Command(Frame):
 
         dhw_idx = f"{kwargs.pop(SZ_DHW_IDX, 0):02X}"  # only 00 or 01 (rare)
 
-        mode = mode or 0
-        mode = f"{mode:02X}" if isinstance(mode, int) else mode
         mode = _normalise_mode(mode, active, until, duration)
 
         if mode == ZON_MODE_MAP.FOLLOW:
             active = None
-
         if active is not None and not isinstance(active, (bool, int)):
             raise TypeError(f"Invalid args: active={active}, but must be an bool")
 
@@ -646,7 +645,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|10A0
     @typechecked
-    @validate_api_params()
+    @validate_api_params()  # TODO: has_dhw=True)
     def get_dhw_params(cls, ctl_id: _DeviceIdT, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
@@ -654,8 +653,8 @@ class Command(Frame):
         return cls.from_attrs(RQ, ctl_id, Code._10A0, dhw_idx, **kwargs)
 
     @classmethod  # constructor for W|10A0
-    @validate_api_params()
     @typechecked
+    @validate_api_params()  # TODO: has_dhw=True)
     def set_dhw_params(
         cls,
         ctl_id: _DeviceIdT,
@@ -695,7 +694,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1260
     @typechecked
-    @validate_api_params()
+    @validate_api_params()  # TODO: has_dhw=True)
     def get_dhw_temp(cls, ctl_id: _DeviceIdT, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
@@ -887,7 +886,7 @@ class Command(Frame):
     def set_system_mode(
         cls,
         ctl_id: _DeviceIdT,
-        system_mode,
+        system_mode: Union[None, int, str],
         *,
         until: Union[None, dt, str] = None,
         **kwargs,
@@ -895,11 +894,11 @@ class Command(Frame):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         if system_mode is None:
-            raise ValueError("Invalid args: system_mode cant be None")
-
-        system_mode = SYS_MODE_MAP._hex(
-            f"{system_mode:02X}" if isinstance(system_mode, int) else system_mode
-        )  # may raise KeyError
+            system_mode = SYS_MODE_MAP.AUTO
+        if isinstance(system_mode, int):
+            system_mode = f"{system_mode:02X}"
+        if system_mode not in SYS_MODE_MAP:
+            system_mode = SYS_MODE_MAP._hex(system_mode)  # may raise KeyError
 
         if until is not None and system_mode in (
             SYS_MODE_MAP.AUTO,
@@ -1064,7 +1063,7 @@ class Command(Frame):
         ctl_id: _DeviceIdT,
         zone_idx: _ZoneIdxT,
         *,
-        mode: str = None,
+        mode: Union[None, int, str] = None,
         setpoint: float = None,
         until: Union[None, dt, str] = None,
         duration: int = None,
@@ -1082,6 +1081,7 @@ class Command(Frame):
         - mode == Temporary & until is None (will silently ignore ???)
         - until and duration are mutually exclusive
         """
+
         # .W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
         # .W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
