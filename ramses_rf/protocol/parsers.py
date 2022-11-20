@@ -2171,10 +2171,10 @@ def parser_31da(payload, msg) -> dict:
         SZ_CO2_LEVEL: double_from_hex(payload[6:10]),  # ppm, 1298[2:6]
         SZ_INDOOR_HUMIDITY: percent_from_hex(payload[10:12], high_res=False),  # 12A0?
         SZ_OUTDOOR_HUMIDITY: percent_from_hex(payload[12:14], high_res=False),
-        SZ_EXHAUST_TEMPERATURE: double_from_hex(payload[14:18], factor=100),
-        SZ_SUPPLY_TEMPERATURE: double_from_hex(payload[18:22], factor=100),
-        SZ_INDOOR_TEMPERATURE: double_from_hex(payload[22:26], factor=100),
-        SZ_OUTDOOR_TEMPERATURE: double_from_hex(payload[26:30], factor=100),  # 1290?
+        SZ_EXHAUST_TEMPERATURE: temp_from_hex(payload[14:18]),
+        SZ_SUPPLY_TEMPERATURE: temp_from_hex(payload[18:22]),
+        SZ_INDOOR_TEMPERATURE: temp_from_hex(payload[22:26]),
+        SZ_OUTDOOR_TEMPERATURE: temp_from_hex(payload[26:30]),  # 1290?
         SZ_SPEED_CAP: int(payload[30:34], 16),
         SZ_BYPASS_POSITION: percent_from_hex(payload[34:36]),
         SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
