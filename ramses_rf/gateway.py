@@ -526,6 +526,7 @@ class Gateway(Engine):
         return self.schema, dict(sorted(pkts.items()))
 
     async def set_state(self, packets, *, schema: None | dict = None) -> None:
+        # TODO: add a feature to exludede expired packets?
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
 
         if schema is None:  # TODO: also for known_list (device traits)?
