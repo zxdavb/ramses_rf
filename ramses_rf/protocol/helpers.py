@@ -110,7 +110,7 @@ def double_from_hex(value: str, factor: int = 1) -> Optional[float]:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
     if value == "7FFF":
         return None
-    return int(value, 16) / factor
+    return (-(int(value, 16) & 0x8000) | (int(value, 16) & 0x7fff)) / factor
 
 
 @typechecked
