@@ -104,13 +104,20 @@ def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
 
 
 @typechecked
-def double_from_hex(value: str, factor: int = 1) -> Optional[float]:
+def double_from_hex(value: str, factor: int = 1, neg_factor: int = None) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
     if value == "7FFF":
         return None
-    return (-(int(value, 16) & 0x8000) | (int(value, 16) & 0x7fff)) / factor
+    s16 = int(value, 16)
+    if s16 >= 32767:
+        # two's complement negative number
+        if neg_factor is not None:
+            # use different factor for negative numbers
+            factor = neg_factor
+        return ( -(s16 & 0x8000) | (s16 & 0x7fff) ) / factor
+    return s16 / factor
 
 
 @typechecked
