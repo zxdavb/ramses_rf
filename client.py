@@ -45,7 +45,7 @@ _DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 if _DEBUG_CLI:
     _start_debugging(True)
 
-# noqa: E402
+
 from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
