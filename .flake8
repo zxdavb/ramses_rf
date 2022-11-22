@@ -12,6 +12,7 @@
 
   # F401 '.xxxx' imported but unused
   per-file-ignores =
+    client.py:E402
     ramses_rf/devices/__init__.py:F401
     ramses_rf/devices/const.py:F401
     ramses_rf/protocol/__init__.py:F401
