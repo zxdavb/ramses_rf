@@ -10,8 +10,10 @@
   # W503 line break before binary operator
   # ignore = D101,D102,D103,D105,D107,D207,D202,D401,E203,E231,W503
 
-  # F401 '.xxxx' imported but unused
+  # E402 module level import not at top of file
+  # F401 'xxxx' imported but unused
   per-file-ignores =
+    client.py:E402
     ramses_rf/devices/__init__.py:F401
     ramses_rf/devices/const.py:F401
     ramses_rf/protocol/__init__.py:F401

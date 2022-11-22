@@ -13,15 +13,38 @@ import json
 import logging
 import sys
 
-if False:  # HACK
-    import debugpy
-
-    debugpy.listen(address=("0.0.0.0", 5678))
-    debugpy.wait_for_client()
-
 import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
+
+_DEV_MODE = False
+
+_PROFILE_LIBRARY = False  # NOTE: for profiling of library
+if _PROFILE_LIBRARY:
+    import cProfile
+    import pstats
+
+
+def _start_debugging(wait_for_client: bool):
+    import debugpy
+
+    debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
+    print(f" - Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}")
+
+    if wait_for_client:
+        print("   - execution paused, waiting for debugger to attach...")
+        debugpy.wait_for_client()
+        print("   - debugger is now attached, continuing execution.")
+
+
+SZ_DEBUG_MODE = "debug_mode"
+DEBUG_ADDR = "0.0.0.0"
+DEBUG_PORT = 5678
+
+_DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
+if _DEBUG_CLI:
+    _start_debugging(True)
+
 
 from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
@@ -53,17 +76,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     DEV_TYPE_MAP,
     Code,
 )
-
-DEV_MODE = False
-
-SZ_DEBUG_MODE = "debug_mode"
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
-
-PROFILE = False
-if PROFILE:
-    import cProfile
-    import pstats
 
 SZ_INPUT_FILE = "input_file"
 
@@ -186,15 +198,7 @@ def cli(ctx, config_file=None, eavesdrop: bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
     if kwargs[SZ_DEBUG_MODE] > 0:  # Do first
-        import debugpy
-
-        debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-        print(f" - Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}")
-
-        if kwargs[SZ_DEBUG_MODE] == 1:
-            print("   - execution paused, waiting for debugger to attach...")
-            debugpy.wait_for_client()
-            print("   - debugger is now attached, continuing execution.")
+        _start_debugging(kwargs[SZ_DEBUG_MODE] == 1)
 
     kwargs, lib_kwargs = split_kwargs(({}, {SZ_CONFIG: {}}), kwargs)
 
@@ -269,7 +273,7 @@ def parse(obj, **kwargs):
 
     lib_config[SZ_INPUT_FILE] = config.pop(SZ_INPUT_FILE)
 
-    asyncio.run(main(PARSE, lib_config, **config))
+    return PARSE, lib_config, config
 
 
 #
@@ -301,7 +305,7 @@ def monitor(obj, discover: bool = None, **kwargs):
             print(" - Discovery is disabled...")
             lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
 
-    asyncio.run(main(MONITOR, lib_config, **config))
+    return MONITOR, lib_config, config
 
 
 #
@@ -351,7 +355,7 @@ def execute(obj, **kwargs):
         lib_config[SZ_KNOWN_LIST] = known_list
         lib_config[SZ_CONFIG][SZ_ENFORCE_KNOWN_LIST] = True
 
-    asyncio.run(main(EXECUTE, lib_config, **config))
+    return EXECUTE, lib_config, config
 
 
 #
@@ -365,7 +369,7 @@ def listen(obj, **kwargs):
     print(" - Sending is force-disabled...")
     lib_config[SZ_CONFIG][SZ_DISABLE_SENDING] = True
 
-    asyncio.run(main(LISTEN, lib_config, **config))
+    return LISTEN, lib_config, config
 
 
 def print_results(gwy, **kwargs):
@@ -473,7 +477,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         In this case, the message is merely printed.
         """
 
-        if DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
+        if _DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
             print(
                 f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
             )
@@ -568,23 +572,26 @@ cli.add_command(monitor)
 cli.add_command(execute)
 cli.add_command(listen)
 
+
 if __name__ == "__main__":
     print("\r\nclient.py: Starting ramses_rf...")
 
+    command, lib_kwargs, kwargs = cli(standalone_mode=False)
+
     if sys.platform == "win32":
-        print("Setting event_loop_policy...")
+        print(" - setting event_loop_policy for win32...")  # do before asyncio.run()
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     try:
-        if PROFILE:
+        if _PROFILE_LIBRARY:
             profile = cProfile.Profile()
-            profile.run("cli()")
+            profile.run("asyncio.run(main(command, lib_kwargs, **kwargs))")
         else:
-            cli()
+            asyncio.run(main(command, lib_kwargs, **kwargs))
     except SystemExit:
         pass
 
-    if PROFILE:
+    if _PROFILE_LIBRARY:
         ps = pstats.Stats(profile)
         ps.sort_stats(pstats.SortKey.TIME).print_stats(20)
 

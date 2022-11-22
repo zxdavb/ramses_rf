@@ -148,12 +148,12 @@ def parser_decorator(fnc) -> Callable:
 
 @parser_decorator  # rf_unknown
 def parser_0001(payload, msg) -> dict:
-    # When in test mode, a 12: will send a W every 6 seconds, *on?* the second:
+    # When in test mode, a 12: will send a W ?every 6 seconds:
     # 12:39:56.099 061  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
     # 12:40:02.098 061  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
     # 12:40:08.099 058  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
 
-    # sent by a THM every 5s when is signal strength test mode (0505, except 1st pkt)
+    # sent by a THM when is signal strength test mode (0505, except 1st pkt)
     # 13:48:38.518 080  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
     # 13:48:45.518 074  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
     # 13:48:50.518 077  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
@@ -173,6 +173,10 @@ def parser_0001(payload, msg) -> dict:
     # 15:13:24.758 054  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
     # 15:13:29.758 068  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
     # 15:13:34.759 063  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
+
+    # sent by a CTL
+    # 16:49:46.125694 057  W --- 04:166090 --:------ 01:032820 0001 005 0100000505
+    # 16:53:34.635083 058  W --- 04:166090 --:------ 01:032820 0001 005 0100000505
 
     # loopback (not Tx'd) by a HGI80 whenever its button is pressed
     # 00:22:41.540 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
@@ -212,7 +216,6 @@ def parser_0001(payload, msg) -> dict:
             )
         return result
 
-    assert payload[:2] in ("00",), payload[:2]
     assert payload[2:6] in ("0000", "FFFF"), payload[2:6]
     assert payload[8:10] in ("00", "02", "05"), payload[8:10]
 
