@@ -1406,7 +1406,7 @@ def parser_22c9(payload, msg) -> list:
     # .I --- 21:064743 --:------ 21:064743 22C9 006 00-07D0-0834-02
     # .W --- 21:064743 02:250708 --:------ 22C9 006 03-07D0-0834-02
     # .I --- 02:250708 21:064743 --:------ 22C9 008 03-07D0-7FFF-02-02-03
-
+    # .I --- 02:250704 21:033160 --:------ 22C9 008 03-07D0-7FFF-01-01-03
     def _parser(seqx) -> dict:
         assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01/02"
 
@@ -1442,11 +1442,18 @@ def parser_22d0(payload, msg) -> dict:
     # .W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020
     # .I --- 02:250708 21:064743 --:------ 22D0 004 03130000
     # .I --- 02:250708 --:------ 02:250708 22D0 004 00130000          # sends 3x, 1s apart
+    # .I --- 02:250704 21:033160 --:------ 22D0 004 03010000          # UFC to spider 
+    # .I --- 02:250704 --:------ 02:250704 22D0 004 00010000          # 3 times 1s apart
 
     assert payload in (
         "00000002",
+        "00010000",
         "00130000",
         "03130000",
+        "03010000",
+        "0302001E14030020",
+        "0304001E14030020",
+        "0312001E14030020",
         "0314001E14030020",
     ), _INFORM_DEV_MSG
 
@@ -1962,7 +1969,7 @@ def parser_3110(payload, msg) -> dict:
 
     return {
         f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent_from_hex(payload[4:6]),
+        "heat_demand": percent_from_hex(payload[4:6]),
         "_value_3": payload[6:],
     }
 
@@ -2439,7 +2446,7 @@ def parser_3ef0(payload, msg) -> dict:
 
     # TODO: These two should be picked up by the regex
     assert msg.len in (3, 6, 9), f"Invalid payload length: {msg.len}"
-    assert payload[:2] == "00", f"Invalid payload context: {payload[:2]}"
+    #assert payload[:2] == "00", f"Invalid payload context: {payload[:2]}"
 
     if msg.len == 3:  # I|BDR|003 (the following are the only two payloads ever seen)
         # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
@@ -2453,7 +2460,7 @@ def parser_3ef0(payload, msg) -> dict:
         # RP --- 10:004598 34:003611 --:------ 3EF0 006 0000110000FF
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100C00FF
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100200FF
-        assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"  # maybe 00 too?
+        assert payload[4:6] in ("00", "10", "11"), f"byte 2: {payload[4:6]}"  # maybe 00 too?
         mod_level = percent_from_hex(payload[2:4], high_res=False)  # 00-64 (or FF)
 
     result = {
@@ -2497,7 +2504,7 @@ def parser_3ef0(payload, msg) -> dict:
         #     payload[2:4] == "00"
         # ), f"bytes 1+2: {payload[2:6]}"  # 97% is 00 when 11, but not always
 
-        assert payload[4:6] in ("FF", "10", "11"), f"byte 2: {payload[4:6]}"
+        assert payload[4:6] in ("FF", "00", "10", "11"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
             payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
@@ -2505,9 +2512,10 @@ def parser_3ef0(payload, msg) -> dict:
         # only 01:10:040239 does 0b01000000
 
         assert "_unknown_4" not in result or (
-            payload[8:10] in ("FF", "00", "01", "04", "0A")
+            payload[8:10] in ("FF", "00", "01", "02", "04", "0A")
         ), f"byte 4: {payload[8:10]}"
         # only 10:040239 does 04
+        # Itho Spider does 02
 
         assert "_unknown_5" not in result or (
             payload[10:12] in ("00", "1C", "FF")

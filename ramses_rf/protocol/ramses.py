@@ -369,7 +369,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },  # TODO: This could be an array
     Code._22C9: {  # ufh_setpoint
         SZ_NAME: "ufh_setpoint",
-        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0203)?$",  # ~000A array, but max_len 24, not 48!
+        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0103|0203)?$",  # ~000A array, but max_len 24, not 48!
         W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # ~000A array, but max_len 24, not 48!
         # RP: Appear wont get any?,
     },
@@ -624,12 +624,14 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._4E02: {  # hvac_4e02 - HVAC
         SZ_NAME: "hvac_4e02",
-        I_: r"^00([0-9A-F]{4}){8}02([0-9A-F]{4}){8}$",
+        I_: r"^00([0-9A-F]{4}){8}(02|04)([0-9A-F]{4}){8}$",
     },
     Code._4E04: {  # hvac_4e04 - HVAC
         SZ_NAME: "hvac_4e04",
         I_: r"^00(00FF|01FE)$",
         W_: r"^00(00FF|01FE)$",
+        I_: r"^00(00|01)(([0-9A-F]){2})$",
+        W_: r"^00(00|01)(([0-9A-F]){2})$",
     },
     Code._PUZZ: {
         SZ_NAME: "puzzle_packet",
