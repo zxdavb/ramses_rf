@@ -1276,24 +1276,18 @@ class Command(Frame):
             I_, Code._1260, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
-    @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
+    @classmethod  # constructor for I|1290  # TODO: trap corrupt temps?
     @typechecked
     @validate_api_params()
     def put_outdoor_temp(cls, dev_id: _DeviceIdT, temperature: float, **kwargs):
-        """Constructor to announce the current temperature of an outdoor sensor (0002).
+        """Constructor to announce the current outdoor temperature (1290).
 
-        This is for use by a faked HB85 or similar.
+        This is for use by a faked HVAC sensor or similar.
         """
 
-        if dev_id[:2] != DEV_TYPE_MAP.OUT:
-            raise TypeError(
-                f"Faked device {dev_id} has an unsupported device type: "
-                f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
-            )
-
-        payload = f"00{temp_to_hex(temperature)}01"
+        payload = f"00{temp_to_hex(temperature)}"
         return cls._from_attrs(
-            I_, Code._0002, payload, addr0=dev_id, addr2=dev_id, **kwargs
+            I_, Code._1290, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
     @classmethod  # constructor for I|30C9  # TODO: trap corrupt temps?
@@ -1368,6 +1362,26 @@ class Command(Frame):
             I_, Code._2E10, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
+    @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
+    @typechecked
+    @validate_api_params()
+    def put_weather_temp(cls, dev_id: _DeviceIdT, temperature: float, **kwargs):
+        """Constructor to announce the current temperature of a weather sensor (0002).
+
+        This is for use by a faked HB85 or similar.
+        """
+
+        if dev_id[:2] != DEV_TYPE_MAP.OUT:
+            raise TypeError(
+                f"Faked device {dev_id} has an unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
+            )
+
+        payload = f"00{temp_to_hex(temperature)}01"
+        return cls._from_attrs(
+            I_, Code._0002, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
+
     @classmethod  # constructor for internal use only
     @typechecked
     def _puzzle(cls, msg_type: None | str = None, message: str = "", **kwargs):
@@ -1408,7 +1422,7 @@ def _mk_cmd(
 
 # A convenience dict
 CODE_API_MAP = {
-    f"{I_}|{Code._0002}": Command.put_outdoor_temp,
+    f"{I_}|{Code._0002}": Command.put_weather_temp,
     f"{RQ}|{Code._0004}": Command.get_zone_name,
     f"{W_}|{Code._0004}": Command.set_zone_name,
     f"{RQ}|{Code._0008}": Command.get_relay_demand,
@@ -1426,6 +1440,7 @@ CODE_API_MAP = {
     f"{W_}|{Code._1100}": Command.set_tpi_params,
     f"{RQ}|{Code._1260}": Command.get_dhw_temp,
     f"{I_}|{Code._1260}": Command.put_dhw_temp,
+    f"{I_}|{Code._1290}": Command.put_outdoor_temp,
     f"{I_}|{Code._1298}": Command.put_co2_level,
     f"{I_}|{Code._12A0}": Command.put_indoor_humidity,
     f"{RQ}|{Code._12B0}": Command.get_zone_window_state,
