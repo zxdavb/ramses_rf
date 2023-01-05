@@ -195,7 +195,7 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
 
     @property
     def filter_remaining(self) -> Optional[int]:
-        return self._msg_value(Code._31DA, key="days_remaining")
+        return self._msg_value(Code._10D0, key="days_remaining")
 
 
 class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
