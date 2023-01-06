@@ -9,7 +9,7 @@ import math
 from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from ..const import (
     DEV_ROLE,
@@ -152,11 +152,11 @@ class ZoneSchedule:  # 0404
         if msg.code in (Code._0006, Code._0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_io=None) -> Optional[dict]:
+    async def get_schedule(self, *, force_io=None) -> None | dict:
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
-    async def set_schedule(self, schedule) -> Optional[dict]:
+    async def set_schedule(self, schedule) -> None | dict:
         await self._schedule.set_schedule(schedule)
         return self.schedule
 
@@ -329,11 +329,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return "Stored HW"
 
     @property
-    def config(self) -> Optional[dict]:  # 10A0
+    def config(self) -> None | dict:  # 10A0
         return self._msg_value(Code._10A0)
 
     @property
-    def mode(self) -> Optional[dict]:  # 1F41
+    def mode(self) -> None | dict:  # 1F41
         return self._msg_value(Code._1F41)
 
     @property
