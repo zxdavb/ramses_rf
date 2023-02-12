@@ -1667,7 +1667,7 @@ def parser_22f4(payload, msg) -> dict:
 @parser_decorator  # bypass_mode, HVAC
 def parser_22f7(payload, msg) -> dict:
     # RQ --- 37:171871 32:155617 --:------ 22F7 001 00
-    # RP --- 32:155617 37:171871 --:------ 22F7 003 00FF00  # alse: 000000, 00C8C8
+    # RP --- 32:155617 37:171871 --:------ 22F7 003 00FF00  # also: 000000, 00C8C8
 
     # .W --- 37:171871 32:155617 --:------ 22F7 003 0000EF  # bypass off
     # .I --- 32:155617 37:171871 --:------ 22F7 003 000000
@@ -1683,6 +1683,24 @@ def parser_22f7(payload, msg) -> dict:
         result["bypass_state"] = {"00": "off", "C8": "on"}.get(payload[4:])
 
     return result
+
+
+@parser_decorator  # WIP: unknown_mode, HVAC
+def parser_22f8(payload, msg) -> dict:
+    # from: https://github.com/arjenhiemstra/ithowifi/blob/master/software/NRG_itho_wifi/src/IthoPacket.h
+
+    # message command bytes specific for AUTO RFT (536-0150)
+    # ithoMessageAUTORFTAutoNightCommandBytes[] = {0x22, 0xF8, 0x03, 0x63, 0x02, 0x03};
+    # .W --- 32:111111 37:111111 --:------ 22F8 003 630203
+
+    # message command bytes specific for DemandFlow remote (536-0146)
+    # ithoMessageDFLowCommandBytes[] = {0x22, 0xF8, 0x03, 0x00, 0x01, 0x02};
+    # ithoMessageDFHighCommandBytes[] = {0x22, 0xF8, 0x03, 0x00, 0x02, 0x02};
+
+    return {
+        "value_02": payload[2:4],
+        "value_04": payload[4:6],
+    }
 
 
 @parser_decorator  # setpoint (of device/zones)
@@ -2442,7 +2460,7 @@ def parser_3ef0(payload, msg) -> dict:
 
     # TODO: These two should be picked up by the regex
     assert msg.len in (3, 6, 9), f"Invalid payload length: {msg.len}"
-    assert payload[:2] == "00", f"Invalid payload context: {payload[:2]}"
+    # assert payload[:2] == "00", f"Invalid payload context: {payload[:2]}"
 
     if msg.len == 3:  # I|BDR|003 (the following are the only two payloads ever seen)
         # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
@@ -2456,7 +2474,7 @@ def parser_3ef0(payload, msg) -> dict:
         # RP --- 10:004598 34:003611 --:------ 3EF0 006 0000110000FF
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100C00FF
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100200FF
-        assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"  # maybe 00 too?
+        assert payload[4:6] in ("00", "10", "11"), f"byte 2: {payload[4:6]}"
         mod_level = percent_from_hex(payload[2:4], high_res=False)  # 00-64 (or FF)
 
     result = {
@@ -2500,7 +2518,7 @@ def parser_3ef0(payload, msg) -> dict:
         #     payload[2:4] == "00"
         # ), f"bytes 1+2: {payload[2:6]}"  # 97% is 00 when 11, but not always
 
-        assert payload[4:6] in ("FF", "10", "11"), f"byte 2: {payload[4:6]}"
+        assert payload[4:6] in ("00", "10", "11", "FF"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
             payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
@@ -2508,7 +2526,7 @@ def parser_3ef0(payload, msg) -> dict:
         # only 01:10:040239 does 0b01000000
 
         assert "_unknown_4" not in result or (
-            payload[8:10] in ("FF", "00", "01", "04", "0A")
+            payload[8:10] in ("FF", "00", "01", "02", "04", "0A")
         ), f"byte 4: {payload[8:10]}"
         # only 10:040239 does 04
 

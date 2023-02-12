@@ -575,7 +575,7 @@ class Gateway(Engine):
         def check_filter_lists(dev_id: _DeviceIdT) -> None:  # may: LookupError
             """Raise an LookupError if a device_id is filtered out by a list."""
 
-            if dev_id in self._unwanted:  # TODO: shoudln't invalidate a msg
+            if dev_id in self._unwanted:  # TODO: shouldn't invalidate a msg
                 raise LookupError(f"Can't create {dev_id}: it is unwanted or invalid")
 
             if self.config.enforce_known_list and (
