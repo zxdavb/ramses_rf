@@ -900,8 +900,8 @@ def parser_10e0(payload, msg) -> dict:
     assert msg.verb == RP or not unknown, f"{unknown}"
 
     result = {
-        "date_2": date_from_hex(payload[20:28]) or "0000-00-00",  # manufactured?
-        "date_1": date_from_hex(payload[28:36]) or "0000-00-00",  # firmware?
+        "date_2": date_from_hex(payload[20:28]) or "0000-00-00",  # firmware?
+        "date_1": date_from_hex(payload[28:36]) or "0000-00-00",  # hardware?
         # "manufacturer_group": payload[2:6],  # 0001/0002
         "manufacturer_sub_id": payload[6:8],
         "product_id": payload[8:10],  # if CH/DHW: matches device_type (sometimes)
@@ -1435,28 +1435,35 @@ def parser_22c9(payload, msg) -> list:
 def parser_22d0(payload, msg) -> dict:
 
     # When closing H/C contact (or enabling cooling mode with buttons when H/C contact is closed) on HCE80 it sends following packet:
-    # .I — 02:044994 --:------ 02:044994 22D0 004 0010000A < AssertionError…
+    # .I --- 02:044994 --:------ 02:044994 22D0 004 0010000A < AssertionError…
 
     # When H/C contact is opened, it send the following packet (although this packet is not transmitted, when cooling mode is disabled with buttons):
-    # .I — 02:044994 --:------ 02:044994 22D0 004 0000000A < AssertionError…
+    # .I --- 02:044994 --:------ 02:044994 22D0 004 0000000A < AssertionError…
 
-    # .I --- 02:001107 --:------ 02:001107 22D0 004 00000002          # an UFC
+    # .I --- 02:001107 --:------ 02:001107 22D0 004 00000002           # a UFC
 
-    # .W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020
-    # .I --- 02:250708 21:064743 --:------ 22D0 004 03130000
-    # .I --- 02:250708 --:------ 02:250708 22D0 004 00130000          # sends 3x, 1s apart
+    # HVAC devices: 21: Itho Spider, 02: Itho Autotemp heating valve
+    # .W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020  # likely not an array
+    # .I --- 02:250708 21:064743 --:------ 22D0 004 03130000           # response to above
+    # .I --- 02:250708 --:------ 02:250708 22D0 004 00130000           # sends 3x, 1s apart, no idx
 
-    assert payload in (
-        "00000002",
-        "00130000",
-        "03130000",
-        "0314001E14030020",
-    ), _INFORM_DEV_MSG
+    # 008 03-02-001E14030020  # WPU off/standby
+    # 008 03-04-001E14030020  # WPU heating mode
+    # 008 03-12-001E14030020  # WPU cooling mode
 
-    return {
-        "idx": payload[:2],
-        SZ_PAYLOAD: payload[2:],
-    }
+    def _parser(seqx) -> dict:
+        # assert seqx[2:4] in ("00", "03", "10", "13", "14"), _INFORM_DEV_MSG
+        assert seqx[4:6] == "00", _INFORM_DEV_MSG
+        return {
+            "idx": seqx[:2],
+            "cool_mode": bool(int(seqx[2:4]) & 0x10),
+            "_flags": flag8_from_hex(seqx[2:4]),
+            "_unknown": payload[4:],
+        }
+
+    if len(payload) > 8:
+        return [_parser(payload[x : x + 8]) for x in range(0, len(payload), 8)]
+    return _parser(payload)
 
 
 @parser_decorator  # desired boiler setpoint
