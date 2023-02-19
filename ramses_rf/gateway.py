@@ -178,11 +178,13 @@ class Engine:
             pkt_receiver, **source
         )  # TODO: may raise SerialException
 
-        if self.ser_name:  # and self.msg_transport:
-            self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
-        else:  # if self._input_file:
+        if self._input_file:  # NB: no dispatcher
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
+        elif self.msg_transport:  # for self.pkt_source
+            self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+        else:
+            raise NotImplementedError  # python client.py -rrr listen /dev/ttyUSB0
 
     async def stop(self) -> None:
         self._stop()
@@ -252,10 +254,13 @@ class Engine:
 
         return args
 
-    @property
+    @property  # TODO: should be at pkt layer, not msg layer
     def pkt_source(self) -> None | asyncio.Task:
+        """Return the source of packets (frames) as a task."""
         if t := self.msg_transport:
             return t.get_extra_info(t.WRITER)
+        # if t := self.pkt_transport:
+        #     return t.get_extra_info...
         return None
 
     @staticmethod

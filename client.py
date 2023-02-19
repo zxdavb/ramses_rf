@@ -529,6 +529,10 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     try:  # main code here
         await gwy.start()
 
+        # TODO:
+        # python client.py -rrr listen /dev/ttyUSB0
+        # cat *.log | head | python client.py parse
+
         if command == EXECUTE:
             tasks = spawn_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
@@ -537,7 +541,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
             tasks = spawn_scripts(gwy, **kwargs)
             await gwy.pkt_source
 
-        elif gwy.pkt_source:  # else:  # elif command in (LISTEN, PARSE):
+        elif gwy.pkt_source:  # TODO: should simply be an else:
             await gwy.pkt_source
 
     except asyncio.CancelledError:
