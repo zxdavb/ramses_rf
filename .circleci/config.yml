@@ -5,133 +5,122 @@ version: 2.1
 
 
 jobs:
-  build:
-    docker:  # see: at: https://hub.docker.com/r/circleci/python/
-      - image: cimg/python:3.9.13
-    working_directory: ~/working_directory
-    steps: # steps that comprise the `build` job
-      - checkout # check out source code to working directory
-      - run: pip3 install pylint
-      - run: mkdir test-results
+
+  check_version:
+    docker: &docker_config
+      - image: cimg/python:3.9.16
+
+    steps:
+      - checkout
+
+      - run:
+          name: Verify git tag vs. package version
+          command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
 
 
   check_lint:
-    docker:
-      - image: cimg/python:3.9.13
+    docker: *docker_config
+
     steps:
       - checkout
+
       - run:
-          command: |
-            pip3 install -r requirements-dev.txt
-            mkdir test-results
+          command: pip install black isort
+
       - run:
           name: "Check formatting 1: black"
           command: |
             black --diff --check *client.py
             black --diff --check ramses*
+
       - run:
           name: "Check formatting 2: isort"
           command: |
             isort --check --diff *client.py
             isort --check --diff ramses*
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
-          path: test-results
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
-          path: artifacts
-          destination: coverage
 
 
-  run_pytest:
-    docker:
-      - image: cimg/python:3.9.13
+  run_tests:
+    docker: *docker_config
+
     steps:
       - checkout
-      - run:
-          command: |
-            pip3 install -r requirements.txt
-            pip3 install -r requirements-dev.txt
-            pip3 install -e .
-      - run:
+
+      - run: &clear_dev_mode
           name: Clear the DEV_MODE flags, if set
           command: |
             sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/const.py
             sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/protocol/const.py
-      - run:
+
+      - run: &clear_dev_hack
           name: Clear any DEV_HACK_* flags, if set
           command: |
             sed -i -e '/DEV_HACK_REGEX =/ s/= .*/= False/' ramses_rf/protocol/transport.py
+
       - run:
-          name: "Run pytest"
           command: |
-            python3 -m pytest tests -v
+            pip install -r requirements.txt
+            pip install -r requirements-dev.txt
+            pip install -e .
+
+      - run:
+          command: pytest tests -v
 
 
-  deploy:
-    docker:
-      - image: cimg/python:3.9.13
+  deploy_package:
+    docker: *docker_config
+
     steps:
       - checkout
-      # - run: sudo chown -R circleci:circleci /usr/local/bin
-      # - run: sudo chown -R circleci:circleci /usr/local/lib/python*/site-packages
+
+      - run: *clear_dev_mode
+      - run: *clear_dev_hack
+
       - run:
-          name: Install dependencies
+          command: pip install twine
+
+      - run:
           command: |
-            # pip3 install -r requirements.txt
-            pip3 install setuptools twine wheel
+            pip setup.py sdist        # create a source distribution
+            pip setup.py bdist_wheel  # create a wheel
+
       - run:
-          name: Verify git tag vs. package version
-          command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
-      - run:
-          name: Clear the DEV_MODE flags, if set
-          command: |
-            sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/const.py
-            sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/protocol/const.py
-      - run:
-          name: Clear any DEV_HACK_* flags, if set
-          command: |
-            sed -i -e '/DEV_HACK_REGEX =/ s/= .*/= False/' ramses_rf/protocol/transport.py
-      - run:
-          name: Build the package
-          command: |
-            python3 setup.py sdist        # create a source distribution
-            python3 setup.py bdist_wheel  # create a wheel
-      - run:
-          name: Create .pypirc
+          name: Upload the package to PyPi
           command: |
             echo -e "[pypi]                                         " >  ~/.pypirc
             echo -e "  username = __token__                         " >> ~/.pypirc
             echo -e "  password = $PYPI_TOKEN                       " >> ~/.pypirc
-      - run:
-          name: Upload to PyPi
-          command: twine upload -r pypi dist/*
+
+            twine upload -r pypi dist/*
 
 
 workflows:
   version: 2
 
-  build-and-deploy:
+  build-and-deploy:    # will deploy only if the commit has a tag
     jobs:
-      # - build:
-      #     filters:
-      #       tags:  # required since check_lint\run_pytest have tag filters
-      #         only: /.*/
+      - check_version:
+          filters:
+            tags:
+              only: /[0-9]+(\.[0-9]+)*/
+            branches:
+              ignore: /.*/
+
       - check_lint:
-          # requires:
-          #   - build
           filters:
-            tags:  # required since deploy has tag filters
+            tags:
               only: /.*/
-      - run_pytest:
-          # requires:
-          #   - build
+
+      - run_tests:
           filters:
-            tags:  # required since deploy has tag filters
+            tags:
               only: /.*/
-      - deploy:
+
+      - deploy_package:
           requires:
-            # - build
+            - check_version
             - check_lint
-            - run_pytest
+            - run_tests
           filters:
             tags:
               only: /[0-9]+(\.[0-9]+)*/
