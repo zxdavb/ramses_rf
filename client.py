@@ -17,12 +17,17 @@ import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
+_DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
+_PROFILE_LIBRARY = False  # NOTE: for profiling of library
 _DEV_MODE = False
 
-_PROFILE_LIBRARY = False  # NOTE: for profiling of library
 if _PROFILE_LIBRARY:
     import cProfile
     import pstats
+
+SZ_DEBUG_MODE = "debug_mode"
+DEBUG_ADDR = "0.0.0.0"
+DEBUG_PORT = 5678
 
 
 def _start_debugging(wait_for_client: bool):
@@ -37,11 +42,6 @@ def _start_debugging(wait_for_client: bool):
         print("   - debugger is now attached, continuing execution.")
 
 
-SZ_DEBUG_MODE = "debug_mode"
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
-
-_DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 if _DEBUG_CLI:
     _start_debugging(True)
 
@@ -78,7 +78,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 )
 
 SZ_INPUT_FILE = "input_file"
-
 
 # DEFAULT_SUMMARY can be: True, False, or None
 SHOW_SCHEMA = False
@@ -578,9 +577,12 @@ cli.add_command(listen)
 
 
 if __name__ == "__main__":
-    print("\r\nclient.py: Starting ramses_rf...")
+    result = cli(standalone_mode=False)
+    if isinstance(result, int):
+        sys.exit(result)
+    (command, lib_kwargs, kwargs) = result
 
-    command, lib_kwargs, kwargs = cli(standalone_mode=False)
+    print("\r\nclient.py: Starting ramses_rf...")
 
     if sys.platform == "win32":
         print(" - setting event_loop_policy for win32...")  # do before asyncio.run()
