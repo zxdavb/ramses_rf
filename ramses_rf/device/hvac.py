@@ -439,9 +439,8 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             SZ_EXHAUST_FAN_SPEED: self.exhaust_fan_speed,
             **{
                 k: v
-                for code in (Code._31D9, Code._31DA)
+                for code in [c for c in (Code._31D9, Code._31DA) if c in self._msgs]
                 for k, v in self._msgs[code].payload.items()
-                if code in self._msgs
                 if k != SZ_EXHAUST_FAN_SPEED
             },
         }
