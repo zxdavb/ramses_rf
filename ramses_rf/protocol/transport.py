@@ -78,7 +78,7 @@ _PacketTransportT = TypeVar("_PacketTransportT", bound=asyncio.BaseTransport)
 
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
-DEV_HACK_REGEX = False
+DEV_HACK_DISABLE_REGEX_WARNING = True  # should be False for end-users
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -169,7 +169,7 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
         except re.error as exc:
             _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
 
-    if result != pkt_line and not DEV_HACK_REGEX:
+    if result != pkt_line and not DEV_HACK_DISABLE_REGEX_WARNING:
         (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
             f"{pkt_line} < Changed by use_regex to: {result}"
         )
