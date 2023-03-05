@@ -5,7 +5,7 @@
   -r requirements.txt
 
 # for using the the library via the CLI, client.py
-  -r requirements-cli.txt
+  -r requirements_cli.txt
 
 # used for development
   black >= 23.1.0
