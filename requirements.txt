@@ -1,4 +1,7 @@
-# for using CLI, see requiremenst-dev
-colorlog>=6.5.0
-pyserial-asyncio>=0.5
-voluptuous>=0.12.2
+# last checked/updated: 2023/03/05
+#
+
+# for using the library (sans CLI)
+  colorlog>=6.6.0
+  pyserial-asyncio>=0.6  # incl. pyserial
+  voluptuous>=0.13.1
