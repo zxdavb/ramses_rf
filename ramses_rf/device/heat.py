@@ -166,7 +166,6 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
 
 
 class HeatDemand(DeviceHeat):  # 3150
-
     HEAT_DEMAND = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
     @property
@@ -182,7 +181,6 @@ class HeatDemand(DeviceHeat):  # 3150
 
 
 class Setpoint(DeviceHeat):  # 2309
-
     SETPOINT = SZ_SETPOINT  # degrees Celsius
 
     @property
@@ -198,7 +196,6 @@ class Setpoint(DeviceHeat):  # 2309
 
 
 class Weather(Fakeable, DeviceHeat):  # 0002
-
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
@@ -322,7 +319,6 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
 
 class DhwTemperature(Fakeable, DeviceHeat):  # 1260
-
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
@@ -1441,7 +1437,6 @@ class UfhCircuit(Entity):
 
         # FIXME:
         if msg.code == Code._000C and msg.payload[SZ_DEVICES]:  # zone_devices
-
             if not (dev_ids := msg.payload[SZ_DEVICES]):
                 return
             if len(dev_ids) != 1:

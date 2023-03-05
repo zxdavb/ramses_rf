@@ -22,7 +22,6 @@ def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to rams
 
     new_dst = dst if _dc else deepcopy(dst)  # start with copy of dst, merge src into it
     for key, value in src.items():  # values are only: dict, list, value or None
-
         if isinstance(value, dict):  # is dict
             node = new_dst.setdefault(key, {})  # get node or create one
             merge(value, node, _dc=True)

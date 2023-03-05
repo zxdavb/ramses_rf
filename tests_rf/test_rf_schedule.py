@@ -131,7 +131,6 @@ def track_packet_flow(msg, tcs_id, zone_idx=None):
 
 
 def assert_schedule_dict(zone: DhwZone | Zone):
-
     schedule_full = zone._schedule._schedule
 
     assert schedule_full[SZ_ZONE_IDX] == zone.idx

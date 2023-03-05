@@ -501,7 +501,6 @@ class PacketProtocolBase(asyncio.Protocol):
     """
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-
         _LOGGER.info(f"RAMSES_RF protocol library v{VERSION}, using {self}")
 
         self._gwy = gwy
@@ -609,7 +608,6 @@ class PacketProtocolBase(asyncio.Protocol):
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
     def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
-
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Rx: %s", raw_line)
 
@@ -713,7 +711,6 @@ class PacketProtocolFile(PacketProtocolBase):
         self._line_received(data[:26], data[27:].strip(), data)
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:  # type: ignore[override]
-
         try:
             pkt = Packet.from_file(
                 self._gwy,
@@ -885,7 +882,6 @@ class PacketProtocolQos(PacketProtocolPort):
 
         retry_count = 0
         while retry_count <= min(cmd._qos.retry_limit, Qos.TX_RETRIES_MAX):
-
             self._rx_rcvd = None
             await super()._send_data(str(cmd))
 
@@ -947,7 +943,6 @@ def create_pkt_stack(
     """
 
     def get_serial_instance(ser_name: str, ser_config: dict) -> SerialBase:
-
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'

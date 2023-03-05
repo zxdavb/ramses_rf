@@ -484,7 +484,6 @@ def parser_000c(payload, msg) -> dict:
 
 @parser_decorator  # unknown_000e, from STA
 def parser_000e(payload, msg) -> dict:
-
     assert payload in ("000000", "000014"), _INFORM_DEV_MSG
 
     return {
@@ -514,7 +513,6 @@ def parser_0016(payload, msg) -> dict:
 
 @parser_decorator  # language (of device/system)
 def parser_0100(payload, msg) -> dict:
-
     if msg.verb == RQ and msg.len == 1:  # some RQs have a payload
         return {}
 
@@ -526,7 +524,6 @@ def parser_0100(payload, msg) -> dict:
 
 @parser_decorator  # unknown_0150, from OTB
 def parser_0150(payload, msg) -> dict:
-
     assert payload == "000000", _INFORM_DEV_MSG
 
     return {
@@ -786,7 +783,6 @@ def parser_1090(payload, msg) -> dict:
 
 @parser_decorator  # unknown_1098, from OTB
 def parser_1098(payload, msg) -> dict:
-
     assert payload == "00C8", _INFORM_DEV_MSG
 
     return {
@@ -841,7 +837,6 @@ def parser_10a0(payload, msg) -> dict:
 
 @parser_decorator  # unknown_10b0, from OTB
 def parser_10b0(payload, msg) -> dict:
-
     assert payload == "0000", _INFORM_DEV_MSG
 
     return {
@@ -854,7 +849,6 @@ def parser_10b0(payload, msg) -> dict:
 
 @parser_decorator  # filter_change, HVAC
 def parser_10d0(payload, msg) -> dict:
-
     # 2022-07-03T22:52:34.571579 045  W --- 37:171871 32:155617 --:------ 10D0 002 00FF
     # 2022-07-03T22:52:34.596526 066  I --- 32:155617 37:171871 --:------ 10D0 006 0047B44F0000
     # then...
@@ -988,7 +982,6 @@ def parser_1100(payload, msg) -> dict:
 
 @parser_decorator  # unknown_11f0, from heatpump relay
 def parser_11f0(payload, msg) -> dict:
-
     assert payload == "000009000000000000", _INFORM_DEV_MSG
 
     return {
@@ -1040,7 +1033,6 @@ def parser_1298(payload, msg) -> dict:
 
 @parser_decorator  # indoor_humidity
 def parser_12a0(payload, msg) -> dict:
-
     FAULT_CODES_RHUM = {
         "EF": "sensor not available",
         "F0": "sensor short circuit",
@@ -1090,7 +1082,6 @@ def parser_12b0(payload, msg) -> dict:
 
 @parser_decorator  # displayed temperature (on a TR87RF bound to a RFG100)
 def parser_12c0(payload, msg) -> dict:
-
     if payload[2:4] == "80":
         temp = None
     elif payload[4:] == "00":  # units are 1.0 F
@@ -1332,7 +1323,6 @@ def parser_1fca(payload, msg) -> list:
 
 @parser_decorator  # unknown_1fd0, from OTB
 def parser_1fd0(payload, msg) -> dict:
-
     assert payload == "0000000000000000", _INFORM_DEV_MSG
 
     return {
@@ -1433,7 +1423,6 @@ def parser_22c9(payload, msg) -> list:
 
 @parser_decorator  # unknown_22d0, HVAC system switch?
 def parser_22d0(payload, msg) -> dict:
-
     # When closing H/C contact (or enabling cooling mode with buttons when H/C contact is closed) on HCE80 it sends following packet:
     # .I --- 02:044994 --:------ 02:044994 22D0 004 0010000A < AssertionError…
 
@@ -1712,7 +1701,6 @@ def parser_22f8(payload, msg) -> dict:
 
 @parser_decorator  # setpoint (of device/zones)
 def parser_2309(payload, msg) -> dict | list:
-
     if msg._has_array:
         return [
             {
@@ -1770,7 +1758,6 @@ def parser_2349(payload, msg) -> dict:
 
 @parser_decorator  # unknown_2389, from 03:
 def parser_2389(payload, msg) -> dict:
-
     return {
         f"_{SZ_UNKNOWN}": temp_from_hex(payload[2:6]),
     }
@@ -1789,7 +1776,6 @@ def parser_2400(payload, msg) -> dict:
 
 @parser_decorator  # unknown_2401, from OTB
 def parser_2401(payload, msg) -> dict:
-
     try:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
         assert (
@@ -1898,7 +1884,6 @@ def parser_2411(payload, msg) -> dict:
 
 @parser_decorator  # unknown_2420, from OTB
 def parser_2420(payload, msg) -> dict:
-
     assert payload == "00000010" + "00" * 34, _INFORM_DEV_MSG
 
     return {
@@ -1908,7 +1893,6 @@ def parser_2420(payload, msg) -> dict:
 
 @parser_decorator  # _state (of cooling?), from BDR91T, hometronics CTL
 def parser_2d49(payload, msg) -> dict:
-
     assert payload[2:] in ("0000", "00FF", "C800", "C8FF"), _INFORM_DEV_MSG
 
     return {
@@ -1952,7 +1936,6 @@ def parser_2e04(payload, msg) -> dict:
 
 @parser_decorator  # presence_detect, HVAC sensor
 def parser_2e10(payload, msg) -> dict:
-
     assert payload in ("0001", "000100"), _INFORM_DEV_MSG
 
     return {
@@ -1963,7 +1946,6 @@ def parser_2e10(payload, msg) -> dict:
 
 @parser_decorator  # current temperature (of device, zone/s)
 def parser_30c9(payload, msg) -> dict:
-
     if msg._has_array:
         return [
             {
@@ -2143,7 +2125,6 @@ def parser_31d9(payload, msg) -> dict:
 
 @parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
-
     try:
         # assert (
         #     int(payload[2:4], 16) <= 200
@@ -2294,7 +2275,6 @@ def parser_3210(payload, msg) -> dict:
 
 @parser_decorator  # opentherm_msg, from OTB
 def parser_3220(payload, msg) -> dict:
-
     try:
         ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
     except AssertionError as exc:
@@ -2360,7 +2340,6 @@ def parser_3220(payload, msg) -> dict:
 
 @parser_decorator  # unknown_3221, from OTB, FAN
 def parser_3221(payload, msg) -> dict:
-
     # RP --- 10:052644 18:198151 --:------ 3221 002 000F
     # RP --- 10:048122 18:006402 --:------ 3221 002 0000
     # RP --- 32:155617 18:005904 --:------ 3221 002 000A
@@ -2397,7 +2376,6 @@ def parser_3222(payload, msg) -> dict:
 
 @parser_decorator  # unknown_3223, from OTB
 def parser_3223(payload, msg) -> dict:
-
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
@@ -2457,7 +2435,6 @@ def parser_3b00(payload, msg) -> dict:
 
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
-
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
         return {
@@ -2555,7 +2532,6 @@ def parser_3ef0(payload, msg) -> dict:
 
 @parser_decorator  # actuator_cycle
 def parser_3ef1(payload, msg) -> dict:
-
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper, DEX
         assert msg.len == 18, f"expecting len 18, got: {msg.len}"
         return {
@@ -2602,7 +2578,6 @@ def parser_3ef1(payload, msg) -> dict:
 
 @parser_decorator  # timestamp, HVAC
 def parser_4401(payload, msg) -> dict:
-
     if msg.verb == RP:
         return {}
 
@@ -2624,7 +2599,6 @@ def parser_4e01(payload, msg) -> dict:
 
 @parser_decorator  # hvac_4e02
 def parser_4e02(payload, msg) -> dict:
-
     return (
         {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
         | {"val_34": payload[34:36]}
@@ -2634,7 +2608,6 @@ def parser_4e02(payload, msg) -> dict:
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> dict:
-
     if payload[:2] != "00":
         _LOGGER.debug("Invalid/deprecated Puzzle packet")
         return {

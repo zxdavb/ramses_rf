@@ -108,7 +108,7 @@ COLORS = {
     W_: Style.BRIGHT + Fore.MAGENTA,
 }
 
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
 
 LIB_KEYS = tuple(SCH_GLOBAL_CONFIG({}).keys()) + (SZ_SERIAL_PORT,)
 LIB_CFG_KEYS = tuple(SCH_GLOBAL_CONFIG({})[SZ_CONFIG].keys()) + (SZ_EVOFW_FLAG,)
@@ -372,7 +372,6 @@ def listen(obj, **kwargs):
 
 
 def print_results(gwy, **kwargs):
-
     if kwargs[GET_FAULTS]:
         fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
 

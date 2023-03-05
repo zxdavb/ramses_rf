@@ -245,7 +245,6 @@ class DeviceBase(Entity):
 
 
 class BatteryState(DeviceBase):  # 1060
-
     BATTERY_LOW = "battery_low"  # boolean
     BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
 
@@ -655,7 +654,6 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
 
     @property
     def _is_controller(self) -> None | bool:
-
         if self._iz_controller is not None:
             return bool(self._iz_controller)  # True, False, or msg
 

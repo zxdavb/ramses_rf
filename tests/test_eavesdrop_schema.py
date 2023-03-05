@@ -37,7 +37,6 @@ async def assert_schemas_equal(gwy, expected_schema):
 
 
 async def test_eavesdrop_off(dir_name):
-
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": False})
         await gwy.start()
@@ -55,7 +54,6 @@ async def test_eavesdrop_off(dir_name):
 
 
 async def test_eavesdrop_onn(dir_name):
-
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
         await gwy.start()

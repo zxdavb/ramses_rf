@@ -518,7 +518,6 @@ class MessageProtocol(asyncio.Protocol):
     """
 
     def __init__(self, gwy, callback: Callable) -> None:
-
         # self._gwy = gwy  # is not used
         self._loop = gwy._loop
         self._callback = callback
