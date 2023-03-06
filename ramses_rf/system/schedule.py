@@ -113,7 +113,6 @@ class Schedule:  # 0404
     """The schedule of a zone."""
 
     def __init__(self, zone, **kwargs) -> None:
-
         self._loop = zone._gwy._loop
 
         self.id = zone.id

@@ -141,13 +141,11 @@ class MessageDB:
         return msg
 
     def _msg_flag(self, code: _CodeT, key, idx) -> None | bool:
-
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
         return None
 
     def _msg_value(self, code: _CodeT, *args, **kwargs):
-
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
@@ -156,7 +154,6 @@ class MessageDB:
     def _msg_value_code(
         self, code: _CodeT, verb: _VerbT = None, key=None, **kwargs
     ) -> None | dict | list:
-
         assert (
             not isinstance(code, tuple) or verb is None
         ), f"Unsupported: using a tuple ({code}) with a verb ({verb})"
@@ -179,7 +176,6 @@ class MessageDB:
     def _msg_value_msg(
         self, msg: None | Message, key=None, zone_idx: str = None, domain_id: str = None
     ) -> None | dict | list:
-
         if msg is None:
             return None
         elif msg._expired:

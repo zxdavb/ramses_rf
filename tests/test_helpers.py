@@ -82,7 +82,6 @@ def test_pkt_addr_parser(gwy):  # noqa: F811
 
 
 def test_attrdict_class() -> None:
-
     _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
 
     assert_raises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")

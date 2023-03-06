@@ -89,7 +89,6 @@ class Engine:
         port_config: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
     ) -> None:
-
         self.ser_name = port_name
         self._input_file = input_file
         self._port_config = port_config or {}
@@ -342,7 +341,6 @@ class Gateway(Engine):
         port_config: None | dict = None,
         **kwargs,
     ) -> None:
-
         if debug_mode:
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting RAMSES RF, **config = %s", kwargs)
@@ -489,7 +487,6 @@ class Gateway(Engine):
         self.device_by_id = {}
 
     def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
-
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
         self._pause()
 

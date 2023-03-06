@@ -24,7 +24,6 @@ WORK_DIR = f"{TEST_DIR}/schemas"
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/log_files").glob("*.log")]
 )
 async def test_schema_discover_from_log(f_name):
-
     with open(f"{WORK_DIR}/log_files/{f_name}.log") as f:
         gwy = Gateway(None, input_file=f, config={})  # noqa: F811
         gwy.config.disable_sending = True
@@ -49,7 +48,6 @@ async def test_schema_discover_from_log(f_name):
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/jsn_files").glob("*.json")]
 )
 async def test_schema_load_from_json(gwy, f_name):  # noqa: F811
-
     with open(f"{WORK_DIR}/jsn_files/{f_name}.json") as f:
         schema = json.load(f)
 

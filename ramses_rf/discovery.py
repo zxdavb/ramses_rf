@@ -54,7 +54,6 @@ if DEV_MODE:
 
 def script_decorator(fnc):
     def wrapper(gwy, *args, **kwargs):
-
         highest = {
             SZ_PRIORITY: Priority.HIGHEST,
             SZ_RETRIES: 3,
@@ -89,7 +88,6 @@ async def periodic(gwy, cmd, count=1, interval=None):
 
 
 def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
-
     tasks = []
 
     if kwargs.get(EXEC_CMD):
@@ -117,7 +115,6 @@ def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
 
 
 async def exec_cmd(gwy, **kwargs):
-
     await gwy.async_send_cmd(Command.from_cli(kwargs[EXEC_CMD], qos=QOS_HIGH))
 
 

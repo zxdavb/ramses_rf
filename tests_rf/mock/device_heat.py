@@ -78,7 +78,6 @@ class MockDeviceBase:
     """A pseudo-mocked device used for testing."""
 
     def __init__(self, gwy, device_id) -> None:
-
         self._gwy = gwy
         self._loop = gwy._loop
         self._ether = gwy.pkt_transport.serial._que

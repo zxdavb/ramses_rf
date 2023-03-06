@@ -653,10 +653,8 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
             self._gwy._loop.create_task(dhw.get_schedule(force_io=True))
 
     async def _obtain_lock(self, zone_idx) -> None:
-
         timeout_dtm = dt.now() + td(minutes=3)
         while dt.now() < timeout_dtm:
-
             self.zone_lock.acquire()
             if self.zone_lock_idx is None:
                 self.zone_lock_idx = zone_idx
@@ -672,7 +670,6 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
             )
 
     def _release_lock(self) -> None:
-
         self.zone_lock.acquire()
         self.zone_lock_idx = None
         self.zone_lock.release()
@@ -830,7 +827,6 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             )
 
     def _handle_msg(self, msg: Message) -> None:
-
         super()._handle_msg(msg)
 
         if (
@@ -1074,7 +1070,6 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
 
 class Chronotherm(Evohome):
-
     _SLUG: str = SYS_KLASS.SYS
 
 
@@ -1101,12 +1096,10 @@ class Hometronics(System):
 
 
 class Programmer(Evohome):
-
     _SLUG: str = SYS_KLASS.PRG
 
 
 class Sundial(Evohome):
-
     _SLUG: str = SYS_KLASS.SYS
 
 

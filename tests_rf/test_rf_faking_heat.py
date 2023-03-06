@@ -65,7 +65,6 @@ def track_packet_flow(msg, tcs_id, zone_idx, sensor_id):
 
 
 async def _test_zon_sensor(gwy, tcs, zone, sensor):
-
     global flow_marker
 
     def track_packet_flow_wrapper(msg: Message, *args, **kwargs):

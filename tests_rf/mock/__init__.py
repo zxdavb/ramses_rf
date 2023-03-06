@@ -35,5 +35,4 @@ if DEV_MODE:
 
 
 class MockGateway(Gateway):  # to use a bespoke create_pkt_stack()
-
     _create_pkt_stack = create_pkt_stack

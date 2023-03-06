@@ -66,7 +66,6 @@ class Address:
 
     @staticmethod
     def is_valid(value: str) -> bool:  # Union[str, Match[str], None]:
-
         # if value[:2] not in DEV_TYPE_MAP:
         #     return False
 

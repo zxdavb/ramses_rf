@@ -50,7 +50,6 @@ def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
 
 
 async def test_dev_eavesdrop_off(dir_name):
-
     gwy: Gateway = None  # noqa: F811
 
     with open(f"{dir_name}/packet.log") as f:
@@ -73,7 +72,6 @@ async def test_dev_eavesdrop_off(dir_name):
 
 
 async def test_dev_eavesdrop_on(dir_name):
-
     gwy: Gateway = None  # noqa: F811
 
     with open(f"{dir_name}/packet.log") as f:

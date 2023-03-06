@@ -131,7 +131,6 @@ class Qos:
         timeout=None,
         backoff=None,
     ) -> None:
-
         self.priority = self.DEFAULT_QOS[0] if priority is None else priority
         self.retry_limit = self.DEFAULT_QOS[1] if retries is None else retries
         self.tx_timeout = self.TX_TIMEOUT_DEFAULT
@@ -175,7 +174,6 @@ def validate_api_params(*, has_zone: bool = None):
     def device_decorator(fcn):
         @functools.wraps(fcn)
         def wrapper(cls, dst_id, *args, **kwargs):
-
             if SZ_ZONE_IDX in kwargs:  # Cmd.get_relay_demand()
                 kwargs[SZ_ZONE_IDX] = validate_zone_idx(kwargs[SZ_ZONE_IDX])
             if SZ_DOMAIN_ID in kwargs:
@@ -190,7 +188,6 @@ def validate_api_params(*, has_zone: bool = None):
     def zone_decorator(fcn):
         @functools.wraps(fcn)
         def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
-
             zone_idx = validate_zone_idx(zone_idx)
             if SZ_DOMAIN_ID in kwargs:
                 kwargs[SZ_DOMAIN_ID] = validate_zone_idx(kwargs[SZ_DOMAIN_ID])
@@ -1385,7 +1382,6 @@ class Command(Frame):
     @classmethod  # constructor for internal use only
     @typechecked
     def _puzzle(cls, msg_type: None | str = None, message: str = "", **kwargs):
-
         if msg_type is None:
             msg_type = "12" if message else "10"
 

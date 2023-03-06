@@ -260,7 +260,6 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
     msg._payload = detect_array_fragment(msg, prev_msg)  # HACK: needs rethinking?
 
     try:  # validate / dispatch the packet
-
         _check_msg_addrs(msg)  # ? InvalidAddrSetError
 
         # TODO: any use in creating a device only if the payload is valid?
