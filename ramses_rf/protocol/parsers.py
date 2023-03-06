@@ -560,6 +560,41 @@ def parser_01e9(payload, msg) -> dict:
     }
 
 
+@parser_decorator  # unknown_01ff, to/from a Itho Spider/Thermostat
+def parser_01ff(payload, msg) -> dict:
+    # see: https://github.com/zxdavb/ramses_rf/issues/73
+
+    assert payload[:4] == "0080", f"{_INFORM_DEV_MSG} ({payload[:4]})"
+    assert payload[12:14] == "00", f"{_INFORM_DEV_MSG} ({payload[12:14]})"
+    assert payload[16:22] == "00143C", f"{_INFORM_DEV_MSG} ({payload[16:22]})"
+    assert payload[26:30] == "0000", f"{_INFORM_DEV_MSG} ({payload[26:30]})"
+    assert payload[34:46] == "80800280FF80", f"{_INFORM_DEV_MSG} ({payload[34:46]})"
+    assert payload[48:] == "0000", f"{_INFORM_DEV_MSG} ({payload[48:]})"
+
+    if msg.verb in (I_, RQ):  # from Spider thermostat to gateway
+        assert payload[14:16] == "80", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
+        assert payload[22:26] == "2840", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
+        assert payload[30:34] == "0104", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
+        assert payload[46:48] == "07", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+
+    if msg.verb in (RP, W_):  # from Spider gateway to thermostat
+        assert payload[4:6] == "80", f"{_INFORM_DEV_MSG} ({payload[4:6]})"
+        assert payload[6:8] == payload[8:10], f"{_INFORM_DEV_MSG} ({payload[8:10]})"
+        assert payload[14:16] == "00", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
+        assert payload[22:26] == "8080", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
+        assert payload[30:34] == "3100", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
+        assert payload[46:48] == "04", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+
+    return {
+        "temperature": None if msg.verb in (RP, W_) else int(payload[4:6], 16) / 2,
+        "setpoint_min": int(payload[6:8], 16) / 2,  # as: 22C9[2:6] and [6:10] ???
+        "setpoint_max": None if msg.verb in (RP, W_) else int(payload[8:10], 16) / 2,
+        "time_planning": not bool(int(payload[10:12], 16) & 1 << 6),
+        "temp_adjusted": bool(int(payload[10:12], 16) & 1 << 5),
+        "_flags_10": payload[10:12],  #
+    }
+
+
 @parser_decorator  # zone_schedule (fragment)
 def parser_0404(payload, msg) -> dict:
     # Retreival of Zone schedule (NB: 200008)
