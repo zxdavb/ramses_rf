@@ -9,8 +9,8 @@ It requires a USB-to-RF device, either a Honeywell HGI80 (somewhat rare, expensi
 
 It does three things:
  - decodes RAMSES II-compatible packets and converts them into useful JSON
- - builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
- - allows you to send commands to evohome, or monitor for state changes
+ - builds a picture (schema, config & state) of evohome-compatible CH/DHW systems - either passively (by eavesdropping), or actively (probing)
+ - allows you to send commands to CH/DHW and HVAC systems, or monitor for state changes
  - allows you to emulate some hardware devices
 
 For CH/DHW, the simplest way to know if it will work with your system is to identify the box connected to your boiler/HVAC appliance as one of:
@@ -21,7 +21,7 @@ For CH/DHW, the simplest way to know if it will work with your system is to iden
 Other systems may well work, such as some Itho Dallderop HVAC systems, use this protocol, YMMV.
 
 It includes a CLI and can be used as a standalone tool, but also is used as a client library by:
- - [evohome_cc](https://github.com/zxdavb/evohome_cc), a Home Assistant integration
+ - [ramses_cc](https://github.com/zxdavb/ramses_cc), a Home Assistant integration
  - [evohome-Listener](https://github.com/smar000/evohome-Listener), an MQTT gateway
 
 ## Installation
