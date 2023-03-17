@@ -1,0 +1,6 @@
+# 02:250704 is an Itho Daalderop autotemp UFC
+2023-01-17T13:30:46.811845 048  I --- 02:250704 --:------ 02:250704 3110 004 00001610  # {'_unknown_1': '00', 'heat_demand': 0.11, 'cooling': False, 'heating': True}
+2023-03-18T12:27:58.093819 051  I --- 02:250704 --:------ 02:250704 3110 004 0000C820  # {'_unknown_1': '00', 'heat_demand': 1.0, 'cooling': True, 'heating': False}
+# 02:042556 is an Itho Spider room master thermostat paired with 02:250704
+2023-03-18T11:42:26.166038 079  I --- 21:042656 --:------ 21:042656 3110 004 00000020  # {'_unknown_1': '00', 'heat_demand': 0, 'cooling': True, 'heating': False}
+
