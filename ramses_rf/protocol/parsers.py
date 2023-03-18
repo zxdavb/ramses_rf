@@ -1995,7 +1995,11 @@ def parser_30c9(payload, msg) -> dict:
 
 @parser_decorator  # unknown_3110, HVAC
 def parser_3110(payload, msg) -> dict:
-    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
+    # heatig, heat_demand 19% (0x26)
+    # .I --- 02:250708 --:------ 02:250708 3110 004 00002610 
+    # cooling, heat_demand 100%
+    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820 
+    # cooling
     # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
 
     try:
@@ -2005,10 +2009,13 @@ def parser_3110(payload, msg) -> dict:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
+    bitmap = int(payload[6:8], 16)
+
     return {
         f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent_from_hex(payload[4:6]),
-        "_value_3": payload[6:],
+        "heat_demand": percent_from_hex(payload[4:6]),
+        "heating": bool(bitmap & 0x10),
+        "cooling": bool(bitmap & 0x20)
     }
 
 
