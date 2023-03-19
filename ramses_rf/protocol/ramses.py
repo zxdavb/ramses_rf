@@ -640,6 +640,20 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "hvac_4e04",
         I_: r"^00(00FF|01FE)$",
         W_: r"^00(00FF|01FE)$",
+        I_: r"^00(([0-9A-F]){4})$",
+        W_: r"^00(([0-9A-F]){4})$",
+    },
+    Code._4E0D: {  # hvac_4e0d - HVAC - itho autotemp
+        SZ_NAME: "hvac_4e0d",
+        I_: r"^01(00|01)$",
+    },
+    Code._4E15: {  # hvac_4e15 - HVAC - itho autotemp
+        SZ_NAME: "hvac_4e15",
+        I_: r"^(00)(00|01|02|04)$",
+    },
+    Code._4E16: {  # hvac_4e16 - HVAC - itho autotemp
+        SZ_NAME: "hvac_4e16",
+        I_: r"^(00){7}$",
     },
     Code._PUZZ: {
         SZ_NAME: "puzzle_packet",

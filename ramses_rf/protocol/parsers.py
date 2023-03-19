@@ -2673,6 +2673,33 @@ def parser_4e02(payload, msg) -> dict:
     )
 
 
+@parser_decorator  # hvac_4e0d
+def parser_4e0d(payload, msg) -> dict:
+#  I --- 02:250704 02:250984 --:------ 4E0D 002 0100
+#  I --- 02:250704 02:250984 --:------ 4E0D 002 0101
+    return (
+        {
+            "_unknown_1": payload[2:4],
+        }
+     )
+
+@parser_decorator  # hvac_4e15
+def parser_4e15(payload, msg) -> dict:
+#  I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000
+    return (
+        {
+            "mode": payload[2:4],
+        }
+     )
+@parser_decorator  # hvac_4e16
+def parser_4e16(payload, msg) -> dict:
+#  I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000
+    return (
+        {
+            "_payload": payload[2:14],
+        }
+     )
+
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> dict:
     if payload[:2] != "00":
