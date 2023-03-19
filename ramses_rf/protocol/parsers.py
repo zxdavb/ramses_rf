@@ -2523,6 +2523,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
+                "cooling_active": bool(int(payload[6:8], 0x10) & 1 << 4),
                 "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
                 "_unknown_5": payload[10:12],  # FF, 1C, ?others
             }
@@ -2548,10 +2549,12 @@ def parser_3ef0(payload, msg) -> dict:
         #     payload[2:4] == "00"
         # ), f"bytes 1+2: {payload[2:6]}"  # 97% is 00 when 11, but not always
 
+        # .I --- 21:064743 --:------ 21:064743 3EF0 006 02-0000-10-02-00 
+        #   payload[6:8]: _flags_3 == "10": flag active when cooling is active.  
         assert payload[4:6] in ("00", "10", "11", "FF"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
-            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
+            payload[6:8] in ("10", "FF") or int(payload[6:8], 0x10) & 0b10110000 == 0
         ), f'byte 3: {result["_flags_3"]}'
         # only 01:10:040239 does 0b01000000
 
