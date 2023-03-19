@@ -1480,7 +1480,7 @@ def parser_22d0(payload, msg) -> dict:
         assert seqx[4:6] == "00", _INFORM_DEV_MSG
         return {
             "idx": seqx[:2],
-            "cool_mode": bool(int(seqx[2:4]) & 0x10),
+            "cool_mode": bool(int(seqx[2:4], 16) & 0x10),
             "_flags": flag8_from_hex(seqx[2:4]),
             "_unknown": payload[4:],
         }
