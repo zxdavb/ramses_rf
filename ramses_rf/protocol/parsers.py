@@ -1438,10 +1438,12 @@ def parser_22c9(payload, msg) -> list:
     def _parser(seqx) -> dict:
         assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01/02"
 
+        bitmap = int(payload[10:12], 16)
         return {
             "temp_low": temp_from_hex(seqx[2:6]),
             "temp_high": temp_from_hex(seqx[6:10]),
-            f"_{SZ_UNKNOWN}_0": seqx[10:],
+            "heating": bool(bitmap & 0x1),
+            "cooling": bool(bitmap & 0x2)
         }
 
     if msg._has_array:

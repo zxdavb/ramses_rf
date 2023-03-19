@@ -5,7 +5,7 @@
 2023-02-17T13:32:59.394082 ... RQ --- 21:033244 18:010629 --:------ 01FF 026 008026262A90008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 19.0, 'setpoint_max': 21.0, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '90'}
 2023-02-17T13:32:59.447655 ... RP --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 19.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '92'}
 
-2023-02-17T13:35:39.303085 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00076C083401                                          # {                     'temp_low':     19.0, 'temp_high':    21.0, '_unknown_0': '01'}
+2023-02-17T13:35:39.303085 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00076C083401                                          # {                     'temp_low':     19.0, 'temp_high':    21.0, 'cooling': False, 'heating': True}
 
 2023-02-17T13:42:25.195749 ... RQ --- 21:033244 18:010629 --:------ 01FF 026 008026262A90008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 19.0, 'setpoint_max': 21.0, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '90'}
 2023-02-17T13:42:25.249490 ... RP --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 19.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '92'}
@@ -17,17 +17,17 @@
 2023-02-17T13:43:47.510393 ...  W --- 18:010629 21:033244 --:------ 01FF 026 0080802828B2000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 20.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B2'}
 2023-02-17T13:43:47.549659 ...  I --- 21:033244 18:010629 --:------ 01FF 026 008026282CB0008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 20.0, 'setpoint_max': 22.0, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B0'}
 
-2023-02-17T13:43:50.033321 ...  I --- 21:033244 --:------ 21:033244 22C9 006 0007D0089801                                          # {                     'temp_low':     20.0, 'temp_high':    22.0, '_unknown_0': '01'}
+2023-02-17T13:43:50.033321 ...  I --- 21:033244 --:------ 21:033244 22C9 006 0007D0089801                                          # {                     'temp_low':     20.0, 'temp_high':    22.0, 'cooling': False, 'heating': True}
 
 2023-02-17T13:44:09.523331 ...  W --- 18:010629 21:033244 --:------ 01FF 026 0080802424B2000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 18.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B2'}
 2023-02-17T13:44:09.558425 ...  I --- 21:033244 18:010629 --:------ 01FF 026 0080262428B0008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 18.0, 'setpoint_max': 20.0, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B0'}
 
-2023-02-17T13:44:18.350547 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00070807D001                                          # {                     'temp_low':     18.0, 'temp_high':    20.0, '_unknown_0': '01'}
+2023-02-17T13:44:18.350547 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00070807D001                                          # {                     'temp_low':     18.0, 'temp_high':    20.0, 'cooling': False, 'heating': True}
 
 2023-02-17T13:51:51.422238 ... RQ --- 21:033244 18:010629 --:------ 01FF 026 0080262428B0008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 18.0, 'setpoint_max': 20.0, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B0'}
 2023-02-17T13:51:51.476568 ... RP --- 18:010629 21:033244 --:------ 01FF 026 0080802424B2000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 18.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B2'}
 
-2023-02-17T13:58:27.686044 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00070807D001                                          # {                     'temp_low':     18.0, 'temp_high':    20.0, '_unknown_0': '01'}
+2023-02-17T13:58:27.686044 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00070807D001                                          # {                     'temp_low':     18.0, 'temp_high':    20.0, 'cooling': False, 'heating': True}
 
 2023-02-17T14:01:17.642878 ... RQ --- 21:033244 18:010629 --:------ 01FF 026 0080262428B0008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 18.0, 'setpoint_max': 20.0, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B0'}
 2023-02-17T14:01:17.692541 ... RP --- 18:010629 21:033244 --:------ 01FF 026 0080802424B2000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 18.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': True,  '_flags_10': 'B2'}
@@ -46,7 +46,7 @@
 2023-02-17T14:08:11.507902 ...  W --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 19.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '92'}
 2023-02-17T14:08:11.551606 ...  I --- 21:033244 18:010629 --:------ 01FF 026 008026262A90008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 19.0, 'setpoint_max': 21.0, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '90'}
 
-2023-02-17T14:08:12.795972 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00076C083401                                          # {                     'temp_low':     19.0, 'temp_high':    21.0, '_unknown_0': '01'}
+2023-02-17T14:08:12.795972 ...  I --- 21:033244 --:------ 21:033244 22C9 006 00076C083401                                          # {                     'temp_low':     19.0, 'temp_high':    21.0, 'cooling': False, 'heating': True}
 
 2023-02-17T14:10:43.871964 ... RQ --- 21:033244 18:010629 --:------ 01FF 026 008026262A90008000143C28400000010480800280FF80070000  # {'temperature': 19.0, 'setpoint_min': 19.0, 'setpoint_max': 21.0, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '90'}
 2023-02-17T14:10:43.924360 ... RP --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000  # {'temperature': None, 'setpoint_min': 19.0, 'setpoint_max': None, 'time_planning': True,  'temp_adjusted': False, '_flags_10': '92'}
