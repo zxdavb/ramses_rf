@@ -1443,7 +1443,7 @@ def parser_22c9(payload, msg) -> list:
             "temp_low": temp_from_hex(seqx[2:6]),
             "temp_high": temp_from_hex(seqx[6:10]),
             "heating": bool(bitmap & 0x1),
-            "cooling": bool(bitmap & 0x2)
+            "cooling": bool(bitmap & 0x2),
         }
 
     if msg._has_array:
@@ -1998,9 +1998,9 @@ def parser_30c9(payload, msg) -> dict:
 @parser_decorator  # unknown_3110, HVAC
 def parser_3110(payload, msg) -> dict:
     # heatig, heat_demand 19% (0x26)
-    # .I --- 02:250708 --:------ 02:250708 3110 004 00002610 
+    # .I --- 02:250708 --:------ 02:250708 3110 004 00002610
     # cooling, heat_demand 100%
-    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820 
+    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
     # cooling
     # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
 
@@ -2017,7 +2017,7 @@ def parser_3110(payload, msg) -> dict:
         f"_{SZ_UNKNOWN}_1": payload[2:4],
         "heat_demand": percent_from_hex(payload[4:6]),
         "heating": bool(bitmap & 0x10),
-        "cooling": bool(bitmap & 0x20)
+        "cooling": bool(bitmap & 0x20),
     }
 
 
@@ -2643,10 +2643,33 @@ def parser_4e01(payload, msg) -> dict:
 
 @parser_decorator  # hvac_4e02
 def parser_4e02(payload, msg) -> dict:
+    # UFC (itho autotemp slave to master, reporting thermostat setpoints and mode)
+    # separate message per thermostat (autotemp channel)
+    # heating:
+    #  I --- 02:248945 02:250708 --:------ 4E02 034 00-7FFF-07D0-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-04-7FFF-0834-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF
+    #  I --- 02:248945 02:250708 --:------ 4E02 034 00-07D0-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-04-0834-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF
+    # cooling:
+    #  I --- 02:248945 02:250708 --:------ 4E02 034 00-07D0-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-02-0834-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF
+
+    if payload[34:36] == "02":
+        mode = "cooling"
+    elif payload[34:36] == "04":
+        mode = "heating"
+    else:
+        mode = "unknown"
+
     return (
-        {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
-        | {"val_34": payload[34:36]}
-        | {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(36, 68, 4)}
+        {
+            f"heating_setpoint_{idx}": temp_from_hex(payload[x : x + 4])
+            for idx, x in enumerate(range(2, 34, 4), 1)
+            if payload[x : x + 4] != "7FFF"
+        }
+        | {"mode": mode}
+        | {
+            f"cooling_setpoint_{idx}": temp_from_hex(payload[x : x + 4])
+            for idx, x in enumerate(range(36, 68, 4), 1)
+            if payload[x : x + 4] != "7FFF"
+        }
     )
 
 
