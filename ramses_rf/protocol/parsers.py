@@ -2026,11 +2026,13 @@ def parser_3120(payload, msg) -> dict:
     # .I --- 34:136285 --:------ 34:136285 3120 007 0070B0000000FF  # every ~3:45:00!
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
     # .I --- 37:258565 --:------ 37:258565 3120 007 0080B0010003FF
+    # .I --- 21:064743 --:------ 21:064743 3120 007 0070B0000000FF  # itho spider thermostat
+    # .I --- 02:250708 --:------ 02:250708 3120 007 0000B2000000FF  # itho autotemp UFC
 
     try:
         assert payload[:2] == "00", f"byte 0: {payload[:2]}"
         assert payload[2:4] in ("00", "70", "80"), f"byte 1: {payload[2:4]}"
-        assert payload[4:6] == "B0", f"byte 2: {payload[4:6]}"
+        assert payload[4:6] in ("B0", "B2"), f"byte 2: {payload[4:6]}"
         assert payload[6:8] in ("00", "01"), f"byte 3: {payload[6:8]}"
         assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
         assert payload[10:12] in ("00", "03", "0A", "9C"), f"byte 5: {payload[10:12]}"
