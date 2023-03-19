@@ -638,8 +638,6 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._4E04: {  # hvac_4e04 - HVAC
         SZ_NAME: "hvac_4e04",
-        I_: r"^00(00FF|01FE)$",
-        W_: r"^00(00FF|01FE)$",
         I_: r"^00(([0-9A-F]){4})$",
         W_: r"^00(([0-9A-F]){4})$",
     },
