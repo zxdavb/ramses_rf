@@ -1438,10 +1438,12 @@ def parser_22c9(payload, msg) -> list:
     def _parser(seqx) -> dict:
         assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01/02"
 
+        bitmap = int(payload[10:12], 16)
         return {
             "temp_low": temp_from_hex(seqx[2:6]),
             "temp_high": temp_from_hex(seqx[6:10]),
-            f"_{SZ_UNKNOWN}_0": seqx[10:],
+            "heating": bool(bitmap & 0x1),
+            "cooling": bool(bitmap & 0x2),
         }
 
     if msg._has_array:
@@ -1480,7 +1482,7 @@ def parser_22d0(payload, msg) -> dict:
         assert seqx[4:6] == "00", _INFORM_DEV_MSG
         return {
             "idx": seqx[:2],
-            "cool_mode": bool(int(seqx[2:4]) & 0x10),
+            "cool_mode": bool(int(seqx[2:4], 16) & 0x10),
             "_flags": flag8_from_hex(seqx[2:4]),
             "_unknown": payload[4:],
         }
@@ -1995,7 +1997,11 @@ def parser_30c9(payload, msg) -> dict:
 
 @parser_decorator  # unknown_3110, HVAC
 def parser_3110(payload, msg) -> dict:
+    # heatig, heat_demand 19% (0x26)
+    # .I --- 02:250708 --:------ 02:250708 3110 004 00002610
+    # cooling, heat_demand 100%
     # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
+    # cooling
     # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
 
     try:
@@ -2005,10 +2011,13 @@ def parser_3110(payload, msg) -> dict:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
+    bitmap = int(payload[6:8], 16)
+
     return {
         f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent_from_hex(payload[4:6]),
-        "_value_3": payload[6:],
+        "heat_demand": percent_from_hex(payload[4:6]),
+        "heating": bool(bitmap & 0x10),
+        "cooling": bool(bitmap & 0x20),
     }
 
 
@@ -2017,11 +2026,13 @@ def parser_3120(payload, msg) -> dict:
     # .I --- 34:136285 --:------ 34:136285 3120 007 0070B0000000FF  # every ~3:45:00!
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
     # .I --- 37:258565 --:------ 37:258565 3120 007 0080B0010003FF
+    # .I --- 21:064743 --:------ 21:064743 3120 007 0070B0000000FF  # itho spider thermostat
+    # .I --- 02:250708 --:------ 02:250708 3120 007 0000B2000000FF  # itho autotemp UFC
 
     try:
         assert payload[:2] == "00", f"byte 0: {payload[:2]}"
         assert payload[2:4] in ("00", "70", "80"), f"byte 1: {payload[2:4]}"
-        assert payload[4:6] == "B0", f"byte 2: {payload[4:6]}"
+        assert payload[4:6] in ("B0", "B2"), f"byte 2: {payload[4:6]}"
         assert payload[6:8] in ("00", "01"), f"byte 3: {payload[6:8]}"
         assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
         assert payload[10:12] in ("00", "03", "0A", "9C"), f"byte 5: {payload[10:12]}"
@@ -2512,6 +2523,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
+                "cooling_active": bool(int(payload[6:8], 0x10) & 1 << 4),
                 "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
                 "_unknown_5": payload[10:12],  # FF, 1C, ?others
             }
@@ -2537,10 +2549,12 @@ def parser_3ef0(payload, msg) -> dict:
         #     payload[2:4] == "00"
         # ), f"bytes 1+2: {payload[2:6]}"  # 97% is 00 when 11, but not always
 
+        # .I --- 21:064743 --:------ 21:064743 3EF0 006 02-0000-10-02-00 
+        #   payload[6:8]: _flags_3 == "10": flag active when cooling is active.  
         assert payload[4:6] in ("00", "10", "11", "FF"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
-            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
+            payload[6:8] in ("10", "FF") or int(payload[6:8], 0x10) & 0b10110000 == 0
         ), f'byte 3: {result["_flags_3"]}'
         # only 01:10:040239 does 0b01000000
 
@@ -2629,16 +2643,68 @@ def parser_4401(payload, msg) -> dict:
 
 @parser_decorator  # hvac_4e01
 def parser_4e01(payload, msg) -> dict:
-    return {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
+    return {
+        f"temperature_{idx}": temp_from_hex(payload[x : x + 4])
+        for idx, x in enumerate(range(2, 34, 4), 1)
+        if payload[x : x + 4] != "7FFF"
+    }
 
 
 @parser_decorator  # hvac_4e02
 def parser_4e02(payload, msg) -> dict:
+    # UFC (itho autotemp slave to master, reporting thermostat setpoints and mode)
+    # separate message per thermostat (autotemp channel)
+    # heating:
+    #  I --- 02:248945 02:250708 --:------ 4E02 034 00-7FFF-07D0-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-04-7FFF-0834-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF
+    #  I --- 02:248945 02:250708 --:------ 4E02 034 00-07D0-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-04-0834-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF
+    # cooling:
+    #  I --- 02:248945 02:250708 --:------ 4E02 034 00-07D0-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-02-0834-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF-7FFF
+
+    if payload[34:36] == "02":
+        mode = "cooling"
+    elif payload[34:36] == "04":
+        mode = "heating"
+    else:
+        mode = "unknown"
+
     return (
-        {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
-        | {"val_34": payload[34:36]}
-        | {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(36, 68, 4)}
+        {
+            f"heating_setpoint_{idx}": temp_from_hex(payload[x : x + 4])
+            for idx, x in enumerate(range(2, 34, 4), 1)
+            if payload[x : x + 4] != "7FFF"
+        }
+        | {"mode": mode}
+        | {
+            f"cooling_setpoint_{idx}": temp_from_hex(payload[x : x + 4])
+            for idx, x in enumerate(range(36, 68, 4), 1)
+            if payload[x : x + 4] != "7FFF"
+        }
     )
+
+
+@parser_decorator  # hvac_4e0d
+def parser_4e0d(payload, msg) -> dict:
+    #  I --- 02:250704 02:250984 --:------ 4E0D 002 0100
+    #  I --- 02:250704 02:250984 --:------ 4E0D 002 0101
+    return {
+        "_unknown_1": payload[2:4],
+    }
+
+
+@parser_decorator  # hvac_4e15
+def parser_4e15(payload, msg) -> dict:
+    #  I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000
+    return {
+        "mode": payload[2:4],
+    }
+
+
+@parser_decorator  # hvac_4e16
+def parser_4e16(payload, msg) -> dict:
+    #  I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000
+    return {
+        "_payload": payload[2:14],
+    }
 
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated

@@ -1,0 +1,8 @@
+# Spider main thermostat reporting status
+# heating
+2023-03-19T12:43:34.206729 037  I --- 21:033160 --:------ 21:033160 3EF0 006 020000000200  # {'modulation_level': 0.0, '_flags_2': '00', '_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'ch_active': False, 'dhw_active': False, 'flame_active': False, 'cooling_active': False, '_unknown_4': '02', '_unknown_5': '00'}
+# DHW 
+2023-03-19T12:54:31.178454 037  I --- 21:033160 --:------ 21:033160 3EF0 006 020000040200  # {'modulation_level': 0.0, '_flags_2': '00', '_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'ch_active': False, 'dhw_active': True, 'flame_active': False, 'cooling_active': False, '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T12:57:15.427420 037  I --- 21:033160 --:------ 21:033160 3EF0 006 0200000C0200  # {'modulation_level': 0.0, '_flags_2': '00', '_flags_3': [0, 0, 0, 0, 1, 1, 0, 0], 'ch_active': False, 'dhw_active': True, 'flame_active': True, 'cooling_active': False, '_unknown_4': '02', '_unknown_5': '00'}
+# cooling 
+2023-03-18T08:53:56.137689 065  I --- 21:064743 --:------ 21:064743 3EF0 006 020000100200  # {'modulation_level': 0.0, '_flags_2': '00', '_flags_3': [0, 0, 0, 1, 0, 0, 0, 0], 'ch_active': False, 'dhw_active': False, 'flame_active': False, 'cooling_active': True, '_unknown_4': '02', '_unknown_5': '00'}
