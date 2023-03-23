@@ -1993,7 +1993,7 @@ def parser_30c9(payload, msg) -> dict:
     return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # unknown_3110, HVAC
+@parser_decorator  # mode, demand. Itho autotemp / spider
 def parser_3110(payload, msg) -> dict:
     # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
     # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
@@ -2005,10 +2005,16 @@ def parser_3110(payload, msg) -> dict:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
+    bitmask = (payload[6:8], 16)
+    mode = {
+        0x00: "disabled",
+        0x10: "heating",
+        0x20: "cooling",
+    }.get(bitmask & 0x30, "unknown")
+
     return {
-        f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent_from_hex(payload[4:6]),
-        "_value_3": payload[6:],
+        "mode": mode,
+        "demand": percent_from_hex(payload[4:6]),
     }
 
 

@@ -520,7 +520,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         EXPIRES: td(hours=1),
     },
     Code._3110: {  # unknown_3110 - HVAC
-        SZ_NAME: "message_3110",
+        SZ_NAME: "mode_demand",
         I_: r"^00",
     },
     Code._3120: {  # unknown_3120 - Error Report?
