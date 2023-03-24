@@ -519,9 +519,9 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         EXPIRES: td(hours=1),
     },
-    Code._3110: {  # unknown_3110 - HVAC
-        SZ_NAME: "message_3110",
-        I_: r"^00",
+    Code._3110: {  # ufc_demand - HVAC
+        SZ_NAME: "ufc_demand",
+        I_: r"^0000[0-9A-F]{2}(00|10|20)",  # (00|10|20|FF)???
     },
     Code._3120: {  # unknown_3120 - Error Report?
         SZ_NAME: "message_3120",

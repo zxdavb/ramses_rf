@@ -100,6 +100,7 @@ from .version import VERSION
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
+# - tomkooij: 3110
 
 
 # skipcq: PY-W2000
@@ -1993,23 +1994,36 @@ def parser_30c9(payload, msg) -> dict:
     return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # unknown_3110, HVAC
+@parser_decorator  # ufc_demand, HVAC (Itho autotemp / spider)
 def parser_3110(payload, msg) -> dict:
-    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
-    # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
+    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820  # cooling, 100%
+    # .I --- 21:042656 --:------ 21:042656 3110 004 00000010  # heating, 0%
+
+    SZ_COOLING = "cooling"
+    SZ_DISABLE = "disabled"
+    SZ_HEATING = "heating"
+    SZ_UNKNOWN = "unknown"
 
     try:
-        assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
+        assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"  # ?circuit_idx?
         assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
         assert payload[6:] in ("00", "10", "20"), f"byte 3: {payload[6:]}"
+        assert (
+            payload[6:] in ("10", "20") or payload[4:6] == "00"
+        ), f"byte 3: {payload[6:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    return {
-        f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent_from_hex(payload[4:6]),
-        "_value_3": payload[6:],
-    }
+    mode = {
+        0x00: SZ_DISABLE,
+        0x10: SZ_HEATING,
+        0x20: SZ_COOLING,
+    }.get(int(payload[6:8], 16) & 0x30, SZ_UNKNOWN)
+
+    if mode not in (SZ_COOLING, SZ_HEATING):
+        return {"mode": mode}
+
+    return {"mode": mode, "demand": percent_from_hex(payload[4:6])}
 
 
 @parser_decorator  # unknown_3120, from STA, FAN
