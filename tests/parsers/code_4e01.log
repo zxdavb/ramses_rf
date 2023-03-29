@@ -1,0 +1,18 @@
+# Itho Autotemp Master -> Slave (why does it have a context?)
+
+# 3-group (contrived)
+2023-03-19T21:24:03.603526 ...  I --- 02:248945 02:250708 --:------ 4E01 008 007FFF08017FFF00  # {'temperatures': [None, 20.49, None]}  # contrived
+2023-03-19T21:24:16.131522 ...  I --- 02:248945 02:250708 --:------ 4E01 008 0007F27FFF7FFF00  # {'temperatures': [20.34, None, None]}  # contrived
+
+# 8-group
+2023-03-19T21:18:35.257272 ...  I --- 02:248945 02:250708 --:------ 4E01 018 007FFF7FFF7FFF7FFF7FFF07E87FFF7FFF00  # {'temperatures': [None, None, None, None, None, 20.24, None, None]}
+2023-03-19T21:21:08.352406 ...  I --- 02:248945 02:250708 --:------ 4E01 018 007FFF7FFF7FFF07DE7FFF7FFF7FFF7FFF00  # {'temperatures': [None, None, None, 20.14, None, None, None, None]}
+2023-03-19T21:22:43.677709 ...  I --- 02:248945 02:250708 --:------ 4E01 018 007FFF7FFF08027FFF7FFF7FFF7FFF7FFF00  # {'temperatures': [None, None, 20.50, None, None, None, None, None]}
+2023-03-19T21:24:03.603526 ...  I --- 02:248945 02:250708 --:------ 4E01 018 007FFF08017FFF7FFF7FFF7FFF7FFF7FFF00  # {'temperatures': [None, 20.49, None, None, None, None, None, None]}
+2023-03-19T21:24:16.131522 ...  I --- 02:248945 02:250708 --:------ 4E01 018 0007F27FFF7FFF7FFF7FFF7FFF7FFF7FFF00  # {'temperatures': [20.34, None, None, None, None, None, None, None]}
+
+2023-03-19T21:30:00.000000 ...  I --- 02:248945 02:250708 --:------ 4E01 018 007FFF7FFF7FFF7FFF7FFF7FFF07E87FFF00  # {'temperatures': [None, None, None, None, None, None, 20.24, None]}  # contrived
+2023-03-19T21:30:00.111111 ...  I --- 02:248945 02:250708 --:------ 4E01 018 007FFF7FFF7FFF7FFF7FFF7FFF7FFF07E800  # {'temperatures': [None, None, None, None, None, None, None, 20.24]}  # contrived
+
+# 12-group (contrived)
+2023-03-19T21:40:00.000000 ...  I --- 02:111111 02:222222 --:------ 4E01 026 007FFF7FFF7FFF7FFF7FFF7FFF7FFF07E87FFF7FFF7FFF7FFF00  # {'temperatures': [None, None, None, None, None, None, None, 20.24, None, None, None, None]}

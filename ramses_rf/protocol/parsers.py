@@ -2641,18 +2641,50 @@ def parser_4401(payload, msg) -> dict:
     }  # epoch are in seconds
 
 
-@parser_decorator  # hvac_4e01
+@parser_decorator  # temperatures (see: 4e02) - Itho spider/autotemp
 def parser_4e01(payload, msg) -> dict:
-    return {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
+    # .I --- 02:248945 02:250708 --:------ 4E01 018 00-7FFF7FFF7FFF09077FFF7FFF7FFF7FFF-00                                   # 23.11, 8-group
+    # .I --- 02:250984 02:250704 --:------ 4E01 018 00-7FFF7FFF7FFF7FFF08387FFF7FFF7FFF-00                                   # 21.04
+
+    num_groups = int((msg.len - 2) / 2)  # e.g. (18 - 2) / 2
+    assert (
+        num_groups * 2 == msg.len - 2
+    ), _INFORM_DEV_MSG  # num_groups: len 018 (8-group, 2+8*4), or 026 (12-group, 2+12*4)
+
+    x, y = 0, 2 + num_groups * 4
+
+    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG
+    assert payload[y : y + 2] == "00", _INFORM_DEV_MSG
+
+    temps = [temp_from_hex(payload[i : i + 4]) for i in range(2, y, 4)]
+
+    return {"temperatures": temps}
 
 
-@parser_decorator  # hvac_4e02
-def parser_4e02(payload, msg) -> dict:
-    return (
-        {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
-        | {"val_34": payload[34:36]}
-        | {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(36, 68, 4)}
-    )
+@parser_decorator  # setpoint_bounds (see: 4e01) - Itho spider/autotemp
+def parser_4e02(payload, msg) -> dict:  # sent a triplets, 1 min apart
+    # .I --- 02:248945 02:250708 --:------ 4E02 034 00-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF08347FFF7FFF7FFF7FFF  # 20.00-21.00
+    # .I --- 02:250984 02:250704 --:------ 4E02 034 00-7FFF7FFF7FFF076C7FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF  #
+
+    num_groups = int((msg.len - 2) / 4)  # e.g. (34 - 2) / 4
+    assert (
+        num_groups * 4 == msg.len - 2
+    ), _INFORM_DEV_MSG  # num_groups: len 034 (8-group, 2+8*4), or 050 (12-group, 2+12*4)
+
+    x, y = 0, 2 + num_groups * 4
+
+    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # no context
+    assert payload[y : y + 2] in ("02", "04"), _INFORM_DEV_MSG  # mode: cool/heat?
+
+    setpoints = [
+        (temp_from_hex(payload[x + i :][:4]), temp_from_hex(payload[y + i :][:4]))
+        for i in range(2, y, 4)
+    ]  # lower, upper setpoints
+
+    return {
+        "mode": {"02": "cool", "04": "heat"}[payload[y : y + 2]],
+        "setpoint_bounds": [s if s != (None, None) else None for s in setpoints],
+    }
 
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated

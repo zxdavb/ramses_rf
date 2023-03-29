@@ -1,0 +1,20 @@
+# Itho Autotemp Master -> Slave (can be 8- or 12-group)
+
+# 3-group (contrived)
+2023-03-19T23:36:11.870451 ...  I --- 02:248945 02:250708 --:------ 4E02 014 0007D07FFF7FFF0208347FFF7FFF  # {'mode': 'cool', 'setpoint_bounds': [(20.0, 21.0), None, None]}  # contrived
+2023-03-19T23:37:01.177133 ...  I --- 02:250984 02:250704 --:------ 4E02 014 007FFF076C7FFF047FFF07D07FFF  # {'mode': 'heat', 'setpoint_bounds': [None, (19.0, 20.0), None]}  # contrived
+
+# 8-group
+2023-03-19T23:36:11.870451 ...  I --- 02:248945 02:250708 --:------ 4E02 034 0007D07FFF7FFF7FFF7FFF7FFF7FFF7FFF0408347FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [(20.0, 21.0), None, None, None, None, None, None, None]}
+2023-03-19T23:37:01.177133 ...  I --- 02:250984 02:250704 --:------ 4E02 034 007FFF076C7FFF7FFF7FFF7FFF7FFF7FFF047FFF07D07FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, (19.0, 20.0), None, None, None, None, None, None]}
+2023-03-19T23:37:23.753942 ...  I --- 02:248955 02:250676 --:------ 4E02 034 007FFF7FFF076C7FFF7FFF7FFF7FFF7FFF047FFF7FFF07D07FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, None, (19.0, 20.0), None, None, None, None, None]}
+2023-03-19T23:46:37.769696 ...  I --- 02:250984 02:250704 --:------ 4E02 034 007FFF7FFF7FFF076C7FFF7FFF7FFF7FFF047FFF7FFF7FFF07D07FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, None, None, (19.0, 20.0), None, None, None, None]}
+2023-03-19T23:53:45.556688 ...  I --- 02:248955 02:250676 --:------ 4E02 034 007FFF7FFF7FFF7FFF07D07FFF7FFF7FFF047FFF7FFF7FFF7FFF08347FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, None, None, None, (20.0, 21.0), None, None, None]}
+
+# 11-group (contrived)
+2023-03-19T23:36:11.870451 ...  I --- 02:111111 02:222222 --:------ 4E02 046 0007D07FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF0208347FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'cool', 'setpoint_bounds': [(20.0, 21.0), None, None, None, None, None, None, None, None, None, None]}  # contrived
+2023-03-19T23:53:45.556688 ...  I --- 02:111111 02:222222 --:------ 4E02 046 007FFF7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF7FFF7FFF047FFF7FFF7FFF7FFF08347FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, None, None, None, (20.0, 21.0), None, None, None, None, None, None]}  # contrived
+
+# 12-group (contrived) - NB: max payload length is 48 - so how dows Itho do this?
+# 23-03-19T23:36:11.870451 ...  I --- 02:111111 02:222222 --:------ 4E02 050 0007D07FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF0208347FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [(20.0, 21.0), None, None, None, None, None, None, None, None, None, None, None]}  # contrived
+# 23-03-19T23:53:45.556688 ...  I --- 02:111111 02:222222 --:------ 4E02 050 007FFF7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF7FFF7FFF7FFF047FFF7FFF7FFF7FFF08347FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, None, None, None, (20.0, 21.0), None, None, None, None, None, None, None]}  # contrived

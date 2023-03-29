@@ -630,11 +630,11 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._4E01: {  # hvac_4e01 - HVAC
         SZ_NAME: "hvac_4e01",
-        I_: r"^00([0-9A-F]{4}){8}00$",
+        I_: r"^00([0-9A-F]{4}){3,12}00$",
     },
     Code._4E02: {  # hvac_4e02 - HVAC
         SZ_NAME: "hvac_4e02",
-        I_: r"^00([0-9A-F]{4}){8}02([0-9A-F]{4}){8}$",
+        I_: r"^00([0-9A-F]{4}){3,12}(02|04)([0-9A-F]{4}){3,12}$",
     },
     Code._4E04: {  # hvac_4e04 - HVAC
         SZ_NAME: "hvac_4e04",
