@@ -379,9 +379,8 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },  # TODO: This could be an array
     Code._22C9: {  # ufh_setpoint
         SZ_NAME: "ufh_setpoint",
-        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0203)?$",  # ~000A array, but max_len 24, not 48!
-        W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # ~000A array, but max_len 24, not 48!
-        # RP: Appear wont get any?,
+        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0[12]03)?$",  # (0[12]03)? only if len(array) == 1
+        W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # never an array
     },
     Code._22D0: {  # unknown_22d0, HVAC system switch?
         SZ_NAME: "message_22d0",

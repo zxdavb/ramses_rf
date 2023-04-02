@@ -1446,16 +1446,17 @@ def parser_22c9(payload, msg) -> list:
 
     # .I --- 21:064743 --:------ 21:064743 22C9 006 00-07D0-0834-02
     # .W --- 21:064743 02:250708 --:------ 22C9 006 03-07D0-0834-02
-    # .I --- 02:250708 21:064743 --:------ 22C9 008 03-07D0-7FFF-02-02-03
+    # .I --- 02:250708 21:064743 --:------ 22C9 008 03-07D0-7FFF-020203
+
+    # Notes on 008|suffix: only seen as I, only when no array, only as 7FFF(0101|0202)03$
 
     def _parser(seqx) -> dict:
-        assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01/02"
+        assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01 or 02"
 
         return {
-            "temp_low": temp_from_hex(seqx[2:6]),
-            "temp_high": temp_from_hex(seqx[6:10]),
-            f"_{SZ_UNKNOWN}_0": seqx[10:],
-        }
+            "mode": {"01": "heat", "02": "cool"}[seqx[10:]],  # TODO: or action?
+            "setpoint_bounds": (temp_from_hex(seqx[2:6]), temp_from_hex(seqx[6:10])),
+        }  # lower, upper setpoints
 
     if msg._has_array:
         return [
@@ -1466,7 +1467,9 @@ def parser_22c9(payload, msg) -> list:
             for i in range(0, len(payload), 12)
         ]
 
-    return _parser(payload[:12])  # TODO: [12:]
+    assert msg.len != 8 or payload[10:] in ("010103", "020203"), _INFORM_DEV_MSG
+
+    return _parser(payload[:12])
 
 
 @parser_decorator  # unknown_22d0, HVAC system switch?
