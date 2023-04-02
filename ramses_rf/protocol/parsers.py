@@ -2688,6 +2688,30 @@ def parser_4e02(payload, msg) -> dict:  # sent a triplets, 1 min apart
     }
 
 
+@parser_decorator  # wpu_state - Itho spider/autotemp
+def parser_4e15(payload, msg) -> dict:
+    # .I --- 21:034158 02:250676 --:------ 4E15 002 0000  # WPU "off" (maybe heating, but compressor off)
+    # .I --- 21:064743 02:250708 --:------ 4E15 002 0001  # WPU cooling active
+    # .I --- 21:057565 02:250677 --:------ 4E15 002 0002  # WPU heating, compressor active
+    # .I --- 21:064743 02:250708 --:------ 4E15 002 0004  # WPU in "DHW mode" boiler active
+    # .I --- 21:033160 02:250704 --:------ 4E15 002 0005  # 0x03, and 0x06 not seen in the wild
+
+    SZ_COOLING = "is_cooling"
+    SZ_DHW_ING = "is_dhw_ing"
+    SZ_HEATING = "is_heating"
+
+    assert int(payload[2:], 16) & 0xF8 == 0x00, _INFORM_DEV_MSG
+    if int(payload[2:], 16) & 0xFC == 0x03:  # is_cooling *and* is_heating
+        raise TypeError  # TODO: Use local exception & ?Move to higher layer
+
+    return {
+        "_flags": flag8_from_hex(payload[2:]),
+        SZ_DHW_ING: bool(int(payload[2:], 16) & 0x04),
+        SZ_HEATING: bool(int(payload[2:], 16) & 0x02),
+        SZ_COOLING: bool(int(payload[2:], 16) & 0x01),
+    }
+
+
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> dict:
     if payload[:2] != "00":

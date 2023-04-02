@@ -628,18 +628,22 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         RQ: r"^[0-9A-F]{40}$",
         W_: r"^[0-9A-F]{40}$",
     },
-    Code._4E01: {  # hvac_4e01 - HVAC
+    Code._4E01: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e01",
         I_: r"^00([0-9A-F]{4}){3,12}00$",
     },
-    Code._4E02: {  # hvac_4e02 - HVAC
+    Code._4E02: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e02",
         I_: r"^00([0-9A-F]{4}){3,12}(02|04)([0-9A-F]{4}){3,12}$",
     },
-    Code._4E04: {  # hvac_4e04 - HVAC
+    Code._4E04: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e04",
         I_: r"^00(00FF|01FE)$",
         W_: r"^00(00FF|01FE)$",
+    },
+    Code._4E15: {  # xxx (HVAC) - Itho Spider
+        SZ_NAME: "hvac_4e15",
+        I_: r"^000[0-7]$",
     },
     Code._PUZZ: {
         SZ_NAME: "puzzle_packet",
