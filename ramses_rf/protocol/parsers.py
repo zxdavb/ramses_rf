@@ -2525,7 +2525,8 @@ def parser_3ef0(payload, msg) -> dict:
                 "_flags_3": flag8_from_hex(payload[6:8]),
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
-                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
+                "cool_active": bool(int(payload[6:8], 0x10) & 1 << 4),
+                "flame_on": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
                 "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
                 "_unknown_5": payload[10:12],  # FF, 1C, ?others
             }
@@ -2554,9 +2555,9 @@ def parser_3ef0(payload, msg) -> dict:
         assert payload[4:6] in ("00", "10", "11", "FF"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
-            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
+            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10100000 == 0
         ), f'byte 3: {result["_flags_3"]}'
-        # only 01:10:040239 does 0b01000000
+        # only 10:040239 does 0b01000000, only Itho Autotemp does 0b00010000
 
         assert "_unknown_4" not in result or (
             payload[8:10] in ("FF", "00", "01", "02", "04", "0A")
