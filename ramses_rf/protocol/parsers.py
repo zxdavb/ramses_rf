@@ -2724,6 +2724,17 @@ def parser_4e15(payload, msg) -> dict:
     }
 
 
+@parser_decorator  # hvac_4e16 - Itho spider/autotemp
+def parser_4e16(payload, msg) -> dict:
+    # .I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000  # Itho Autotemp: slave -> master
+
+    assert payload == "00000000000000", _INFORM_DEV_MSG
+
+    return {
+        "_payload": payload,
+    }
+
+
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> dict:
     if payload[:2] != "00":

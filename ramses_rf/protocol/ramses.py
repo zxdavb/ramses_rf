@@ -645,6 +645,10 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "hvac_4e15",
         I_: r"^000[0-7]$",
     },
+    Code._4E16: {  # xxx (HVAC) - Itho Spider
+        SZ_NAME: "hvac_4e16",
+        I_: r"^00(00){6}$",
+    },
     Code._PUZZ: {
         SZ_NAME: "puzzle_packet",
         I_: r"^00(([0-9A-F]){2})+$",

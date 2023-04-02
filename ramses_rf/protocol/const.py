@@ -696,4 +696,5 @@ class Code(StrEnum):
     _4E02 = "4E02"
     _4E04 = "4E04"
     _4E15 = "4E15"
+    _4E16 = "4E16"
     _PUZZ = "7FFF"
