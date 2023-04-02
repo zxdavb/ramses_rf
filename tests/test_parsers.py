@@ -59,7 +59,7 @@ def _proc_log_line(gwy, pkt_line):  # noqa: F811
     assert IS_FRAGMENT not in pkt_dict or pkt._is_fragment == pkt_dict[IS_FRAGMENT]
 
 
-def _proc_log_line_pair(gwy, pkt_line, prev_msg: Message):  # noqa: F811
+def _proc_log_line_pair_4e15(gwy, pkt_line, prev_msg: Message):  # noqa: F811
     pkt_line, *_ = list(map(str.strip, pkt_line.split("#", maxsplit=1) + [""]))
 
     if not pkt_line:
@@ -91,4 +91,10 @@ def _test_parser_pairs_4e15_3ef0(gwy, f_name):  # noqa: F811
         with open(f_name) as f:
             msg = None
             while this_line := (f.readline()):
-                msg = _proc_log_line_pair(gwy, this_line, msg)
+                msg = _proc_log_line_pair_4e15(gwy, this_line, msg)
+
+    # elif "01ff" in str(f_name):
+    #     with open(f_name) as f:
+    #         msg = None
+    #         while this_line := (f.readline()):
+    #             msg = _proc_log_line_pair_01ff(gwy, this_line, msg)
