@@ -595,10 +595,14 @@ def parser_01ff(payload, msg) -> dict:
         assert payload[30:34] == "3100", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
         assert payload[46:48] == "04", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
 
+    setpoint_bounds = (
+        int(payload[6:8], 16) / 2,  # as: 22C9[2:6] and [6:10] ???
+        None if msg.verb in (RP, W_) else int(payload[8:10], 16) / 2,
+    )
+
     return {
         "temperature": None if msg.verb in (RP, W_) else int(payload[4:6], 16) / 2,
-        "setpoint_min": int(payload[6:8], 16) / 2,  # as: 22C9[2:6] and [6:10] ???
-        "setpoint_max": None if msg.verb in (RP, W_) else int(payload[8:10], 16) / 2,
+        "setpoint_bounds": setpoint_bounds,
         "time_planning": not bool(int(payload[10:12], 16) & 1 << 6),
         "temp_adjusted": bool(int(payload[10:12], 16) & 1 << 5),
         "_flags_10": payload[10:12],  #
