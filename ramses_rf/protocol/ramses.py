@@ -687,15 +687,16 @@ RQ_NO_PAYLOAD: list[Code] = [
 ]
 RQ_NO_PAYLOAD.extend((Code._0418,))
 
-# IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
+# IDX:_xxxxxx: index (and context)
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
+
+# IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 CODE_IDX_COMPLEX: list[Code] = [
     Code._0005,
     Code._000C,
     Code._1100,
     Code._3220,
 ]  # TODO: 0005 to ..._NONE?
-# CODE_IDX_COMPLEX.sort()
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
@@ -709,9 +710,8 @@ CODE_IDX_SIMPLE: list[Code] = [
     )
 ]
 CODE_IDX_SIMPLE.extend(
-    (Code._10A0, Code._1260, Code._1F41, Code._22D0, Code._31D9, Code._3B00)
+    (Code._10A0, Code._1260, Code._1F41, Code._22D0, Code._31D9, Code._3B00, Code._4E0D)
 )
-# CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
@@ -724,7 +724,6 @@ CODE_IDX_NONE: list[Code] = [
 CODE_IDX_NONE.extend(
     (Code._0002, Code._22F1, Code._22F3, Code._2389, Code._2E04, Code._31DA, Code._4401)
 )  # 31DA does appear to have an idx?
-# CODE_IDX_NONE.sort()
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
 CODE_IDX_DOMAIN: dict[Code, str] = {
@@ -737,11 +736,15 @@ CODE_IDX_DOMAIN: dict[Code, str] = {
     Code._3B00: "^FC",
 }
 
+if DEV_MODE:
+    CODE_IDX_COMPLEX.sort()
+    CODE_IDX_SIMPLE.sort()
+    CODE_IDX_NONE.sort()
+
 #
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
 #
-
 _DEV_KLASSES_HEAT: dict[str, dict] = {
     DEV_TYPE.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},
