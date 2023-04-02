@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - payload processors."""
+"""RAMSES RF - payload processors.
+
+  NOTES: aspirations on a consistent Schema, going forward:
+
+    :mode/state: | :bool:  | :mutex (infinitive. vs -ing):      | :flags:
+  mode (config.) | enabled | disabled, heat, cool, heat_cool... | ch_enabled, dhw_enabled
+  state (action) | active  | idle, heating, cooling...          | is_heating, is_cooling
+
+  - prefer: enabled: True over xx_enabled: True (if only ever 1 flag)
+  - prefer:  active: True over is_heating: True (if only ever 1 flag)
+  - avoid: is_enabled, is_active
+"""
+
 from __future__ import annotations
 
 import logging
