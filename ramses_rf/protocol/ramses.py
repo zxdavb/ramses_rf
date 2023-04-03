@@ -637,8 +637,8 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._4E04: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e04",
-        I_: r"^00(00FF|01FE)$",
-        W_: r"^00(00FF|01FE)$",
+        I_: r"^00(00|01|02)[0-9A-F]{2}$",
+        W_: r"^00(00|01|02)[0-9A-F]{2}$",
     },
     Code._4E0D: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e0d",

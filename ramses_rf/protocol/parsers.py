@@ -2707,6 +2707,29 @@ def parser_4e02(payload, msg) -> dict:  # sent a triplets, 1 min apart
     }
 
 
+@parser_decorator  # hvac_4e04
+def parser_4e04(payload, msg) -> dict:
+    assert payload[2:4] in ("00", "01", "02")  # off/heat/cool?
+    assert payload[4:] in (
+        "00",
+        "01",
+        "08",
+        "0C",
+        "0E",
+        "20",
+        "FB",
+        "FC",
+        "FD",
+        "FE",
+        "FF",
+    )
+
+    return {
+        "mode": payload[2:4],
+        "_unknown_2": payload[4:],
+    }
+
+
 @parser_decorator  # wpu_state - Itho spider/autotemp
 def parser_4e15(payload, msg) -> dict:
     # .I --- 21:034158 02:250676 --:------ 4E15 002 0000  # WPU "off" (maybe heating, but compressor off)
