@@ -2676,7 +2676,9 @@ def parser_4e01(payload, msg) -> dict:
     assert payload[x : x + 2] == "00", _INFORM_DEV_MSG
     assert payload[y : y + 2] == "00", _INFORM_DEV_MSG
 
-    return {"temperatures": [temp_from_hex(payload[i : i + 4]) for i in range(2, y, 4)]}
+    return {
+        "temperatures": [temp_from_hex(payload[i : i + 4]) for i in range(2, y, 4)],
+    }
 
 
 @parser_decorator  # setpoint_bounds (see: 4e01) - Itho spider/autotemp
