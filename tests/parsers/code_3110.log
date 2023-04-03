@@ -10,7 +10,7 @@
 2023-03-19T00:40:11.980524 ...  I --- 02:250708 --:------ 02:250708 3110 004 00000020  # {'mode': 'cooling', 'demand': 0.0}
 2023-03-19T11:24:49.320050 ...  I --- 02:250708 --:------ 02:250708 3110 004 00000010  # {'mode': 'heating', 'demand': 0.0}
 2023-03-19T11:33:47.602435 ...  I --- 02:250708 --:------ 02:250708 3110 004 00002A10  # {'mode': 'heating', 'demand': 0.21}
-# only 02: seems to send this payload
+# NB: only 02: autotemp slaves seem to send this payload (not masters, not thermostats)
 2023-03-19T11:38:38.659790 ...  I --- 02:250984 --:------ 02:250984 3110 004 00000000  # {'mode': 'disabled'}
 
 

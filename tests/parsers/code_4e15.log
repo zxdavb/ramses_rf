@@ -1,3 +1,5 @@
+# 4E15 from 'Master' Spider Thermostat (connected to WPU by OT wire) to Master Spider Autotemp
+
 # (not seen '0006' in the wild - unlikely to be valid, and '0003/0007' is nonsense)
 2022-08-21T19:00:33.119082 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': False}  # heating without compressor
 2022-08-21T02:07:53.248113 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0001  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': False}  # cooling (doesn't use compressor)
