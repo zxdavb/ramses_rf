@@ -2693,7 +2693,7 @@ def parser_4e02(payload, msg) -> dict:  # sent a triplets, 1 min apart
 
     x, y = 0, 2 + num_groups * 4
 
-    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # no context
+    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # expect no context
     assert payload[y : y + 2] in ("02", "04"), _INFORM_DEV_MSG  # mode: cool/heat?
 
     setpoints = [
@@ -2719,9 +2719,12 @@ def parser_4e15(payload, msg) -> dict:
     SZ_DHW_ING = "is_dhw_ing"
     SZ_HEATING = "is_heating"
 
-    assert int(payload[2:], 16) & 0xF8 == 0x00, _INFORM_DEV_MSG
-    if int(payload[2:], 16) & 0xFC == 0x03:  # is_cooling *and* is_heating
+    assert (
+        int(payload[2:], 16) & 0xF8 == 0x00
+    ), _INFORM_DEV_MSG  # check for uknown bit flags
+    if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
         raise TypeError  # TODO: Use local exception & ?Move to higher layer
+    assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # cant heat and DHW
 
     return {
         "_flags": flag8_from_hex(payload[2:]),

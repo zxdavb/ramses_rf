@@ -1,10 +1,12 @@
-# (not seen '0006' in the wild, and '0003' is nonsense)
-2022-08-21T19:00:33.119082 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': False}
-2022-08-21T02:07:53.248113 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0001  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': False}
-2023-03-19T12:05:35.319025 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0002  # {'_flags': [0, 0, 0, 0, 0, 0, 1, 0], 'is_cooling': False, 'is_heating': True,  'is_dhw_ing': False}
-2022-08-21T02:07:11.017807 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0004  # {'_flags': [0, 0, 0, 0, 0, 1, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': True }
-2022-08-21T15:00:21.012129 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0005  # {'_flags': [0, 0, 0, 0, 0, 1, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': True }  # cool_active *and* DHWing!
-2022-08-21T15:00:21.012129 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0006  # {'_flags': [0, 0, 0, 0, 0, 1, 1, 0], 'is_cooling': False, 'is_heating': True,  'is_dhw_ing': True }  # contrived: ch_active *and* DHWing
+# (not seen '0006' in the wild - unlikely to be valid, and '0003/0007' is nonsense)
+2022-08-21T19:00:33.119082 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': False}  # heating without compressor
+2022-08-21T02:07:53.248113 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0001  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': False}  # cooling (doesn't use compressor)
+2023-03-19T12:05:35.319025 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0002  # {'_flags': [0, 0, 0, 0, 0, 0, 1, 0], 'is_cooling': False, 'is_heating': True,  'is_dhw_ing': False}  # heating with compressor
+# 22-08-21T02:07:11.000000 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0003  # {'_flags': [0, 0, 0, 0, 0, 0, 1, 1], "_invalid_": True,  "_exception_": True }                                                           # **invalid**: heating & cooling
+2022-08-21T02:07:11.017807 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0004  # {'_flags': [0, 0, 0, 0, 0, 1, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': True }  # DHW (uses compressor)
+2022-08-21T15:00:21.012129 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0005  # {'_flags': [0, 0, 0, 0, 0, 1, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': True }  # cooling & DHWing
+# 22-08-21T15:00:22.000000 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0006  # {'_flags': [0, 0, 0, 0, 0, 1, 1, 0], "_invalid_": True,  "_exception_": False}                                                           # **invalid**: heating & DHWing
+# 22-08-21T15:00:23.000000 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0007  # {'_flags': [0, 0, 0, 0, 0, 1, 1, 1], "_invalid_": True,  "_exception_": True }                                                           # **invalid**: heating & cooling (& DHWing)
 
 
 # 21:033160
