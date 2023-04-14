@@ -18,7 +18,7 @@ _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
 
 
-class MockRF:
+class VirtualRF:
     """A virtual many-to-many network of serial port (a la RF network).
 
     Creates a collection of serial ports. When data is received from any one port, it is
@@ -88,7 +88,7 @@ class MockRF:
 
 async def main():
     NUM_PORTS = 3
-    rf = MockRF(NUM_PORTS)
+    rf = VirtualRF(NUM_PORTS)
     print(f"Ports are: {rf.ports}")
 
     sers = [serial_for_url(rf.ports[i]) for i in range(NUM_PORTS)]
