@@ -4,8 +4,10 @@
 """A virtual RF network useful for testing."""
 
 import asyncio
+import logging
 import os
 import pty
+import signal
 import tty
 from contextlib import ExitStack
 from io import FileIO
@@ -16,6 +18,9 @@ from serial import serial_for_url
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class VirtualRF:
@@ -32,22 +37,22 @@ class VirtualRF:
         self._files: dict[_FD, FileIO] = {}  # fd to file (port)
         self._names: dict[_PN, _FD] = {}  # port name to fd
 
+        # self._setup_event_handlers()  # TODO: needs testing
+
         for _ in range(num_ports):
-            master_fd, slave_fd = pty.openpty()  # type: tuple[_FD, _FD]
+            master_fd, slave_fd = pty.openpty()  # type: tuple[_FD, _FD]  # pty, tty
 
             tty.setraw(master_fd)  # requires termios module, so: works only on Unix
             os.set_blocking(master_fd, False)  # non-blocking
 
-            self._files[master_fd] = open(
-                master_fd, "r+b", buffering=0
-            )  # unbuffered binary mode
-            self._names[os.ttyname(slave_fd)] = master_fd
+            self._files[master_fd] = open(master_fd, "r+b", buffering=0)
+            self._names[slave_fd] = os.ttyname(slave_fd)
 
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
     @property
     def ports(self) -> list[str]:
-        return list(self._names)
+        return list(self._names.values())
 
     async def stop(self) -> None:
         """Stop polling ports and distributing data."""
@@ -58,7 +63,7 @@ class VirtualRF:
         try:
             await self._task
         except asyncio.CancelledError:
-            return
+            pass
 
     async def start(self) -> asyncio.Task:
         """Start polling ports and distributing data."""
@@ -80,10 +85,41 @@ class VirtualRF:
                         continue
 
                     data = self._files[key.fileobj].read()  # read the Tx'd data
-                    for fd, f in self._files.items():
-                        f.write(data)  # send the data to each port
+                    _ = [f.write(data) for f in self._files.values()]
 
+                else:
                     await asyncio.sleep(0.005)
+
+    def _setup_event_handlers(self) -> None:
+        def cleanup():
+            _ = [f.close() for f in self._files.values()]  # also cloes fd
+            _ = [os.close(fd) for fd in self._names]  # tty will persist, otherwise
+
+        def handle_exception(loop, context):
+            """Handle exceptions on any platform."""
+            _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
+            cleanup()
+            exc = context.get("exception")
+            if exc:
+                raise exc
+
+        async def handle_sig_posix(sig):
+            """Handle signals on posix platform."""
+            _LOGGER.error("Received a signal: %s, cleaning up...", sig.name)
+            cleanup()
+            signal.raise_signal(sig)
+
+        _LOGGER.debug("Creating exception handler...")
+        self._loop.set_exception_handler(handle_exception)
+
+        _LOGGER.debug("Creating signal handlers...")
+        if os.name == "posix":
+            for sig in (signal.SIGABRT, signal.SIGINT, signal.SIGTERM):
+                self._loop.add_signal_handler(
+                    sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
+                )
+        else:  # unsupported OS
+            raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
 
 async def main():
@@ -97,9 +133,8 @@ async def main():
 
     for i in range(NUM_PORTS):
         sers[i].write(bytes(f"Hello World {i}! ", "utf-8"))
-        await asyncio.sleep(0.005)
+        await asyncio.sleep(0.005)  # give the write a chance to effect
 
-    for i in range(NUM_PORTS):
         print(f"{sers[i].name}: {sers[i].read(sers[i].in_waiting)}")
         sers[i].close()
 
