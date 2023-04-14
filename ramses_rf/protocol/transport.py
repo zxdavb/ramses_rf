@@ -222,7 +222,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
                 f"lower: {min(times_0):.3f}, "
                 f"upper: {max(times_0):.3f}, "
                 f"times: {[f'{t:.3f}' for t in times_0]}"
-            )
+            )  # TODO: wrap with if effectiveloglevel
 
         await fnc(*args, **kwargs)
 
@@ -950,7 +950,7 @@ def create_pkt_stack(
         ser_config = SCH_SERIAL_PORT_CONFIG(ser_config or {})
 
         try:
-            ser_obj = serial_for_url(ser_name, **ser_config)
+            ser_obj = serial_for_url(ser_name, **ser_config)  # mock for /dev/null
         except SerialException as exc:
             _LOGGER.exception(
                 "Failed to open %s (config: %s): %s", ser_name, ser_config, exc
