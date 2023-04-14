@@ -686,6 +686,9 @@ class Gateway(Engine):
     def schema(self) -> dict:
         """Return the global schema.
 
+        This 'active' schema may exclude non-present devices from the configured schema
+        that was loaded during initialisation.
+
         Orphans are devices that 'exist' but don't yet have a place in the schema
         hierachy (if ever): therefore, they are instantiated when the schema is loaded,
         just like the other devices in the schema.
