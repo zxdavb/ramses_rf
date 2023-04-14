@@ -1320,7 +1320,9 @@ def parser_1fc9(payload, msg) -> list:
 
     def _parser(seqx) -> list:
         if seqx[:2] not in ("90",):
-            assert seqx[6:] == payload[6:12]  # all with same controller
+            assert (
+                seqx[6:] == payload[6:12]
+            ), f"{seqx[6:]} != {payload[6:12]}"  # all with same controller
         if seqx[:2] not in (
             "63",
             "67",
@@ -2712,22 +2714,34 @@ def parser_4e04(payload, msg) -> dict:
     assert payload[2:4] in ("00", "01", "02")  # off/heat/cool?
     assert payload[4:] in (
         "00",
-        "01",
-        "08",
-        "0C",
-        "0E",
-        "20",
-        "FB",
-        "FC",
-        "FD",
-        "FE",
-        "FF",
+        "01",  # 0b00000001
+        "08",  # 0b00001000
+        "0C",  # 0b00001101
+        "0E",  # 0b00001110
+        "20",  # 0b00100000
+        "FB",  # error code?
+        "FC",  # error code?
+        "FD",  # error code?
+        "FE",  # error code?
+        "FF",  # N/A?
     )
 
     return {
         "mode": payload[2:4],
         "_unknown_2": payload[4:],
     }
+
+
+# @parser_decorator  # hvac_4e0d - Itho spider/autotemp
+# def parser_4e0d(payload, msg) -> dict:
+#     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0100  # Itho Autotemp: only(?) master -> slave
+#     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0101  # why does it have a context?
+
+#     assert payload in ("0100", "0101"), _INFORM_DEV_MSG
+
+#     return {
+#         "_payload": payload,
+#     }
 
 
 @parser_decorator  # wpu_state - Itho spider/autotemp
