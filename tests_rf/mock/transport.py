@@ -41,16 +41,17 @@ if DEV_MODE:
 
 
 class MockSerial:  # most of the RF 'mocking' is done in here
-    """A pseudo-mocked serial port used for testing.
+    """A mocked serial port used for testing.
 
-    Will periodically Rx a sync_cycle set that will be available via `read()`.
-    Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
+    Can periodically Rx a sync_cycle set that will be available via `read()`.
+    Can use a response table to provide a known Rx for a given Tx sent via `write()`.
     """
 
     def __init__(self, port: str, loop: asyncio.AbstractEventLoop, **kwargs) -> None:
         self._loop = loop
 
         self.port = port
+        self.portstr = port
         self._rx_buffer = bytes()
         self._out_waiting = 0
         self.is_open: bool = None  # type: ignore[assignment]
