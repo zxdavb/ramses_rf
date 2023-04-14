@@ -90,7 +90,7 @@ async def load_test_gwy(
 
     config = SCH_GLOBAL_CONFIG(config)
 
-    gwy = gwy_class(port_name, **config)
+    gwy: Gateway | MockGateway = gwy_class(port_name, **config)
     await gwy.start(start_discovery=False)  # may: SerialException
 
     if hasattr(  # TODO: move out of this routine
