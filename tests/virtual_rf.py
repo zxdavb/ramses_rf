@@ -34,8 +34,9 @@ class VirtualRF:
 
         self._loop = asyncio.get_running_loop()
 
-        self._files: dict[_FD, FileIO] = {}  # fd to file (port)
-        self._names: dict[_PN, _FD] = {}  # port name to fd
+        self._files: dict[_FD, FileIO] = {}  # master fd to file (port)
+        self._names: dict[_FD, _PN] = {}  # slave fd to port name
+        self._ports: dict[_FD, _PN] = {}  # master fd to port name, used for logging
 
         # self._setup_event_handlers()  # TODO: needs testing
 
@@ -46,7 +47,7 @@ class VirtualRF:
             os.set_blocking(master_fd, False)  # non-blocking
 
             self._files[master_fd] = open(master_fd, "r+b", buffering=0)
-            self._names[slave_fd] = os.ttyname(slave_fd)
+            self._ports[master_fd] = self._names[slave_fd] = os.ttyname(slave_fd)
 
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
@@ -74,6 +75,17 @@ class VirtualRF:
     async def _run(self) -> None:
         """Send data received from any one port to all the other ports."""
 
+        def transmit_as_appropriate(data) -> bool:
+            """Reurn True if the data is transmitted."""
+            if data.startswith(b"!"):
+                return False
+            # if invalid_frame(data):  # not sure how to flesh this out
+            #     _ = [f.write(data) for f in self._files.values()]  # no RSSI
+            #     return False
+            # adding the RSSI is performed by the receiving serial device
+            _ = [f.write(b"000 " + data) for f in self._files.values()]
+            return True
+
         with DefaultSelector() as selector, ExitStack() as stack:
             for fd, f in self._files.items():
                 stack.enter_context(f)
@@ -85,7 +97,9 @@ class VirtualRF:
                         continue
 
                     data = self._files[key.fileobj].read()  # read the Tx'd data
-                    _ = [f.write(data) for f in self._files.values()]
+                    print(f"{self._ports[key.fileobj]} sent: {data}")  # TODO: logger
+                    transmit_as_appropriate(data)
+                    await asyncio.sleep(0.005)
 
                 else:
                     await asyncio.sleep(0.005)
