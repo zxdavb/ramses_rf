@@ -434,25 +434,12 @@ class Gateway(Engine):
         # if self._engine_state is None:
         #     self._pause()
 
-        # (t for t in self._tasks if not isinstance(t, asyncio.Task))
-
         if [t.cancel() for t in self._tasks if not t.done()]:
             await asyncio.gather(*(t for t in self._tasks if asyncio.isfuture(t)))
 
-        # this doesn't work...
-        for t in [t for t in self._tasks if isinstance(t, futures.Future)]:
-            try:
-                await asyncio.wrap_future(t, loop=self._loop)
-            except asyncio.CancelledError:
-                pass
-
-        # this doesn't work either
-        # for device in self.devices:
-        #     await device._stop_discovery_poller()
-        # for system in self.systems:
-        #     await system._stop_discovery_poller()
-        #     for zone in system.zones:
-        #         await zone._stop_discovery_poller()
+        # [t for t in self._tasks if asyncio.isfuture(t)]
+        # [t for t in self._tasks if isinstance(t, asyncio.Task)]
+        # [t for t in self._tasks if isinstance(t, futures.Future)]
 
         await super().stop()
 
