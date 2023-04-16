@@ -92,7 +92,7 @@ class Engine:
         self.ser_name = port_name
         self._input_file = input_file
         self._port_config = port_config or {}
-        self._loop = loop or asyncio.get_running_loop()
+        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
 
         self._include: dict[_DeviceIdT, dict] = {}  # aka known_list, and ?allow_list
         self._exclude: dict[_DeviceIdT, dict] = {}  # aka block_list
