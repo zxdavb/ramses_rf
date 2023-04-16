@@ -434,8 +434,11 @@ class Gateway(Engine):
         # if self._engine_state is None:
         #     self._pause()
 
-        if [t.cancel() for t in self._tasks if not t.done()]:
-            await asyncio.gather(*(t for t in self._tasks if asyncio.isfuture(t)))
+        try:
+            if tasks := [t.cancel() for t in self._tasks if not t.done()]:
+                await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            pass
 
         # [t for t in self._tasks if asyncio.isfuture(t)]
         # [t for t in self._tasks if isinstance(t, asyncio.Task)]
