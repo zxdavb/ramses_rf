@@ -186,6 +186,8 @@ class Engine:
             raise NotImplementedError  # python client.py -rrr listen /dev/ttyUSB0
 
     async def stop(self) -> None:
+        """Cancel all outstanding low-level tasks (swallow CancelledError)."""
+
         self._stop()
 
         if (task := self.pkt_source) and not task.done():
@@ -195,7 +197,7 @@ class Engine:
                 pass
 
     def _stop(self) -> None:
-        """Cancel all outstanding tasks."""
+        """Close the protocol / transport layers."""
 
         if self.msg_transport:
             self.msg_transport.close()  # ? .abort()
@@ -430,19 +432,16 @@ class Gateway(Engine):
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess
-        """Cancel all outstanding tasks."""
+        """Cancel all outstanding high-level tasks (swallow CancelledError)."""
         # if self._engine_state is None:
         #     self._pause()
 
+        _ = [t.cancel() for t in self._tasks if not t.done()]
         try:
-            if tasks := [t.cancel() for t in self._tasks if not t.done()]:
+            if tasks := (t for t in self._tasks if not t.done()):
                 await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             pass
-
-        # [t for t in self._tasks if asyncio.isfuture(t)]
-        # [t for t in self._tasks if isinstance(t, asyncio.Task)]
-        # [t for t in self._tasks if isinstance(t, futures.Future)]
 
         await super().stop()
 
