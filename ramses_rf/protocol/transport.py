@@ -130,7 +130,7 @@ def _str(value: bytes) -> str:
     try:
         result = "".join(
             c
-            for c in value.decode("ascii", errors="strict").strip()
+            for c in value.decode("ascii", errors="strict")  # was: .strip()
             if c in VALID_CHARACTERS
         )
     except UnicodeDecodeError:
