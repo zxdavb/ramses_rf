@@ -121,7 +121,7 @@ class MessageTransport(asyncio.Transport):
     def __init__(self, gwy, protocol: MessageProtocol, extra: dict = None) -> None:
         super().__init__(extra=extra)
 
-        self._loop = gwy._loop
+        self._loop: asyncio.AbstractEventLoop = gwy._loop
 
         self._gwy = gwy
         self._protocols: List[MessageProtocol] = []
