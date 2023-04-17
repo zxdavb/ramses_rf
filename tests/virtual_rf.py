@@ -9,6 +9,7 @@ import os
 import pty
 import signal
 import tty
+from collections import deque
 from contextlib import ExitStack
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
@@ -21,6 +22,7 @@ _PN: TypeAlias = str  # port name
 
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.DEBUG)
 
 
 class VirtualRF:
@@ -29,10 +31,11 @@ class VirtualRF:
     Creates a collection of serial ports. When data is received from any one port, it is
     sent to all the other ports."""
 
-    def __init__(self, num_ports: int) -> None:
+    def __init__(self, num_ports: int, log_size=100) -> None:
         """Create `num_ports` virtual serial ports."""
 
         self._loop = asyncio.get_running_loop()
+        self.log = deque([], log_size)
 
         self._files: dict[_FD, FileIO] = {}  # master fd to file (port)
         self._names: dict[_FD, _PN] = {}  # slave fd to port name
@@ -69,22 +72,11 @@ class VirtualRF:
     async def start(self) -> asyncio.Task:
         """Start polling ports and distributing data."""
 
-        self._task = self._loop.create_task(self._run())
+        self._task = self._loop.create_task(self._poll_ports())
         return self._task
 
-    async def _run(self) -> None:
+    async def _poll_ports(self) -> None:
         """Send data received from any one port to all the other ports."""
-
-        def transmit_as_appropriate(data) -> bool:
-            """Reurn True if the data is transmitted."""
-            if data.startswith(b"!"):
-                return False
-            # if invalid_frame(data):  # not sure how to flesh this out
-            #     _ = [f.write(data) for f in self._files.values()]  # no RSSI
-            #     return False
-            # adding the RSSI is performed by the receiving serial device
-            _ = [f.write(b"000 " + data) for f in self._files.values()]
-            return True
 
         with DefaultSelector() as selector, ExitStack() as stack:
             for fd, f in self._files.items():
@@ -95,14 +87,33 @@ class VirtualRF:
                 for key, event_mask in selector.select(timeout=0):
                     if not event_mask & EVENT_READ:
                         continue
-
-                    data = self._files[key.fileobj].read()  # read the Tx'd data
-                    print(f"{self._ports[key.fileobj]} sent: {data}")  # TODO: logger
-                    transmit_as_appropriate(data)
-                    await asyncio.sleep(0.005)
-
+                    self._pull_port(key)
+                    await asyncio.sleep(0)
                 else:
-                    await asyncio.sleep(0.005)
+                    await asyncio.sleep(0.001)
+
+    def _pull_port(self, key) -> tuple:
+        data = self._files[key.fileobj].read()  # read the Tx'd data
+
+        self.log.append((self._ports[key.fileobj], data))
+
+        for d in data.split(b"\r\n"):
+            if d == b"":
+                continue
+            d = d + b"\r\n"
+            self._push_data(self._ports[key.fileobj], d)
+
+    def _push_data(self, src_port: str, data: bytes) -> None:
+        while data:
+            if b"\r\n" in data:
+                pkt, data = data.split(b"\r\n", maxsplit=1)
+                self._push_pkt(src_port, pkt + b"\r\n")
+
+    def _push_pkt(self, src_port: str, data: bytes) -> None:
+        _LOGGER.error(f"{src_port:<11} sent: {data}")
+        if not data.startswith(b"!"):
+            # adding the RSSI is usually performed by the receiving serial device
+            _ = [f.write(b"000 " + data) for f in self._files.values()]
 
     def _setup_event_handlers(self) -> None:
         def cleanup():
