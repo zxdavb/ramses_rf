@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Test the binding protocol."""
+"""Test the binding protocol with a virtual RF.
+
+    NB: This test will likely fail with pytest-repeat (pytest -n x); maybe because of
+    concurrent access to pty.openpty().
+"""
 
 import asyncio
 from unittest.mock import patch
 
 from ramses_rf import Gateway
-from ramses_rf.device.base import BindState, Fakeable
+from ramses_rf.device.base import BindState, Device, Fakeable
 from ramses_rf.protocol.command import Command
 from tests.virtual_rf import VirtualRF
 
-MAX_SLEEP = 5
-
-
-def pytest_generate_tests(metafunc):
-    def id_fnc(param):
-        return f"{param[0][1]} to {param[1][1]}"
-
-    metafunc.parametrize("test_data", TEST_DATA, ids=id_fnc)
+MAX_SLEEP = 1
 
 
 CONFIG = {
@@ -29,31 +26,42 @@ CONFIG = {
 }
 
 
+TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
+    (("40:111111", "REM"), ("41:888888", "FAN"), ("22F1",)),
+    (("22:111111", "THM"), ("01:888888", "CTL"), ("30C9",)),
+)  # supplicant, respondent, codes
+
+
+def pytest_generate_tests(metafunc):
+    def id_fnc(param):
+        return f"{param[0][1]} to {param[1][1]}"
+
+    metafunc.parametrize("test_data", TEST_DATA, ids=id_fnc)
+
+
 async def _stifle_impersonation_alerts(self, cmd: Command) -> None:
     """Stifle impersonation alerts when testing."""
     pass
 
 
-async def assert_bind_state(dev, state, max_sleep: int = MAX_SLEEP):
+async def assert_bind_state(
+    dev: Device, expected_state: BindState, max_sleep: int = MAX_SLEEP
+):
     for _ in range(int(max_sleep / 0.001)):
         await asyncio.sleep(0.001)
-        if dev._1fc9_state["state"] == state:
+        if dev._1fc9_state["state"] == expected_state:
             break
-    assert dev._1fc9_state["state"] == state
+    assert dev._1fc9_state["state"] == expected_state
 
 
-async def assert_this_pkt_hdr(pkt_protocol, hdr: str, max_sleep: int = MAX_SLEEP):
+async def assert_this_pkt_hdr(
+    pkt_protocol, expected_hdr: str, max_sleep: int = MAX_SLEEP
+):
     for _ in range(int(max_sleep / 0.001)):
         await asyncio.sleep(0.001)
-        if pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == hdr:
+        if pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == expected_hdr:
             break
-    assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == hdr
-
-
-TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
-    (("40:111111", "REM"), ("41:888888", "FAN"), ("22F1",)),
-    (("22:111111", "THM"), ("01:888888", "CTL"), ("30C9",)),
-)  # supplicant, respondent, codes
+    assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == expected_hdr
 
 
 @patch(
@@ -92,8 +100,26 @@ async def _test_binding_wrapper(
     await rf.stop()
 
 
+async def _test_bind_state(dev: Device, expected_state: BindState, max_sleep: int):
+    await assert_bind_state(dev, expected_state, max_sleep)
+
+    return dev._gwy.pkt_protocol._this_pkt
+
+
+async def _test_pkt_hdr(pkt_protocol, expected_hdr: str, max_sleep: int = MAX_SLEEP):
+    await assert_this_pkt_hdr(pkt_protocol, expected_hdr, max_sleep)
+
+    return pkt_protocol._this_pkt
+
+
 async def _test_binding_flow(supplicant, respondent, codes):
     """Check the flow of packets during a binding."""
+
+    hdr_flow = [
+        "1FC9| I|63:262142",
+        f"1FC9| W|{supplicant.id}",
+        f"1FC9| I|{respondent.id}",
+    ]
 
     respondent._make_fake()  # TODO: waiting=Code._22F1)
     respondent._bind_waiting(codes)
@@ -103,14 +129,24 @@ async def _test_binding_flow(supplicant, respondent, codes):
 
     supplicant._make_fake(bind=True)  # rem._bind()
 
-    await assert_this_pkt_hdr(supplicant._gwy.pkt_protocol, "1FC9| I|63:262142")
-    await assert_this_pkt_hdr(respondent._gwy.pkt_protocol, "1FC9| I|63:262142")
+    # using tasks, since a sequence of awaits gives unreliable results
+    tasks = [
+        asyncio.create_task(_test_pkt_hdr(role._gwy.pkt_protocol, hdr))
+        for role in (supplicant, respondent)
+        for hdr in hdr_flow
+    ]
 
-    await assert_this_pkt_hdr(respondent._gwy.pkt_protocol, f"1FC9| W|{supplicant.id}")
-    await assert_this_pkt_hdr(supplicant._gwy.pkt_protocol, f"1FC9| W|{supplicant.id}")
+    # TEST 1: pkts arrived as expected
+    await asyncio.gather(*tasks)
 
-    await assert_this_pkt_hdr(supplicant._gwy.pkt_protocol, f"1FC9| I|{respondent.id}")
-    await assert_this_pkt_hdr(respondent._gwy.pkt_protocol, f"1FC9| I|{respondent.id}")
+    # TEST 2: pkts arrived in the correct order
+    pkts = [t.result() for t in tasks]
+    pkts.sort(key=lambda x: x.dtm)
+    results = [(p._hdr, p._gwy) for p in pkts]
+
+    expected = [(h, x._gwy) for h in hdr_flow for x in (supplicant, respondent)]
+
+    assert results == expected
 
 
 async def _test_binding_state(supplicant, respondent, codes):
@@ -134,6 +170,7 @@ async def _test_binding_state(supplicant, respondent, codes):
     await assert_bind_state(supplicant, BindState.UNKNOWN, max_sleep=0)
     await assert_bind_state(respondent, BindState.LISTENING, max_sleep=0)
 
+    # can (rarely?) get unreliable results for respondent as awaits are asynchronous
     supplicant._make_fake(bind=True)  # rem._bind()
     await assert_bind_state(supplicant, BindState.OFFERING, max_sleep=0)
     await assert_bind_state(respondent, BindState.ACCEPTING)

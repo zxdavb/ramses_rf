@@ -14,7 +14,7 @@ from ramses_rf.device import Device
 from ramses_rf.protocol.command import Command
 from tests.virtual_rf import VirtualRF
 
-MAX_SLEEP = 5
+MAX_SLEEP = 1
 
 CONFIG = {
     "config": {
@@ -148,7 +148,9 @@ async def test_virtual_rf_2():
         gwy_0, "01:333333", Code._1F09, max_sleep=0, test_not=True
     )  # device wont exist
 
-    cmd = Command("RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5")
+    cmd = Command(
+        "RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5", qos={"retries": 0}
+    )  # no retries, otherwise long duration
     gwy_0.send_cmd(cmd)
 
     await assert_code_in_device_msgz(gwy_0, "01:333333", Code._1F09)
@@ -161,7 +163,9 @@ async def test_virtual_rf_2():
         gwy_0, "41:111111", Code._22F1, max_sleep=0, test_not=True
     )
 
-    cmd = Command(" I --- 41:111111 --:------ 41:111111 22F1 003 000507")
+    cmd = Command(
+        " I --- 41:111111 --:------ 41:111111 22F1 003 000507", qos={"retries": 0}
+    )  # no retries, otherwise long duration
     gwy_0.send_cmd(cmd)
 
     await assert_code_in_device_msgz(gwy_0, "41:111111", Code._22F1)
