@@ -289,7 +289,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         if msg.dst is not msg.src:
             devices = (msg.dst,)  # dont: msg.dst._handle_msg(msg)
 
-        elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":
+        elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":  # send to all
             devices = (d for d in msg._gwy.devices if d is not msg.src)
 
         elif hasattr(msg.src, SZ_DEVICES):
