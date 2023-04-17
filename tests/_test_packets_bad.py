@@ -12,7 +12,6 @@ from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from tests.common import TEST_DIR  # noqa: F401
 
-
 WORK_DIR = f"{TEST_DIR}/logs"
 
 SCHEMA_EMPTY = {"known_list": {}, "main_tcs": None, "orphans": []}
