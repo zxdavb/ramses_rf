@@ -8,14 +8,19 @@
 """
 
 import asyncio
+from typing import Callable
 from unittest.mock import patch
 
 from ramses_rf import Gateway
-from ramses_rf.device.base import BindState, Device, Fakeable
+from ramses_rf.device.base import BindState, Fakeable
 from ramses_rf.protocol.command import Command
+from ramses_rf.protocol.message import Message
+from ramses_rf.protocol.transport import PacketProtocolQos as PacketProtocol
 from tests.virtual_rf import VirtualRF
 
 MAX_SLEEP = 1
+
+ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 
 
 CONFIG = {
@@ -27,8 +32,13 @@ CONFIG = {
 
 
 TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
+    (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
+    (("07:111111", "DHW"), ("01:888888", "CTL"), ("1260",)),
+    (("40:111111", "HUM"), ("41:888888", "FAN"), ("12A0",)),
     (("40:111111", "REM"), ("41:888888", "FAN"), ("22F1",)),
     (("22:111111", "THM"), ("01:888888", "CTL"), ("30C9",)),
+    # (("40:111111", "DHW"), ("41:888888", "FAN"), ("30C9",)),  # TODO: should fail!!
+    # (("40:111111", "HUM"), ("01:888888", "FAN"), ("30C9",)),  # TODO: should fail!!
 )  # supplicant, respondent, codes
 
 
@@ -45,20 +55,20 @@ async def _stifle_impersonation_alerts(self, cmd: Command) -> None:
 
 
 async def assert_bind_state(
-    dev: Device, expected_state: BindState, max_sleep: int = MAX_SLEEP
+    dev: Fakeable, expected_state: BindState, max_sleep: int = MAX_SLEEP
 ):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if dev._1fc9_state["state"] == expected_state:
             break
     assert dev._1fc9_state["state"] == expected_state
 
 
 async def assert_this_pkt_hdr(
-    pkt_protocol, expected_hdr: str, max_sleep: int = MAX_SLEEP
+    pkt_protocol: PacketProtocol, expected_hdr: str, max_sleep: int = MAX_SLEEP
 ):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == expected_hdr:
             break
     assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == expected_hdr
@@ -69,7 +79,7 @@ async def assert_this_pkt_hdr(
     _stifle_impersonation_alerts,
 )
 async def _test_binding_wrapper(
-    fnc, supp_schema: dict, resp_schema: dict, codes: tuple
+    fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
 ):
     rf = VirtualRF(2)
     await rf.start()
@@ -100,19 +110,23 @@ async def _test_binding_wrapper(
     await rf.stop()
 
 
-async def _test_bind_state(dev: Device, expected_state: BindState, max_sleep: int):
+async def _test_bind_state(
+    dev: Fakeable, expected_state: BindState, max_sleep: int = MAX_SLEEP
+):
     await assert_bind_state(dev, expected_state, max_sleep)
 
     return dev._gwy.pkt_protocol._this_pkt
 
 
-async def _test_pkt_hdr(pkt_protocol, expected_hdr: str, max_sleep: int = MAX_SLEEP):
+async def _test_pkt_hdr(
+    pkt_protocol: PacketProtocol, expected_hdr: str, max_sleep: int = MAX_SLEEP
+):
     await assert_this_pkt_hdr(pkt_protocol, expected_hdr, max_sleep)
 
     return pkt_protocol._this_pkt
 
 
-async def _test_binding_flow(supplicant, respondent, codes):
+async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes):
     """Check the flow of packets during a binding."""
 
     hdr_flow = [
@@ -149,8 +163,17 @@ async def _test_binding_flow(supplicant, respondent, codes):
     assert results == expected
 
 
-async def _test_binding_state(supplicant, respondent, codes):
+async def _test_binding_state(supplicant: Fakeable, respondent: Fakeable, codes):
     """Check the change of state during a binding."""
+
+    packets = {}
+
+    def track_packet_flow(msg: Message, prev_msg: Message | None = None) -> None:
+        if (msg._pkt._hdr, msg._gwy.hgi.id) not in packets:  # ignore retransmits
+            packets[msg._pkt._hdr, msg._gwy.hgi.id] = msg._pkt
+
+    # supplicant._gwy.create_client(track_packet_flow)
+    # respondent._gwy.create_client(track_packet_flow)
 
     await assert_bind_state(supplicant, BindState.UNKNOWN, max_sleep=0)
     await assert_bind_state(respondent, BindState.UNKNOWN, max_sleep=0)
