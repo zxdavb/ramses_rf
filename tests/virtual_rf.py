@@ -13,7 +13,7 @@ from collections import deque
 from contextlib import ExitStack
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
-from typing import TypeAlias
+from typing import Generator, TypeAlias
 
 from serial import serial_for_url
 
@@ -35,28 +35,30 @@ class VirtualRF:
         """Create `num_ports` virtual serial ports."""
 
         self._loop = asyncio.get_running_loop()
-        self.log = deque([], log_size)
+        self.tx_log = deque([], log_size)
 
-        self._files: dict[_FD, FileIO] = {}  # master fd to file (port)
-        self._names: dict[_FD, _PN] = {}  # slave fd to port name
-        self._ports: dict[_FD, _PN] = {}  # master fd to port name, used for logging
+        self._file_objs: dict[_FD, FileIO] = {}  # master fd to file (port) object
+        self._pty_names: dict[_FD, _PN] = {}  # master fd to slave port name, for logger
+        self._tty_names: dict[_FD, _PN] = {}  # slave fd to its port name
 
-        # self._setup_event_handlers()  # TODO: needs testing
+        # self._setup_event_handlers()  # TODO: needs fixing/testing
 
         for _ in range(num_ports):
             master_fd, slave_fd = pty.openpty()  # type: tuple[_FD, _FD]  # pty, tty
 
-            tty.setraw(master_fd)  # requires termios module, so: works only on Unix
-            os.set_blocking(master_fd, False)  # non-blocking
+            tty.setraw(master_fd)  # requires termios module, so: works only on *nix
+            os.set_blocking(master_fd, False)  # make non-blocking
 
-            self._files[master_fd] = open(master_fd, "r+b", buffering=0)
-            self._ports[master_fd] = self._names[slave_fd] = os.ttyname(slave_fd)
+            self._file_objs[master_fd] = open(master_fd, "r+b", buffering=0)
+            self._pty_names[master_fd] = self._tty_names[slave_fd] = os.ttyname(
+                slave_fd
+            )
 
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
     @property
     def ports(self) -> list[str]:
-        return list(self._names.values())
+        return list(self._tty_names.values())
 
     async def stop(self) -> None:
         """Stop polling ports and distributing data."""
@@ -72,14 +74,14 @@ class VirtualRF:
     async def start(self) -> asyncio.Task:
         """Start polling ports and distributing data."""
 
-        self._task = self._loop.create_task(self._poll_ports())
+        self._task = self._loop.create_task(self._poll_ports_for_data_and_pull())
         return self._task
 
-    async def _poll_ports(self) -> None:
-        """Send data received from any one port to all the other ports."""
+    async def _poll_ports_for_data_and_pull(self) -> None:
+        """Send data received from any one port (as .write(data)) to all other ports."""
 
         with DefaultSelector() as selector, ExitStack() as stack:
-            for fd, f in self._files.items():
+            for fd, f in self._file_objs.items():
                 stack.enter_context(f)
                 selector.register(fd, EVENT_READ)
 
@@ -87,38 +89,36 @@ class VirtualRF:
                 for key, event_mask in selector.select(timeout=0):
                     if not event_mask & EVENT_READ:
                         continue
-                    self._pull_port(key)
+                    self._pull_data_from_port_and_cast_as_frames(key.fileobj)
                     await asyncio.sleep(0)
                 else:
                     await asyncio.sleep(0.001)
 
-    def _pull_port(self, key) -> tuple:
-        data = self._files[key.fileobj].read()  # read the Tx'd data
+    def _pull_data_from_port_and_cast_as_frames(self, master: _FD) -> tuple:
+        """Pull the data from the sending port and cast any frames to all ports."""
 
-        self.log.append((self._ports[key.fileobj], data))
+        data = self._file_objs[master].read()  # read the Tx'd data
+        self.tx_log.append((self._pty_names[master], data))  # FD, data
 
-        for d in data.split(b"\r\n"):
-            if d == b"":
-                continue
-            d = d + b"\r\n"
-            self._push_data(self._ports[key.fileobj], d)
+        # this assumes all .write(data) are 1+ whole frames terminated with \r\n
+        self._cast_frames_to_all_ports(
+            master, (d + b"\r\n" for d in data.split(b"\r\n") if d and d[:1] != b"!")
+        )
 
-    def _push_data(self, src_port: str, data: bytes) -> None:
-        while data:
-            if b"\r\n" in data:
-                pkt, data = data.split(b"\r\n", maxsplit=1)
-                self._push_pkt(src_port, pkt + b"\r\n")
+    def _cast_frames_to_all_ports(
+        self, master: _FD, frames: Generator[bytes, None, None]
+    ) -> None:
+        """Cast each frame to all ports in the RSSI + frame format."""
 
-    def _push_pkt(self, src_port: str, data: bytes) -> None:
-        _LOGGER.error(f"{src_port:<11} sent: {data}")
-        if not data.startswith(b"!"):
-            # adding the RSSI is usually performed by the receiving serial device
-            _ = [f.write(b"000 " + data) for f in self._files.values()]
+        for frame in frames:
+            _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame}")
+            # adding the RSSI is performed by the receiving serial device
+            _ = [f.write(b"000 " + frame) for f in self._file_objs.values()]
 
     def _setup_event_handlers(self) -> None:
         def cleanup():
-            _ = [f.close() for f in self._files.values()]  # also cloes fd
-            _ = [os.close(fd) for fd in self._names]  # tty will persist, otherwise
+            _ = [f.close() for f in self._file_objs.values()]  # also closes master fd
+            _ = [os.close(fd) for fd in self._tty_names]  # else slave fd will persist
 
         def handle_exception(loop, context):
             """Handle exceptions on any platform."""
@@ -138,7 +138,7 @@ class VirtualRF:
         self._loop.set_exception_handler(handle_exception)
 
         _LOGGER.debug("Creating signal handlers...")
-        if os.name == "posix":
+        if os.name == "posix":  # signal.SIGKILL people?
             for sig in (signal.SIGABRT, signal.SIGINT, signal.SIGTERM):
                 self._loop.add_signal_handler(
                     sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
@@ -148,15 +148,18 @@ class VirtualRF:
 
 
 async def main():
-    NUM_PORTS = 3
-    rf = VirtualRF(NUM_PORTS)
+    """ "Demonstrate the class functionality."""
+
+    num_ports = 3
+
+    rf = VirtualRF(num_ports)
     print(f"Ports are: {rf.ports}")
 
-    sers = [serial_for_url(rf.ports[i]) for i in range(NUM_PORTS)]
+    sers = [serial_for_url(rf.ports[i]) for i in range(num_ports)]
 
     await rf.start()
 
-    for i in range(NUM_PORTS):
+    for i in range(num_ports):
         sers[i].write(bytes(f"Hello World {i}! ", "utf-8"))
         await asyncio.sleep(0.005)  # give the write a chance to effect
 
