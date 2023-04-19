@@ -202,7 +202,7 @@ async def _test_binding_state(supplicant: Fakeable, respondent: Fakeable, codes)
     await assert_bind_state(respondent, BindState.BOUND)
 
 
-async def test_binding_flow(test_data):
+async def test_binding_flows(test_data):
     supp, resp, codes = test_data
 
     await _test_binding_wrapper(
