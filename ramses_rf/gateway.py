@@ -328,7 +328,7 @@ class Engine:
                 _LOGGER.debug(f"cmd ({cmd.tx_header}) returned: {result!r})")
                 return result
 
-            await asyncio.sleep(0.001)
+            await asyncio.sleep(0.001)  # TODO: 0.001, 0.005 or other?
 
 
 class Gateway(Engine):
