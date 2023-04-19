@@ -297,6 +297,13 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
             finally:
                 bits_in_bucket -= rf_frame_size
 
+        @wraps(fnc)
+        async def null_wrapper(*args, **kwargs) -> Any:
+            return await fnc(*args, **kwargs)
+
+        if max_duty_cycle <= 0:
+            return null_wrapper
+
         return wrapper
 
     return decorator
@@ -340,6 +347,13 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60):
                 token_bucket -= 1.0
 
         return wrapper
+
+        @wraps(fnc)
+        async def null_wrapper(*args, **kwargs) -> Any:
+            return await fnc(*args, **kwargs)
+
+        if max_tokens <= 0:
+            return null_wrapper
 
     return decorator
 
@@ -430,7 +444,7 @@ class SerTransportRead(SerTransportBase):
         elif isinstance(self._packets, TextIOWrapper):
             for dtm_pkt_line in self._packets:  # should check dtm_str is OK
                 self._protocol.data_received(dtm_pkt_line)  # .rstrip())
-                await asyncio.sleep(0)
+                await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
             raise TypeError(f"Wrong type of packet source: {type(self._packets)}")
@@ -466,7 +480,7 @@ class SerTransportPoll(SerTransportBase, asyncio.WriteTransport):
         self._protocol.connection_made(self)
 
         while self.serial.is_open:
-            await asyncio.sleep(0.001)
+            await asyncio.sleep(0.001)  # TODO: 001, 005, or other?
 
             if self.serial.in_waiting:
                 # NOTE: cant use readline(), as it blocks until a newline is received
@@ -504,7 +518,7 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.info(f"RAMSES_RF protocol library v{VERSION}, using {self}")
 
         self._gwy = gwy
-        self._loop = gwy._loop
+        self._loop: asyncio.AbstractEventLoop = gwy._loop
         self._callback: None | Callable = pkt_handler
 
         self._transport: asyncio.Transport = None  # type: ignore[assignment]
