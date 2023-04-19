@@ -13,12 +13,14 @@ from collections import deque
 from contextlib import ExitStack
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
-from typing import Generator, TypeAlias
+from typing import Any, Generator, TypeAlias
 
-from serial import serial_for_url
+from serial import Serial, serial_for_url  # type: ignore[import]
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
+
+_FILEOBJ: TypeAlias = int | Any  # int | HasFilno
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ class VirtualRF:
         """Create `num_ports` virtual serial ports."""
 
         self._loop = asyncio.get_running_loop()
-        self.tx_log = deque([], log_size)
+        self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)
 
         self._file_objs: dict[_FD, FileIO] = {}  # master fd to file (port) object
         self._pty_names: dict[_FD, _PN] = {}  # master fd to slave port name, for logger
@@ -44,7 +46,7 @@ class VirtualRF:
         # self._setup_event_handlers()  # TODO: needs fixing/testing
 
         for _ in range(num_ports):
-            master_fd, slave_fd = pty.openpty()  # type: tuple[_FD, _FD]  # pty, tty
+            master_fd, slave_fd = pty.openpty()  # pty, tty
 
             tty.setraw(master_fd)  # requires termios module, so: works only on *nix
             os.set_blocking(master_fd, False)  # make non-blocking
@@ -89,16 +91,16 @@ class VirtualRF:
                 for key, event_mask in selector.select(timeout=0):
                     if not event_mask & EVENT_READ:
                         continue
-                    self._pull_data_from_port_and_cast_as_frames(key.fileobj)
+                    self._pull_data_from_port_and_cast_as_frames(key.fileobj)  # type: ignore[arg-type]  # fileobj type is int | HasFileno
                     await asyncio.sleep(0)
                 else:
                     await asyncio.sleep(0.001)
 
-    def _pull_data_from_port_and_cast_as_frames(self, master: _FD) -> tuple:
+    def _pull_data_from_port_and_cast_as_frames(self, master: _FD) -> None:
         """Pull the data from the sending port and cast any frames to all ports."""
 
         data = self._file_objs[master].read()  # read the Tx'd data
-        self.tx_log.append((self._pty_names[master], data))  # FD, data
+        self.tx_log.append((self._pty_names[master], data))
 
         # this assumes all .write(data) are 1+ whole frames terminated with \r\n
         self._cast_frames_to_all_ports(
@@ -111,14 +113,16 @@ class VirtualRF:
         """Cast each frame to all ports in the RSSI + frame format."""
 
         for frame in frames:
-            _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame}")
+            _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
             # adding the RSSI is performed by the receiving serial device
             _ = [f.write(b"000 " + frame) for f in self._file_objs.values()]
 
     def _setup_event_handlers(self) -> None:
         def cleanup():
-            _ = [f.close() for f in self._file_objs.values()]  # also closes master fd
-            _ = [os.close(fd) for fd in self._tty_names]  # else slave fd will persist
+            for f in self._file_objs.values():
+                f.close()  # also closes master fd
+            for fd in self._tty_names:
+                os.close(fd)  # else slave fd will persist
 
         def handle_exception(loop, context):
             """Handle exceptions on any platform."""
@@ -155,7 +159,7 @@ async def main():
     rf = VirtualRF(num_ports)
     print(f"Ports are: {rf.ports}")
 
-    sers = [serial_for_url(rf.ports[i]) for i in range(num_ports)]
+    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]
 
     await rf.start()
 
