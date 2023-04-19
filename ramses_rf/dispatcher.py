@@ -283,7 +283,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         # systems, zones, circuits) is done by those devices (e.g. UFC to UfhCircuit)
 
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
-            msg.src._handle_msg(msg)
+            msg.src._handle_msg(msg)  # TODO ._loop.call_soon(msg.src._handle_msg, msg)
 
         # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
         if msg.dst is not msg.src:
@@ -301,7 +301,9 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         else:
             return
 
-        [d._handle_msg(msg) for d in devices if getattr(d, "_faked", False)]
+        for d in devices:
+            if getattr(d, "_faked", False):
+                d._handle_msg(msg)  # TODO: gwy._loop.call_soon(d._handle_msg, msg)
 
     except (AssertionError, EvohomeError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
@@ -310,3 +312,30 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
 
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
         _LOGGER.exception("%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc)
+
+    # Stuff from MsgTransport, when callbacks were switched to loop.call_soon()
+
+    # protect this code from the upper-layer callback
+    # except InvalidPacketError:
+    #     return
+
+    # except CorruptStateError as exc:
+    #     _LOGGER.error("%s < %s", pkt, exc)
+
+    # except AssertionError as exc:
+    #     if p is not self._protocols[0]:
+    #         raise
+    #     _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
+
+    # except (
+    #     ArithmeticError,  # incl. ZeroDivisionError,
+    #     AttributeError,
+    #     LookupError,  # incl. IndexError, KeyError
+    #     NameError,  # incl. UnboundLocalError
+    #     RuntimeError,  # incl. RecursionError
+    #     TypeError,
+    #     ValueError,
+    # ) as exc:
+    #     if p is self._protocols[0]:
+    #         raise
+    #     _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
