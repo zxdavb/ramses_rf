@@ -113,7 +113,7 @@ async def test_virtual_rf_1():
 
     # TEST 3: Rx only by one GWY /dev/pty/0 (needs RSSI)
     cmd = Command("RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5")
-    list(rf._files.values())[0].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
+    list(rf._file_objs.values())[0].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
 
     await assert_devices(gwy_0, ["18:000730", "01:111111", "01:222222", "01:333333"])
     await assert_devices(gwy_1, ["18:000730", "01:111111", "01:222222"])
