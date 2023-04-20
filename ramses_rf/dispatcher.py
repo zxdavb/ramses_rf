@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta as td
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from . import Gateway
 
 from .const import (
     DEV_TYPE,
@@ -247,7 +251,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         payload = this.payload if isinstance(this.payload, list) else [this.payload]
         return prev.payload + payload
 
-    gwy = msg._gwy  # pylint: disable=protected-access, skipcq: PYL-W0212
+    gwy: Gateway = msg._gwy  # pylint: disable=protected-access, skipcq: PYL-W0212
 
     # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
