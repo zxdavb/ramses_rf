@@ -8,6 +8,7 @@ Operates at the msg layer of: app - msg - pkt - h/w
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import signal
 from datetime import datetime as dt
@@ -539,7 +540,9 @@ class MessageProtocol(asyncio.Protocol):
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 
         self._this_msg, self._prev_msg = msg, self._this_msg
-        self._callback(self._this_msg, prev_msg=self._prev_msg)
+        self._loop.call_soon(
+            functools.partial(self._callback, self._this_msg, prev_msg=self._prev_msg)
+        )  # to the dispatcher
 
     async def send_data(
         self, cmd: Command, callback: Callable = None, _make_awaitable: bool = None
