@@ -51,8 +51,8 @@ class CallbackAsAwaitable:
     HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
-    def __init__(self, loop) -> None:
-        self._loop = loop or asyncio.get_event_loop()
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop  # or asyncio.get_event_loop()
         self._queue: SimpleQueue = SimpleQueue()  # unbounded, but we use only 1 entry
 
         self.expires: dt = None  # type: ignore[assignment]
@@ -87,7 +87,9 @@ class CallbackAsAwaitable:
         self._queue.put_nowait(msg)
 
 
-def awaitable_callback(loop) -> tuple[Callable[..., Awaitable[Message]], Callable]:
+def awaitable_callback(
+    loop: asyncio.AbstractEventLoop,
+) -> tuple[Callable[..., Awaitable[Message]], Callable]:
     """Create a pair of functions, so that a callback can be awaited."""
     obj = CallbackAsAwaitable(loop)
     return obj.getter, obj.putter  # awaitable, callback
@@ -135,8 +137,6 @@ class MessageTransport(asyncio.Transport):
         self._write_buffer_limit_low: int = 0
         self._write_buffer_paused = False
         self.set_write_buffer_limits()
-
-        # self._extra[self.WRITER] = self._loop.create_task(self._polling_loop())
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             self._loop.add_signal_handler(sig, self.abort)
@@ -194,6 +194,7 @@ class MessageTransport(asyncio.Transport):
     def _add_callback(
         self, header: str, callback: dict, cmd: None | Command = None
     ) -> None:
+        """Add a callback to the table."""
         # assert header not in self._callbacks  # CBK, below
         # self._callbacks[header] = CallbackWrapper(header, callback, cmd=cmd)
 
@@ -519,7 +520,7 @@ class MessageProtocol(asyncio.Protocol):
 
     def __init__(self, gwy, callback: Callable) -> None:
         # self._gwy = gwy  # is not used
-        self._loop = gwy._loop
+        self._loop: asyncio.AbstractEventLoop = gwy._loop
         self._callback = callback
 
         self._transport: MessageTransport = None  # type: ignore[assignment]
@@ -548,7 +549,6 @@ class MessageProtocol(asyncio.Protocol):
 
         if _make_awaitable and callback is not None:
             raise ValueError("only one of `awaitable` and `callback` can be provided")
-
         if _make_awaitable:  # and callback is None:
             awaitable, callback = awaitable_callback(self._loop)  # ZX: 3/3
         if callback:  # func, args, daemon, timeout (& expired)
