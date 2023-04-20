@@ -348,9 +348,9 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
-        RP: r"^((0[0-9A-F]|F[69ABCF]|90)([0-9A-F]{10}))+$",  # #     NOTE: idx can be 90 (HEAT)
-        I_: r"^((0[0-9A-F]|F[69ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
-        W_: r"^((0[0-9A-F]|F[69ABCF])([0-9A-F]{10}))+$",
+        RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
+        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00$",  # NOTE: payload can be 00
+        W_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
     },
     Code._1FCA: {  # unknown_1fca
         SZ_NAME: "message_1fca",

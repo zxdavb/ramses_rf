@@ -1324,10 +1324,11 @@ def parser_1fc9(payload, msg) -> list:
                 seqx[6:] == payload[6:12]
             ), f"{seqx[6:]} != {payload[6:12]}"  # all with same controller
         if seqx[:2] not in (
-            "63",
-            "67",
-            "6C",
-            "90",
+            "21",  # HVAC, Nuaire PIV
+            "63",  # HVAC
+            "67",  # HVAC
+            "6C",  # HVAC
+            "90",  # HEAT
             F6,
             F9,
             FA,
@@ -1335,7 +1336,7 @@ def parser_1fc9(payload, msg) -> list:
             FC,
             FF,
         ):  # or: not in DOMAIN_TYPE_MAP: ??
-            assert int(seqx[:2], 16) < 16
+            assert int(seqx[:2], 16) < 16, _INFORM_DEV_MSG
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
     if msg.verb == I_ and msg.src is msg.dst:
