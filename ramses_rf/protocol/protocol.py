@@ -17,8 +17,8 @@ from queue import Empty, Full, PriorityQueue, SimpleQueue
 from typing import Awaitable, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from .command import Command
-from .const import SZ_DAEMON, SZ_EXPIRED, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
-from .exceptions import CorruptStateError, InvalidPacketError
+from .const import SZ_DAEMON, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
+from .exceptions import InvalidPacketError
 from .message import Message
 from .packet import Packet
 
@@ -192,6 +192,26 @@ class MessageTransport(asyncio.Transport):
 
         return self._extra[self.WRITER]
 
+    def _expire_callbacks(self, dtm: dt) -> None:
+        """Remove (and notify) expired callbacks form the table."""
+
+        # 1st, stop tracking expired callbacks
+        expired_cbks = {
+            hdr: cbk
+            for hdr, cbk in self._callbacks.items()
+            if cbk.get(SZ_EXPIRES, dt.max) < dtm
+        }
+        self._callbacks = {
+            hdr: cbk for hdr, cbk in self._callbacks.items() if hdr not in expired_cbks
+        }
+
+        # 2nd, notify all expired callbacks
+        for hdr, cbk in expired_cbks.items():  # see also: PktProtocolQos.send_data()?
+            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+                "MsgTransport._pkt_receiver(%s): Expired callback", hdr
+            )
+            self._loop.call_soon(cbk[SZ_FUNC], CallbackAsAwaitable.HAS_TIMED_OUT)
+
     def _add_callback(
         self, header: str, callback: dict, cmd: None | Command = None
     ) -> None:
@@ -199,89 +219,47 @@ class MessageTransport(asyncio.Transport):
         # assert header not in self._callbacks  # CBK, below
         # self._callbacks[header] = CallbackWrapper(header, callback, cmd=cmd)
 
+        self._expire_callbacks(dt.now())
+
+        if header in self._callbacks:
+            raise RuntimeError("That header is already in the callback table")
+
         callback[SZ_EXPIRES] = (
             dt.max
             if callback.get(SZ_DAEMON)
             else dt.now() + td(seconds=callback.get(SZ_TIMEOUT, 1))
         )
         callback["cmd"] = cmd
-        self._callbacks[header] = callback
+        self._callbacks[header] = callback  # check for existing hdr?
 
-    def _pkt_receiver(self, pkt: Packet) -> None:
+    def _pkt_receiver(self, pkt: Packet) -> None:  # callback used by PktProtocol layer
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("rcvd: %s", pkt)
 
-        # HACK: 1st, notify all expired callbacks
-        for hdr, callback in self._callbacks.items():
-            if not callback.get(SZ_EXPIRED) and (
-                callback.get(SZ_EXPIRES, dt.max) < pkt.dtm
-            ):
-                # see also: PktProtocolQos.send_data()
-                (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
-                    "MsgTransport._pkt_receiver(%s): Expired callback", hdr
-                )
-                callback[SZ_FUNC](CallbackAsAwaitable.HAS_TIMED_OUT)  # ZX: 1/3
-                callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
-
-        # HACK: 2nd, discard any expired callbacks
-        self._callbacks = {
-            hdr: callback
-            for hdr, callback in self._callbacks.items()
-            if callback.get(SZ_DAEMON)
-            or (callback[SZ_EXPIRES] >= pkt.dtm and not callback.get(SZ_EXPIRED))
-        }
+        self._expire_callbacks(pkt.dtm)
 
         if len(self._protocols) == 0 or (
             self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES
         ):
             return
 
-        # BUG: all InvalidPacketErrors are not being raised here (see below)
+        # BUG: all InvalidPacketErrors are not being raised here - some later?
         try:
             msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
         except InvalidPacketError:
             return
 
-        # HACK: 3rd, invoke any callback
+        # 3rd, invoke any matched callback
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and (callback := self._callbacks.get(msg._pkt._hdr)):  # type: ignore[assignment]
-            callback[SZ_FUNC](msg)  # ZX: 2/3
+            self._loop.call_soon(callback[SZ_FUNC], msg)
             if not callback.get(SZ_DAEMON):
                 del self._callbacks[msg._pkt._hdr]
 
-        # BUG: the InvalidPacketErrors here should have been caught above
-        # BUG: should only need to catch CorruptStateError
         for p in self._protocols:
-            try:
-                self._loop.call_soon(p.data_received, msg)
-
-            except InvalidPacketError:
-                return
-
-            except CorruptStateError as exc:
-                _LOGGER.error("%s < %s", pkt, exc)
-
-            except (  # protect this code from the upper-layer callback
-                AssertionError,
-            ) as exc:
-                if p is not self._protocols[0]:
-                    raise
-                _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
-
-            except (  # protect this code from the upper-layer callback
-                ArithmeticError,  # incl. ZeroDivisionError,
-                AttributeError,
-                LookupError,  # incl. IndexError, KeyError
-                NameError,  # incl. UnboundLocalError
-                RuntimeError,  # incl. RecursionError
-                TypeError,
-                ValueError,
-            ) as exc:
-                if p is self._protocols[0]:
-                    raise
-                _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
+            self._loop.call_soon(p.data_received, msg)
 
     def get_extra_info(self, name: str, default=None):
         """Get optional transport information."""
