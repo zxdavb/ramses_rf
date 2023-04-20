@@ -167,7 +167,7 @@ class MessageTransport(asyncio.Transport):
                 except Empty:
                     if self._is_closing:
                         break
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.005)
                     continue
                 except AttributeError:  # when self._que == None, from abort()
                     break
