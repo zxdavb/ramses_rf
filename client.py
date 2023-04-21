@@ -52,6 +52,7 @@ from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import merge
 from ramses_rf.protocol.exceptions import EvohomeError
 from ramses_rf.protocol.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
+from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.schemas import (
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
@@ -371,7 +372,7 @@ def listen(obj, **kwargs):
     return LISTEN, lib_config, config
 
 
-def print_results(gwy, **kwargs):
+def print_results(gwy: Gateway, **kwargs):
     if kwargs[GET_FAULTS]:
         fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
 
@@ -400,7 +401,7 @@ def print_results(gwy, **kwargs):
         system_id, _ = kwargs[GET_SCHED]
 
 
-def _save_state(gwy):
+def _save_state(gwy: Gateway):
     schema, msgs = gwy._get_state()
 
     with open("state_msgs.log", "w") as f:
@@ -410,7 +411,7 @@ def _save_state(gwy):
         f.write(json.dumps(schema, indent=4))
 
 
-def _print_engine_state(gwy, **kwargs):
+def _print_engine_state(gwy: Gateway, **kwargs):
     (schema, packets) = gwy._get_state(include_expired=True)
 
     if kwargs["print_state"] > 0:
@@ -419,7 +420,7 @@ def _print_engine_state(gwy, **kwargs):
         print(f"packets: {json.dumps(packets, indent=4)}\r\n")
 
 
-def print_summary(gwy, **kwargs):
+def print_summary(gwy: Gateway, **kwargs):
     entity = gwy.tcs or gwy
 
     if kwargs.get("show_schema"):
@@ -469,7 +470,7 @@ def print_summary(gwy, **kwargs):
 async def main(command: str, lib_kwargs: dict, **kwargs):
     """Do certain things."""
 
-    def process_msg(msg, prev_msg=None) -> None:
+    def process_msg(msg: Message) -> None:
         """Process the message as it arrives (a callback).
 
         In this case, the message is merely printed.
