@@ -11,8 +11,8 @@ from pathlib import Path, PurePath
 from ramses_rf.protocol.const import Code
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
-from tests.common import TEST_DIR
+from tests.helpers import gwy  # noqa: F401
+from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/parsers"
 

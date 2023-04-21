@@ -20,7 +20,7 @@ from ramses_rf.system.schedule import (
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
-from tests_rf.common import (
+from tests_rf.helpers import (
     TEST_DIR,
     abort_if_rf_test_fails,
     find_test_tcs,

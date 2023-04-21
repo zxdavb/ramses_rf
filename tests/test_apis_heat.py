@@ -14,7 +14,7 @@ from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
+from tests.helpers import gwy  # noqa: F401
 
 
 def _test_api_good(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check

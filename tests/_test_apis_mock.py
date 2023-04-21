@@ -13,7 +13,7 @@ from ramses_rf.helpers import shrink
 from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
+from tests.helpers import gwy  # noqa: F401
 from tests_rf.mock.command import MockCommand as Command
 
 

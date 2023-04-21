@@ -16,7 +16,7 @@ from ramses_rf.device.base import BindState, Fakeable
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.transport import PacketProtocolQos as PacketProtocol
-from tests.virtual_rf import VirtualRF
+from tests_rf.virtual_rf import VirtualRF
 
 MAX_SLEEP = 1
 

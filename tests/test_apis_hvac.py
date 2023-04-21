@@ -11,7 +11,7 @@ from datetime import datetime as dt
 from ramses_rf.protocol.command import CODE_API_MAP, Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
+from tests.helpers import gwy  # noqa: F401
 
 
 def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check

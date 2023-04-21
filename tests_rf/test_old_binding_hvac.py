@@ -21,7 +21,12 @@ from ramses_rf.protocol.schemas import (
     SZ_KNOWN_LIST,
 )
 from ramses_rf.schemas import SZ_CONFIG, SZ_DISABLE_DISCOVERY, SZ_ORPHANS_HVAC
-from tests_rf.common import MockGateway, abort_if_rf_test_fails, load_test_gwy
+from tests_rf.helpers import (
+    MOCKED_PORT,
+    MockGateway,
+    abort_if_rf_test_fails,
+    load_test_gwy,
+)
 
 FAN_ID = "21:111111"
 REM_ID = "33:333333"
@@ -33,7 +38,7 @@ class HvacVentilatorFakable(HvacVentilator, Fakeable):
 
 
 def pytest_generate_tests(metafunc):
-    test_ports = {"/dev/ttyMOCK": MockGateway}  # don't use: from tests_rf.common...
+    test_ports = {MOCKED_PORT: MockGateway}
 
     metafunc.parametrize("test_port", test_ports.items(), ids=test_ports.keys())
 

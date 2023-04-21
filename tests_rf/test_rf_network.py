@@ -12,7 +12,7 @@ from ramses_rf import Gateway
 from ramses_rf.const import Code
 from ramses_rf.device import Device
 from ramses_rf.protocol.command import Command
-from tests.virtual_rf import VirtualRF
+from tests_rf.virtual_rf import VirtualRF
 
 MAX_SLEEP = 1
 
