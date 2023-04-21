@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from . import Gateway
+    from .protocol import Message
 
 from .const import (
     DEV_TYPE,
@@ -23,7 +24,7 @@ from .const import (
     __dev_mode__,
 )
 from .device import Device
-from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA, Message
+from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA
 from .protocol.exceptions import EvohomeError, InvalidAddrSetError, InvalidPacketError
 from .protocol.ramses import (
     CODES_OF_HEAT_DOMAIN,
@@ -56,7 +57,7 @@ if DEV_MODE:
 STRICT_MODE = not DEV_MODE and False
 
 
-def _create_devices_from_addrs(gwy, this: Message) -> None:
+def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
     """Discover and create any new devices using the packet addresses (not payload)."""
 
     # prefer Devices but can continue with Addresses if required...
@@ -225,13 +226,13 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
-def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
+def process_msg(msg: Message) -> None:
     """Decoding the packet payload and route it appropriately."""
 
     # All methods require a valid message (payload), except create_devices(), which
     # requires a valid message only for 000C.
 
-    def detect_array_fragment(this, prev) -> dict:  # _PayloadT
+    def detect_array_fragment(this: Message, prev: Message) -> dict:  # _PayloadT
         """Return complete array if this pkt is the latter half of an array."""
         # This will work, even if the 2nd pkt._is_array == False as 1st == True
         # .I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
@@ -251,7 +252,12 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
         payload = this.payload if isinstance(this.payload, list) else [this.payload]
         return prev.payload + payload
 
+    # HACK: This is an unpleaseant anachronism
     gwy: Gateway = msg._gwy  # pylint: disable=protected-access, skipcq: PYL-W0212
+    gwy._this_msg, gwy._prev_msg = (
+        msg,
+        gwy._this_msg,
+    )  # pylint: disable=protected-access, skipcq: PYL-W0212
 
     # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
@@ -261,7 +267,7 @@ def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
     ):
         _LOGGER.info(msg)
 
-    msg._payload = detect_array_fragment(msg, prev_msg)  # HACK: needs rethinking?
+    msg._payload = detect_array_fragment(msg, gwy._prev_msg)  # HACK: needs rethinking?
 
     try:  # validate / dispatch the packet
         _check_msg_addrs(msg)  # ? InvalidAddrSetError

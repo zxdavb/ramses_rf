@@ -8,7 +8,6 @@ Operates at the msg layer of: app - msg - pkt - h/w
 from __future__ import annotations
 
 import asyncio
-import functools
 import logging
 import signal
 from datetime import datetime as dt
@@ -248,7 +247,9 @@ class MessageTransport(asyncio.Transport):
         # BUG: all InvalidPacketErrors are not being raised here - some later?
         try:
             msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
-        except InvalidPacketError:
+        except (
+            InvalidPacketError
+        ):  # TODO: InvalidMessageError (wont have got this far if was an invalid Pkt)
             return
 
         # 3rd, invoke any matched callback
@@ -503,7 +504,6 @@ class MessageProtocol(asyncio.Protocol):
         self._callback = callback
 
         self._transport: MessageTransport = None  # type: ignore[assignment]
-        self._prev_msg: None | Message = None
         self._this_msg: None | Message = None
 
         self._pause_writing = True
@@ -517,10 +517,8 @@ class MessageProtocol(asyncio.Protocol):
         """Called by the transport when a message is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 
-        self._this_msg, self._prev_msg = msg, self._this_msg
-        self._loop.call_soon(
-            functools.partial(self._callback, self._this_msg, prev_msg=self._prev_msg)
-        )  # to the dispatcher
+        self._this_msg = msg
+        self._loop.call_soon(self._callback, self._this_msg)  # to the dispatcher
 
     async def send_data(
         self, cmd: Command, callback: Callable = None, _make_awaitable: bool = None
