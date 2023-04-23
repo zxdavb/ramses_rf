@@ -15,7 +15,6 @@ from ramses_rf import Gateway
 from ramses_rf.device.base import BindState, Fakeable
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.transport import PacketProtocolQos as PacketProtocol
 from tests_rf.virtual_rf import VirtualRF
 
 MAX_SLEEP = 1
@@ -65,13 +64,13 @@ async def assert_bind_state(
 
 
 async def assert_this_pkt_hdr(
-    pkt_protocol: PacketProtocol, expected_hdr: str, max_sleep: int = MAX_SLEEP
+    gwy: Gateway, expected_hdr: str, max_sleep: int = MAX_SLEEP
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == expected_hdr:
+        if gwy._this_msg and gwy._this_msg._pkt._hdr == expected_hdr:
             break
-    assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._hdr == expected_hdr
+    assert gwy._this_msg._pkt and gwy._this_msg._pkt._hdr == expected_hdr
 
 
 @patch(
@@ -110,20 +109,10 @@ async def _test_binding_wrapper(
     await rf.stop()
 
 
-async def _test_bind_state(
-    dev: Fakeable, expected_state: BindState, max_sleep: int = MAX_SLEEP
-):
-    await assert_bind_state(dev, expected_state, max_sleep)
+async def _test_pkt_hdr(gwy: Gateway, expected_hdr: str, max_sleep: int = MAX_SLEEP):
+    await assert_this_pkt_hdr(gwy, expected_hdr, max_sleep)
 
-    return dev._gwy.pkt_protocol._this_pkt
-
-
-async def _test_pkt_hdr(
-    pkt_protocol: PacketProtocol, expected_hdr: str, max_sleep: int = MAX_SLEEP
-):
-    await assert_this_pkt_hdr(pkt_protocol, expected_hdr, max_sleep)
-
-    return pkt_protocol._this_pkt
+    return gwy._this_msg._pkt
 
 
 async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes):
@@ -138,14 +127,14 @@ async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes):
     respondent._make_fake()  # TODO: waiting=Code._22F1)
     respondent._bind_waiting(codes)
 
-    assert supplicant._gwy.pkt_protocol._this_pkt is None
-    assert respondent._gwy.pkt_protocol._this_pkt is None
+    assert supplicant._gwy._this_msg is None
+    assert respondent._gwy._this_msg is None
 
     supplicant._make_fake(bind=True)  # rem._bind()
 
     # using tasks, since a sequence of awaits gives unreliable results
     tasks = [
-        asyncio.create_task(_test_pkt_hdr(role._gwy.pkt_protocol, hdr))
+        asyncio.create_task(_test_pkt_hdr(role._gwy, hdr))
         for role in (supplicant, respondent)
         for hdr in hdr_flow
     ]

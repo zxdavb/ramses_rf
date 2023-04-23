@@ -51,7 +51,7 @@ class VirtualRF:
             tty.setraw(master_fd)  # requires termios module, so: works only on *nix
             os.set_blocking(master_fd, False)  # make non-blocking
 
-            self._file_objs[master_fd] = open(master_fd, "r+b", buffering=0)
+            self._file_objs[master_fd] = open(master_fd, "rb+", buffering=0)
             self._pty_names[master_fd] = self._tty_names[slave_fd] = os.ttyname(
                 slave_fd
             )
@@ -72,6 +72,16 @@ class VirtualRF:
             await self._task
         except asyncio.CancelledError:
             pass
+
+        self._cleanup()
+
+    def _cleanup(self):
+        """Destroy file objects and file descriptors."""
+
+        for f in self._file_objs.values():
+            f.close()  # also closes corresponding master fd
+        for fd in self._tty_names:
+            os.close(fd)  # else this slave fd will persist
 
     async def start(self) -> asyncio.Task:
         """Start polling ports and distributing data."""
@@ -118,16 +128,10 @@ class VirtualRF:
             _ = [f.write(b"000 " + frame) for f in self._file_objs.values()]
 
     def _setup_event_handlers(self) -> None:
-        def cleanup():
-            for f in self._file_objs.values():
-                f.close()  # also closes master fd
-            for fd in self._tty_names:
-                os.close(fd)  # else slave fd will persist
-
         def handle_exception(loop, context):
             """Handle exceptions on any platform."""
             _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
-            cleanup()
+            self._cleanup()
             exc = context.get("exception")
             if exc:
                 raise exc
@@ -135,7 +139,7 @@ class VirtualRF:
         async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
             _LOGGER.error("Received a signal: %s, cleaning up...", sig.name)
-            cleanup()
+            self._cleanup()
             signal.raise_signal(sig)
 
         _LOGGER.debug("Creating exception handler...")
