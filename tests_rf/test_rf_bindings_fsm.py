@@ -232,7 +232,7 @@ async def _test_binding_fsm(supplicant: Fakeable, respondent: Fakeable, codes):
     respondent._bind_state.proc_confirm(src=supplicant, _=respondent)
     await assert_bind_state(respondent, BindState.BOUND_ACCEPTED, max_sleep=0)
 
-    # TODO: GOOD: The respondent receives a 4th Confirm
+    # TODO: GOOD: The respondent receives (ignores) a 4th Confirm
     respondent._bind_state.proc_confirm(src=supplicant, _=respondent)
 
 
