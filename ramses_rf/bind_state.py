@@ -55,6 +55,13 @@ class BindTimeoutError(BindError):
     pass
 
 
+class Exceptions:  # HACK
+    BindError = BindError
+    BindFlowError = BindFlowError
+    BindRetryError = BindRetryError
+    BindTimeoutError = BindTimeoutError
+
+
 class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
@@ -293,7 +300,7 @@ class Accepted(Accepting):
         if from_self:  # Respondents (listeners) shouldn't send Confirms
             super().received_confirm(from_self)  # TODO: log & ignore?
         self._timer_handle.cancel()
-        self._set_context_state(Bound)
+        self._set_context_state(BoundAccepted)
 
 
 class Confirming(State):
@@ -337,8 +344,8 @@ class Bound(State):
     pass
 
 
-class BoundAccepted(Accepting, Bound):  # FIXME: handle retransmits from supplicant
-    """Respondent is Bound."""
+class BoundAccepted(Accepting, Bound):
+    """Respondent is Bound, but should handle retransmits from the supplicant."""
 
     # waiting for a Confirm (until timeout expires)...
     _proc_timeout: Callable = lambda self: self.context.set_device_state(

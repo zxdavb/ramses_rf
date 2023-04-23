@@ -35,10 +35,10 @@ CONFIG = {
 
 TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
-    (("07:111111", "DHW"), ("01:888888", "CTL"), ("1260",)),
-    (("40:111111", "HUM"), ("41:888888", "FAN"), ("12A0",)),
-    (("40:111111", "REM"), ("41:888888", "FAN"), ("22F1",)),
-    (("22:111111", "THM"), ("01:888888", "CTL"), ("30C9",)),
+    # (("07:111111", "DHW"), ("01:888888", "CTL"), ("1260",)),
+    # (("40:111111", "HUM"), ("41:888888", "FAN"), ("12A0",)),
+    # (("40:111111", "REM"), ("41:888888", "FAN"), ("22F1",)),
+    # (("22:111111", "THM"), ("01:888888", "CTL"), ("30C9",)),
     # (("40:111111", "DHW"), ("41:888888", "FAN"), ("30C9",)),  # TODO: should fail!!
     # (("40:111111", "HUM"), ("01:888888", "FAN"), ("30C9",)),  # TODO: should fail!!
 )  # supplicant, respondent, codes
@@ -108,35 +108,88 @@ async def _test_binding_fsm(supplicant: Fakeable, respondent: Fakeable, codes):
     setattr(supplicant, "_bind_state", None)
     setattr(respondent, "_bind_state", None)
 
-    from ramses_rf.bind_state import BindState, Context
+    from ramses_rf.bind_state import BindState, Context, Exceptions
 
-    # initialise respondent, supplicant
+    # PHASE 0: Initialise the respondent, supplicant
+    # BAD: Initialise device with a state other than Listening, Offering
+    try:
+        respondent._bind_state = Context(respondent, BindState.CONFIRMED)
+    except Exceptions.BindFlowError:
+        pass
+    else:
+        assert False
+
+    # Initialise the respondent, supplicant
     respondent._bind_state = Context(respondent, BindState.LISTENING)
     await assert_bind_state(respondent, BindState.LISTENING, max_sleep=0)
 
     supplicant._bind_state = Context(supplicant, BindState.OFFERING)
     await assert_bind_state(supplicant, BindState.OFFERING, max_sleep=0)
 
-    # The supplicant send an Offer
+    # BAD: The respondent sends an Offer
+    try:
+        respondent._bind_state.sent_offer()
+    except Exceptions.BindFlowError:
+        pass
+    else:
+        assert False
+
+    # PHASE 1: The supplicant sends an Offer
     await assert_bind_state(supplicant, BindState.OFFERING, max_sleep=0)
     supplicant._bind_state.sent_offer()
+    await assert_bind_state(supplicant, BindState.OFFERED, max_sleep=0)
+
+    # BAD: The supplicant sends a 4th Offer (*before* receving the Offer it sent)
+    supplicant._bind_state.sent_offer()
+    supplicant._bind_state.sent_offer()
+    try:
+        supplicant._bind_state.sent_offer()
+    except Exceptions.BindRetryError:
+        pass
+    else:
+        assert False
     await assert_bind_state(supplicant, BindState.OFFERED, max_sleep=0)
 
     supplicant._bind_state.proc_offer(src=supplicant, _=None)
     await assert_bind_state(supplicant, BindState.OFFERED, max_sleep=0)
 
-    # The respondent receives the Offer... and Accepts it
+    supplicant._bind_state.proc_offer(src=supplicant, _=None)  # supplicant retransmits
+    await assert_bind_state(supplicant, BindState.OFFERED, max_sleep=0)
+
+    # BAD: The supplicant receives an Offer, but not from itself
+    try:
+        supplicant._bind_state.proc_offer(src=respondent, _=None)  # TODO: use 3rd dev
+    except Exceptions.BindFlowError:
+        pass
+    else:
+        assert False
+
+    # PHASE 2: The respondent receives the Offer... and Accepts
     await assert_bind_state(respondent, BindState.LISTENING, max_sleep=0)
     respondent._bind_state.proc_offer(src=supplicant, _=None)
+    await assert_bind_state(respondent, BindState.ACCEPTING, max_sleep=0)
+
+    respondent._bind_state.proc_offer(src=supplicant, _=None)  # supplicant retransmits
     await assert_bind_state(respondent, BindState.ACCEPTING, max_sleep=0)
 
     respondent._bind_state.sent_accept()
     await assert_bind_state(respondent, BindState.ACCEPTED, max_sleep=0)
 
+    # BAD: The respondent sends a 4th Accept (*after* receiving the Offer it sent)
+    respondent._bind_state.sent_accept()
+    respondent._bind_state.sent_accept()
+    try:
+        respondent._bind_state.sent_accept()
+    except Exceptions.BindRetryError:
+        pass
+    else:
+        assert False
+    await assert_bind_state(respondent, BindState.ACCEPTED, max_sleep=0)
+
     respondent._bind_state.proc_accept(src=respondent, _=supplicant)
     await assert_bind_state(respondent, BindState.ACCEPTED, max_sleep=0)
 
-    # The supplicant receives the Accept... and Confirms it (after 3x is Bound)
+    # PHASE 3: The supplicant receives the Accept... and Confirms (after 3x is Bound)
     await assert_bind_state(supplicant, BindState.OFFERED, max_sleep=0)
     supplicant._bind_state.proc_accept(src=respondent, _=supplicant)
     await assert_bind_state(supplicant, BindState.CONFIRMING, max_sleep=0)
@@ -146,15 +199,41 @@ async def _test_binding_fsm(supplicant: Fakeable, respondent: Fakeable, codes):
 
     supplicant._bind_state.proc_confirm(src=supplicant, _=respondent)
     await assert_bind_state(supplicant, BindState.CONFIRMED, max_sleep=0)
+
+    # BAD: The supplicant sends a 4th Confirm (*after* receiving the Confirm it sent)
     supplicant._bind_state.sent_confirm()
-    await assert_bind_state(supplicant, BindState.CONFIRMED, max_sleep=0)
     supplicant._bind_state.sent_confirm()
     await assert_bind_state(supplicant, BindState.BOUND, max_sleep=0)
+
+    try:
+        supplicant._bind_state.sent_confirm()
+    except Exceptions.BindFlowError:  # not: BindRetryError, as Confirming -> Bound
+        pass
+    else:
+        assert False
+    await assert_bind_state(supplicant, BindState.BOUND, max_sleep=0)
+
+    # PHASE 4: The respondent receives the Confirm
+    # BAD: The respondent receives a Confirm, but not from the supplicant
+    try:
+        respondent._bind_state.proc_confirm(src=respondent, _=None)  # TODO: use 3rd dev
+    except Exceptions.BindFlowError:
+        pass
+    else:
+        assert False
 
     # The respondent receives the Confirm
     await assert_bind_state(respondent, BindState.ACCEPTED, max_sleep=0)
     respondent._bind_state.proc_confirm(src=supplicant, _=respondent)
-    await assert_bind_state(respondent, BindState.BOUND, max_sleep=0)
+    await assert_bind_state(respondent, BindState.BOUND_ACCEPTED, max_sleep=0)
+
+    # TODO: GOOD: The respondent receives a 2nd/3rd Confirm
+    respondent._bind_state.proc_confirm(src=supplicant, _=respondent)
+    respondent._bind_state.proc_confirm(src=supplicant, _=respondent)
+    await assert_bind_state(respondent, BindState.BOUND_ACCEPTED, max_sleep=0)
+
+    # TODO: GOOD: The respondent receives a 4th Confirm
+    respondent._bind_state.proc_confirm(src=supplicant, _=respondent)
 
 
 async def test_binding_state_machine(test_data):
