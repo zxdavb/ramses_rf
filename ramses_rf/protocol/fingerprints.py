@@ -134,7 +134,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMI-15MC01   - REM - Orcon 15RF with integrated CO2
 
 # VMN-15LF01   - REM - Orcon 15RF 6 button remote
-# VMN-23LM33   -
+# VMN-23LM33   - REM?
 # VMN-23LMH23  - REM - 4 button RF Switch
 
 # VMS-02J52    - ???

@@ -548,7 +548,7 @@ class PacketProtocolBase(asyncio.Protocol):
         ]:
             self._hgi80[SZ_KNOWN_HGI] = known_hgis[0]
         else:
-            _LOGGER.info(f"The {SZ_KNOWN_LIST} should specify the gateway (HGI) device")
+            _LOGGER.info(f"The {SZ_KNOWN_LIST} should include the gateway (HGI) device")
 
         self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
 
