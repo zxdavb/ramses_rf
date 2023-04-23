@@ -64,10 +64,10 @@ class Context:
     def __init__(self, device: Device, initial_state: type[_State]) -> None:
         self._dev = device
 
+        self._is_respondent = initial_state is Listening
+        self._set_context_state(initial_state)
         if initial_state not in (Listening, Offering):
             raise BindFlowError(f"{self}: inital state must be Listening or Offering")
-        self._is_respondent == initial_state is Listening
-        self._set_context_state(initial_state)
 
     def __repr__(self) -> str:
         return f"{self._dev}: {self.role}: {self.state!r}"
@@ -85,7 +85,7 @@ class Context:
 
     @property
     def state(self) -> str:
-        return repr(self)
+        return f"{self._state}"
 
     def proc_offer(self, src: Device, _: Device) -> None:
         """Context has received an Offer pkt.
@@ -166,7 +166,7 @@ class State(ABC):
         return f"{self.__class__.__name__} (transmits={self._transmit_counter})"
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}"
+        return self.__class__.__name__
 
     @property
     def context(self) -> Context:
@@ -352,3 +352,15 @@ class BoundAccepted(Accepting, Bound):  # FIXME: handle retransmits from supplic
 
 
 _State = TypeVar("_State", bound=State)
+
+
+class BindState:
+    LISTENING = Listening
+    OFFERING = Offering
+    OFFERED = Offered
+    ACCEPTING = Accepting
+    ACCEPTED = Accepted
+    CONFIRMING = Confirming
+    CONFIRMED = Confirmed
+    BOUND = Bound
+    BOUND_ACCEPTED = BoundAccepted
