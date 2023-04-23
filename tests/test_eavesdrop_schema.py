@@ -10,7 +10,7 @@ import json
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
-from tests.common import TEST_DIR, assert_expected, shuffle_dict
+from tests.helpers import TEST_DIR, assert_expected, shuffle_dict
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_schema"
 
@@ -39,6 +39,7 @@ async def assert_schemas_equal(gwy, expected_schema):
 async def test_eavesdrop_off(dir_name):
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": False})
+        # gwy._loop.set_debug(True)
         await gwy.start()
 
     with open(f"{dir_name}/schema_eavesdrop_off.json") as f:
@@ -56,6 +57,7 @@ async def test_eavesdrop_off(dir_name):
 async def test_eavesdrop_onn(dir_name):
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
+        # gwy._loop.set_debug(True)
         await gwy.start()
 
     with open(f"{dir_name}/schema_eavesdrop_on.json") as f:

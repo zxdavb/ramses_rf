@@ -1,0 +1,133 @@
+# 4E15 from 'Master' Spider Thermostat (connected to WPU by OT wire) to Master Spider Autotemp
+
+# (not seen '0006' in the wild - unlikely to be valid, and '0003/0007' is nonsense)
+2022-08-21T19:00:33.119082 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': False}  # heating without compressor
+2022-08-21T02:07:53.248113 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0001  # {'_flags': [0, 0, 0, 0, 0, 0, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': False}  # cooling (doesn't use compressor)
+2023-03-19T12:05:35.319025 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0002  # {'_flags': [0, 0, 0, 0, 0, 0, 1, 0], 'is_cooling': False, 'is_heating': True,  'is_dhw_ing': False}  # heating with compressor
+# 22-08-21T02:07:11.000000 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0003  # {'_flags': [0, 0, 0, 0, 0, 0, 1, 1], "_invalid_": True,  "_exception_": True }                                                           # **invalid**: heating & cooling
+2022-08-21T02:07:11.017807 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0004  # {'_flags': [0, 0, 0, 0, 0, 1, 0, 0], 'is_cooling': False, 'is_heating': False, 'is_dhw_ing': True }  # DHW (uses compressor)
+2022-08-21T15:00:21.012129 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0005  # {'_flags': [0, 0, 0, 0, 0, 1, 0, 1], 'is_cooling': True,  'is_heating': False, 'is_dhw_ing': True }  # cooling & DHWing
+# 22-08-21T15:00:22.000000 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0006  # {'_flags': [0, 0, 0, 0, 0, 1, 1, 0], "_invalid_": True,  "_exception_": False}                                                           # **invalid**: heating & DHWing
+# 22-08-21T15:00:23.000000 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0007  # {'_flags': [0, 0, 0, 0, 0, 1, 1, 1], "_invalid_": True,  "_exception_": True }                                                           # **invalid**: heating & cooling (& DHWing)
+
+
+# 21:033160
+2022-08-21T14:48:34.973629 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000100200  # {'_flags_3': [0, 0, 0, 1, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': True,  'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T14:57:36.022955 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2022-08-21T14:57:42.448885 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T15:00:21.012129 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0005          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 1], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  True }
+2022-08-21T15:00:26.697786 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 0200001C0200  # {'_flags_3': [0, 0, 0, 1, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': True,  'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2022-08-21T15:27:49.144835 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 0200001C0200  # {'_flags_3': [0, 0, 0, 1, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': True,  'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T15:33:00.907690 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2022-08-21T15:33:08.498581 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T15:33:43.169110 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0001          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 1], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  True }
+2022-08-21T15:33:44.994075 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000100200  # {'_flags_3': [0, 0, 0, 1, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': True,  'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T12:52:41.691729 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T12:54:30.863455 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2023-03-19T12:54:31.178454 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T13:23:15.742614 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T13:23:53.720806 ...  I --- 21:033160 02:250704 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T13:24:01.371904 ...  I --- 21:033160 --:------ 21:033160 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+
+# 21:034158
+2022-08-21T18:29:26.964978 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T18:38:02.569481 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2022-08-21T18:40:56.981896 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 0200000C0200  # {'_flags_3': [0, 0, 0, 0, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2022-08-21T19:00:03.739737 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T19:00:33.119082 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2022-08-21T19:00:42.623403 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T05:16:45.180809 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T05:18:25.987551 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0002          # {'_flags':   [0, 0, 0, 0, 0, 0, 1, 0], 'is_dhw_ing': False, 'is_heating': True,  'is_cooling':  False}
+2023-03-19T05:18:32.067612 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T05:21:17.288762 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 0200000A0200  # {'_flags_3': [0, 0, 0, 0, 1, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T06:11:39.699752 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T06:12:12.702006 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T06:12:18.571054 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T08:18:38.911401 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T08:21:14.655918 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0002          # {'_flags':   [0, 0, 0, 0, 0, 0, 1, 0], 'is_dhw_ing': False, 'is_heating': True,  'is_cooling':  False}
+2023-03-19T08:21:24.141921 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T08:23:59.628645 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 0200000A0200  # {'_flags_3': [0, 0, 0, 0, 1, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T09:14:22.049973 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T09:14:55.733258 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T09:15:00.917367 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T17:30:39.178529 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T17:31:30.005799 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2023-03-19T17:31:37.480538 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T17:34:22.706431 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 0200000C0200  # {'_flags_3': [0, 0, 0, 0, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T19:02:48.966695 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T19:03:22.641568 ...  I --- 21:034158 02:250676 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T19:03:27.809907 ...  I --- 21:034158 --:------ 21:034158 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+
+# 21:057565
+2023-03-19T11:58:16.720379 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T12:05:35.319025 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0002          # {'_flags':   [0, 0, 0, 0, 0, 0, 1, 0], 'is_dhw_ing': False, 'is_heating': True,  'is_cooling':  False}
+2023-03-19T12:05:41.002348 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T12:08:02.798024 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 0200000A0200  # {'_flags_3': [0, 0, 0, 0, 1, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T12:50:25.580740 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T12:51:06.936974 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T12:51:12.846039 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T20:15:29.561824 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T20:18:25.363157 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0002          # {'_flags':   [0, 0, 0, 0, 0, 0, 1, 0], 'is_dhw_ing': False, 'is_heating': True,  'is_cooling':  False}
+2023-03-19T20:18:29.162099 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T20:20:50.953081 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 0200000A0200  # {'_flags_3': [0, 0, 0, 0, 1, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T21:21:58.624848 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T21:22:33.152816 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T21:22:36.428862 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T22:47:40.917256 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T22:52:08.202976 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2023-03-19T22:52:15.038023 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T22:54:27.378058 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 0200000C0200  # {'_flags_3': [0, 0, 0, 0, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T23:18:05.293763 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T23:18:37.591932 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T23:18:43.103010 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T23:28:03.487981 ...  I --- 21:057565 02:250677 --:------ 4E15 002 0002          # {'_flags':   [0, 0, 0, 0, 0, 0, 1, 0], 'is_dhw_ing': False, 'is_heating': True,  'is_cooling':  False}
+2023-03-19T23:28:10.262884 ...  I --- 21:057565 --:------ 21:057565 3EF0 006 020000020200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 1, 0], 'dhw_active': False, 'ch_active':  True,  'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+
+# 21:064743
+2022-08-21T02:01:50.829689 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 0200001C0200  # {'_flags_3': [0, 0, 0, 1, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': True,  'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T02:07:11.017807 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2022-08-21T02:07:17.610104 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2022-08-21T02:07:53.248113 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0001          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 1], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  True }
+2022-08-21T02:07:55.964538 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000100200  # {'_flags_3': [0, 0, 0, 1, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': True,  'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T00:23:17.364363 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T00:28:37.097573 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0001          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 1], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  True }
+2023-03-19T00:28:44.074612 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000100200  # {'_flags_3': [0, 0, 0, 1, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': True,  'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T00:38:20.622671 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000100200  # {'_flags_3': [0, 0, 0, 1, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': True,  'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T00:40:46.862785 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T00:40:54.367700 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T22:56:33.725891 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T22:59:47.941275 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0004          # {'_flags':   [0, 0, 0, 0, 0, 1, 0, 0], 'is_dhw_ing': True,  'is_heating': False, 'is_cooling':  False}
+2023-03-19T22:59:55.517343 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T23:30:50.055040 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 0200000C0200  # {'_flags_3': [0, 0, 0, 0, 1, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': True,  'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+
+2023-03-19T23:52:46.499088 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000040200  # {'_flags_3': [0, 0, 0, 0, 0, 1, 0, 0], 'dhw_active': True,  'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}
+2023-03-19T23:53:25.731429 ...  I --- 21:064743 02:250708 --:------ 4E15 002 0000          # {'_flags':   [0, 0, 0, 0, 0, 0, 0, 0], 'is_dhw_ing': False, 'is_heating': False, 'is_cooling':  False}
+2023-03-19T23:53:34.545470 ...  I --- 21:064743 --:------ 21:064743 3EF0 006 020000000200  # {'_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'dhw_active': False, 'ch_active':  False, 'cool_active': False, 'flame_on': False, 'modulation_level': 0.0, '_flags_2': '00', '_unknown_4': '02', '_unknown_5': '00'}

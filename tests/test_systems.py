@@ -12,8 +12,8 @@ from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
-from tests.common import (
+from tests.helpers import gwy  # noqa: F401
+from tests.helpers import (
     TEST_DIR,
     assert_expected,
     assert_expected_set,

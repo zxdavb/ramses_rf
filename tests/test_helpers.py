@@ -27,8 +27,8 @@ from ramses_rf.protocol.helpers import (
 )
 from ramses_rf.protocol.packet import Packet
 from ramses_rf.system.zones import _transform
-from tests.common import gwy  # noqa: F401
-from tests.common import TEST_DIR, assert_raises
+from tests.helpers import gwy  # noqa: F401
+from tests.helpers import TEST_DIR, assert_raises
 
 WORK_DIR = f"{TEST_DIR}/helpers"
 

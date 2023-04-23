@@ -137,6 +137,16 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # .W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
         # .I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
     },
+    Code._01FF: {  # unknown_01ff, TODO: definitely a real code, Itho Spider
+        SZ_NAME: "message_01ff",
+        I_: r"^00[0-9A-F]{50}$",
+        RQ: r"^00[0-9A-F]{50}$",
+        W_: r"^00[0-9A-F]{50}$",
+        # 08:00:49.204  W --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000
+        # 08:00:49.244  I --- 21:033244 18:010629 --:------ 01FF 026 008025262A90008000143C28400000010480800280FF80070000
+        # 08:06:33.733 RQ --- 21:033244 18:010629 --:------ 01FF 026 008025262A90008000143C28400000010480800280FF80070000
+        # 08:06:33.788 RP --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000
+    },
     Code._0404: {  # zone_schedule
         SZ_NAME: "zone_schedule",
         I_: r"^0[0-9A-F](20|23)[0-9A-F]{2}08[0-9A-F]{6}$",
@@ -338,9 +348,9 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
-        RP: r"^((0[0-9A-F]|F[69ABCF]|90)([0-9A-F]{10}))+$",  # #     NOTE: idx can be 90 (HEAT)
-        I_: r"^((0[0-9A-F]|F[69ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
-        W_: r"^((0[0-9A-F]|F[69ABCF])([0-9A-F]{10}))+$",
+        RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
+        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00$",  # NOTE: payload can be 00
+        W_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
     },
     Code._1FCA: {  # unknown_1fca
         SZ_NAME: "message_1fca",
@@ -369,9 +379,8 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },  # TODO: This could be an array
     Code._22C9: {  # ufh_setpoint
         SZ_NAME: "ufh_setpoint",
-        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0203)?$",  # ~000A array, but max_len 24, not 48!
-        W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # ~000A array, but max_len 24, not 48!
-        # RP: Appear wont get any?,
+        I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0[12]03)?$",  # (0[12]03)? only if len(array) == 1
+        W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # never an array
     },
     Code._22D0: {  # unknown_22d0, HVAC system switch?
         SZ_NAME: "message_22d0",
@@ -509,9 +518,9 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         EXPIRES: td(hours=1),
     },
-    Code._3110: {  # unknown_3110 - HVAC
-        SZ_NAME: "message_3110",
-        I_: r"^00",
+    Code._3110: {  # ufc_demand - HVAC
+        SZ_NAME: "ufc_demand",
+        I_: r"^0000[0-9A-F]{2}(00|10|20)",  # (00|10|20|FF)???
     },
     Code._3120: {  # unknown_3120 - Error Report?
         SZ_NAME: "message_3120",
@@ -618,18 +627,30 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         RQ: r"^[0-9A-F]{40}$",
         W_: r"^[0-9A-F]{40}$",
     },
-    Code._4E01: {  # hvac_4e01 - HVAC
+    Code._4E01: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e01",
-        I_: r"^00([0-9A-F]{4}){8}00$",
+        I_: r"^00([0-9A-F]{4}){3,12}00$",
     },
-    Code._4E02: {  # hvac_4e02 - HVAC
+    Code._4E02: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e02",
-        I_: r"^00([0-9A-F]{4}){8}02([0-9A-F]{4}){8}$",
+        I_: r"^00([0-9A-F]{4}){3,12}(02|04)([0-9A-F]{4}){3,12}$",
     },
-    Code._4E04: {  # hvac_4e04 - HVAC
+    Code._4E04: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e04",
-        I_: r"^00(00FF|01FE)$",
-        W_: r"^00(00FF|01FE)$",
+        I_: r"^00(00|01|02)[0-9A-F]{2}$",
+        W_: r"^00(00|01|02)[0-9A-F]{2}$",
+    },
+    Code._4E0D: {  # xxx (HVAC) - Itho Spider
+        SZ_NAME: "hvac_4e0d",
+        I_: r"^01(00|01)$",
+    },
+    Code._4E15: {  # xxx (HVAC) - Itho Spider
+        SZ_NAME: "hvac_4e15",
+        I_: r"^000[0-7]$",
+    },
+    Code._4E16: {  # xxx (HVAC) - Itho Spider
+        SZ_NAME: "hvac_4e16",
+        I_: r"^00(00){6}$",
     },
     Code._PUZZ: {
         SZ_NAME: "puzzle_packet",
@@ -673,15 +694,16 @@ RQ_NO_PAYLOAD: list[Code] = [
 ]
 RQ_NO_PAYLOAD.extend((Code._0418,))
 
-# IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
+# IDX:_xxxxxx: index (and context)
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
+
+# IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 CODE_IDX_COMPLEX: list[Code] = [
     Code._0005,
     Code._000C,
     Code._1100,
     Code._3220,
 ]  # TODO: 0005 to ..._NONE?
-# CODE_IDX_COMPLEX.sort()
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
@@ -695,9 +717,8 @@ CODE_IDX_SIMPLE: list[Code] = [
     )
 ]
 CODE_IDX_SIMPLE.extend(
-    (Code._10A0, Code._1260, Code._1F41, Code._22D0, Code._31D9, Code._3B00)
+    (Code._10A0, Code._1260, Code._1F41, Code._22D0, Code._31D9, Code._3B00, Code._4E0D)
 )
-# CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
@@ -710,7 +731,6 @@ CODE_IDX_NONE: list[Code] = [
 CODE_IDX_NONE.extend(
     (Code._0002, Code._22F1, Code._22F3, Code._2389, Code._2E04, Code._31DA, Code._4401)
 )  # 31DA does appear to have an idx?
-# CODE_IDX_NONE.sort()
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
 CODE_IDX_DOMAIN: dict[Code, str] = {
@@ -723,11 +743,15 @@ CODE_IDX_DOMAIN: dict[Code, str] = {
     Code._3B00: "^FC",
 }
 
+if DEV_MODE:
+    CODE_IDX_COMPLEX.sort()
+    CODE_IDX_SIMPLE.sort()
+    CODE_IDX_NONE.sort()
+
 #
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
 #
-
 _DEV_KLASSES_HEAT: dict[str, dict] = {
     DEV_TYPE.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},

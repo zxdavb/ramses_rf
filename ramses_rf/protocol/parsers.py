@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - payload processors."""
+"""RAMSES RF - payload processors.
+
+  NOTES: aspirations on a consistent Schema, going forward:
+
+    :mode/state: | :bool:  | :mutex (infinitive. vs -ing):      | :flags:
+  mode (config.) | enabled | disabled, heat, cool, heat_cool... | ch_enabled, dhw_enabled
+  state (action) | active  | idle, heating, cooling...          | is_heating, is_cooling
+
+  - prefer: enabled: True over xx_enabled: True (if only ever 1 flag)
+  - prefer:  active: True over is_heating: True (if only ever 1 flag)
+  - avoid: is_enabled, is_active
+"""
+
 from __future__ import annotations
 
 import logging
@@ -100,6 +112,7 @@ from .version import VERSION
 # - ReneKlootwijk: 3EF0
 # - brucemiranda: 3EF0, others
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
+# - tomkooij: 3110
 
 
 # skipcq: PY-W2000
@@ -554,6 +567,45 @@ def parser_01e9(payload, msg) -> dict:
     assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
         f"{SZ_UNKNOWN}_0": payload[2:],
+    }
+
+
+@parser_decorator  # unknown_01ff, to/from a Itho Spider/Thermostat
+def parser_01ff(payload, msg) -> dict:
+    # see: https://github.com/zxdavb/ramses_rf/issues/73
+
+    assert payload[:4] == "0080", f"{_INFORM_DEV_MSG} ({payload[:4]})"
+    assert payload[12:14] == "00", f"{_INFORM_DEV_MSG} ({payload[12:14]})"
+    assert payload[16:22] == "00143C", f"{_INFORM_DEV_MSG} ({payload[16:22]})"
+    assert payload[26:30] == "0000", f"{_INFORM_DEV_MSG} ({payload[26:30]})"
+    assert payload[34:46] == "80800280FF80", f"{_INFORM_DEV_MSG} ({payload[34:46]})"
+    assert payload[48:] == "0000", f"{_INFORM_DEV_MSG} ({payload[48:]})"
+
+    if msg.verb in (I_, RQ):  # from Spider thermostat to gateway
+        assert payload[14:16] == "80", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
+        assert payload[22:26] == "2840", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
+        assert payload[30:34] == "0104", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
+        assert payload[46:48] == "07", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+
+    if msg.verb in (RP, W_):  # from Spider gateway to thermostat
+        assert payload[4:6] == "80", f"{_INFORM_DEV_MSG} ({payload[4:6]})"
+        assert payload[6:8] == payload[8:10], f"{_INFORM_DEV_MSG} ({payload[8:10]})"
+        assert payload[14:16] == "00", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
+        assert payload[22:26] == "8080", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
+        assert payload[30:34] == "3100", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
+        assert payload[46:48] == "04", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+
+    setpoint_bounds = (
+        int(payload[6:8], 16) / 2,  # as: 22C9[2:6] and [6:10] ???
+        None if msg.verb in (RP, W_) else int(payload[8:10], 16) / 2,
+    )
+
+    return {
+        "temperature": None if msg.verb in (RP, W_) else int(payload[4:6], 16) / 2,
+        "setpoint_bounds": setpoint_bounds,
+        "time_planning": not bool(int(payload[10:12], 16) & 1 << 6),
+        "temp_adjusted": bool(int(payload[10:12], 16) & 1 << 5),
+        "_flags_10": payload[10:12],  #
     }
 
 
@@ -1268,12 +1320,15 @@ def parser_1fc9(payload, msg) -> list:
 
     def _parser(seqx) -> list:
         if seqx[:2] not in ("90",):
-            assert seqx[6:] == payload[6:12]  # all with same controller
+            assert (
+                seqx[6:] == payload[6:12]
+            ), f"{seqx[6:]} != {payload[6:12]}"  # all with same controller
         if seqx[:2] not in (
-            "63",
-            "67",
-            "6C",
-            "90",
+            "21",  # HVAC, Nuaire PIV
+            "63",  # HVAC
+            "67",  # HVAC
+            "6C",  # HVAC
+            "90",  # HEAT
             F6,
             F9,
             FA,
@@ -1281,7 +1336,7 @@ def parser_1fc9(payload, msg) -> list:
             FC,
             FF,
         ):  # or: not in DOMAIN_TYPE_MAP: ??
-            assert int(seqx[:2], 16) < 16
+            assert int(seqx[:2], 16) < 16, _INFORM_DEV_MSG
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
     if msg.verb == I_ and msg.src is msg.dst:
@@ -1398,16 +1453,17 @@ def parser_22c9(payload, msg) -> list:
 
     # .I --- 21:064743 --:------ 21:064743 22C9 006 00-07D0-0834-02
     # .W --- 21:064743 02:250708 --:------ 22C9 006 03-07D0-0834-02
-    # .I --- 02:250708 21:064743 --:------ 22C9 008 03-07D0-7FFF-02-02-03
+    # .I --- 02:250708 21:064743 --:------ 22C9 008 03-07D0-7FFF-020203
+
+    # Notes on 008|suffix: only seen as I, only when no array, only as 7FFF(0101|0202)03$
 
     def _parser(seqx) -> dict:
-        assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01/02"
+        assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01 or 02"
 
         return {
-            "temp_low": temp_from_hex(seqx[2:6]),
-            "temp_high": temp_from_hex(seqx[6:10]),
-            f"_{SZ_UNKNOWN}_0": seqx[10:],
-        }
+            "mode": {"01": "heat", "02": "cool"}[seqx[10:]],  # TODO: or action?
+            "setpoint_bounds": (temp_from_hex(seqx[2:6]), temp_from_hex(seqx[6:10])),
+        }  # lower, upper setpoints
 
     if msg._has_array:
         return [
@@ -1418,7 +1474,9 @@ def parser_22c9(payload, msg) -> list:
             for i in range(0, len(payload), 12)
         ]
 
-    return _parser(payload[:12])  # TODO: [12:]
+    assert msg.len != 8 or payload[10:] in ("010103", "020203"), _INFORM_DEV_MSG
+
+    return _parser(payload[:12])
 
 
 @parser_decorator  # unknown_22d0, HVAC system switch?
@@ -1958,23 +2016,36 @@ def parser_30c9(payload, msg) -> dict:
     return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # unknown_3110, HVAC
+@parser_decorator  # ufc_demand, HVAC (Itho autotemp / spider)
 def parser_3110(payload, msg) -> dict:
-    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820
-    # .I --- 21:042656 --:------ 21:042656 3110 004 00000020
+    # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820  # cooling, 100%
+    # .I --- 21:042656 --:------ 21:042656 3110 004 00000010  # heating, 0%
+
+    SZ_COOLING = "cooling"
+    SZ_DISABLE = "disabled"
+    SZ_HEATING = "heating"
+    SZ_UNKNOWN = "unknown"
 
     try:
-        assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
+        assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"  # ?circuit_idx?
         assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
         assert payload[6:] in ("00", "10", "20"), f"byte 3: {payload[6:]}"
+        assert (
+            payload[6:] in ("10", "20") or payload[4:6] == "00"
+        ), f"byte 3: {payload[6:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
-    return {
-        f"_{SZ_UNKNOWN}_1": payload[2:4],
-        "_percent_2": percent_from_hex(payload[4:6]),
-        "_value_3": payload[6:],
-    }
+    mode = {
+        0x00: SZ_DISABLE,
+        0x10: SZ_HEATING,
+        0x20: SZ_COOLING,
+    }.get(int(payload[6:8], 16) & 0x30, SZ_UNKNOWN)
+
+    if mode not in (SZ_COOLING, SZ_HEATING):
+        return {"mode": mode}
+
+    return {"mode": mode, "demand": percent_from_hex(payload[4:6])}
 
 
 @parser_decorator  # unknown_3120, from STA, FAN
@@ -2476,7 +2547,8 @@ def parser_3ef0(payload, msg) -> dict:
                 "_flags_3": flag8_from_hex(payload[6:8]),
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
-                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
+                "cool_active": bool(int(payload[6:8], 0x10) & 1 << 4),
+                "flame_on": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
                 "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
                 "_unknown_5": payload[10:12],  # FF, 1C, ?others
             }
@@ -2505,9 +2577,9 @@ def parser_3ef0(payload, msg) -> dict:
         assert payload[4:6] in ("00", "10", "11", "FF"), f"byte 2: {payload[4:6]}"
 
         assert "_flags_3" not in result or (
-            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10110000 == 0
+            payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10100000 == 0
         ), f'byte 3: {result["_flags_3"]}'
-        # only 01:10:040239 does 0b01000000
+        # only 10:040239 does 0b01000000, only Itho Autotemp does 0b00010000
 
         assert "_unknown_4" not in result or (
             payload[8:10] in ("FF", "00", "01", "02", "04", "0A")
@@ -2592,18 +2664,123 @@ def parser_4401(payload, msg) -> dict:
     }  # epoch are in seconds
 
 
-@parser_decorator  # hvac_4e01
+@parser_decorator  # temperatures (see: 4e02) - Itho spider/autotemp
 def parser_4e01(payload, msg) -> dict:
-    return {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
+    # .I --- 02:248945 02:250708 --:------ 4E01 018 00-7FFF7FFF7FFF09077FFF7FFF7FFF7FFF-00  # 23.11, 8-group
+    # .I --- 02:250984 02:250704 --:------ 4E01 018 00-7FFF7FFF7FFF7FFF08387FFF7FFF7FFF-00  # 21.04
+
+    num_groups = int((msg.len - 2) / 2)  # e.g. (18 - 2) / 2
+    assert (
+        num_groups * 2 == msg.len - 2
+    ), _INFORM_DEV_MSG  # num_groups: len 018 (8-group, 2+8*4), or 026 (12-group, 2+12*4)
+
+    x, y = 0, 2 + num_groups * 4
+
+    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG
+    assert payload[y : y + 2] == "00", _INFORM_DEV_MSG
+
+    return {
+        "temperatures": [temp_from_hex(payload[i : i + 4]) for i in range(2, y, 4)],
+    }
 
 
-@parser_decorator  # hvac_4e02
-def parser_4e02(payload, msg) -> dict:
-    return (
-        {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(2, 34, 4)}
-        | {"val_34": payload[34:36]}
-        | {f"val_{x}": temp_from_hex(payload[x : x + 4]) for x in range(36, 68, 4)}
+@parser_decorator  # setpoint_bounds (see: 4e01) - Itho spider/autotemp
+def parser_4e02(payload, msg) -> dict:  # sent a triplets, 1 min apart
+    # .I --- 02:248945 02:250708 --:------ 4E02 034 00-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF08347FFF7FFF7FFF7FFF  # 20.00-21.00
+    # .I --- 02:250984 02:250704 --:------ 4E02 034 00-7FFF7FFF7FFF076C7FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF  #
+
+    num_groups = int((msg.len - 2) / 4)  # e.g. (34 - 2) / 4
+    assert (
+        num_groups * 4 == msg.len - 2
+    ), _INFORM_DEV_MSG  # num_groups: len 034 (8-group, 2+8*4), or 050 (12-group, 2+12*4)
+
+    x, y = 0, 2 + num_groups * 4
+
+    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # expect no context
+    assert payload[y : y + 2] in ("02", "04"), _INFORM_DEV_MSG  # mode: cool/heat?
+
+    setpoints = [
+        (temp_from_hex(payload[x + i :][:4]), temp_from_hex(payload[y + i :][:4]))
+        for i in range(2, y, 4)
+    ]  # lower, upper setpoints
+
+    return {
+        "mode": {"02": "cool", "04": "heat"}[payload[y : y + 2]],
+        "setpoint_bounds": [s if s != (None, None) else None for s in setpoints],
+    }
+
+
+@parser_decorator  # hvac_4e04
+def parser_4e04(payload, msg) -> dict:
+    assert payload[2:4] in ("00", "01", "02")  # off/heat/cool?
+    assert payload[4:] in (
+        "00",
+        "01",  # 0b00000001
+        "08",  # 0b00001000
+        "0C",  # 0b00001101
+        "0E",  # 0b00001110
+        "20",  # 0b00100000
+        "FB",  # error code?
+        "FC",  # error code?
+        "FD",  # error code?
+        "FE",  # error code?
+        "FF",  # N/A?
     )
+
+    return {
+        "mode": payload[2:4],
+        "_unknown_2": payload[4:],
+    }
+
+
+# @parser_decorator  # hvac_4e0d - Itho spider/autotemp
+# def parser_4e0d(payload, msg) -> dict:
+#     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0100  # Itho Autotemp: only(?) master -> slave
+#     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0101  # why does it have a context?
+
+#     assert payload in ("0100", "0101"), _INFORM_DEV_MSG
+
+#     return {
+#         "_payload": payload,
+#     }
+
+
+@parser_decorator  # wpu_state - Itho spider/autotemp
+def parser_4e15(payload, msg) -> dict:
+    # .I --- 21:034158 02:250676 --:------ 4E15 002 0000  # WPU "off" (maybe heating, but compressor off)
+    # .I --- 21:064743 02:250708 --:------ 4E15 002 0001  # WPU cooling active
+    # .I --- 21:057565 02:250677 --:------ 4E15 002 0002  # WPU heating, compressor active
+    # .I --- 21:064743 02:250708 --:------ 4E15 002 0004  # WPU in "DHW mode" boiler active
+    # .I --- 21:033160 02:250704 --:------ 4E15 002 0005  # 0x03, and 0x06 not seen in the wild
+
+    SZ_COOLING = "is_cooling"
+    SZ_DHW_ING = "is_dhw_ing"
+    SZ_HEATING = "is_heating"
+
+    assert (
+        int(payload[2:], 16) & 0xF8 == 0x00
+    ), _INFORM_DEV_MSG  # check for uknown bit flags
+    if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
+        raise TypeError  # TODO: Use local exception & ?Move to higher layer
+    assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # cant heat and DHW
+
+    return {
+        "_flags": flag8_from_hex(payload[2:]),
+        SZ_DHW_ING: bool(int(payload[2:], 16) & 0x04),
+        SZ_HEATING: bool(int(payload[2:], 16) & 0x02),
+        SZ_COOLING: bool(int(payload[2:], 16) & 0x01),
+    }
+
+
+@parser_decorator  # hvac_4e16 - Itho spider/autotemp
+def parser_4e16(payload, msg) -> dict:
+    # .I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000  # Itho Autotemp: slave -> master
+
+    assert payload == "00000000000000", _INFORM_DEV_MSG
+
+    return {
+        "_payload": payload,
+    }
 
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated

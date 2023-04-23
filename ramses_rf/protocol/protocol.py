@@ -16,8 +16,8 @@ from queue import Empty, Full, PriorityQueue, SimpleQueue
 from typing import Awaitable, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from .command import Command
-from .const import SZ_DAEMON, SZ_EXPIRED, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
-from .exceptions import CorruptStateError, InvalidPacketError
+from .const import SZ_DAEMON, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
+from .exceptions import InvalidPacketError
 from .message import Message
 from .packet import Packet
 
@@ -51,8 +51,8 @@ class CallbackAsAwaitable:
     HAS_TIMED_OUT = False
     SHORT_WAIT = 0.001  # seconds
 
-    def __init__(self, loop) -> None:
-        self._loop = loop or asyncio.get_event_loop()
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop  # or asyncio.get_event_loop()
         self._queue: SimpleQueue = SimpleQueue()  # unbounded, but we use only 1 entry
 
         self.expires: dt = None  # type: ignore[assignment]
@@ -87,7 +87,9 @@ class CallbackAsAwaitable:
         self._queue.put_nowait(msg)
 
 
-def awaitable_callback(loop) -> tuple[Callable[..., Awaitable[Message]], Callable]:
+def awaitable_callback(
+    loop: asyncio.AbstractEventLoop,
+) -> tuple[Callable[..., Awaitable[Message]], Callable]:
     """Create a pair of functions, so that a callback can be awaited."""
     obj = CallbackAsAwaitable(loop)
     return obj.getter, obj.putter  # awaitable, callback
@@ -121,7 +123,7 @@ class MessageTransport(asyncio.Transport):
     def __init__(self, gwy, protocol: MessageProtocol, extra: dict = None) -> None:
         super().__init__(extra=extra)
 
-        self._loop = gwy._loop
+        self._loop: asyncio.AbstractEventLoop = gwy._loop
 
         self._gwy = gwy
         self._protocols: List[MessageProtocol] = []
@@ -135,8 +137,6 @@ class MessageTransport(asyncio.Transport):
         self._write_buffer_limit_low: int = 0
         self._write_buffer_paused = False
         self.set_write_buffer_limits()
-
-        # self._extra[self.WRITER] = self._loop.create_task(self._polling_loop())
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             self._loop.add_signal_handler(sig, self.abort)
@@ -166,7 +166,7 @@ class MessageTransport(asyncio.Transport):
                 except Empty:
                     if self._is_closing:
                         break
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.005)
                     continue
                 except AttributeError:  # when self._que == None, from abort()
                     break
@@ -191,11 +191,37 @@ class MessageTransport(asyncio.Transport):
 
         return self._extra[self.WRITER]
 
+    def _expire_callbacks(self, dtm: dt) -> None:
+        """Remove (and notify) expired callbacks form the table."""
+
+        # 1st, stop tracking expired callbacks
+        expired_cbks = {
+            hdr: cbk
+            for hdr, cbk in self._callbacks.items()
+            if cbk.get(SZ_EXPIRES, dt.max) < dtm
+        }
+        self._callbacks = {
+            hdr: cbk for hdr, cbk in self._callbacks.items() if hdr not in expired_cbks
+        }
+
+        # 2nd, notify all expired callbacks
+        for hdr, cbk in expired_cbks.items():  # see also: PktProtocolQos.send_data()?
+            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+                "MsgTransport._pkt_receiver(%s): Expired callback", hdr
+            )
+            self._loop.call_soon(cbk[SZ_FUNC], CallbackAsAwaitable.HAS_TIMED_OUT)
+
     def _add_callback(
         self, header: str, callback: dict, cmd: None | Command = None
     ) -> None:
+        """Add a callback to the table."""
         # assert header not in self._callbacks  # CBK, below
         # self._callbacks[header] = CallbackWrapper(header, callback, cmd=cmd)
+
+        self._expire_callbacks(dt.now())
+
+        if header in self._callbacks:
+            raise RuntimeError("That header is already in the callback table")
 
         callback[SZ_EXPIRES] = (
             dt.max
@@ -203,83 +229,38 @@ class MessageTransport(asyncio.Transport):
             else dt.now() + td(seconds=callback.get(SZ_TIMEOUT, 1))
         )
         callback["cmd"] = cmd
-        self._callbacks[header] = callback
+        self._callbacks[header] = callback  # check for existing hdr?
 
-    def _pkt_receiver(self, pkt: Packet) -> None:
+    def _pkt_receiver(self, pkt: Packet) -> None:  # callback used by PktProtocol layer
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("rcvd: %s", pkt)
 
-        # HACK: 1st, notify all expired callbacks
-        for hdr, callback in self._callbacks.items():
-            if not callback.get(SZ_EXPIRED) and (
-                callback.get(SZ_EXPIRES, dt.max) < pkt.dtm
-            ):
-                # see also: PktProtocolQos.send_data()
-                (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
-                    "MsgTransport._pkt_receiver(%s): Expired callback", hdr
-                )
-                callback[SZ_FUNC](CallbackAsAwaitable.HAS_TIMED_OUT)  # ZX: 1/3
-                callback[SZ_EXPIRED] = not callback.get(SZ_DAEMON, False)  # HACK:
-
-        # HACK: 2nd, discard any expired callbacks
-        self._callbacks = {
-            hdr: callback
-            for hdr, callback in self._callbacks.items()
-            if callback.get(SZ_DAEMON)
-            or (callback[SZ_EXPIRES] >= pkt.dtm and not callback.get(SZ_EXPIRED))
-        }
+        self._expire_callbacks(pkt.dtm)
 
         if len(self._protocols) == 0 or (
             self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES
         ):
             return
 
-        # BUG: all InvalidPacketErrors are not being raised here (see below)
+        # BUG: all InvalidPacketErrors are not being raised here - some later?
         try:
             msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
-        except InvalidPacketError:
+        except (
+            InvalidPacketError
+        ):  # TODO: InvalidMessageError (wont have got this far if was an invalid Pkt)
             return
 
-        # HACK: 3rd, invoke any callback
+        # 3rd, invoke any matched callback
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and (callback := self._callbacks.get(msg._pkt._hdr)):  # type: ignore[assignment]
-            callback[SZ_FUNC](msg)  # ZX: 2/3
+            self._loop.call_soon(callback[SZ_FUNC], msg)
             if not callback.get(SZ_DAEMON):
                 del self._callbacks[msg._pkt._hdr]
 
-        # BUG: the InvalidPacketErrors here should have been caught above
-        # BUG: should only need to catch CorruptStateError
         for p in self._protocols:
-            try:
-                self._loop.call_soon(p.data_received, msg)
-
-            except InvalidPacketError:
-                return
-
-            except CorruptStateError as exc:
-                _LOGGER.error("%s < %s", pkt, exc)
-
-            except (  # protect this code from the upper-layer callback
-                AssertionError,
-            ) as exc:
-                if p is not self._protocols[0]:
-                    raise
-                _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
-
-            except (  # protect this code from the upper-layer callback
-                ArithmeticError,  # incl. ZeroDivisionError,
-                AttributeError,
-                LookupError,  # incl. IndexError, KeyError
-                NameError,  # incl. UnboundLocalError
-                RuntimeError,  # incl. RecursionError
-                TypeError,
-                ValueError,
-            ) as exc:
-                if p is self._protocols[0]:
-                    raise
-                _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
+            self._loop.call_soon(p.data_received, msg)
 
     def get_extra_info(self, name: str, default=None):
         """Get optional transport information."""
@@ -519,11 +500,10 @@ class MessageProtocol(asyncio.Protocol):
 
     def __init__(self, gwy, callback: Callable) -> None:
         # self._gwy = gwy  # is not used
-        self._loop = gwy._loop
+        self._loop: asyncio.AbstractEventLoop = gwy._loop
         self._callback = callback
 
         self._transport: MessageTransport = None  # type: ignore[assignment]
-        self._prev_msg: None | Message = None
         self._this_msg: None | Message = None
 
         self._pause_writing = True
@@ -537,8 +517,8 @@ class MessageProtocol(asyncio.Protocol):
         """Called by the transport when a message is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
 
-        self._this_msg, self._prev_msg = msg, self._this_msg
-        self._callback(self._this_msg, prev_msg=self._prev_msg)
+        self._this_msg = msg
+        self._loop.call_soon(self._callback, self._this_msg)  # to the dispatcher
 
     async def send_data(
         self, cmd: Command, callback: Callable = None, _make_awaitable: bool = None
@@ -548,7 +528,6 @@ class MessageProtocol(asyncio.Protocol):
 
         if _make_awaitable and callback is not None:
             raise ValueError("only one of `awaitable` and `callback` can be provided")
-
         if _make_awaitable:  # and callback is None:
             awaitable, callback = awaitable_callback(self._loop)  # ZX: 3/3
         if callback:  # func, args, daemon, timeout (& expired)

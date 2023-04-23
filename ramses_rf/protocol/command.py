@@ -1505,7 +1505,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._faultlog = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
         self._faultlog_done = None
 
-        self._rq_log_entry(log_idx=self._START)  # calls loop.create_task()
+        self._rq_log_entry(log_idx=self._START)
 
         time_start = dt.now()
         while not self._faultlog_done:

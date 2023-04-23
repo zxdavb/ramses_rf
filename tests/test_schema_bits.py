@@ -17,7 +17,7 @@ from ramses_rf.schemas import (
     SZ_HTG_VALVE,
     SZ_SENSOR,
 )
-from tests.common import assert_raises
+from tests.helpers import assert_raises
 
 
 def test_dhw_schema():

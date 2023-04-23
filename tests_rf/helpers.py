@@ -16,6 +16,11 @@ from ramses_rf.schemas import SCH_GLOBAL_CONFIG
 from ramses_rf.system import System
 from tests_rf.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl, MockGateway
 
+# from unittest.mock import patch
+
+
+# from tests_rf.mock.transport import MockSerial
+
 # import tracemalloc
 # tracemalloc.start()
 
@@ -90,8 +95,14 @@ async def load_test_gwy(
 
     config = SCH_GLOBAL_CONFIG(config)
 
-    gwy = gwy_class(port_name, **config)
+    gwy: Gateway | MockGateway = gwy_class(port_name, **config)
     await gwy.start(start_discovery=False)  # may: SerialException
+
+    # with patch(
+    #     "ramses_rf.protocol.transport.serial_for_url",
+    #     return_value=MockSerial(gwy.ser_name, loop=gwy._loop),
+    # ):
+    #     await gwy.start(start_discovery=False)  # may: SerialException
 
     if hasattr(  # TODO: move out of this routine
         gwy.pkt_transport.serial, "mock_devices"

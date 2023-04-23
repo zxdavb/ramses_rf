@@ -458,24 +458,23 @@ class Fakeable(DeviceBase):
             # self._1fc9_state["msg"] = msg  # keep offer, not confirm
             return BindState.BOUND
 
-        if msg.code != Code._1FC9:
-            super()._handle_msg(msg)
-            return
+        if msg.code != Code._1FC9 or msg.src is self:
+            pass
 
-        if msg.payload["phase"] == "offer":
-            if msg.src is self:
-                return
-            assert self._1fc9_state["state"] == BindState.LISTENING
+        elif msg.payload["phase"] == "offer":
+            assert self._1fc9_state["state"] == BindState.LISTENING, "isn't listening!"
+            for code in self._1fc9_state["codes"]:
+                assert code in [b[1] for b in msg.payload["bindings"]]
             self._1fc9_state["state"] = proc_offer_and_accept(msg)
 
         elif msg.payload["phase"] == "accept":
-            if msg.src is self:
-                return
-            assert self._1fc9_state["state"] == BindState.OFFERING
+            assert self._1fc9_state["state"] == BindState.OFFERING, "isn't offeriing!"
+            # for code in self._1fc9_state["codes"]:
+            #     assert code in [b[1] for b in msg.payload['bindings']]
             self._1fc9_state["state"] = proc_accept_and_confirm(msg)
 
         elif msg.payload["phase"] == "confirm":
-            assert self._1fc9_state["state"] == BindState.ACCEPTING
+            assert self._1fc9_state["state"] == BindState.ACCEPTING, "isn't accepting!"
             self._1fc9_state["state"] = proc_confirm_and_done(msg)
 
         super()._handle_msg(msg)

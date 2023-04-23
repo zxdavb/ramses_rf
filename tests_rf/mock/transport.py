@@ -16,6 +16,7 @@ from datetime import datetime as dt
 from queue import Empty, Full, PriorityQueue
 from typing import Callable, TextIO
 
+from ramses_rf import Gateway
 from ramses_rf.const import Code
 from ramses_rf.protocol import Command, InvalidPacketError, Packet
 from ramses_rf.protocol.protocol import create_protocol_factory
@@ -41,16 +42,17 @@ if DEV_MODE:
 
 
 class MockSerial:  # most of the RF 'mocking' is done in here
-    """A pseudo-mocked serial port used for testing.
+    """A mocked serial port used for testing.
 
-    Will periodically Rx a sync_cycle set that will be available via `read()`.
-    Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
+    Can periodically Rx a sync_cycle set that will be available via `read()`.
+    Can use a response table to provide a known Rx for a given Tx sent via `write()`.
     """
 
     def __init__(self, port: str, loop: asyncio.AbstractEventLoop, **kwargs) -> None:
         self._loop = loop
 
         self.port = port
+        self.portstr = port
         self._rx_buffer = bytes()
         self._out_waiting = 0
         self.is_open: bool = None  # type: ignore[assignment]
@@ -191,6 +193,18 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
     async def _alert_is_impersonating(self, cmd: Command) -> None:
         """Stifle impersonation alerts when mocking."""
         pass
+
+
+def create_pkt_stack_new(  # to use a mocked Serial port (and a sympathetic Transport)
+    gwy: Gateway, *args, **kwargs
+) -> tuple[_PacketProtocolT, _PacketTransportT]:
+    from ramses_rf.protocol.transport import create_pkt_stack
+
+    # with patch(
+    #     "ramses_rf.protocol.transport.serial_for_url",
+    #     return_value=MockSerial(gwy.ser_name, loop=gwy._loop),
+    # ):
+    return create_pkt_stack(gwy, *args, **kwargs)
 
 
 def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transport)

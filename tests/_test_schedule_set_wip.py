@@ -12,8 +12,7 @@ import unittest
 
 from ramses_rf import Gateway
 from ramses_rf.discovery import SET_SCHED, spawn_scripts
-from tests.common import TEST_DIR
-
+from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 
@@ -43,7 +42,7 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
             )
 
         zone = self.gwy.system_by_id["01:145038"].zone_by_idx["01"]
-        result = {SZ_ZONE_IDX: zone.idx, "schedule": zone.schedule}
+        result = {"zone_idx": zone.idx, "schedule": zone.schedule}
 
         self.assertEqual(result, schedule)
 

@@ -15,16 +15,18 @@ from concurrent import futures
 from datetime import datetime as dt
 from threading import Lock
 from types import SimpleNamespace
-from typing import Callable, Optional, TextIO
+from typing import TYPE_CHECKING, Callable, Optional, TextIO
 
-from ramses_rf.device import DeviceHeat, DeviceHvac, Fakeable
-from ramses_rf.protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
-from ramses_rf.protocol.protocol import _MessageProtocolT, _MessageTransportT
-from ramses_rf.protocol.transport import _PacketProtocolT, _PacketTransportT
+if TYPE_CHECKING:
+    from .device import Device
+    from .protocol import Message
+    from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
+    from .protocol.protocol import _MessageProtocolT, _MessageTransportT
+    from .protocol.transport import _PacketProtocolT, _PacketTransportT
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
-from .device import Device, device_factory
-from .dispatcher import Message, process_msg
+from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
+from .dispatcher import process_msg
 from .helpers import schedule_task, shrink
 from .protocol import (
     SZ_POLLER_TASK,
@@ -111,6 +113,8 @@ class Engine:
 
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
+        self._prev_msg: Message | None = None  # used by the dispatcher
+        self._this_msg: Message | None = None  # used by the dispatcher
 
     def __str__(self) -> str:
         if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
@@ -186,6 +190,8 @@ class Engine:
             raise NotImplementedError  # python client.py -rrr listen /dev/ttyUSB0
 
     async def stop(self) -> None:
+        """Cancel all outstanding low-level tasks (swallow CancelledError)."""
+
         self._stop()
 
         if (task := self.pkt_source) and not task.done():
@@ -195,7 +201,7 @@ class Engine:
                 pass
 
     def _stop(self) -> None:
-        """Cancel all outstanding tasks."""
+        """Close the protocol / transport layers."""
 
         if self.msg_transport:
             self.msg_transport.close()  # ? .abort()
@@ -204,7 +210,7 @@ class Engine:
             self.pkt_transport.close()  # ? .abort()
 
     def _pause(self, *args) -> None:
-        """Pause the (unpaused) engine or raise a RuntimeError."""
+        """Pause the (active) engine or raise a RuntimeError."""
 
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
 
@@ -217,6 +223,9 @@ class Engine:
 
         self._engine_state, callback = (None, tuple()), None
         self._engine_lock.release()
+
+        # if self.msg_protocol:
+        #     self.msg_protocol.pause_writing()
 
         if self.pkt_protocol:
             self.pkt_protocol.pause_writing()
@@ -239,11 +248,16 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to resume engine, it was not paused")
 
-        callback: None | Callable
-        args: tuple
+        callback: None | Callable  # mypy
+        args: tuple  # mypy
         callback, args = self._engine_state
 
         self._engine_lock.release()
+
+        # if self.msg_protocol:
+        #     # self.msg_transport._clear_write_buffer()  # TODO: needed?
+        #     self.msg_protocol._prev_msg = None
+        #     self.msg_protocol.resume_writing()
 
         if self.pkt_protocol:
             self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
@@ -326,7 +340,7 @@ class Engine:
                 _LOGGER.debug(f"cmd ({cmd.tx_header}) returned: {result!r})")
                 return result
 
-            await asyncio.sleep(0.001)
+            await asyncio.sleep(0.001)  # TODO: 0.001, 0.005 or other?
 
 
 class Gateway(Engine):
@@ -430,34 +444,24 @@ class Gateway(Engine):
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess
-        """Cancel all outstanding tasks."""
+        """Cancel all outstanding high-level tasks (swallow CancelledError)."""
         # if self._engine_state is None:
         #     self._pause()
 
-        # (t for t in self._tasks if not isinstance(t, asyncio.Task))
-
-        if [t.cancel() for t in self._tasks if not t.done()]:
-            await asyncio.gather(*(t for t in self._tasks if asyncio.isfuture(t)))
-
-        # this doesn't work...
-        for t in [t for t in self._tasks if isinstance(t, futures.Future)]:
-            try:
-                await asyncio.wrap_future(t, loop=self._loop)
-            except asyncio.CancelledError:
-                pass
-
-        # this doesn't work either
-        # for device in self.devices:
-        #     await device._stop_discovery_poller()
-        # for system in self.systems:
-        #     await system._stop_discovery_poller()
-        #     for zone in system.zones:
-        #         await zone._stop_discovery_poller()
+        _ = [t.cancel() for t in self._tasks if not t.done()]
+        try:
+            if tasks := (t for t in self._tasks if not t.done()):
+                await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            pass
 
         await super().stop()
 
     def _pause(self, *args, clear_state: bool = False) -> None:
-        """Pause the (unpaused) gateway."""
+        """Pause the (unpaused) gateway (disables sending/discovery).
+
+        There is the option to save other objects, as *args.
+        """
 
         super()._pause(
             self.config.disable_discovery, self.config.disable_sending, *args
@@ -469,7 +473,10 @@ class Gateway(Engine):
             self._clear_state()
 
     def _resume(self) -> tuple:
-        """Resume the (paused) gateway."""
+        """Resume the (paused) gateway (enables sending/discovery, if applicable).
+
+        Will restore other objects, as *args.
+        """
 
         (
             self.config.disable_discovery,
@@ -487,6 +494,8 @@ class Gateway(Engine):
         self.device_by_id = {}
 
     def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
+        """Return the current schema & state (will pause/resume the engine)."""
+
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
         self._pause()
 
@@ -527,8 +536,10 @@ class Gateway(Engine):
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def set_state(self, packets, *, schema: None | dict = None) -> None:
-        # TODO: add a feature to exludede expired packets?
+    async def set_state(self, packets: dict, *, schema: dict | None = None) -> None:
+        """Restore a cached schema & state."""
+
+        # TODO: add a feature to exclude expired packets?
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
 
         if schema is None:  # TODO: also for known_list (device traits)?
@@ -542,7 +553,7 @@ class Gateway(Engine):
         self._resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
-    async def _set_state(self, packets: dict, *, schema=None) -> None:
+    async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
         tmp_transport: asyncio.Transport
 
         pkt_receiver = (
@@ -553,8 +564,8 @@ class Gateway(Engine):
         _, tmp_transport = self._create_pkt_stack(pkt_receiver, packet_dict=packets)
         await tmp_transport.get_extra_info(SZ_POLLER_TASK)
 
-        # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed
-        self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
+        self._prev_msg = None
+        self._this_msg = None
 
     def get_device(
         self,
@@ -685,6 +696,9 @@ class Gateway(Engine):
     @property
     def schema(self) -> dict:
         """Return the global schema.
+
+        This 'active' schema may exclude non-present devices from the configured schema
+        that was loaded during initialisation.
 
         Orphans are devices that 'exist' but don't yet have a place in the schema
         hierachy (if ever): therefore, they are instantiated when the schema is loaded,

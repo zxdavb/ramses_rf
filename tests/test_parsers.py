@@ -8,10 +8,11 @@ Test the payload parsers.
 
 from pathlib import Path, PurePath
 
+from ramses_rf.protocol.const import Code
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
-from tests.common import TEST_DIR
+from tests.helpers import gwy  # noqa: F401
+from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/parsers"
 
@@ -58,7 +59,42 @@ def _proc_log_line(gwy, pkt_line):  # noqa: F811
     assert IS_FRAGMENT not in pkt_dict or pkt._is_fragment == pkt_dict[IS_FRAGMENT]
 
 
+def _proc_log_line_pair_4e15(gwy, pkt_line, prev_msg: Message):  # noqa: F811
+    pkt_line, *_ = list(map(str.strip, pkt_line.split("#", maxsplit=1) + [""]))
+
+    if not pkt_line:
+        return
+
+    this_msg = Message(gwy, Packet.from_file(gwy, pkt_line[:26], pkt_line[27:]))
+
+    if not prev_msg or prev_msg.code != Code._4E15:
+        return this_msg
+
+    if this_msg.code != Code._3EF0:
+        return
+
+    assert prev_msg.payload["is_cooling"] == this_msg.payload["cool_active"]
+    assert prev_msg.payload["is_heating"] == this_msg.payload["ch_active"]
+    assert prev_msg.payload["is_dhw_ing"] == this_msg.payload["dhw_active"]
+
+    return this_msg
+
+
 def test_parsers_from_log_files(gwy, f_name):  # noqa: F811
     with open(f_name) as f:
         while line := (f.readline()):
             _proc_log_line(gwy, line)
+
+
+def _test_parser_pairs_4e15_3ef0(gwy, f_name):  # noqa: F811
+    if "4e15" in str(f_name):
+        with open(f_name) as f:
+            msg = None
+            while this_line := (f.readline()):
+                msg = _proc_log_line_pair_4e15(gwy, this_line, msg)
+
+    # elif "01ff" in str(f_name):
+    #     with open(f_name) as f:
+    #         msg = None
+    #         while this_line := (f.readline()):
+    #             msg = _proc_log_line_pair_01ff(gwy, this_line, msg)

@@ -24,6 +24,8 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     "0002FF1E03FFFFFFFF": ("RFG", "30", "2017-04-21", "Internet Gateway"),
     "0001C8380A0100F1FF": ("RND", "34", "2014-11-03", "T87RF2025"),  # .                    Round
     "0001C8380F0100F1FF": ("RND", "34", "2017-05-03", "T87RF2025"),  # .                    Round
+    # Odd - Vasco CTL/RFG
+    "0001C848260066FEFE": ("CTL", "30", "2019-11-28", "BRDG-02EM23"),  # .                  Vasco Gateway (CTL/RFG/RFS?)
     # Odd - Jasper kit (device type implies a slug here too)
     "0002FF0802FFFFFFFE": ("JIM", "08", "2017-11-10", "Jasper EIM"),
     "0002FF1F02FFFFFFFF": ("JST", "31", "2016-08-04", "Jasper Stat TXXX"),
@@ -39,6 +41,7 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     "0001001B361B01FEFF": ("FAN", "37", "2019-04-11", "CVE-RF"),  # .                       31D9, 31DA, and 12C8
     "0001001B371B01FEFF": ("FAN", "37", "2019-08-29", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B381B01FEFF": ("FAN", "37", "2020-02-14", "CVE-RF"),  # .                       31D9, 31DA (and I|042F, I|3120)
+    "0001C81C090466FEFF": ("FAN", "29", "0000-00-00", "VMC-17RP01"),  # .                   appears to be an EXT
     "0001C8260A0367FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),
     "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),  # .                   31D9
     "0001C83A0F0866FFFF": ("FAN", "32", "0000-00-00", "VMD-17RPS01"),  # .                  31D9, 31DA
@@ -49,6 +52,7 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     # CO2 - some have PIR
     "00010028080101FEFF": ("CO2", "37", "2019-04-29", "VMS-12C39"),  # .                    1298, 31E0, 2E10, 3120, and I|22F1!
     "00010028090101FEFF": ("CO2", "37", "2021-01-20", "VMS-12C39"),  # .                    1298, 31E0, 2E10, 3120 (and I|042F)
+    "0001C822030166FEFF": ("CO2", "29", "2015-05-07", "VMS-17C01"),  # .                    1298, 31E0
     "0001C822060166FEFF": ("CO2", "37", "2016-12-22", "VMS-17C01"),  # .                    1298, 31E0
     "0001C8500B0167FEFF": ("CO2", "29", "2017-03-09", "VMS-15C16"),  # .         CO2 sensor (no remote)
     "0001C85701016CFFFF": ("CO2", "32", "2016-06-17", "VMS-23C33"),  # .                    1298, 31E0 (and I|042F)
@@ -66,10 +70,12 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     "0001C88D030167FEFF": ("REM", "37", "2021-07-28", "VMI-15MC01"),   # .       1298/31E0, 22F1, 22F3  (with integrated CO2 sensor)
     "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, 22F3? (HRC Display recessed 15RF)
     # RFS...
+    "000100220B0001FEFF": ("RFS", "21", "2015-01-20", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,                   30C9, 3110, 3120, 3EF0, 01FF
     "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
     "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
     "00010022370101F1FB": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9,                   30C9, 3110, 3120, 3EF0
     "00010022370101FEFF": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060, 1290, 12C0, 22C9,                   30C9, 3110, 3120  (maybe incomplete)
+
     # TBA - broken as 18:...
     "0001FA100A0001FEFE": ("FAN", "18", "2019-04-11", "BRDG-02A55"),  # .        NOTE: 18:  31D9, 31DA, 1F09
     "0001FA100B0001FEFE": ("FAN", "18", "2019-07-22", "BRDG-02A55"),  # .        NOTE: 18:  31D9, 31DA, 1F09
@@ -109,13 +115,16 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMS - Sensors platform: CO2, humidity and temperature (and PIR?)
 
 # BRDG-02A55   - Fan of some description
+# BRDG-02EM23  - Vasco
 # BRDG-02JAS01 - PIV - Nuaire DriMaster PIV
 # BRDG-02M11   - Itho Honeywell RF-repeater
 
 # CCU-12T20    - RFS - RF gateway (spIDer, Fifthplay Home Area Manager)
 # CVE-RF       - FAN -
 # HRA82        -
+# VMC-15RPS34  -
 # VMC-15RP01   - Orcon unit (senseair.com)
+# VMC-17RP01   - Vasco C400RF (fan)
 
 # VMD-15RMS64  - FAN - Orcon HRC-350 (Ventiline) / Orcon MVS 15RHB
 # VMD-15RMS86  -

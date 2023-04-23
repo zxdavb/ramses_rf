@@ -21,7 +21,7 @@ from ramses_rf.system.schedule import (
     fragments_to_schedule,
     schedule_to_fragments,
 )
-from tests.common import TEST_DIR, load_test_gwy
+from tests.helpers import TEST_DIR, load_test_gwy
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 

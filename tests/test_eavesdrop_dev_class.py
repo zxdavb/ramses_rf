@@ -13,8 +13,8 @@ from ramses_rf import Gateway
 from ramses_rf.dispatcher import _create_devices_from_addrs
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import gwy  # noqa: F401
-from tests.common import TEST_DIR, assert_expected
+from tests.helpers import gwy  # noqa: F401
+from tests.helpers import TEST_DIR, assert_expected
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_dev_class"
 
