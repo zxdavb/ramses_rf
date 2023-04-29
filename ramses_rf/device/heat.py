@@ -199,12 +199,14 @@ class Weather(Fakeable, DeviceHeat):  # 0002
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
-        #
-        #
-        #
+        # .I ---
+        # .W ---
+        # .I ---
 
-        def callback(msg):
+        def callback(msg):  # TODO: set_parent()
+            """Use the accept pkt to determine the ..."""
             pass
+            #
 
         super()._bind()
         self._bind_request(Code._0002, callback=callback)
@@ -300,8 +302,10 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         # .W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
         # .I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
 
-        def callback(msg):
+        def callback(msg):  # TODO: set_parent()
+            """Use the accept pkt to determine the ..."""
             pass
+            #
 
         super()._bind()
         self._bind_waiting(Code._3EF0, callback=callback)
@@ -322,12 +326,14 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
-        #
-        #
-        #
+        # .I ---
+        # .W ---
+        # .I ---
 
-        def callback(msg):
+        def callback(msg):  # TODO: set_parent()
+            """Use the accept pkt to determine the ..."""
             self.set_parent(msg.src, child_id=FA, is_sensor=True)
+            #
 
         super()._bind()
         self._bind_request(Code._1260, callback=callback)

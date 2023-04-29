@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 from ..const import DEV_TYPE_MAP, __dev_mode__
-from ..protocol import Address, Message
+from ..protocol import Address, Command, Message  # noqa: F401
 from ..schemas import SZ_CLASS, SZ_FAKED
 
 # skipcq: PY-W2000
@@ -19,6 +19,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    Code,
 )
 
 # skipcq: PY-W2000

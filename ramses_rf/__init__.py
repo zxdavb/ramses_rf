@@ -14,8 +14,9 @@ from __future__ import annotations
 import logging
 
 from .const import __dev_mode__
+from .device import Device  # noqa: F401
 from .gateway import Gateway  # noqa: F401
-from .protocol import is_valid_dev_id  # noqa: F401
+from .protocol import Address, Command, Message, Packet  # noqa: F401
 from .version import VERSION  # noqa: F401
 
 # skipcq: PY-W2000
@@ -24,6 +25,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    Code,
 )
 
 # skipcq: PY-W2000

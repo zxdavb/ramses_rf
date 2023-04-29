@@ -8,18 +8,20 @@ Base for all devices.
 from __future__ import annotations
 
 import logging
-from datetime import timedelta as td
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from typing import Any, Callable, Optional
+    from . import Address, Message
+
+from ..bind_state import Context
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
-from ..protocol.address import Address
-from ..protocol.backports import StrEnum
-from ..protocol.command import Command, _mk_cmd
-from ..protocol.message import Message
+from ..protocol.command import _mk_cmd
 from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
+from . import Command
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -33,30 +35,6 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 DEFAULT_BDR_ID = "13:888888"
 DEFAULT_EXT_ID = "17:888888"
 DEFAULT_THM_ID = "03:888888"
-
-
-class BindState(StrEnum):
-    #
-    # SUPPLICANT/REQUEST -> RESPONDENT/WAITING
-    #       DHW/THM, TRV -> CTL     (temp, valve_position), or:
-    #                CTL -> BDR/OTB (heat_demand)
-    #
-    #            unbound -- idle/unbound
-    #            unbound -- listening
-    #   offering/offered -> listening               #  offered when sees own offer pkt
-    #           offering <- accepting/accepted      # accepted when sees own accept pkt
-    #   confirming/bound -> accepted (optional?)    #    bound when sees own confirm pkt
-    #              bound -- bound
-    #
-    UNKNOWN = ("unknown",)
-    UNBOUND = ("unbound",)  # #                                  unbound
-    LISTENING = ("listening",)  # #                              waiting for offers
-    OFFERING = ("offering",)  # #   sent offer,                  waiting for accept
-    OFFERED = ("offered",)  # #     sent offer,                  waiting for accept
-    ACCEPTING = ("accepting",)  # # rcvd offer  -> sent accept,  waiting for confirm
-    ACCEPTED = ("accepted",)  # #   rcvd offer  -> sent accept,  waiting for confirm
-    CONFIRMING = ("confirming",)  # rcvd accept -> sent confirm, bound
-    BOUND = ("bound",)  # #         rcvd confirm,                bound
 
 
 BIND_WAITING_TIMEOUT = 300  # how long to wait, listening for an offer
@@ -316,8 +294,9 @@ class Fakeable(DeviceBase):
         super().__init__(gwy, *args, **kwargs)
 
         self._faked: bool = None  # type: ignore[assignment]
+        self._context: Context | None = None
 
-        self._1fc9_state: dict[str, Any] = {"state": BindState.UNKNOWN}
+        self._1fc9_state: dict[str, Any] = {}
 
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
@@ -327,7 +306,7 @@ class Fakeable(DeviceBase):
 
     @check_faking_enabled
     def _bind(self):
-        self._1fc9_state["state"] = BindState.UNBOUND
+        pass
 
     def _make_fake(self, bind=None) -> Fakeable:
         if not self._faked:
@@ -351,15 +330,13 @@ class Fakeable(DeviceBase):
         # 00:25:02.792 045  W --- 10:048122 01:145038 --:------ 1FC9 006 00-3EF0-28BBFA
         # 00:25:02.944 045  I --- 01:145038 10:048122 --:------ 1FC9 006 00-FFFF-06368E
 
-        _LOGGER.warning(
-            f"Binding {self}: listening for {codes} for 300 secs"
-        )  # TODO: info
-        # SUPPORTED_CODES = (Code._0008,)
+        _LOGGER.warning(f"Binding {self}: listening for {codes} for x secs")
+        self._context = Context.respondent(self)  # XXX
 
+        # SUPPORTED_CODES = (Code._0008,)
         # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
+
         self._1fc9_state["codes"] = codes
-        self._1fc9_state["state"] = BindState.LISTENING
-        self._1fc9_state["timeout"] = self._gwy._dt_now() + td(seconds=300)
 
     def _bind_request(self, codes, callback: Callable = None) -> None:
         """The SUPPLICANT will initiate (send the 1st packet of) the handshake."""
@@ -374,31 +351,26 @@ class Fakeable(DeviceBase):
         # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
         # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
 
-        _LOGGER.warning(f"Binding {self}: requesting/offering {codes}")  # TODO: info
+        _LOGGER.warning(f"Binding {self}: offering {codes}")  # TODO: info
+        self._context = Context.supplicant(self)  # XXX
 
         if not isinstance(codes, tuple):
             codes = (codes,)
 
         self._1fc9_state["codes"] = codes
-        self._1fc9_state["state"] = BindState.OFFERING
-        self._1fc9_state["timeout"] = self._gwy._dt_now() + td(seconds=60)
 
-        self._send_cmd(Command.put_bind(I_, codes, self.id))
+        cmd = Command.put_bind(I_, codes, self.id)
+        self._send_cmd(cmd)
+        self._context.sent_cmd(cmd)  # XXX
 
     def _handle_msg(self, msg: Message) -> None:
         def proc_offer_and_accept(msg: Message):  # . process 1st pkt of handshake
-            """Accept a valid offer (if listening).
+            """Accept a valid offer (if listening)."""
+            self._context.rcvd_msg(msg)  # XXX
+            self._1fc9_state["msg"] = msg  # the offer
 
-            If able to do so, update the binding state.
-            """
-            assert msg and msg.payload["phase"] == "offer"
-            assert self._1fc9_state["state"] == BindState.LISTENING
-
-            if self._1fc9_state["timeout"] < self._gwy._dt_now():
-                return BindState.UNKNOWN
-
-            if msg.verb != I_ or msg.src is not msg.dst:  # or msg.dst is self
-                return self._1fc9_state["state"]
+            for code in self._1fc9_state["codes"]:
+                assert code in [b[1] for b in msg.payload["bindings"]]
 
             cmd = Command.put_bind(
                 W_,
@@ -408,77 +380,39 @@ class Fakeable(DeviceBase):
                 dst_id=msg.src.id,
             )
             self._send_cmd(cmd)
-
-            self._1fc9_state["msg"] = msg  # the offer
-            return BindState.ACCEPTING
+            self._context.sent_cmd(cmd)  # XXX
 
         def proc_accept_and_confirm(msg: Message):  # process 2nd pkt of handshake
-            """Confirm a valid accept (if offering).
+            """Confirm a valid accept (if offering)."""
+            self._context.rcvd_msg(msg)  # XXX
+            self._1fc9_state["msg"] = msg  # the offer
 
-            If able to do so, update the binding state.
-            """
-            assert msg and msg.payload["phase"] == "accept"
-            assert self._1fc9_state["state"] == BindState.OFFERING
-
-            if self._1fc9_state["timeout"] < self._gwy._dt_now():
-                return BindState.UNKNOWN
-
-            if msg.verb != W_:
-                return self._1fc9_state["state"]
+            # for code in self._1fc9_state["codes"]:
+            #     assert code in [b[1] for b in msg.payload['bindings']]
 
             cmd = Command.put_bind(I_, None, self.id, dst_id=msg.src.id)
             self._send_cmd(cmd)
-
-            self._1fc9_state["msg"] = msg  # the offer
-            return BindState.BOUND
+            self._context.sent_cmd(cmd)  # XXX
 
         def proc_confirm_and_done(msg: Message):  # . process 3rd pkt of handshake
-            """Process a valid confirmation (if accepting).
-
-            If able to do so, update the binding state.
-            """
-            assert msg and msg.payload["phase"] == "confirm"
-            assert self._1fc9_state["state"] == BindState.ACCEPTING
-
-            if self._1fc9_state["timeout"] < self._gwy._dt_now():
-                return BindState.BOUND  # HACK?
-
-            if msg.verb != I_:
-                return self._1fc9_state["state"]
-
+            """Process a valid confirmation (if accepting)."""
+            self._context.rcvd_msg(msg)  # XXX
             # self._1fc9_state["msg"] = msg  # keep offer, not confirm
-            return BindState.BOUND
 
         if msg.code != Code._1FC9 or msg.src is self:
             super()._handle_msg(msg)
 
-        if not self._faked or self._1fc9_state["state"] in (
-            BindState.UNKNOWN,
-            BindState.BOUND,
-        ):
+        if not self._faked or self._context is None:
             pass
 
         elif msg.payload["phase"] == "offer":
-            assert (
-                self._1fc9_state["state"] == BindState.LISTENING
-            ), f"{self} is {self._1fc9_state['state']} and isn't listening!"
-            for code in self._1fc9_state["codes"]:
-                assert code in [b[1] for b in msg.payload["bindings"]]
-            self._1fc9_state["state"] = proc_offer_and_accept(msg)
+            proc_offer_and_accept(msg)
 
         elif msg.payload["phase"] == "accept":
-            assert (
-                self._1fc9_state["state"] == BindState.OFFERING
-            ), f"{self} is {self._1fc9_state['state']} and isn't offeriing!"
-            # for code in self._1fc9_state["codes"]:
-            #     assert code in [b[1] for b in msg.payload['bindings']]
-            self._1fc9_state["state"] = proc_accept_and_confirm(msg)
+            proc_accept_and_confirm(msg)
 
         elif msg.payload["phase"] == "confirm":
-            assert (
-                self._1fc9_state["state"] == BindState.ACCEPTING
-            ), f"{self} is {self._1fc9_state['state']} and isn't accepting!"
-            self._1fc9_state["state"] = proc_confirm_and_done(msg)
+            proc_confirm_and_done(msg)
 
 
 class HgiGateway(DeviceInfo):  # HGI (18:)

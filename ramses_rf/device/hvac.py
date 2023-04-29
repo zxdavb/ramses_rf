@@ -119,7 +119,7 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
         # .W ---
         # .I ---
 
-        def callback(msg):
+        def callback(msg):  # TODO: set_parent()
             """Use the accept pkt to determine the zone/domain id."""
             _ = msg.payload[SZ_BINDINGS][0][0]
             # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
@@ -155,7 +155,7 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
         # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
         # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
 
-        def callback(msg):
+        def callback(msg):  # TODO: set_parent()
             """Use the accept pkt to determine the zone/domain id."""
             _ = msg.payload[SZ_BINDINGS][0][0]
             # self.set_parent(msg.src, child_id=child_id, is_sensor=True)

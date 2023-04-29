@@ -8,27 +8,16 @@
 """
 
 import asyncio
-from typing import Callable
 from unittest.mock import patch
 
-from ramses_rf import Gateway
-from ramses_rf.device.base import BindState, Fakeable
-from ramses_rf.protocol.command import Command
-from ramses_rf.protocol.message import Message
-from tests_rf.virtual_rf import VirtualRF
-
-MAX_SLEEP = 1
+from ramses_rf import Gateway, Packet
+from ramses_rf.bind_state import BindState, Context
+from tests_rf.helpers import _Device, _test_binding_wrapper
 
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
+MAX_SLEEP = 1  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
-
-CONFIG = {
-    "config": {
-        "disable_discovery": True,
-        "enforce_known_list": False,
-    }
-}
-
+PHASE_TIMEOUT_SECS = 0.01  # patch: ramses_rf.bind_state.TIMEOUT_SECS
 
 TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
@@ -41,26 +30,12 @@ TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
 )  # supplicant, respondent, codes
 
 
+# NOTE: duplicate function
 def pytest_generate_tests(metafunc):
     def id_fnc(param):
         return f"{param[0][1]} to {param[1][1]}"
 
     metafunc.parametrize("test_data", TEST_DATA, ids=id_fnc)
-
-
-async def _stifle_impersonation_alerts(self, cmd: Command) -> None:
-    """Stifle impersonation alerts when testing."""
-    pass
-
-
-async def assert_bind_state(
-    dev: Fakeable, expected_state: BindState, max_sleep: int = MAX_SLEEP
-):
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if dev._1fc9_state["state"] == expected_state:
-            break
-    assert dev._1fc9_state["state"] == expected_state
 
 
 async def assert_this_pkt_hdr(
@@ -73,49 +48,15 @@ async def assert_this_pkt_hdr(
     assert gwy._this_msg._pkt and gwy._this_msg._pkt._hdr == expected_hdr
 
 
-@patch(
-    "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    _stifle_impersonation_alerts,
-)
-async def _test_binding_wrapper(
-    fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
-):
-    rf = VirtualRF(2)
-    await rf.start()
-
-    gwy_0 = Gateway(rf.ports[0], **CONFIG, **supp_schema)
-    gwy_1 = Gateway(rf.ports[1], **CONFIG, **resp_schema)
-
-    await gwy_0.start()
-    await gwy_1.start()
-
-    supplicant = gwy_0.device_by_id[supp_schema["orphans_hvac"][0]]
-    respondent = gwy_1.device_by_id[resp_schema["orphans_hvac"][0]]
-
-    # it is likely the respondent is not fakeable...
-    if not isinstance(respondent, Fakeable):
-
-        class NowFakeable(respondent.__class__, Fakeable):
-            pass
-
-        respondent.__class__ = NowFakeable
-        setattr(respondent, "_faked", None)
-        setattr(respondent, "_1fc9_state", {"state": BindState.UNKNOWN})
-
-    await fnc(supplicant, respondent, codes)
-
-    await gwy_0.stop()
-    await gwy_1.stop()
-    await rf.stop()
-
-
-async def _test_pkt_hdr(gwy: Gateway, expected_hdr: str, max_sleep: int = MAX_SLEEP):
+async def assert_this_pkt_hdr_wrapper(
+    gwy: Gateway, expected_hdr: str, max_sleep: int = MAX_SLEEP
+) -> Packet:
     await assert_this_pkt_hdr(gwy, expected_hdr, max_sleep)
 
     return gwy._this_msg._pkt
 
 
-async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes):
+async def _test_binding_flow(supplicant: _Device, respondent: _Device, codes):
     """Check the flow of packets during a binding."""
 
     hdr_flow = [
@@ -134,7 +75,7 @@ async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes):
 
     # using tasks, since a sequence of awaits gives unreliable results
     tasks = [
-        asyncio.create_task(_test_pkt_hdr(role._gwy, hdr))
+        asyncio.create_task(assert_this_pkt_hdr_wrapper(role._gwy, hdr))
         for role in (supplicant, respondent)
         for hdr in hdr_flow
     ]
@@ -152,45 +93,6 @@ async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes):
     assert results == expected
 
 
-async def _test_binding_state(supplicant: Fakeable, respondent: Fakeable, codes):
-    """Check the change of state during a binding."""
-
-    packets = {}
-
-    def track_packet_flow(msg: Message, prev_msg: Message | None = None) -> None:
-        if (msg._pkt._hdr, msg._gwy.hgi.id) not in packets:  # ignore retransmits
-            packets[msg._pkt._hdr, msg._gwy.hgi.id] = msg._pkt
-
-    # supplicant._gwy.create_client(track_packet_flow)
-    # respondent._gwy.create_client(track_packet_flow)
-
-    await assert_bind_state(supplicant, BindState.UNKNOWN, max_sleep=0)
-    await assert_bind_state(respondent, BindState.UNKNOWN, max_sleep=0)
-
-    respondent._make_fake()  # TODO: waiting=Code._22F1)
-    respondent._bind_waiting(codes)
-    await assert_bind_state(supplicant, BindState.UNKNOWN, max_sleep=0)
-    await assert_bind_state(respondent, BindState.LISTENING, max_sleep=0)
-
-    try:
-        supplicant._bind()
-    except RuntimeError:
-        pass
-    else:
-        assert False
-
-    await assert_bind_state(supplicant, BindState.UNKNOWN, max_sleep=0)
-    await assert_bind_state(respondent, BindState.LISTENING, max_sleep=0)
-
-    # can (rarely?) get unreliable results for respondent as awaits are asynchronous
-    supplicant._make_fake(bind=True)  # rem._bind()
-    await assert_bind_state(supplicant, BindState.OFFERING, max_sleep=0)
-    await assert_bind_state(respondent, BindState.ACCEPTING)
-
-    await assert_bind_state(supplicant, BindState.BOUND)
-    await assert_bind_state(respondent, BindState.BOUND)
-
-
 async def test_binding_flows(test_data):
     supp, resp, codes = test_data
 
@@ -202,6 +104,60 @@ async def test_binding_flows(test_data):
     )
 
 
+# NOTE: not exactly a duplicate function (cf: max_sleep)
+async def assert_context_state(
+    ctx: Context, expected_state: BindState, max_sleep: int = MAX_SLEEP
+):
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if ctx._state.__class__ is expected_state:
+            break
+    assert ctx._state.__class__ is expected_state
+
+
+async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
+    """Check the change of state during a binding."""
+
+    # packets = {}
+
+    # def track_packet_flow(msg: Message, prev_msg: Message | None = None) -> None:
+    #     if (msg._pkt._hdr, msg._gwy.hgi.id) not in packets:  # ignore retransmits
+    #         packets[msg._pkt._hdr, msg._gwy.hgi.id] = msg._pkt
+
+    # supplicant._gwy.create_client(track_packet_flow)
+    # respondent._gwy.create_client(track_packet_flow)
+
+    respondent._make_fake()  # TODO: waiting=Code._22F1)
+    assert supplicant._context is None
+    assert respondent._context is None
+
+    respondent._bind_waiting(codes)
+    assert supplicant._context is None
+    await assert_context_state(respondent._context, BindState.LISTENING, max_sleep=0)
+
+    try:
+        supplicant._bind()
+    except RuntimeError:
+        pass
+    else:
+        assert False
+    assert supplicant._context is None
+    await assert_context_state(respondent._context, BindState.LISTENING, max_sleep=0)
+
+    # can (rarely?) get unreliable results for respondent as awaits are asynchronous
+    supplicant._make_fake(bind=True)  # rem._bind()
+    await assert_context_state(supplicant._context, BindState.OFFERED, max_sleep=0)
+    await assert_context_state(respondent._context, BindState.ACCEPTED)
+
+    await assert_context_state(supplicant._context, BindState.CONFIRMED)  # after tx x 1
+    await assert_context_state(respondent._context, BindState.BOUND_ACCEPTED)
+
+    await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
+    await assert_context_state(respondent._context, BindState.BOUND)
+
+
+# TODO: test to pass without overriding default value for TIMEOUT_SECS
+@patch("ramses_rf.bind_state.TIMEOUT_SECS", PHASE_TIMEOUT_SECS)
 async def test_binding_state(test_data):
     supp, resp, codes = test_data
 

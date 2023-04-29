@@ -6,15 +6,14 @@
 import asyncio
 from unittest.mock import patch
 
+import pytest
 import serial
 
-from ramses_rf import Gateway
-from ramses_rf.const import Code
-from ramses_rf.device import Device
-from ramses_rf.protocol.command import Command
+from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import VirtualRF
 
 MAX_SLEEP = 1
+MIN_GAP_BETWEEN_WRITES = 0
 
 CONFIG = {
     "config": {
@@ -69,12 +68,13 @@ async def assert_this_pkt(pkt_protocol, cmd: Command, max_sleep: int = MAX_SLEEP
     assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._frame == cmd._frame
 
 
+@pytest.mark.xdist_group(name="serial")
 @patch(
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
     _alert_is_impersonating,
 )
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", 0)
-async def test_virtual_rf_1():
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRF(3)
@@ -123,12 +123,13 @@ async def test_virtual_rf_1():
     await rf.stop()
 
 
+@pytest.mark.xdist_group(name="serial")
 @patch(
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
     _alert_is_impersonating,
 )
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", 0)
-async def test_virtual_rf_2():
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 
     rf = VirtualRF(2)
