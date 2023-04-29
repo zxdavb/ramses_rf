@@ -1324,8 +1324,9 @@ def parser_1fc9(payload, msg) -> list:
                 seqx[6:] == payload[6:12]
             ), f"{seqx[6:]} != {payload[6:12]}"  # all with same controller
         if seqx[:2] not in (
-            "21",  # HVAC, Nuaire PIV
+            "21",  # HVAC, Nuaire
             "63",  # HVAC
+            "66",  # HVAC, Vasco?
             "67",  # HVAC
             "6C",  # HVAC
             "90",  # HEAT
@@ -1340,16 +1341,16 @@ def parser_1fc9(payload, msg) -> list:
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
     if msg.verb == I_ and msg.src is msg.dst:
-        bind_step = "offer"
+        bind_phase = "offer"
     elif msg.verb == W_ and msg.src is not msg.dst:
-        bind_step = "accept"
+        bind_phase = "accept"
     elif msg.verb == I_:
-        bind_step = "confirm"  # payload could be "00"
+        bind_phase = "confirm"  # len(payload) could be 2 (e.g. 00, 21)
     else:
-        bind_step = None  # unknown
+        bind_phase = None  # unknown
 
-    if payload == "00":
-        return {"phase": bind_step, SZ_BINDINGS: []}
+    if len(payload) == 2 and bind_phase == "confirm":
+        return {"phase": bind_phase, SZ_BINDINGS: [[payload]]}
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
@@ -1361,7 +1362,7 @@ def parser_1fc9(payload, msg) -> list:
         for i in range(0, len(payload), 12)
         # if payload[i : i + 2] != "90"  # TODO: WIP, what is 90?
     ]
-    return {"phase": bind_step, SZ_BINDINGS: bindings}
+    return {"phase": bind_phase, SZ_BINDINGS: bindings}
 
 
 @parser_decorator  # unknown_1fca, HVAC?

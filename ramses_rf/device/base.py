@@ -37,23 +37,26 @@ DEFAULT_THM_ID = "03:888888"
 
 class BindState(StrEnum):
     #
+    # SUPPLICANT/REQUEST -> RESPONDENT/WAITING
     #       DHW/THM, TRV -> CTL     (temp, valve_position), or:
     #                CTL -> BDR/OTB (heat_demand)
-    #          [ REQUEST -> WAITING ]
-    #            unbound -- unbound
+    #
+    #            unbound -- idle/unbound
     #            unbound -- listening
-    #           offering -> listening
-    #           offering <- accepting
-    # (confirming) bound -> accepting
+    #   offering/offered -> listening               #  offered when sees own offer pkt
+    #           offering <- accepting/accepted      # accepted when sees own accept pkt
+    #   confirming/bound -> accepted (optional?)    #    bound when sees own confirm pkt
     #              bound -- bound
     #
-    UNKNOWN = ("None",)
-    UNBOUND = ("unb",)  # unbound
-    LISTENING = ("l",)  # waiting for offer
-    OFFERING = ("of",)  # waiting for accept:              -> sent offer
-    ACCEPTING = ("a",)  # waiting for confirm: rcvd offer  -> sent accept
-    # NFIRMED = "c",  # bound:               rcvd accept -> sent confirm
-    BOUND = ("bound",)  # bound:               rcvd confirm
+    UNKNOWN = ("unknown",)
+    UNBOUND = ("unbound",)  # #                                  unbound
+    LISTENING = ("listening",)  # #                              waiting for offers
+    OFFERING = ("offering",)  # #   sent offer,                  waiting for accept
+    OFFERED = ("offered",)  # #     sent offer,                  waiting for accept
+    ACCEPTING = ("accepting",)  # # rcvd offer  -> sent accept,  waiting for confirm
+    ACCEPTED = ("accepted",)  # #   rcvd offer  -> sent accept,  waiting for confirm
+    CONFIRMING = ("confirming",)  # rcvd accept -> sent confirm, bound
+    BOUND = ("bound",)  # #         rcvd confirm,                bound
 
 
 BIND_WAITING_TIMEOUT = 300  # how long to wait, listening for an offer
@@ -309,20 +312,6 @@ class Fakeable(DeviceBase):
     such packets via RF.
     """
 
-    # Faked Round Thermostat binding to a Evohome controller as a zone sensor
-    # STA set to BindState.OFFERING:  sends "1FC9| I|63:262142" to the ether (the controller is listening)
-    # - receives "1FC9| W|34:021943" to: Fakable._bind_request().proc_accept() via callback?
-    # STA set to BindState.ACCEPTING: sends "1FC9| I|01:145038" to the ether (the controller is ignoring?)
-    # - receives "1FC9| I|01:145038" to: Fakable._bind_request().proc_confirm() via callback -- OPTIONAL!!
-    # STA set to BindState.BOUND via callback, and...
-
-    # Faked Evohome controller binding to a Round Thermostat as a zone sensor
-    # CTL set to BindState.LISTENING
-    # - receives "1FC9| I|63:262142" to: Fakable._bind_waiting().proc_offer() via callback?
-    # CTL set to BindState.ACCEPTING: sends "1FC9| W|34:021943" to the ether
-    # - receives "1FC9| I|01:145038" to: Fakable._bind_waiting().proc_confirm() via callback -- OPTIONAL!!
-    # CTL set to BindState.BOUND
-
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
@@ -350,7 +339,7 @@ class Fakeable(DeviceBase):
         return self
 
     def _bind_waiting(self, codes, idx="00", callback: Callable = None) -> None:
-        """Wait for (listen for) a bind handshake."""
+        """The RESPONDENT will wait for (listen for) a bind offer."""
 
         # Bind waiting: BDR set to listen, CTL initiates handshake
         # 19:30:44.749 051  I --- 01:054173 --:------ 01:054173 1FC9 024 FC-0008-04D39D FC-3150-04D39D FB-3150-04D39D FC-1FC9-04D39D
@@ -362,7 +351,9 @@ class Fakeable(DeviceBase):
         # 00:25:02.792 045  W --- 10:048122 01:145038 --:------ 1FC9 006 00-3EF0-28BBFA
         # 00:25:02.944 045  I --- 01:145038 10:048122 --:------ 1FC9 006 00-FFFF-06368E
 
-        _LOGGER.warning(f"Binding {self}: waiting for {codes} for 300 secs")  # info
+        _LOGGER.warning(
+            f"Binding {self}: listening for {codes} for 300 secs"
+        )  # TODO: info
         # SUPPORTED_CODES = (Code._0008,)
 
         # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
@@ -371,7 +362,7 @@ class Fakeable(DeviceBase):
         self._1fc9_state["timeout"] = self._gwy._dt_now() + td(seconds=300)
 
     def _bind_request(self, codes, callback: Callable = None) -> None:
-        """Initiate a bind handshake: send the 1st packet of the handshake."""
+        """The SUPPLICANT will initiate (send the 1st packet of) the handshake."""
 
         # Bind request: CTL set to listen, STA initiates handshake (note 3C09/2309)
         # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
@@ -383,7 +374,7 @@ class Fakeable(DeviceBase):
         # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
         # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
 
-        _LOGGER.warning(f"Binding {self}: requesting {codes}")  # TODO: info
+        _LOGGER.warning(f"Binding {self}: requesting/offering {codes}")  # TODO: info
 
         if not isinstance(codes, tuple):
             codes = (codes,)
@@ -459,25 +450,35 @@ class Fakeable(DeviceBase):
             return BindState.BOUND
 
         if msg.code != Code._1FC9 or msg.src is self:
+            super()._handle_msg(msg)
+
+        if not self._faked or self._1fc9_state["state"] in (
+            BindState.UNKNOWN,
+            BindState.BOUND,
+        ):
             pass
 
         elif msg.payload["phase"] == "offer":
-            assert self._1fc9_state["state"] == BindState.LISTENING, "isn't listening!"
+            assert (
+                self._1fc9_state["state"] == BindState.LISTENING
+            ), f"{self} is {self._1fc9_state['state']} and isn't listening!"
             for code in self._1fc9_state["codes"]:
                 assert code in [b[1] for b in msg.payload["bindings"]]
             self._1fc9_state["state"] = proc_offer_and_accept(msg)
 
         elif msg.payload["phase"] == "accept":
-            assert self._1fc9_state["state"] == BindState.OFFERING, "isn't offeriing!"
+            assert (
+                self._1fc9_state["state"] == BindState.OFFERING
+            ), f"{self} is {self._1fc9_state['state']} and isn't offeriing!"
             # for code in self._1fc9_state["codes"]:
             #     assert code in [b[1] for b in msg.payload['bindings']]
             self._1fc9_state["state"] = proc_accept_and_confirm(msg)
 
         elif msg.payload["phase"] == "confirm":
-            assert self._1fc9_state["state"] == BindState.ACCEPTING, "isn't accepting!"
+            assert (
+                self._1fc9_state["state"] == BindState.ACCEPTING
+            ), f"{self} is {self._1fc9_state['state']} and isn't accepting!"
             self._1fc9_state["state"] = proc_confirm_and_done(msg)
-
-        super()._handle_msg(msg)
 
 
 class HgiGateway(DeviceInfo):  # HGI (18:)
