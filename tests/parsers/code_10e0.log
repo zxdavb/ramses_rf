@@ -1,5 +1,9 @@
 # should only be real-world (i.e. not constructed) packets here (sorted by broad domain, then device class, then date_2, date_1)
 
+# Contrived, but should parse
+2021-11-25T09:00:00.000000 ...  I --- 18:111111 --:------ 18:111111 10E0 001 00
+
+
 # CH/DHW
 2021-11-24T09:30:56.274409 049 RP --- 01:024170 18:009231 --:------ 10E0 038 000002FFFF17FFFFFFFFFFFFFFFF0B0507DC494F4E41205241492050726F746F747970650000  # {'description': 'IONA RAI Prototype',  'date_2': '0000-00-00', 'date_1': '2012-05-11', 'manufacturer_sub_id': 'FF', 'product_id': 'FF', 'oem_code': 'FF'}
 2021-11-15T08:53:00.244591 084 RP --- 01:205453 18:013230 --:------ 10E0 038 000002FF0163FFFFFFFF1A0507E1010807DD45766F20436F6C6F720000000000000000000000  # {'description': 'Evo Color',           'date_2': '2017-05-26', 'date_1': '2013-08-01', 'manufacturer_sub_id': 'FF', 'product_id': '01', 'oem_code': 'FF'}
