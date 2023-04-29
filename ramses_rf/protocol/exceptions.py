@@ -4,6 +4,17 @@
 """RAMSES RF - exceptions."""
 from __future__ import annotations
 
+__all__ = [
+    "EvohomeError",
+    "ExpiredCallbackError",
+    "CorruptEvohomeError",
+    "InvalidPacketError",
+    "InvalidAddrSetError",
+    "InvalidPayloadError",
+    "CorruptStateError",
+    "ForeignGatewayError",
+]
+
 
 class EvohomeError(Exception):
     """Base class for exceptions in this module."""
