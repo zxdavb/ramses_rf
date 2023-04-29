@@ -1,0 +1,25 @@
+# Evohome controller binding to a relay
+#  - Supplicant, CTL:
+#  - Respondent, BDR:
+
+
+
+# 1. For reference, 10E0s (if any), oem_code 'FF' (NB: BDRs don't send 10E0s):
+2022-06-29T15:00:23.116263 045 RP --- 01:078710 18:002563 --:------ 10E0 038 000002FF0163FFFFFFFF0B0807E4010807DD45766F20436F6C6F720000000000000000000000
+#
+
+
+
+# 2. The handshake:
+2022-11-05T12:17:03.255898 045  I --- 01:078710 --:------ 01:078710 1FC9 012 F62D49053376F61FC9053376
+2022-11-05T12:17:04.253645 053  W --- 13:208181 01:078710 --:------ 1FC9 006 003EF0372D35
+2022-11-05T12:17:04.271026 045  I --- 01:078710 13:208181 --:------ 1FC9 006 00FFFF053376
+
+# Then, it appears no follow-up pkts are required:
+#
+
+
+
+
+# 3. Other notes:
+#  - None

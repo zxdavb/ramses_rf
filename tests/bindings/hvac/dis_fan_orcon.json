@@ -1,0 +1,12 @@
+{
+    "config": {
+        "enforce_known_list": true
+    },
+    "orphans_hvac": ["32:155617", "37:171871"],
+    "known_list": {
+        "18:005904": {"class": "HGI"},
+        
+        "32:155617": {"class": "FAN", "_note": "Orcon HRC EcoMax 400"},
+        "37:171871": {"class": "DIS", "_note": "Orcon HRC 15RF interactive"}
+    }
+}

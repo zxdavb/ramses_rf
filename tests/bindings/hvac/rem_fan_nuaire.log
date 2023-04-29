@@ -1,0 +1,45 @@
+# Nuaire Switch binding to a PIV
+#  - Supplicant, REM: Nuaire Drimaster-ECO 4-way switch (DRI-ECO-4S)
+#  - Respondent, FAN: Nuaire Drimaster-ECO PIV          (DRI-ECO-HEAT-HC)
+
+
+
+# 1. For reference, 10E0s (if any), oem_code '6C' (Note: REM/FAN won't RP|10E0):
+2023-04-27T16:21:21.263244 ...  I --- 32:208628 63:262142 --:------ 10E0 030 000001C85A01016CFFFFFFFFFFFF010607E0564D4E2D32334C4D48323300                  # {'oem_code': '6C', 'description': 'VMN-23LMH23',  'date_2': '0000-00-00', 'date_1': '2016-06-01', 'manufacturer_sub_id': 'C8', 'product_id': '5A'}
+2023-04-13T10:43:39.077524 ...  I --- 30:098165 63:262142 --:------ 10E0 038 000001C9001D006CFEFEFFFFFFFF120707E3425244472D30324A415330310000000000000000  # {'oem_code': '6C', 'description': 'BRDG-02JAS01', 'date_2': '0000-00-00', 'date_1': '2019-07-18', 'manufacturer_sub_id': 'C9', 'product_id': '00'}
+
+
+
+# 2. The handshake (Note: FAN|W|1FC9|21):
+2023-04-27T16:21:21.104315 ...  I --- 32:208628 --:------ 32:208628 1FC9 018 0022F1832EF46C10E0832EF4001FC9832EF4  # {'phase': 'offer',   'bindings': [['00', '22F1', '32:208628'], ['6C', '10E0', '32:208628'], ['00', '1FC9', '32:208628']]}
+2023-04-27T16:21:21.163187 ...  W --- 30:098165 32:208628 --:------ 1FC9 006 2131DA797F75                          # {'phase': 'accept',  'bindings': [['21', '31DA', '30:098165']]}
+2023-04-27T16:21:21.183713 ...  I --- 32:208628 30:098165 --:------ 1FC9 001 21                                    # {'phase': 'confirm', 'bindings': [['21']]}
+
+# It appears the spontaneous REM|I|10E0 *is required* for a successful bind (otherwise the FAN will RQ|10E0, see below):
+2023-04-27T16:21:21.263244 ...  I --- 32:208628 63:262142 --:------ 10E0 030 000001C85A01016CFFFFFFFFFFFF010607E0564D4E2D32334C4D48323300                  # {'description': 'VMN-23LMH23', 'date_2': '0000-00-00', 'date_1': '2016-06-01', 'manufacturer_sub_id': 'C8', 'product_id': '5A', 'oem_code': '6C'}
+
+
+
+# 3. Other notes:
+#  - it is unclear if these spontaneous I|1060s are needed too (unlikely):
+# 23-04-27T16:21:21.389080 ...  I --- 32:208628 --:------ 32:208628 1060 003 00FF01                                # {'battery_low': False, 'battery_level': None}
+# 23-04-27T16:21:21.541071 ...  I --- 32:208628 --:------ 32:208628 1060 003 00FF01                                # {'battery_low': False, 'battery_level': None}
+# 23-04-27T16:21:21.690073 ...  I --- 32:208628 --:------ 32:208628 1060 003 00FF01                                # {'battery_low': False, 'battery_level': None}
+
+
+
+# 3. Other notes: an attempt with a fully-faked REM, but a real FAN (removed 7FFFs)
+#  - domain_id was 00 (not 21)
+#  - no spontaneous FAN|I|10E0 & the FAN sent RQ|10E0 x3 - to enforce using manufacturer's own REM?
+
+# 22-04-23T10:39:01.342393 000  I --- 32:206251 --:------ 32:206251 1FC9 018 00-22F1-8325AB 00-22F3-8325AB 00-1FC9-8325AB
+# 22-04-23T10:39:01.422641 072  W --- 30:098165 32:206251 --:------ 1FC9 006 21-31DA-797F75
+# 22-04-23T10:39:02.158641 000  I --- 32:206251 30:098165 --:------ 1FC9 006 00-1FC9-8325AB
+
+# 22-04-23T10:39:03.191659 000  I --- 32:206251 30:098165 --:------ 1FC9 006 001FC98325AB
+# 22-04-23T10:39:04.195801 000  I --- 32:206251 30:098165 --:------ 1FC9 006 001FC98325AB
+# 22-04-23T10:39:04.301794 073 RQ --- 30:098165 32:206251 --:------ 10E0 001 00
+# 22-04-23T10:39:05.165914 072 RQ --- 30:098165 32:206251 --:------ 10E0 001 00
+# 22-04-23T10:39:05.199906 000  I --- 32:206251 30:098165 --:------ 1FC9 006 001FC98325AB
+# 22-04-23T10:39:06.318215 072 RQ --- 30:098165 32:206251 --:------ 10E0 001 00
+

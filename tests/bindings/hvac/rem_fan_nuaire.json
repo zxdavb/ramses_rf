@@ -1,0 +1,12 @@
+{
+    "config": {
+        "enforce_known_list": true
+    },
+    "orphans_hvac": ["30:098165", "32:208628"],
+    "known_list": {
+        "18:000730": {"class": "HGI"},
+
+        "30:098165": {"class": "FAN", "_note": "Nuaire DRI-ECO-HEAT-HC"},
+        "32:208628": {"class": "REM", "_note": "Nuaire DRI-ECO-4S"}
+    }
+}

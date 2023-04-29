@@ -1,0 +1,12 @@
+{
+    "config": {
+        "enforce_known_list": true
+    },
+    "orphans_hvac": ["18:126620", "37:154011"],
+    "known_list": {
+        "18:200467": {"class": "HGI"},
+
+        "18:126620": {"class": "FAN", "_note": "Itho HRU ECO 300"},
+        "37:154011": {"class": "CO2", "_note": "Itho RFT CO2 230V (incl. integrated control)"}
+    }
+}
