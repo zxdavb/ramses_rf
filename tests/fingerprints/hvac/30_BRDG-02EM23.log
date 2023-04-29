@@ -1,0 +1,12 @@
+# Vasco (oem_code = 66) - Gateway: a CTL/RFG hybrid
+#  - ordered by signature, device id
+
+
+# CONFIRMED:
+2023-02-19T11:37:53.826773 032  I --- 30:006056 63:262142 --:------ 10E0 038 000001C848260066FEFEFFFFFFFF1C0B07E3425244472D3032454D3233000000000000000000  # {"signature": "0001C848260066FEFE", "oem": "Vasco"}
+
+
+# SUSPECTED:
+
+
+# UNCERTAIN:

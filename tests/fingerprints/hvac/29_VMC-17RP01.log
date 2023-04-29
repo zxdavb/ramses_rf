@@ -1,0 +1,14 @@
+# Vasco (oem_code = 66) - C400RF (11VE00034) Extraction FAN, no heat recovery (EXT)
+#  - ordered by signature, device id
+
+
+# CONFIRMED:
+2023-02-19T07:56:21.727099 073  I --- 29:079817 63:262142 --:------ 10E0 029 000001C81C090466FEFFFFFFFFFFFFFFFFFF564D432D31375250303100                    # {"signature": "", "oem": "Vasco"}
+
+
+# SUSPECTED:
+
+
+# UNCERTAIN:
+
+
