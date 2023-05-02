@@ -136,7 +136,7 @@ async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
     await assert_context_state(respondent._context, BindState.LISTENING, max_sleep=0)
 
     try:
-        supplicant._bind()
+        supplicant._bind()  # can't bind before make_fake
     except RuntimeError:
         pass
     else:
