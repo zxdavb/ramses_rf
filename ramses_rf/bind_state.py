@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from typing import Callable
 
     from .device import Address, Command, Message
-    from .device.base import Fakeable as Device
+    from .device.base import Fakeable
 
 # skipcq: PY-W2000
 from .device import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -84,16 +84,17 @@ class Exceptions:  # HACK  ???
 class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
-    _is_respondent: bool  # otherwise, is supplicant
-    _state: State = None  # FIXME: should be: _State, but mypy says is unbound!!
+    _is_respondent: bool  # otherwise, must be supplicant
+    _state: _State
 
-    def __init__(self, device: Device, initial_state: type[_State]) -> None:
-        self._dev = device
+    def __init__(self, dev: _Device, initial_state: type[_State]) -> None:
+        self._dev = dev
+
+        if initial_state not in (Listening, Offering):
+            raise BindStateError(f"{self}: Incompatible inital state: {initial_state}")
 
         self._is_respondent = initial_state is Listening
         self._set_context_state(initial_state)
-        if initial_state not in (Listening, Offering):
-            raise BindStateError(f"{self}: Incompatible inital state: {initial_state}")
 
     def __repr__(self) -> str:
         return f"{self._dev}: {self.role}: {self.state!r}"
@@ -103,26 +104,25 @@ class Context:
 
     def _set_context_state(self, state: type[_State]) -> None:
         """Change the State of the Context."""
-        _LOGGER.debug(f"{self}: Changing state from: {self._state} to: {state}")
         self._state = state(self)
 
     @classmethod
-    def respondent(cls, device: Device) -> Context:
-        """Create a respondent Context only if the Device is in correct state."""
-        if device._context:  # TODO: None, BindState.Bound, BindState.BoundAccepted
+    def respondent(cls, dev: _Device) -> Context:  # HACK: using _context is regrettable
+        """Create a new Context only if the Device is coming from a suitable state."""
+        if dev._context is not None and dev._context.state in _BAD_PREV_STATES:
             raise BindStateError(
-                f"{device}: incompatible Device state: {device._context}"
+                f"{dev}: incompatible current State for Device: {dev._context}"
             )
-        return cls(device, BindState.LISTENING)
+        return cls(dev, BindState.LISTENING)
 
     @classmethod
-    def supplicant(cls, device: Device) -> Context:
-        """Create a supplicant Context only if the Device is in correct state."""
-        if device._context:  # TODO: None, BindState.Bound
+    def supplicant(cls, dev: _Device) -> Context:  # HACK: using _context is regrettable
+        """Create a new Context only if the Device is coming from a suitable state."""
+        if dev._context is not None and dev._context.state in _BAD_PREV_STATES:
             raise BindStateError(
-                f"{device}: incompatible Device state: {device._context}"
+                f"{dev}: incompatible current State for Device: {dev._context}"
             )
-        return cls(device, BindState.OFFERING)
+        return cls(dev, BindState.OFFERING)
 
     @property
     def role(self) -> str:
@@ -211,6 +211,9 @@ class State(ABC):
     def __init__(self, context: Context) -> None:
         self._context = context
         self._set_context_state: Callable = context._set_context_state  # HACK
+        self._prev_state: _State | None = self._context.state
+
+        _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
 
         if self._has_expiry_timer:
             self._timer_handle = asyncio.get_running_loop().call_later(
@@ -264,9 +267,9 @@ class State(ABC):
         """
 
         self._set_context_state(Unknown)
-        raise BindRetryError(
+        _LOGGER.warning(
             f"{self._context}: {RETRY_LIMIT} commands sent, but no response received" ""
-        )
+        )  # was: BindRetryError
 
     def _timer_expired(self) -> None:
         """Process an overrun of the TIMEOUT_SECS when waiting for a Packet.
@@ -274,9 +277,9 @@ class State(ABC):
         The Rx wait time has been exceeded, with nothing heard from the other device.
         """
         self._set_context_state(Unknown)
-        raise BindTimeoutError(
+        _LOGGER.warning(
             f"{self._context}: {TIMEOUT_SECS} secs passed, but no response received"
-        )
+        )  # was: BindTimeoutError
 
 
 class Unknown(State):
@@ -476,7 +479,11 @@ class BoundAccepted(Accepting, Bound):
         self._pkts_rcvd += 1
 
 
-_State = TypeVar("_State", bound=State)
+_Device = TypeVar("_Device", bound=Fakeable)
+_State = State  # TypeVar("_State", bound=State)  # FIXME: mypy says is unbound!!
+
+# Invalid states from which to move to a new an initial state (Listening, Offering)
+_BAD_PREV_STATES = (Listening, Offering, Offered, Accepting, Accepted, Confirming)
 
 
 class BindState:
