@@ -217,7 +217,7 @@ class State(ABC):
 
         if self._has_expiry_timer:
             self._timer_handle = asyncio.get_running_loop().call_later(
-                TIMEOUT_SECS, self._timer_expired
+                TIMEOUT_SECS, self._wait_timer_expired
             )
 
     def __repr__(self) -> str:
@@ -271,7 +271,7 @@ class State(ABC):
             f"{self._context}: {RETRY_LIMIT} commands sent, but no response received" ""
         )  # was: BindRetryError
 
-    def _timer_expired(self) -> None:
+    def _wait_timer_expired(self) -> None:
         """Process an overrun of the TIMEOUT_SECS when waiting for a Packet.
 
         The Rx wait time has been exceeded, with nothing heard from the other device.
@@ -431,7 +431,7 @@ class Confirmed(Confirming):
     _has_expiry_timer: bool = True
 
     # sending Confirms (until timeout expires)...
-    def _timer_expired(self) -> None:
+    def _wait_timer_expired(self) -> None:
         self._set_context_state(Bound)
 
     # has sent a Confirm...
@@ -467,7 +467,7 @@ class BoundAccepted(Accepting, Bound):
     _has_expiry_timer: bool = True
 
     # waiting for a Confirm (until timeout expires)...  # TODO: should be error if no confirm
-    def _timer_expired(self) -> None:
+    def _wait_timer_expired(self) -> None:
         self._set_context_state(Bound)
 
     # no longer waiting for a Confirm (handle retransmits from Supplicant)...
