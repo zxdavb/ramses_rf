@@ -155,7 +155,7 @@ async def _stifle_impersonation_alerts(self, cmd: Command) -> None:
     _stifle_impersonation_alerts,
 )
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-async def _test_binding_wrapper(
+async def _binding_test_wrapper(
     fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
 ):
     rf = VirtualRF(2)

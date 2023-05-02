@@ -14,11 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from ramses_rf.bind_state import BindState, Context, Exceptions
-from tests_rf.helpers import _Device, _test_binding_wrapper
-
-# import tracemalloc
-# tracemalloc.start()
-
+from tests_rf.helpers import _binding_test_wrapper, _Device
 
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 1  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
@@ -30,8 +26,7 @@ TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
 )  # supplicant, respondent, codes
 
 
-# NOTE: not exactly a duplicate function (cf: max_sleep)
-async def assert_context_state(
+async def assert_context_state(  # NOTE: not a duplicate function (cf: max_sleep)
     ctx: Context, expected_state: BindState, max_sleep: int = 0
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
@@ -39,6 +34,20 @@ async def assert_context_state(
         if ctx._state.__class__ is expected_state:
             break
     assert ctx._state.__class__ is expected_state
+
+
+def binding_test_decorator(fnc):
+    async def test_binding_wrapper(test_data=TEST_DATA[0]):
+        supp, resp, codes = test_data
+
+        await _binding_test_wrapper(
+            fnc,
+            {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
+            {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
+            codes,
+        )
+
+    return test_binding_wrapper
 
 
 async def _phase_0(supplicant: _Device, respondent: _Device) -> None:
@@ -90,7 +99,10 @@ async def _phase_3(supplicant: _Device, respondent: _Device) -> None:
     await assert_context_state(respondent._context, BindState.BOUND_ACCEPTED)
 
 
-async def _test_binding_flow_1(supplicant: _Device, respondent: _Device, _):
+@pytest.mark.xdist_group(name="serial")
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@binding_test_decorator
+async def test_binding_flow_1(supplicant: _Device, respondent: _Device, _):
     """Check the change of state during a faultless binding."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
@@ -99,7 +111,10 @@ async def _test_binding_flow_1(supplicant: _Device, respondent: _Device, _):
     await _phase_3(supplicant, respondent)  # The supplicant Confirms, both receive it
 
 
-async def _test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
+@pytest.mark.xdist_group(name="serial")
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@binding_test_decorator
+async def test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
     """Check for inappropriate change of state (BindFlowError)."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
@@ -130,7 +145,10 @@ async def _test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
     await _phase_1(supplicant, respondent)  # The supplicant Offers, both receive it
 
 
-async def _test_binding_init_1(supplicant: _Device, respondent: _Device, _):
+@pytest.mark.xdist_group(name="serial")
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@binding_test_decorator
+async def test_binding_init_1(supplicant: _Device, respondent: _Device, _):
     """Check the Context init of the respondent & supplicant (BindStateError)."""
 
     # BAD: Create a Context with an initial State other than Listening, Offering
@@ -145,7 +163,10 @@ async def _test_binding_init_1(supplicant: _Device, respondent: _Device, _):
             assert False
 
 
-async def _test_binding_init_2(supplicant: _Device, respondent: _Device, _):
+@pytest.mark.xdist_group(name="serial")
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@binding_test_decorator
+async def test_binding_init_2(supplicant: _Device, respondent: _Device, _):
     """Check the Context init of the respondent & supplicant (BindStateError)."""
 
     # Create the respondent, supplicant Contexts using the constructor
@@ -169,55 +190,3 @@ async def _test_binding_init_2(supplicant: _Device, respondent: _Device, _):
         pass
     else:
         assert False
-
-
-@pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
-async def test_binding_state_flow_1(test_data=TEST_DATA[0]):
-    supp, resp, codes = test_data
-
-    await _test_binding_wrapper(
-        _test_binding_flow_1,
-        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
-        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
-        codes,
-    )
-
-
-@pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
-async def test_binding_state_flow_2(test_data=TEST_DATA[0]):
-    supp, resp, codes = test_data
-
-    await _test_binding_wrapper(
-        _test_binding_flow_2,
-        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
-        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
-        codes,
-    )
-
-
-@pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
-async def test_binding_state_init_1(test_data=TEST_DATA[0]):
-    supp, resp, codes = test_data
-
-    await _test_binding_wrapper(
-        _test_binding_init_1,
-        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
-        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
-        codes,
-    )
-
-
-@pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
-async def test_binding_state_init_2(test_data=TEST_DATA[0]):
-    supp, resp, codes = test_data
-
-    await _test_binding_wrapper(
-        _test_binding_init_2,
-        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
-        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
-        codes,
-    )

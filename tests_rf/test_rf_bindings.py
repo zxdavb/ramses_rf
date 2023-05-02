@@ -14,7 +14,7 @@ import pytest
 
 from ramses_rf import Gateway, Packet
 from ramses_rf.bind_state import BindState, Context
-from tests_rf.helpers import _Device, _test_binding_wrapper
+from tests_rf.helpers import _binding_test_wrapper, _Device
 
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 3  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
@@ -32,7 +32,6 @@ TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
 )  # supplicant, respondent, codes
 
 
-# NOTE: duplicate function
 def pytest_generate_tests(metafunc):
     def id_fnc(param):
         return f"{param[0][1]} to {param[1][1]}"
@@ -56,6 +55,16 @@ async def assert_this_pkt_hdr_wrapper(
     await assert_this_pkt_hdr(gwy, expected_hdr, max_sleep)
 
     return gwy._this_msg._pkt
+
+
+async def assert_context_state(  # NOTE: not a duplicate function (cf: max_sleep)
+    ctx: Context, expected_state: BindState, max_sleep: int = MAX_SLEEP
+):
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if ctx._state.__class__ is expected_state:
+            break
+    assert ctx._state.__class__ is expected_state
 
 
 async def _test_binding_flow(supplicant: _Device, respondent: _Device, codes):
@@ -95,29 +104,6 @@ async def _test_binding_flow(supplicant: _Device, respondent: _Device, codes):
     assert results == expected
 
 
-@pytest.mark.xdist_group(name="serial")
-async def test_binding_flows(test_data):
-    supp, resp, codes = test_data
-
-    await _test_binding_wrapper(
-        _test_binding_flow,
-        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
-        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
-        codes,
-    )
-
-
-# NOTE: not exactly a duplicate function (cf: max_sleep)
-async def assert_context_state(
-    ctx: Context, expected_state: BindState, max_sleep: int = MAX_SLEEP
-):
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if ctx._state.__class__ is expected_state:
-            break
-    assert ctx._state.__class__ is expected_state
-
-
 async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
     """Check the change of state during a binding."""
 
@@ -152,11 +138,23 @@ async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
 
 
 @pytest.mark.xdist_group(name="serial")
+async def test_binding_flows(test_data):
+    supp, resp, codes = test_data
+
+    await _binding_test_wrapper(
+        _test_binding_flow,
+        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
+        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
+        codes,
+    )
+
+
+@pytest.mark.xdist_group(name="serial")
 @patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 async def test_binding_state(test_data):
     supp, resp, codes = test_data
 
-    await _test_binding_wrapper(
+    await _binding_test_wrapper(
         _test_binding_state,
         {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
         {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
