@@ -285,30 +285,30 @@ class State(ABC):
 class Unknown(State):
     _warning_sent: bool = False
 
-    def _send_warning(self) -> None:
+    def _send_warning_if_not_already_sent(self) -> None:
         if self._warning_sent:
             return
 
         self._warning_sent = True
-        raise BindStateError(f"{self}: Current state is unknown")
+        raise BindStateError(f"{self}: Current state is Unknown")
 
     def received_offer(self, from_self: bool) -> None:
-        self._send_warning()
+        self._send_warning_if_not_already_sent()
 
     def received_accept(self, from_self: bool) -> None:
-        self._send_warning()
+        self._send_warning_if_not_already_sent()
 
     def received_confirm(self, from_self: bool) -> None:
-        pass
+        self._send_warning_if_not_already_sent()
 
     def sent_offer(self) -> None:
-        self._send_warning()
+        self._send_warning_if_not_already_sent()
 
     def sent_accept(self) -> None:
-        self._send_warning()
+        self._send_warning_if_not_already_sent()
 
     def sent_confirm(self) -> None:
-        self._send_warning()
+        self._send_warning_if_not_already_sent()
 
 
 class Listening(State):
