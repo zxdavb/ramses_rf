@@ -36,8 +36,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-TIMEOUT_SECS = 3
-RETRY_LIMIT = 3
+RETRY_LIMIT = 3  # give up if no reponse when exceeding this number of sends
+WAIT_TIMEOUT_SECS = 3  # give up if no response when this timer expires
+XXXX_TIMEOUT_SECS = 3  # move from BoundAccepted to Bound when this timer expires
 
 
 __all__ = ["Exceptions", "Context", "BindState"]
@@ -202,7 +203,7 @@ class Context:
 class State(ABC):
     """The common state interface for all the states."""
 
-    _has_expiry_timer: bool = False
+    _has_wait_timer: bool = False
     _timer_handle: asyncio.TimerHandle
 
     _cmds_sent: int = 0  # num of bind cmds sent
@@ -215,9 +216,9 @@ class State(ABC):
 
         _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
 
-        if self._has_expiry_timer:
+        if self._has_wait_timer:
             self._timer_handle = asyncio.get_running_loop().call_later(
-                TIMEOUT_SECS, self._wait_timer_expired
+                WAIT_TIMEOUT_SECS, self._wait_timer_expired
             )
 
     def __repr__(self) -> str:
@@ -272,13 +273,13 @@ class State(ABC):
         )  # was: BindRetryError
 
     def _wait_timer_expired(self) -> None:
-        """Process an overrun of the TIMEOUT_SECS when waiting for a Packet.
+        """Process an overrun of the wait timer when waiting for a Packet.
 
         The Rx wait time has been exceeded, with nothing heard from the other device.
         """
         self._set_context_state(Unknown)
         _LOGGER.warning(
-            f"{self._context}: {TIMEOUT_SECS} secs passed, but no response received"
+            f"{self._context}: {WAIT_TIMEOUT_SECS} secs passed, but no response received"
         )  # was: BindTimeoutError
 
 
@@ -317,12 +318,13 @@ class Listening(State):
     It will continue to wait for an Offer, unless it times out.
     """
 
-    # waiting for an Offer (until timeout expires)...
-    _has_expiry_timer: bool = True
+    _has_wait_timer: bool = True
 
+    # waiting for an Offer until timer expires...
     def received_offer(self, from_self: bool) -> None:
         if from_self:  # Respondents (listeners) shouldn't send Offers
             super().received_offer(from_self)  # TODO: log & ignore?
+
         self._timer_handle.cancel()
         self._set_context_state(Accepting)
 
@@ -330,7 +332,7 @@ class Listening(State):
 class Offering(State):
     """Supplicant can send a Offer cmd."""
 
-    # can send an Offer (anytime now)...
+    # can send an Offer anytime now...
     def sent_offer(self) -> None:
         self._set_context_state(Offered)
 
@@ -341,12 +343,14 @@ class Offered(Offering):
     It will continue to send Offers until it gets an Accept, or times out.
     """
 
-    # has sent an Offer...
     _cmds_sent: int = 1  # already sent one
+    _has_wait_timer: bool = True
 
+    # has sent one Offer so far...
     def received_offer(self, from_self: bool) -> None:
         if not from_self:
             pass  # TODO: log & ignore?
+
         _LOGGER.warning(f"{self.context}: Offer received before sent")
 
     def sent_offer(self) -> None:
@@ -354,12 +358,11 @@ class Offered(Offering):
         if self._cmds_sent > RETRY_LIMIT:
             self._retries_execeeded()
 
-    # waiting for an Accept...
-    _has_expiry_timer: bool = True
-
+    # waiting for an Accept until timer expires...
     def received_accept(self, from_self: bool) -> None:
         if from_self:  # Supplicants shouldn't send Accepts
             super().received_accept(from_self)  # TODO: log & ignore?
+
         self._timer_handle.cancel()
         self._set_context_state(Confirming)
 
@@ -367,7 +370,7 @@ class Offered(Offering):
 class Accepting(State):  # aka Listened
     """Respondent has received an Offer, and can send an Accept cmd."""
 
-    # no longer waiting for an Offer (handle retransmits from Supplicant)...
+    # no longer waiting for an Offer...
     def received_offer(self, from_self: bool) -> None:  # handle retransmits
         if from_self:  # Respondents (listeners) shouldn't send Offers
             super().received_offer(from_self)  # TODO: log & ignore?
@@ -383,12 +386,14 @@ class Accepted(Accepting):
     It will continue to send Accepts, three times total, unless it times out.
     """
 
-    # has sent an Accept...
     _cmds_sent: int = 1  # already sent one
+    _has_wait_timer: bool = True
 
+    # has sent one Accept so far...
     def received_accept(self, from_self: bool) -> None:  # TODO: warn out of order
         if not from_self:
             super().received_accept(from_self)  # TODO: log & ignore?
+
         _LOGGER.warning(f"{self.context}: Accept received before sent")
 
     def sent_accept(self) -> None:
@@ -396,12 +401,11 @@ class Accepted(Accepting):
         if self._cmds_sent > RETRY_LIMIT:
             self._retries_execeeded()
 
-    # waiting for a Confirm...
-    _has_expiry_timer: bool = True
-
+    # waiting for a Confirm until timer expires...
     def received_confirm(self, from_self: bool) -> None:
         if from_self:  # Respondents (listeners) shouldn't send Confirms
             super().received_confirm(from_self)  # TODO: log & ignore?
+
         self._timer_handle.cancel()
         self._set_context_state(BoundAccepted)
 
@@ -412,7 +416,7 @@ class Confirming(State):
     It will continue to send Confirms until it gets any pkt, or times out.
     """
 
-    # no longer waiting for an Accept (handle retransmits from Respondent)...
+    # no longer waiting for an Accept...
     def received_accept(self, from_self: bool) -> None:  # handle retransmits
         if from_self:  # Supplicants shouldn't send Accepts
             super().received_accept(from_self)  # TODO: log & ignore?
@@ -428,19 +432,19 @@ class Confirmed(Confirming):
     It will continue to send Confirms 3x.
     """
 
-    _has_expiry_timer: bool = True
+    _cmds_sent: int = 1  # already sent one
+    _has_wait_timer: bool = True
+    _warning_sent: bool = False
 
-    # sending Confirms (until timeout expires)...
+    # sending Confirms until timeout expires...
     def _wait_timer_expired(self) -> None:
         self._set_context_state(Bound)
 
-    # has sent a Confirm...
-    _cmds_sent: int = 1  # already sent one
-    _warning_sent: bool = False
-
+    # has sent one Confirm so far...
     def received_confirm(self, from_self: bool) -> None:  # TODO: warn out of order
         if not from_self:
             super().received_confirm(from_self)  # TODO: log & ignore?
+
         self._pkts_rcvd += 1
         if self._pkts_rcvd > self._cmds_sent and not self._warning_sent:
             _LOGGER.warning(f"{self.context}: Confirmed received before sent")
@@ -464,19 +468,28 @@ class Bound(State):
 class BoundAccepted(Accepting, Bound):
     """Respondent is Bound, but should handle retransmits from the supplicant."""
 
-    _has_expiry_timer: bool = True
+    _pkts_rcvd: int = 1  # already rcvd one
 
-    # waiting for a Confirm (until timeout expires)...  # TODO: should be error if no confirm
-    def _wait_timer_expired(self) -> None:
+    def __init__(self, context: Context) -> None:
+        super().__init__(context)
+
+        self._timer_handle = asyncio.get_running_loop().call_later(
+            XXXX_TIMEOUT_SECS, self._xxxx_timer_expired
+        )
+
+    # automatically transition to a quiesced bound mode after x seconds
+    def _xxxx_timer_expired(self) -> None:
         self._set_context_state(Bound)
 
     # no longer waiting for a Confirm (handle retransmits from Supplicant)...
-    _pkts_rcvd: int = 1  # already rcvd one
-
     def received_confirm(self, from_self: bool) -> None:
         if from_self:  # Respondents (listeners) shouldn't send Confirms
             super().received_confirm(from_self)  # TODO: log & ignore?
+
         self._pkts_rcvd += 1
+        # if self._pkts_rcvd == RETRY_LIMIT:
+        #     self._timer_handle.cancel()
+        #     self._set_context_state(Bound)
 
 
 if TYPE_CHECKING:

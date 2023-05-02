@@ -8,6 +8,7 @@
 """
 
 import asyncio
+from unittest.mock import patch
 
 import pytest
 
@@ -18,7 +19,7 @@ from tests_rf.helpers import _Device, _test_binding_wrapper
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 3  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
-PHASE_TIMEOUT_SECS = 3  # patch: ramses_rf.bind_state.TIMEOUT_SECS
+XXXX_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
 
 TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
@@ -147,13 +148,11 @@ async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
 
     # TODO:
     # await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
-    # with patch("ramses_rf.bind_state.TIMEOUT_SECS", 0.007):
-    # await assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
+    await assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
 
 
 @pytest.mark.xdist_group(name="serial")
-# TODO: test to pass without overriding default value for TIMEOUT_SECS
-# @patch("ramses_rf.bind_state.TIMEOUT_SECS", PHASE_TIMEOUT_SECS)
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 async def test_binding_state(test_data):
     supp, resp, codes = test_data
 

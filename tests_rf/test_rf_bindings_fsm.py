@@ -23,6 +23,7 @@ from tests_rf.helpers import _Device, _test_binding_wrapper
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 1  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
+XXXX_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
 
 TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
@@ -171,7 +172,7 @@ async def _test_binding_init_2(supplicant: _Device, respondent: _Device, _):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.TIMEOUT_SECS", 0.001)
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 async def test_binding_state_flow_1(test_data=TEST_DATA[0]):
     supp, resp, codes = test_data
 
@@ -184,7 +185,7 @@ async def test_binding_state_flow_1(test_data=TEST_DATA[0]):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.TIMEOUT_SECS", 0.001)
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 async def test_binding_state_flow_2(test_data=TEST_DATA[0]):
     supp, resp, codes = test_data
 
@@ -197,7 +198,7 @@ async def test_binding_state_flow_2(test_data=TEST_DATA[0]):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.TIMEOUT_SECS", 0.001)
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 async def test_binding_state_init_1(test_data=TEST_DATA[0]):
     supp, resp, codes = test_data
 
@@ -210,7 +211,7 @@ async def test_binding_state_init_1(test_data=TEST_DATA[0]):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.TIMEOUT_SECS", 0.001)
+@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 async def test_binding_state_init_2(test_data=TEST_DATA[0]):
     supp, resp, codes = test_data
 
