@@ -85,7 +85,7 @@ class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
     _is_respondent: bool  # otherwise, must be supplicant
-    _state: _State
+    _state: _State = None  # type: ignore[assignment]
 
     def __init__(self, dev: _Device, initial_state: type[_State]) -> None:
         self._dev = dev
@@ -109,7 +109,7 @@ class Context:
     @classmethod
     def respondent(cls, dev: _Device) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
-        if dev._context is not None and dev._context.state in _BAD_PREV_STATES:
+        if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
             raise BindStateError(
                 f"{dev}: incompatible current State for Device: {dev._context}"
             )
@@ -118,7 +118,7 @@ class Context:
     @classmethod
     def supplicant(cls, dev: _Device) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
-        if dev._context is not None and dev._context.state in _BAD_PREV_STATES:
+        if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
             raise BindStateError(
                 f"{dev}: incompatible current State for Device: {dev._context}"
             )
@@ -479,8 +479,10 @@ class BoundAccepted(Accepting, Bound):
         self._pkts_rcvd += 1
 
 
-_Device = TypeVar("_Device", bound=Fakeable)
-_State = State  # TypeVar("_State", bound=State)  # FIXME: mypy says is unbound!!
+if TYPE_CHECKING:
+    _Device = TypeVar("_Device", bound=Fakeable)
+    _State = State  # TypeVar("_State", bound=State)  # FIXME: mypy says is unbound!!
+
 
 # Invalid states from which to move to a new an initial state (Listening, Offering)
 _BAD_PREV_STATES = (Listening, Offering, Offered, Accepting, Accepted, Confirming)
