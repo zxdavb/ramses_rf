@@ -17,6 +17,8 @@ from typing import Generator, TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
 
+from ramses_rf.protocol.backports import StrEnum  # when Python >= 3.11.x, use from enum
+
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
 
@@ -27,16 +29,32 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
 
 
+FW_VERSION = "FW version"
+
+
+class HgiFwTypes(StrEnum):
+    EVOFW3 = "ghoti57/evofw3 v0.7.1"
+    NATIVE = "Honeywell HGI80"
+
+
 class VirtualRF:
     """A virtual many-to-many network of serial port (a la RF network).
 
     Creates a collection of serial ports. When data is received from any one port, it is
-    sent to all the other ports."""
+    sent to all the other ports.
 
-    def __init__(self, num_ports: int, log_size=100) -> None:
-        """Create `num_ports` virtual serial ports."""
+    If a HGI sends a frame, its addr0 will be changed according to the expected
+    behaviours of real HGI80s: 0th port will be 18:018000, 34th port  will be 18:018034.
+    """
+
+    def __init__(self, num_ports: int, log_size: int = 100, **kwargs: dict) -> None:
+        """Create `num_ports` virtual serial ports.
+
+        If addr0 of the frame is '18:000730', it will be modified appropriately.
+        """
 
         self._loop = asyncio.get_running_loop()
+        self.rx_log: deque[tuple[str, bytes]] = deque([], log_size)
         self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)
 
         self._file_objs: dict[_FD, FileIO] = {}  # master fd to file (port) object
@@ -45,22 +63,32 @@ class VirtualRF:
 
         # self._setup_event_handlers()  # TODO: needs fixing/testing
 
-        for _ in range(num_ports):
-            master_fd, slave_fd = pty.openpty()  # pty, tty
-
-            tty.setraw(master_fd)  # requires termios module, so: works only on *nix
-            os.set_blocking(master_fd, False)  # make non-blocking
-
-            self._file_objs[master_fd] = open(master_fd, "rb+", buffering=0)
-            self._pty_names[master_fd] = self._tty_names[slave_fd] = os.ttyname(
-                slave_fd
-            )
+        for idx in range(num_ports):
+            self._create_port(idx)
 
         self._task: asyncio.Task = None  # type: ignore[assignment]
+
+    def _create_port(self, port_idx: int) -> None:
+        """Create a port without a HGI80 attached."""
+        master_fd, slave_fd = pty.openpty()  # pty, tty
+
+        tty.setraw(master_fd)  # requires termios module, so: works only on *nix
+        os.set_blocking(master_fd, False)  # make non-blocking
+
+        self._file_objs[master_fd] = open(master_fd, "rb+", buffering=0)
+        self._pty_names[master_fd] = self._tty_names[slave_fd] = os.ttyname(slave_fd)
+        # self._hgi_names[master_fd] = bytes(f"18:018{port_idx:03d}", "ascii")
 
     @property
     def ports(self) -> list[str]:
         return list(self._tty_names.values())
+
+    # def set_gateway(
+    #         self, port_idx: int, fw_version: HgiFwTypes = HgiFwTypes.EVOFW3
+    # ) -> None:
+    #     if fw_version not in HgiFwTypes:
+    #         raise LookupError
+    #     self._gateways[port_idx][FW_VERSION] = fw_version
 
     async def stop(self) -> None:
         """Stop polling ports and distributing data."""
@@ -123,8 +151,14 @@ class VirtualRF:
         """Cast each frame to all ports in the RSSI + frame format."""
 
         for frame in frames:
+            # changing addr0 is performed by the sending serial device
+            # if frame[7:16] == b"18:000730":
+            #     frame = frame[:7] + self._hgi_names[master] + frame[16:]
+
             _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
+
             # adding the RSSI is performed by the receiving serial device
+            self.rx_log.append((self._pty_names[master], frame))
             _ = [f.write(b"000 " + frame) for f in self._file_objs.values()]
 
     def _setup_event_handlers(self) -> None:
