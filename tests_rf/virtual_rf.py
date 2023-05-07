@@ -13,14 +13,14 @@ from collections import deque
 from contextlib import ExitStack
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
-from typing import Any, Generator, TypeAlias
+from typing import Generator, TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
 
-_FILEOBJ: TypeAlias = int | Any  # int | HasFilno
+# _FILEOBJ: TypeAlias = int | Any  # int | HasFileno
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class VirtualRF:
             if exc:
                 raise exc
 
-        async def handle_sig_posix(sig):
+        async def handle_sig_posix(sig) -> None:
             """Handle signals on posix platform."""
             _LOGGER.error("Received a signal: %s, cleaning up...", sig.name)
             self._cleanup()
@@ -163,7 +163,7 @@ async def main():
     rf = VirtualRF(num_ports)
     print(f"Ports are: {rf.ports}")
 
-    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]
+    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]  # type: ignore[annotation-unchecked]
 
     await rf.start()
 
