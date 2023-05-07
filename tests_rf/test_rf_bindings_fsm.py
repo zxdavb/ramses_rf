@@ -9,25 +9,29 @@
 
 import asyncio
 from inspect import isclass
+from typing import TypeVar
 from unittest.mock import patch
 
 import pytest
 
-from ramses_rf.bind_state import BindState, Context, Exceptions
+from ramses_rf.bind_state import BindState, Context, Exceptions, State
 from tests_rf.helpers import _binding_test_wrapper, _Device
+
+_State = TypeVar("_State", bound=State)
+
 
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 1  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
 XXXX_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
 
-TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
+TEST_DATA = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
 )  # supplicant, respondent, codes
 
 
 async def assert_context_state(  # NOTE: not a duplicate function (cf: max_sleep)
-    ctx: Context, expected_state: BindState, max_sleep: int = 0
+    ctx: Context, expected_state: type[_State], max_sleep: int = 0
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -51,7 +55,13 @@ def binding_test_decorator(fnc):
 
 
 async def _phase_0(supplicant: _Device, respondent: _Device) -> None:
-    """Create the Context for each Device, initialised their initial State."""
+    """Set the initial Context for each Device.
+
+    Asserts the initial state and the result.
+    """
+
+    assert respondent._context is None
+    assert supplicant._context is None
 
     respondent._context = Context.respondent(respondent)
     supplicant._context = Context.supplicant(supplicant)
@@ -61,7 +71,13 @@ async def _phase_0(supplicant: _Device, respondent: _Device) -> None:
 
 
 async def _phase_1(supplicant: _Device, respondent: _Device) -> None:
-    """The supplicant sends an Offer, which is received by both."""
+    """The supplicant sends an Offer, which is received by both.
+
+    Asserts the initial state and the result.
+    """
+
+    assert isinstance(respondent._context, Context)  # also needed for mypy
+    assert isinstance(supplicant._context, Context)  # also needed for mypy
 
     supplicant._context._sent_offer()
     await assert_context_state(supplicant._context, BindState.OFFERED)
@@ -74,7 +90,13 @@ async def _phase_1(supplicant: _Device, respondent: _Device) -> None:
 
 
 async def _phase_2(supplicant: _Device, respondent: _Device) -> None:
-    """The respondent sends an Accept, which is received by both."""
+    """The respondent sends an Accept, which is received by both.
+
+    Asserts the initial state and the result.
+    """
+
+    assert isinstance(respondent._context, Context)  # also needed for mypy
+    assert isinstance(supplicant._context, Context)  # also needed for mypy
 
     respondent._context._sent_accept()
     await assert_context_state(respondent._context, BindState.ACCEPTED)
@@ -87,7 +109,13 @@ async def _phase_2(supplicant: _Device, respondent: _Device) -> None:
 
 
 async def _phase_3(supplicant: _Device, respondent: _Device) -> None:
-    """The supplicant sends a Confirm, which is received by both."""
+    """The supplicant sends a Confirm, which is received by both.
+
+    Asserts the initial state and the result.
+    """
+
+    assert isinstance(respondent._context, Context)  # also needed for mypy
+    assert isinstance(supplicant._context, Context)  # also needed for mypy
 
     supplicant._context._sent_confirm()
     await assert_context_state(supplicant._context, BindState.CONFIRMED)
@@ -119,6 +147,9 @@ async def test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
 
+    assert isinstance(respondent._context, Context)  # needed for mypy
+    assert isinstance(supplicant._context, Context)  # needed for mypy
+
     for sent_cmd in (  # BAD: The supplicant (Offering) doesn't send an Offer
         supplicant._context._sent_accept,
         supplicant._context._sent_confirm,
@@ -149,7 +180,10 @@ async def test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
 @patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 @binding_test_decorator
 async def test_binding_init_1(supplicant: _Device, respondent: _Device, _):
-    """Check the Context init of the respondent & supplicant (BindStateError)."""
+    """Create both Contexts via init (first try bad initial States)."""
+
+    assert respondent._context is None
+    assert supplicant._context is None
 
     # BAD: Create a Context with an initial State other than Listening, Offering
     for state in [s for s in BindState.__dict__.values() if isclass(s)]:
@@ -162,19 +196,25 @@ async def test_binding_init_1(supplicant: _Device, respondent: _Device, _):
         else:
             assert False
 
+    respondent._context = Context(respondent, BindState.LISTENING)
+    supplicant._context = Context(supplicant, BindState.OFFERING)
+
+    await assert_context_state(respondent._context, BindState.LISTENING)
+    await assert_context_state(supplicant._context, BindState.OFFERING)
+
 
 @pytest.mark.xdist_group(name="serial")
 @patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 @binding_test_decorator
 async def test_binding_init_2(supplicant: _Device, respondent: _Device, _):
-    """Check the Context init of the respondent & supplicant (BindStateError)."""
+    """Create both Contexts via constructors (then try bad previous States)."""
+
+    assert respondent._context is None
+    assert supplicant._context is None
 
     # Create the respondent, supplicant Contexts using the constructor
     respondent._context = Context.respondent(respondent)
     supplicant._context = Context.supplicant(supplicant)
-
-    await assert_context_state(respondent._context, BindState.LISTENING)
-    await assert_context_state(supplicant._context, BindState.OFFERING)
 
     # BAD: Create a Context with a unacceptible previous State
     try:
@@ -190,3 +230,6 @@ async def test_binding_init_2(supplicant: _Device, respondent: _Device, _):
         pass
     else:
         assert False
+
+    await assert_context_state(respondent._context, BindState.LISTENING)
+    await assert_context_state(supplicant._context, BindState.OFFERING)
