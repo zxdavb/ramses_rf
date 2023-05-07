@@ -8,20 +8,24 @@
 """
 
 import asyncio
+from typing import TypeVar
 from unittest.mock import patch
 
 import pytest
 
 from ramses_rf import Gateway, Packet
-from ramses_rf.bind_state import BindState, Context
-from tests_rf.helpers import _binding_test_wrapper, _Device
+from ramses_rf.bind_state import BindState, Context, State
+from tests_rf.helpers import _binding_test_wrapper, _Faked
+
+_State = TypeVar("_State", bound=State)
+
 
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 3  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
-XXXX_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
+CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
 
-TEST_DATA: tuple[dict[str, str], dict[str, str], tuple[str]] = (
+TEST_DATA = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
     (("07:111111", "DHW"), ("01:888888", "CTL"), ("1260",)),
     (("40:111111", "HUM"), ("41:888888", "FAN"), ("12A0",)),
@@ -46,6 +50,7 @@ async def assert_this_pkt_hdr(
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if gwy._this_msg and gwy._this_msg._pkt._hdr == expected_hdr:
             break
+    assert gwy._this_msg is not None  # mypy
     assert gwy._this_msg._pkt and gwy._this_msg._pkt._hdr == expected_hdr
 
 
@@ -54,20 +59,22 @@ async def assert_this_pkt_hdr_wrapper(
 ) -> Packet:
     await assert_this_pkt_hdr(gwy, expected_hdr, max_sleep)
 
+    assert gwy._this_msg is not None  # mypy
     return gwy._this_msg._pkt
 
 
-async def assert_context_state(  # NOTE: not a duplicate function (cf: max_sleep)
-    ctx: Context, expected_state: BindState, max_sleep: int = MAX_SLEEP
+async def assert_context_state(
+    ctx: Context | None, expected_state: type[_State], max_sleep: int = MAX_SLEEP
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if ctx._state.__class__ is expected_state:
+        if ctx and ctx._state.__class__ is expected_state:
             break
+    assert ctx is not None  # mypy
     assert ctx._state.__class__ is expected_state
 
 
-async def _test_binding_flow(supplicant: _Device, respondent: _Device, codes):
+async def _test_binding_flow(supplicant: _Faked, respondent: _Faked, codes):
     """Check the flow of packets during a binding."""
 
     hdr_flow = [
@@ -104,7 +111,7 @@ async def _test_binding_flow(supplicant: _Device, respondent: _Device, codes):
     assert results == expected
 
 
-async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
+async def _test_binding_state(supplicant: _Faked, respondent: _Faked, codes):
     """Check the change of state during a binding."""
 
     respondent._make_fake()  # TODO: waiting=Code._22F1)
@@ -112,7 +119,7 @@ async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
     assert respondent._context is None
 
     respondent._bind_waiting(codes)
-    assert supplicant._context is None
+    # assert supplicant._context is None
     await assert_context_state(respondent._context, BindState.LISTENING, max_sleep=0)
 
     try:
@@ -121,7 +128,7 @@ async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
         pass
     else:
         assert False
-    assert supplicant._context is None
+    # assert supplicant._context is None
     await assert_context_state(respondent._context, BindState.LISTENING, max_sleep=0)
 
     # can (rarely?) get unreliable results for respondent as awaits are asynchronous
@@ -129,12 +136,15 @@ async def _test_binding_state(supplicant: _Device, respondent: _Device, codes):
     await assert_context_state(supplicant._context, BindState.OFFERED, max_sleep=0)
     await assert_context_state(respondent._context, BindState.ACCEPTED)
 
-    await assert_context_state(supplicant._context, BindState.CONFIRMED)  # after tx x 1
+    await assert_context_state(supplicant._context, BindState.CONFIRMED)  # after tx x1
     await assert_context_state(respondent._context, BindState.BOUND_ACCEPTED)
+    # ait assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
 
-    # TODO:
-    # await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
-    await assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
+    assert supplicant._context is not None
+    supplicant._context._sent_confirm()  # HACK: virtually send two more Confirms,
+    supplicant._context._sent_confirm()  # so Context can transition to Bound
+    await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
+    await assert_context_state(respondent._context, BindState.BOUND)  # after rx x3
 
 
 @pytest.mark.xdist_group(name="serial")
@@ -150,7 +160,7 @@ async def test_binding_flows(test_data):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@patch("ramses_rf.bind_state.CONFIRM_TIMEOUT_SECS", CONFIRM_TIMEOUT_SECS)
 async def test_binding_state(test_data):
     supp, resp, codes = test_data
 

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, TypeVar
 if TYPE_CHECKING:
     from typing import Callable
 
-    from .device import Address, Command, Message
+    from .device import Command, Device, Message
     from .device.base import Fakeable
 
 # skipcq: PY-W2000
@@ -35,9 +35,11 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-RETRY_LIMIT = 3  # give up if no reponse when exceeding this number of sends
-WAIT_TIMEOUT_SECS = 3  # give up if no response when this timer expires
-XXXX_TIMEOUT_SECS = 3  # move from BoundAccepted to Bound when this timer expires
+SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
+CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of sends
+
+WAITING_TIMEOUT_SECS = 3  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+CONFIRM_TIMEOUT_SECS = 3  # automatically Bound, from BoundAccepted > this # of seconds
 
 
 __all__ = ["Exceptions", "Context", "BindState"]
@@ -87,7 +89,7 @@ class Context:
     _is_respondent: bool  # otherwise, must be supplicant
     _state: _State = None  # type: ignore[assignment]
 
-    def __init__(self, dev: _Device, initial_state: type[_State]) -> None:
+    def __init__(self, dev: _Faked, initial_state: type[_State]) -> None:
         self._dev = dev
 
         if initial_state not in (Listening, Offering):
@@ -107,7 +109,7 @@ class Context:
         self._state = state(self)
 
     @classmethod
-    def respondent(cls, dev: _Device) -> Context:  # HACK: using _context is regrettable
+    def respondent(cls, dev: _Faked) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
         if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
             raise BindStateError(
@@ -116,7 +118,7 @@ class Context:
         return cls(dev, BindState.LISTENING)
 
     @classmethod
-    def supplicant(cls, dev: _Device) -> Context:  # HACK: using _context is regrettable
+    def supplicant(cls, dev: _Faked) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
         if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
             raise BindStateError(
@@ -133,7 +135,10 @@ class Context:
         return self._state
 
     def rcvd_msg(self, msg: Message) -> None:
-        # Can assume the packet payloads have past validation
+        # Can assume the packet payloads have passed validation, but for mypy:
+        if TYPE_CHECKING:
+            assert isinstance(msg.src, Device)
+
         if msg.verb == I_ and msg.src is msg.dst:  # msg["phase"] == "offer":
             self._rcvd_offer(msg.src)
         elif msg.verb == W_:  # msg["phase"] == "accept":
@@ -141,7 +146,7 @@ class Context:
         elif msg.verb == I_:  # msg["phase"] == "confirm":
             self._rcvd_confirm(msg.src)
 
-    def _rcvd_offer(self, src: Address) -> None:
+    def _rcvd_offer(self, src: Device) -> None:
         """Context has received an Offer pkt.
 
         It may be from the supplicant (self._dev is msg._src), or was cast to all
@@ -153,7 +158,7 @@ class Context:
         #     pass  # TODO: issue warning & return
         self._state.received_offer(src is self._dev)  # not self._is_respondent)
 
-    def _rcvd_accept(self, src: Address) -> None:
+    def _rcvd_accept(self, src: Device) -> None:
         """Context has received an Accept pkt.
 
         It may be from the respondent (self._dev is msg._dst), or to the supplicant.
@@ -164,7 +169,7 @@ class Context:
         #     raise BindFlowError(f"{self}: unexpected Accept from itself")
         self._state.received_accept(src is self._dev)  # self._is_respondent)
 
-    def _rcvd_confirm(self, src: Address) -> None:
+    def _rcvd_confirm(self, src: Device) -> None:
         """Context has received a Confirm pkt.
 
         It may be from the supplicant (self._dev is msg._dst), or to the respondent.
@@ -202,11 +207,12 @@ class Context:
 class State:
     """The common state interface for all the states."""
 
-    _has_wait_timer: bool = False
-    _timer_handle: asyncio.TimerHandle
-
     _cmds_sent: int = 0  # num of bind cmds sent
-    _pkts_rcvd: int = 0  # num of bind pkts rcvd (could be an echo of sender's cmd)
+    _pkts_rcvd: int = 0  # num of bind pkts rcvd (icl. any echos of sender's own cmd)
+
+    _has_wait_timer: bool = False
+    _retry_limit: int = SENDING_RETRY_LIMIT
+    _timer_handle: asyncio.TimerHandle
 
     def __init__(self, context: Context) -> None:
         self._context = context
@@ -217,7 +223,7 @@ class State:
 
         if self._has_wait_timer:
             self._timer_handle = asyncio.get_running_loop().call_later(
-                WAIT_TIMEOUT_SECS, self._wait_timer_expired
+                WAITING_TIMEOUT_SECS, self._wait_timer_expired
             )
 
     def __repr__(self) -> str:
@@ -260,7 +266,7 @@ class State:
         """Raise BindRetryError if the RETRY_LIMIT is exceeded."""
         raise BindFlowError(f"{self.context}: not expected to send a Confirm")
 
-    def _retries_execeeded(self) -> None:
+    def _retries_exceeded(self) -> None:
         """Process an overrun of the RETRY_LIMIT when sending a Command.
 
         The Tx retry limit has been exceeded, with nothing heard from the other device.
@@ -268,7 +274,8 @@ class State:
 
         self._set_context_state(Unknown)
         _LOGGER.warning(
-            f"{self._context}: {RETRY_LIMIT} commands sent, but no response received" ""
+            f"{self._context}: {self._retry_limit} commands sent, but no response received"
+            ""
         )  # was: BindRetryError
 
     def _wait_timer_expired(self) -> None:
@@ -278,11 +285,13 @@ class State:
         """
         self._set_context_state(Unknown)
         _LOGGER.warning(
-            f"{self._context}: {WAIT_TIMEOUT_SECS} secs passed, but no response received"
+            f"{self._context}: {WAITING_TIMEOUT_SECS} secs passed, but no response received"
         )  # was: BindTimeoutError
 
 
 class Unknown(State):
+    """Failed binding, see previous State for more info."""
+
     _warning_sent: bool = False
 
     def _send_warning_if_not_already_sent(self) -> None:
@@ -343,6 +352,7 @@ class Offered(Offering):
     """
 
     _cmds_sent: int = 1  # already sent one
+
     _has_wait_timer: bool = True
 
     # has sent one Offer so far...
@@ -354,8 +364,8 @@ class Offered(Offering):
 
     def sent_offer(self) -> None:
         self._cmds_sent += 1
-        if self._cmds_sent > RETRY_LIMIT:
-            self._retries_execeeded()
+        if self._retry_limit and self._cmds_sent > self._retry_limit:
+            self._retries_exceeded()
 
     # waiting for an Accept until timer expires...
     def received_accept(self, from_self: bool) -> None:
@@ -386,6 +396,7 @@ class Accepted(Accepting):
     """
 
     _cmds_sent: int = 1  # already sent one
+
     _has_wait_timer: bool = True
 
     # has sent one Accept so far...
@@ -397,8 +408,8 @@ class Accepted(Accepting):
 
     def sent_accept(self) -> None:
         self._cmds_sent += 1
-        if self._cmds_sent > RETRY_LIMIT:
-            self._retries_execeeded()
+        if self._retry_limit and self._cmds_sent > self._retry_limit:
+            self._retries_exceeded()
 
     # waiting for a Confirm until timer expires...
     def received_confirm(self, from_self: bool) -> None:
@@ -432,6 +443,7 @@ class Confirmed(Confirming):
     """
 
     _cmds_sent: int = 1  # already sent one
+
     _has_wait_timer: bool = True
     _warning_sent: bool = False
 
@@ -451,7 +463,7 @@ class Confirmed(Confirming):
 
     def sent_confirm(self) -> None:
         self._cmds_sent += 1
-        if self._cmds_sent == RETRY_LIMIT:
+        if self._cmds_sent == CONFIRM_RETRY_LIMIT:
             self._set_context_state(Bound)
 
 
@@ -473,7 +485,7 @@ class BoundAccepted(Accepting, Bound):
         super().__init__(context)
 
         self._timer_handle = asyncio.get_running_loop().call_later(
-            XXXX_TIMEOUT_SECS, self._xxxx_timer_expired
+            CONFIRM_TIMEOUT_SECS, self._xxxx_timer_expired
         )
 
     # automatically transition to a quiesced bound mode after x seconds
@@ -492,7 +504,7 @@ class BoundAccepted(Accepting, Bound):
 
 
 if TYPE_CHECKING:
-    _Device = TypeVar("_Device", bound=Fakeable)
+    _Faked = TypeVar("_Faked", bound=Fakeable)
     _State = State  # TypeVar("_State", bound=State)  # FIXME: mypy says is unbound!!
 
 

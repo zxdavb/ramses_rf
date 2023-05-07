@@ -15,22 +15,23 @@ from unittest.mock import patch
 import pytest
 
 from ramses_rf.bind_state import BindState, Context, Exceptions, State
-from tests_rf.helpers import _binding_test_wrapper, _Device
+from ramses_rf.device.base import Fakeable
+from tests_rf.helpers import _binding_test_wrapper
 
 _State = TypeVar("_State", bound=State)
-
+_Faked = TypeVar("_Faked", bound=Fakeable)
 
 ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
 MAX_SLEEP = 1  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
-XXXX_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
+CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
 
 TEST_DATA = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
 )  # supplicant, respondent, codes
 
 
-async def assert_context_state(  # NOTE: not a duplicate function (cf: max_sleep)
+async def assert_context_state(
     ctx: Context, expected_state: type[_State], max_sleep: int = 0
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
@@ -54,7 +55,7 @@ def binding_test_decorator(fnc):
     return test_binding_wrapper
 
 
-async def _phase_0(supplicant: _Device, respondent: _Device) -> None:
+async def _phase_0(supplicant: _Faked, respondent: _Faked) -> None:
     """Set the initial Context for each Device.
 
     Asserts the initial state and the result.
@@ -66,11 +67,14 @@ async def _phase_0(supplicant: _Device, respondent: _Device) -> None:
     respondent._context = Context.respondent(respondent)
     supplicant._context = Context.supplicant(supplicant)
 
+    assert respondent._context is not None
+    assert supplicant._context is not None
+
     await assert_context_state(supplicant._context, BindState.OFFERING)
     await assert_context_state(respondent._context, BindState.LISTENING)
 
 
-async def _phase_1(supplicant: _Device, respondent: _Device) -> None:
+async def _phase_1(supplicant: _Faked, respondent: _Faked) -> None:
     """The supplicant sends an Offer, which is received by both.
 
     Asserts the initial state and the result.
@@ -89,7 +93,7 @@ async def _phase_1(supplicant: _Device, respondent: _Device) -> None:
     await assert_context_state(respondent._context, BindState.ACCEPTING)
 
 
-async def _phase_2(supplicant: _Device, respondent: _Device) -> None:
+async def _phase_2(supplicant: _Faked, respondent: _Faked) -> None:
     """The respondent sends an Accept, which is received by both.
 
     Asserts the initial state and the result.
@@ -108,7 +112,7 @@ async def _phase_2(supplicant: _Device, respondent: _Device) -> None:
     await assert_context_state(supplicant._context, BindState.CONFIRMING)
 
 
-async def _phase_3(supplicant: _Device, respondent: _Device) -> None:
+async def _phase_3(supplicant: _Faked, respondent: _Faked) -> None:
     """The supplicant sends a Confirm, which is received by both.
 
     Asserts the initial state and the result.
@@ -126,23 +130,55 @@ async def _phase_3(supplicant: _Device, respondent: _Device) -> None:
     respondent._context._rcvd_confirm(src=supplicant)
     await assert_context_state(respondent._context, BindState.BOUND_ACCEPTED)
 
+    await assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
+
+
+async def _phase_4(supplicant: _Faked, respondent: _Faked) -> None:
+    """The supplicant sends remaining Confirms, and transitions to Bound.
+
+    Asserts the initial state and the result.
+    """
+
+    assert isinstance(respondent._context, Context)  # also needed for mypy
+    assert isinstance(supplicant._context, Context)  # also needed for mypy
+
+    await assert_context_state(respondent._context, BindState.BOUND)
+    await assert_context_state(supplicant._context, BindState.CONFIRMED)
+
+    supplicant._context._sent_confirm()
+    supplicant._context._rcvd_confirm(src=supplicant)
+    respondent._context._rcvd_confirm(src=supplicant)
+
+    supplicant._context._sent_confirm()
+    supplicant._context._rcvd_confirm(src=supplicant)
+    respondent._context._rcvd_confirm(src=supplicant)
+
+    await assert_context_state(respondent._context, BindState.BOUND)
+    await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
+
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@patch("ramses_rf.bind_state.CONFIRM_TIMEOUT_SECS", CONFIRM_TIMEOUT_SECS)
 @binding_test_decorator
-async def test_binding_flow_1(supplicant: _Device, respondent: _Device, _):
+async def test_binding_flow_0(supplicant: _Faked, respondent: _Faked, _):
     """Check the change of state during a faultless binding."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
-    await _phase_1(supplicant, respondent)  # The supplicant Offers, both receive it
-    await _phase_2(supplicant, respondent)  # The respondent Accepts, both receive it
-    await _phase_3(supplicant, respondent)  # The supplicant Confirms, both receive it
+    await _phase_1(supplicant, respondent)  # The supplicant Offers x1, both receive
+    await _phase_2(supplicant, respondent)  # The respondent Accepts x1, both receivet
+    await _phase_3(supplicant, respondent)  # The supplicant Confirms x1, both receive
+    await _phase_4(supplicant, respondent)  # The supplicant Confirms x2, both receive
+
+    assert isinstance(respondent._context, Context)  # also needed for mypy
+    assert isinstance(supplicant._context, Context)  # also needed for mypy
+
+    await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
+    await assert_context_state(respondent._context, BindState.BOUND)  # after rx x1
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 @binding_test_decorator
-async def test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
+async def test_binding_flow_1(supplicant: _Faked, respondent: _Faked, _):
     """Check for inappropriate change of state (BindFlowError)."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
@@ -177,9 +213,44 @@ async def test_binding_flow_2(supplicant: _Device, respondent: _Device, _):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
+@patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", 0)
 @binding_test_decorator
-async def test_binding_init_1(supplicant: _Device, respondent: _Device, _):
+async def test_binding_flow_2(supplicant: _Faked, respondent: _Faked, _):
+    """Check for inappropriate change of state (BindFlowError)."""
+
+    await _phase_0(supplicant, respondent)  # For each Device, create a Context
+
+    assert isinstance(respondent._context, Context)  # needed for mypy
+    assert isinstance(supplicant._context, Context)  # needed for mypy
+
+    supplicant._context._sent_offer()
+    supplicant._context._sent_offer()
+    supplicant._context._sent_offer()
+
+    try:  # BAD: The supplicant (Offering) sends a 4th Offer
+        supplicant._context._sent_offer()
+    except Exceptions.BindFlowError:
+        pass
+
+    await assert_context_state(supplicant._context, BindState.UNKNOWN)
+    assert supplicant._context.state._prev_state.__class__ is BindState.OFFERED
+
+    try:  # BAD: The supplicant (now Unknown) sends an Offer
+        supplicant._context._sent_offer()
+    except Exceptions.BindStateError:
+        pass
+
+    await assert_context_state(supplicant._context, BindState.UNKNOWN)
+    assert supplicant._context.state._prev_state.__class__ is BindState.OFFERED
+
+    # BAD: The respondant never got the Offer
+    await assert_context_state(respondent._context, BindState.UNKNOWN, max_sleep=1)
+    assert respondent._context.state._prev_state.__class__ is BindState.LISTENING
+
+
+@pytest.mark.xdist_group(name="serial")
+@binding_test_decorator
+async def test_binding_init_1(supplicant: _Faked, respondent: _Faked, _):
     """Create both Contexts via init (first try bad initial States)."""
 
     assert respondent._context is None
@@ -204,9 +275,8 @@ async def test_binding_init_1(supplicant: _Device, respondent: _Device, _):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.XXXX_TIMEOUT_SECS", XXXX_TIMEOUT_SECS)
 @binding_test_decorator
-async def test_binding_init_2(supplicant: _Device, respondent: _Device, _):
+async def test_binding_init_2(supplicant: _Faked, respondent: _Faked, _):
     """Create both Contexts via constructors (then try bad previous States)."""
 
     assert respondent._context is None

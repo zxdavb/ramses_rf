@@ -15,6 +15,7 @@ from serial.tools import list_ports
 
 from ramses_rf import Command, Device, Gateway
 from ramses_rf.device import Fakeable
+from ramses_rf.protocol import Address
 from ramses_rf.schemas import SCH_GLOBAL_CONFIG
 from ramses_rf.system import System
 from tests_rf.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl, MockGateway
@@ -126,11 +127,11 @@ CONFIG = {
 }
 
 
-class FakeableDevice(Device, Fakeable):
-    _gwy: Gateway  # for mypy typing
+class FakeableDevice(Address, Fakeable):  # for mypy typing
+    _gwy: Gateway
 
 
-_Device = TypeVar("_Device", bound="FakeableDevice")
+_Faked = TypeVar("_Faked", bound="FakeableDevice")
 
 
 def make_device_fakeable(dev: Device) -> None:
