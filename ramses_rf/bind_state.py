@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from abc import ABC
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
@@ -200,7 +199,7 @@ class Context:
         self._state.sent_confirm()  # raises BindRetryError if RETRY_LIMIT exceeded
 
 
-class State(ABC):
+class State:
     """The common state interface for all the states."""
 
     _has_wait_timer: bool = False
