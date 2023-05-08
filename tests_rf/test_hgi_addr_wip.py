@@ -121,10 +121,10 @@ async def test_hgi_addr_evofw3(test_idx):
 
 
 @pytest.mark.xdist_group(name="serial")
-async def test_hgi_addr_native(test_idx):
+async def test_hgi_addr_native_WIP(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    if test_idx not in (0, 2):
+    if test_idx not in (0, 2):  # TODO: FIXME
         await _test_hgi_addr(
             HgiFwTypes.NATIVE, CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx]
         )
