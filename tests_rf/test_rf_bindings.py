@@ -20,10 +20,11 @@ from tests_rf.helpers import _binding_test_wrapper, _Faked
 _State = TypeVar("_State", bound=State)
 
 
-ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
-MAX_SLEEP = 3  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
-
 CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
+
+ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
+DEFAULT_MAX_SLEEP = 1
+
 
 TEST_DATA = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
@@ -44,7 +45,7 @@ def pytest_generate_tests(metafunc):
 
 
 async def assert_this_pkt_hdr(
-    gwy: Gateway, expected_hdr: str, max_sleep: int = MAX_SLEEP
+    gwy: Gateway, expected_hdr: str, max_sleep: int = DEFAULT_MAX_SLEEP
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -55,7 +56,7 @@ async def assert_this_pkt_hdr(
 
 
 async def assert_this_pkt_hdr_wrapper(
-    gwy: Gateway, expected_hdr: str, max_sleep: int = MAX_SLEEP
+    gwy: Gateway, expected_hdr: str, max_sleep: int = DEFAULT_MAX_SLEEP
 ) -> Packet:
     await assert_this_pkt_hdr(gwy, expected_hdr, max_sleep)
 
@@ -64,7 +65,9 @@ async def assert_this_pkt_hdr_wrapper(
 
 
 async def assert_context_state(
-    ctx: Context | None, expected_state: type[_State], max_sleep: int = MAX_SLEEP
+    ctx: Context | None,
+    expected_state: type[_State],
+    max_sleep: int = DEFAULT_MAX_SLEEP,
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)

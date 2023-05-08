@@ -12,8 +12,11 @@ import serial
 from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import VirtualRf
 
-MAX_SLEEP = 1
-MIN_GAP_BETWEEN_WRITES = 0
+MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
+
+ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
+DEFAULT_MAX_SLEEP = 1
+
 
 CONFIG = {
     "config": {
@@ -40,29 +43,31 @@ async def assert_code_in_device_msgz(
     gwy: Gateway,
     dev_id: str,
     code: Code,
-    max_sleep: int = MAX_SLEEP,
+    max_sleep: int = DEFAULT_MAX_SLEEP,
     test_not: bool = False,
 ):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if ((dev := gwy.device_by_id.get(dev_id)) and (code in dev._msgz)) != test_not:
             break
     assert ((dev := gwy.device_by_id.get(dev_id)) and (code in dev._msgz)) != test_not
 
 
 async def assert_devices(
-    gwy: Gateway, devices: list[Device], max_sleep: int = MAX_SLEEP
+    gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
 ):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if len(gwy.devices) == len(devices):
             break
     assert sorted(d.id for d in gwy.devices) == sorted(devices)
 
 
-async def assert_this_pkt(pkt_protocol, cmd: Command, max_sleep: int = MAX_SLEEP):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+async def assert_this_pkt(
+    pkt_protocol, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP
+):
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if pkt_protocol._this_pkt and pkt_protocol._this_pkt._frame == cmd._frame:
             break
     assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._frame == cmd._frame

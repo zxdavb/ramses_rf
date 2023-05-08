@@ -21,10 +21,13 @@ from tests_rf.helpers import _binding_test_wrapper
 _State = TypeVar("_State", bound=State)
 _Faked = TypeVar("_Faked", bound=Fakeable)
 
-ASSERT_CYCLE_TIME = 0.001  # to be 1/10th of protocols min, 0.001?
-MAX_SLEEP = 1  # max_cycles_per_assert = MAX_SLEEP / ASSERT_CYCLE_TIME
 
 CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
+WAITING_TIMEOUT_SECS = 0  # to patch ramses_rf.bind_state
+
+ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
+DEFAULT_MAX_SLEEP = 1
+
 
 TEST_DATA = (
     (("40:111111", "CO2"), ("41:888888", "FAN"), ("1298",)),
@@ -213,7 +216,7 @@ async def test_binding_flow_1(supplicant: _Faked, respondent: _Faked, _):
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", 0)
+@patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", WAITING_TIMEOUT_SECS)
 @binding_test_decorator
 async def test_binding_flow_2(supplicant: _Faked, respondent: _Faked, _):
     """Check for inappropriate change of state (BindFlowError)."""

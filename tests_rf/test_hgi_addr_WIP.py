@@ -14,8 +14,11 @@ import pytest
 from ramses_rf import Command, Device, Gateway
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
-MIN_GAP_BETWEEN_WRITES = 1
+MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
+
+ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.005
+
 
 GWY_ID_ = "18:111111"
 
@@ -61,8 +64,8 @@ async def _alert_is_impersonating(self, cmd: Command) -> None:
 async def assert_devices(
     gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
 ):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if len(gwy.devices) == len(devices):
             break
     assert sorted(d.id for d in gwy.devices) == sorted(devices)
@@ -71,8 +74,8 @@ async def assert_devices(
 async def assert_expected_pkt(
     gwy: Gateway, expected_frame: str, max_sleep: int = DEFAULT_MAX_SLEEP
 ):
-    for _ in range(int(max_sleep / 0.001)):
-        await asyncio.sleep(0.001)
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
         if gwy._this_msg and str(gwy._this_msg._pkt) == expected_frame:
             break
     assert str(gwy._this_msg._pkt) == expected_frame
