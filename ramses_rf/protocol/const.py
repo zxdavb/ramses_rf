@@ -595,6 +595,7 @@ RP = "RP"
 W_ = " W"
 
 
+# @verify(UNIQUE)  # TODO: v3.11+
 class Code(StrEnum):
     _0001 = "0001"
     _0002 = "0002"
