@@ -73,13 +73,13 @@
 2022-11-10T20:43:45.452809 060  I --- 32:236773 63:262142 --:------ 10E0 030 000001C85F0E0267FFFFFFFFFFFFFFFFFFFF564D432D3135525053333400                  # {'description': 'VMC-15RPS34',         'date_2': '0000-00-00', 'date_1': '0000-00-00', 'manufacturer_sub_id': 'C8', 'product_id': '5F', 'oem_code': '67'}  # Orcon MVS-15?
 
 
-# Vasco CH/DHW and HVAC - oen_code '66'?
+# Vasco CH/DHW and HVAC - oem_code '66'?
 2023-02-18T19:56:43.537735 059  I --- 29:136571 63:262142 --:------ 10E0 038 000001C822030166FEFFFFFFFFFF070507DF564D532D31374330310000000000000000000000  # {'description': 'VMS-17C01',           'date_2': '0000-00-00', 'date_1': '2015-05-07', 'manufacturer_sub_id': 'C8', 'product_id': '22', 'oem_code': '66'}  # CO2 sensor
 2023-02-19T11:37:53.826773 032  I --- 30:006056 63:262142 --:------ 10E0 038 000001C848260066FEFEFFFFFFFF1C0B07E3425244472D3032454D3233000000000000000000  # {'description': 'BRDG-02EM23',         'date_2': '0000-00-00', 'date_1': '2019-11-28', 'manufacturer_sub_id': 'C8', 'product_id': '48', 'oem_code': '66'}  # Vasco gateway (more like a CTL, but also RFG)
 2023-02-19T11:37:59.549235 072 RP --- 29:079817 30:006056 --:------ 10E0 029 000001C81C090466FEFFFFFFFFFFFFFFFFFF564D432D31375250303100                    # {'description': 'VMC-17RP01',          'date_2': '0000-00-00', 'date_1': '0000-00-00', 'manufacturer_sub_id': 'C8', 'product_id': '1C', 'oem_code': '66'}  # Vasco C400RF extraction unit (EXT, not HRU/PIV)
 
 
-# Itho Spider HVAC -  - oen_code '01'?
+# Itho Spider HVAC - oem_code '01'?
 2023-02-17T17:25:15.843652 ...  I --- 21:033244 63:262142 --:------ 10E0 038 00000100220B0001FEFFFFFFFFFF140107DF4343552D31325432300000000000000000000000  # {'description': 'CCU-12T20',           'date_2': '0000-00-00', 'date_1': '2015-01-20', 'manufacturer_sub_id': '00', 'product_id': '22', 'oem_code': '01'}  # '_signature': '000100220B0001FEFF'
 2023-02-17T14:09:33.394018 ...  I --- 37:108640 --:------ 37:108640 10E0 038 000001001B381B01FEFFFFFFFFFF0E0207E44356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'date_2': '0000-00-00', 'date_1': '2020-02-14', 'manufacturer_sub_id': '00', 'product_id': '1B', 'oem_code': '01'}
 2023-02-18T12:14:03.120035 ...  I --- 37:062388 --:------ 37:062388 10E0 038 000001001B371B01FEFFFFFFFFFF1D0807E34356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'date_2': '0000-00-00', 'date_1': '2019-08-29', 'manufacturer_sub_id': '00', 'product_id': '1B', 'oem_code': '01'}
