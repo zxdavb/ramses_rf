@@ -359,22 +359,20 @@ class Command(Frame):
         else:
             seqn = f"{int(seqn):03d}"
 
-        len_ = f"{int(len(payload) / 2):03d}"
-
         frame = " ".join(
             (
                 verb,
                 seqn,
                 *(a.id for a in addrs),
                 code,
-                len_,
+                f"{int(len(payload) / 2):03d}",
                 payload,
             )
         )
 
         return cls(frame, **kwargs)
 
-    @classmethod  # used by CLI for -x switch
+    @classmethod  # used by CLI for -x switch (NB: no len field)
     def from_cli(cls, cmd_str: str, **kwargs):
         """Create a command from a CLI string (the -x switch).
 
