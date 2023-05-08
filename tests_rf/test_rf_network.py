@@ -10,7 +10,7 @@ import pytest
 import serial
 
 from ramses_rf import Code, Command, Device, Gateway
-from tests_rf.virtual_rf import VirtualRF
+from tests_rf.virtual_rf import VirtualRf
 
 MAX_SLEEP = 1
 MIN_GAP_BETWEEN_WRITES = 0
@@ -77,8 +77,7 @@ async def assert_this_pkt(pkt_protocol, cmd: Command, max_sleep: int = MAX_SLEEP
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    rf = VirtualRF(3)
-    await rf.start()
+    rf = VirtualRf(3)
 
     gwy_0 = Gateway(rf.ports[0], **CONFIG)
     gwy_1 = Gateway(rf.ports[1], **CONFIG)
@@ -132,8 +131,7 @@ async def test_virtual_rf_dev_disc():
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 
-    rf = VirtualRF(2)
-    await rf.start()
+    rf = VirtualRf(2)
 
     gwy_0 = Gateway(rf.ports[0], **CONFIG, **SCHEMA_0)
     gwy_1 = Gateway(rf.ports[1], **CONFIG, **SCHEMA_1)

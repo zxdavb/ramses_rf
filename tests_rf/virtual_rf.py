@@ -13,7 +13,7 @@ from collections import deque
 from contextlib import ExitStack
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
-from typing import Generator, TypeAlias
+from typing import TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
 
@@ -28,8 +28,12 @@ _PN: TypeAlias = str  # port name
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
 
+DEFAULT_GWY_ID = bytes("18:000730", "ascii")
+DEVICE_ID = "device_id"
+DEVICE_ID_BYTES = "device_id_bytes"
+FW_VERSION = "fw_version"
 
-FW_VERSION = "FW version"
+MAX_NUM_PORTS = 32
 
 
 class HgiFwTypes(StrEnum):
@@ -37,31 +41,32 @@ class HgiFwTypes(StrEnum):
     NATIVE = "Honeywell HGI80"
 
 
-class VirtualRF:
+class VirtualRfBase:
     """A virtual many-to-many network of serial port (a la RF network).
 
-    Creates a collection of serial ports. When data is received from any one port, it is
-    sent to all the other ports.
+    Creates a collection of serial ports. When data frames are received from any one
+    port, they are sent to all the other ports.
 
-    If a HGI sends a frame, its addr0 will be changed according to the expected
-    behaviours of real HGI80s: 0th port will be 18:018000, 34th port  will be 18:018034.
+    The data frames are in the RAMSES_II format, terminated by `\\r\\n`.
     """
 
-    def __init__(self, num_ports: int, log_size: int = 100, **kwargs: dict) -> None:
-        """Create `num_ports` virtual serial ports.
+    def __init__(self, num_ports: int, log_size: int = 100) -> None:
+        """Create `num_ports` virtual serial ports."""
 
-        If addr0 of the frame is '18:000730', it will be modified appropriately.
-        """
+        if 0 > num_ports > MAX_NUM_PORTS:
+            raise ValueError(f"Port limit exceeded: {num_ports}")
 
         self._loop = asyncio.get_running_loop()
-        self.rx_log: deque[tuple[str, bytes]] = deque([], log_size)
-        self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)
+        self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to Device
+        self.rx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to RF
 
-        self._file_objs: dict[_FD, FileIO] = {}  # master fd to file (port) object
+        self._file_objs: dict[_FD, FileIO] = {}  # master fd to port object, for I/O
         self._pty_names: dict[_FD, _PN] = {}  # master fd to slave port name, for logger
-        self._tty_names: dict[_FD, _PN] = {}  # slave fd to its port name
+        self._tty_names: dict[_PN, _FD] = {}  # slave port name to slave fd, for cleanup
 
         # self._setup_event_handlers()  # TODO: needs fixing/testing
+        if os.name != "posix":
+            raise RuntimeError(f"Unsupported OS for this module: {os.name} (termios)")
 
         for idx in range(num_ports):
             self._create_port(idx)
@@ -76,19 +81,13 @@ class VirtualRF:
         os.set_blocking(master_fd, False)  # make non-blocking
 
         self._file_objs[master_fd] = open(master_fd, "rb+", buffering=0)
-        self._pty_names[master_fd] = self._tty_names[slave_fd] = os.ttyname(slave_fd)
-        # self._hgi_names[master_fd] = bytes(f"18:018{port_idx:03d}", "ascii")
+        self._pty_names[master_fd] = os.ttyname(slave_fd)
+        self._tty_names[os.ttyname(slave_fd)] = slave_fd
 
     @property
-    def ports(self) -> list[str]:
-        return list(self._tty_names.values())
-
-    # def set_gateway(
-    #         self, port_idx: int, fw_version: HgiFwTypes = HgiFwTypes.EVOFW3
-    # ) -> None:
-    #     if fw_version not in HgiFwTypes:
-    #         raise LookupError
-    #     self._gateways[port_idx][FW_VERSION] = fw_version
+    def ports(self) -> list[_PN]:
+        """Return a list of the names of the serial ports."""
+        return list(self._tty_names)
 
     async def stop(self) -> None:
         """Stop polling ports and distributing data."""
@@ -108,16 +107,16 @@ class VirtualRF:
 
         for f in self._file_objs.values():
             f.close()  # also closes corresponding master fd
-        for fd in self._tty_names:
+        for fd in self._tty_names.values():
             os.close(fd)  # else this slave fd will persist
 
-    async def start(self) -> asyncio.Task:
-        """Start polling ports and distributing data."""
+    def start(self) -> asyncio.Task:
+        """Start polling ports and distributing data, calls `pull_data_from_port()`."""
 
-        self._task = self._loop.create_task(self._poll_ports_for_data_and_pull())
+        self._task = self._loop.create_task(self._poll_ports_for_data())
         return self._task
 
-    async def _poll_ports_for_data_and_pull(self) -> None:
+    async def _poll_ports_for_data(self) -> None:
         """Send data received from any one port (as .write(data)) to all other ports."""
 
         with DefaultSelector() as selector, ExitStack() as stack:
@@ -129,37 +128,47 @@ class VirtualRF:
                 for key, event_mask in selector.select(timeout=0):
                     if not event_mask & EVENT_READ:
                         continue
-                    self._pull_data_from_port_and_cast_as_frames(key.fileobj)  # type: ignore[arg-type]  # fileobj type is int | HasFileno
+                    self._pull_data_from_src_port(key.fileobj)  # type: ignore[arg-type]  # fileobj type is int | HasFileno
                     await asyncio.sleep(0)
                 else:
                     await asyncio.sleep(0.001)
 
-    def _pull_data_from_port_and_cast_as_frames(self, master: _FD) -> None:
-        """Pull the data from the sending port and cast any frames to all ports."""
+    def _pull_data_from_src_port(self, master: _FD) -> None:
+        """Pull the data from the sending port and process any frames."""
 
         data = self._file_objs[master].read()  # read the Tx'd data
         self.tx_log.append((self._pty_names[master], data))
 
         # this assumes all .write(data) are 1+ whole frames terminated with \r\n
-        self._cast_frames_to_all_ports(
-            master, (d + b"\r\n" for d in data.split(b"\r\n") if d and d[:1] != b"!")
-        )
+        for frame in (d + b"\r\n" for d in data.split(b"\r\n") if d):  # ignore b""
+            if f := self._proc_before_tx(frame, master):
+                self._cast_frame_to_all_ports(f, master)
 
-    def _cast_frames_to_all_ports(
-        self, master: _FD, frames: Generator[bytes, None, None]
-    ) -> None:
-        """Cast each frame to all ports in the RSSI + frame format."""
+    def _cast_frame_to_all_ports(self, frame: bytes, master: _FD) -> None:
+        """Push the frame from the sending port and cast any frames."""
 
-        for frame in frames:
-            # changing addr0 is performed by the sending serial device
-            # if frame[7:16] == b"18:000730":
-            #     frame = frame[:7] + self._hgi_names[master] + frame[16:]
+        _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
+        for fd in self._file_objs:
+            self._push_frame_to_dst_port(frame, fd)
 
-            _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
+    def _push_frame_to_dst_port(self, frame: bytes, master: _FD) -> None:
+        """Push the frame from the sending port and cast any frames."""
 
-            # adding the RSSI is performed by the receiving serial device
-            self.rx_log.append((self._pty_names[master], frame))
-            _ = [f.write(b"000 " + frame) for f in self._file_objs.values()]
+        if f := self._proc_after_rx(frame, master):
+            self.rx_log.append((self._pty_names[master], f))
+            self._file_objs[master].write(f)
+
+    def _proc_after_rx(
+        self, frame: bytes, master: _FD
+    ) -> None | bytes:  # convenience func
+        """Allow the device to modify the frame after receiving (e.g. adding RSSI)."""
+        return frame
+
+    def _proc_before_tx(
+        self, frame: bytes, master: _FD
+    ) -> None | bytes:  # convenience func
+        """Allow the device to modify the frame before sending (e.g. changing addr0)."""
+        return frame
 
     def _setup_event_handlers(self) -> None:
         def handle_exception(loop, context):
@@ -186,7 +195,92 @@ class VirtualRF:
                     sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
                 )
         else:  # unsupported OS
-            raise RuntimeError(f"Unsupported OS for this module: {os.name}")
+            raise RuntimeError(f"Unsupported OS for this module: {os.name} (termios)")
+
+
+class VirtualRf(VirtualRfBase):
+    """A virtual many-to-many network of serial port with HGI80s (or compatible).
+
+    If the HGI itself is the source of a frame, its addr0 (+/- addr1, addr2) will be
+    changed according to the expected behaviours of of that firmware.
+    """
+
+    def __init__(self, num_ports: int, log_size: int = 100, start: bool = True) -> None:
+        """Create `num_ports` virtual serial ports.
+
+        If addr0 of the frame is '18:000730', the frame will be modified appropriately.
+        """
+        self._gateways: dict[_PN, dict] = {}
+
+        super().__init__(num_ports, log_size)
+
+        if start:
+            self.start()
+
+    @property
+    def gateways(self) -> dict[str, _PN]:
+        return {v[DEVICE_ID]: k for k, v in self._gateways.items()}
+
+    def set_gateway(
+        self,
+        port_name: _PN,
+        device_id: str,
+        fw_version: HgiFwTypes = HgiFwTypes.EVOFW3,
+    ) -> None:
+        if port_name not in self.ports:
+            raise LookupError(f"Port does not exist: {port_name}")
+
+        if [v for k, v in self.gateways.items() if k != port_name and v == device_id]:
+            raise LookupError(f"Gateway exists on another port: {device_id}")
+
+        if fw_version not in HgiFwTypes:
+            raise LookupError(f"Unknown FW specified for gateway: {fw_version}")
+
+        self._gateways[port_name] = {
+            DEVICE_ID: device_id,
+            FW_VERSION: fw_version,
+            DEVICE_ID_BYTES: bytes(device_id, "ascii"),
+        }
+
+    def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
+        """The RSSI is added by the receiving HGI80-compatible device after Rx.
+
+        Return None if the bytes are not to be Rx by this device.
+        """
+
+        if frame[:1] != b"!":
+            return b"000 " + frame
+
+        if (gwy := self._gateways.get(self._pty_names[master])) and (
+            gwy[FW_VERSION] != HgiFwTypes.EVOFW3
+        ):
+            return None
+
+        return frame  # TODO: append the ! response
+
+    def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
+        """The addr0 may be changed by the sending HGI80-compatible device before Tx.
+
+        Return None if the bytes are not to be Tx to the RF ether.
+        """
+
+        if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
+            self._push_frame_to_dst_port(frame, master)
+            return None
+
+        # The type of Gateway will tell us what to do next
+        gwy = self._gateways.get(self._pty_names[master])  # here, gwy is not a Gateway
+
+        if gwy is None or DEFAULT_GWY_ID not in frame:
+            return frame
+
+        if gwy[FW_VERSION] == HgiFwTypes.EVOFW3:
+            return gwy[DEVICE_ID_BYTES].join(frame.split(DEFAULT_GWY_ID))
+
+        if frame[7:16] == DEFAULT_GWY_ID:  # is HgiFwTypes.NATIVE
+            return frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
+
+        return frame
 
 
 async def main():
@@ -194,12 +288,10 @@ async def main():
 
     num_ports = 3
 
-    rf = VirtualRF(num_ports)
+    rf = VirtualRf(num_ports)
     print(f"Ports are: {rf.ports}")
 
     sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]  # type: ignore[annotation-unchecked]
-
-    await rf.start()
 
     for i in range(num_ports):
         sers[i].write(bytes(f"Hello World {i}! ", "utf-8"))

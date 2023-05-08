@@ -19,7 +19,7 @@ from ramses_rf.protocol import Address
 from ramses_rf.schemas import SCH_GLOBAL_CONFIG
 from ramses_rf.system import System
 from tests_rf.mock import CTL_ID, MOCKED_PORT, MockDeviceCtl, MockGateway
-from tests_rf.virtual_rf import VirtualRF
+from tests_rf.virtual_rf import VirtualRf
 
 # import tracemalloc
 # tracemalloc.start()
@@ -159,8 +159,10 @@ async def _stifle_impersonation_alerts(self, cmd: Command) -> None:
 async def _binding_test_wrapper(
     fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
 ):
-    rf = VirtualRF(2)
-    await rf.start()
+    rf = VirtualRf(2)
+
+    rf.set_gateway(rf.ports[0], "18:111111")
+    rf.set_gateway(rf.ports[1], "18:222222")
 
     gwy_0 = Gateway(rf.ports[0], **CONFIG, **supp_schema)
     gwy_1 = Gateway(rf.ports[1], **CONFIG, **resp_schema)
