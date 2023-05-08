@@ -15,7 +15,7 @@
 2023-03-19T23:38:49.595358 ...  I --- 02:250984 02:250704 --:------ 4E04 003 0001FF  # {'mode': '01', '_unknown_2': 'FF'}
 
 
-# only seen these W|4E04|0020 - never seen a I to this - likely poor reception eption from 02:251002
+# only seen these W|4E04|0020 - never seen a I to this - likely poor reception from 02:251002
 2023-03-19T20:47:43.534456 091  W --- 02:250677 02:251002 --:------ 4E04 003 000208  # {'mode': '02', '_unknown_2': '08'}
 2023-03-19T20:48:03.467526 093  W --- 02:250677 02:251002 --:------ 4E04 003 00020E  # {'mode': '02', '_unknown_2': '0E'}
 

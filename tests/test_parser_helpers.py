@@ -30,7 +30,7 @@ from ramses_rf.system.zones import _transform
 from tests.helpers import gwy  # noqa: F401
 from tests.helpers import TEST_DIR, assert_raises
 
-WORK_DIR = f"{TEST_DIR}/helpers"
+WORK_DIR = f"{TEST_DIR}/parser_helpers"
 
 
 def test_merge_dicts() -> None:

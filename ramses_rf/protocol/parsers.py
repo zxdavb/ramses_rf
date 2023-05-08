@@ -1480,37 +1480,25 @@ def parser_22c9(payload, msg) -> list:
     return _parser(payload[:12])
 
 
-@parser_decorator  # unknown_22d0, HVAC system switch?
+@parser_decorator  # unknown_22d0, UFH system mode (heat/cool)
 def parser_22d0(payload, msg) -> dict:
-    # When closing H/C contact (or enabling cooling mode with buttons when H/C contact is closed) on HCE80 it sends following packet:
-    # .I --- 02:044994 --:------ 02:044994 22D0 004 0010000A < AssertionError…
-
-    # When H/C contact is opened, it send the following packet (although this packet is not transmitted, when cooling mode is disabled with buttons):
-    # .I --- 02:044994 --:------ 02:044994 22D0 004 0000000A < AssertionError…
-
-    # .I --- 02:001107 --:------ 02:001107 22D0 004 00000002           # a UFC
-
-    # HVAC devices: 21: Itho Spider, 02: Itho Autotemp heating valve
-    # .W --- 21:064743 02:250708 --:------ 22D0 008 0314001E-14030020  # likely not an array
-    # .I --- 02:250708 21:064743 --:------ 22D0 004 03130000           # response to above
-    # .I --- 02:250708 --:------ 02:250708 22D0 004 00130000           # sends 3x, 1s apart, no idx
-
-    # 008 03-02-001E14030020  # WPU off/standby
-    # 008 03-04-001E14030020  # WPU heating mode
-    # 008 03-12-001E14030020  # WPU cooling mode
-
     def _parser(seqx) -> dict:
         # assert seqx[2:4] in ("00", "03", "10", "13", "14"), _INFORM_DEV_MSG
         assert seqx[4:6] == "00", _INFORM_DEV_MSG
         return {
             "idx": seqx[:2],
-            "cool_mode": bool(int(seqx[2:4]) & 0x10),
             "_flags": flag8_from_hex(seqx[2:4]),
+            "cool_mode": bool(int(seqx[2:4], 16) & 0x02),
+            "heat_mode": bool(int(seqx[2:4], 16) & 0x04),
+            "is_active": bool(int(seqx[2:4], 16) & 0x10),
             "_unknown": payload[4:],
         }
 
-    if len(payload) > 8:
-        return [_parser(payload[x : x + 8]) for x in range(0, len(payload), 8)]
+    if len(payload) == 8:
+        assert payload[6:] in ("00", "02", "0A"), _INFORM_DEV_MSG
+    else:
+        assert payload[4:] == "001E14030020", _INFORM_DEV_MSG
+
     return _parser(payload)
 
 
