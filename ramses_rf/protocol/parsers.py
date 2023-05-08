@@ -2702,13 +2702,7 @@ def parser_4e02(payload, msg) -> dict:  # sent a triplets, 1 min apart
 @parser_decorator  # hvac_4e04
 def parser_4e04(payload, msg) -> dict:
     assert payload[2:4] in ("00", "01", "02")  # off/heat/cool?
-    assert payload[4:] in (
-        "00",
-        "01",  # 0b00000001
-        "08",  # 0b00001000
-        "0C",  # 0b00001101
-        "0E",  # 0b00001110
-        "20",  # 0b00100000
+    assert int(payload[4:], 16) < 0x3C or payload[4:] in (
         "FB",  # error code?
         "FC",  # error code?
         "FD",  # error code?
