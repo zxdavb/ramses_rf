@@ -69,7 +69,7 @@ class Frame:
     dst: Address
     _addrs: tuple[Address, Address, Address]
     code: _CodeT
-    len_: str
+    len_: str  # FIXME: len_, _len & len(payload) / 2
     _len: int  # int(len(payload) / 2)
     payload: _PayloadT
 
@@ -80,10 +80,8 @@ class Frame:
         """
 
         self._frame = frame
-        if not isinstance(self._frame, str):
-            raise InvalidPacketError(f"Bad frame: not a string: {type(self._frame)}")
         if not COMMAND_REGEX.match(self._frame):
-            raise InvalidPacketError("Bad frame: invalid structure")
+            raise InvalidPacketError(f"Bad frame: invalid structure: >>>{frame}<<<")
 
         fields = frame.lstrip().split(" ")
 
