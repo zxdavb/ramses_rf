@@ -23,8 +23,12 @@ from .const import (
     SZ_AIR_QUALITY_BASIS,
     SZ_CO2_LEVEL,
     SZ_DEWPOINT_TEMP,
+    SZ_EXHAUST_TEMP,
     SZ_INDOOR_HUMIDITY,
+    SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
+    SZ_OUTDOOR_TEMP,
+    SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
 )
 
@@ -385,7 +389,7 @@ def valve_demand(value: HexStr2) -> Optional[dict]:  # c.f. percent_from_hex()
 
 @typechecked  # 31DA[2:6] and 12C8[2:6]
 def air_quality(value: HexStr4) -> dict[str, None | float | str]:
-    """Return the air_quality (%), poor (0.0) to excellent (1.0).
+    """Return the air quality (%): poor (0.0) to excellent (1.0).
 
     The basis of the air quality level should be one of: VOC, CO2 or relative humidity.
     If air_quality is EF, air_quality_basis should be 00.
@@ -423,7 +427,7 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
 
 @typechecked  # 31DA[6:10] and 1298[2:6]
 def co2_level(value: HexStr4) -> dict[str, None | int | str]:
-    """Return the co2_level (ppm).
+    """Return the co2 level (ppm).
 
     The sensor value is None if there is no sensor present (is not an error).
     The dict does not include the key if there is a sensor fault.
@@ -457,20 +461,18 @@ def co2_level(value: HexStr4) -> dict[str, None | int | str]:
 
 @typechecked  # 31DA[10:12] and 12A0[2:12]
 def indoor_humidity(value: str) -> dict[str, None | float | str]:
-    """Return the indoor_humidity (relative %).
+    """Return the relative indoor humidity (%).
 
-    The sensor value is None if there is no sensor present (is not an error).
-    The dict does not include the key if there is a sensor fault.
+    The result may include current temperature ('C), and dewpoint temperature ('C).
     """
     return _rel_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
 @typechecked  # 31DA[12:14] and 1280[2:12]
 def outdoor_humidity(value: str) -> dict[str, None | float | str]:
-    """Return the outdoor_humidity (relative %).
+    """Return the relative outdoor humidity (%).
 
-    The sensor value is None if there is no sensor present (is not an error).
-    The dict does not include the key if there is a sensor fault.
+    The result may include current temperature ('C), and dewpoint temperature ('C).
     """
     return _rel_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
@@ -479,9 +481,10 @@ def outdoor_humidity(value: str) -> dict[str, None | float | str]:
 def _rel_humidity(
     param_name: str, value: HexStr2, temp: HexStr4, dewpoint: HexStr4
 ) -> dict[str, None | float | str]:
-    """Return the relative humidity, etc., used by both indoor & outdoor humidity.
+    """Return the relative humidity, etc. (wrapped by sensor parsers).
 
-    May include current temperature ('C), and dewpoint temperature ('C).
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
     """
 
     # TODO: remove me
@@ -520,6 +523,66 @@ def _rel_humidity(
         result |= {SZ_DEWPOINT_TEMP: temp_from_hex(dewpoint)}
     return result
 
+
+@typechecked  # 31DA[14:18]
+def exhaust_temp(value: str) -> dict[str, None | float | str]:
+    """Return the exhaust temperature ('C)."""
+    return _temperature(SZ_EXHAUST_TEMP, value)
+
+
+@typechecked  # 31DA[18:22]
+def supply_temp(value: str) -> dict[str, None | float | str]:
+    """Return the supply temperature ('C)."""
+    return _temperature(SZ_SUPPLY_TEMP, value)
+
+
+@typechecked  # 31DA[22:26]
+def indoor_temp(value: str) -> dict[str, None | float | str]:
+    """Return the indoor temperature ('C)."""
+    return _temperature(SZ_INDOOR_TEMP, value)
+
+
+@typechecked  # 31DA[26:30] & 1290[2:6]?
+def outdoor_temp(value: str) -> dict[str, None | float | str]:
+    """Return the outdoor temperature ('C)."""
+    return _temperature(SZ_OUTDOOR_TEMP, value)
+
+
+@typechecked
+def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
+    """Return the temperature ('C) (wrapped by sensor parsers).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove me
+    if not isinstance(value, str) or len(value) != 4:
+        raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
+
+    if value == "7FFF":  # Not implemented
+        return {param_name: None}
+
+    FAULT_CODES = {  # NOTE: an educated guess
+        "80": SZ_SHORT_CIRCUIT,
+        "81": SZ_OPEN_CIRCUIT,
+        "82": SZ_UNAVAILABLE,
+        "83": SZ_TOO_HIGH,
+        "84": SZ_TOO_LOW,
+        "85": SZ_UNRELIABLE,
+    }
+
+    temperature = temp_from_hex(value)
+    if temperature < -273:
+        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
+        return {f"{SZ_CO2_LEVEL}_fault": fault}
+
+    return {param_name: temperature}  # was: temp_from_hex(value)
+
+
+SENSOR_PARSERS = {
+    SZ_OUTDOOR_TEMP: outdoor_temp,
+}
 
 # @typechecked
 # def pre_heat(value: HexStr2) -> dict[str, None | float | str]:

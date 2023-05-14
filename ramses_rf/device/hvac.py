@@ -20,12 +20,12 @@ from ..const import (
     SZ_CO2_LEVEL,
     SZ_EXHAUST_FAN_SPEED,
     SZ_EXHAUST_FLOW,
-    SZ_EXHAUST_TEMPERATURE,
+    SZ_EXHAUST_TEMP,
     SZ_FAN_INFO,
     SZ_INDOOR_HUMIDITY,
-    SZ_INDOOR_TEMPERATURE,
+    SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
-    SZ_OUTDOOR_TEMPERATURE,
+    SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
@@ -33,7 +33,7 @@ from ..const import (
     SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
-    SZ_SUPPLY_TEMPERATURE,
+    SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
     __dev_mode__,
 )
@@ -382,7 +382,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def exhaust_temperature(self) -> None | float:
-        return self._msg_value(Code._31DA, key=SZ_EXHAUST_TEMPERATURE)
+        return self._msg_value(Code._31DA, key=SZ_EXHAUST_TEMP)
 
     @property
     def fan_info(self) -> None | str:
@@ -394,7 +394,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def indoor_temperature(self) -> None | float:
-        return self._msg_value(Code._31DA, key=SZ_INDOOR_TEMPERATURE)
+        return self._msg_value(Code._31DA, key=SZ_INDOOR_TEMP)
 
     @property
     def outdoor_humidity(self) -> None | float:
@@ -402,7 +402,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def outdoor_temperature(self) -> None | float:
-        return self._msg_value(Code._31DA, key=SZ_OUTDOOR_TEMPERATURE)
+        return self._msg_value(Code._31DA, key=SZ_OUTDOOR_TEMP)
 
     @property
     def post_heat(self) -> Optional[int]:
@@ -430,7 +430,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def supply_temperature(self) -> None | float:
-        return self._msg_value(Code._31DA, key=SZ_SUPPLY_TEMPERATURE)
+        return self._msg_value(Code._31DA, key=SZ_SUPPLY_TEMP)
 
     @property
     def status(self) -> dict[str, Any]:

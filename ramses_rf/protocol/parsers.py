@@ -44,20 +44,17 @@ from .const import (
     SZ_DURATION,
     SZ_EXHAUST_FAN_SPEED,
     SZ_EXHAUST_FLOW,
-    SZ_EXHAUST_TEMPERATURE,
     SZ_FAN_INFO,
     SZ_FAN_MODE,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
     SZ_INDOOR_HUMIDITY,
-    SZ_INDOOR_TEMPERATURE,
     SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
     SZ_OUTDOOR_HUMIDITY,
-    SZ_OUTDOOR_TEMPERATURE,
     SZ_PAYLOAD,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
@@ -68,7 +65,6 @@ from .const import (
     SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
-    SZ_SUPPLY_TEMPERATURE,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_TOTAL_FRAGS,
@@ -95,11 +91,15 @@ from .helpers import (
     double_from_hex,
     dtm_from_hex,
     dts_from_hex,
+    exhaust_temp,
     flag8_from_hex,
     indoor_humidity,
+    indoor_temp,
     outdoor_humidity,
+    outdoor_temp,
     percent_from_hex,
     str_from_hex,
+    supply_temp,
     temp_from_hex,
     valve_demand,
 )
@@ -1064,8 +1064,8 @@ def parser_1280(payload, msg) -> dict:
 
 @parser_decorator  # outdoor temperature
 def parser_1290(payload, msg) -> dict:
-    # evohome responds to an RQ
-    return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
+    # evohome responds to an RQ, also from OTB
+    return outdoor_temp(payload[2:])
 
 
 @parser_decorator  # HVAC: co2_level, see: 31DA[6:10]
@@ -2171,28 +2171,28 @@ def parser_31da(payload, msg) -> dict:
     # 10 Bypass position                      SZ_BYPASS_POSITION
     # 11 Exhaust fan speed (%)                SZ_EXHAUST_FAN_SPEED
     # 12 Fan supply speed (%)                 SZ_SUPPLY_FAN_SPEED
-    # 13 Remaining after run time (humidity scenario) (min.)  SZ_REMAINING_TIME
+    # 13 Remaining after run time (min.)      SZ_REMAINING_TIME - for humidity scenario
     # 14 Preheater control (MaxComfort) (%)   SZ_PRE_HEAT
     # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW (Orcon is m3/h, data is L/s)
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
 
     return {
-        # **air_quality(payload[2:6]),  # %, 12C8[2:6]
-        # **co2_level(payload[6:10]),  # ppm, 1298[2:6]
+        **air_quality(payload[2:6]),  # %, 12C8[2:6]
+        **co2_level(payload[6:10]),  # ppm, 1298[2:6]
         **indoor_humidity(payload[10:12]),  # 12A0?
         **outdoor_humidity(payload[12:14]),  # high_res=False),
+        **exhaust_temp(payload[14:18]),
+        **supply_temp(payload[18:22]),
+        **indoor_temp(payload[22:26]),
+        **outdoor_temp(payload[26:30]),  # 1290?
         #
+        SZ_SPEED_CAP: int(payload[30:34], 16),
+        SZ_BYPASS_POSITION: percent_from_hex(payload[34:36]),
+        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_EXHAUST_FAN_SPEED: percent_from_hex(
             payload[38:40]
         ),  # maybe 31D9[4:6] for some?
-        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
-        SZ_EXHAUST_TEMPERATURE: temp_from_hex(payload[14:18]),
-        SZ_SUPPLY_TEMPERATURE: temp_from_hex(payload[18:22]),
-        SZ_INDOOR_TEMPERATURE: temp_from_hex(payload[22:26]),
-        SZ_OUTDOOR_TEMPERATURE: temp_from_hex(payload[26:30]),  # 1290?
-        SZ_SPEED_CAP: int(payload[30:34], 16),
-        SZ_BYPASS_POSITION: percent_from_hex(payload[34:36]),
         SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
         SZ_POST_HEAT: percent_from_hex(payload[46:48], high_res=False),
         SZ_PRE_HEAT: percent_from_hex(payload[48:50], high_res=False),
