@@ -1323,11 +1323,12 @@ _2411_PARAMS_SCHEMA: dict[str, dict] = {  # unclear if true for only Orcon/*all*
     },
 }
 
+# Actual ventilation speed
 _31DA_FAN_INFO: dict[int, str] = {
     0x00: "off",
-    0x01: "speed 1",  # low
-    0x02: "speed 2",  # medium
-    0x03: "speed 3",  # high
+    0x01: "speed 1",  # aka low
+    0x02: "speed 2",  # aka medium
+    0x03: "speed 3",  # aka high
     0x04: "speed 4",
     0x05: "speed 5",
     0x06: "speed 6",
@@ -1335,8 +1336,8 @@ _31DA_FAN_INFO: dict[int, str] = {
     0x08: "speed 8",
     0x09: "speed 9",
     0x0A: "speed 10",
-    0x0B: "speed 1 temporary override",
-    0x0C: "speed 2 temporary override",
+    0x0B: "speed 1 temporary override",  # timer
+    0x0C: "speed 2 temporary override",  # timer
     0x0D: "speed 3 temporary override",  # timer/boost? (timer 1, 2, 3)
     0x0E: "speed 4 temporary override",
     0x0F: "speed 5 temporary override",
@@ -1345,7 +1346,7 @@ _31DA_FAN_INFO: dict[int, str] = {
     0x12: "speed 8 temporary override",
     0x13: "speed 9 temporary override",
     0x14: "speed 10 temporary override",
-    0x15: "away",
+    0x15: "away",  # absolute minimum speed
     0x16: "absolute minimum",  # trickle?
     0x17: "absolute maximum",  # boost?
     0x18: "auto",
