@@ -18,7 +18,15 @@ from typing import (  # typeguard doesn't support PEP604 on 3.9.x
     Union,
 )
 
-from .const import SZ_AIR_QUALITY, SZ_AIR_QUALITY_BASIS, SZ_CO2_LEVEL
+from .const import (
+    SZ_AIR_QUALITY,
+    SZ_AIR_QUALITY_BASIS,
+    SZ_CO2_LEVEL,
+    SZ_DEWPOINT_TEMP,
+    SZ_INDOOR_HUMIDITY,
+    SZ_OUTDOOR_HUMIDITY,
+    SZ_TEMPERATURE,
+)
 
 try:
     from typeguard import typechecked  # type: ignore[reportMissingImports]
@@ -30,6 +38,15 @@ except ImportError:
             return fnc(*args, **kwargs)
 
         return wrapper
+
+
+SZ_OPEN_CIRCUIT = "sensor_open_circuit"
+SZ_SHORT_CIRCUIT = "sensor_short_circuit"
+SZ_UNAVAILABLE = "sensor_unavailable"
+SZ_UNRELIABLE = "sensor_unreliable"
+SZ_TOO_HIGH = "sensor_value_too_high"
+SZ_TOO_LOW = "sensor_value_too_low"
+SZ_OTHER_FAULT = "sensor_other_fault"  # non-specific fault
 
 
 # fmt: off
@@ -306,7 +323,7 @@ def str_to_hex(value: str) -> str:
 
 
 @typechecked
-def temp_from_hex(value: HexStr2) -> Union[None, bool, float]:
+def temp_from_hex(value: HexStr4) -> Union[None, bool, float]:
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -321,7 +338,7 @@ def temp_from_hex(value: HexStr2) -> Union[None, bool, float]:
 
 
 @typechecked
-def temp_to_hex(value: Optional[float]) -> HexStr2:
+def temp_to_hex(value: Optional[float]) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
@@ -368,28 +385,31 @@ def valve_demand(value: HexStr2) -> Optional[dict]:  # c.f. percent_from_hex()
 
 @typechecked  # 31DA[2:6] and 12C8[2:6]
 def air_quality(value: HexStr4) -> dict[str, None | float | str]:
-    """Return the air quality level, from poor (0%) to excellent (100%).
+    """Return the air_quality (%), poor (0.0) to excellent (1.0).
 
     The basis of the air quality level should be one of: VOC, CO2 or relative humidity.
     If air_quality is EF, air_quality_basis should be 00.
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
     """  # VOC: Volatile organic compounds
 
     # TODO: remove me
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
-    FAULT_CODES = {}
-
     assert value[:2] != "EF" or value[2:] == "00", value
     if value == "EF00":  # Not implemented
         return {SZ_AIR_QUALITY: None}
+
+    FAULT_CODES = {}
 
     assert int(value[:2], 16) <= 200 or int(value[:2], 16) & 0xF0 == 0xF0, value[:2]
     level = percent_from_hex(value[:2])
 
     if level is None:
         fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
-        return {SZ_AIR_QUALITY: None, f"{SZ_AIR_QUALITY}_fault": fault}
+        return {f"{SZ_AIR_QUALITY}_fault": fault}
 
     assert value[2:] in ("10", "20", "40"), value[2:]
     basis = {
@@ -403,31 +423,102 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
 
 @typechecked  # 31DA[6:10] and 1298[2:6]
 def co2_level(value: HexStr4) -> dict[str, None | int | str]:
-    """Return the co2 level, in ppm."""
+    """Return the co2_level (ppm).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
 
     # TODO: remove this...
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
-    FAULT_CODES = {
-        "80": "sensor_short_circuit",
-        "81": "sensor_open_circuit",
-        "83": "sensor_value_too_high",
-        "84": "sensor_value_too_low",
-        "85": "sensor_unreliable",
-    }
-
     if value == "7FFF":  # Not implemented
         return {SZ_CO2_LEVEL: None}
+
+    FAULT_CODES = {
+        "80": SZ_SHORT_CIRCUIT,
+        "81": SZ_OPEN_CIRCUIT,
+        "82": SZ_UNAVAILABLE,  # assumed
+        "83": SZ_TOO_HIGH,
+        "84": SZ_TOO_LOW,
+        "85": SZ_UNRELIABLE,
+    }
 
     level = int(value, 16)  # was: double_from_hex(value)  # is 2's complement?
 
     if level >= 0x8000:
         fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
-        return {SZ_CO2_LEVEL: None, f"{SZ_CO2_LEVEL}_fault": fault}
+        return {f"{SZ_CO2_LEVEL}_fault": fault}
 
     # assert int(value[:2], 16) <= 0x8000, value
     return {SZ_CO2_LEVEL: level}
+
+
+@typechecked  # 31DA[10:12] and 12A0[2:12]
+def indoor_humidity(value: str) -> dict[str, None | float | str]:
+    """Return the indoor_humidity (relative %).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+    return _rel_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+
+
+@typechecked  # 31DA[12:14] and 1280[2:12]
+def outdoor_humidity(value: str) -> dict[str, None | float | str]:
+    """Return the outdoor_humidity (relative %).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+    return _rel_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+
+
+@typechecked
+def _rel_humidity(
+    param_name: str, value: HexStr2, temp: HexStr4, dewpoint: HexStr4
+) -> dict[str, None | float | str]:
+    """Return the relative humidity, etc., used by both indoor & outdoor humidity.
+
+    May include current temperature ('C), and dewpoint temperature ('C).
+    """
+
+    # TODO: remove me
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+    if not isinstance(temp, str) or len(temp) not in (0, 4):
+        raise ValueError(f"Invalid temp: {temp}, is not a 4-char hex string")
+    if not isinstance(dewpoint, str) or len(dewpoint) not in (0, 4):
+        raise ValueError(f"Invalid dewpoint: {dewpoint}, is not a 4-char hex string")
+
+    if value == "EF":  # Not implemented
+        return {param_name: None}
+
+    FAULT_CODES = {
+        "F0": SZ_SHORT_CIRCUIT,
+        "F1": SZ_OPEN_CIRCUIT,
+        "F2": SZ_UNAVAILABLE,
+        "F3": SZ_TOO_HIGH,
+        "F4": SZ_TOO_LOW,
+        "F5": SZ_UNRELIABLE,
+        "FF": SZ_OTHER_FAULT,
+    }  # F6-FE are reserved for later use?
+
+    if int(value, 16) & 0xF0 == 0xF0:
+        fault = FAULT_CODES.get(value, f"sensor_error_{value}")
+        return {f"{param_name}_fault": fault}
+
+    # TODO: raise exception if > 1.0?
+    percentage = int(value, 16) / 100
+    assert percentage <= 1.0, value
+
+    result = {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
+    if temp:
+        result |= {SZ_TEMPERATURE: temp_from_hex(temp)}
+    if dewpoint:
+        result |= {SZ_DEWPOINT_TEMP: temp_from_hex(dewpoint)}
+    return result
 
 
 # @typechecked
@@ -458,21 +549,6 @@ def co2_level(value: HexStr4) -> dict[str, None | int | str]:
 #         "FE": "jammed_actuator",  # Actuator Jam
 #         "FF": "other_fault",  # Non-specific fault
 #         # MODE: "FF": "auto",  # Auto
-#     }
-
-
-# @typechecked  # indoor/outdoor rel. humidity
-# def humidity(value: HexStr2) -> Optional[float]:
-#     """Convert a 2-char hex string into a relative humidity."""
-#     SENTINEL_VALUES = {
-#         "EF": None,  # Feature is not implemented
-#         "F0": "shorted_sensor",  # Shorted sensor
-#         "F1": "open_sensor",  # Open sensor
-#         "F2": "unavailable",  # Not available (but should be)
-#         "F3": "high_range",  # Out of range high
-#         "F4": "low_range",  # Out of range low
-#         "F5": "unreliable",  # Not reliable
-#         "FF": "other_fault",  # Non-specific fault
 #     }
 
 

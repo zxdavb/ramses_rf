@@ -96,6 +96,8 @@ from .helpers import (
     dtm_from_hex,
     dts_from_hex,
     flag8_from_hex,
+    indoor_humidity,
+    outdoor_humidity,
     percent_from_hex,
     str_from_hex,
     temp_from_hex,
@@ -1045,7 +1047,7 @@ def parser_1260(payload, msg) -> dict:
     return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # outdoor humidity
+@parser_decorator  # HVAC: outdoor humidity
 def parser_1280(payload, msg) -> dict:
     # educated guess - this packet never seen in the wild
 
@@ -1071,34 +1073,13 @@ def parser_1298(payload: str, _) -> dict:
     return co2_level(payload[2:6])
 
 
-@parser_decorator  # indoor_humidity
+@parser_decorator  # HVAC: indoor_humidity
 def parser_12a0(payload, msg) -> dict:
-    FAULT_CODES_RHUM = {
-        "EF": "sensor not available",
-        "F0": "sensor short circuit",
-        "F1": "sensor open",
-        "F2": "sensor not available",
-        "F3": "sensor value too high",
-        "F4": "sensor value too low",
-        "F5": "sensor unreliable",
-    }  # relative humidity sensor
+    FAULT_CODES_RHUM = {}  # relative humidity sensor
 
     assert payload[2:4] in FAULT_CODES_RHUM or int(payload[2:4], 16) <= 100
     if fault := FAULT_CODES_RHUM.get(payload[2:4]):
         return {"sensor_fault": fault}
-
-    # FAULT_CODES_TEMP = {
-    #     "7F": "sensor not available",
-    #     "80": "sensor short circuit",
-    #     "81": "sensor open",
-    #     "82": "sensor not available",
-    #     "83": "sensor value too high",
-    #     "84": "sensor value too low",
-    #     "85": "sensor unreliable",
-    # }
-    # assert payload[4:6] in FAULT_CODES_TEMP or ...
-    # if (fault := FAULT_CODES_TEMP.get(payload[2:4])):
-    #     return {"sensor_fault": fault}
 
     rh = percent_from_hex(payload[2:4], high_res=False)
     if msg.len == 2:
@@ -2164,10 +2145,6 @@ def parser_31d9(payload, msg) -> dict:
 @parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
     try:
-        assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
-        assert (
-            payload[12:14] == "EF" or int(payload[12:14], 16) <= 100
-        ), f"[12:14] {payload[10:12]}"
         # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
         # assert payload[34:36] == "EF", payload[34:36]
         assert (
@@ -2200,16 +2177,16 @@ def parser_31da(payload, msg) -> dict:
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
 
     return {
-        **air_quality(payload[2:6]),  # %, 12C8[2:6]
-        **co2_level(payload[6:10]),  # ppm, 1298[2:6]
+        # **air_quality(payload[2:6]),  # %, 12C8[2:6]
+        # **co2_level(payload[6:10]),  # ppm, 1298[2:6]
+        **indoor_humidity(payload[10:12]),  # 12A0?
+        **outdoor_humidity(payload[12:14]),  # high_res=False),
         #
         SZ_EXHAUST_FAN_SPEED: percent_from_hex(
             payload[38:40]
         ),  # maybe 31D9[4:6] for some?
         SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
-        SZ_INDOOR_HUMIDITY: percent_from_hex(payload[10:12], high_res=False),  # 12A0?
-        SZ_OUTDOOR_HUMIDITY: percent_from_hex(payload[12:14], high_res=False),
         SZ_EXHAUST_TEMPERATURE: temp_from_hex(payload[14:18]),
         SZ_SUPPLY_TEMPERATURE: temp_from_hex(payload[18:22]),
         SZ_INDOOR_TEMPERATURE: temp_from_hex(payload[22:26]),
