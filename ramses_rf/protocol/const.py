@@ -41,7 +41,7 @@ Priority = SimpleNamespace(LOWEST=4, LOW=2, DEFAULT=0, HIGH=-2, HIGHEST=-4)
 
 # used by 31DA
 SZ_AIR_QUALITY = "air_quality"
-SZ_AIR_QUALITY_BASE = "air_quality_base"
+SZ_AIR_QUALITY_BASIS = "air_quality_basis"
 SZ_BOOST_TIMER = "boost_timer"
 SZ_BYPASS_POSITION = "bypass_position"
 SZ_CO2_LEVEL = "co2_level"

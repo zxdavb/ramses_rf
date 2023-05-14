@@ -14,7 +14,7 @@ from ..const import (
     DEV_TYPE,
     FAN_MODE,
     SZ_AIR_QUALITY,
-    SZ_AIR_QUALITY_BASE,
+    SZ_AIR_QUALITY_BASIS,
     SZ_BOOST_TIMER,
     SZ_BYPASS_POSITION,
     SZ_CO2_LEVEL,
@@ -362,7 +362,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def air_quality_base(self) -> None | float:
-        return self._msg_value(Code._31DA, key=SZ_AIR_QUALITY_BASE)
+        return self._msg_value(Code._31DA, key=SZ_AIR_QUALITY_BASIS)
 
     @property
     def bypass_position(self) -> Optional[int]:

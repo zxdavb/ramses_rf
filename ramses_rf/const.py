@@ -14,7 +14,7 @@ from .protocol.const import (  # noqa: F401
     SYS_MODE_MAP,
     SZ_ACTUATORS,
     SZ_AIR_QUALITY,
-    SZ_AIR_QUALITY_BASE,
+    SZ_AIR_QUALITY_BASIS,
     SZ_BOOST_TIMER,
     SZ_BYPASS_POSITION,
     SZ_CHANGE_COUNTER,

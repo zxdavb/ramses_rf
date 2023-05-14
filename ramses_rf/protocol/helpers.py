@@ -18,10 +18,7 @@ from typing import (  # typeguard doesn't support PEP604 on 3.9.x
     Union,
 )
 
-from .const import (  # SZ_ACTUATOR,; SZ_BINDINGS,; SZ_BYPASS_POSITION,; SZ_CHANGE_COUNTER,; SZ_CO2_LEVEL,; SZ_DATETIME,; SZ_DEVICE_CLASS,; SZ_DEVICE_ID,; SZ_DEVICE_ROLE,; SZ_DEVICES,; SZ_DOMAIN_ID,; SZ_DURATION,; SZ_EXHAUST_FAN_SPEED,; SZ_EXHAUST_FLOW,; SZ_EXHAUST_TEMPERATURE,; SZ_FAN_INFO,; SZ_FAN_MODE,; SZ_FRAG_LENGTH,; SZ_FRAG_NUMBER,; SZ_FRAGMENT,; SZ_INDOOR_HUMIDITY,; SZ_INDOOR_TEMPERATURE,; SZ_IS_DST,; SZ_LANGUAGE,; SZ_MODE,; SZ_NAME,; SZ_OUTDOOR_HUMIDITY,; SZ_OUTDOOR_TEMPERATURE,; SZ_PAYLOAD,; SZ_POST_HEAT,; SZ_PRE_HEAT,; SZ_PRESSURE,; SZ_RELAY_DEMAND,; SZ_REMAINING_TIME,; SZ_SETPOINT,; SZ_SPEED_CAP,; SZ_SUPPLY_FAN_SPEED,; SZ_SUPPLY_FLOW,; SZ_SUPPLY_TEMPERATURE,; SZ_SYSTEM_MODE,; SZ_TEMPERATURE,; SZ_TOTAL_FRAGS,; SZ_UFH_IDX,; SZ_UNKNOWN,; SZ_UNTIL,; SZ_VALUE,; SZ_WINDOW_OPEN,; SZ_ZONE_CLASS,; SZ_ZONE_IDX,; SZ_ZONE_MASK,; SZ_ZONE_TYPE,
-    SZ_AIR_QUALITY,
-    SZ_AIR_QUALITY_BASIS,
-)
+from .const import SZ_AIR_QUALITY, SZ_AIR_QUALITY_BASIS, SZ_CO2_LEVEL
 
 try:
     from typeguard import typechecked  # type: ignore[reportMissingImports]
@@ -138,7 +135,7 @@ def date_from_hex(value: HexStr8) -> Optional[str]:  # YY-MM-DD
     ).strftime("%Y-%m-%d")
 
 
-@typechecked
+@typechecked  # FIXME: factor=1 should return an int
 def double_from_hex(value: HexStr4, factor: int = 1) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
@@ -375,10 +372,11 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
 
     The basis of the air quality level should be one of: VOC, CO2 or relative humidity.
     If air_quality is EF, air_quality_basis should be 00.
-    """
-    # VOC: Volatile organic compounds
-    # 00-EF00-7FFF3928082A08660860080EF800000B2F2F003BEFEF0AA20A8600
-    # 00-F000-0518EFEF057504EA079B04C24000C8034EFF0000EFEF43264326
+    """  # VOC: Volatile organic compounds
+
+    # TODO: remove me
+    if not isinstance(value, str) or len(value) != 4:
+        raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
     FAULT_CODES = {}
 
@@ -390,7 +388,7 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
     level = percent_from_hex(value[:2])
 
     if level is None:
-        fault = FAULT_CODES.get(value[:2], f"unknown_error_{value[:2]}")
+        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
         return {SZ_AIR_QUALITY: None, f"{SZ_AIR_QUALITY}_fault": fault}
 
     assert value[2:] in ("10", "20", "40"), value[2:]
@@ -401,6 +399,35 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
     }.get(value[2:], f"unknown_{value[2:]}")
 
     return {SZ_AIR_QUALITY: level, SZ_AIR_QUALITY_BASIS: basis}
+
+
+@typechecked  # 31DA[6:10] and 1298[2:6]
+def co2_level(value: HexStr4) -> dict[str, None | int | str]:
+    """Return the co2 level, in ppm."""
+
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 4:
+        raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
+
+    FAULT_CODES = {
+        "80": "sensor_short_circuit",
+        "81": "sensor_open_circuit",
+        "83": "sensor_value_too_high",
+        "84": "sensor_value_too_low",
+        "85": "sensor_unreliable",
+    }
+
+    if value == "7FFF":  # Not implemented
+        return {SZ_CO2_LEVEL: None}
+
+    level = int(value, 16)  # was: double_from_hex(value)  # is 2's complement?
+
+    if level >= 0x8000:
+        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
+        return {SZ_CO2_LEVEL: None, f"{SZ_CO2_LEVEL}_fault": fault}
+
+    # assert int(value[:2], 16) <= 0x8000, value
+    return {SZ_CO2_LEVEL: level}
 
 
 # @typechecked
