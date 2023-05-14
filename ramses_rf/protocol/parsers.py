@@ -32,8 +32,6 @@ from .const import (
     FAULT_TYPE,
     SYS_MODE_MAP,
     SZ_ACTUATOR,
-    SZ_AIR_QUALITY,
-    SZ_AIR_QUALITY_BASE,
     SZ_BINDINGS,
     SZ_BYPASS_POSITION,
     SZ_CHANGE_COUNTER,
@@ -91,6 +89,7 @@ from .const import (
 from .exceptions import InvalidPayloadError
 from .fingerprints import check_signature
 from .helpers import (
+    air_quality,
     bool_from_hex,
     date_from_hex,
     double_from_hex,
@@ -1148,19 +1147,11 @@ def parser_12c0(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # air_quality, HVAC
+@parser_decorator  # HVAC: air_quality (and air_quality_basis)
 def parser_12c8(payload, msg) -> dict:
-    # 04:50:01.616 080  I --- 37:261128 --:------ 37:261128 31DA 029 00A740-05133AEF7FFF7FFF7FFF7FFFF808EF1805000000EFEF7FFF7FFF  # noqa: E501
-    # 04:50:01.717 078  I --- 37:261128 --:------ 37:261128 12C8 003 00A740
-    # 04:50:31.443 078  I --- 37:261128 --:------ 37:261128 31DA 029 007A40-05993AEF7FFF7FFF7FFF7FFFF808EF1807000000EFEF7FFF7FFF  # noqa: E501
-    # 04:50:31.544 078  I --- 37:261128 --:------ 37:261128 12C8 003 007A40
-    # 04:51:40.262 079  I --- 37:261128 --:------ 37:261128 31DA 029 009540-054B3AEF7FFF7FFF7FFF7FFFF808EF180E000000EFEF7FFF7FFF  # noqa: E501
-    # 04:51:41.192 078  I --- 37:261128 --:------ 37:261128 12C8 003 009540
-
-    return {
-        SZ_AIR_QUALITY: percent_from_hex(payload[2:4]),  # 31DA[2:4]
-        SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 31DA[4:6]
-    }
+    # 04:50:01.616 080  I --- 37:261128 --:------ 37:261128 31DA 029 00-A740-05133AEF7FFF7FFF7FFF7FFFF808EF1805000000EFEF7FFF7FFF
+    # 04:50:01.717 078  I --- 37:261128 --:------ 37:261128 12C8 003 00-A740
+    return air_quality(payload[2:6])  # 31DA[2:6]
 
 
 @parser_decorator  # dhw_flow_rate
@@ -2186,12 +2177,6 @@ def parser_31d9(payload, msg) -> dict:
 @parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
     try:
-        # assert (
-        #     int(payload[2:4], 16) <= 200
-        #     or int(payload[2:4], 16) & 0xF0 == 0xF0
-        #     or payload[2:4] == "EF"
-        # ), f"[2:4] {payload[2:4]}"
-        assert payload[4:6] in ("00", "40"), payload[4:6]
         # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
         assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
         assert (
@@ -2229,14 +2214,13 @@ def parser_31da(payload, msg) -> dict:
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
 
     return {
+        **air_quality(payload[2:6]),  # 12C8[2:6]
+        #
         SZ_EXHAUST_FAN_SPEED: percent_from_hex(
             payload[38:40]
         ),  # maybe 31D9[4:6] for some?
         SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
-        #
-        SZ_AIR_QUALITY: percent_from_hex(payload[2:4]),  # 12C8[2:4]
-        SZ_AIR_QUALITY_BASE: int(payload[4:6], 16),  # 12C8[4:6]
         SZ_CO2_LEVEL: double_from_hex(payload[6:10]),  # ppm, 1298[2:6]
         SZ_INDOOR_HUMIDITY: percent_from_hex(payload[10:12], high_res=False),  # 12A0?
         SZ_OUTDOOR_HUMIDITY: percent_from_hex(payload[12:14], high_res=False),

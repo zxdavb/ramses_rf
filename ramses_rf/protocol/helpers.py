@@ -13,8 +13,14 @@ import time
 from datetime import datetime as dt
 from typing import (  # typeguard doesn't support PEP604 on 3.9.x
     Iterable,
+    Literal,
     Optional,
     Union,
+)
+
+from .const import (  # SZ_ACTUATOR,; SZ_BINDINGS,; SZ_BYPASS_POSITION,; SZ_CHANGE_COUNTER,; SZ_CO2_LEVEL,; SZ_DATETIME,; SZ_DEVICE_CLASS,; SZ_DEVICE_ID,; SZ_DEVICE_ROLE,; SZ_DEVICES,; SZ_DOMAIN_ID,; SZ_DURATION,; SZ_EXHAUST_FAN_SPEED,; SZ_EXHAUST_FLOW,; SZ_EXHAUST_TEMPERATURE,; SZ_FAN_INFO,; SZ_FAN_MODE,; SZ_FRAG_LENGTH,; SZ_FRAG_NUMBER,; SZ_FRAGMENT,; SZ_INDOOR_HUMIDITY,; SZ_INDOOR_TEMPERATURE,; SZ_IS_DST,; SZ_LANGUAGE,; SZ_MODE,; SZ_NAME,; SZ_OUTDOOR_HUMIDITY,; SZ_OUTDOOR_TEMPERATURE,; SZ_PAYLOAD,; SZ_POST_HEAT,; SZ_PRE_HEAT,; SZ_PRESSURE,; SZ_RELAY_DEMAND,; SZ_REMAINING_TIME,; SZ_SETPOINT,; SZ_SPEED_CAP,; SZ_SUPPLY_FAN_SPEED,; SZ_SUPPLY_FLOW,; SZ_SUPPLY_TEMPERATURE,; SZ_SYSTEM_MODE,; SZ_TEMPERATURE,; SZ_TOTAL_FRAGS,; SZ_UFH_IDX,; SZ_UNKNOWN,; SZ_UNTIL,; SZ_VALUE,; SZ_WINDOW_OPEN,; SZ_ZONE_CLASS,; SZ_ZONE_IDX,; SZ_ZONE_MASK,; SZ_ZONE_TYPE,
+    SZ_AIR_QUALITY,
+    SZ_AIR_QUALITY_BASIS,
 )
 
 try:
@@ -27,6 +33,35 @@ except ImportError:
             return fnc(*args, **kwargs)
 
         return wrapper
+
+
+# fmt: off
+HexByte = Literal[
+    '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
+    '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
+    '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
+    '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3A', '3B', '3C', '3D', '3E', '3F',
+    '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '4A', '4B', '4C', '4D', '4E', '4F',
+    '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '5A', '5B', '5C', '5D', '5E', '5F',
+    '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '6A', '6B', '6C', '6D', '6E', '6F',
+    '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '7A', '7B', '7C', '7D', '7E', '7F',
+    '80', '81', '82', '83', '84', '85', '86', '87', '88', '89', '8A', '8B', '8C', '8D', '8E', '8F',
+    '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '9A', '9B', '9C', '9D', '9E', '9F',
+    'A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF',
+    'B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'BA', 'BB', 'BC', 'BD', 'BE', 'BF',
+    'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'CA', 'CB', 'CC', 'CD', 'CE', 'CF',
+    'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'DA', 'DB', 'DC', 'DD', 'DE', 'DF',
+    'E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'EA', 'EB', 'EC', 'ED', 'EE', 'EF',
+    'F0', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'FA', 'FB', 'FC', 'FD', 'FE', 'FF'
+]
+# fmt: on
+
+
+HexStr2 = str  # two characters, one byte
+HexStr4 = str
+HexStr8 = str
+HexStr12 = str
+HexStr14 = str
 
 
 class _FILE_TIME(ctypes.Structure):
@@ -70,7 +105,7 @@ def dt_str() -> str:
 
 
 @typechecked
-def bool_from_hex(value: str) -> Optional[bool]:  # either False, True or None
+def bool_from_hex(value: HexStr2) -> Optional[bool]:  # either False, True or None
     """Convert a 2-char hex string into a boolean."""
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -80,7 +115,7 @@ def bool_from_hex(value: str) -> Optional[bool]:  # either False, True or None
 
 
 @typechecked
-def bool_to_hex(value: Optional[bool]) -> str:  # either 00, C8 or FF
+def bool_to_hex(value: Optional[bool]) -> HexStr2:  # either 00, C8 or FF
     """Convert a boolean into a 2-char hex string."""
     if value is None:
         return "FF"
@@ -90,7 +125,7 @@ def bool_to_hex(value: Optional[bool]) -> str:  # either 00, C8 or FF
 
 
 @typechecked
-def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
+def date_from_hex(value: HexStr8) -> Optional[str]:  # YY-MM-DD
     """Convert am 8-char hex string into a date, format YY-MM-DD."""
     if not isinstance(value, str) or len(value) != 8:
         raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
@@ -104,7 +139,7 @@ def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
 
 
 @typechecked
-def double_from_hex(value: str, factor: int = 1) -> Optional[float]:
+def double_from_hex(value: HexStr4, factor: int = 1) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -114,7 +149,7 @@ def double_from_hex(value: str, factor: int = 1) -> Optional[float]:
 
 
 @typechecked
-def double_to_hex(value: Optional[float], factor: int = 1) -> str:
+def double_to_hex(value: Optional[float], factor: int = 1) -> HexStr4:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
@@ -124,7 +159,7 @@ def double_to_hex(value: Optional[float], factor: int = 1) -> str:
 
 
 @typechecked
-def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
+def dtm_from_hex(value: HexStr12 | HexStr14) -> Optional[str]:  # from parsers
     """Convert a 12/14-char hex string to an isoformat datetime (naive, local)."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
@@ -146,7 +181,9 @@ def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
 
 
 @typechecked
-def dtm_to_hex(dtm: Union[None, dt, str], is_dst=False, incl_seconds=False) -> str:
+def dtm_to_hex(
+    dtm: Union[None, dt, str], is_dst=False, incl_seconds=False
+) -> HexStr12 | HexStr14:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
     def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
@@ -166,7 +203,7 @@ def dtm_to_hex(dtm: Union[None, dt, str], is_dst=False, incl_seconds=False) -> s
 
 
 @typechecked
-def dts_from_hex(value: str) -> Optional[str]:
+def dts_from_hex(value: HexStr12) -> Optional[str]:
     """YY-MM-DD HH:MM:SS."""
     if not isinstance(value, str) or len(value) != 12:
         raise ValueError(f"Invalid value: {value}, is not a 12-char hex string")
@@ -184,7 +221,7 @@ def dts_from_hex(value: str) -> Optional[str]:
 
 
 @typechecked
-def dts_to_hex(dtm: Union[None, dt, str]) -> str:  # TODO: WIP
+def dts_to_hex(dtm: Union[None, dt, str]) -> HexStr12:  # TODO: WIP
     """Convert a datetime (isoformat str, or dtm) to a packed 12-char hex str."""
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
@@ -206,7 +243,7 @@ def dts_to_hex(dtm: Union[None, dt, str]) -> str:  # TODO: WIP
 
 
 @typechecked
-def flag8_from_hex(byte: str, lsb: bool = False) -> list[int]:  # TODO: use tuple
+def flag8_from_hex(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tuple
     """Split a hex str (a byte) into a list of 8 bits, MSB as first bit by default.
 
     If lsb==True, then the LSB is first.
@@ -220,7 +257,7 @@ def flag8_from_hex(byte: str, lsb: bool = False) -> list[int]:  # TODO: use tupl
 
 
 @typechecked
-def flag8_to_hex(flags: Iterable[int], lsb: bool = False) -> str:
+def flag8_to_hex(flags: Iterable[int], lsb: bool = False) -> HexByte:
     """Convert a list of 8 bits, MSB as first bit by default, into an ASCII hex string.
 
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
@@ -235,11 +272,11 @@ def flag8_to_hex(flags: Iterable[int], lsb: bool = False) -> str:
 # TODO: add a wrapper for EF, & 0xF0
 @typechecked
 def percent_from_hex(
-    value: str, high_res: bool = True
+    value: HexStr2, high_res: bool = True
 ) -> Optional[float]:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.
 
-    The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
+    The range is 0-100%, with resolution of 0.5% (high_res, 00-C8) or 1% (00-64).
     """
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -248,7 +285,7 @@ def percent_from_hex(
     if (raw_result := int(value, 16)) & 0xF0 == 0xF0:
         return None  # TODO: raise errors
     result = float(raw_result) / (200 if high_res else 100)
-    if result > 1.0:
+    if result > 1.0:  # move to outer wrapper
         raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
     return result
 
@@ -272,7 +309,7 @@ def str_to_hex(value: str) -> str:
 
 
 @typechecked
-def temp_from_hex(value: str) -> Union[None, bool, float]:
+def temp_from_hex(value: HexStr2) -> Union[None, bool, float]:
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -287,7 +324,7 @@ def temp_from_hex(value: str) -> Union[None, bool, float]:
 
 
 @typechecked
-def temp_to_hex(value: Optional[float]) -> str:
+def temp_to_hex(value: Optional[float]) -> HexStr2:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
@@ -301,8 +338,11 @@ def temp_to_hex(value: Optional[float]) -> str:
     return f"{temp if temp >= 0 else temp + 2 ** 16:04X}"
 
 
+########################################################################################
+
+
 @typechecked
-def valve_demand(value: str) -> Optional[dict]:  # c.f. percent_from_hex()
+def valve_demand(value: HexStr2) -> Optional[dict]:  # c.f. percent_from_hex()
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
@@ -329,62 +369,90 @@ def valve_demand(value: str) -> Optional[dict]:  # c.f. percent_from_hex()
     return {"heat_demand": result}
 
 
-def _precision_v_cost():
-    import math
+@typechecked  # 31DA[2:6] and 12C8[2:6]
+def air_quality(value: HexStr4) -> dict[str, None | float | str]:
+    """Return the air quality level, from poor (0%) to excellent (100%).
 
-    #
-    LOOPS = 10**6
-    #
-    print("time.time_ns(): %s" % time.time_ns())
-    print("time.time():    %s\r\n" % time.time())
-    #
-    starts = time.time_ns()
-    min_dt = [abs(time.time_ns() - time.time_ns()) for _ in range(LOOPS)]
-    min_dt = min(filter(bool, min_dt))
-    print("min delta   time_ns(): %s ns" % min_dt)
-    print("duration    time_ns(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_dt = [abs(time.time() - time.time()) for _ in range(LOOPS)]
-    min_dt = min(filter(bool, min_dt))
-    print("min delta      time(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration       time(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_dt = [abs(timestamp() - timestamp()) for _ in range(LOOPS)]
-    min_dt = min(filter(bool, min_dt))
-    print("min delta timestamp(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  timestamp(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    LOOPS = 10**4
-    #
-    starts = time.time_ns()
-    min_td = [abs(dt.now() - dt.now()) for _ in range(LOOPS)]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt.now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt.now(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_td = [abs(dt_now() - dt_now()) for _ in range(LOOPS)]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_td = [
-        abs(
-            (dt_now if sys.platform == "win32" else dt.now)()
-            - (dt_now if sys.platform == "win32" else dt.now)()
-        )
-        for _ in range(LOOPS)
-    ]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    dt_nov = dt_now if sys.platform == "win32" else dt.now
-    starts = time.time_ns()
-    min_td = [abs(dt_nov() - dt_nov()) for _ in range(LOOPS)]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
+    The basis of the air quality level should be one of: VOC, CO2 or relative humidity.
+    If air_quality is EF, air_quality_basis should be 00.
+    """
+    # VOC: Volatile organic compounds
+    # 00-EF00-7FFF3928082A08660860080EF800000B2F2F003BEFEF0AA20A8600
+    # 00-F000-0518EFEF057504EA079B04C24000C8034EFF0000EFEF43264326
+
+    FAULT_CODES = {}
+
+    assert value[:2] != "EF" or value[2:] == "00", value
+    if value == "EF00":  # Not implemented
+        return {SZ_AIR_QUALITY: None}
+
+    assert int(value[:2], 16) <= 200 or int(value[:2], 16) & 0xF0 == 0xF0, value[:2]
+    level = percent_from_hex(value[:2])
+
+    if level is None:
+        fault = FAULT_CODES.get(value[:2], f"unknown_error_{value[:2]}")
+        return {SZ_AIR_QUALITY: None, f"{SZ_AIR_QUALITY}_fault": fault}
+
+    assert value[2:] in ("10", "20", "40"), value[2:]
+    basis = {
+        "10": "voc",  # volatile compounds
+        "20": "co2",  # carbdon dioxide
+        "40": "rel_humidity",  # relative humidity
+    }.get(value[2:], f"unknown_{value[2:]}")
+
+    return {SZ_AIR_QUALITY: level, SZ_AIR_QUALITY_BASIS: basis}
+
+
+# @typechecked
+# def pre_heat(value: HexStr2) -> dict[str, None | float | str]:
+#     try:
+#         return {
+#             "pre_heat": percent_from_hex(value, high_res=False),
+#         }  # incl. EF -> None?
+#     except ValueError:
+#         return {
+#             "pre_heat": None,
+#             "fault_code": None,
+#             "_raw_value": None,
+#         }
+
+
+# @typechecked
+# def bypass_position(value: HexStr2) -> Optional[float]:
+#     """Convert a 2-char hex string into a bypass position."""
+#     SENTINEL_VALUES = {
+#         "EF": None,  # Feature is not implemented
+#         # "00": "closed",  # Fully closed
+#         # "C8": "open",  # Fully open
+#         "F0": "open_circuit",  # Actuator Open Circuit
+#         "F1": "short_circuit",  # Actuator Short Circuit
+#         "F2": "unavailable",  # Not available (but should be)
+#         "FD": "jammed_valve",  # Damper/Valve Jam
+#         "FE": "jammed_actuator",  # Actuator Jam
+#         "FF": "other_fault",  # Non-specific fault
+#         # MODE: "FF": "auto",  # Auto
+#     }
+
+
+# @typechecked  # indoor/outdoor rel. humidity
+# def humidity(value: HexStr2) -> Optional[float]:
+#     """Convert a 2-char hex string into a relative humidity."""
+#     SENTINEL_VALUES = {
+#         "EF": None,  # Feature is not implemented
+#         "F0": "shorted_sensor",  # Shorted sensor
+#         "F1": "open_sensor",  # Open sensor
+#         "F2": "unavailable",  # Not available (but should be)
+#         "F3": "high_range",  # Out of range high
+#         "F4": "low_range",  # Out of range low
+#         "F5": "unreliable",  # Not reliable
+#         "FF": "other_fault",  # Non-specific fault
+#     }
+
+
+# @typechecked  # inlet/exhaust flow level
+# def flow_level(value: HexStr4) -> Optional[float]:
+#     """Convert a 4-char hex string into a flow rate/level."""
+#     SENTINEL_VALUES = {
+#         "7FFF": None,  # Feature is not implemented
+#         "8000-85FF": "sensor_error",  # Sensor error
+#     }
