@@ -21,6 +21,7 @@ from typing import (  # typeguard doesn't support PEP604 on 3.9.x
 from .const import (
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
+    SZ_BYPASS_POSITION,
     SZ_CO2_LEVEL,
     SZ_DEWPOINT_TEMP,
     SZ_EXHAUST_TEMP,
@@ -44,14 +45,18 @@ except ImportError:
         return wrapper
 
 
-SZ_OPEN_CIRCUIT = "sensor_open_circuit"
-SZ_SHORT_CIRCUIT = "sensor_short_circuit"
-SZ_UNAVAILABLE = "sensor_unavailable"
+# Sensor faults
 SZ_UNRELIABLE = "sensor_unreliable"
 SZ_TOO_HIGH = "sensor_value_too_high"
 SZ_TOO_LOW = "sensor_value_too_low"
-SZ_OTHER_FAULT = "sensor_other_fault"  # non-specific fault
-
+# Actuator, Valve/damper faults
+SZ_STUCK_VALVE = ("jammed_valve",)  # Damper/Valve jammed
+SZ_STUCK_ACTUATOR = ("jammed_actuator",)  # Actuator jammed
+# Common (to both) faults
+SZ_OPEN_CIRCUIT = "open_circuit"
+SZ_SHORT_CIRCUIT = "short_circuit"
+SZ_UNAVAILABLE = "unavailable"
+SZ_OTHER_FAULT = ("other_fault",)  # Non-specific fault
 
 # fmt: off
 HexByte = Literal[
@@ -398,7 +403,7 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
     The dict does not include the key if there is a sensor fault.
     """  # VOC: Volatile organic compounds
 
-    # TODO: remove me
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
@@ -481,7 +486,7 @@ def outdoor_humidity(value: str) -> dict[str, None | float | str]:
 def _rel_humidity(
     param_name: str, value: HexStr2, temp: HexStr4, dewpoint: HexStr4
 ) -> dict[str, None | float | str]:
-    """Return the relative humidity, etc. (wrapped by sensor parsers).
+    """Return the relative humidity, etc. (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
     The dict does not include the key if there is a sensor fault.
@@ -550,7 +555,7 @@ def outdoor_temp(value: str) -> dict[str, None | float | str]:
 
 @typechecked
 def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
-    """Return the temperature ('C) (wrapped by sensor parsers).
+    """Return the temperature ('C) (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
     The dict does not include the key if there is a sensor fault.
@@ -580,6 +585,39 @@ def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | st
     return {param_name: temperature}  # was: temp_from_hex(value)
 
 
+@typechecked
+def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
+    """Return the bypass position (%), usually fully open or closed (0%, no bypass).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
+    if value == "EF":  # Not implemented
+        return {SZ_BYPASS_POSITION: None}
+
+    FAULT_CODES = {
+        "F0": SZ_OPEN_CIRCUIT,  # why not 81, as others?
+        "F1": SZ_SHORT_CIRCUIT,  # why not 80, as others?
+        "F2": SZ_UNAVAILABLE,
+        "FD": SZ_STUCK_VALVE,
+        "FE": SZ_STUCK_ACTUATOR,
+        "FF": SZ_OTHER_FAULT,
+    }
+
+    if int(value, 16) & 0xF0 == 0xF0:
+        fault = FAULT_CODES.get(value, f"device_error_{value}")
+        return {f"{SZ_BYPASS_POSITION}_fault": fault}
+
+    bypass_pos = percent_from_hex(value)
+    assert bypass_pos <= 1.0, value
+
+    return {SZ_BYPASS_POSITION: bypass_pos}
+
+
 SENSOR_PARSERS = {
     SZ_OUTDOOR_TEMP: outdoor_temp,
 }
@@ -596,23 +634,6 @@ SENSOR_PARSERS = {
 #             "fault_code": None,
 #             "_raw_value": None,
 #         }
-
-
-# @typechecked
-# def bypass_position(value: HexStr2) -> Optional[float]:
-#     """Convert a 2-char hex string into a bypass position."""
-#     SENTINEL_VALUES = {
-#         "EF": None,  # Feature is not implemented
-#         # "00": "closed",  # Fully closed
-#         # "C8": "open",  # Fully open
-#         "F0": "open_circuit",  # Actuator Open Circuit
-#         "F1": "short_circuit",  # Actuator Short Circuit
-#         "F2": "unavailable",  # Not available (but should be)
-#         "FD": "jammed_valve",  # Damper/Valve Jam
-#         "FE": "jammed_actuator",  # Actuator Jam
-#         "FF": "other_fault",  # Non-specific fault
-#         # MODE: "FF": "auto",  # Auto
-#     }
 
 
 # @typechecked  # inlet/exhaust flow level

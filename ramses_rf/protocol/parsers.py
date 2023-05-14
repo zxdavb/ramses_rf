@@ -33,7 +33,6 @@ from .const import (
     SYS_MODE_MAP,
     SZ_ACTUATOR,
     SZ_BINDINGS,
-    SZ_BYPASS_POSITION,
     SZ_CHANGE_COUNTER,
     SZ_DATETIME,
     SZ_DEVICE_CLASS,
@@ -86,6 +85,7 @@ from .fingerprints import check_signature
 from .helpers import (
     air_quality,
     bool_from_hex,
+    bypass_position,
     co2_level,
     date_from_hex,
     double_from_hex,
@@ -2160,6 +2160,31 @@ def parser_31da(payload, msg) -> dict:
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
+    return {
+        **air_quality(payload[2:6]),  # 12C8[2:6]
+        **co2_level(payload[6:10]),  # 1298[2:6]
+        **indoor_humidity(payload[10:12]),  # 12A0?
+        **outdoor_humidity(payload[12:14]),
+        **exhaust_temp(payload[14:18]),  # to outside
+        **supply_temp(payload[18:22]),  # to home
+        **indoor_temp(payload[22:26]),  # in home
+        **outdoor_temp(payload[26:30]),  # 1290?
+        #
+        **bypass_position(payload[34:36]),  # 22F7-ish
+        #
+        SZ_SPEED_CAP: int(payload[30:34], 16),
+        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
+        SZ_EXHAUST_FAN_SPEED: percent_from_hex(
+            payload[38:40]
+        ),  # maybe 31D9[4:6] for some?
+        SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
+        SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
+        SZ_POST_HEAT: percent_from_hex(payload[46:48], high_res=False),
+        SZ_PRE_HEAT: percent_from_hex(payload[48:50], high_res=False),
+        SZ_SUPPLY_FLOW: double_from_hex(payload[50:54], factor=100),  # L/sec
+        SZ_EXHAUST_FLOW: double_from_hex(payload[54:58], factor=100),  # L/sec
+    }
+
     # From an Orcon 15RF Display
     #  1 Software version
     #  4 RH value in home (%)                 SZ_INDOOR_HUMIDITY
@@ -2175,30 +2200,6 @@ def parser_31da(payload, msg) -> dict:
     # 14 Preheater control (MaxComfort) (%)   SZ_PRE_HEAT
     # 16 Actual supply flow rate (m3/h)       SZ_SUPPLY_FLOW (Orcon is m3/h, data is L/s)
     # 17 Current discharge flow rate (m3/h)   SZ_EXHAUST_FLOW
-
-    return {
-        **air_quality(payload[2:6]),  # %, 12C8[2:6]
-        **co2_level(payload[6:10]),  # ppm, 1298[2:6]
-        **indoor_humidity(payload[10:12]),  # 12A0?
-        **outdoor_humidity(payload[12:14]),  # high_res=False),
-        **exhaust_temp(payload[14:18]),
-        **supply_temp(payload[18:22]),
-        **indoor_temp(payload[22:26]),
-        **outdoor_temp(payload[26:30]),  # 1290?
-        #
-        SZ_SPEED_CAP: int(payload[30:34], 16),
-        SZ_BYPASS_POSITION: percent_from_hex(payload[34:36]),
-        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
-        SZ_EXHAUST_FAN_SPEED: percent_from_hex(
-            payload[38:40]
-        ),  # maybe 31D9[4:6] for some?
-        SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
-        SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
-        SZ_POST_HEAT: percent_from_hex(payload[46:48], high_res=False),
-        SZ_PRE_HEAT: percent_from_hex(payload[48:50], high_res=False),
-        SZ_SUPPLY_FLOW: double_from_hex(payload[50:54], factor=100),  # L/sec
-        SZ_EXHAUST_FLOW: double_from_hex(payload[54:58], factor=100),  # L/sec
-    }
 
 
 @parser_decorator  # vent_demand, HVAC
