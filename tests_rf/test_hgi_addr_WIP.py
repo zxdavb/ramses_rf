@@ -17,7 +17,7 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
-DEFAULT_MAX_SLEEP = 0.005
+DEFAULT_MAX_SLEEP = 0.01  # 0.005 fails occasionally
 
 
 GWY_ID_ = "18:111111"
