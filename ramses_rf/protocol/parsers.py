@@ -55,8 +55,6 @@ from .const import (
     SZ_NAME,
     SZ_OUTDOOR_HUMIDITY,
     SZ_PAYLOAD,
-    SZ_POST_HEAT,
-    SZ_PRE_HEAT,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
     SZ_REMAINING_TIME,
@@ -98,6 +96,8 @@ from .helpers import (
     outdoor_humidity,
     outdoor_temp,
     percent_from_hex,
+    post_heater,
+    pre_heater,
     str_from_hex,
     supply_temp,
     temp_from_hex,
@@ -2155,8 +2155,6 @@ def parser_31da(payload, msg) -> dict:
             "FF",
         ), payload[38:40]
         # assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
-        assert payload[46:48] in ("00", "EF"), f"[46:48] {payload[46:48]}"
-        # assert payload[48:50] == "EF", payload[48:50]
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
@@ -2169,8 +2167,9 @@ def parser_31da(payload, msg) -> dict:
         **supply_temp(payload[18:22]),  # to home
         **indoor_temp(payload[22:26]),  # in home
         **outdoor_temp(payload[26:30]),  # 1290?
-        #
         **bypass_position(payload[34:36]),  # 22F7-ish
+        **post_heater(payload[46:48]),
+        **pre_heater(payload[48:50]),
         #
         SZ_SPEED_CAP: int(payload[30:34], 16),
         SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
@@ -2179,8 +2178,6 @@ def parser_31da(payload, msg) -> dict:
         ),  # maybe 31D9[4:6] for some?
         SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
         SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
-        SZ_POST_HEAT: percent_from_hex(payload[46:48], high_res=False),
-        SZ_PRE_HEAT: percent_from_hex(payload[48:50], high_res=False),
         SZ_SUPPLY_FLOW: double_from_hex(payload[50:54], factor=100),  # L/sec
         SZ_EXHAUST_FLOW: double_from_hex(payload[54:58], factor=100),  # L/sec
     }

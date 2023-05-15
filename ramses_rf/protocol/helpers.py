@@ -29,6 +29,8 @@ from .const import (
     SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
     SZ_OUTDOOR_TEMP,
+    SZ_POST_HEAT,
+    SZ_PRE_HEAT,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
 )
@@ -517,8 +519,7 @@ def _rel_humidity(
         fault = FAULT_CODES.get(value, f"sensor_error_{value}")
         return {f"{param_name}_fault": fault}
 
-    # TODO: raise exception if > 1.0?
-    percentage = int(value, 16) / 100
+    percentage = int(value, 16) / 100  # TODO: raise exception if > 1.0?
     assert percentage <= 1.0, value
 
     result = {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
@@ -618,23 +619,56 @@ def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     return {SZ_BYPASS_POSITION: bypass_pos}
 
 
+@typechecked  # 31DA[46:48]
+def post_heater(value: str) -> dict[str, None | float | str]:
+    """Return the post-heater state (%)."""
+    return _heater(SZ_POST_HEAT, value)
+
+
+@typechecked  # 31DA[48:50]
+def pre_heater(value: str) -> dict[str, None | float | str]:
+    """Return the pre-heater state (%)."""
+    return _heater(SZ_PRE_HEAT, value)
+
+
+@typechecked
+def _heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
+    """Return the heater state (called by sensor parsers).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove me
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
+    if value == "EF":  # Not implemented
+        return {param_name: None}
+
+    FAULT_CODES = {
+        "F0": SZ_SHORT_CIRCUIT,
+        "F1": SZ_OPEN_CIRCUIT,
+        "F2": SZ_UNAVAILABLE,
+        "F3": SZ_TOO_HIGH,
+        "F4": SZ_TOO_LOW,
+        "F5": SZ_UNRELIABLE,
+        "FF": SZ_OTHER_FAULT,
+    }  # F6-FE are reserved for later use?
+
+    if int(value, 16) & 0xF0 == 0xF0:
+        fault = FAULT_CODES.get(value, f"sensor_error_{value}")
+        return {f"{param_name}_fault": fault}
+
+    percentage = int(value, 16) / 100  # TODO: raise exception if > 1.0?
+    assert percentage <= 1.0, value
+
+    return {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
+
+
 SENSOR_PARSERS = {
     SZ_OUTDOOR_TEMP: outdoor_temp,
 }
-
-# @typechecked
-# def pre_heat(value: HexStr2) -> dict[str, None | float | str]:
-#     try:
-#         return {
-#             "pre_heat": percent_from_hex(value, high_res=False),
-#         }  # incl. EF -> None?
-#     except ValueError:
-#         return {
-#             "pre_heat": None,
-#             "fault_code": None,
-#             "_raw_value": None,
-#         }
-
 
 # @typechecked  # inlet/exhaust flow level
 # def flow_level(value: HexStr4) -> Optional[float]:
