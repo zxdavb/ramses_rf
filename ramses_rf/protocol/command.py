@@ -44,12 +44,12 @@ from .const import (
 from .exceptions import ExpiredCallbackError
 from .frame import Frame, _CodeT, _DeviceIdT, _HeaderT, _PayloadT, _VerbT, pkt_header
 from .helpers import (
-    bool_from_hex,
-    double_to_hex,
     dt_now,
-    dtm_to_hex,
-    str_to_hex,
-    temp_to_hex,
+    hex_from_double,
+    hex_from_dtm,
+    hex_from_str,
+    hex_from_temp,
+    hex_to_bool,
     timestamp,
     typechecked,
 )
@@ -632,7 +632,7 @@ class Command(Frame):
                 "FF" if active is None else "01" if bool(active) else "00",
                 mode,
                 "FFFFFF" if duration is None else f"{duration:06X}",
-                "" if until is None else dtm_to_hex(until),
+                "" if until is None else hex_from_dtm(until),
             )
         )
 
@@ -681,9 +681,7 @@ class Command(Frame):
         if not (1 <= differential <= 10):
             raise ValueError(f"Out of range, differential: {differential}")
 
-        payload = (
-            f"{dhw_idx}{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
-        )
+        payload = f"{dhw_idx}{hex_from_temp(setpoint)}{overrun:02X}{hex_from_temp(differential)}"
 
         return cls.from_attrs(W_, ctl_id, Code._10A0, payload, **kwargs)
 
@@ -908,7 +906,7 @@ class Command(Frame):
         payload = "".join(
             (
                 system_mode,
-                dtm_to_hex(until),
+                hex_from_dtm(until),
                 "00" if until is None else "01",
             )
         )
@@ -936,7 +934,7 @@ class Command(Frame):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         # .W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        dt_str = dtm_to_hex(datetime, is_dst=is_dst, incl_seconds=True)
+        dt_str = hex_from_dtm(datetime, is_dst=is_dst, incl_seconds=True)
         return cls.from_attrs(W_, ctl_id, Code._313F, f"0060{dt_str}", **kwargs)
 
     @classmethod  # constructor for RQ|1100
@@ -981,7 +979,7 @@ class Command(Frame):
                 f"{cycle_rate * 4:02X}",
                 f"{int(min_on_time * 4):02X}",
                 f"{int(min_off_time * 4):02X}00",  # or: ...FF",
-                f"{temp_to_hex(proportional_band_width)}01",
+                f"{hex_from_temp(proportional_band_width)}01",
             )
         )
 
@@ -1033,8 +1031,8 @@ class Command(Frame):
             (
                 f"{zone_idx:02X}",
                 f"{bitmap:02X}",
-                temp_to_hex(min_temp),
-                temp_to_hex(max_temp),
+                hex_from_temp(min_temp),
+                hex_from_temp(max_temp),
             )
         )
 
@@ -1090,10 +1088,10 @@ class Command(Frame):
         payload = "".join(
             (
                 f"{zone_idx:02X}",
-                temp_to_hex(setpoint),  # None means max, if a temp is required
+                hex_from_temp(setpoint),  # None means max, if a temp is required
                 mode,
                 "FFFFFF" if duration is None else f"{duration:06X}",
-                "" if until is None else dtm_to_hex(until),
+                "" if until is None else hex_from_dtm(until),
             )
         )
 
@@ -1117,7 +1115,7 @@ class Command(Frame):
     ):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
-        payload = f"{zone_idx:02X}00{str_to_hex(name)[:40]:0<40}"
+        payload = f"{zone_idx:02X}00{hex_from_str(name)[:40]:0<40}"
         return cls.from_attrs(W_, ctl_id, Code._0004, payload, **kwargs)
 
     @classmethod  # constructor for W|2309
@@ -1129,7 +1127,7 @@ class Command(Frame):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         # .W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
-        payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
+        payload = f"{zone_idx:02X}{hex_from_temp(setpoint)}"
         return cls.from_attrs(W_, ctl_id, Code._2309, payload, **kwargs)
 
     @classmethod  # constructor for RQ|30C9
@@ -1266,7 +1264,7 @@ class Command(Frame):
                 f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
             )
 
-        payload = f"{dhw_idx}{temp_to_hex(temperature)}"
+        payload = f"{dhw_idx}{hex_from_temp(temperature)}"
         return cls._from_attrs(
             I_, Code._1260, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1280,7 +1278,7 @@ class Command(Frame):
         This is for use by a faked HVAC sensor or similar.
         """
 
-        payload = f"00{temp_to_hex(temperature)}"
+        payload = f"00{hex_from_temp(temperature)}"
         return cls._from_attrs(
             I_, Code._1290, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1310,7 +1308,7 @@ class Command(Frame):
                 f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
             )
 
-        payload = f"00{temp_to_hex(temperature)}"
+        payload = f"00{hex_from_temp(temperature)}"
         return cls._from_attrs(
             I_, Code._30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1324,7 +1322,7 @@ class Command(Frame):
         """Constructor to announce the current co2 level of a sensor (1298)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
-        payload = f"00{double_to_hex(co2_level)}"
+        payload = f"00{hex_from_double(co2_level)}"
         return cls._from_attrs(
             I_, Code._1298, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1352,7 +1350,7 @@ class Command(Frame):
         """Constructor to announce the current presence state of a sensor (2E10)."""
         # .I --- ...
 
-        payload = f"00{bool_from_hex(presence_detected)}"
+        payload = f"00{hex_to_bool(presence_detected)}"
         return cls._from_attrs(
             I_, Code._2E10, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1372,7 +1370,7 @@ class Command(Frame):
                 f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
             )
 
-        payload = f"00{temp_to_hex(temperature)}01"
+        payload = f"00{hex_from_temp(temperature)}01"
         return cls._from_attrs(
             I_, Code._0002, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
@@ -1398,11 +1396,11 @@ class Command(Frame):
             payload += f"{int(timestamp() * 1000):012X}"
 
         if msg_type == "10":
-            payload += str_to_hex(f"v{VERSION}")
+            payload += hex_from_str(f"v{VERSION}")
         elif msg_type == "11":
-            payload += str_to_hex(message[:4] + message[5:7] + message[8:])
+            payload += hex_from_str(message[:4] + message[5:7] + message[8:])
         else:
-            payload += str_to_hex(message)
+            payload += hex_from_str(message)
 
         return cls.from_attrs(I_, NUL_DEV_ADDR.id, Code._PUZZ, payload[:48], **kwargs)
 

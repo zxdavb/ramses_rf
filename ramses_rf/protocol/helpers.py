@@ -138,7 +138,7 @@ def dt_str() -> str:
 
 
 @typechecked
-def bool_from_hex(value: HexStr2) -> Optional[bool]:  # either False, True or None
+def hex_to_bool(value: HexStr2) -> Optional[bool]:  # either False, True or None
     """Convert a 2-char hex string into a boolean."""
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -148,7 +148,7 @@ def bool_from_hex(value: HexStr2) -> Optional[bool]:  # either False, True or No
 
 
 @typechecked
-def bool_to_hex(value: Optional[bool]) -> HexStr2:  # either 00, C8 or FF
+def hex_from_bool(value: Optional[bool]) -> HexStr2:  # either 00, C8 or FF
     """Convert a boolean into a 2-char hex string."""
     if value is None:
         return "FF"
@@ -158,7 +158,7 @@ def bool_to_hex(value: Optional[bool]) -> HexStr2:  # either 00, C8 or FF
 
 
 @typechecked
-def date_from_hex(value: HexStr8) -> Optional[str]:  # YY-MM-DD
+def hex_to_date(value: HexStr8) -> Optional[str]:  # YY-MM-DD
     """Convert am 8-char hex string into a date, format YY-MM-DD."""
     if not isinstance(value, str) or len(value) != 8:
         raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
@@ -172,7 +172,7 @@ def date_from_hex(value: HexStr8) -> Optional[str]:  # YY-MM-DD
 
 
 @typechecked  # FIXME: factor=1 should return an int
-def double_from_hex(value: HexStr4, factor: int = 1) -> Optional[float]:
+def hex_to_double(value: HexStr4, factor: int = 1) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -182,7 +182,7 @@ def double_from_hex(value: HexStr4, factor: int = 1) -> Optional[float]:
 
 
 @typechecked
-def double_to_hex(value: Optional[float], factor: int = 1) -> HexStr4:
+def hex_from_double(value: Optional[float], factor: int = 1) -> HexStr4:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
@@ -192,7 +192,7 @@ def double_to_hex(value: Optional[float], factor: int = 1) -> HexStr4:
 
 
 @typechecked
-def dtm_from_hex(value: HexStr12 | HexStr14) -> Optional[str]:  # from parsers
+def hex_to_dtm(value: HexStr12 | HexStr14) -> Optional[str]:  # from parsers
     """Convert a 12/14-char hex string to an isoformat datetime (naive, local)."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
@@ -214,7 +214,7 @@ def dtm_from_hex(value: HexStr12 | HexStr14) -> Optional[str]:  # from parsers
 
 
 @typechecked
-def dtm_to_hex(
+def hex_from_dtm(
     dtm: Union[None, dt, str], is_dst=False, incl_seconds=False
 ) -> HexStr12 | HexStr14:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
@@ -236,7 +236,7 @@ def dtm_to_hex(
 
 
 @typechecked
-def dts_from_hex(value: HexStr12) -> Optional[str]:
+def hex_to_dts(value: HexStr12) -> Optional[str]:
     """YY-MM-DD HH:MM:SS."""
     if not isinstance(value, str) or len(value) != 12:
         raise ValueError(f"Invalid value: {value}, is not a 12-char hex string")
@@ -254,7 +254,7 @@ def dts_from_hex(value: HexStr12) -> Optional[str]:
 
 
 @typechecked
-def dts_to_hex(dtm: Union[None, dt, str]) -> HexStr12:  # TODO: WIP
+def hex_from_dts(dtm: Union[None, dt, str]) -> HexStr12:  # TODO: WIP
     """Convert a datetime (isoformat str, or dtm) to a packed 12-char hex str."""
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
@@ -276,7 +276,7 @@ def dts_to_hex(dtm: Union[None, dt, str]) -> HexStr12:  # TODO: WIP
 
 
 @typechecked
-def flag8_from_hex(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tuple
+def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tuple
     """Split a hex str (a byte) into a list of 8 bits, MSB as first bit by default.
 
     If lsb==True, then the LSB is first.
@@ -290,7 +290,7 @@ def flag8_from_hex(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use 
 
 
 @typechecked
-def flag8_to_hex(flags: Iterable[int], lsb: bool = False) -> HexByte:
+def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
     """Convert a list of 8 bits, MSB as first bit by default, into an ASCII hex string.
 
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
@@ -304,7 +304,7 @@ def flag8_to_hex(flags: Iterable[int], lsb: bool = False) -> HexByte:
 
 # TODO: add a wrapper for EF, & 0xF0
 @typechecked
-def percent_from_hex(
+def hex_to_percent(
     value: HexStr2, high_res: bool = True
 ) -> Optional[float]:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.
@@ -324,7 +324,7 @@ def percent_from_hex(
 
 
 @typechecked
-def str_from_hex(value: str) -> Optional[str]:  # printable ASCII characters
+def hex_to_str(value: str) -> Optional[str]:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
     if not isinstance(value, str):
@@ -334,7 +334,7 @@ def str_from_hex(value: str) -> Optional[str]:  # printable ASCII characters
 
 
 @typechecked
-def str_to_hex(value: str) -> str:
+def hex_from_str(value: str) -> str:
     """Convert a string to a variable-length ASCII hex string."""
     if not isinstance(value, str):
         raise ValueError(f"Invalid value: {value}, is not a string")
@@ -342,7 +342,7 @@ def str_to_hex(value: str) -> str:
 
 
 @typechecked
-def temp_from_hex(value: HexStr4) -> Union[None, bool, float]:
+def hex_to_temp(value: HexStr4) -> Union[None, bool, float]:
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -357,7 +357,7 @@ def temp_from_hex(value: HexStr4) -> Union[None, bool, float]:
 
 
 @typechecked
-def temp_to_hex(value: Optional[float]) -> HexStr4:
+def hex_from_temp(value: Optional[float]) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
@@ -403,7 +403,7 @@ def valve_demand(value: HexStr2) -> Optional[dict]:  # c.f. percent_from_hex()
 
 
 @typechecked  # 31DA[2:6] and 12C8[2:6]
-def air_quality(value: HexStr4) -> dict[str, None | float | str]:
+def parse_air_quality(value: HexStr4) -> dict[str, None | float | str]:
     """Return the air quality (%): poor (0.0) to excellent (1.0).
 
     The basis of the air quality level should be one of: VOC, CO2 or relative humidity.
@@ -424,7 +424,7 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
     FAULT_CODES = {}
 
     assert int(value[:2], 16) <= 200 or int(value[:2], 16) & 0xF0 == 0xF0, value[:2]
-    level = percent_from_hex(value[:2])
+    level = hex_to_percent(value[:2])
 
     if level is None:
         fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
@@ -441,7 +441,7 @@ def air_quality(value: HexStr4) -> dict[str, None | float | str]:
 
 
 @typechecked  # 31DA[6:10] and 1298[2:6]
-def co2_level(value: HexStr4) -> dict[str, None | int | str]:
+def parse_co2_level(value: HexStr4) -> dict[str, None | int | str]:
     """Return the co2 level (ppm).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -475,25 +475,25 @@ def co2_level(value: HexStr4) -> dict[str, None | int | str]:
 
 
 @typechecked  # 31DA[10:12] and 12A0[2:12]
-def indoor_humidity(value: str) -> dict[str, None | float | str]:
+def parse_indoor_humidity(value: str) -> dict[str, None | float | str]:
     """Return the relative indoor humidity (%).
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _rel_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _fan_rel_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
 @typechecked  # 31DA[12:14] and 1280[2:12]
-def outdoor_humidity(value: str) -> dict[str, None | float | str]:
+def parse_outdoor_humidity(value: str) -> dict[str, None | float | str]:
     """Return the relative outdoor humidity (%).
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _rel_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _fan_rel_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
 @typechecked
-def _rel_humidity(
+def _fan_rel_humidity(
     param_name: str, value: HexStr2, temp: str, dewpoint: str
 ) -> dict[str, None | float | str]:
     """Return the relative humidity, etc. (called by sensor parsers).
@@ -532,38 +532,38 @@ def _rel_humidity(
 
     result = {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
     if temp:
-        result |= {SZ_TEMPERATURE: temp_from_hex(temp)}
+        result |= {SZ_TEMPERATURE: hex_to_temp(temp)}
     if dewpoint:
-        result |= {SZ_DEWPOINT_TEMP: temp_from_hex(dewpoint)}
+        result |= {SZ_DEWPOINT_TEMP: hex_to_temp(dewpoint)}
     return result
 
 
 @typechecked  # 31DA[14:18]
-def exhaust_temp(value: HexStr4) -> dict[str, None | float | str]:
+def parse_exhaust_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the exhaust temperature ('C)."""
-    return _temperature(SZ_EXHAUST_TEMP, value)
+    return _fan_temp(SZ_EXHAUST_TEMP, value)
 
 
 @typechecked  # 31DA[18:22]
-def supply_temp(value: HexStr4) -> dict[str, None | float | str]:
+def parse_supply_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the supply temperature ('C)."""
-    return _temperature(SZ_SUPPLY_TEMP, value)
+    return _fan_temp(SZ_SUPPLY_TEMP, value)
 
 
 @typechecked  # 31DA[22:26]
-def indoor_temp(value: HexStr4) -> dict[str, None | float | str]:
+def parse_indoor_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the indoor temperature ('C)."""
-    return _temperature(SZ_INDOOR_TEMP, value)
+    return _fan_temp(SZ_INDOOR_TEMP, value)
 
 
 @typechecked  # 31DA[26:30] & 1290[2:6]?
-def outdoor_temp(value: HexStr4) -> dict[str, None | float | str]:
+def parse_outdoor_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the outdoor temperature ('C)."""
-    return _temperature(SZ_OUTDOOR_TEMP, value)
+    return _fan_temp(SZ_OUTDOOR_TEMP, value)
 
 
 @typechecked
-def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
+def _fan_temp(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     """Return the temperature ('C) (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -586,7 +586,7 @@ def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | st
         "85": SZ_UNRELIABLE,
     }
 
-    temperature = temp_from_hex(value)
+    temperature = hex_to_temp(value)
     if temperature < -273:
         fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
         return {f"{SZ_CO2_LEVEL}_fault": fault}
@@ -595,7 +595,7 @@ def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | st
 
 
 @typechecked  # 31DA[30:34]
-def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
+def parse_bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     """Return the bypass position (%), usually fully open or closed (0%, no bypass).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -621,14 +621,14 @@ def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
         fault = FAULT_CODES.get(value, f"device_error_{value}")
         return {f"{SZ_BYPASS_POSITION}_fault": fault}
 
-    bypass_pos = percent_from_hex(value)
+    bypass_pos = hex_to_percent(value)
     assert bypass_pos <= 1.0, value
 
     return {SZ_BYPASS_POSITION: bypass_pos}
 
 
 @typechecked  # 31DA[34:36]
-def speed_capabilities(value: HexStr4) -> dict[str, None | list | str]:
+def parse_capabilities(value: HexStr4) -> dict[str, None | list | str]:
     """Return the speed capabilities (a bitmask).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -667,7 +667,7 @@ def speed_capabilities(value: HexStr4) -> dict[str, None | list | str]:
 
 
 @typechecked  # 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
-def fan_info(value: HexStr2) -> dict[str, None | float | str]:
+def parse_fan_info(value: HexStr2) -> dict[str, None | float | str]:
     """Return the fan info (current speed, and...).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -693,13 +693,13 @@ def fan_info(value: HexStr2) -> dict[str, None | float | str]:
 
 
 @typechecked  # 31DA[38:40]
-def exhaust_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
+def parse_exhaust_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
     """Return the exhaust fan speed (% of max speed)."""
     return _fan_speed(SZ_EXHAUST_FAN_SPEED, value)
 
 
 @typechecked  # 31DA[40:42]
-def supply_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
+def parse_supply_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
     """Return the supply fan speed (% of max speed)."""
     return _fan_speed(SZ_SUPPLY_FAN_SPEED, value)
 
@@ -719,14 +719,14 @@ def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]
     if value in ("EF", "FF"):  # Not implemented
         return {param_name: None}
 
-    percentage = percent_from_hex(value)
+    percentage = hex_to_percent(value)
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     return {param_name: percentage}
 
 
 @typechecked  # 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
-def remaining_time(value: HexStr4) -> dict[str, None | float | str]:
+def parse_remaining_time(value: HexStr4) -> dict[str, None | float | str]:
     """Return the remaining time for temporary modes (min).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -740,26 +740,26 @@ def remaining_time(value: HexStr4) -> dict[str, None | float | str]:
     if value == "0000":
         return {SZ_REMAINING_TIME: None}
 
-    minutes = double_from_hex(value)
+    minutes = hex_to_double(value)
     assert minutes > 0, value  # TODO: raise assert
 
     return {SZ_REMAINING_TIME: minutes}
 
 
 @typechecked  # 31DA[46:48]
-def post_heater(value: HexStr2) -> dict[str, None | float | str]:
+def parse_post_heater(value: HexStr2) -> dict[str, None | float | str]:
     """Return the post-heater state (%)."""
-    return _heater(SZ_POST_HEAT, value)
+    return _fan_heater(SZ_POST_HEAT, value)
 
 
 @typechecked  # 31DA[48:50]
-def pre_heater(value: HexStr2) -> dict[str, None | float | str]:
+def parse_pre_heater(value: HexStr2) -> dict[str, None | float | str]:
     """Return the pre-heater state (%)."""
-    return _heater(SZ_PRE_HEAT, value)
+    return _fan_heater(SZ_PRE_HEAT, value)
 
 
 @typechecked
-def _heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
+def _fan_heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
     """Return the heater state (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -794,19 +794,19 @@ def _heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
 
 
 @typechecked  # 31DA[50:54]
-def supply_flow(value: HexStr4) -> dict[str, None | float | str]:
+def parse_supply_flow(value: HexStr4) -> dict[str, None | float | str]:
     """Return the supply flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)."""
-    return _flow(SZ_SUPPLY_FLOW, value)
+    return _fan_flow(SZ_SUPPLY_FLOW, value)
 
 
 @typechecked  # 31DA[54:58]
-def exhaust_flow(value: HexStr4) -> dict[str, None | float | str]:
+def parse_exhaust_flow(value: HexStr4) -> dict[str, None | float | str]:
     """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
-    return _flow(SZ_EXHAUST_FLOW, value)
+    return _fan_flow(SZ_EXHAUST_FLOW, value)
 
 
 @typechecked
-def _flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
+def _fan_flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     """Return the air flow rate (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -833,7 +833,7 @@ def _flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
         fault = FAULT_CODES.get(value[:2], f"sensor_error_{value}")
         return {f"{param_name}_fault": fault}
 
-    flow = double_from_hex(value, factor=100)
+    flow = hex_to_double(value, factor=100)
     assert flow >= 0, value  # TODO: raise exception if < 0?
 
     return {param_name: flow}

@@ -11,7 +11,7 @@ from __future__ import annotations
 from ramses_rf.protocol.address import NON_DEV_ADDR
 from ramses_rf.protocol.command import Command, validate_api_params
 from ramses_rf.protocol.const import I_, RP, Code
-from ramses_rf.protocol.helpers import flag8_to_hex
+from ramses_rf.protocol.helpers import hex_from_flag8
 
 # from .const import __dev_mode__
 
@@ -35,7 +35,7 @@ class MockCommand(Command):
             verb = RP
             addr2 = NON_DEV_ADDR.id
 
-        zone_mask = flag8_to_hex(zone_mask[:8], lsb=True) + flag8_to_hex(
+        zone_mask = hex_from_flag8(zone_mask[:8], lsb=True) + hex_from_flag8(
             zone_mask[8:], lsb=True
         )
         payload = f"00{zone_type}{zone_mask}"

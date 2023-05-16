@@ -9,18 +9,18 @@ Test the various helper APIs.
 # TODO: add test for ramses_rf.protocol.frame.pkt_header()
 
 from ramses_rf.protocol.helpers import (
-    bool_from_hex,
-    bool_to_hex,
-    double_from_hex,
-    double_to_hex,
-    dtm_from_hex,
-    dtm_to_hex,
-    dts_from_hex,
-    dts_to_hex,
-    flag8_from_hex,
-    flag8_to_hex,
-    temp_from_hex,
-    temp_to_hex,
+    hex_from_bool,
+    hex_from_double,
+    hex_from_dtm,
+    hex_from_dts,
+    hex_from_flag8,
+    hex_from_temp,
+    hex_to_bool,
+    hex_to_double,
+    hex_to_dtm,
+    hex_to_dts,
+    hex_to_flag8,
+    hex_to_temp,
 )
 from ramses_rf.protocol.packet import Packet
 from ramses_rf.system.zones import _transform
@@ -56,11 +56,11 @@ def test_demand_transform() -> None:
 
 def test_field_parsers() -> None:
     for val in ("FF", "00", "C8"):
-        assert val == bool_to_hex(bool_from_hex(val))
+        assert val == hex_from_bool(hex_to_bool(val))
 
     for val in ("7FFF", "0000", "0001", "0010", "0100", "1000"):
-        assert val == double_to_hex(double_from_hex(val))
-        assert val == double_to_hex(double_from_hex(val, factor=100), factor=100)
+        assert val == hex_from_double(hex_to_double(val))
+        assert val == hex_from_double(hex_to_double(val, factor=100), factor=100)
 
     for val in (
         "FF" * 6,
@@ -69,20 +69,20 @@ def test_field_parsers() -> None:
         "00110E0507E5",
         "0400041C0A07E3",
     ):
-        assert val == dtm_to_hex(dtm_from_hex(val), incl_seconds=(len(val) == 14))
+        assert val == hex_from_dtm(hex_to_dtm(val), incl_seconds=(len(val) == 14))
 
     for val in ("00000000007F",):
-        assert val == dts_to_hex(dts_from_hex(val))
+        assert val == hex_from_dts(hex_to_dts(val))
 
     for val in ("00", "01", "08", "10", "E0", "CC", "FF"):
-        assert val == flag8_to_hex(flag8_from_hex(val))
-        assert val == flag8_to_hex(flag8_from_hex(val, lsb=True), lsb=True)
+        assert val == hex_from_flag8(hex_to_flag8(val))
+        assert val == hex_from_flag8(hex_to_flag8(val, lsb=True), lsb=True)
 
     for val in ("7FFF", "7EFF", "0000", "0010", "0200", "D000"):
-        assert val == temp_to_hex(temp_from_hex(val))
+        assert val == hex_from_temp(hex_to_temp(val))
 
     for val in (None, False, -127.99, -100, -22.5, -1.53, 0, 1.53, 22.5, 100, 127.98):
-        assert val == temp_from_hex(temp_to_hex(val))
+        assert val == hex_to_temp(hex_from_temp(val))
 
 
 TRANSFORMS = [
