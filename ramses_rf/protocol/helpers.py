@@ -423,6 +423,7 @@ def parser_valve_demand(value: HexStr2) -> dict[str, None | float | str]:
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
     """  # for a damper (restricts flow), or a valve (permits flow)
 
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
 
@@ -452,26 +453,28 @@ def parse_air_quality(value: HexStr4) -> dict[str, None | float | str]:
     The dict does not include the key if there is a sensor fault.
     """  # VOC: Volatile organic compounds
 
-    # TODO: remove this...
+    # TODO: remove this as API used only internally...
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
-    assert value[:2] != "EF" or value[2:] == "00", value
+    assert value[:2] != "EF" or value[2:] == "00", value  # TODO: raise exception
     if value == "EF00":  # Not implemented
         return {SZ_AIR_QUALITY: None}
 
-    assert int(value[:2], 16) <= 200 or int(value[:2], 16) & 0xF0 == 0xF0, value[:2]
-    level = hex_to_percent(value[:2])
+    if int(value[:2], 16) & 0xF0 == 0xF0:
+        return _faulted_sensor(SZ_AIR_QUALITY, value)
 
-    if level is None:  # FIXME
-        return _faulted_sensor(SZ_AIR_QUALITY, "FF")
+    level = int(value[:2], 16) / 200  # was: hex_to_percent(value[:2])
+    assert level <= 1.0, value[:2]  # TODO: raise exception
 
-    assert value[2:] in ("10", "20", "40"), value[2:]
+    assert value[2:] in ("10", "20", "40"), value[2:]  # TODO: remove assert
     basis = {
         "10": "voc",  # volatile compounds
         "20": "co2",  # carbdon dioxide
         "40": "rel_humidity",  # relative humidity
-    }.get(value[2:], f"unknown_{value[2:]}")
+    }.get(
+        value[2:], f"unknown_{value[2:]}"
+    )  # TODO: remove get/unknown
 
     return {SZ_AIR_QUALITY: level, SZ_AIR_QUALITY_BASIS: basis}
 
@@ -491,7 +494,7 @@ def parse_co2_level(value: HexStr4) -> dict[str, None | int | str]:
     if value == "7FFF":  # Not implemented
         return {SZ_CO2_LEVEL: None}
 
-    level = int(value, 16)  # was: double_from_hex(value)  # is 2's complement?
+    level = int(value, 16)  # was: hex_to_double(value)  # is it 2's complement?
 
     if int(value[:2], 16) & 0x80 or level >= 0x8000:
         return _faulted_sensor(SZ_CO2_LEVEL, value)
@@ -528,7 +531,7 @@ def _fan_rel_humidity(
     The dict does not include the key if there is a sensor fault.
     """
 
-    # TODO: remove me
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
     if not isinstance(temp, str) or len(temp) not in (0, 4):
@@ -542,7 +545,7 @@ def _fan_rel_humidity(
     if int(value, 16) & 0xF0 == 0xF0:
         return _faulted_sensor(param_name, value)
 
-    percentage = int(value, 16) / 100
+    percentage = int(value, 16) / 100  # TODO: confirm not 200
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     result = {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
@@ -585,17 +588,22 @@ def _fan_temp(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     The dict does not include the key if there is a sensor fault.
     """
 
-    # TODO: remove me
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
     if value == "7FFF":  # Not implemented
         return {param_name: None}
 
-    if int(value[:2], 16) & 0x80:  # or temperature < -273:
+    if int(value[:2], 16) & 0xF0 == 0x80:  # or temperature < -273.15:
         return _faulted_sensor(param_name, value)
 
-    return {param_name: hex_to_temp(value)}  # was: temp_from_hex(value)
+    temp = int(value, 16)
+    temp = (temp if temp < 2**15 else temp - 2**16) / 100
+    if temp <= -273:  # TODO: < 273.15?
+        return _faulted_sensor(param_name, value)
+
+    return {param_name: temp}
 
 
 @typechecked  # 31DA[30:34]
@@ -605,6 +613,7 @@ def parse_bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     The sensor value is None if there is no sensor present (is not an error).
     The dict does not include the key if there is a sensor fault.
     """
+
     # TODO: remove this...
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -615,7 +624,7 @@ def parse_bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     if int(value[:2], 16) & 0xF0 == 0xF0:
         return _faulted_sensor(SZ_BYPASS_POSITION, value)
 
-    bypass_pos = hex_to_percent(value)
+    bypass_pos = int(value, 16) / 200  # was: hext_to_percent(value)
     assert bypass_pos <= 1.0, value
 
     return {SZ_BYPASS_POSITION: bypass_pos}
@@ -713,7 +722,7 @@ def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]
     if value in ("EF", "FF"):  # Not implemented
         return {param_name: None}
 
-    percentage = hex_to_percent(value)
+    percentage = int(value, 16) / 200  # was: hext_to_percent(value)
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     return {param_name: percentage}
@@ -734,10 +743,10 @@ def parse_remaining_time(value: HexStr4) -> dict[str, None | float | str]:
     if value == "0000":
         return {SZ_REMAINING_MINS: None}
 
-    minutes = hex_to_double(value)
+    minutes = int(value, 16)  # was: hex_to_double(value)
     assert minutes > 0, value  # TODO: raise assert
 
-    return {SZ_REMAINING_MINS: minutes}
+    return {SZ_REMAINING_MINS: minutes}  # usu. 0-60 mins
 
 
 @typechecked  # 31DA[46:48]
@@ -760,7 +769,7 @@ def _fan_heater(param_name: str, value: HexStr2) -> dict[str, None | float | str
     The dict does not include the key if there is a sensor fault.
     """
 
-    # TODO: remove me
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
 
@@ -796,7 +805,7 @@ def _fan_flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     The dict does not include the key if there is a sensor fault.
     """
 
-    # TODO: remove me
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
@@ -805,7 +814,8 @@ def _fan_flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
 
     if int(value[:2], 16) & 0x80:
         return _faulted_sensor(param_name, value)
-    flow = hex_to_double(value, factor=100)
+
+    flow = int(value, 16) / 100  # was: hex_to_double(value, factor=100)
     assert flow >= 0, value  # TODO: raise exception if < 0?
 
     return {param_name: flow}
