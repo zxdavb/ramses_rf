@@ -50,7 +50,7 @@ def _proc_log_line(gwy, pkt_line):  # noqa: F811
     pkt_dict = eval(pkt_dict)
 
     if isinstance(pkt_dict, list) or not any(k for k in pkt_dict if k in META_KEYS):
-        assert msg.payload == pkt_dict
+        assert msg.payload == pkt_dict, msg._pkt
         return
 
     assert HAS_ARRAY not in pkt_dict or pkt._has_array == pkt_dict[HAS_ARRAY]
@@ -84,6 +84,23 @@ def test_parsers_from_log_files(gwy, f_name):  # noqa: F811
     with open(f_name) as f:
         while line := (f.readline()):
             _proc_log_line(gwy, line)
+
+
+def _test_parser_31da(gwy, f_name):  # noqa: F811
+    # assert _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F] in (
+    #     speed_capabilities(payload[30:34])["speed_capabilities"]
+    # ) or (
+    #     int(payload[36:38], 16) & 0x1F in (1, 2, 3) and int(payload[30:34], 16) & 2**14
+    # ) or (
+    #     int(payload[36:38], 16) & 0x1F in (11, 12, 13) and int(payload[30:34], 16) & 2**14 and int(payload[30:34], 16) & 2**13
+    # ) or (
+    #     int(payload[36:38], 16) & 0x1F in (0x00, 0x18, 0x15)
+    # ), {_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F]: speed_capabilities(payload[30:34])}
+    pass
+
+
+def _test_parser_pairs_31d9_31da(gwy, f_name):  # noqa: F811
+    pass
 
 
 def _test_parser_pairs_4e15_3ef0(gwy, f_name):  # noqa: F811

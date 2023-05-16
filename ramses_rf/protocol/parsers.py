@@ -100,7 +100,7 @@ from .helpers import (
     parse_supply_fan_speed,
     parse_supply_flow,
     parse_supply_temp,
-    valve_demand,
+    parser_valve_demand,
 )
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
 from .ramses import _2411_PARAMS_SCHEMA
@@ -2083,12 +2083,12 @@ def parser_3150(payload, msg) -> dict | list:
         return [
             {
                 **complex_idx(payload[i : i + 2], msg),
-                **valve_demand(payload[i + 2 : i + 4]),
+                **parser_valve_demand(payload[i + 2 : i + 4]),
             }
             for i in range(0, len(payload), 4)
         ]
 
-    return valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
+    return parser_valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
 
 
 @parser_decorator  # fan state (basic), HVAC
@@ -2108,7 +2108,7 @@ def parser_31d9(payload, msg) -> dict:
         **parse_exhaust_fan_speed(payload[4:6]),  # itho
         SZ_FAN_MODE: payload[4:6],  # orcon
         "passive": bool(bitmap & 0x02),
-        "damper_only": bool(bitmap & 0x04),
+        "damper_only": bool(bitmap & 0x04),  # i.e. valve only
         "filter_dirty": bool(bitmap & 0x20),
         "frost_cycle": bool(bitmap & 0x40),
         "has_fault": bool(bitmap & 0x80),
@@ -2143,17 +2143,9 @@ def parser_31d9(payload, msg) -> dict:
 
 @parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
-    # assert _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F] in (
-    #     speed_capabilities(payload[30:34])["speed_capabilities"]
-    # ) or (
-    #     int(payload[36:38], 16) & 0x1F in (1, 2, 3) and int(payload[30:34], 16) & 2**14
-    # ) or (
-    #     int(payload[36:38], 16) & 0x1F in (11, 12, 13) and int(payload[30:34], 16) & 2**14 and int(payload[30:34], 16) & 2**13
-    # ) or (
-    #     int(payload[36:38], 16) & 0x1F in (0x00, 0x18, 0x15)
-    # ), {_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F]: speed_capabilities(payload[30:34])}
-
     return {
+        **parse_fan_info(payload[36:38]),  # 22F3-ish
+        #
         **parse_air_quality(payload[2:6]),  # 12C8[2:6]
         **parse_co2_level(payload[6:10]),  # 1298[2:6]
         **parse_indoor_humidity(payload[10:12]),  # 12A0?
@@ -2164,14 +2156,13 @@ def parser_31da(payload, msg) -> dict:
         **parse_outdoor_temp(payload[26:30]),  # 1290?
         **parse_capabilities(payload[30:34]),
         **parse_bypass_position(payload[34:36]),  # 22F7-ish
-        **parse_fan_info(payload[36:38]),  # 22F3-ish
         **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_supply_fan_speed(payload[40:42]),
         **parse_remaining_time(payload[42:46]),  # mins, ~22F3[2:6]
         **parse_post_heater(payload[46:48]),
         **parse_pre_heater(payload[48:50]),
-        **parse_supply_flow(payload[50:54]),  # NOTE: order switched with below
-        **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched with above
+        **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
+        **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
     }
 
     # From an Orcon 15RF Display

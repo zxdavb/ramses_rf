@@ -29,7 +29,7 @@ from ..const import (
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
-    SZ_REMAINING_TIME,
+    SZ_REMAINING_MINS,
     SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
@@ -414,7 +414,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def remaining_time(self) -> Optional[int]:
-        return self._msg_value(Code._31DA, key=SZ_REMAINING_TIME)
+        return self._msg_value(Code._31DA, key=SZ_REMAINING_MINS)
 
     @property
     def speed_cap(self) -> Optional[int]:

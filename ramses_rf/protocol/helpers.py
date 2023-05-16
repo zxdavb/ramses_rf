@@ -28,13 +28,14 @@ from .const import (
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
     SZ_FAN_INFO,
+    SZ_HEAT_DEMAND,
     SZ_INDOOR_HUMIDITY,
     SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
     SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
-    SZ_REMAINING_TIME,
+    SZ_REMAINING_MINS,
     SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
@@ -60,13 +61,32 @@ SZ_UNRELIABLE = "sensor_unreliable"
 SZ_TOO_HIGH = "sensor_value_too_high"
 SZ_TOO_LOW = "sensor_value_too_low"
 # Actuator, Valve/damper faults
-SZ_STUCK_VALVE = ("jammed_valve",)  # Damper/Valve jammed
-SZ_STUCK_ACTUATOR = ("jammed_actuator",)  # Actuator jammed
+SZ_STUCK_VALVE = "stuck_valve"  # Damper/Valve jammed
+SZ_STUCK_ACTUATOR = "stuck_actuator"  # Actuator jammed
 # Common (to both) faults
 SZ_OPEN_CIRCUIT = "open_circuit"
 SZ_SHORT_CIRCUIT = "short_circuit"
 SZ_UNAVAILABLE = "unavailable"
-SZ_OTHER_FAULT = ("other_fault",)  # Non-specific fault
+SZ_OTHER_FAULT = "other_fault"  # Non-specific fault
+
+DEVICE_FAULT_CODES = {
+    0x0: SZ_OPEN_CIRCUIT,  # NOTE: open, short
+    0x1: SZ_SHORT_CIRCUIT,
+    0x2: SZ_UNAVAILABLE,
+    0xD: SZ_STUCK_VALVE,
+    0xE: SZ_STUCK_ACTUATOR,
+    0xF: SZ_OTHER_FAULT,
+}
+SENSOR_FAULT_CODES = {
+    0x0: SZ_SHORT_CIRCUIT,  # NOTE: short, open
+    0x1: SZ_OPEN_CIRCUIT,
+    0x2: SZ_UNAVAILABLE,
+    0x3: SZ_TOO_HIGH,
+    0x4: SZ_TOO_LOW,
+    0x5: SZ_UNRELIABLE,
+    # 0xF: SZ_OTHER_FAULT,  # No evidence is explicitly part of the specification
+}
+
 
 # fmt: off
 HexByte = Literal[
@@ -135,6 +155,9 @@ def dt_now() -> dt:
 def dt_str() -> str:
     """Return the current datetime as a isoformat string."""
     return dt_now().isoformat(timespec="microseconds")
+
+
+####################################################################################################
 
 
 @typechecked
@@ -353,7 +376,10 @@ def hex_to_temp(value: HexStr4) -> Union[None, bool, float]:
     if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
         return None
     temp = int(value, 16)
-    return (temp if temp < 2**15 else temp - 2**16) / 100
+    temp = (temp if temp < 2**15 else temp - 2**16) / 100
+    if temp < -273.15:
+        raise ValueError(f"Invalid value: {temp} (0x{value}) is < -273.15")
+    return temp
 
 
 @typechecked
@@ -375,31 +401,44 @@ def hex_from_temp(value: Optional[float]) -> HexStr4:
 
 
 @typechecked
-def valve_demand(value: HexStr2) -> Optional[dict]:  # c.f. percent_from_hex()
+def _faulted_sensor(param_name: str, value: str) -> dict[str, str]:
+    # assert value[:1] in ("8", "F"), value
+    code = int(value[:2], 16) & 0xF
+    fault = SENSOR_FAULT_CODES.get(code, f"sensor_error_{value}")
+    return {f"{param_name}_fault": fault}
+
+
+@typechecked
+def _faulted_device(param_name: str, value: str) -> dict[str, str]:
+    assert value[:1] in ("8", "F"), value
+    code = int(value[:2], 16) & 0xF
+    fault = DEVICE_FAULT_CODES.get(code, f"device_error_{value}")
+    return {f"{param_name}_fault": fault}
+
+
+@typechecked
+def parser_valve_demand(value: HexStr2) -> dict[str, None | float | str]:
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
     """  # for a damper (restricts flow), or a valve (permits flow)
+
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
     if value == "EF":
-        return None  # TODO: raise NotImplementedError
-    result = int(value, 16)
-    if result & 0xF0 == 0xF0:
-        STATE_3150 = {
-            "F0": "open_circuit",
-            "F1": "short_circuit",
-            "FD": "valve_stuck",  # damper/valve stuck
-            "FE": "actuator_stuck",
-        }
-        return {
-            "heat_demand": None,
-            "fault": STATE_3150.get(value, "malfunction"),
-        }
-    result = result / 200  # type: ignore[assignment]
-    if result > 1:
+        return {SZ_HEAT_DEMAND: None}  # Not Implemented
+
+    if int(value, 16) & 0xF0 == 0xF0:
+        return _faulted_device(SZ_HEAT_DEMAND, value)
+
+    result = int(value, 16) / 200  # c.f. hex_to_percentage
+    if result == 1.01:  # HACK
+        result = 1.0
+    elif result > 1.0:
         raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
-    return {"heat_demand": result}
+
+    return {SZ_HEAT_DEMAND: result}
 
 
 @typechecked  # 31DA[2:6] and 12C8[2:6]
@@ -421,14 +460,11 @@ def parse_air_quality(value: HexStr4) -> dict[str, None | float | str]:
     if value == "EF00":  # Not implemented
         return {SZ_AIR_QUALITY: None}
 
-    FAULT_CODES = {}
-
     assert int(value[:2], 16) <= 200 or int(value[:2], 16) & 0xF0 == 0xF0, value[:2]
     level = hex_to_percent(value[:2])
 
-    if level is None:
-        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
-        return {f"{SZ_AIR_QUALITY}_fault": fault}
+    if level is None:  # FIXME
+        return _faulted_sensor(SZ_AIR_QUALITY, "FF")
 
     assert value[2:] in ("10", "20", "40"), value[2:]
     basis = {
@@ -455,20 +491,10 @@ def parse_co2_level(value: HexStr4) -> dict[str, None | int | str]:
     if value == "7FFF":  # Not implemented
         return {SZ_CO2_LEVEL: None}
 
-    FAULT_CODES = {
-        "80": SZ_SHORT_CIRCUIT,
-        "81": SZ_OPEN_CIRCUIT,
-        "82": SZ_UNAVAILABLE,  # assumed
-        "83": SZ_TOO_HIGH,
-        "84": SZ_TOO_LOW,
-        "85": SZ_UNRELIABLE,
-    }
-
     level = int(value, 16)  # was: double_from_hex(value)  # is 2's complement?
 
-    if level >= 0x8000:
-        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
-        return {f"{SZ_CO2_LEVEL}_fault": fault}
+    if int(value[:2], 16) & 0x80 or level >= 0x8000:
+        return _faulted_sensor(SZ_CO2_LEVEL, value)
 
     # assert int(value[:2], 16) <= 0x8000, value
     return {SZ_CO2_LEVEL: level}
@@ -513,19 +539,8 @@ def _fan_rel_humidity(
     if value == "EF":  # Not implemented
         return {param_name: None}
 
-    FAULT_CODES = {
-        "F0": SZ_SHORT_CIRCUIT,
-        "F1": SZ_OPEN_CIRCUIT,
-        "F2": SZ_UNAVAILABLE,
-        "F3": SZ_TOO_HIGH,
-        "F4": SZ_TOO_LOW,
-        "F5": SZ_UNRELIABLE,
-        "FF": SZ_OTHER_FAULT,
-    }  # F6-FE are reserved for later use?
-
     if int(value, 16) & 0xF0 == 0xF0:
-        fault = FAULT_CODES.get(value, f"sensor_error_{value}")
-        return {f"{param_name}_fault": fault}
+        return _faulted_sensor(param_name, value)
 
     percentage = int(value, 16) / 100
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
@@ -577,21 +592,10 @@ def _fan_temp(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     if value == "7FFF":  # Not implemented
         return {param_name: None}
 
-    FAULT_CODES = {  # NOTE: an educated guess
-        "80": SZ_SHORT_CIRCUIT,
-        "81": SZ_OPEN_CIRCUIT,
-        "82": SZ_UNAVAILABLE,
-        "83": SZ_TOO_HIGH,
-        "84": SZ_TOO_LOW,
-        "85": SZ_UNRELIABLE,
-    }
+    if int(value[:2], 16) & 0x80:  # or temperature < -273:
+        return _faulted_sensor(param_name, value)
 
-    temperature = hex_to_temp(value)
-    if temperature < -273:
-        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value[:2]}")
-        return {f"{SZ_CO2_LEVEL}_fault": fault}
-
-    return {param_name: temperature}  # was: temp_from_hex(value)
+    return {param_name: hex_to_temp(value)}  # was: temp_from_hex(value)
 
 
 @typechecked  # 31DA[30:34]
@@ -608,18 +612,8 @@ def parse_bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     if value == "EF":  # Not implemented
         return {SZ_BYPASS_POSITION: None}
 
-    FAULT_CODES = {
-        "F0": SZ_OPEN_CIRCUIT,  # why not 81, as others?
-        "F1": SZ_SHORT_CIRCUIT,  # why not 80, as others?
-        "F2": SZ_UNAVAILABLE,
-        "FD": SZ_STUCK_VALVE,
-        "FE": SZ_STUCK_ACTUATOR,
-        "FF": SZ_OTHER_FAULT,
-    }
-
-    if int(value, 16) & 0xF0 == 0xF0:
-        fault = FAULT_CODES.get(value, f"device_error_{value}")
-        return {f"{SZ_BYPASS_POSITION}_fault": fault}
+    if int(value[:2], 16) & 0xF0 == 0xF0:
+        return _faulted_sensor(SZ_BYPASS_POSITION, value)
 
     bypass_pos = hex_to_percent(value)
     assert bypass_pos <= 1.0, value
@@ -727,7 +721,7 @@ def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]
 
 @typechecked  # 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
 def parse_remaining_time(value: HexStr4) -> dict[str, None | float | str]:
-    """Return the remaining time for temporary modes (min).
+    """Return the remaining time for temporary modes (whole minutes).
 
     The sensor value is None if there is no sensor present (is not an error).
     The dict does not include the key if there is a sensor fault.
@@ -738,23 +732,23 @@ def parse_remaining_time(value: HexStr4) -> dict[str, None | float | str]:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
     if value == "0000":
-        return {SZ_REMAINING_TIME: None}
+        return {SZ_REMAINING_MINS: None}
 
     minutes = hex_to_double(value)
     assert minutes > 0, value  # TODO: raise assert
 
-    return {SZ_REMAINING_TIME: minutes}
+    return {SZ_REMAINING_MINS: minutes}
 
 
 @typechecked  # 31DA[46:48]
 def parse_post_heater(value: HexStr2) -> dict[str, None | float | str]:
-    """Return the post-heater state (%)."""
+    """Return the post-heater state (% of max heat)."""
     return _fan_heater(SZ_POST_HEAT, value)
 
 
 @typechecked  # 31DA[48:50]
 def parse_pre_heater(value: HexStr2) -> dict[str, None | float | str]:
-    """Return the pre-heater state (%)."""
+    """Return the pre-heater state (% of max heat)."""
     return _fan_heater(SZ_PRE_HEAT, value)
 
 
@@ -773,19 +767,8 @@ def _fan_heater(param_name: str, value: HexStr2) -> dict[str, None | float | str
     if value == "EF":  # Not implemented
         return {param_name: None}
 
-    FAULT_CODES = {
-        "F0": SZ_SHORT_CIRCUIT,
-        "F1": SZ_OPEN_CIRCUIT,
-        "F2": SZ_UNAVAILABLE,
-        "F3": SZ_TOO_HIGH,
-        "F4": SZ_TOO_LOW,
-        "F5": SZ_UNRELIABLE,
-        "FF": SZ_OTHER_FAULT,
-    }  # F6-FE are reserved for later use?
-
     if int(value, 16) & 0xF0 == 0xF0:
-        fault = FAULT_CODES.get(value, f"sensor_error_{value}")
-        return {f"{param_name}_fault": fault}
+        return _faulted_sensor(param_name, value)
 
     percentage = int(value, 16) / 100
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
@@ -820,19 +803,8 @@ def _fan_flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     if value == "7FFF":  # Not implemented
         return {param_name: None}
 
-    FAULT_CODES = {
-        "80": SZ_SHORT_CIRCUIT,
-        "81": SZ_OPEN_CIRCUIT,
-        "82": SZ_UNAVAILABLE,
-        "83": SZ_TOO_HIGH,
-        "84": SZ_TOO_LOW,
-        "85": SZ_UNRELIABLE,
-    }
-
-    if int(value[:2], 16) & 0x80 == 0x80:
-        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value}")
-        return {f"{param_name}_fault": fault}
-
+    if int(value[:2], 16) & 0x80:
+        return _faulted_sensor(param_name, value)
     flow = hex_to_double(value, factor=100)
     assert flow >= 0, value  # TODO: raise exception if < 0?
 

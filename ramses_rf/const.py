@@ -50,7 +50,7 @@ from .protocol.const import (  # noqa: F401
     SZ_PRIORITY,
     SZ_RELAY_DEMAND,
     SZ_RELAY_FAILSAFE,
-    SZ_REMAINING_TIME,
+    SZ_REMAINING_MINS,
     SZ_RETRIES,
     SZ_SCHEDULE,
     SZ_SENSOR,
