@@ -24,6 +24,7 @@ from .const import (
     SZ_BYPASS_POSITION,
     SZ_CO2_LEVEL,
     SZ_DEWPOINT_TEMP,
+    SZ_EXHAUST_FAN_SPEED,
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
     SZ_INDOOR_HUMIDITY,
@@ -32,6 +33,7 @@ from .const import (
     SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
+    SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
@@ -588,7 +590,7 @@ def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | st
     return {param_name: temperature}  # was: temp_from_hex(value)
 
 
-@typechecked
+@typechecked  # 31DA[34:36]
 def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     """Return the bypass position (%), usually fully open or closed (0%, no bypass).
 
@@ -621,14 +623,47 @@ def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     return {SZ_BYPASS_POSITION: bypass_pos}
 
 
+@typechecked  # 31DA[38:40]
+def exhaust_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
+    """Return the exhaust fan speed (% of max speed)."""
+    return _fan_speed(SZ_EXHAUST_FAN_SPEED, value)
+
+
+@typechecked  # 31DA[40:42]
+def supply_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
+    """Return the supply fan speed (% of max speed)."""
+    return _fan_speed(SZ_SUPPLY_FAN_SPEED, value)
+
+
+@typechecked
+def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
+    """Return the fan speed (called by sensor parsers).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove me
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
+    if value in ("EF", "FF"):  # Not implemented
+        return {param_name: None}
+
+    percentage = percent_from_hex(value)
+    assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
+
+    return {param_name: percentage}
+
+
 @typechecked  # 31DA[46:48]
-def post_heater(value: str) -> dict[str, None | float | str]:
+def post_heater(value: HexStr2) -> dict[str, None | float | str]:
     """Return the post-heater state (%)."""
     return _heater(SZ_POST_HEAT, value)
 
 
 @typechecked  # 31DA[48:50]
-def pre_heater(value: str) -> dict[str, None | float | str]:
+def pre_heater(value: HexStr2) -> dict[str, None | float | str]:
     """Return the pre-heater state (%)."""
     return _heater(SZ_PRE_HEAT, value)
 
