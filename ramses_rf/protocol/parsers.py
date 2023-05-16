@@ -55,7 +55,6 @@ from .const import (
     SZ_PAYLOAD,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
-    SZ_REMAINING_TIME,
     SZ_SETPOINT,
     SZ_SPEED_CAP,
     SZ_SYSTEM_MODE,
@@ -82,7 +81,6 @@ from .helpers import (
     bypass_position,
     co2_level,
     date_from_hex,
-    double_from_hex,
     dtm_from_hex,
     dts_from_hex,
     exhaust_fan_speed,
@@ -96,6 +94,7 @@ from .helpers import (
     percent_from_hex,
     post_heater,
     pre_heater,
+    remaining_time,
     str_from_hex,
     supply_fan_speed,
     supply_flow,
@@ -2146,7 +2145,6 @@ def parser_31d9(payload, msg) -> dict:
 def parser_31da(payload, msg) -> dict:
     try:
         # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
-        # assert payload[34:36] == "EF", payload[34:36]
         assert (
             payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x19
         ), f"invalid _31DA_FAN_INFO: {payload[36:38]}"
@@ -2163,17 +2161,16 @@ def parser_31da(payload, msg) -> dict:
         **supply_temp(payload[18:22]),  # to home
         **indoor_temp(payload[22:26]),  # in home
         **outdoor_temp(payload[26:30]),  # 1290?
+        SZ_SPEED_CAP: int(payload[30:34], 16),
         **bypass_position(payload[34:36]),  # 22F7-ish
+        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
         **exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **supply_fan_speed(payload[40:42]),
+        **remaining_time(payload[42:46]),  # mins, ~22F3[2:6]
         **post_heater(payload[46:48]),
         **pre_heater(payload[48:50]),
-        **supply_flow(payload[50:54]),  # L/sec  # TODO: check isn't exhaust
-        **exhaust_flow(payload[54:58]),  # L/sec  # TODO: see above
-        #
-        SZ_SPEED_CAP: int(payload[30:34], 16),
-        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
-        SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
+        **supply_flow(payload[50:54]),  # NOTE: order switched with below
+        **exhaust_flow(payload[54:58]),  # NOTE: order switched with above
     }
 
     # From an Orcon 15RF Display

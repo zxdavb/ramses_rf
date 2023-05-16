@@ -33,6 +33,7 @@ from .const import (
     SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
+    SZ_REMAINING_TIME,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
@@ -643,7 +644,7 @@ def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]
     The dict does not include the key if there is a sensor fault.
     """
 
-    # TODO: remove me
+    # TODO: remove this...
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
 
@@ -654,6 +655,27 @@ def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     return {param_name: percentage}
+
+
+@typechecked  # 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
+def remaining_time(value: HexStr4) -> dict[str, None | float | str]:
+    """Return the remaining time for temporary modes (min).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 4:
+        raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
+
+    if value == "0000":
+        return {SZ_REMAINING_TIME: None}
+
+    minutes = double_from_hex(value)
+    assert minutes > 0, value  # TODO: raise assert
+
+    return {SZ_REMAINING_TIME: minutes}
 
 
 @typechecked  # 31DA[46:48]
