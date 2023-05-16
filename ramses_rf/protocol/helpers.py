@@ -24,6 +24,7 @@ from .const import (
     SZ_BYPASS_POSITION,
     SZ_CO2_LEVEL,
     SZ_DEWPOINT_TEMP,
+    SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
     SZ_INDOOR_HUMIDITY,
     SZ_INDOOR_TEMP,
@@ -31,6 +32,7 @@ from .const import (
     SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
+    SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
 )
@@ -486,7 +488,7 @@ def outdoor_humidity(value: str) -> dict[str, None | float | str]:
 
 @typechecked
 def _rel_humidity(
-    param_name: str, value: HexStr2, temp: HexStr4, dewpoint: HexStr4
+    param_name: str, value: HexStr2, temp: str, dewpoint: str
 ) -> dict[str, None | float | str]:
     """Return the relative humidity, etc. (called by sensor parsers).
 
@@ -519,8 +521,8 @@ def _rel_humidity(
         fault = FAULT_CODES.get(value, f"sensor_error_{value}")
         return {f"{param_name}_fault": fault}
 
-    percentage = int(value, 16) / 100  # TODO: raise exception if > 1.0?
-    assert percentage <= 1.0, value
+    percentage = int(value, 16) / 100
+    assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     result = {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
     if temp:
@@ -531,25 +533,25 @@ def _rel_humidity(
 
 
 @typechecked  # 31DA[14:18]
-def exhaust_temp(value: str) -> dict[str, None | float | str]:
+def exhaust_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the exhaust temperature ('C)."""
     return _temperature(SZ_EXHAUST_TEMP, value)
 
 
 @typechecked  # 31DA[18:22]
-def supply_temp(value: str) -> dict[str, None | float | str]:
+def supply_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the supply temperature ('C)."""
     return _temperature(SZ_SUPPLY_TEMP, value)
 
 
 @typechecked  # 31DA[22:26]
-def indoor_temp(value: str) -> dict[str, None | float | str]:
+def indoor_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the indoor temperature ('C)."""
     return _temperature(SZ_INDOOR_TEMP, value)
 
 
 @typechecked  # 31DA[26:30] & 1290[2:6]?
-def outdoor_temp(value: str) -> dict[str, None | float | str]:
+def outdoor_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the outdoor temperature ('C)."""
     return _temperature(SZ_OUTDOOR_TEMP, value)
 
@@ -660,20 +662,58 @@ def _heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
         fault = FAULT_CODES.get(value, f"sensor_error_{value}")
         return {f"{param_name}_fault": fault}
 
-    percentage = int(value, 16) / 100  # TODO: raise exception if > 1.0?
-    assert percentage <= 1.0, value
+    percentage = int(value, 16) / 100
+    assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     return {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
+
+
+@typechecked  # 31DA[50:54]
+def supply_flow(value: HexStr4) -> dict[str, None | float | str]:
+    """Return the supply flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)."""
+    return _flow(SZ_SUPPLY_FLOW, value)
+
+
+@typechecked  # 31DA[54:58]
+def exhaust_flow(value: HexStr4) -> dict[str, None | float | str]:
+    """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
+    return _flow(SZ_EXHAUST_FLOW, value)
+
+
+@typechecked
+def _flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
+    """Return the air flow rate (called by sensor parsers).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove me
+    if not isinstance(value, str) or len(value) != 4:
+        raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
+
+    if value == "7FFF":  # Not implemented
+        return {param_name: None}
+
+    FAULT_CODES = {
+        "80": SZ_SHORT_CIRCUIT,
+        "81": SZ_OPEN_CIRCUIT,
+        "82": SZ_UNAVAILABLE,
+        "83": SZ_TOO_HIGH,
+        "84": SZ_TOO_LOW,
+        "85": SZ_UNRELIABLE,
+    }
+
+    if int(value[:2], 16) & 0x80 == 0x80:
+        fault = FAULT_CODES.get(value[:2], f"sensor_error_{value}")
+        return {f"{param_name}_fault": fault}
+
+    flow = double_from_hex(value, factor=100)
+    assert flow >= 0, value  # TODO: raise exception if < 0?
+
+    return {param_name: flow}
 
 
 SENSOR_PARSERS = {
     SZ_OUTDOOR_TEMP: outdoor_temp,
 }
-
-# @typechecked  # inlet/exhaust flow level
-# def flow_level(value: HexStr4) -> Optional[float]:
-#     """Convert a 4-char hex string into a flow rate/level."""
-#     SENTINEL_VALUES = {
-#         "7FFF": None,  # Feature is not implemented
-#         "8000-85FF": "sensor_error",  # Sensor error
-#     }

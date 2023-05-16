@@ -42,7 +42,6 @@ from .const import (
     SZ_DOMAIN_ID,
     SZ_DURATION,
     SZ_EXHAUST_FAN_SPEED,
-    SZ_EXHAUST_FLOW,
     SZ_FAN_INFO,
     SZ_FAN_MODE,
     SZ_FRAG_LENGTH,
@@ -61,7 +60,6 @@ from .const import (
     SZ_SETPOINT,
     SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
-    SZ_SUPPLY_FLOW,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_TOTAL_FRAGS,
@@ -89,6 +87,7 @@ from .helpers import (
     double_from_hex,
     dtm_from_hex,
     dts_from_hex,
+    exhaust_flow,
     exhaust_temp,
     flag8_from_hex,
     indoor_humidity,
@@ -99,6 +98,7 @@ from .helpers import (
     post_heater,
     pre_heater,
     str_from_hex,
+    supply_flow,
     supply_temp,
     temp_from_hex,
     valve_demand,
@@ -2170,6 +2170,8 @@ def parser_31da(payload, msg) -> dict:
         **bypass_position(payload[34:36]),  # 22F7-ish
         **post_heater(payload[46:48]),
         **pre_heater(payload[48:50]),
+        **supply_flow(payload[50:54]),  # L/sec
+        **exhaust_flow(payload[54:58]),  # L/sec
         #
         SZ_SPEED_CAP: int(payload[30:34], 16),
         SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
@@ -2178,8 +2180,6 @@ def parser_31da(payload, msg) -> dict:
         ),  # maybe 31D9[4:6] for some?
         SZ_REMAINING_TIME: double_from_hex(payload[42:46]),  # mins, 22F3[2:6]
         SZ_SUPPLY_FAN_SPEED: percent_from_hex(payload[40:42]),
-        SZ_SUPPLY_FLOW: double_from_hex(payload[50:54], factor=100),  # L/sec
-        SZ_EXHAUST_FLOW: double_from_hex(payload[54:58], factor=100),  # L/sec
     }
 
     # From an Orcon 15RF Display
