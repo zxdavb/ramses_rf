@@ -27,6 +27,7 @@ from .const import (
     SZ_EXHAUST_FAN_SPEED,
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
+    SZ_FAN_INFO,
     SZ_INDOOR_HUMIDITY,
     SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
@@ -34,11 +35,13 @@ from .const import (
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
     SZ_REMAINING_TIME,
+    SZ_SPEED_CAP,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
 )
+from .ramses import _31DA_FAN_INFO
 
 try:
     from typeguard import typechecked  # type: ignore[reportMissingImports]
@@ -591,7 +594,7 @@ def _temperature(param_name: str, value: HexStr4) -> dict[str, None | float | st
     return {param_name: temperature}  # was: temp_from_hex(value)
 
 
-@typechecked  # 31DA[34:36]
+@typechecked  # 31DA[30:34]
 def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     """Return the bypass position (%), usually fully open or closed (0%, no bypass).
 
@@ -622,6 +625,71 @@ def bypass_position(value: HexStr2) -> dict[str, None | float | str]:
     assert bypass_pos <= 1.0, value
 
     return {SZ_BYPASS_POSITION: bypass_pos}
+
+
+@typechecked  # 31DA[34:36]
+def speed_capabilities(value: HexStr4) -> dict[str, None | list | str]:
+    """Return the speed capabilities (a bitmask).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 4:
+        raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
+
+    if value == "7FFF":  # TODO: Not implemented???
+        return {SZ_SPEED_CAP: None}
+
+    ABILITIES = {
+        15: "off",
+        14: "low_med_high",  # 3,2,1 = high,med,low?
+        13: "timer",
+        12: "boost",
+        11: "auto",
+        10: "speed_4",
+        9: "speed_5",
+        8: "speed_6",
+        7: "speed_7",
+        6: "speed_8",
+        5: "speed_9",
+        4: "speed_10",
+        3: "auto_night",
+        2: "reserved",
+        1: "post_heater",
+        0: "pre_heater",
+    }
+
+    # assert value in ("0002", "4000", "4808", "F000", "F001", "F800", "F808"), value
+
+    return {SZ_SPEED_CAP: [v for k, v in ABILITIES.items() if int(value, 16) & 2**k]}
+
+
+@typechecked  # 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
+def fan_info(value: HexStr2) -> dict[str, None | float | str]:
+    """Return the fan info (current speed, and...).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
+    # if value == "EF":  # TODO: Not implemented???
+    #     return {SZ_FAN_INFO: None}
+
+    assert int(value, 16) & 0x1F <= 0x19, f"invalid fan_info: {int(value, 16) & 0x1F}"
+    assert int(value, 16) & 0xE0 in (
+        0x00,
+        0x20,
+        0x40,
+        0x80,
+    ), f"invalid fan_info: {int(value, 16) & 0xE0}"
+
+    return {SZ_FAN_INFO: _31DA_FAN_INFO[int(value, 16) & 0x1F]}
 
 
 @typechecked  # 31DA[38:40]
@@ -769,8 +837,3 @@ def _flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     assert flow >= 0, value  # TODO: raise exception if < 0?
 
     return {param_name: flow}
-
-
-SENSOR_PARSERS = {
-    SZ_OUTDOOR_TEMP: outdoor_temp,
-}

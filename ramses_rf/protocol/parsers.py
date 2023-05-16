@@ -41,7 +41,6 @@ from .const import (
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_DURATION,
-    SZ_FAN_INFO,
     SZ_FAN_MODE,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
@@ -56,7 +55,6 @@ from .const import (
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
     SZ_SETPOINT,
-    SZ_SPEED_CAP,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_TOTAL_FRAGS,
@@ -86,6 +84,7 @@ from .helpers import (
     exhaust_fan_speed,
     exhaust_flow,
     exhaust_temp,
+    fan_info,
     flag8_from_hex,
     indoor_humidity,
     indoor_temp,
@@ -95,6 +94,7 @@ from .helpers import (
     post_heater,
     pre_heater,
     remaining_time,
+    speed_capabilities,
     str_from_hex,
     supply_fan_speed,
     supply_flow,
@@ -103,7 +103,7 @@ from .helpers import (
     valve_demand,
 )
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
-from .ramses import _31DA_FAN_INFO, _2411_PARAMS_SCHEMA
+from .ramses import _2411_PARAMS_SCHEMA
 from .version import VERSION
 
 # Kudos & many thanks to:
@@ -2143,14 +2143,15 @@ def parser_31d9(payload, msg) -> dict:
 
 @parser_decorator  # ventilation state (extended), HVAC
 def parser_31da(payload, msg) -> dict:
-    try:
-        # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
-        assert (
-            payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x19
-        ), f"invalid _31DA_FAN_INFO: {payload[36:38]}"
-
-    except AssertionError as exc:
-        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
+    # assert _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F] in (
+    #     speed_capabilities(payload[30:34])["speed_capabilities"]
+    # ) or (
+    #     int(payload[36:38], 16) & 0x1F in (1, 2, 3) and int(payload[30:34], 16) & 2**14
+    # ) or (
+    #     int(payload[36:38], 16) & 0x1F in (11, 12, 13) and int(payload[30:34], 16) & 2**14 and int(payload[30:34], 16) & 2**13
+    # ) or (
+    #     int(payload[36:38], 16) & 0x1F in (0x00, 0x18, 0x15)
+    # ), {_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F]: speed_capabilities(payload[30:34])}
 
     return {
         **air_quality(payload[2:6]),  # 12C8[2:6]
@@ -2161,9 +2162,9 @@ def parser_31da(payload, msg) -> dict:
         **supply_temp(payload[18:22]),  # to home
         **indoor_temp(payload[22:26]),  # in home
         **outdoor_temp(payload[26:30]),  # 1290?
-        SZ_SPEED_CAP: int(payload[30:34], 16),
+        **speed_capabilities(payload[30:34]),
         **bypass_position(payload[34:36]),  # 22F7-ish
-        SZ_FAN_INFO: _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],  # 22F3-ish
+        **fan_info(payload[36:38]),  # 22F3-ish
         **exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **supply_fan_speed(payload[40:42]),
         **remaining_time(payload[42:46]),  # mins, ~22F3[2:6]

@@ -63,7 +63,7 @@ SZ_REMAINING_TIME = "remaining_time"
 SZ_SUPPLY_FAN_SPEED = "supply_fan_speed"
 SZ_SUPPLY_FLOW = "supply_flow"
 SZ_SUPPLY_TEMP = "supply_temp"
-SZ_SPEED_CAP = "speed_cap"
+SZ_SPEED_CAP = "speed_capabilities"
 
 SZ_PRESENCE_DETECTED = "presence_detected"
 
