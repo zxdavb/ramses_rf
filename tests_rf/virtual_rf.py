@@ -48,7 +48,7 @@ class VirtualComPortInfo:
         """Supplies a useful subset of PortInfo attrs according to gateway type."""
 
         self.name = port_name
-        self.device = f"/dev/{port_name}"
+        self.device = f"/dev{port_name}"
 
         self.description: None | str = None
         self.product: None | str = None

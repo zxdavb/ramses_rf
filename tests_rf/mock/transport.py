@@ -57,6 +57,10 @@ class MockSerial:  # most of the RF 'mocking' is done in here
         self._out_waiting = 0
         self.is_open: bool = None  # type: ignore[assignment]
 
+        # used in PacketProtocolPort (via serial.tools.list_ports.comports)
+        self.name = port
+        self.product = "evofw3 mocked"
+
         self.mock_devices: list = []  # list[MockDeviceBase]
 
         self._que: PriorityQueue = PriorityQueue(maxsize=24)

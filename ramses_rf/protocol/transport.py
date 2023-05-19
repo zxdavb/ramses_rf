@@ -37,6 +37,7 @@ from types import SimpleNamespace
 from typing import Any, Awaitable, Callable, Iterable, TextIO, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
+from serial.tools.list_ports import comports  # type: ignore[import]
 from serial_asyncio import SerialTransport as SerTransportAsync  # type: ignore[import]
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
@@ -94,7 +95,6 @@ _DEFAULT_USE_REGEX = {
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 SZ_FINGERPRINT = "fingerprint"
-SZ_IS_EVOFW3 = "is_evofw3"
 SZ_KNOWN_HGI = "known_hgi"
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
@@ -539,9 +539,8 @@ class PacketProtocolBase(asyncio.Protocol):
         self._hgi80: dict[str, Any] = {
             SZ_DEVICE_ID: None,
             SZ_FINGERPRINT: None,
-            SZ_IS_EVOFW3: None,
             SZ_KNOWN_HGI: None,
-        }  # also: "evofw3_ver"
+        }
 
         if known_hgis := [
             k for k, v in gwy._include.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
@@ -634,13 +633,6 @@ class PacketProtocolBase(asyncio.Protocol):
             )  # should log all? invalid pkts appropriately
 
         except InvalidPacketError as exc:
-            if "# evofw" in line and self._hgi80[SZ_IS_EVOFW3] is None:
-                self._hgi80[SZ_IS_EVOFW3] = True
-                self._hgi80["evofw3_ver"] = line
-                if self._evofw_flag not in (None, "!V"):
-                    self._transport.write(
-                        bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
-                    )
             _LOGGER.debug("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
@@ -747,6 +739,8 @@ class PacketProtocolPort(PacketProtocolBase):
         self._sem = asyncio.BoundedSemaphore()
         self._leaker = None
 
+        self._ser_is_evofw3 = None
+
     async def _leak_sem(self):
         """Used to enforce a minimum time between calls to `self._transport.write()`."""
         while True:
@@ -762,6 +756,8 @@ class PacketProtocolPort(PacketProtocolBase):
         if self._leaker:
             self._leaker.cancel()
 
+        self._ser_is_evofw3 = None
+
         super().connection_lost(exc)
 
     def connection_made(self, transport: asyncio.Transport) -> None:  # type: ignore[override]
@@ -770,10 +766,16 @@ class PacketProtocolPort(PacketProtocolBase):
         if not self._leaker:
             self._leaker = self._loop.create_task(self._leak_sem())
 
+        if product := {x.name: x.product for x in comports()}.get(
+            transport.serial.name
+        ):  # serial.description is not available on some platforms
+            self._ser_is_evofw3 = "evofw3" in product
+
         super().connection_made(transport)  # self._transport = transport
         # self._transport.serial.rts = False
 
-        self._transport.write(bytes("!V\r\n".encode("ascii")))  # is evofw3 or HGI80?
+        if self._ser_is_evofw3:
+            self._transport.write(bytes("!V\r\n".encode("ascii")))  # needed?
 
         # add this to start of the pkt log, if any
         if not self._disable_sending:
@@ -804,12 +806,10 @@ class PacketProtocolPort(PacketProtocolBase):
 
     async def _alert_is_impersonating(self, cmd: Command) -> None:
         msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
-        if self._hgi80[SZ_IS_EVOFW3]:
+        if self._ser_is_evofw3:
             _LOGGER.info(msg)
         else:
-            _LOGGER.warning(
-                "%s, NB: HGI80s dont support impersonation, it requires evofw3!", msg
-            )
+            _LOGGER.warning(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
         await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
     @avoid_system_syncs
