@@ -10,6 +10,7 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
+from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Device, Gateway
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
@@ -39,17 +40,17 @@ CMDS_COMMON = (  # test command strings
     f"RQ --- {GWY_ID_} 63:262142 --:------ 10E0 001 00",
 )
 PKTS_NATIVE = (  # expected packet strings
-    f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000666",
+    f" I --- {GWY_ID_} --:------ 18:000730 30C9 003 000666",  # exception from pkt layer: There is more than one HGI80-compatible gateway: Blacklisting a Foreign gateway (or is it HVAC?): 18:000730 (Active gateway: 18:111111), configure the known_list/block_list as required (consider enforcing a known_list)
     f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000777",
-    f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000888",
+    f" I --- {GWY_ID_} --:------ 18:000730 30C9 003 000888",  # exception from pkt layer: There is more than one HGI80-compatible gateway: Blacklisting a Foreign gateway (or is it HVAC?): 18:000730 (Active gateway: 18:111111), configure the known_list/block_list as required (consider enforcing a known_list)
     f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000999",
     f"RQ --- {GWY_ID_} 63:262142 --:------ 10E0 001 00",
     f"RQ --- {GWY_ID_} 63:262142 --:------ 10E0 001 00",
 )
 PKTS_EVOFW3 = (  # expected packet strings
-    f" I --- {GWY_ID_} --:------ 18:000730 30C9 003 000666",  # exception from pkt layer: There is more than one HGI80-compatible gateway: Blacklisting a Foreign gateway (or is it HVAC?): 18:000730 (Active gateway: 18:111111), configure the known_list/block_list as required (consider enforcing a known_list)
+    f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000666",
     f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000777",
-    f" I --- {GWY_ID_} --:------ 18:000730 30C9 003 000888",  # exception from pkt layer: There is more than one HGI80-compatible gateway: Blacklisting a Foreign gateway (or is it HVAC?): 18:000730 (Active gateway: 18:111111), configure the known_list/block_list as required (consider enforcing a known_list)
+    f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000888",
     f" I --- {GWY_ID_} --:------ {GWY_ID_} 30C9 003 000999",
     f"RQ --- {GWY_ID_} 63:262142 --:------ 10E0 001 00",
     f"RQ --- {GWY_ID_} 63:262142 --:------ 10E0 001 00",
@@ -92,14 +93,10 @@ def pytest_generate_tests(metafunc):
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
     _alert_is_impersonating,
 )
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-async def _test_hgi_addr_virtual(fw_version, cmd_str, pkt_str):
+async def _test_hgi_device(port_name, cmd_str, pkt_str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    rf = VirtualRf(1)
-    rf.set_gateway(rf.ports[0], GWY_ID_, fw_version=fw_version)
-
-    gwy_0 = Gateway(rf.ports[0], **CONFIG)  # , known_list={GWY_ID_: {"class": "HGI"}})
+    gwy_0 = Gateway(port_name, **CONFIG)  # , known_list={GWY_ID_: {"class": "HGI"}})
 
     assert gwy_0.devices == []
     assert gwy_0.hgi is None
@@ -115,32 +112,57 @@ async def _test_hgi_addr_virtual(fw_version, cmd_str, pkt_str):
         raise
     finally:
         await gwy_0.stop()
-        await rf.stop()
 
 
-@pytest.mark.xdist_group(name="serial")
-async def test_hgi_addr_evofw3(test_idx):
+@pytest.mark.xdist_group(name="real_serial")
+async def test_hgi_actual_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    await _test_hgi_addr_virtual(
-        HgiFwTypes.EVOFW3, CMDS_COMMON[test_idx], PKTS_NATIVE[test_idx]
-    )
+    ports = [p.name for p in comports() if "evofw3" in p.product]
+
+    if ports:
+        await _test_hgi_device(ports[0], CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx])
 
 
-@pytest.mark.xdist_group(name="serial")
-async def test_hgi_addr_native_WIP(test_idx):
+@pytest.mark.xdist_group(name="real_serial")
+async def test_hgi_actual_native(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    if test_idx not in (0, 2):  # TODO: FIXME
-        await _test_hgi_addr_virtual(
-            HgiFwTypes.NATIVE, CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx]
-        )
-        return
+    ports = [p.name for p in comports() if "TUSB3410" in p.product]
 
-    try:
-        await _test_hgi_addr_virtual(
-            HgiFwTypes.NATIVE, CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx]
-        )
-    except AssertionError:
-        return
-    assert False
+    if ports:
+        await _test_hgi_device(ports[0], CMDS_COMMON[test_idx], PKTS_NATIVE[test_idx])
+
+
+@pytest.mark.xdist_group(name="mock_serial")
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+async def test_hgi_mocked_evofw3(test_idx):
+    """Check the virtual RF network behaves as expected (device discovery)."""
+
+    rf = VirtualRf(1)
+    rf.set_gateway(rf.ports[0], GWY_ID_, fw_version=HgiFwTypes.EVOFW3)
+
+    with patch("ramses_rf.protocol.transport.comports", rf.comports):
+        try:
+            await _test_hgi_device(
+                rf.ports[0], CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx]
+            )
+        finally:
+            await rf.stop()
+
+
+@pytest.mark.xdist_group(name="mock_serial")
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+async def test_hgi_mocked_native(test_idx):
+    """Check the virtual RF network behaves as expected (device discovery)."""
+
+    rf = VirtualRf(1)
+    rf.set_gateway(rf.ports[0], GWY_ID_, fw_version=HgiFwTypes.NATIVE)
+
+    with patch("ramses_rf.protocol.transport.comports", rf.comports):
+        try:
+            await _test_hgi_device(
+                rf.ports[0], CMDS_COMMON[test_idx], PKTS_NATIVE[test_idx]
+            )
+        finally:
+            await rf.stop()
