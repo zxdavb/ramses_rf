@@ -37,8 +37,45 @@ MAX_NUM_PORTS = 32
 
 
 class HgiFwTypes(StrEnum):
-    EVOFW3 = "ghoti57/evofw3 v0.7.1"
-    NATIVE = "Honeywell HGI80"
+    EVOFW3 = "ghoti57/evofw3 atmega32u4 v0.7.1"  # SparkFun atmega32u4
+    NATIVE = "Texas Instruments TUSB3410"  # Honeywell HGI80
+
+
+class VirtualComPortInfo:
+    """A container for emulating pyserial's PortInfo (SysFS) objects."""
+
+    def __init__(self, port_name: _PN, dev_type: None | HgiFwTypes = None) -> None:
+        """Supplies a useful subset of PortInfo attrs according to gateway type."""
+
+        self.name = port_name
+        self.device = f"/dev/{port_name}"
+
+        self.description: None | str = None
+        self.product: None | str = None
+        self.serial_number: None | str = None
+        self.manufacturer: None | str = None
+        self.subsystem: None | str = None
+
+        if dev_type is not None:
+            self._set_attrs(dev_type)
+
+    def _set_attrs(self, dev_type: HgiFwTypes) -> None:
+        if dev_type == HgiFwTypes.EVOFW3:
+            self.description = "evofw3 atmega32u4"
+            self.product = "evofw3 atmega32u4"
+            self.serial_number = None
+            self.manufacturer = "SparkFun"
+            self.subsystem = "usb-serial"
+
+        elif dev_type == HgiFwTypes.NATIVE:
+            self.description = "TUSB3410 Boot Device"
+            self.product = "TUSB3410 Boot Device"
+            self.serial_number = "TUSB3410"
+            self.manufacturer = "Texas Instruments"
+            self.subsystem = "usb"
+
+        else:
+            raise ValueError(f"Unknown type of gateway {dev_type}")
 
 
 class VirtualRfBase:
@@ -53,8 +90,13 @@ class VirtualRfBase:
     def __init__(self, num_ports: int, log_size: int = 100) -> None:
         """Create `num_ports` virtual serial ports."""
 
+        if os.name != "posix":
+            raise RuntimeError(f"Unsupported OS: {os.name} (requires termios)")
+
         if 0 > num_ports > MAX_NUM_PORTS:
             raise ValueError(f"Port limit exceeded: {num_ports}")
+
+        self._port_info_list: dict[_PN, VirtualComPortInfo] = {}
 
         self._loop = asyncio.get_running_loop()
         self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to Device
@@ -65,9 +107,6 @@ class VirtualRfBase:
         self._tty_names: dict[_PN, _FD] = {}  # slave port name to slave fd, for cleanup
 
         # self._setup_event_handlers()  # TODO: needs fixing/testing
-        if os.name != "posix":
-            raise RuntimeError(f"Unsupported OS for this module: {os.name} (termios)")
-
         for idx in range(num_ports):
             self._create_port(idx)
 
@@ -84,10 +123,26 @@ class VirtualRfBase:
         self._pty_names[master_fd] = os.ttyname(slave_fd)
         self._tty_names[os.ttyname(slave_fd)] = slave_fd
 
+        self._set_comport_info(self._pty_names[master_fd])
+
+    def comports(self, include_links=False) -> list[VirtualComPortInfo]:  # unsorted
+        """Use this method to monkey patch serial.tools.list_ports.comports()."""
+        return list(self._port_info_list.values())
+
+    def _set_comport_info(
+        self, port_name: _PN, dev_type: None | HgiFwTypes = None
+    ) -> VirtualComPortInfo:
+        """Add comport info to the list (wont fail if the entry already exists)"""
+        self._port_info_list.pop(port_name, None)
+        self._port_info_list[port_name] = VirtualComPortInfo(
+            port_name, dev_type=dev_type
+        )
+        return self._port_info_list[port_name]
+
     @property
     def ports(self) -> list[_PN]:
         """Return a list of the names of the serial ports."""
-        return list(self._tty_names)
+        return list(self._tty_names)  # [p.name for p in self.comports]
 
     async def stop(self) -> None:
         """Stop polling ports and distributing data."""
@@ -233,6 +288,11 @@ class VirtualRf(VirtualRfBase):
         if [v for k, v in self.gateways.items() if k != port_name and v == device_id]:
             raise LookupError(f"Gateway exists on another port: {device_id}")
 
+        # if fw_version is None:
+        #     self._gateways[port_name] = {}
+        #     self._set_comport_info(port_name, dev_type=None)
+        #     return
+
         if fw_version not in HgiFwTypes:
             raise LookupError(f"Unknown FW specified for gateway: {fw_version}")
 
@@ -241,6 +301,8 @@ class VirtualRf(VirtualRfBase):
             FW_VERSION: fw_version,
             DEVICE_ID_BYTES: bytes(device_id, "ascii"),
         }
+
+        self._set_comport_info(port_name, dev_type=fw_version)
 
     def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
         """The RSSI is added by the receiving HGI80-compatible device after Rx.
