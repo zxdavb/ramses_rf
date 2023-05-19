@@ -118,7 +118,7 @@ async def _test_hgi_device(port_name, cmd_str, pkt_str):
 async def test_hgi_actual_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    ports = [p.name for p in comports() if "evofw3" in p.product]
+    ports = [p.device for p in comports() if "evofw3" in p.product]
 
     if ports:
         await _test_hgi_device(ports[0], CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx])
@@ -128,7 +128,7 @@ async def test_hgi_actual_evofw3(test_idx):
 async def test_hgi_actual_native(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    ports = [p.name for p in comports() if "TUSB3410" in p.product]
+    ports = [p.device for p in comports() if "TUSB3410" in p.product]
 
     if ports:
         await _test_hgi_device(ports[0], CMDS_COMMON[test_idx], PKTS_NATIVE[test_idx])
