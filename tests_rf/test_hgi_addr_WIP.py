@@ -93,13 +93,14 @@ def pytest_generate_tests(metafunc):
     _alert_is_impersonating,
 )
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-async def _test_hgi_addr(fw_version, cmd_str, pkt_str):
+async def _test_hgi_addr_virtual(fw_version, cmd_str, pkt_str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], GWY_ID_, fw_version=fw_version)
 
     gwy_0 = Gateway(rf.ports[0], **CONFIG)  # , known_list={GWY_ID_: {"class": "HGI"}})
+
     assert gwy_0.devices == []
     assert gwy_0.hgi is None
 
@@ -108,17 +109,20 @@ async def _test_hgi_addr(fw_version, cmd_str, pkt_str):
     assert gwy_0.hgi.id == GWY_ID_
 
     gwy_0.send_cmd(Command(cmd_str, qos={"retries": 0}))
-    await assert_expected_pkt(gwy_0, pkt_str)
-
-    await gwy_0.stop()
-    await rf.stop()
+    try:
+        await assert_expected_pkt(gwy_0, pkt_str)
+    except AssertionError:
+        raise
+    finally:
+        await gwy_0.stop()
+        await rf.stop()
 
 
 @pytest.mark.xdist_group(name="serial")
 async def test_hgi_addr_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    await _test_hgi_addr(
+    await _test_hgi_addr_virtual(
         HgiFwTypes.EVOFW3, CMDS_COMMON[test_idx], PKTS_NATIVE[test_idx]
     )
 
@@ -128,13 +132,13 @@ async def test_hgi_addr_native_WIP(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     if test_idx not in (0, 2):  # TODO: FIXME
-        await _test_hgi_addr(
+        await _test_hgi_addr_virtual(
             HgiFwTypes.NATIVE, CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx]
         )
         return
 
     try:
-        await _test_hgi_addr(
+        await _test_hgi_addr_virtual(
             HgiFwTypes.NATIVE, CMDS_COMMON[test_idx], PKTS_EVOFW3[test_idx]
         )
     except AssertionError:
