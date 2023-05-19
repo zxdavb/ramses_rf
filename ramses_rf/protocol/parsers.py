@@ -2091,7 +2091,7 @@ def parser_3150(payload, msg) -> dict | list:
     return parser_valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
 
 
-@parser_decorator  # fan state (basic), HVAC
+@parser_decorator  # fan state (ventilation status), HVAC
 def parser_31d9(payload, msg) -> dict:
     # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
     try:
@@ -2570,15 +2570,53 @@ def parser_4401(payload, msg) -> dict:
     if msg.verb == RP:
         return {}
 
-    # assert payload[:4] == "1000", _INFORM_DEV_MSG
-    # assert payload[24:] == "0000000000000063", _INFORM_DEV_MSG
+    # 2022-07-28T14:21:38.895354 095  W --- 37:010164 37:010151 --:------ 4401 020 10  7E-E99E90C8  00-E99E90C7-3BFF  7E-E99E90C8-000B
+    # 2022-07-28T14:21:57.414447 076 RQ --- 20:225479 20:257336 --:------ 4401 020 10  2E-E99E90DB  00-00000000-0000  00-00000000-000B
+    # 2022-07-28T14:21:57.625474 045  I --- 20:257336 20:225479 --:------ 4401 020 10  2E-E99E90DB  00-E99E90DA-F0FF  BD-00000000-000A
+    # 2022-07-28T14:22:02.932576 088 RQ --- 37:010188 20:257336 --:------ 4401 020 10  22-E99E90E0  00-00000000-0000  00-00000000-000B
+    # 2022-07-28T14:22:03.053744 045  I --- 20:257336 37:010188 --:------ 4401 020 10  22-E99E90E0  00-E99E90E0-75FF  BD-00000000-000A
+    # 2022-07-28T14:22:20.516363 045 RQ --- 20:255710 20:257400 --:------ 4401 020 10  0B-E99E90F2  00-00000000-0000  00-00000000-000B
+    # 2022-07-28T14:22:20.571640 085  I --- 20:255251 20:229597 --:------ 4401 020 10  39-E99E90F1  00-E99E90F1-5CFF  40-00000000-000A
+    # 2022-07-28T14:22:20.648696 058  I --- 20:257400 20:255710 --:------ 4401 020 10  0B-E99E90F2  00-E99E90F1-D4FF  DA-00000000-000B
+
+    def hex_to_epoch(seqx: str) -> None | dt:  # seconds since 1-1-1970
+        if seqx == "00" * 4:
+            return None
+        return str(
+            dt.fromtimestamp(int(seqx, 16))
+        )  # - int(payload[22:26], 16) * 15 * 60))
+
+    # 10 7E-E99E90C8 00-E99E90C7-3BFF 7E-E99E90C8-000B
+    # hex(int(dt.fromisoformat("2022-07-28T14:21:38.895354").timestamp())).upper()
+    # '0x62E20ED2'
+
+    assert payload[:2] == "10"
+    assert payload[12:14] == "00"
+    assert payload[36:38] == "00"
+
+    assert msg.verb != I_ or payload[24:26] in ("7C", "FF"), payload[24:26]
+    assert msg.verb != W_ or payload[24:26] in ("7C", "FF"), payload[24:26]
+    assert msg.verb != RQ or payload[24:26] == "00", payload[24:26]
+
+    assert msg.verb != RQ or payload[14:22] == "00" * 4, payload[14:22]
+    assert msg.verb != W_ or payload[28:36] != "00" * 4, payload[28:36]
+
+    assert payload[38:40] in ("08", "09", "0A", "0B"), payload[38:40]
+
+    # assert payload[2:4] == payload[26:28], f"{payload[2:4]}, {payload[26:24]}"
 
     return {
-        "epoch_02": f"0x{payload[4:12]}",
-        "epoch_07": f"0x{payload[14:22]}",
-        "xxxxx_13": f"0x{payload[22:24]}",
-        "epoch_13": f"0x{payload[26:34]}",
-    }  # epoch are in seconds
+        "last_update_dst": payload[2:4],
+        "time_dst": hex_to_epoch(payload[4:12]),
+        "_unknown_12": payload[12:14],  # usu.00
+        "time_src": hex_to_epoch(payload[14:22]),
+        "offset": payload[22:24],  # *15 mins?
+        "_unknown_24": payload[24:26],
+        "last_update_src": payload[26:28],
+        "time_dst_receive_src": hex_to_epoch(payload[28:36]),
+        "_unknown_36": payload[36:38],  # usu.00
+        "hops_dst_src": payload[38:40],
+    }
 
 
 @parser_decorator  # temperatures (see: 4e02) - Itho spider/autotemp
@@ -2644,19 +2682,29 @@ def parser_4e04(payload, msg) -> dict:
     }
 
 
-# @parser_decorator  # hvac_4e0d - Itho spider/autotemp
-# def parser_4e0d(payload, msg) -> dict:
-#     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0100  # Itho Autotemp: only(?) master -> slave
-#     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0101  # why does it have a context?
+@parser_decorator  # WIP: AT outdoor low - Itho spider/autotemp
+def parser_4e0d(payload, msg) -> dict:
+    # .I --- 02:250704 02:250984 --:------ 4E0D 002 0100  # Itho Autotemp: only(?) master -> slave
+    # .I --- 02:250704 02:250984 --:------ 4E0D 002 0101  # why does it have a context?
 
-#     assert payload in ("0100", "0101"), _INFORM_DEV_MSG
+    assert payload in ("0100", "0101"), _INFORM_DEV_MSG
 
-#     return {
-#         "_payload": payload,
-#     }
+    return {
+        "_payload": payload,
+    }
 
 
-@parser_decorator  # wpu_state - Itho spider/autotemp
+@parser_decorator  # AT fault circulation - Itho spider/autotemp
+def parser_4e14(payload, msg) -> dict:
+    """
+    result = "AT fault circulation";
+    result = (((payload[2:] & 0x01) != 0x01) ? " Fault state : no fault "                : " Fault state : fault ")
+    result = (((payload[2:] & 0x02) != 0x02) ? (text4 + "Circulation state : no fault ") : (text4 + " Circulation state : fault "))
+    """
+    return {}
+
+
+@parser_decorator  # wpu_state (hvac state) - Itho spider/autotemp
 def parser_4e15(payload, msg) -> dict:
     # .I --- 21:034158 02:250676 --:------ 4E15 002 0000  # WPU "off" (maybe heating, but compressor off)
     # .I --- 21:064743 02:250708 --:------ 4E15 002 0001  # WPU cooling active
@@ -2664,9 +2712,14 @@ def parser_4e15(payload, msg) -> dict:
     # .I --- 21:064743 02:250708 --:------ 4E15 002 0004  # WPU in "DHW mode" boiler active
     # .I --- 21:033160 02:250704 --:------ 4E15 002 0005  # 0x03, and 0x06 not seen in the wild
 
+    if int(payload[2:], 16) & 0xF0:
+        pass
+
+    # If none of these, then is 'Off'
     SZ_COOLING = "is_cooling"
     SZ_DHW_ING = "is_dhw_ing"
     SZ_HEATING = "is_heating"
+    # SZ_PUMPING = "is_pumping"
 
     assert (
         int(payload[2:], 16) & 0xF8 == 0x00
@@ -2677,13 +2730,14 @@ def parser_4e15(payload, msg) -> dict:
 
     return {
         "_flags": hex_to_flag8(payload[2:]),
+        # SZ_PUMPING: bool(int(payload[2:], 16) & 0x08),
         SZ_DHW_ING: bool(int(payload[2:], 16) & 0x04),
         SZ_HEATING: bool(int(payload[2:], 16) & 0x02),
         SZ_COOLING: bool(int(payload[2:], 16) & 0x01),
     }
 
 
-@parser_decorator  # hvac_4e16 - Itho spider/autotemp
+@parser_decorator  # TODO: hvac_4e16 - Itho spider/autotemp
 def parser_4e16(payload, msg) -> dict:
     # .I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000  # Itho Autotemp: slave -> master
 
@@ -2692,6 +2746,29 @@ def parser_4e16(payload, msg) -> dict:
     return {
         "_payload": payload,
     }
+
+
+@parser_decorator  # TODO: Fan characteristics - Itho
+def parser_4e20(payload, msg) -> dict:
+    """
+    result = "Fan characteristics: "
+    result += [C[ABC][210] hex_to_sint32[i:i+4] for i in range(2, 34, 4)]
+    """
+    return {}
+
+
+@parser_decorator  # TODO: Potentiometer control - Itho
+def parser_4e21(payload, msg) -> dict:
+    """
+    result = "Potentiometer control: "
+    result += "Rel min: "        + hex_to_sint16(data[2:4])  # 16 bit, 2's complement
+    result += "Min of rel min: " + hex_to_sint16(data[4:6])
+    result += "Abs min: "        + hex_to_sint16(data[6:8])
+    result += "Rel max: "        + hex_to_sint16(data[8:10])
+    result += "Max rel: "        + hex_to_sint16(data[10:12])
+    result += "Abs max: "        + hex_to_sint16(data[12:14]))
+    """
+    return {}
 
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
