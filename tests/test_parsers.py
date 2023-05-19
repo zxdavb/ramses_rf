@@ -96,6 +96,11 @@ def _test_parser_31da(gwy, f_name):  # noqa: F811
     # ) or (
     #     int(payload[36:38], 16) & 0x1F in (0x00, 0x18, 0x15)
     # ), {_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F]: speed_capabilities(payload[30:34])}
+
+    # assert payload[36:38] not in ("0B", "0C", "0D") or payload[42:46] == "0000", (
+    #     payload[36:38], payload[42:46]
+    # )
+
     pass
 
 

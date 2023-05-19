@@ -57,9 +57,9 @@ except ImportError:
 
 
 # Sensor faults
-SZ_UNRELIABLE = "sensor_unreliable"
-SZ_TOO_HIGH = "sensor_value_too_high"
-SZ_TOO_LOW = "sensor_value_too_low"
+SZ_UNRELIABLE = "unreliable"
+SZ_TOO_HIGH = "out_of_range_high"
+SZ_TOO_LOW = "out_of_range_low"
 # Actuator, Valve/damper faults
 SZ_STUCK_VALVE = "stuck_valve"  # Damper/Valve jammed
 SZ_STUCK_ACTUATOR = "stuck_actuator"  # Actuator jammed
@@ -401,10 +401,15 @@ def hex_from_temp(value: Optional[float]) -> HexStr4:
 
 
 @typechecked
+def _faulted_common(param_name: str, value: str) -> dict[str, str]:
+    return {f"{param_name}_fault": f"invalid_{value}"}
+
+
+@typechecked
 def _faulted_sensor(param_name: str, value: str) -> dict[str, str]:
     # assert value[:1] in ("8", "F"), value
     code = int(value[:2], 16) & 0xF
-    fault = SENSOR_FAULT_CODES.get(code, f"sensor_error_{value}")
+    fault = SENSOR_FAULT_CODES.get(code, f"invalid_{value}")
     return {f"{param_name}_fault": fault}
 
 
@@ -412,11 +417,11 @@ def _faulted_sensor(param_name: str, value: str) -> dict[str, str]:
 def _faulted_device(param_name: str, value: str) -> dict[str, str]:
     assert value[:1] in ("8", "F"), value
     code = int(value[:2], 16) & 0xF
-    fault = DEVICE_FAULT_CODES.get(code, f"device_error_{value}")
+    fault = DEVICE_FAULT_CODES.get(code, f"invalid_{value}")
     return {f"{param_name}_fault": fault}
 
 
-@typechecked
+@typechecked  # TODO: refactor as per 31DA parsers
 def parser_valve_demand(value: HexStr2) -> dict[str, None | float | str]:
     """Convert a 2-char hex string into a percentage.
 
@@ -509,7 +514,7 @@ def parse_indoor_humidity(value: str) -> dict[str, None | float | str]:
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _fan_rel_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _parse_fan_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
 @typechecked  # 31DA[12:14] and 1280[2:12]
@@ -518,11 +523,11 @@ def parse_outdoor_humidity(value: str) -> dict[str, None | float | str]:
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _fan_rel_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _parse_fan_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
 @typechecked
-def _fan_rel_humidity(
+def _parse_fan_humidity(
     param_name: str, value: HexStr2, temp: str, dewpoint: str
 ) -> dict[str, None | float | str]:
     """Return the relative humidity, etc. (called by sensor parsers).
@@ -559,29 +564,29 @@ def _fan_rel_humidity(
 @typechecked  # 31DA[14:18]
 def parse_exhaust_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the exhaust temperature ('C)."""
-    return _fan_temp(SZ_EXHAUST_TEMP, value)
+    return _parse_fan_temp(SZ_EXHAUST_TEMP, value)
 
 
 @typechecked  # 31DA[18:22]
 def parse_supply_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the supply temperature ('C)."""
-    return _fan_temp(SZ_SUPPLY_TEMP, value)
+    return _parse_fan_temp(SZ_SUPPLY_TEMP, value)
 
 
 @typechecked  # 31DA[22:26]
 def parse_indoor_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the indoor temperature ('C)."""
-    return _fan_temp(SZ_INDOOR_TEMP, value)
+    return _parse_fan_temp(SZ_INDOOR_TEMP, value)
 
 
 @typechecked  # 31DA[26:30] & 1290[2:6]?
 def parse_outdoor_temp(value: HexStr4) -> dict[str, None | float | str]:
     """Return the outdoor temperature ('C)."""
-    return _fan_temp(SZ_OUTDOOR_TEMP, value)
+    return _parse_fan_temp(SZ_OUTDOOR_TEMP, value)
 
 
 @typechecked
-def _fan_temp(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
+def _parse_fan_temp(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     """Return the temperature ('C) (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -622,9 +627,9 @@ def parse_bypass_position(value: HexStr2) -> dict[str, None | float | str]:
         return {SZ_BYPASS_POSITION: None}
 
     if int(value[:2], 16) & 0xF0 == 0xF0:
-        return _faulted_sensor(SZ_BYPASS_POSITION, value)
+        return _faulted_device(SZ_BYPASS_POSITION, value)
 
-    bypass_pos = int(value, 16) / 200  # was: hext_to_percent(value)
+    bypass_pos = int(value, 16) / 200  # was: hex_to_percent(value)
     assert bypass_pos <= 1.0, value
 
     return {SZ_BYPASS_POSITION: bypass_pos}
@@ -692,23 +697,28 @@ def parse_fan_info(value: HexStr2) -> dict[str, None | float | str]:
         0x80,
     ), f"invalid fan_info: {int(value, 16) & 0xE0}"
 
-    return {SZ_FAN_INFO: _31DA_FAN_INFO[int(value, 16) & 0x1F]}
+    flags = list((int(value, 16) & (1 << x)) >> x for x in range(7, 4, -1))
+
+    return {
+        SZ_FAN_INFO: _31DA_FAN_INFO[int(value, 16) & 0x1F],
+        f"_unknown_{SZ_FAN_INFO}_flags": flags,
+    }
 
 
 @typechecked  # 31DA[38:40]
 def parse_exhaust_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
     """Return the exhaust fan speed (% of max speed)."""
-    return _fan_speed(SZ_EXHAUST_FAN_SPEED, value)
+    return _parse_fan_speed(SZ_EXHAUST_FAN_SPEED, value)
 
 
 @typechecked  # 31DA[40:42]
 def parse_supply_fan_speed(value: HexStr2) -> dict[str, None | float | str]:
     """Return the supply fan speed (% of max speed)."""
-    return _fan_speed(SZ_SUPPLY_FAN_SPEED, value)
+    return _parse_fan_speed(SZ_SUPPLY_FAN_SPEED, value)
 
 
 @typechecked
-def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
+def _parse_fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
     """Return the fan speed (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -719,11 +729,12 @@ def _fan_speed(param_name: str, value: HexStr2) -> dict[str, None | float | str]
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
 
-    if value in ("EF", "FF"):  # Not implemented
+    if value == "FF":  # Not implemented (is definitely FF, not EF!)
         return {param_name: None}
 
-    percentage = int(value, 16) / 200  # was: hext_to_percent(value)
-    assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
+    percentage = int(value, 16) / 200  # was: hex_to_percent(value)
+    if percentage > 1.0:
+        return _faulted_common(param_name, value)
 
     return {param_name: percentage}
 
@@ -752,17 +763,17 @@ def parse_remaining_time(value: HexStr4) -> dict[str, None | float | str]:
 @typechecked  # 31DA[46:48]
 def parse_post_heater(value: HexStr2) -> dict[str, None | float | str]:
     """Return the post-heater state (% of max heat)."""
-    return _fan_heater(SZ_POST_HEAT, value)
+    return _parse_fan_heater(SZ_POST_HEAT, value)
 
 
 @typechecked  # 31DA[48:50]
 def parse_pre_heater(value: HexStr2) -> dict[str, None | float | str]:
     """Return the pre-heater state (% of max heat)."""
-    return _fan_heater(SZ_PRE_HEAT, value)
+    return _parse_fan_heater(SZ_PRE_HEAT, value)
 
 
 @typechecked
-def _fan_heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
+def _parse_fan_heater(param_name: str, value: HexStr2) -> dict[str, None | float | str]:
     """Return the heater state (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -788,17 +799,17 @@ def _fan_heater(param_name: str, value: HexStr2) -> dict[str, None | float | str
 @typechecked  # 31DA[50:54]
 def parse_supply_flow(value: HexStr4) -> dict[str, None | float | str]:
     """Return the supply flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)."""
-    return _fan_flow(SZ_SUPPLY_FLOW, value)
+    return _parse_fan_flow(SZ_SUPPLY_FLOW, value)
 
 
 @typechecked  # 31DA[54:58]
 def parse_exhaust_flow(value: HexStr4) -> dict[str, None | float | str]:
     """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
-    return _fan_flow(SZ_EXHAUST_FLOW, value)
+    return _parse_fan_flow(SZ_EXHAUST_FLOW, value)
 
 
 @typechecked
-def _fan_flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
+def _parse_fan_flow(param_name: str, value: HexStr4) -> dict[str, None | float | str]:
     """Return the air flow rate (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
