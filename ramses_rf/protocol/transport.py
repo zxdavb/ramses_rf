@@ -739,7 +739,7 @@ class PacketProtocolPort(PacketProtocolBase):
         self._sem = asyncio.BoundedSemaphore()
         self._leaker = None
 
-        self._ser_is_evofw3 = None
+        self._gwy_is_evofw3 = None
 
     async def _leak_sem(self):
         """Used to enforce a minimum time between calls to `self._transport.write()`."""
@@ -756,7 +756,7 @@ class PacketProtocolPort(PacketProtocolBase):
         if self._leaker:
             self._leaker.cancel()
 
-        self._ser_is_evofw3 = None
+        self._gwy_is_evofw3 = None
 
         super().connection_lost(exc)
 
@@ -769,13 +769,12 @@ class PacketProtocolPort(PacketProtocolBase):
         if product := {x.name: x.product for x in comports()}.get(
             transport.serial.name
         ):  # serial.description is not available on some platforms
-            self._ser_is_evofw3 = "evofw3" in product
+            self._gwy_is_evofw3 = "evofw3" in product
 
         super().connection_made(transport)  # self._transport = transport
-        # self._transport.serial.rts = False
 
-        if self._ser_is_evofw3:
-            self._transport.write(bytes("!V\r\n".encode("ascii")))  # needed?
+        # if self._gwy_is_evofw3:
+        #     self._transport.write(bytes("!V\r\n".encode("ascii")))  # needed?
 
         # add this to start of the pkt log, if any
         if not self._disable_sending:
@@ -806,7 +805,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
     async def _alert_is_impersonating(self, cmd: Command) -> None:
         msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
-        if self._ser_is_evofw3:
+        if self._gwy_is_evofw3:
             _LOGGER.info(msg)
         else:
             _LOGGER.warning(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
@@ -819,13 +818,6 @@ class PacketProtocolPort(PacketProtocolBase):
 
         while self._pause_writing:
             await asyncio.sleep(0.005)
-
-        # while (
-        #     self._transport is None
-        #     # or self._transport.serial is None  # Shouldn't be required, but is!
-        #     or getattr(self._transport.serial, "out_waiting", False)
-        # ):
-        #     await asyncio.sleep(0.005)
 
         data_bytes = bytes(
             _regex_hack(
