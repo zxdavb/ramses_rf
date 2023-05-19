@@ -105,11 +105,11 @@ async def _test_hgi_addr_virtual(fw_version, cmd_str, pkt_str):
     assert gwy_0.hgi is None
 
     await gwy_0.start()
-    await assert_devices(gwy_0, [GWY_ID_])
-    assert gwy_0.hgi.id == GWY_ID_
-
-    gwy_0.send_cmd(Command(cmd_str, qos={"retries": 0}))
     try:
+        await assert_devices(gwy_0, [GWY_ID_])
+        assert gwy_0.hgi.id == GWY_ID_
+
+        gwy_0.send_cmd(Command(cmd_str, qos={"retries": 0}))
         await assert_expected_pkt(gwy_0, pkt_str)
     except AssertionError:
         raise
