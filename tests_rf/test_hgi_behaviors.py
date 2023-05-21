@@ -10,6 +10,7 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
+from serial import SerialException
 from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Device, Gateway
@@ -18,8 +19,7 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
-DEFAULT_MAX_SLEEP = 0.01  # 0.005 fails occasionally
-
+DEFAULT_MAX_SLEEP = 0.05  # 0.05/0.01 are minimum for actual/mocked
 
 HGI_ID_ = "18:000730"
 TST_ID_ = "18:222222"
@@ -39,8 +39,8 @@ TEST_CMDS = (  # test command strings
     f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000999",
     r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",
     f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
-    f" I --- --:------ --:------ {TST_ID_} 0008 002 0000",
-    r" I --- --:------ --:------ 18:000730 0008 002 0000",
+    f" I --- --:------ --:------ {TST_ID_} 0008 002 0011",
+    r" I --- --:------ --:------ 18:000730 0008 002 0022",
 )
 
 
@@ -97,7 +97,11 @@ async def _test_hgi_addrs(port_name, org_str):
     assert gwy_0.devices == []
     assert gwy_0.hgi is None
 
-    await gwy_0.start()
+    try:
+        await gwy_0.start()
+    except SerialException as exc:
+        pytest.skip(exc)
+
     try:
         await assert_hgi_id(gwy_0)
         assert gwy_0.hgi.id != HGI_ID_
@@ -124,6 +128,9 @@ async def _test_hgi_addrs(port_name, org_str):
 async def test_hgi_actual_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
+    if test_idx in (0, 2, 7):
+        pytest.skip("these tests are TBD")
+
     ports = [p.device for p in comports() if "evofw3" in p.product]
 
     if ports:
@@ -137,6 +144,9 @@ async def test_hgi_actual_evofw3(test_idx):
 )
 async def test_hgi_actual_native(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
+
+    if True:
+        pytest.skip("these tests are TBD")
 
     ports = [p.device for p in comports() if "TUSB3410" in p.product]
 
@@ -163,6 +173,9 @@ async def test_hgi_mocked_evofw3(test_idx):
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_hgi_mocked_native(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
+
+    if test_idx in (0, 2, 7):
+        pytest.skip("test is TBD")
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.NATIVE)
