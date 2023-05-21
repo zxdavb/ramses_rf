@@ -19,7 +19,7 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
-DEFAULT_MAX_SLEEP = 0.05  # 0.05/0.01 are minimum for actual/mocked
+DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
 HGI_ID_ = "18:000730"
 TST_ID_ = "18:222222"
@@ -42,6 +42,40 @@ TEST_CMDS = (  # test command strings
     f" I --- --:------ --:------ {TST_ID_} 0008 002 0011",
     r" I --- --:------ --:------ 18:000730 0008 002 0022",
 )
+
+
+MARKER_SKIPREST = "skiprest"
+MARKER_PARAMETRIZE = "parametrize"
+
+
+def pytest_generate_tests(metafunc):
+    def id_fnc(param):
+        return param._name_
+
+    metafunc.parametrize("test_idx", range(len(TEST_CMDS)))  # , ids=id_fnc)
+
+
+_failed_parametrized_tests = set()  # History of failed tests
+
+
+def pytest_runtest_makereport(item, call):
+    """Memorizes names of failed Parametrized tests"""
+
+    marker_names = {marker.name for marker in item.iter_markers()}
+    if {MARKER_SKIPREST, MARKER_PARAMETRIZE}.issubset(marker_names):
+        if call.excinfo is not None:
+            _failed_parametrized_tests.add(item.originalname)
+
+
+def pytest_runtest_setup(item):
+    """Check if the test has already failed with other param.
+
+    If yes - xfail this test.
+    """
+    marker_names = {marker.name for marker in item.iter_markers()}
+    if {MARKER_SKIPREST, MARKER_PARAMETRIZE}.issubset(marker_names):
+        if item.originalname in _failed_parametrized_tests:
+            pytest.xfail("Previous test failed")
 
 
 async def _alert_is_impersonating(self, cmd: Command) -> None:
@@ -77,13 +111,6 @@ async def assert_hgi_id(gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_
     assert gwy.hgi is not None
 
 
-def pytest_generate_tests(metafunc):
-    def id_fnc(param):
-        return param._name_
-
-    metafunc.parametrize("test_idx", range(len(TEST_CMDS)))  # , ids=id_fnc)
-
-
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
@@ -97,10 +124,7 @@ async def _test_hgi_addrs(port_name, org_str):
     assert gwy_0.devices == []
     assert gwy_0.hgi is None
 
-    try:
-        await gwy_0.start()
-    except SerialException as exc:
-        pytest.skip(exc)
+    await gwy_0.start()
 
     try:
         await assert_hgi_id(gwy_0)
@@ -134,7 +158,10 @@ async def test_hgi_actual_evofw3(test_idx):
     ports = [p.device for p in comports() if "evofw3" in p.product]
 
     if ports:
-        await _test_hgi_addrs(ports[0], TEST_CMDS[test_idx])
+        try:
+            await _test_hgi_addrs(ports[0], TEST_CMDS[test_idx])
+        except SerialException as exc:
+            pytest.skip(str(exc))
 
 
 @pytest.mark.xdist_group(name="real_serial")
@@ -142,16 +169,20 @@ async def test_hgi_actual_evofw3(test_idx):
     not [p for p in comports() if "TUSB3410" in p.product],
     reason="No TUSB3410 devices found",
 )
-async def test_hgi_actual_native(test_idx):
+async def test_hgi_actual_ti3410(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    if True:
+    if False:
         pytest.skip("these tests are TBD")
 
     ports = [p.device for p in comports() if "TUSB3410" in p.product]
 
     if ports:
-        await _test_hgi_addrs(ports[0], TEST_CMDS[test_idx])
+        try:
+            await _test_hgi_addrs(ports[0], TEST_CMDS[test_idx])
+        except SerialException:
+            # pytest.skip(str(exc))
+            raise
 
 
 @pytest.mark.xdist_group(name="mock_serial")
@@ -171,7 +202,7 @@ async def test_hgi_mocked_evofw3(test_idx):
 
 @pytest.mark.xdist_group(name="mock_serial")
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-async def test_hgi_mocked_native(test_idx):
+async def test_hgi_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     if test_idx in (0, 2, 7):
