@@ -111,6 +111,9 @@ async def assert_hgi_id(gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_
     assert gwy.hgi is not None
 
 
+_failed_ports = []
+
+
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
@@ -149,19 +152,22 @@ async def _test_hgi_addrs(port_name, org_str):
     not [p for p in comports() if "evofw3" in p.product],
     reason="No evofw3 devices found",
 )
-async def test_hgi_actual_evofw3(test_idx):
+async def test_actual_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     if test_idx in (0, 2, 7):
         pytest.skip("these tests are TBD")
 
-    ports = [p.device for p in comports() if "evofw3" in p.product]
+    port = [p.device for p in comports() if "evofw3" in p.product][0]
 
-    if ports:
-        try:
-            await _test_hgi_addrs(ports[0], TEST_CMDS[test_idx])
-        except SerialException as exc:
-            pytest.skip(str(exc))
+    if port in _failed_ports:
+        pytest.xfail(f"previous SerialException on: {port}")
+
+    try:
+        await _test_hgi_addrs(port, TEST_CMDS[test_idx])
+    except SerialException as exc:
+        _failed_ports.add(port)
+        pytest.xfail(str(exc))
 
 
 @pytest.mark.xdist_group(name="real_serial")
@@ -169,25 +175,27 @@ async def test_hgi_actual_evofw3(test_idx):
     not [p for p in comports() if "TUSB3410" in p.product],
     reason="No TUSB3410 devices found",
 )
-async def test_hgi_actual_ti3410(test_idx):
+async def test_actual_ti3410(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     if False:
         pytest.skip("these tests are TBD")
 
-    ports = [p.device for p in comports() if "TUSB3410" in p.product]
+    port = [p.device for p in comports() if "TUSB3410" in p.product][0]
 
-    if ports:
-        try:
-            await _test_hgi_addrs(ports[0], TEST_CMDS[test_idx])
-        except SerialException:
-            # pytest.skip(str(exc))
-            raise
+    if port in _failed_ports:
+        pytest.xfail(f"previous SerialException on: {port}")
+
+    try:
+        await _test_hgi_addrs(port, TEST_CMDS[test_idx])
+    except SerialException as exc:
+        _failed_ports.add(port)
+        pytest.xfail(str(exc))
 
 
 @pytest.mark.xdist_group(name="mock_serial")
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-async def test_hgi_mocked_evofw3(test_idx):
+async def test_mocked_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(1)
@@ -202,7 +210,7 @@ async def test_hgi_mocked_evofw3(test_idx):
 
 @pytest.mark.xdist_group(name="mock_serial")
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-async def test_hgi_mocked_ti4310(test_idx):
+async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     if test_idx in (0, 2, 7):
