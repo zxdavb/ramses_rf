@@ -32,23 +32,23 @@ CONFIG = {
 }
 
 
-TEST_CMDS = (  # test command strings
-    r" I --- 18:000730 --:------ 18:000730 30C9 003 000666",
-    f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",
-    f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",
-    f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000999",
-    r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",
-    f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
-    f" I --- --:------ --:------ {TST_ID_} 0008 002 0011",
-    r" I --- --:------ --:------ 18:000730 0008 002 0022",
-)
+TEST_CMDS = {  # test command strings
+    0: r" I --- 18:000730 --:------ 18:000730 30C9 003 000666",
+    1: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",
+    2: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",
+    3: f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000999",
+    4: r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",
+    5: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
+    6: f" I --- --:------ --:------ {TST_ID_} 0008 002 0011",
+    7: r" I --- --:------ --:------ 18:000730 0008 002 0022",
+}
 
 
 def pytest_generate_tests(metafunc):
     def id_fnc(param):
         return param._name_
 
-    metafunc.parametrize("test_idx", range(len(TEST_CMDS)))  # , ids=id_fnc)
+    metafunc.parametrize("test_idx", TEST_CMDS)  # , ids=id_fnc)
 
 
 async def _alert_is_impersonating(self, cmd: Command) -> None:
