@@ -44,38 +44,11 @@ TEST_CMDS = (  # test command strings
 )
 
 
-MARKER_SKIPREST = "skiprest"
-MARKER_PARAMETRIZE = "parametrize"
-
-
 def pytest_generate_tests(metafunc):
     def id_fnc(param):
         return param._name_
 
     metafunc.parametrize("test_idx", range(len(TEST_CMDS)))  # , ids=id_fnc)
-
-
-_failed_parametrized_tests = set()  # History of failed tests
-
-
-def pytest_runtest_makereport(item, call):
-    """Memorizes names of failed Parametrized tests"""
-
-    marker_names = {marker.name for marker in item.iter_markers()}
-    if {MARKER_SKIPREST, MARKER_PARAMETRIZE}.issubset(marker_names):
-        if call.excinfo is not None:
-            _failed_parametrized_tests.add(item.originalname)
-
-
-def pytest_runtest_setup(item):
-    """Check if the test has already failed with other param.
-
-    If yes - xfail this test.
-    """
-    marker_names = {marker.name for marker in item.iter_markers()}
-    if {MARKER_SKIPREST, MARKER_PARAMETRIZE}.issubset(marker_names):
-        if item.originalname in _failed_parametrized_tests:
-            pytest.xfail("Previous test failed")
 
 
 async def _alert_is_impersonating(self, cmd: Command) -> None:
@@ -111,7 +84,7 @@ async def assert_hgi_id(gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_
     assert gwy.hgi is not None
 
 
-_failed_ports = []
+_global_failed_ports: list[str] = []
 
 
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
@@ -155,41 +128,45 @@ async def _test_hgi_addrs(port_name, org_str):
 async def test_actual_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
+    global _global_failed_ports
+
     if test_idx in (0, 2, 7):
         pytest.skip("these tests are TBD")
 
     port = [p.device for p in comports() if "evofw3" in p.product][0]
 
-    if port in _failed_ports:
+    if port in _global_failed_ports:
         pytest.xfail(f"previous SerialException on: {port}")
 
     try:
         await _test_hgi_addrs(port, TEST_CMDS[test_idx])
     except SerialException as exc:
-        _failed_ports.add(port)
+        _global_failed_ports.append(port)
         pytest.xfail(str(exc))
 
 
 @pytest.mark.xdist_group(name="real_serial")
 @pytest.mark.skipif(
     not [p for p in comports() if "TUSB3410" in p.product],
-    reason="No TUSB3410 devices found",
+    reason="No ti3410 devices found",
 )
 async def test_actual_ti3410(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
+
+    global _global_failed_ports
 
     if False:
         pytest.skip("these tests are TBD")
 
     port = [p.device for p in comports() if "TUSB3410" in p.product][0]
 
-    if port in _failed_ports:
+    if port in _global_failed_ports:
         pytest.xfail(f"previous SerialException on: {port}")
 
     try:
         await _test_hgi_addrs(port, TEST_CMDS[test_idx])
     except SerialException as exc:
-        _failed_ports.add(port)
+        _global_failed_ports.append(port)
         pytest.xfail(str(exc))
 
 
