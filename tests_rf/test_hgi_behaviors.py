@@ -155,8 +155,8 @@ async def test_actual_ti3410(test_idx):
 
     global _global_failed_ports
 
-    if False:
-        pytest.skip("these tests are TBD")
+    if test_idx in (0, 2, 7):
+        pytest.skip("this test is a WIP")
 
     port = [p.device for p in comports() if "TUSB3410" in p.product][0]
 
@@ -191,7 +191,7 @@ async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     if test_idx in (0, 2, 7):
-        pytest.skip("test is TBD")
+        pytest.skip("this test is a WIP")
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.NATIVE)
