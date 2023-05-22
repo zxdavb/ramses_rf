@@ -43,3 +43,8 @@
 
 2023-02-26T16:54:31.886896 ...  I --- 02:019383 --:------ 02:019383 22C9 024 0001F40A28010101F40A28010201F40A28010301F40A2801  # [{'ufh_idx': '00', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '01', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '02', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '03', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}]
 # 23-02-26T16:54:32.832199 ...  I --- 02:019383 --:------ 02:019383 22C9 006 0401F40A2801                                      # [{'ufh_idx': '00', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '01', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '02', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '03', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}, {'ufh_idx': '04', 'mode': 'heat', 'setpoint_bounds': ( 5.0, 26.0)}]
+
+
+# Issue/66
+2022-11-30T21:31:14.530262 000  W --- 21:044797 02:242981 --:------ 22C9 006 050834089801           # {'ufh_idx': '05', 'mode': 'heat', 'setpoint_bounds': (21.0, 22.0)}
+2022-11-30T21:31:14.633291 054  I --- 02:242981 21:044797 --:------ 22C9 008 0508347FFF010103       # {'ufh_idx': '05', 'mode': 'heat', 'setpoint_bounds': (21.0, None)}

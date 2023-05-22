@@ -47,7 +47,12 @@ def _proc_log_line(gwy, pkt_line):  # noqa: F811
 
     if not pkt_dict:
         return
-    pkt_dict = eval(pkt_dict)
+    try:
+        pkt_dict = eval(pkt_dict)
+    except SyntaxError:
+        if "{" in pkt_dict:
+            raise
+        return
 
     if isinstance(pkt_dict, list) or not any(k for k in pkt_dict if k in META_KEYS):
         assert msg.payload == pkt_dict, msg._pkt

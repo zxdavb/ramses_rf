@@ -1,6 +1,6 @@
-# Itho Autotemp Master -> Slave (can be 8- or 12-group)
+# Itho Autotemp Master (02:250704, 02:250708) + Slave (can be 8- or 12-group)
 
-# 3-group (contrived)
+# 3-group (contrived) - from Itho Autotemp slave to master
 2023-03-19T23:36:11.870451 ...  I --- 02:248945 02:250708 --:------ 4E02 014 0007D07FFF7FFF0208347FFF7FFF  # {'mode': 'cool', 'setpoint_bounds': [(20.0, 21.0), None, None]}  # contrived
 2023-03-19T23:37:01.177133 ...  I --- 02:250984 02:250704 --:------ 4E02 014 007FFF076C7FFF047FFF07D07FFF  # {'mode': 'heat', 'setpoint_bounds': [None, (19.0, 20.0), None]}  # contrived
 
@@ -18,3 +18,6 @@
 # 12-group (contrived) - NB: max payload length is 48 - so how dows Itho do this?
 # 23-03-19T23:36:11.870451 ...  I --- 02:111111 02:222222 --:------ 4E02 050 0007D07FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF0208347FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [(20.0, 21.0), None, None, None, None, None, None, None, None, None, None, None]}  # contrived
 # 23-03-19T23:53:45.556688 ...  I --- 02:111111 02:222222 --:------ 4E02 050 007FFF7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF7FFF7FFF7FFF047FFF7FFF7FFF7FFF08347FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [None, None, None, None, (20.0, 21.0), None, None, None, None, None, None, None]}  # contrived
+
+# Issue/60 - From Itho Autotemp slave to master
+2022-11-04T18:06:43.916064 052  I --- 02:241111 02:242222 --:------ 4E02 034 0008667FFF7FFF7FFF7FFF7FFF7FFF7FFF0408CA7FFF7FFF7FFF7FFF7FFF7FFF7FFF  # {'mode': 'heat', 'setpoint_bounds': [(21.5, 22.5), None, None, None, None, None, None, None]}
