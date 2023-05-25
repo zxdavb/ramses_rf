@@ -112,7 +112,7 @@ class MessageTransport(asyncio.Transport):
     transport.
     """
 
-    MAX_BUFFER_SIZE = 200
+    MAX_BUFFER_SIZE = 5
     MAX_SUBSCRIBERS = 3
 
     READER = "receiver_callback"
@@ -501,17 +501,18 @@ class MessageProtocol(asyncio.Protocol):
     def __init__(self, gwy, callback: Callable) -> None:
         # self._gwy = gwy  # is not used
         self._loop: asyncio.AbstractEventLoop = gwy._loop
-        self._callback = callback
+        self._callback = callback  # where the msg is sent by data_received
 
-        self._transport: MessageTransport = None  # type: ignore[assignment]
+        self._transport: _MessageTransportT = None  # type: ignore[assignment]
         self._this_msg: None | Message = None
 
         self._pause_writing = True
 
-    def connection_made(self, transport: MessageTransport) -> None:  # type: ignore[override]
+    def connection_made(self, transport: _MessageTransportT) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         self._transport = transport
-        self.resume_writing()
+
+        self.resume_writing()  # or simply: self._pause_writing = False
 
     def data_received(self, msg: Message) -> None:  # type: ignore[override]
         """Called by the transport when a message is received."""
@@ -544,6 +545,11 @@ class MessageProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
+        if exc:
+            _LOGGER.error("Exception raised by transport: %s", exc)
+
+        self.pause_writing()  # or simply: self._pause_writing = True
+
         if exc is not None:
             raise exc
 
