@@ -24,7 +24,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import InvalidPacketError, InvalidPayloadError
-from .packet import Packet, fraction_expired
+from .packet import _TD_SECONDS_003, Packet
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
 from .schemas import SZ_ALIAS
@@ -59,6 +59,11 @@ DEV_MODE = __dev_mode__  # and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+def fraction_expired(age: td, age_limit: td) -> float:
+    """Return the packet's age as fraction of its 'normal' lifetime."""
+    return (age - _TD_SECONDS_003) / age_limit
 
 
 class Message:
@@ -271,6 +276,14 @@ class Message:
     def _expired(self) -> bool:
         """Return True if the message is dated (or False otherwise)."""
 
+        # Return the used fraction of the packet's 'normal' lifetime.
+
+        # A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
+        # False if the packet does not expire (e.g. a 10E0).
+
+        # NB: this is only the fact if the packet has expired, or not. Any opinion to if
+        # it *matters* that the packet has expired, is up to higher layers of the stack.
+
         if self._fraction_expired is not None:
             if self._fraction_expired == self.CANT_EXPIRE:
                 return False
@@ -285,8 +298,14 @@ class Message:
                 self._gwy._dt_now() - self.dtm,
                 td(seconds=self.payload["remaining_seconds"]),
             )
-        else:  # self._pkt._expired can be False (doesn't expire), wont be 0
-            self._fraction_expired = self._pkt._expired or self.CANT_EXPIRE
+
+        elif self._pkt._lifespan is False:
+            self._fraction_expired = self.CANT_EXPIRE
+
+        else:
+            self._fraction_expired = fraction_expired(
+                self._gwy._dt_now() - self.dtm, self._pkt._lifespan
+            )
 
         if self._fraction_expired < self.HAS_EXPIRED:
             return False

@@ -45,11 +45,6 @@ if DEV_MODE:
 _PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
-def fraction_expired(age: td, age_limit: td) -> float:
-    """Return the packet's age as fraction of its 'normal' lifetime."""
-    return (age - _TD_SECONDS_003) / age_limit
-
-
 class Packet(Frame):
     """The Packet class (packets that were received).
 
@@ -76,11 +71,7 @@ class Packet(Frame):
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
 
-        self._timeout: None | bool | td = None  # track pkt expiry
-
-        # if DEV_MODE:  # TODO: remove (is for testing only)
-        #     _ = self._has_array
-        #     _ = self._has_ctl
+        self._lifespan: bool | td = pkt_lifetime(self) or False
 
         self._validate(strict_checking=False)
 
@@ -143,27 +134,6 @@ class Packet(Frame):
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
 
-    @property
-    def _expired(self) -> bool | float:
-        """Return the used fraction of the packet's 'normal' lifetime.
-
-        A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
-        False if the packet does not expire (e.g. a 10E0).
-
-        NB: this is only the fact if the packet has expired, or not. Any opinion to if
-        it *matters* that the packet has expired, is up to higher layers of the stack.
-        """
-
-        if self._timeout is None:  # add 3s to account for timing drift
-            self._timeout = pkt_timeout(self) or False
-
-        if self._timeout is False:
-            return False
-
-        return fraction_expired(
-            self._gwy._dt_now() - self.dtm, self._timeout  # type: ignore[arg-type]
-        )
-
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):
         """Create a packet from a saved state (a curated dict)."""
@@ -185,7 +155,7 @@ class Packet(Frame):
         )
 
 
-def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
+def pkt_lifetime(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
     """Return the pkt lifetime, or None if the packet does not expire (e.g. 10E0).
 
     Some codes require a valid payload to best determine lifetime (e.g. 1F09).
