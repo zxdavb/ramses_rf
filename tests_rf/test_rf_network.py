@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Test the binding protocol."""
+"""Test the Virtual RF library.
+
+    VirtualRF is used for testing.
+"""
 
 import asyncio
 from unittest.mock import patch
