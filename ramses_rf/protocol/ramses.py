@@ -53,6 +53,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "zone_name",
         I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
+        W_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # contrived
         EXPIRES: td(days=1),
     },
     Code._0005: {  # system_zones
@@ -177,6 +178,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "mixvalve_params",
         # .I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
+        W_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",  # contrived
     },
     Code._1060: {  # device_battery
         SZ_NAME: "device_battery",
@@ -224,7 +226,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._10E0: {  # device_info
         SZ_NAME: "device_info",
-        I_: r"^00[0-9A-F]{30,}$",  # r"^[0-9A-F]{32,}$" might be OK
+        I_: r"^00([0-9A-F]{30,})?$",  # r"^[0-9A-F]{32,}$" might be OK
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
         EXPIRES: False,
