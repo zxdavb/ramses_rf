@@ -61,7 +61,7 @@ async def assert_this_pkt_hdr_wrapper(
     await assert_this_pkt_hdr(gwy, expected_hdr, max_sleep)
 
     assert gwy._this_msg is not None  # mypy
-    return gwy._this_msg._pkt
+    return gwy._this_msg._pkt.dtm, gwy, gwy._this_msg._pkt._hdr
 
 
 async def assert_context_state(
@@ -101,15 +101,12 @@ async def _test_binding_flow(supplicant: _Faked, respondent: _Faked, codes):
         for hdr in hdr_flow
     ]
 
-    # TEST 1: pkts arrived as expected
+    # TEST 1: that pkts were sent/arrived
     await asyncio.gather(*tasks)
 
-    # TEST 2: pkts arrived in the correct order
-    pkts = [t.result() for t in tasks]
-    pkts.sort(key=lambda x: x.dtm)
-    results = [(p._hdr, p._gwy) for p in pkts]
-
-    expected = [(h, x._gwy) for h in hdr_flow for x in (supplicant, respondent)]
+    # TEST 2: that pkts were sent/arrived in the correct order
+    results = [(p[1], p[2]) for p in sorted([t.result() for t in tasks])]
+    expected = [(x._gwy, h) for h in hdr_flow for x in (supplicant, respondent)]
 
     assert results == expected
 
