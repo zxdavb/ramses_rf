@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Construct a command (packet that is to be sent).
+"""RAMSES RF - Expose an 0404 schedule (is a stateful process).
 """
 from __future__ import annotations
 
@@ -37,6 +35,13 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
+
+
+DEV_MODE = __dev_mode__ and False
+
+_LOGGER = logging.getLogger(__name__)
+if DEV_MODE:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 MSG = "msg"
@@ -102,17 +107,14 @@ SCH_SCHEDULE = vol.Schema(
     vol.Any(SCH_SCHEDULE_DHW, SCH_SCHEDULE_ZON), extra=vol.PREVENT_EXTRA
 )
 
-DEV_MODE = __dev_mode__ and False
 
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
-
-
+# TODO: make stateful (a la binding)
 class Schedule:  # 0404
     """The schedule of a zone."""
 
     def __init__(self, zone, **kwargs) -> None:
+        _LOGGER.debug("Schedule(zon=%s).__init__()", zone)
+
         self._loop = zone._gwy._loop
 
         self.id = zone.id

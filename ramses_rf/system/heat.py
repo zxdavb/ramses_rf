@@ -53,7 +53,7 @@ from ..protocol import (
     Message,
     Priority,
 )
-from ..protocol.command import FaultLog, _mk_cmd
+from ..protocol.command import _mk_cmd
 from ..protocol.const import SZ_PRIORITY, SZ_RETRIES
 from ..schemas import (
     DEFAULT_MAX_ZONES,
@@ -68,6 +68,7 @@ from ..schemas import (
     SZ_SYSTEM,
     SZ_UFH_SYSTEM,
 )
+from .faultlog import FaultLog
 from .zones import DhwZone, Zone
 
 # TODO: refactor packet routing (filter *before* routing)

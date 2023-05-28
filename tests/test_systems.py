@@ -12,7 +12,6 @@ from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.helpers import gwy  # noqa: F401
 from tests.helpers import (
     TEST_DIR,
     assert_expected,
@@ -38,11 +37,11 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_payloads_from_log_file(gwy, dir_name):  # noqa: F811
+def test_payloads_from_log_file(dir_name):  # noqa: F811
     """Assert that each message payload is as expected."""
     # RP --- 02:044328 18:200214 --:------ 2309 003 0007D0       # {'ufh_idx': '00', 'setpoint': 20.0}
 
-    def proc_log_line(gwy, pkt_line):
+    def proc_log_line(pkt_line):
         if "#" not in pkt_line:
             return
 
@@ -51,14 +50,15 @@ def test_payloads_from_log_file(gwy, dir_name):  # noqa: F811
         if not pkt_line[27:].strip():
             return
 
-        msg = Message(gwy, Packet.from_file(gwy, pkt_line[:26], pkt_line[27:]))
+        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+        msg = Message(pkt)
 
         assert msg.payload == eval(pkt_dict)
 
     with open(f"{dir_name}/packet.log") as f:
         while line := (f.readline()):
             if line.strip():
-                proc_log_line(gwy, line)
+                proc_log_line(line)
 
 
 async def test_schemax_with_log_file(dir_name):

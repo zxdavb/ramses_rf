@@ -70,11 +70,11 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
     "0001C88D030167FEFF": ("REM", "37", "2021-07-28", "VMI-15MC01"),   # .       1298/31E0, 22F1, 22F3  (with integrated CO2 sensor)
     "0001C894030167FFFF": ("REM", "37", "2020-08-27", "VMI-15WSJ53"),  # .                  22F1, 22F3? (HRC Display recessed 15RF)
     # RFS...
-    "000100220B0001FEFF": ("RFS", "21", "2015-01-20", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,                   30C9, 3110, 3120, 3EF0, 01FF
-    "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
+    "000100220B0001FEFF": ("RFS", "21", "2015-01-20", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,        30C9, 3110, 3120, 3EF0, 01FF
+    "000100222B0001FEFF": ("RFS", "21", "2019-07-10", "CCU-12T20"),  # .      Itho spIDer   1060,       12C0, 22C9,  2E10, 30C9, 3110, 3120, 3EF0
     "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
-    "00010022370101F1FB": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9,                   30C9, 3110, 3120, 3EF0
-    "00010022370101FEFF": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060, 1290, 12C0, 22C9,                   30C9, 3110, 3120  (maybe incomplete)
+    "00010022370101F1FB": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060,       12C0, 22C9,        30C9, 3110, 3120, 3EF0
+    "00010022370101FEFF": ("RFS", "21", "2021-05-21", "CCU-12T20"),  # .           spIDer   1060, 1290, 12C0, 22C9,        30C9, 3110, 3120  (maybe incomplete)
 
     # TBA - broken as 18:...
     "0001FA100A0001FEFE": ("FAN", "18", "2019-04-11", "BRDG-02A55"),  # .        NOTE: 18:  31D9, 31DA, 1F09
@@ -159,3 +159,21 @@ def check_signature(dev_type: str, signature: str) -> None:
 # HRA
 # RFT - RF
 # HRU heat recovery unit (MVHR), aka WTW (in. dutch)
+
+
+# manufacturer group:  0001
+# manufacturer sub_id: C8
+# product id:          95/7D/50/51/8D/etc.
+__ORCON_WIP = {
+    "0001C84F": ("VMD-02RPS54", ""),
+    "0001C850": ("VMS-15C16  ", "CO2 Room sensor"),
+    "0001C851": ("VMS-15CM17 ", "CO2 Control sensor"),
+    "0001C87D": ("VMD-15RMS64", "HRC-EcoMax/Comfort (2018-2019)"),
+    "0001C88C": ("VMD-02RPS14", ""),
+    "0001C88D": ("           ", "CO2 Built-in control sensor"),
+    "0001C88E": ("VMD-02RPS66", ""),
+    "0001C88F": ("VMD-02RPS07", ""),
+    "0001C892": ("VMD-02RPS78", ""),
+    "0001C895": ("VMD-15RMS86", "HRC-EcoSmart/Comfort, HRC-EcoMax/Comfort (from 2021)"),
+    "0001C897": ("VMD-02RMS37", ""),
+}

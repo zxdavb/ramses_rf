@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Decode/process a message (payload into JSON).
-"""
+"""RAMSES RF - Decode/process a message (payload into JSON)."""
 from __future__ import annotations
 
 import logging
 import re
 from datetime import datetime as dt
-from datetime import timedelta as td
 from functools import lru_cache
 
 from .address import Address
@@ -24,10 +20,9 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import InvalidPacketError, InvalidPayloadError
-from .packet import _TD_SECONDS_003, Packet
+from .packet import Packet
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
-from .schemas import SZ_ALIAS
 
 # TODO:
 # long-format msg.__str__ - alias columns don't line up
@@ -39,10 +34,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    F9,
-    FA,
-    FC,
-    FF,
     Code,
 )
 
@@ -52,7 +43,6 @@ __all__ = ["Message"]
 CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
-MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
 DEV_MODE = __dev_mode__  # and False
 
@@ -61,29 +51,20 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def fraction_expired(age: td, age_limit: td) -> float:
-    """Return the packet's age as fraction of its 'normal' lifetime."""
-    return (age - _TD_SECONDS_003) / age_limit
-
-
 class Message:
-    """The message class; will trap/log all invalid MSGs appropriately."""
+    """The Message class; will trap/log invalid msgs."""
 
-    CANT_EXPIRE = -1
-    IS_EXPIRING = 0.8  # expected lifetime == 1.0
-    HAS_EXPIRED = 2.0  # incl. any value >= HAS_EXPIRED
-
-    def __init__(self, gwy, pkt: Packet) -> None:
+    def __init__(self, pkt: Packet) -> None:
         """Create a message from a valid packet.
 
         Will raise InvalidPacketError if it is invalid.
         """
-        self._gwy = gwy
-        self._pkt = pkt
 
-        self.src = pkt.src
-        self.dst = pkt.dst
-        self._addrs = pkt._addrs
+        self._pkt: Packet = pkt
+
+        self.src: Address = pkt.src
+        self.dst: Address = pkt.dst
+        self._addrs: tuple[Address, Address, Address] = pkt._addrs
 
         self.dtm: dt = pkt.dtm
 
@@ -92,13 +73,9 @@ class Message:
         self.code: str = pkt.code
         self.len: int = pkt._len
 
-        self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
-
         self._payload = self._validate(self._pkt.payload)  # ? raise InvalidPacketError
 
         self._str: str = None  # type: ignore[assignment]
-        self._fraction_expired: float = None  # type: ignore[assignment]
-        # self._is_fragment: bool = None  # type: ignore[assignment]
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -107,39 +84,25 @@ class Message:
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
 
-        def ctx(pkt) -> str:
+        def ctx(pkt: Packet) -> str:
             ctx = {True: "[..]", False: "", None: "??"}.get(pkt._ctx, pkt._ctx)
-            if not ctx and pkt.payload[:2] not in ("00", FF):
+            if not ctx and pkt.payload[:2] not in ("00", "FF"):
                 return f"({pkt.payload[:2]})"
             return ctx
-
-        def display_name(addr: Address) -> str:
-            """Return a friendly name for an Address, or a Device.
-
-            Use the alias, if one exists, or use a slug instead of a device type.
-            """
-
-            try:
-                if self._gwy.config.use_aliases:
-                    return self._gwy._include[addr.id][SZ_ALIAS][:18]
-                else:
-                    return f"{self._gwy.device_by_id[addr.id]._SLUG}:{addr.id[3:]}"
-            except KeyError:
-                return f" {addr.id}"
 
         if self._str is not None:
             return self._str
 
         if self.src.id == self._addrs[0].id:
-            name_0 = display_name(self.src)
-            name_1 = "" if self.dst is self.src else display_name(self.dst)
+            name_0 = self._name(self.src)
+            name_1 = "" if self.dst is self.src else self._name(self.dst)
         else:
             name_0 = ""
-            name_1 = display_name(self.src)
+            name_1 = self._name(self.src)
 
-        _format = MSG_FORMAT_18 if self._gwy.config.use_aliases else MSG_FORMAT_10
-        self._str = _format.format(
-            name_0, name_1, self.verb, self.code_name, ctx(self._pkt), self.payload
+        code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
+        self._str = MSG_FORMAT_10.format(
+            name_0, name_1, self.verb, code_name, ctx(self._pkt), self.payload
         )
         return self._str
 
@@ -158,6 +121,10 @@ class Message:
         if not isinstance(other, Message):
             return NotImplemented
         return self.dtm < other.dtm
+
+    def _name(self, addr: Address) -> str:
+        """Return a friendly name for an Address, or a Device."""
+        return f" {addr.id}"  # can't do 'CTL:123456' instead of ' 01:123456'
 
     @property
     def payload(self):  # Union[dict, list[dict]]:
@@ -272,65 +239,6 @@ class Message:
 
         return {index_name: self._pkt._idx}
 
-    @property
-    def _expired(self) -> bool:
-        """Return True if the message is dated (or False otherwise)."""
-
-        # Return the used fraction of the packet's 'normal' lifetime.
-
-        # A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
-        # False if the packet does not expire (e.g. a 10E0).
-
-        # NB: this is only the fact if the packet has expired, or not. Any opinion to if
-        # it *matters* that the packet has expired, is up to higher layers of the stack.
-
-        if self._fraction_expired is not None:
-            if self._fraction_expired == self.CANT_EXPIRE:
-                return False
-            if self._fraction_expired > self.HAS_EXPIRED * 2:
-                return True
-
-        prev_fraction = self._fraction_expired
-
-        if self.code == Code._1F09 and self.verb != RQ:
-            # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
-            self._fraction_expired = fraction_expired(
-                self._gwy._dt_now() - self.dtm,
-                td(seconds=self.payload["remaining_seconds"]),
-            )
-
-        elif self._pkt._lifespan is False:
-            self._fraction_expired = self.CANT_EXPIRE
-
-        else:
-            self._fraction_expired = fraction_expired(
-                self._gwy._dt_now() - self.dtm, self._pkt._lifespan
-            )
-
-        if self._fraction_expired < self.HAS_EXPIRED:
-            return False
-
-        # TODO: should renew?
-
-        # only log expired packets once
-        if prev_fraction is None or prev_fraction < self.HAS_EXPIRED:
-            if (
-                self.code == Code._1F09
-                and self.verb != I_
-                or self.code in (Code._0016, Code._3120, Code._313F)
-                or self._gwy._engine_state is not None  # restoring from pkt log
-            ):
-                _logger = _LOGGER.info
-            else:
-                _logger = _LOGGER.warning if DEV_MODE else _LOGGER.info
-            _logger(f"{self!r} # has expired ({self._fraction_expired * 100:1.0f}%)")
-
-        # elif self._fraction_expired >= self.IS_EXPIRING:  # this could log multiple times
-        #     _LOGGER.error("%s # is expiring", self._pkt)
-
-        # and self.dtm >= self._gwy._dt_now() - td(days=7)  # TODO: should be none >7d?
-        return self._fraction_expired > self.HAS_EXPIRED
-
     def _validate(self, raw_payload) -> dict | list:  # TODO: needs work
         """Validate the message, and parse the payload if so.
 
@@ -395,34 +303,19 @@ def re_compile_re_match(regex: str, string: str) -> bool:  # Optional[Match[Any]
 def _check_msg_payload(msg: Message, payload: str) -> None:
     """Validate the packet's payload against its verb/code pair.
 
-    Raise an InvalidPayloadError if the payload is invalid, otherwise simply return.
-
-    The HGI80-compatible devices can do what they like, but a warning is logged.
-    Some parsers may also raise InvalidPayloadError (e.g. 3220), albeit later on.
+    Raise an InvalidPayloadError if the payload is seen as invalid. Such payloads may
+    actually be valid, in which case the rules (likely the regex) will need updating.
     """
 
+    _ = repr(msg._pkt)  # HACK: ? raise InvalidPayloadError
+
+    if msg.code not in CODES_SCHEMA:
+        raise InvalidPacketError(f"Unknown code: {msg.code}")
+
     try:
-        _ = repr(msg._pkt)  # HACK: ? raise InvalidPayloadError
+        regex = CODES_SCHEMA[msg.code][msg.verb]
+    except KeyError:
+        raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
 
-        if msg.code not in CODES_SCHEMA:
-            raise InvalidPacketError(f"Unknown code: {msg.code}")
-
-        try:
-            regex = CODES_SCHEMA[msg.code][msg.verb]
-        except KeyError:
-            raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
-
-        if not re_compile_re_match(regex, payload):
-            raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
-
-    except InvalidPacketError as exc:  # incl. InvalidPayloadError
-        # HGI80s can do what they like...
-        if msg.src.type != DEV_TYPE_MAP.HGI:
-            raise
-        if not msg._gwy.pkt_protocol or (
-            hgi_id := msg._gwy.pkt_protocol._hgi80.get("device_id") is None
-        ):
-            _LOGGER.warning(f"{msg!r} < {exc}")
-            return
-        elif msg.src.id != hgi_id:
-            raise
+    if not re_compile_re_match(regex, payload):
+        raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")

@@ -251,7 +251,7 @@ SCH_GATEWAY_DICT = SCH_ENGINE_DICT | {
     vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
     vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
         int, vol.Range(min=1, max=16)
-    ),  # TODO: no default
+    ),  # NOTE: no default
     vol.Optional(SZ_REDUCE_PROCESSING, default=0): vol.All(
         int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
     ),

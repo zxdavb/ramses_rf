@@ -127,7 +127,7 @@ class Frame:
         try:
             return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
         except TypeError as exc:
-            raise InvalidPacketError(f"Bad frame: invalid attr: {exc}")
+            raise InvalidPacketError(f"Bad frame: Invalid attrs: {exc}")
 
     def _validate(self, *, strict_checking: bool = None) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
@@ -136,24 +136,18 @@ class Frame:
         """
 
         if (seqn := self._frame[3:6]) == "...":
-            raise InvalidPacketError(f"Bad frame: deprecated seqn: {seqn}")
+            raise InvalidPacketError(f"Bad frame: Deprecated seqn: {seqn}")
+
+        if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
+            raise InvalidPacketError("Bad frame: Payload length mismatch")
 
         if not strict_checking:
             return
 
-        if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
-            raise InvalidPacketError("Bad frame: payload length mismatch")
-
         try:
             self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore[assignment]
         except InvalidPacketError as exc:  # will be: InvalidAddrSetError
-            raise InvalidPacketError(f"Bad frame: invalid address set: {exc}")
-
-        if True:  # below is done at a higher layer
-            return
-
-        if (code := self._frame[37.41]) not in CODES_SCHEMA:
-            raise InvalidPacketError(f"Bad frame: unknown code: {code}")
+            raise InvalidPacketError(f"Bad frame: Invalid address set: {exc}")
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""

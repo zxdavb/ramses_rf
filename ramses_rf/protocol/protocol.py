@@ -120,12 +120,16 @@ class MessageTransport(asyncio.Transport):
 
     _extra: dict  # asyncio.BaseTransport
 
-    def __init__(self, gwy, protocol: MessageProtocol, extra: dict = None) -> None:
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        protocol: MessageProtocol,
+        extra: None | dict = None,
+    ) -> None:
         super().__init__(extra=extra)
 
-        self._loop: asyncio.AbstractEventLoop = gwy._loop
+        self._loop = loop
 
-        self._gwy = gwy
         self._protocols: List[MessageProtocol] = []
         self._extra[self.READER] = self._pkt_receiver
         self._dispatcher: Callable = None  # type: ignore[assignment]
@@ -240,16 +244,15 @@ class MessageTransport(asyncio.Transport):
         self._expire_callbacks(pkt.dtm)
 
         if len(self._protocols) == 0 or (
-            self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES
+            self._extra.get("reduce_processing") >= DONT_CREATE_MESSAGES
         ):
             return
 
         # BUG: all InvalidPacketErrors are not being raised here - some later?
         try:
-            msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
-        except (
-            InvalidPacketError
-        ):  # TODO: InvalidMessageError (wont have got this far if was an invalid Pkt)
+            msg = Message(pkt)  # should log all invalid msgs appropriately
+        except InvalidPacketError:
+            # TODO: InvalidMessageError (wont have got this far if was an invalid Pkt)
             return
 
         # 3rd, invoke any matched callback
@@ -434,7 +437,7 @@ class MessageTransport(asyncio.Transport):
         if self._write_buffer_paused:
             raise RuntimeError("MsgTransport write buffer is paused")
 
-        if self._gwy.config.disable_sending:
+        if self._extra.get("disable_sending"):
             raise RuntimeError("MsgTransport sending is disabled (cmd discarded)")
 
         else:
@@ -498,10 +501,11 @@ class MessageProtocol(asyncio.Protocol):
     * CL: connection_lost()
     """
 
-    def __init__(self, gwy, callback: Callable) -> None:
-        # self._gwy = gwy  # is not used
-        self._loop: asyncio.AbstractEventLoop = gwy._loop
+    def __init__(
+        self, callback: Callable, loop: None | asyncio.AbstractEventLoop = None
+    ) -> None:
         self._callback = callback  # where the msg is sent by data_received
+        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
 
         self._transport: _MessageTransportT = None  # type: ignore[assignment]
         self._this_msg: None | Message = None
@@ -563,10 +567,10 @@ class MessageProtocol(asyncio.Protocol):
 
 
 def create_protocol_factory(
-    protocol_class: type[asyncio.Protocol], *args, **kwargs
+    protocol_class: type[asyncio.Protocol], gwy, msg_callback: Callable
 ) -> Callable:
     def _protocol_factory() -> asyncio.Protocol:
-        return protocol_class(*args, **kwargs)
+        return protocol_class(msg_callback, loop=gwy._loop)
 
     return _protocol_factory
 
@@ -592,6 +596,10 @@ def create_msg_stack(
         msg_transport = gwy.msg_transport
         msg_transport.add_protocol(msg_protocol)
     else:
-        msg_transport = MessageTransport(gwy, msg_protocol)
+        extra = {
+            "disable_sending": gwy.config.disable_sending,
+            "reduce_processing": gwy.config.reduce_processing,
+        }
+        msg_transport = MessageTransport(gwy._loop, msg_protocol, extra=extra)
 
     return (msg_protocol, msg_transport)

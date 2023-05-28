@@ -7,7 +7,7 @@ from __future__ import annotations
 from logging import Logger
 
 from .address import Address, is_valid_dev_id
-from .command import CODE_API_MAP, Command, FaultLog, Priority
+from .command import CODE_API_MAP, Command, Priority
 from .const import (
     SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,

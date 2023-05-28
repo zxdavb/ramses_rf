@@ -19,7 +19,6 @@ from typing import Callable, TextIO
 from ramses_rf import Gateway
 from ramses_rf.const import Code
 from ramses_rf.protocol import Command, InvalidPacketError, Packet
-from ramses_rf.protocol.protocol import create_protocol_factory
 from ramses_rf.protocol.transport import (
     PacketProtocolFile,
     PacketProtocolPort,
@@ -27,6 +26,7 @@ from ramses_rf.protocol.transport import (
     SerTransportRead,
     _PacketProtocolT,
     _PacketTransportT,
+    create_protocol_factory,
 )
 
 from .const import GWY_ID, __dev_mode__

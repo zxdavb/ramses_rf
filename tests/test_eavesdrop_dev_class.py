@@ -35,7 +35,9 @@ def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
         if not pkt_line[27:].strip():
             return
 
-        msg = Message(gwy, Packet.from_file(gwy, pkt_line[:26], pkt_line[27:]))
+        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+        msg = Message(pkt)
+
         _create_devices_from_addrs(gwy, msg)
         msg.src._handle_msg(msg)
 

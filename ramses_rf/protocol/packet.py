@@ -46,7 +46,7 @@ _PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
 class Packet(Frame):
-    """The Packet class (packets that were received).
+    """The Packet class (pkts that were received); will trap/log invalid pkts.
 
     They have a datetime (when received) an RSSI, and other meta-fields.
     """
@@ -54,7 +54,7 @@ class Packet(Frame):
     _dtm: dt
     _rssi: str
 
-    def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
+    def __init__(self, dtm: dt, frame: str, **kwargs) -> None:
         """Create a packet from a string (actually from f"{RSSI} {frame}").
 
         Will raise InvalidPacketError if it is invalid.
@@ -62,7 +62,6 @@ class Packet(Frame):
 
         super().__init__(frame[4:])  # remove RSSI
 
-        self._gwy = gwy
         self._dtm: dt = dtm
 
         self._rssi: str = frame[0:3]
@@ -71,7 +70,7 @@ class Packet(Frame):
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
 
-        self._lifespan: bool | td = pkt_lifetime(self) or False
+        self._lifespan: bool | td = pkt_lifespan(self) or False
 
         self._validate(strict_checking=False)
 
@@ -135,30 +134,28 @@ class Packet(Frame):
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
 
     @classmethod
-    def from_dict(cls, gwy, dtm: str, pkt_line: str):
+    def from_dict(cls, dtm: str, pkt_line: str):
         """Create a packet from a saved state (a curated dict)."""
         frame, _, comment = cls._partition(pkt_line)
-        return cls(gwy, dt.fromisoformat(dtm), frame, comment=comment)
+        return cls(dt.fromisoformat(dtm), frame, comment=comment)
 
     @classmethod
-    def from_file(cls, gwy, dtm: str, pkt_line: str):
+    def from_file(cls, dtm: str, pkt_line: str):
         """Create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
-        return cls(gwy, dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
+        return cls(dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
-    def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: bytes = None):
+    def from_port(cls, dtm: dt, pkt_line: str, raw_line: bytes = None):
         """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
-        return cls(
-            gwy, dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line
-        )
+        return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
 
 
-def pkt_lifetime(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
-    """Return the pkt lifetime, or None if the packet does not expire (e.g. 10E0).
+def pkt_lifespan(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
+    """Return the pkt lifespan, or None if the packet does not expire (e.g. 10E0).
 
-    Some codes require a valid payload to best determine lifetime (e.g. 1F09).
+    Some codes require a valid payload to best determine lifespan (e.g. 1F09).
     """
 
     if pkt.verb in (RQ, W_):

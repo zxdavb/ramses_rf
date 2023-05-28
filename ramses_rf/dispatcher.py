@@ -11,10 +11,6 @@ import logging
 from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from . import Gateway
-    from .protocol import Message
-
 from .const import (
     DEV_TYPE,
     DEV_TYPE_MAP,
@@ -24,13 +20,16 @@ from .const import (
     __dev_mode__,
 )
 from .device import Device
-from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA
+from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA  # , Address
+from .protocol import Message as MessageBase
 from .protocol.exceptions import EvohomeError, InvalidAddrSetError, InvalidPacketError
 from .protocol.ramses import (
     CODES_OF_HEAT_DOMAIN,
     CODES_OF_HEAT_DOMAIN_ONLY,
     CODES_OF_HVAC_DOMAIN_ONLY,
 )
+
+# from .schemas import SZ_ALIAS
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -41,12 +40,16 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     Code,
 )
 
-__all__ = ["process_msg"]
+if TYPE_CHECKING:
+    from . import Gateway
+
+__all__ = ["detect_array_fragment", "process_msg"]
 
 CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
-MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
+
+_TD_SECONDS_003 = td(seconds=3)
 
 DEV_MODE = __dev_mode__ and False  # or True  # set True for useful Tracebacks
 
@@ -55,6 +58,76 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 STRICT_MODE = not DEV_MODE and False
+
+
+class Message(MessageBase):
+    """Extend the Message class, so is useful to a stateful Gateway.
+
+    Adds _expired attr to the Message class.
+    """
+
+    CANT_EXPIRE = -1  # sentinel value for fraction_expired
+
+    HAS_EXPIRED = 2.0  # fraction_expired >= HAS_EXPIRED
+    # .HAS_DIED = 1.0  # fraction_expired >= 1.0 (is expected lifespan)
+    IS_EXPIRING = 0.8  # fraction_expired >= 0.8 (and < HAS_EXPIRED)
+
+    _gwy = None
+    _fraction_expired: float = None  # type: ignore[assignment]
+
+    # def __str__(self) -> str:
+    #     """Return a brief readable string representation of this object."""
+    #     _ = super().__str__()
+    #     if not self._gwy.config.use_aliases:
+    #         return self._str
+    #     return
+    #     _format = MSG_FORMAT_18  # else MSG_FORMAT_10
+
+    # def _name(self, addr: Address) -> str:
+    #     """Return a friendly name for an Address, or a Device.
+
+    #     Use the alias, if one exists, or use a slug instead of a device type.
+    #     """
+
+    #     try:
+    #         if self._gwy.config.use_aliases:
+    #             return self._gwy._include[addr.id][SZ_ALIAS][:18]
+    #         else:
+    #             return f"{self._gwy.device_by_id[addr.id]._SLUG}:{addr.id[3:]}"
+    #     except KeyError:
+    #         return f" {addr.id}"
+
+    @property
+    def _expired(self) -> bool:
+        """Return True if the message is dated (or False otherwise)."""
+        # fraction_expired = (dt_now - self.dtm - _TD_SECONDS_003) / self._pkt._lifespan
+        # TODO: keep none >7d, even 10E0, etc.
+
+        def fraction_expired(lifespan: float) -> float:
+            """Return the packet's age as fraction of its 'normal' life span."""
+            return (self._gwy._dt_now() - self.dtm - _TD_SECONDS_003) / lifespan
+
+        # 1. Look for easy win...
+        if self._fraction_expired is not None:
+            if self._fraction_expired == self.CANT_EXPIRE:
+                return False
+            if self._fraction_expired >= self.HAS_EXPIRED:
+                return True
+
+        # 2. Need to update the fraction_expired...
+        if self.code == Code._1F09 and self.verb != RQ:  # sync_cycle is a special case
+            # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
+            self._fraction_expired = fraction_expired(
+                td(seconds=self.payload["remaining_seconds"]),
+            )
+
+        elif self._pkt._lifespan is False:  # Can't expire
+            self._fraction_expired = self.CANT_EXPIRE
+
+        else:
+            self._fraction_expired = fraction_expired(self._pkt._lifespan)
+
+        return self._fraction_expired >= self.HAS_EXPIRED
 
 
 def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
@@ -226,48 +299,11 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
-def process_msg(msg: Message) -> None:
+def process_msg(gwy: Gateway, msg: MessageBase) -> None:
     """Decoding the packet payload and route it appropriately."""
 
     # All methods require a valid message (payload), except create_devices(), which
     # requires a valid message only for 000C.
-
-    def detect_array_fragment(this: Message, prev: Message) -> dict:  # _PayloadT
-        """Return complete array if this pkt is the latter half of an array."""
-        # This will work, even if the 2nd pkt._is_array == False as 1st == True
-        # .I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
-        # .I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
-        if (
-            not prev
-            or not prev._has_array
-            or this.code not in (Code._000A, Code._22C9)
-            or this.code != prev.code
-            or this.verb != prev.verb != I_
-            or this.src != prev.src
-            or this.dtm >= prev.dtm + td(seconds=3)
-        ):
-            return this.payload
-
-        this._pkt._force_has_array()
-        payload = this.payload if isinstance(this.payload, list) else [this.payload]
-        return prev.payload + payload
-
-    # HACK: This is an unpleaseant anachronism
-    gwy: Gateway = msg._gwy  # pylint: disable=protected-access, skipcq: PYL-W0212
-    gwy._this_msg, gwy._prev_msg = (
-        msg,
-        gwy._this_msg,
-    )  # pylint: disable=protected-access, skipcq: PYL-W0212
-
-    # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
-    if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
-        _LOGGER.info(msg)
-    elif log_level <= logging.INFO and not (
-        msg.verb == RQ and msg.src.type == DEV_TYPE_MAP.HGI
-    ):
-        _LOGGER.info(msg)
-
-    msg._payload = detect_array_fragment(msg, gwy._prev_msg)  # HACK: needs rethinking?
 
     try:  # validate / dispatch the packet
         _check_msg_addrs(msg)  # ? InvalidAddrSetError
@@ -300,7 +336,7 @@ def process_msg(msg: Message) -> None:
             devices = (msg.dst,)  # dont: msg.dst._handle_msg(msg)
 
         elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":  # send to all
-            devices = (d for d in msg._gwy.devices if d is not msg.src)
+            devices = (d for d in gwy.devices if d is not msg.src)
 
         elif hasattr(msg.src, SZ_DEVICES):
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
@@ -323,29 +359,20 @@ def process_msg(msg: Message) -> None:
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
         _LOGGER.exception("%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc)
 
-    # Stuff from MsgTransport, when callbacks were switched to loop.call_soon()
 
-    # protect this code from the upper-layer callback
-    # except InvalidPacketError:
-    #     return
+# TODO: this needs cleaning up (e.g. handle intervening packet)
+def detect_array_fragment(this: Message, prev: Message) -> dict:  # _PayloadT
+    """Return a merged array if this pkt is the latter half of an array."""
+    # This will work, even if the 2nd pkt._is_array == False as 1st == True
+    # .I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
+    # .I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
 
-    # except CorruptStateError as exc:
-    #     _LOGGER.error("%s < %s", pkt, exc)
-
-    # except AssertionError as exc:
-    #     if p is not self._protocols[0]:
-    #         raise
-    #     _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
-
-    # except (
-    #     ArithmeticError,  # incl. ZeroDivisionError,
-    #     AttributeError,
-    #     LookupError,  # incl. IndexError, KeyError
-    #     NameError,  # incl. UnboundLocalError
-    #     RuntimeError,  # incl. RecursionError
-    #     TypeError,
-    #     ValueError,
-    # ) as exc:
-    #     if p is self._protocols[0]:
-    #         raise
-    #     _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
+    return (
+        prev
+        and prev._has_array
+        and this.code in (Code._000A, Code._22C9)  # TODO: not a complete list
+        and this.code == prev.code
+        and this.verb == prev.verb == I_
+        and this.src == prev.src
+        and this.dtm < prev.dtm + _TD_SECONDS_003
+    )

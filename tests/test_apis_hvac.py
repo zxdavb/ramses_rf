@@ -11,25 +11,24 @@ from datetime import datetime as dt
 from ramses_rf.protocol.command import CODE_API_MAP, Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.helpers import gwy  # noqa: F401
 
 
-def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+def _test_api(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line, kwargs in packets.items():
-        pkt = _create_pkt_from_frame(gwy, pkt_line)
+        pkt = _create_pkt_from_frame(pkt_line)
 
-        msg = Message(gwy, pkt)
+        msg = Message(pkt)
 
         _test_api_from_kwargs(api, pkt, **kwargs)
         _test_api_from_msg(api, msg)
 
 
-def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
+def _create_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
     """Create a pkt from a pkt_line and assert their frames match."""
 
-    pkt = Packet.from_port(gwy, dt.now(), pkt_line)
+    pkt = Packet.from_port(dt.now(), pkt_line)
     assert str(pkt) == pkt_line[4:]
     return pkt
 
@@ -54,11 +53,11 @@ def _test_api_from_kwargs(api, pkt, **kwargs):
     assert str(cmd) == str(pkt)
 
 
-def test_set(gwy):  # noqa: F811
+def test_set():  # noqa: F811
     for test_pkts in (SET_22F1_KWARGS, SET_22F7_KWARGS):
         pkt = list(test_pkts)[0]
         api = CODE_API_MAP[f"{pkt[4:6]}|{pkt[41:45]}"]
-        _test_api(gwy, api, test_pkts)
+        _test_api(api, test_pkts)
 
 
 HRU = "32:155617"

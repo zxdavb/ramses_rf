@@ -19,14 +19,13 @@ from typing import TYPE_CHECKING, Callable, Optional, TextIO
 
 if TYPE_CHECKING:
     from .device import Device
-    from .protocol import Message
     from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
     from .protocol.protocol import _MessageProtocolT, _MessageTransportT
     from .protocol.transport import _PacketProtocolT, _PacketTransportT
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
-from .dispatcher import process_msg
+from .dispatcher import Message, detect_array_fragment, process_msg
 from .helpers import schedule_task, shrink
 from .protocol import (
     SZ_POLLER_TASK,
@@ -151,9 +150,8 @@ class Engine:
         # msg_filter: Callable[[Message], bool] | None = None,
     ) -> tuple[_MessageProtocolT, _MessageTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
+        # The optional filter will return True if the message is to be handled.  # TODO
 
-        # The optional filter will return True if the message is to be handled.
-        # """  # TODO
         # if msg_filter is not None and not is_callback(msg_filter):
         #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
         return self._create_msg_stack(msg_handler)
@@ -377,7 +375,9 @@ class Gateway(Engine):
         )
 
         if self.config.reduce_processing < DONT_CREATE_MESSAGES:
-            self.msg_protocol, self.msg_transport = self.create_client(process_msg)
+            self.msg_protocol, self.msg_transport = self.create_client(
+                self._process_msg
+            )
 
         # if self.config.reduce_processing > 0:
         self._tcs: None | System = None  # type: ignore[assignment]
@@ -758,7 +758,7 @@ class Gateway(Engine):
 
         Will make any neccesary changed to the device lists.
         """
-        # TODO: what about using the HGI
+        # TODO: enable to use the HGI as a (say) sensor/actuator
 
         if not is_valid_dev_id(device_id):
             raise TypeError(f"The device id is not valid: {device_id}")
@@ -783,3 +783,28 @@ class Gateway(Engine):
         task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
         self._tasks.append(task)
         return task
+
+    def _process_msg(self, msg) -> None:
+        # TODO: Remove this
+        # # HACK: if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
+        # if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
+        #     _LOGGER.info(msg)
+        # elif log_level <= logging.INFO and not (
+        #     msg.verb == RQ and msg.src.type == DEV_TYPE_MAP.HGI
+        # ):
+        #     _LOGGER.info(msg)
+
+        # HACK: This is one consequence of an unpleaseant anachronism
+        msg.__class__ = Message  # HACK (next line too)
+        msg._gwy = self
+
+        self._this_msg, self._prev_msg = msg, self._this_msg
+
+        # TODO: ideally remove this feature...
+        if detect_array_fragment(self._this_msg, self._prev_msg):
+            msg._pkt._force_has_array()  # may be an array of length 1
+            msg._payload = self._prev_msg.payload + (
+                msg.payload if isinstance(msg.payload, list) else [msg.payload]
+            )
+
+        process_msg(self, msg)

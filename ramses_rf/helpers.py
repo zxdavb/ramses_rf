@@ -9,7 +9,7 @@ from copy import deepcopy
 from inspect import iscoroutinefunction
 
 
-def merge(src: dict, dst: dict, _dc: bool = None) -> dict:  # TODO: move to ramses_rf?
+def merge(src: dict, dst: dict, _dc: bool = None) -> dict:
     """Deep merge a src dict (precedent) into a dst dict and return the result.
 
     run me with nosetests --with-doctest file.py

@@ -48,7 +48,6 @@ from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .exceptions import ForeignGatewayError, InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
-from .protocol import create_protocol_factory
 from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
@@ -363,7 +362,7 @@ class SerTransportBase(asyncio.ReadTransport):
 
     _extra: dict
 
-    def __init__(self, loop: asyncio.AbstractEventLoop, extra=None):
+    def __init__(self, loop: asyncio.AbstractEventLoop, extra: None | dict = None):
         super().__init__(extra=extra)
 
         self._loop = loop
@@ -423,7 +422,7 @@ class SerTransportRead(SerTransportBase):
         loop: asyncio.AbstractEventLoop,
         protocol: _PacketProtocolT,
         packet_source,
-        extra=None,
+        extra: None | dict = None,
     ):
         super().__init__(loop, extra=extra)
 
@@ -465,7 +464,7 @@ class SerTransportPoll(SerTransportBase, asyncio.WriteTransport):
         loop: asyncio.AbstractEventLoop,
         protocol: _PacketProtocolT,
         ser_instance: SerialBase,
-        extra=None,
+        extra: None | dict = None,
     ):
         super().__init__(loop, extra=extra)
 
@@ -514,11 +513,19 @@ class PacketProtocolBase(asyncio.Protocol):
     to transport: self.send_data(cmd)       -> self._transport.write(bytes)
     """
 
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
+    def __init__(
+        self,
+        pkt_handler: Callable,
+        disable_sending: bool = None,
+        enforce_include_list: bool = None,
+        exclude_list: None | dict = None,
+        include_list: None | dict = None,
+        loop: None | asyncio.AbstractEventLoop = None,
+        **kwargs,
+    ) -> None:
         _LOGGER.info(f"RAMSES_RF protocol library v{VERSION}, using {self}")
 
-        self._gwy = gwy
-        self._loop: asyncio.AbstractEventLoop = gwy._loop
+        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
         self._callback: None | Callable = pkt_handler
 
         self._transport: asyncio.Transport = None  # type: ignore[assignment]
@@ -528,12 +535,11 @@ class PacketProtocolBase(asyncio.Protocol):
         self._prev_pkt: Packet = None  # type: ignore[assignment]
         self._this_pkt: Packet = None  # type: ignore[assignment]
 
-        self._disable_sending = gwy.config.disable_sending
-        self._evofw_flag = getattr(gwy.config, "evofw_flag", None)
+        self._disable_sending = disable_sending
 
-        self.enforce_include = gwy.config.enforce_known_list
-        self._exclude = list(gwy._exclude.keys())
-        self._include = list(gwy._include.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
+        self.enforce_include = enforce_include_list
+        self._exclude = list(exclude_list.keys())
+        self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
         self._hgi80: dict[str, Any] = {
@@ -543,13 +549,16 @@ class PacketProtocolBase(asyncio.Protocol):
         }
 
         if known_hgis := [
-            k for k, v in gwy._include.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
+            k for k, v in exclude_list.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
         ]:
             self._hgi80[SZ_KNOWN_HGI] = known_hgis[0]
         else:
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include the gateway (HGI) device")
 
-        self._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
+        # lf._evofw_flag = getattr(gwy.config, "evofw_flag", None)
+        self._evofw_flag = kwargs.get("evofw_flag", None)
+        # lf._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
+        self._use_regex = kwargs.get(SZ_USE_REGEX, {})
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(enforce_include={self.enforce_include})"
@@ -626,7 +635,6 @@ class PacketProtocolBase(asyncio.Protocol):
 
         try:
             pkt = Packet.from_port(
-                self._gwy,
                 dtm,
                 _regex_hack(line, self._use_regex.get(SZ_INBOUND, {})),
                 raw_line=raw_line,
@@ -691,8 +699,8 @@ class PacketProtocolBase(asyncio.Protocol):
 class PacketProtocolFile(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
-        super().__init__(gwy, pkt_handler)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._dt_str_: str = None  # type: ignore[assignment]
 
@@ -719,9 +727,7 @@ class PacketProtocolFile(PacketProtocolBase):
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:  # type: ignore[override]
         try:
             pkt = Packet.from_file(
-                self._gwy,
-                dtm,
-                _regex_hack(line, self._use_regex.get(SZ_INBOUND, {})),
+                dtm, _regex_hack(line, self._use_regex.get(SZ_INBOUND, {}))
             )  # should log all invalid pkts appropriately
 
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
@@ -733,13 +739,13 @@ class PacketProtocolFile(PacketProtocolBase):
 class PacketProtocolPort(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
-        super().__init__(gwy, pkt_handler)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._sem = asyncio.BoundedSemaphore()
         self._leaker = None
 
-        self._gwy_is_evofw3 = None
+        self._ser_is_evofw3 = None
 
     async def _leak_sem(self):
         """Used to enforce a minimum time between calls to `self._transport.write()`."""
@@ -756,7 +762,7 @@ class PacketProtocolPort(PacketProtocolBase):
         if self._leaker:
             self._leaker.cancel()
 
-        self._gwy_is_evofw3 = None
+        self._ser_is_evofw3 = None
 
         super().connection_lost(exc)
 
@@ -769,12 +775,9 @@ class PacketProtocolPort(PacketProtocolBase):
         if product := {x.name: x.product for x in comports()}.get(
             transport.serial.name
         ):  # serial.description is not available on some platforms
-            self._gwy_is_evofw3 = "evofw3" in product
+            self._ser_is_evofw3 = "evofw3" in product
 
         super().connection_made(transport)  # self._transport = transport
-
-        # if self._gwy_is_evofw3:
-        #     self._transport.write(bytes("!V\r\n".encode("ascii")))  # needed?
 
         # add this to start of the pkt log, if any
         if not self._disable_sending:
@@ -805,7 +808,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
     async def _alert_is_impersonating(self, cmd: Command) -> None:
         msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
-        if self._gwy_is_evofw3:
+        if self._ser_is_evofw3:
             _LOGGER.info(msg)
         else:
             _LOGGER.warning(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
@@ -836,8 +839,8 @@ class PacketProtocolPort(PacketProtocolBase):
 class PacketProtocolQos(PacketProtocolPort):
     """Interface for a packet protocol (includes QoS)."""
 
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
-        super().__init__(gwy, pkt_handler)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         # self._qos_lock = Lock()
         self._qos_cmd: None | Command = None
@@ -928,6 +931,24 @@ class PacketProtocolQos(PacketProtocolPort):
         return self._rx_rcvd
 
 
+def create_protocol_factory(
+    protocol_class: type[asyncio.Protocol], gwy, pkt_callback: Callable
+) -> Callable:
+    def _protocol_factory() -> asyncio.Protocol:
+        return protocol_class(
+            pkt_callback,
+            disable_sending=gwy.config.disable_sending,
+            enforce_include_list=gwy.config.enforce_known_list,
+            exclude_list=gwy._exclude,
+            include_list=gwy._include,
+            loop=gwy._loop,
+            # evofw_flag=gwy.config.evofw_flag,
+            # use_regex=gwy.config.use_regex,
+        )
+
+    return _protocol_factory
+
+
 def create_pkt_stack(
     gwy,
     pkt_callback: Callable[[Packet], None],
@@ -989,9 +1010,7 @@ def create_pkt_stack(
         elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
             return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
         else:
-            return create_protocol_factory(
-                PacketProtocolQos, gwy, pkt_callback
-            )()  # NOTE: should be: PacketProtocolQos, not PacketProtocolPort
+            return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()
 
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
