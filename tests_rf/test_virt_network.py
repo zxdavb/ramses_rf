@@ -13,10 +13,10 @@ import pytest
 import serial
 
 from ramses_rf import Code, Command, Device, Gateway
-from tests_rf.virtual_rf import (
+from tests_rf.virtual_rf import VirtualRf
+from tests_rf.virtual_rf_common import (
     CONFIG,
     MIN_GAP_BETWEEN_WRITES,
-    VirtualRf,
     stifle_impersonation_alerts,
 )
 

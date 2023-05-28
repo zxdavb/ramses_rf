@@ -12,10 +12,10 @@ from typing import TypeVar
 from unittest.mock import patch
 
 import pytest
-from virtual_rf import _Faked, binding_test_wrapper
 
 from ramses_rf import Gateway, Packet
 from ramses_rf.bind_state import BindState, Context, State
+from tests_rf.virtual_rf_common import _Faked, binding_test_wrapper
 
 _State = TypeVar("_State", bound=State)
 
