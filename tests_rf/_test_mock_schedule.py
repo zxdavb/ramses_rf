@@ -27,7 +27,7 @@ from tests_rf.helpers import (
     load_test_gwy,
     test_ports,
 )
-from tests_rf.mock import MOCKED_PORT
+from tests_rf.mocked_rf import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/configs"
 CONFIG_FILE = "config_heat.json"

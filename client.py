@@ -507,7 +507,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         lib_kwargs = lib_kwargs | state["schema"]
 
     if serial_port == "/dev/ttyMOCK":
-        from tests_rf.mock import MockGateway  # a special case
+        from tests_rf.mocked_rf import MockGateway  # a special case
 
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:

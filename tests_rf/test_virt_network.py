@@ -13,20 +13,17 @@ import pytest
 import serial
 
 from ramses_rf import Code, Command, Device, Gateway
-from tests_rf.virtual_rf import VirtualRf
-
-MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
+from tests_rf.virtual_rf import (
+    CONFIG,
+    MIN_GAP_BETWEEN_WRITES,
+    VirtualRf,
+    stifle_impersonation_alerts,
+)
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 1
 
 
-CONFIG = {
-    "config": {
-        "disable_discovery": True,
-        "enforce_known_list": False,
-    }
-}
 SCHEMA_0 = {
     "orphans_hvac": ["41:111111"],
     "known_list": {"41:111111": {"class": "REM"}},
@@ -35,11 +32,6 @@ SCHEMA_1 = {
     "orphans_hvac": ["42:222222"],
     "known_list": {"42:222222": {"class": "FAN"}},
 }
-
-
-async def _alert_is_impersonating(self, cmd: Command) -> None:
-    """Stifle impersonation alerts when testing."""
-    pass
 
 
 async def assert_code_in_device_msgz(
@@ -79,13 +71,16 @@ async def assert_this_pkt(
 @pytest.mark.xdist_group(name="serial")
 @patch(
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    _alert_is_impersonating,
+    stifle_impersonation_alerts,
 )
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(3)
+
+    # rf.set_gateway(rf.ports[0], "18:111111")
+    # rf.set_gateway(rf.ports[1], "18:222222")
 
     gwy_0 = Gateway(rf.ports[0], **CONFIG)
     gwy_1 = Gateway(rf.ports[1], **CONFIG)
@@ -133,13 +128,16 @@ async def test_virtual_rf_dev_disc():
 @pytest.mark.xdist_group(name="serial")
 @patch(
     "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    _alert_is_impersonating,
+    stifle_impersonation_alerts,
 )
 @patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 
     rf = VirtualRf(2)
+
+    # rf.set_gateway(rf.ports[0], "18:111111")
+    # rf.set_gateway(rf.ports[1], "18:222222")
 
     gwy_0 = Gateway(rf.ports[0], **CONFIG, **SCHEMA_0)
     gwy_1 = Gateway(rf.ports[1], **CONFIG, **SCHEMA_1)

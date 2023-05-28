@@ -13,10 +13,10 @@ from typing import TypeVar
 from unittest.mock import patch
 
 import pytest
+from virtual_rf import binding_test_wrapper
 
 from ramses_rf.bind_state import BindState, Context, Exceptions, State
 from ramses_rf.device.base import Fakeable
-from tests_rf.helpers import _binding_test_wrapper
 
 _State = TypeVar("_State", bound=State)
 _Faked = TypeVar("_Faked", bound=Fakeable)
@@ -48,7 +48,7 @@ def binding_test_decorator(fnc):
     async def test_binding_wrapper(test_data=TEST_DATA[0]):
         supp, resp, codes = test_data
 
-        await _binding_test_wrapper(
+        await binding_test_wrapper(
             fnc,
             {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
             {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},

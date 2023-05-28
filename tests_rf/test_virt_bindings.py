@@ -12,10 +12,10 @@ from typing import TypeVar
 from unittest.mock import patch
 
 import pytest
+from virtual_rf import _Faked, binding_test_wrapper
 
 from ramses_rf import Gateway, Packet
 from ramses_rf.bind_state import BindState, Context, State
-from tests_rf.helpers import _binding_test_wrapper, _Faked
 
 _State = TypeVar("_State", bound=State)
 
@@ -151,7 +151,7 @@ async def _test_binding_state(supplicant: _Faked, respondent: _Faked, codes):
 async def test_binding_flows(test_data):
     supp, resp, codes = test_data
 
-    await _binding_test_wrapper(
+    await binding_test_wrapper(
         _test_binding_flow,
         {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
         {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
@@ -164,7 +164,7 @@ async def test_binding_flows(test_data):
 async def test_binding_state(test_data):
     supp, resp, codes = test_data
 
-    await _binding_test_wrapper(
+    await binding_test_wrapper(
         _test_binding_state,
         {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
         {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
