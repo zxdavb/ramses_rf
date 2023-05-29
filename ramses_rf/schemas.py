@@ -61,7 +61,7 @@ from .protocol.schemas import (  # noqa: F401
     select_device_filter_mode,
 )
 
-# from .systems import _SystemT  # circular import
+# from .system import _SystemT  # circular import
 
 
 DEV_MODE = __dev_mode__ and False
