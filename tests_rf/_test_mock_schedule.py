@@ -7,6 +7,7 @@ Test CH/DHW schedules with a mocked controller.
 """
 
 from copy import deepcopy
+from unittest.mock import patch
 
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Code
 from ramses_rf.protocol import Message
@@ -37,94 +38,98 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("test_port", test_ports.items(), ids=test_ports.keys())
 
 
-RQ_0006_EXPECTED = 10
-RP_0006_EXPECTED = 11
-RP_0006_RECEIVED = 12
-
-RQ_0404_FIRST_EXPECTED = 20
-RP_0404_FIRST_EXPECTED = 21
-RQ_0404_OTHER_EXPECTED = 22
-RP_0404_OTHER_EXPECTED = 23
-RP_0404_FINAL_RECEIVED = 24
-
-W__0404_FIRST_EXPECTED = 30
-I__0404_FIRST_EXPECTED = 31
-W__0404_OTHER_EXPECTED = 32
-I__0404_OTHER_EXPECTED = 33
-I__0404_FINAL_RECEIVED = 34
-
 # NOTE: used as a global
-flow_marker: int = None  # type: ignore[assignment]
+_global_flow_marker: int = None  # type: ignore[assignment]
+
+
+MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
+
+
+RQ_0006_EXPECTED = 20
+RP_0006_EXPECTED = 22
+RP_0006_RECEIVED = 29
+
+RQ_0404_FIRST_EXPECTED = 40
+RP_0404_FIRST_EXPECTED = 42
+RQ_0404_OTHER_EXPECTED = 44
+RP_0404_OTHER_EXPECTED = 46
+RP_0404_FINAL_RECEIVED = 49
+
+W__0404_FIRST_EXPECTED = 60
+I__0404_FIRST_EXPECTED = 62
+W__0404_OTHER_EXPECTED = 64
+I__0404_OTHER_EXPECTED = 66
+I__0404_FINAL_RECEIVED = 69
 
 
 def track_packet_flow(msg, tcs_id, zone_idx=None):
     """Test the flow of packets (messages)."""
 
-    global flow_marker
+    global _global_flow_marker
 
     if msg.code not in (Code._0006, Code._0404):
         return
 
     # get the schedule version number
     if msg._pkt._hdr == f"0006|RQ|{tcs_id}":
-        assert flow_marker == RQ_0006_EXPECTED
-        flow_marker = RP_0006_EXPECTED
+        assert _global_flow_marker == RQ_0006_EXPECTED
+        _global_flow_marker = RP_0006_EXPECTED
 
     elif msg._pkt._hdr == f"0006|RP|{tcs_id}":
-        assert flow_marker == RP_0006_EXPECTED
-        flow_marker = RP_0006_RECEIVED  # RQ_0404_FIRST_EXPECTED
+        assert _global_flow_marker == RP_0006_EXPECTED
+        _global_flow_marker = RP_0006_RECEIVED  # RQ_0404_FIRST_EXPECTED
 
     # get the first schedule fragment, is possibly the last fragment too
     elif msg._pkt._hdr == f"0404|RQ|{tcs_id}|{zone_idx}01":
-        assert flow_marker in (RQ_0404_FIRST_EXPECTED, RP_0006_RECEIVED)
-        flow_marker = RP_0404_FIRST_EXPECTED
+        assert _global_flow_marker in (RQ_0404_FIRST_EXPECTED, RP_0006_RECEIVED)
+        _global_flow_marker = RP_0404_FIRST_EXPECTED
 
     elif msg._pkt._hdr == f"0404|RP|{tcs_id}|{zone_idx}01":
-        assert flow_marker == RP_0404_FIRST_EXPECTED
+        assert _global_flow_marker == RP_0404_FIRST_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
-            flow_marker = RQ_0404_OTHER_EXPECTED
+            _global_flow_marker = RQ_0404_OTHER_EXPECTED
         else:
-            flow_marker = RP_0404_FINAL_RECEIVED
+            _global_flow_marker = RP_0404_FINAL_RECEIVED
 
     # get the subsequent schedule fragments, until the last fragment
     elif msg._pkt._hdr[:20] == f"0404|RQ|{tcs_id}|{zone_idx}":
-        assert flow_marker == RQ_0404_OTHER_EXPECTED
-        flow_marker = RP_0404_OTHER_EXPECTED
+        assert _global_flow_marker == RQ_0404_OTHER_EXPECTED
+        _global_flow_marker = RP_0404_OTHER_EXPECTED
 
     elif msg._pkt._hdr[:20] == f"0404|RP|{tcs_id}|{zone_idx}":
-        assert flow_marker == RP_0404_OTHER_EXPECTED
+        assert _global_flow_marker == RP_0404_OTHER_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
-            flow_marker = RQ_0404_OTHER_EXPECTED
+            _global_flow_marker = RQ_0404_OTHER_EXPECTED
         else:
-            flow_marker = RP_0404_FINAL_RECEIVED
+            _global_flow_marker = RP_0404_FINAL_RECEIVED
 
     # set the first schedule fragment, is possibly the last fragment too
     elif msg._pkt._hdr == f"0404| W|{tcs_id}|{zone_idx}01":
-        assert flow_marker in (
+        assert _global_flow_marker in (
             W__0404_FIRST_EXPECTED,
             RP_0006_RECEIVED,
             RP_0404_FINAL_RECEIVED,
         )
-        flow_marker = I__0404_FIRST_EXPECTED
+        _global_flow_marker = I__0404_FIRST_EXPECTED
 
     elif msg._pkt._hdr == f"0404| I|{tcs_id}|{zone_idx}01":
-        assert flow_marker == I__0404_FIRST_EXPECTED
+        assert _global_flow_marker == I__0404_FIRST_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
-            flow_marker = W__0404_OTHER_EXPECTED
+            _global_flow_marker = W__0404_OTHER_EXPECTED
         else:
-            flow_marker = I__0404_FINAL_RECEIVED
+            _global_flow_marker = I__0404_FINAL_RECEIVED
 
     # set the subsequent schedule fragments, until the last fragment
     elif msg._pkt._hdr[:20] == f"0404| W|{tcs_id}|{zone_idx}":
-        assert flow_marker == W__0404_OTHER_EXPECTED
-        flow_marker = I__0404_OTHER_EXPECTED
+        assert _global_flow_marker == W__0404_OTHER_EXPECTED
+        _global_flow_marker = I__0404_OTHER_EXPECTED
 
     elif msg._pkt._hdr[:20] == f"0404| I|{tcs_id}|{zone_idx}":
-        assert flow_marker == I__0404_OTHER_EXPECTED
+        assert _global_flow_marker == I__0404_OTHER_EXPECTED
         if msg.payload["frag_number"] < msg.payload["total_frags"]:
-            flow_marker = W__0404_OTHER_EXPECTED
+            _global_flow_marker = W__0404_OTHER_EXPECTED
         else:
-            flow_marker = I__0404_FINAL_RECEIVED
+            _global_flow_marker = I__0404_FINAL_RECEIVED
 
     else:
         assert False, msg
@@ -166,13 +171,13 @@ async def read_schedule(zone: DhwZone | Zone) -> list:  # uses: flow_marker
     # [{  'day_of_week': 0,
     #     'switchpoints': [{'time_of_day': '06:30', 'heat_setpoint': 21.0}, ...], }]
 
-    global flow_marker
+    global _global_flow_marker
 
     # zone._gwy.config.disable_sending = False
 
-    flow_marker = RQ_0006_EXPECTED
+    _global_flow_marker = RQ_0006_EXPECTED
     schedule = await zone.get_schedule()  # RQ|0404, may: TimeoutError
-    assert flow_marker == RP_0404_FINAL_RECEIVED
+    assert _global_flow_marker == RP_0404_FINAL_RECEIVED
 
     if not schedule:  # valid test?
         assert zone._msgs[Code._0404].payload[SZ_TOTAL_FRAGS] is None
@@ -182,9 +187,9 @@ async def read_schedule(zone: DhwZone | Zone) -> list:  # uses: flow_marker
 
     zone._gwy.config.disable_sending = True
 
-    flow_marker = RQ_0006_EXPECTED
+    _global_flow_marker = RQ_0006_EXPECTED
     assert schedule == await zone.get_schedule(force_io=False)
-    assert flow_marker == RQ_0006_EXPECTED
+    assert _global_flow_marker == RQ_0006_EXPECTED
 
     try:
         await zone.get_schedule(force_io=True)
@@ -199,27 +204,27 @@ async def read_schedule(zone: DhwZone | Zone) -> list:  # uses: flow_marker
 async def read_schedule_ver(tcs: System) -> list:  # uses: flow_marker
     """Test the get_schedule() method for a Zone or for DHW."""
 
-    global flow_marker
+    global _global_flow_marker
 
-    flow_marker = RQ_0006_EXPECTED
+    _global_flow_marker = RQ_0006_EXPECTED
     ver = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
-    assert flow_marker == RP_0006_RECEIVED
+    assert _global_flow_marker == RP_0006_RECEIVED
 
     assert isinstance(ver, int)
     assert ver == tcs._msgs[Code._0006].payload["change_counter"]
 
-    flow_marker = RQ_0006_EXPECTED  # actually, is not expected
+    _global_flow_marker = RQ_0006_EXPECTED  # actually, is not expected
     assert ver == (await tcs._schedule_version(force_io=False))[0]
-    assert flow_marker == RQ_0006_EXPECTED
+    assert _global_flow_marker == RQ_0006_EXPECTED
 
     ver = (await tcs._schedule_version(force_io=True))[0]  # RQ|0006, may: TimeoutError
-    assert flow_marker == RP_0006_RECEIVED
+    assert _global_flow_marker == RP_0006_RECEIVED
 
-    tcs._gwy.config.disable_sending = True
+    tcs._gwy.config.disable_sending = True  # TODO: must speak directly to lower layer?
 
-    flow_marker = RQ_0006_EXPECTED  # actually, is not expected
+    _global_flow_marker = RQ_0006_EXPECTED  # actually, is not expected
     ver = (await tcs._schedule_version())[0]  # RQ|0006, may: TimeoutError
-    assert flow_marker == RQ_0006_EXPECTED
+    assert _global_flow_marker == RQ_0006_EXPECTED
 
     try:
         await tcs._schedule_version(force_io=True)
@@ -235,16 +240,16 @@ async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
     # FYI: [{  'day_of_week': 0,
     #     'switchpoints': [{'time_of_day': '06:30', 'heat_setpoint': 21.0}, ...], }]
 
-    global flow_marker
+    global _global_flow_marker
 
     # zone._gwy.config.disable_sending = False
 
-    flow_marker = RQ_0006_EXPECTED  # because of force_io=True
+    _global_flow_marker = RQ_0006_EXPECTED  # because of force_io=True
     ver_old, _ = await zone.tcs._schedule_version(force_io=True)
-    assert flow_marker == RP_0006_RECEIVED
+    assert _global_flow_marker == RP_0006_RECEIVED
 
     sch_old = await zone.get_schedule()
-    assert flow_marker == RP_0404_FINAL_RECEIVED
+    assert _global_flow_marker == RP_0404_FINAL_RECEIVED
 
     sch_new = deepcopy(sch_old)
 
@@ -260,20 +265,20 @@ async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
     #         ) % 30 + 5
 
     _ = await zone.set_schedule(sch_new)  # check zone._schedule._schedule
-    assert flow_marker == I__0404_FINAL_RECEIVED
+    assert _global_flow_marker == I__0404_FINAL_RECEIVED
 
-    flow_marker = RQ_0006_EXPECTED  # because of force_io=True
+    _global_flow_marker = RQ_0006_EXPECTED  # because of force_io=True
     ver_tst, _ = await zone.tcs._schedule_version(force_io=True)  # TODO: force_io=False
-    assert flow_marker == RP_0006_RECEIVED
+    assert _global_flow_marker == RP_0006_RECEIVED
 
     assert ver_tst > ver_old
 
-    flow_marker = RQ_0006_EXPECTED
+    _global_flow_marker = RQ_0006_EXPECTED
     sch_tst = await zone.get_schedule()  # will use latest I/RP|0006
-    assert flow_marker == RQ_0006_EXPECTED
+    assert _global_flow_marker == RQ_0006_EXPECTED
 
     sch_tst = await zone.get_schedule(force_io=True)  # will force RQ|0006
-    assert flow_marker == RP_0006_RECEIVED
+    assert _global_flow_marker == RP_0006_RECEIVED
 
     assert sch_tst == sch_new
     # if zone._gwy.pkt_transport.serial.port == MOCKED_PORT:
@@ -282,6 +287,7 @@ async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
 
 
 @abort_if_rf_test_fails
+@patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", 0)
 async def test_rq_0006_ver(test_port):
     """Test the TCS._schedule_version() method."""
 
@@ -300,6 +306,7 @@ async def test_rq_0006_ver(test_port):
 
 
 @abort_if_rf_test_fails
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_rq_0404_dhw(test_port):
     """Test the dhw.get_schedule() method."""
 
@@ -320,6 +327,7 @@ async def test_rq_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_rq_0404_zon(test_port):
     """Test the zone.get_schedule() method."""
 
@@ -340,6 +348,7 @@ async def test_rq_0404_zon(test_port):
 
 
 @abort_if_rf_test_fails
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_ww_0404_dhw(test_port):
     """Test the dhw.set_schedule() method (uses get_schedule)."""
 
@@ -360,6 +369,7 @@ async def test_ww_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
+@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_ww_0404_zon(test_port):
     """Test the zone.set_schedule() method (uses get_schedule)."""
 
