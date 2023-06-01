@@ -3,9 +3,8 @@
 #
 
 
-# TODO:
-# make use_regex work again
-# debug mixins
+# TODO
+# - make use_regex work again
 
 
 """RAMSES RF - RAMSES-II compatible packet protocol."""
@@ -453,7 +452,7 @@ class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
     # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
     async def _send_bytes(self, cmd: Command) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_cmd(cmd)
+        await super()._send_bytes(cmd)
 
 
 class _ProtDutyCycle(_BaseProtocol):  # stay within duty cycle limits
@@ -462,7 +461,7 @@ class _ProtDutyCycle(_BaseProtocol):  # stay within duty cycle limits
     @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
     async def _send_bytes(self, cmd: Command) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_cmd(cmd)
+        await super()._send_bytes(cmd)
 
 
 class _ProtGapped(_BaseProtocol):  # minimum gap between writes
@@ -501,7 +500,7 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
         """Write some data bytes to the transport."""
         await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
 
-        await super()._send_cmd(cmd)
+        await super()._send_bytes(cmd)
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Context -> Base
@@ -510,7 +509,7 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
 # QosTimers last, to start any timers immediately after Tx of Command
 
 
-class _WriteProtocol(_ProtImpersonate):  # _ProtGapped, _ProtDutyCycle, _ProtSyncCycle
+class _WriteProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle):
     """A protocol that can receive Packets and send Commands."""
 
     pass
