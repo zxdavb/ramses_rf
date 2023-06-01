@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: a real mess - needs refactor a la protocol_new/transport_new
+
+
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 A pseudo-mocked serial port used for testing.
@@ -19,7 +23,7 @@ from typing import Callable, TextIO
 from ramses_rf import Gateway
 from ramses_rf.const import Code
 from ramses_rf.protocol import Command, InvalidPacketError, Packet
-from ramses_rf.protocol.transport import (
+from ramses_rf.protocol.transport_old import (
     PacketProtocolFile,
     PacketProtocolPort,
     SerTransportPoll,
@@ -194,7 +198,7 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
     def _pkt_received(self, pkt: Packet) -> None:
         super()._pkt_received(pkt)  # good place for a breakpoint
 
-    async def _alert_is_impersonating(self, cmd: Command) -> None:
+    async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Stifle impersonation alerts when mocking."""
         pass
 
@@ -202,13 +206,13 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
 def create_pkt_stack_new(  # to use a mocked Serial port (and a sympathetic Transport)
     gwy: Gateway, *args, **kwargs
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
-    from ramses_rf.protocol.transport import create_pkt_stack
+    from protocol.protocol_new import create_stack
 
     # with patch(
     #     "ramses_rf.protocol.transport.serial_for_url",
     #     return_value=MockSerial(gwy.ser_name, loop=gwy._loop),
     # ):
-    return create_pkt_stack(gwy, *args, **kwargs)
+    return create_stack(gwy, *args, **kwargs)
 
 
 def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transport)

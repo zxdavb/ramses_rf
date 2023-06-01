@@ -17,7 +17,7 @@ from tests_rf.virtual_rf import (
     CONFIG,
     MIN_GAP_BETWEEN_WRITES,
     VirtualRf,
-    stifle_impersonation_alerts,
+    stifle_impersonation_alert,
 )
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -41,16 +41,32 @@ async def assert_code_in_device_msgz(
     max_sleep: int = DEFAULT_MAX_SLEEP,
     test_not: bool = False,
 ):
+    """Fail if the device doesn't exist, or if it doesn't have the code in its DB."""
+
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if ((dev := gwy.device_by_id.get(dev_id)) and (code in dev._msgz)) != test_not:
             break
-    assert ((dev := gwy.device_by_id.get(dev_id)) and (code in dev._msgz)) != test_not
+    assert (
+        (dev := gwy.device_by_id.get(dev_id)) and (code in dev._msgz)
+    ) != test_not  # TODO: fix me
+
+
+async def assert_device(gwy: Gateway, dev_id: str, max_sleep: int = DEFAULT_MAX_SLEEP):
+    """Fail if the devices does not exist."""
+
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if dev_id in gwy.device_by_id:
+            break
+    assert dev_id in gwy.device_by_id
 
 
 async def assert_devices(
     gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
 ):
+    """Fail if the two sets of devices are not equal."""
+
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if len(gwy.devices) == len(devices):
@@ -58,22 +74,22 @@ async def assert_devices(
     assert sorted(d.id for d in gwy.devices) == sorted(devices)
 
 
-async def assert_this_pkt(
-    pkt_protocol, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP
-):
+async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if pkt_protocol._this_pkt and pkt_protocol._this_pkt._frame == cmd._frame:
+        if transport._this_pkt and transport._this_pkt._frame == cmd._frame:
             break
-    assert pkt_protocol._this_pkt and pkt_protocol._this_pkt._frame == cmd._frame
+    assert transport._this_pkt and transport._this_pkt._frame == cmd._frame
 
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    stifle_impersonation_alerts,
+    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(
+    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+)
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -127,10 +143,12 @@ async def test_virtual_rf_dev_disc():
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    stifle_impersonation_alerts,
+    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(
+    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+)
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 
@@ -145,8 +163,8 @@ async def test_virtual_rf_pkt_flow():
     await gwy_0.start()
     await gwy_1.start()
 
-    # await assert_devices(gwy_0, ["18:000730", "41:111111"])
-    # await assert_devices(gwy_1, ["18:000730", "42:222222"])
+    await assert_devices(gwy_0, ["18:000730", "41:111111"])
+    await assert_devices(gwy_1, ["18:000730", "42:222222"])
 
     # TEST 1:
     await assert_code_in_device_msgz(
@@ -158,10 +176,11 @@ async def test_virtual_rf_pkt_flow():
     )  # no retries, otherwise long duration
     gwy_0.send_cmd(cmd)
 
+    await assert_device(gwy_0, "01:333333")
     await assert_code_in_device_msgz(gwy_0, "01:333333", Code._1F09)
 
-    await assert_this_pkt(gwy_0.pkt_protocol, cmd)
-    await assert_this_pkt(gwy_1.pkt_protocol, cmd)
+    await assert_this_pkt(gwy_0._transport, cmd)
+    await assert_this_pkt(gwy_1._transport, cmd)
 
     # TEST 2:
     await assert_code_in_device_msgz(
@@ -175,8 +194,8 @@ async def test_virtual_rf_pkt_flow():
 
     await assert_code_in_device_msgz(gwy_0, "41:111111", Code._22F1)
 
-    await assert_this_pkt(gwy_0.pkt_protocol, cmd)
-    await assert_this_pkt(gwy_1.pkt_protocol, cmd)
+    await assert_this_pkt(gwy_0._transport, cmd)
+    await assert_this_pkt(gwy_1._transport, cmd)
 
     # await assert_devices(gwy_0, ["18:000730", "01:333333", "41:111111"])
     # await assert_devices(gwy_1, ["18:000730", "01:333333", "41:111111", "42:222222"])

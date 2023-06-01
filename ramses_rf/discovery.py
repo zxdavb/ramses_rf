@@ -14,7 +14,7 @@ from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.command import _mk_cmd
 from .protocol.const import SZ_DISABLE_BACKOFF, SZ_PRIORITY, SZ_RETRIES
 from .protocol.opentherm import OTB_MSG_IDS
-from .protocol.transport import _MIN_GAP_BETWEEN_WRITES
+from .protocol.transport_new import MIN_GAP_BETWEEN_WRITES
 
 # Beware, none of this is reliable - it is all subject to random change
 # However, these serve as examples how to us eteh other modules
@@ -262,7 +262,7 @@ async def script_scan_hard(gwy, dev_id: str, *, start_code: int = None):
 
     for code in range(start_code, 0x5000):
         gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))
-        await asyncio.sleep(_MIN_GAP_BETWEEN_WRITES)
+        await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
 
 
 @script_decorator

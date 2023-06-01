@@ -119,6 +119,8 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
             else:
                 self._faultlog_done = True
 
+        # FIXME: refactoring protocol stack
+        # FIXME: make a better way of creating these callbacks
         # register callback for null response, which has no ctx (no frag_id),
         # and so a different header
         null_header = "|".join((RP, self.id, Code._0418))

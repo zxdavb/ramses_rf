@@ -810,7 +810,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
-            self.deprecate_cmd(msg._pkt, ctx=msg_id)
+            self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
 
         else:
             # 18:50:32.524 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
@@ -822,7 +822,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 OtMsgType.UNKNOWN_DATAID,
                 # OtMsgType.RESERVED,  # some always reserved, others sometimes so
             )
-            self.deprecate_cmd(msg._pkt, ctx=msg_id, reset=reset)
+            self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
 
     def _handle_code(self, msg: Message) -> None:
         if msg.code == Code._3EF0 and msg.verb == I_:  # chasing flags
@@ -838,9 +838,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
         ):
-            self.deprecate_cmd(msg._pkt)
+            self.deprecate_code_ctx(msg._pkt)
         else:
-            self.deprecate_cmd(msg._pkt, reset=True)
+            self.deprecate_code_ctx(msg._pkt, reset=True)
 
     def _ot_msg_flag(self, msg_id, flag_idx) -> None | bool:
         if flags := self._ot_msg_value(msg_id):

@@ -33,6 +33,6 @@ def make_device_fakeable(dev: Device) -> None:
     setattr(dev, "_1fc9_state", {})
 
 
-async def stifle_impersonation_alerts(self, cmd: Command) -> None:
+async def stifle_impersonation_alert(self, cmd: Command) -> None:
     """Stifle impersonation alerts when testing."""
     pass

@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Any
 from .const import (
     DEV_TYPE_MAP,
     SZ_ACTUATORS,
-    SZ_DEVICE_ID,
     SZ_DOMAIN_ID,
     SZ_NAME,
     SZ_SENSOR,
@@ -32,7 +31,6 @@ from .protocol import CorruptStateError
 from .protocol.frame import _CodeT, _DeviceIdT, _HeaderT, _VerbT
 from .protocol.opentherm import OPENTHERM_MESSAGES
 from .protocol.ramses import CODES_SCHEMA
-from .protocol.transport import PacketProtocolPort
 from .schemas import SZ_CIRCUITS
 
 # skipcq: PY-W2000
@@ -229,9 +227,7 @@ class Discovery(MessageDB):
         self._supported_cmds: dict[str, None | bool] = {}
         self._supported_cmds_ctx: dict[str, None | bool] = {}
 
-        if not gwy.config.disable_discovery and isinstance(
-            gwy.pkt_protocol, PacketProtocolPort
-        ):  # TODO: here, or in get_xxx()?
+        if not gwy.config.disable_discovery:  # TODO: here, or in get_xxx()?
             # gwy._loop.call_soon_threadsafe(
             #     gwy._loop.call_later, random(0.5, 1.5), self.start_discovery_poller
             # )
@@ -437,7 +433,9 @@ class Discovery(MessageDB):
                 task["last_msg"] = None
                 task["next_due"] = dt_now + backoff(hdr, task["failures"])
 
-    def deprecate_cmd(self, pkt: Packet, ctx: str = None, reset: bool = False) -> None:
+    def deprecate_code_ctx(
+        self, pkt: Packet, ctx: str = None, reset: bool = False
+    ) -> None:
         """If a code|ctx is deprecated twice, stop polling for it."""
 
         def deprecate(supported_dict, idx):
@@ -489,7 +487,7 @@ class Entity(Discovery):
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
-    def deprecate(self, pkt, reset=False) -> None:
+    def deprecate_device(self, pkt, reset=False) -> None:
         """If an entity is deprecated enough times, stop sending to it."""
 
         if reset:
@@ -508,11 +506,8 @@ class Entity(Discovery):
 
         super()._handle_msg(msg)  # store the message in the database
 
-        if (
-            self._gwy.pkt_protocol is None
-            or msg.src.id != self._gwy.pkt_protocol._hgi80.get(SZ_DEVICE_ID)
-        ):
-            self.deprecate(msg._pkt, reset=True)
+        if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
+            self.deprecate_device(msg._pkt, reset=True)
 
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))

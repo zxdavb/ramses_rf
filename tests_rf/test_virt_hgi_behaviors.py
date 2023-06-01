@@ -14,7 +14,7 @@ from serial import SerialException
 from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Device, Gateway
-from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
+from tests_rf.virtual_rf import HgiFwTypes, VirtualRf, stifle_impersonation_alert
 
 MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
 
@@ -51,11 +51,6 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("test_idx", TEST_CMDS)  # , ids=id_fnc)
 
 
-async def _alert_is_impersonating(self, cmd: Command) -> None:
-    """Stifle impersonation alerts when testing."""
-    pass
-
-
 async def assert_devices(
     gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
 ):
@@ -73,6 +68,9 @@ async def assert_expected_pkt(
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if gwy._this_msg and str(gwy._this_msg._pkt) == expected_frame:
             break
+    # gwy._this_msg._pkt
+    # gwy._protocol._this_msg._pkt
+    # gwy._transport._this_pkt
     assert str(gwy._this_msg._pkt) == expected_frame
 
 
@@ -87,10 +85,12 @@ async def assert_hgi_id(gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_
 _global_failed_ports: list[str] = []
 
 
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
-    "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    _alert_is_impersonating,
+    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+)
+@patch(
+    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
 )
 async def _test_hgi_addrs(port_name, org_str):
     """Check the virtual RF network behaves as expected (device discovery)."""
@@ -112,7 +112,9 @@ async def _test_hgi_addrs(port_name, org_str):
         cmd = Command(cmd_str, qos={"retries": 0})
         assert str(cmd) == cmd_str
 
-        gwy_0.send_cmd(cmd)
+        # TODO: also test: gwy_0.send_cmd(cmd)
+        await gwy_0.async_send_cmd(cmd)
+        # TODO: consider: await gwy_0._protocol._send_cmd(cmd)
         await assert_expected_pkt(gwy_0, pkt_str)
     except AssertionError:
         raise
@@ -171,14 +173,16 @@ async def test_actual_ti3410(test_idx):
 
 
 @pytest.mark.xdist_group(name="mock_serial")
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(
+    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+)
 async def test_mocked_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.EVOFW3)
 
-    with patch("ramses_rf.protocol.transport.comports", rf.comports):
+    with patch("ramses_rf.protocol.transport_new.comports", rf.comports):
         try:
             await _test_hgi_addrs(rf.ports[0], TEST_CMDS[test_idx])
         finally:
@@ -186,7 +190,9 @@ async def test_mocked_evofw3(test_idx):
 
 
 @pytest.mark.xdist_group(name="mock_serial")
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(
+    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+)
 async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -196,7 +202,7 @@ async def test_mocked_ti4310(test_idx):
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.NATIVE)
 
-    with patch("ramses_rf.protocol.transport.comports", rf.comports):
+    with patch("ramses_rf.protocol.transport_new.comports", rf.comports):
         try:
             await _test_hgi_addrs(rf.ports[0], TEST_CMDS[test_idx])
         finally:

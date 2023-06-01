@@ -11,7 +11,7 @@ from ramses_rf.device import Fakeable
 
 from .helpers import CONFIG, MIN_GAP_BETWEEN_WRITES
 from .helpers import FakeableDevice as _FakeableDevice
-from .helpers import make_device_fakeable, stifle_impersonation_alerts
+from .helpers import make_device_fakeable, stifle_impersonation_alert
 from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf
 
@@ -19,10 +19,12 @@ _Faked = TypeVar("_Faked", bound="_FakeableDevice")
 
 
 @patch(
-    "ramses_rf.protocol.transport.PacketProtocolPort._alert_is_impersonating",
-    stifle_impersonation_alerts,
+    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.transport._MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(
+    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+)
 async def binding_test_wrapper(
     fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
 ):

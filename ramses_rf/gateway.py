@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+
+# TODO: create_client() should simply add a msg_handler callback to the protocol
+# TODO: setting ser_port config done 2x - create_client & _start
+# TODO: sort out gwy.config...
+# TODO: sort out send_cmd generally, and make awaitable=
+# TODO: sort out reduced processing
+
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 The serial to RF gateway (HGI80, not RFG100).
@@ -20,25 +28,22 @@ from typing import TYPE_CHECKING, Callable, Optional, TextIO
 if TYPE_CHECKING:
     from .device import Device
     from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
-    from .protocol.protocol import _MessageProtocolT, _MessageTransportT
-    from .protocol.transport import _PacketProtocolT, _PacketTransportT
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
 from .helpers import schedule_task, shrink
 from .protocol import (
-    SZ_POLLER_TASK,
     Address,
     Command,
-    create_msg_stack,
-    create_pkt_stack,
     is_valid_dev_id,
     set_logger_timesource,
     set_pkt_logging_config,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from .protocol.protocol_new import _MsgProtocolT, create_stack
 from .protocol.schemas import SZ_PACKET_LOG, SZ_PORT_CONFIG, SZ_PORT_NAME
+from .protocol.transport_new import SZ_READER_TASK, _PktTransportT
 from .schemas import (
     SCH_GLOBAL_CONFIG,
     SCH_TRAITS,
@@ -62,12 +67,11 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    F9,
-    FA,
-    FC,
-    FF,
     Code,
 )
+
+
+SZ_INPUT_FILE = "input_file"  # FIXME
 
 
 DEV_MODE = __dev_mode__ and False
@@ -79,9 +83,6 @@ if DEV_MODE:
 
 class Engine:
     """The engine class."""
-
-    _create_msg_stack: Callable = create_msg_stack
-    _create_pkt_stack: Callable = create_pkt_stack
 
     def __init__(
         self,
@@ -100,15 +101,13 @@ class Engine:
         self._unwanted: list[_DeviceIdT] = [
             NON_DEV_ADDR.id,
             NUL_DEV_ADDR.id,
-            "01:000001",
+            "01:000001",  # why this one?
         ]
 
         self.config = SimpleNamespace()  # **SCH_CONFIG_GATEWAY({}))
 
-        self.msg_protocol: _MessageProtocolT = None  # type: ignore[assignment]
-        self.msg_transport: _MessageTransportT = None  # type: ignore[assignment]
-        self.pkt_protocol: _PacketProtocolT = None  # type: ignore[assignment]
-        self.pkt_transport: _PacketTransportT = None  # type: ignore[assignment]
+        self._protocol: _MsgProtocolT = None  # type: ignore[assignment]
+        self._transport: _PktTransportT = None  # type: ignore[assignment]
 
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
@@ -116,16 +115,13 @@ class Engine:
         self._this_msg: Message | None = None  # used by the dispatcher
 
     def __str__(self) -> str:
-        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
-            return f"{self.pkt_protocol._hgi80[SZ_DEVICE_ID]} ({self.ser_name})"
-        return f"{HGI_DEV_ADDR.id} ({self.ser_name})"
+        if not self._transport:
+            return f"{HGI_DEV_ADDR.id} ({self.ser_name})"
 
-    @property
-    def hgi(self) -> None | Device:
-        """Return the active HGI80-compatible gateway device, if known."""
-        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
-            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
-        return None
+        device_id = self._transport.get_extra_info(
+            SZ_DEVICE_ID, default=HGI_DEV_ADDR.id
+        )
+        return f"{device_id} ({self.ser_name})"
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         def handle_exception(loop, context):
@@ -141,71 +137,59 @@ class Engine:
             self._loop.set_exception_handler(handle_exception)
 
     def _dt_now(self):
-        # return dt.now()
-        return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
+        return self._transport._dt_now() if self._transport else dt.now()
 
     def create_client(
         self,
-        msg_handler: Callable[[Message, Optional[Message]], None],
-        # msg_filter: Callable[[Message], bool] | None = None,
-    ) -> tuple[_MessageProtocolT, _MessageTransportT]:
+        msg_handler: Callable[[Message, None | Message], None],
+        /,
+        **kwargs,
+    ) -> tuple[_MsgProtocolT, _PktTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
-        # The optional filter will return True if the message is to be handled.  # TODO
 
-        # if msg_filter is not None and not is_callback(msg_filter):
-        #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
-        return self._create_msg_stack(msg_handler)
+        kwargs[SZ_PORT_NAME] = kwargs.get(SZ_PORT_NAME, self.ser_name)
+        kwargs[SZ_PORT_CONFIG] = kwargs.get(SZ_PORT_CONFIG, self._port_config)
+        kwargs[SZ_PACKET_LOG] = kwargs.pop(SZ_INPUT_FILE, self._input_file)
+
+        return create_stack(msg_handler, **kwargs)
 
     async def start(self) -> None:
+        """Initiate receiving (Messages) and sending (Commands)."""
         self._start()
 
     def _start(self) -> None:
-        """Initiate ad-hoc sending, and (polled) receiving."""
-
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
-
-        pkt_receiver = (
-            self.msg_transport.get_extra_info(self.msg_transport.READER)
-            if self.msg_transport
-            else None
-        )
-
         if self.ser_name:
-            source = {SZ_PORT_NAME: self.ser_name, SZ_PORT_CONFIG: self._port_config}
+            pkt_source = {
+                SZ_PORT_NAME: self.ser_name,
+                SZ_PORT_CONFIG: self._port_config,
+            }
         else:
-            source = {SZ_PACKET_LOG: self._input_file}
+            pkt_source = {
+                SZ_PACKET_LOG: self._input_file,
+            }
+            self.config.disable_discovery = True  # TODO: needed?
+            self.config.disable_sending = True  # TODO: needed?
 
-        self.pkt_protocol, self.pkt_transport = self._create_pkt_stack(
-            pkt_receiver, **source
+        self._protocol, self._transport = self.create_client(
+            self._handle_msg, **pkt_source
         )  # TODO: may raise SerialException
 
-        if self._input_file:  # NB: no dispatcher
-            set_logger_timesource(self.pkt_protocol._dt_now)
+        if self._input_file:  # FIXME: bad smell - move to transport
+            set_logger_timesource(self._transport._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
-        elif self.msg_transport:  # for self.pkt_source
-            self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
-        else:
-            raise NotImplementedError  # python client.py -rrr listen /dev/ttyUSB0
 
     async def stop(self) -> None:
-        """Cancel all outstanding low-level tasks (swallow CancelledError)."""
+        """Cancel all outstanding low-level tasks."""
 
-        self._stop()
+        # # FIXME: leaker_task, writer_task
+        # if self._protocol and (t := self._protocol._leaker_task) and not t.done():
+        #     try:
+        #         await t
+        #     except asyncio.CancelledError:
+        #         pass
 
-        if (task := self.pkt_source) and not task.done():
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    def _stop(self) -> None:
-        """Close the protocol / transport layers."""
-
-        if self.msg_transport:
-            self.msg_transport.close()  # ? .abort()
-
-        if self.pkt_transport:
-            self.pkt_transport.close()  # ? .abort()
+        if self._transport:
+            self._transport.close()  # ? .abort()
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
@@ -222,12 +206,9 @@ class Engine:
         self._engine_state, callback = (None, tuple()), None
         self._engine_lock.release()
 
-        # if self.msg_protocol:
-        #     self.msg_protocol.pause_writing()
-
-        if self.pkt_protocol:
-            self.pkt_protocol.pause_writing()
-            self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
+        if self._protocol:
+            self._protocol.pause_writing()
+            self._protocol._msg_callback, callback = None, self._protocol._msg_callback
 
         self._engine_state = (callback, args)
 
@@ -252,27 +233,14 @@ class Engine:
 
         self._engine_lock.release()
 
-        # if self.msg_protocol:
-        #     # self.msg_transport._clear_write_buffer()  # TODO: needed?
-        #     self.msg_protocol._prev_msg = None
-        #     self.msg_protocol.resume_writing()
-
-        if self.pkt_protocol:
-            self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
-            self.pkt_protocol.resume_writing()
+        # TODO: is this needed, given it can buffer if required?
+        if self._protocol:
+            self._protocol._msg_callback = callback
+            self._protocol.resume_writing()
 
         self._engine_state = None
 
         return args
-
-    @property  # TODO: should be at pkt layer, not msg layer
-    def pkt_source(self) -> None | asyncio.Task:
-        """Return the source of packets (frames) as a task."""
-        if t := self.msg_transport:
-            return t.get_extra_info(t.WRITER)
-        # if t := self.pkt_transport:
-        #     return t.get_extra_info...
-        return None
 
     @staticmethod
     def create_cmd(
@@ -288,13 +256,13 @@ class Engine:
         This routine is thread safe.
         """
 
-        if not self.msg_protocol:
+        if not self._protocol:
             raise RuntimeError("there is no message protocol")
 
         # self._loop.call_soon_threadsafe(
-        #     self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
+        #     self._protocol.send_data(cmd, callback=callback, **kwargs)
         # )
-        coro = self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
+        coro = self._protocol.send_data(cmd, callback=callback, **kwargs)
         fut: futures.Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         # fut: asyncio.Future = asyncio.wrap_future(fut)
         return fut
@@ -309,7 +277,7 @@ class Engine:
         # def callback(fut):
         #     print(fut.result())
 
-        fut = self.send_cmd(cmd, _make_awaitable=True, **kwargs)
+        fut = self.send_cmd(cmd)  # , _make_awaitable=True, **kwargs)
         # fut.add_done_callback(callback)
 
         while True:
@@ -327,7 +295,7 @@ class Engine:
 
             # except RuntimeError as exc:  # raised by send_cmd()
             #     _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
-            #     if self.msg_transport.is_closing:
+            #     if self._transport.is_closing:
             #         pass
 
             except Exception as exc:
@@ -339,6 +307,13 @@ class Engine:
                 return result
 
             await asyncio.sleep(0.001)  # TODO: 0.001, 0.005 or other?
+
+    def _handle_msg(self, msg) -> None:
+        # HACK: This is one consequence of an unpleaseant anachronism
+        msg.__class__ = Message  # HACK (next line too)
+        msg._gwy = self
+
+        self._this_msg, self._prev_msg = msg, self._this_msg
 
 
 class Gateway(Engine):
@@ -374,11 +349,7 @@ class Gateway(Engine):
             **self.config.packet_log or {},
         )
 
-        if self.config.reduce_processing < DONT_CREATE_MESSAGES:
-            self.msg_protocol, self.msg_transport = self.create_client(
-                self._process_msg
-            )
-
+        # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
         # if self.config.reduce_processing > 0:
         self._tcs: None | System = None  # type: ignore[assignment]
         self.devices: list[Device] = []
@@ -389,10 +360,9 @@ class Gateway(Engine):
         load_schema(self, **self._schema)
 
     def __repr__(self) -> str:
-        return super().__str__()
-
-    def __str__(self) -> str:
-        return (self.hgi or HGI_DEV_ADDR).id
+        if not self.ser_name:
+            return f"Gateway(input_file={self._input_file})"
+        return f"Gateway(port_name={self.ser_name}, port_config={self._port_config})"
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         async def handle_sig_posix(sig):
@@ -420,7 +390,39 @@ class Gateway(Engine):
         else:  # unsupported
             raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
+    @property
+    def hgi(self) -> None | Device:
+        """Return the active HGI80-compatible gateway device, if known."""
+        if self._transport and (
+            device_id := self._transport.get_extra_info(SZ_DEVICE_ID)
+        ):
+            return self.device_by_id.get(device_id)
+
+    def create_client(
+        self,
+        msg_handler: Callable[[Message, None | Message], None],
+        /,
+        # msg_filter: None | Callable[[Message], bool] = None,
+        **kwargs,
+    ) -> tuple[_MsgProtocolT, _PktTransportT]:
+        """Create a client protocol for the RAMSES-II message transport."""
+
+        # TODO: The optional filter will return True if the message is to be handled.
+        # if msg_filter is not None and not is_callback(msg_filter):
+        #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
+
+        return super().create_client(
+            msg_handler,
+            disable_sending=self.config.disable_sending,
+            enforce_include_list=self.config.enforce_known_list,
+            exclude_list=self._exclude,
+            include_list=self._include,
+            **kwargs,
+        )
+
     async def start(self, *, start_discovery: bool = True) -> None:
+        """Start the Gateway and Initiate discovery as required."""
+
         def initiate_discovery(dev_list, sys_list) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
@@ -438,13 +440,15 @@ class Gateway(Engine):
         await super().start()
 
         if not self.ser_name:  # wait until have processed the entire packet log...
-            await self.pkt_transport.get_extra_info(SZ_POLLER_TASK)
+            await self._transport.get_extra_info(SZ_READER_TASK)
 
-        elif start_discovery:  # source of packets is a serial port
+        # else: source of packets is a serial port
+        # TODO: gwy.config.disable_discovery
+        elif start_discovery:
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess
-        """Cancel all outstanding high-level tasks (swallow CancelledError)."""
+        """Cancel all outstanding high-level tasks."""
         # if self._engine_state is None:
         #     self._pause()
 
@@ -556,13 +560,15 @@ class Gateway(Engine):
     async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
         tmp_transport: asyncio.Transport
 
-        pkt_receiver = (
-            self.msg_transport.get_extra_info(self.msg_transport.READER)
-            if self.msg_transport
-            else None
+        if self._transport:
+            pkt_receiver = self._transport.get_extra_info(self._transport.READER)
+        else:
+            pkt_receiver = None
+
+        _, tmp_transport = self._create_protocol_stack(
+            pkt_receiver, packet_dict=packets
         )
-        _, tmp_transport = self._create_pkt_stack(pkt_receiver, packet_dict=packets)
-        await tmp_transport.get_extra_info(SZ_POLLER_TASK)
+        await tmp_transport.get_extra_info(SZ_READER_TASK)
 
         self._prev_msg = None
         self._this_msg = None
@@ -689,7 +695,7 @@ class Gateway(Engine):
             SZ_CONFIG: {SZ_ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
             SZ_KNOWN_LIST: self.known_list,
             SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
-            "_unwanted": sorted(self.pkt_protocol._unwanted),
+            "_unwanted": sorted(self._transport._unwanted),
             "_unwanted_alt": sorted(self._unwanted),
         }
 
@@ -784,7 +790,7 @@ class Gateway(Engine):
         self._tasks.append(task)
         return task
 
-    def _process_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> None:
         # TODO: Remove this
         # # HACK: if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
         # if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
@@ -794,11 +800,7 @@ class Gateway(Engine):
         # ):
         #     _LOGGER.info(msg)
 
-        # HACK: This is one consequence of an unpleaseant anachronism
-        msg.__class__ = Message  # HACK (next line too)
-        msg._gwy = self
-
-        self._this_msg, self._prev_msg = msg, self._this_msg
+        super()._handle_msg(msg)
 
         # TODO: ideally remove this feature...
         if detect_array_fragment(self._this_msg, self._prev_msg):
