@@ -15,8 +15,8 @@ if TYPE_CHECKING:
 _Transport = asyncio.Transport  # TypeVar("_Transport", bound=asyncio.Transport)
 
 
-class ProtocolContextMixin:
-    """This mixin is to add context to a Protocol."""
+class ProtocolContext:  # mixin for tracking state
+    """A mixin is to add state to a Protocol."""
 
     _state: _StateT = None  # type: ignore[assignment]
 
@@ -45,12 +45,12 @@ class ProtocolContextMixin:
         await self._state.send_cmd(cmd)
         await super().send_cmd(cmd)  # type: ignore[misc]
 
-    def _receive_pkt(self, pkt: Packet) -> None:
-        self._state._receive_pkt(pkt)
-        super()._receive_pkt(pkt)  # type: ignore[misc]
+    def data_received(self, pkt: Packet) -> None:
+        self._state.data_received(pkt)
+        super().data_received(pkt)  # type: ignore[misc]
 
 
-_ContextT = ProtocolContextMixin  # TypeVar("_ContextT", bound=ProtocolContextMixin)
+_ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
 
 
 class ProtocolStateBase:
@@ -77,7 +77,7 @@ class ProtocolStateBase:
     def connection_lost(self, exc: None | Exception) -> None:
         self._set_context_state(IsInactive)
 
-    def _receive_pkt(self, pkt: Packet) -> None:
+    def data_received(self, pkt: Packet) -> None:
         pass
 
     async def send_cmd(self, cmd: Command) -> None:
@@ -87,7 +87,7 @@ class ProtocolStateBase:
 class IsInactive(ProtocolStateBase):
     """Protocol has no active connection with a Transport."""
 
-    def _receive_pkt(self, pkt: Packet) -> None:  # raise an exception
+    def data_received(self, pkt: Packet) -> None:  # raise an exception
         raise RuntimeError("Protocol shouldn't rcvd whilst not connected")
 
     async def send_cmd(self, cmd: Command) -> None:  # raise an exception
@@ -119,7 +119,7 @@ class WantEchoPkt(ProtocolStateBase):
         else:
             self._num_sends += 1
 
-    def _receive_pkt(self, pkt: Packet) -> None:
+    def data_received(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
         assert self.cmd  # for: mypy
 
@@ -145,7 +145,7 @@ class IsWantResponsePkt(ProtocolStateBase):
         self._num_sends = old_state._num_sends
         self.cmd = old_state.cmd
 
-    def _receive_pkt(self, pkt: Packet) -> None:
+    def data_received(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
         assert self.cmd  # for mypy
 
