@@ -5,20 +5,22 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Callable  # , TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
+    from typing import Callable
+
     from .command import Command
     from .packet import Packet
 
 
-_Transport = asyncio.Transport  # TypeVar("_Transport", bound=asyncio.Transport)
+_TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 
-class ProtocolContext:  # mixin for tracking state
+class ProtocolContext(asyncio.Protocol):  # mixin for tracking state
     """A mixin is to add state to a Protocol."""
 
-    _state: _StateT = None  # type: ignore[assignment]
+    _state: _StateT
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -33,21 +35,21 @@ class ProtocolContext:  # mixin for tracking state
             # TODO: do something about the fail (see self._state)
             self._state = IsWaitForCommand(self)  # drop old_state, if any
 
-    def connection_made(self, transport: _Transport) -> None:
+    def connection_made(self, transport: _TransportT) -> None:
         self._state.connection_made(transport)
-        super().connection_made(transport)  # type: ignore[misc]
+        super().connection_made(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
         self._state.connection_lost(exc)
-        super().connection_lost(exc)  # type: ignore[misc]
+        super().connection_lost(exc)
 
     async def send_cmd(self, cmd: Command) -> None:
         await self._state.send_cmd(cmd)
         await super().send_cmd(cmd)  # type: ignore[misc]
 
-    def data_received(self, pkt: Packet) -> None:
+    def data_received(self, pkt: Packet) -> None:  # type: ignore[override]
         self._state.data_received(pkt)
-        super().data_received(pkt)  # type: ignore[misc]
+        super().data_received(pkt)  # type: ignore[arg-type]
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
@@ -71,7 +73,7 @@ class ProtocolStateBase:
         # self._error = "retry_limit_exceeded"
         self._set_context_state(HasFailedRetries)
 
-    def connection_made(self, transport: _Transport) -> None:
+    def connection_made(self, transport: _TransportT) -> None:
         self._set_context_state(IsWaitForCommand)  # initial state
 
     def connection_lost(self, exc: None | Exception) -> None:
