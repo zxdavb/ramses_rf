@@ -219,10 +219,12 @@ class State:
         self._set_context_state: Callable = context._set_context_state  # HACK
         self._prev_state: _State | None = self._context.state
 
+        self._loop = self._prev_state._loop or asyncio.get_running_loop()
+
         _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
 
         if self._has_wait_timer:
-            self._timer_handle = asyncio.get_running_loop().call_later(
+            self._timer_handle = self._loop.call_later(
                 WAITING_TIMEOUT_SECS, self._wait_timer_expired
             )
 
@@ -484,7 +486,7 @@ class BoundAccepted(Accepting, Bound):
     def __init__(self, context: Context) -> None:
         super().__init__(context)
 
-        self._timer_handle = asyncio.get_running_loop().call_later(
+        self._timer_handle = self._loop.call_later(
             CONFIRM_TIMEOUT_SECS, self._xxxx_timer_expired
         )
 
