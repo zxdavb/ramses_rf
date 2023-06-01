@@ -219,7 +219,10 @@ class State:
         self._set_context_state: Callable = context._set_context_state  # HACK
         self._prev_state: _State | None = self._context.state
 
-        self._loop = self._prev_state._loop or asyncio.get_running_loop()
+        if self._prev_state:
+            self._loop = self._prev_state._loop
+        else:
+            self._loop = asyncio.get_running_loop()
 
         _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
 

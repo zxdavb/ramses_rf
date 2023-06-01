@@ -168,7 +168,7 @@ async def test_binding_flow_0(supplicant: _Faked, respondent: _Faked, _):
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
     await _phase_1(supplicant, respondent)  # The supplicant Offers x1, both receive
-    await _phase_2(supplicant, respondent)  # The respondent Accepts x1, both receivet
+    await _phase_2(supplicant, respondent)  # The respondent Accepts x1, both receive
     await _phase_3(supplicant, respondent)  # The supplicant Confirms x1, both receive
     await _phase_4(supplicant, respondent)  # The supplicant Confirms x2, both receive
 
