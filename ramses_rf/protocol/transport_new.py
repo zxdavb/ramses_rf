@@ -4,10 +4,10 @@
 
 
 # TODO:
-# make use_regex work again
-# chase down gwy.config.disable_discovery
-# chase down / check deprecation
-# use extra instead of _hgi80
+# - make use_regex work again
+# - chase down gwy.config.disable_discovery
+# - chase down / check deprecation
+# - check: READER/POLLER & WRITER tasks
 
 
 """RAMSES RF - RAMSES-II compatible packet transport."""
@@ -18,7 +18,7 @@ import logging
 import os
 from datetime import datetime as dt
 from string import printable
-from typing import TYPE_CHECKING, Any, Callable, Iterable, TextIO, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterable, TypeVar
 
 import serial_asyncio
 from serial import Serial, SerialException, serial_for_url  # type: ignore[import]
@@ -38,10 +38,15 @@ from .schemas import (  # TODO: SZ_INBOUND, SZ_OUTBOUND
     SZ_USE_REGEX,
 )
 
-# from .version import VERSION  # TODO: needed?
+# from .version import VERSION
 
 if TYPE_CHECKING:
-    from io import TextIOWrapper
+    from typing import TextIO
+
+
+_MsgProtocolT = TypeVar("_MsgProtocolT", bound="asyncio.Protocol")
+PktTransportT = TypeVar("PktTransportT", bound="_TranFilter")
+_SerPortName = str
 
 
 DONT_CREATE_MESSAGES = 3  # duplicate
@@ -53,6 +58,7 @@ SZ_READER_TASK = "reader_task"
 SZ_FINGERPRINT = "fingerprint"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
+SZ_EVOFW3_FLAG = "evo_flag"  # FIXME: is kwarg from upper layer: beware changing value
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -90,8 +96,10 @@ def _normalise(pkt_line: str) -> str:
     # psuedo-RAMSES-II packets...
     if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-        _LOGGER.warning("Packet line has been normalised (0x01)")
+    else:
+        return pkt_line.strip()
 
+    # _LOGGER.warning("%s < Packet line has been normalised", pkt_line)
     return pkt_line.strip()
 
 
@@ -111,9 +119,11 @@ def _str(value: bytes) -> str:
 class _FileTransportWrapper(asyncio.ReadTransport):
     """Homogonise the two types of Transport (serial and file/dict)."""
 
+    _extra: dict  # mypy hint
+
     def __init__(
         self,
-        pkt_source: dict | TextIOWrapper,
+        pkt_source: dict | TextIO,
         protocol: None | _MsgProtocolT = None,
         extra: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
@@ -200,7 +210,7 @@ class _BaseTransport(asyncio.Transport):
     _loop: asyncio.AbstractEventLoop
     _protocol: _MsgProtocolT
 
-    def __init__(self, pkt_source: dict | TextIOWrapper, *args, **kwargs) -> None:
+    def __init__(self, pkt_source: dict | TextIO, *args, **kwargs) -> None:
         super().__init__(pkt_source, *args, **kwargs)
 
         self._pkt_source = pkt_source  # aka: super()._serial
@@ -218,8 +228,6 @@ class _BaseTransport(asyncio.Transport):
         """Get optional transport information."""
         if name == "dt_now":
             return self._dt_now()
-        if name == SZ_DEVICE_ID:  # TODO: remove
-            return self._hgi80.get(SZ_DEVICE_ID)
         return super().get_extra_info(name, default=default)
 
     # def set_protocol(self, protocol: _MsgProtocolT) -> None:
@@ -262,11 +270,8 @@ class _TranFilter(_BaseTransport):  # mixin
         self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        self._hgi80: dict[str, Any] = {  # SZ_DEVICE_ID, SZ_FINGERPRINT, SZ_KNOWN_HGI
-            SZ_DEVICE_ID: None,
-            SZ_FINGERPRINT: None,
-            SZ_KNOWN_HGI: None,
-        }
+        for key in (SZ_DEVICE_ID, SZ_FINGERPRINT, SZ_KNOWN_HGI):
+            self._extra[key] = None
 
         known_hgis = [
             k for k, v in exclude_list.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
@@ -274,23 +279,21 @@ class _TranFilter(_BaseTransport):  # mixin
         if not known_hgis:
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include the gateway (HGI)")
         else:
-            self._hgi80[SZ_KNOWN_HGI] = known_hgis[0]
+            self._extra[SZ_KNOWN_HGI] = known_hgis[0]
         if len(known_hgis) > 1:
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include only one gateway (HGI)")
 
-        # lf._evofw_flag = getattr(gwy.config, "evofw_flag", None)
-        self._evofw_flag = kwargs.get("evofw_flag", None)
-        # lf._use_regex = getattr(self._gwy.config, SZ_USE_REGEX, {})
-        self._use_regex = kwargs.get(SZ_USE_REGEX, {})
+        self._evofw_flag = kwargs.get(SZ_EVOFW3_FLAG, None)  # gwy.config.evofw_flag
+        self._use_regex = kwargs.get(SZ_USE_REGEX, {})  # #    gwy.config.use_regex
 
         # for the pkt log, if any, also serves to discover the HGI's device_id
         # if not self._disable_sending:
         self._write_fingerprint_pkt()
 
     def _write_fingerprint_pkt(self) -> None:
-        # TODO: if not read-only...
+        # FIXME: if not read-only...
         cmd = Command._puzzle()
-        self._hgi80[SZ_FINGERPRINT] = cmd.payload
+        self._extra[SZ_FINGERPRINT] = cmd.payload
         # use write, not send_data to bypass throttles
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
 
@@ -306,7 +309,7 @@ class _TranFilter(_BaseTransport):  # mixin
             if dev_id in self._exclude or dev_id in self._unwanted:
                 return False
 
-            if dev_id == self._hgi80[SZ_DEVICE_ID]:  # even if not in include list
+            if dev_id == self._extra[SZ_DEVICE_ID]:  # even if not in include list
                 continue
 
             if dev_id not in self._include and self.enforce_include:
@@ -315,19 +318,19 @@ class _TranFilter(_BaseTransport):  # mixin
             if dev_id[:2] != DEV_TYPE_MAP.HGI:
                 continue
 
-            if dev_id not in self._include and self._hgi80[SZ_DEVICE_ID]:
+            if dev_id not in self._include and self._extra[SZ_DEVICE_ID]:
                 self._unwanted.append(dev_id)
 
                 _LOGGER.warning(
                     f"Blacklisting a Foreign gateway (or is it a HVAC?): {dev_id}"
-                    f" (Active gateway is: {self._hgi80[SZ_DEVICE_ID]}){TIP}"
+                    f" (Active gateway is: {self._extra[SZ_DEVICE_ID]}){TIP}"
                 )
 
-            if dev_id == self._hgi80[SZ_KNOWN_HGI] or (
+            if dev_id == self._extra[SZ_KNOWN_HGI] or (
                 dev_id == src_id
-                and self._this_pkt.payload == self._hgi80[SZ_FINGERPRINT]
+                and self._this_pkt.payload == self._extra[SZ_FINGERPRINT]
             ):
-                self._hgi80[SZ_DEVICE_ID] = dev_id
+                self._extra[SZ_DEVICE_ID] = dev_id
 
                 if dev_id not in self._include:
                     _LOGGER.warning(f"Active gateway set to: {dev_id}{TIP}")
@@ -378,7 +381,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
     def _remove_reader(self):
         if self._extra[SZ_READER_TASK]:
-            self._loop.remove_reader(self._serial.fileno())
+            self._loop.remove_reader(self._serial.fileno())  # FIXME
             self._extra[SZ_READER_TASK] = None
 
     async def _reader(self) -> None:  # TODO
@@ -391,7 +394,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
                 self._frame_received(dtm_str, pkt_line)
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
-        elif isinstance(self._pkt_source, TextIOWrapper):
+        elif isinstance(self._pkt_source, TextIO):
             for dtm_pkt_line in self._pkt_source:  # should check dtm_str is OK
                 while not self._is_reading:
                     await asyncio.sleep(0.001)
@@ -400,7 +403,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
         else:
             raise InvalidSourceError(
-                f"Packet source is not a dict or a TextIOWrapper: {self._pkt_source:!r}"
+                f"Packet source is not dict or TextIO: {self._pkt_source:!r}"
             )
 
     async def _handle_reader_done(self) -> None:  # TODO
@@ -512,11 +515,6 @@ class QosTransport(PortTransport):  # from a serial port, includes QoS
     pass
 
 
-_MsgProtocolT = TypeVar("_MsgProtocolT", bound="asyncio.Protocol")
-_PktTransportT = TypeVar("_PktTransportT", bound="_TranFilter")
-_SerPortName = str
-
-
 def transport_factory(
     protocol: Callable[[], _MsgProtocolT],
     /,
@@ -526,14 +524,12 @@ def transport_factory(
     packet_log: None | TextIO = None,
     packet_dict: None | dict = None,
     **kwargs,
-) -> _PktTransportT:
+) -> PktTransportT:
     # expected kwargs include:
     #  disable_sending: bool = None,
     #  enforce_include_list: bool = None,
     #  exclude_list: None | dict = None,
     #  include_list: None | dict = None,
-
-    kwargs.pop("disable_sending", None)
 
     def get_serial_instance(ser_name: _SerPortName, ser_config: dict) -> Serial:
         # For example:
@@ -577,10 +573,6 @@ def transport_factory(
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(pkt_source, protocol, **kwargs)
 
-    # config = {} if config is None else config
-    # if port_name or port_config is None:
-    #     raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
-
     assert port_name is not None  # mypy: instead of: _type: ignore[arg-type]
     assert port_config is not None  # mypy: instead of: _type: ignore[arg-type]
 
@@ -591,7 +583,7 @@ def transport_factory(
         issue_warning()
         return PortTransport(ser_instance, protocol, **kwargs)
 
-    if kwargs.get("disable_sending"):  # no need for QoS
+    if kwargs.pop("disable_sending"):  # no need for QoS
         return PortTransport(ser_instance, protocol, **kwargs)
 
     return QosTransport(ser_instance, protocol, **kwargs)

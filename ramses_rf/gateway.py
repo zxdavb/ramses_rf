@@ -3,11 +3,12 @@
 #
 
 
-# TODO: create_client() should simply add a msg_handler callback to the protocol
-# TODO: setting ser_port config done 2x - create_client & _start
-# TODO: sort out gwy.config...
-# TODO: sort out send_cmd generally, and make awaitable=
-# TODO: sort out reduced processing
+# TODO:
+# - create_client() should simply add a msg_handler callback to the protocol
+# - setting ser_port config done 2x - create_client & _start
+# - sort out gwy.config...
+# - sort out send_cmd generally, and make awaitable=
+# - sort out reduced processing
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
@@ -41,9 +42,9 @@ from .protocol import (
     set_pkt_logging_config,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .protocol.protocol_new import _MsgProtocolT, create_stack
+from .protocol.protocol_new import MsgProtocolT, PktTransportT, create_stack
 from .protocol.schemas import SZ_PACKET_LOG, SZ_PORT_CONFIG, SZ_PORT_NAME
-from .protocol.transport_new import SZ_READER_TASK, _PktTransportT
+from .protocol.transport_new import SZ_READER_TASK  # TODO: find a better way to await
 from .schemas import (
     SCH_GLOBAL_CONFIG,
     SCH_TRAITS,
@@ -106,8 +107,8 @@ class Engine:
 
         self.config = SimpleNamespace()  # **SCH_CONFIG_GATEWAY({}))
 
-        self._protocol: _MsgProtocolT = None  # type: ignore[assignment]
-        self._transport: _PktTransportT = None  # type: ignore[assignment]
+        self._protocol: MsgProtocolT = None  # type: ignore[assignment]
+        self._transport: PktTransportT = None  # type: ignore[assignment]
 
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
@@ -144,7 +145,7 @@ class Engine:
         msg_handler: Callable[[Message, None | Message], None],
         /,
         **kwargs,
-    ) -> tuple[_MsgProtocolT, _PktTransportT]:
+    ) -> tuple[MsgProtocolT, PktTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
 
         kwargs[SZ_PORT_NAME] = kwargs.get(SZ_PORT_NAME, self.ser_name)
@@ -404,7 +405,7 @@ class Gateway(Engine):
         /,
         # msg_filter: None | Callable[[Message], bool] = None,
         **kwargs,
-    ) -> tuple[_MsgProtocolT, _PktTransportT]:
+    ) -> tuple[MsgProtocolT, PktTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
 
         # TODO: The optional filter will return True if the message is to be handled.

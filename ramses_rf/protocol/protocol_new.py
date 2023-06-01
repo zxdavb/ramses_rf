@@ -3,7 +3,7 @@
 #
 
 
-# TODO
+# TODO:
 # - make use_regex work again
 
 
@@ -51,7 +51,7 @@ from .protocol_fsm import ProtocolContext
 #     SZ_OUTBOUND,
 #     SZ_USE_REGEX,
 # )
-from .transport_new import SZ_IS_EVOFW3
+from .transport_new import SZ_IS_EVOFW3, PktTransportT
 from .transport_new import transport_factory as _transport_factory
 
 # from .version import VERSION
@@ -69,8 +69,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 #     from io import TextIOWrapper
 
 
-_MsgProtocolT = TypeVar("_MsgProtocolT", bound="_BaseProtocol")
-_PktTransportT = TypeVar("_PktTransportT", bound="asyncio.Transport")
+MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
 
 
 MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
@@ -282,12 +281,12 @@ class _BaseProtocol(asyncio.Protocol):
     def __init__(self, msg_callback: Callable):  # , **kwargs) -> None:
         self._msg_callback = msg_callback
 
-        self._transport: _PktTransportT = None  # type: ignore[assignment]
+        self._transport: PktTransportT = None  # type: ignore[assignment]
         self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
 
         self._pause_writing = False
 
-    def connection_made(self, transport: _PktTransportT) -> None:
+    def connection_made(self, transport: PktTransportT) -> None:
         """Called by the Transport when a connection is made with it.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -411,7 +410,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
-    def connection_made(self, transport: _PktTransportT) -> None:
+    def connection_made(self, transport: PktTransportT) -> None:
         super().connection_made(transport)
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
@@ -482,7 +481,7 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
             except ValueError:
                 pass
 
-    def connection_made(self, transport: _PktTransportT) -> None:  # type: ignore[override]
+    def connection_made(self, transport: PktTransportT) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         super().connection_made(transport)
 
@@ -567,7 +566,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
 def _protocol_factory(
     msg_callback: Callable, /, *, read_only: bool = None, **kwargs
-) -> _MsgProtocolT:
+) -> MsgProtocolT:
     if read_only:
         return _ReadProtocol(msg_callback, **kwargs)
     return PortProtocol(msg_callback, **kwargs)
@@ -580,7 +579,7 @@ def create_stack(
     protocol_factory: Callable = None,
     transport_factory: Callable = None,
     **kwargs,
-) -> tuple[_MsgProtocolT, _PktTransportT]:
+) -> tuple[MsgProtocolT, PktTransportT]:
     """Utility function to provide a Protocol / Transport pair.
 
     Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
