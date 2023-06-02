@@ -34,7 +34,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Any, Awaitable, Callable, Iterable, TextIO, TypeVar
+from typing import Any, Awaitable, Callable, Iterable, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
 from serial.tools.list_ports import comports  # type: ignore[import]
@@ -957,7 +957,7 @@ def create_pkt_stack(
     protocol_factory: Callable[[], _PacketProtocolT] = None,
     port_name: str = None,
     port_config: dict = None,
-    packet_log: TextIO = None,
+    packet_log: TextIOWrapper = None,
     packet_dict: dict = None,
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
     """Utility function to provide a transport to the internal protocol.
