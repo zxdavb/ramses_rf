@@ -47,8 +47,9 @@ async def binding_test_wrapper(
     if not isinstance(respondent, Fakeable):  # likely respondent is not fakeable...
         make_device_fakeable(respondent)
 
-    await fnc(supplicant, respondent, codes)
-
-    await gwy_0.stop()
-    await gwy_1.stop()
-    await rf.stop()
+    try:
+        await fnc(supplicant, respondent, codes)
+    finally:
+        await gwy_0.stop()
+        await gwy_1.stop()
+        await rf.stop()
