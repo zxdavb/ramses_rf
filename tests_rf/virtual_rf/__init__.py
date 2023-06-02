@@ -28,6 +28,8 @@ _Faked = TypeVar("_Faked", bound="_FakeableDevice")
 async def binding_test_wrapper(
     fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
 ):
+    """Create a virtual RF with two gateways, 18:111111 & 18:222222."""
+
     rf = VirtualRf(2)
 
     rf.set_gateway(rf.ports[0], "18:111111")
