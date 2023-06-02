@@ -197,7 +197,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     try:
         addrs = [id_to_address(addr_fragment[i : i + 9]) for i in range(0, 30, 10)]
     except ValueError as exc:
-        raise InvalidAddrSetError(f"Invalid addr set: {addr_fragment}: {exc}")
+        raise InvalidAddrSetError(f"Invalid addr set (0x01): {addr_fragment}: {exc}")
 
     if (
         not (
@@ -221,7 +221,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             and addrs[1] == NON_DEV_ADDR
         )
     ):
-        raise InvalidAddrSetError(f"Invalid addr set: {addr_fragment}")
+        raise InvalidAddrSetError(f"Invalid addr set (0x02): {addr_fragment}")
 
     device_addrs = list(filter(lambda a: a.type != "--", addrs))  # dex
     src_addr = device_addrs[0]

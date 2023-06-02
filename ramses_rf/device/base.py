@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from typing import Any, Callable, Optional
     from . import Address, Message
 
-from ..bind_state import Context
+from ..bind_state import BindState, Context
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
@@ -403,15 +403,26 @@ class Fakeable(DeviceBase):
             super()._handle_msg(msg)
 
         if not self._faked or self._context is None:
-            pass
+            return
 
-        elif msg.payload["phase"] == "offer":
+        self._context.rcvd_msg(msg)
+
+        if msg.payload["phase"] == "offer" and isinstance(
+            self._context.state,
+            (BindState.LISTENING, BindState.ACCEPTING, BindState.ACCEPTED),
+        ):
             proc_offer_and_accept(msg)
 
-        elif msg.payload["phase"] == "accept":
+        elif msg.payload["phase"] == "accept" and isinstance(
+            self._context.state,
+            (BindState.OFFERED, BindState.CONFIRMING, BindState.CONFIRMED),
+        ):
             proc_accept_and_confirm(msg)
 
-        elif msg.payload["phase"] == "confirm":
+        elif msg.payload["phase"] == "confirm" and isinstance(
+            self._context.state,
+            (BindState.ACCEPTING, BindState.ACCEPTED, BindState.BOUND_ACCEPTED),
+        ):
             proc_confirm_and_done(msg)
 
 

@@ -14,7 +14,8 @@ import pytest
 
 from ramses_rf import Gateway, Packet
 from ramses_rf.bind_state import BindState, Context, State
-from tests_rf.virtual_rf import FakeableDevice, ensure_fakeable, factory
+from ramses_rf.device import Fakeable
+from tests_rf.virtual_rf import ensure_fakeable, factory
 
 _State = TypeVar("_State", bound=State)
 
@@ -77,9 +78,7 @@ async def assert_context_state(
 
 
 # FIXME: broken
-async def _test_binding_flow(
-    supplicant: FakeableDevice, respondent: FakeableDevice, codes
-):
+async def _test_binding_flow(supplicant: Fakeable, respondent: Fakeable, codes) -> None:
     """Check the flow of packets during a binding."""
 
     hdr_flow = [
@@ -123,8 +122,8 @@ async def _test_binding_flow(
 
 
 async def _test_binding_state(
-    supplicant: FakeableDevice, respondent: FakeableDevice, codes
-):
+    supplicant: Fakeable, respondent: Fakeable, codes
+) -> None:
     """Check the change of state during a binding."""
 
     respondent._make_fake()  # TODO: waiting=Code._22F1)
@@ -141,7 +140,7 @@ async def _test_binding_state(
         pass
     else:
         assert False
-    # assert supplicant._context is None
+    assert supplicant._context is None
     await assert_context_state(respondent._context, BindState.LISTENING, max_sleep=0)
 
     # can (rarely?) get unreliable results for respondent as awaits are asynchronous
@@ -151,13 +150,40 @@ async def _test_binding_state(
 
     await assert_context_state(supplicant._context, BindState.CONFIRMED)  # after tx x1
     await assert_context_state(respondent._context, BindState.BOUND_ACCEPTED)
-    # ait assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
 
-    assert supplicant._context is not None
-    supplicant._context._sent_confirm()  # HACK: virtually send two more Confirms,
-    supplicant._context._sent_confirm()  # so Context can transition to Bound
-    await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
-    await assert_context_state(respondent._context, BindState.BOUND)  # after rx x3
+    # HACK: send two more Confirms, so Contexts can transition to Bound
+    # TODO: supplicant shoudl be sending confirms x3 anyway
+    supplicant._context._sent_confirm()  # Confirmed(1/1 -> 1/2)
+    supplicant._context._rcvd_confirm(supplicant)  # Confirmed(1/2 -> 2/2)
+    respondent._context._rcvd_confirm(supplicant)  # BoundAcpt(1/0 -> 2/0)
+
+    supplicant._context._sent_confirm()  # Confirmed(2/2) -> Bound(2/2)
+    supplicant._context._rcvd_confirm(supplicant)  # #   Bound(0/0)
+    respondent._context._rcvd_confirm(supplicant)  # BoundAcpt(2/0) -> Bound(0/0)
+
+    await assert_context_state(supplicant._context, BindState.BOUND)
+    await assert_context_state(respondent._context, BindState.BOUND)
+
+
+@pytest.mark.xdist_group(name="serial")
+async def OUT_test_binding_flow(test_data):
+    """Test the transition of bind state for a supplicant and a respondent."""
+
+    # e.g. ('40:111111', 'CO2'), ('40:888888', 'FAN'), ("1298",)
+    supp, resp, codes = test_data
+
+    async def wrapper(gwy_0: Gateway, gwy_1: Gateway, codes):
+        supplicant = gwy_0.device_by_id[supp[0]]
+        respondent = gwy_1.device_by_id[resp[0]]
+
+        ensure_fakeable(respondent)
+
+        await _test_binding_flow(supplicant, respondent, codes)
+
+    await factory(
+        {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
+        {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
+    )(wrapper)(codes)
 
 
 @pytest.mark.xdist_group(name="serial")

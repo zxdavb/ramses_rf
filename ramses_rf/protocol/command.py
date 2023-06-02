@@ -1219,7 +1219,7 @@ class Command(Frame):
         codes = [] if codes is None else codes  # TODO: untidy
         codes = ([codes] if isinstance(codes, _CodeT) else list(codes)) + [Code._1FC9]
 
-        if dst_id is None and verb == I_:
+        if dst_id is None and verb == I_:  # is an Offer
             payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
             addr2 = src_id
 

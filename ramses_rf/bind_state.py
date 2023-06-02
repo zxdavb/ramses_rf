@@ -475,16 +475,16 @@ class Confirmed(Confirming):
 class Bound(State):
     """Context is Bound."""
 
+    _pkts_rcvd: int = 0
+
     def received_confirm(self, from_self: bool) -> None:  # TODO: warn out of order
-        self._pkts_rcvd += 1
+        # self._pkts_rcvd += 1
         if not from_self:
             pass
 
 
 class BoundAccepted(Accepting, Bound):
     """Respondent is Bound, but should handle retransmits from the supplicant."""
-
-    _pkts_rcvd: int = 1  # already rcvd one
 
     def __init__(self, context: Context) -> None:
         super().__init__(context)
@@ -503,9 +503,15 @@ class BoundAccepted(Accepting, Bound):
             super().received_confirm(from_self)  # TODO: log & ignore?
 
         self._pkts_rcvd += 1
-        # if self._pkts_rcvd == RETRY_LIMIT:
-        #     self._timer_handle.cancel()
-        #     self._set_context_state(Bound)
+        if self._pkts_rcvd == CONFIRM_RETRY_LIMIT:
+            self._timer_handle.cancel()
+            self._set_context_state(Bound)
+
+
+class BoundFinal(Accepting, Bound):
+    """Device is fully Bound,no more transmits or receives."""
+
+    pass
 
 
 if TYPE_CHECKING:
