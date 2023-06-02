@@ -3,18 +3,9 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-from ramses_rf import Command, Device, Gateway
+from ramses_rf import Device, Gateway
 from ramses_rf.device import Fakeable
 from ramses_rf.protocol import Address
-
-MIN_GAP_BETWEEN_WRITES = 0
-
-CONFIG = {
-    "config": {
-        "disable_discovery": True,
-        "enforce_known_list": False,
-    }
-}
 
 
 class FakeableDevice(Address, Fakeable):  # HACK: for mypy typing
@@ -31,8 +22,3 @@ def make_device_fakeable(dev: Device) -> None:
     setattr(dev, "_faked", None)
     setattr(dev, "_context", None)
     setattr(dev, "_1fc9_state", {})
-
-
-async def stifle_impersonation_alert(self, cmd: Command) -> None:
-    """Stifle impersonation alerts when testing."""
-    pass

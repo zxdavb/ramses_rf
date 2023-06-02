@@ -3,53 +3,69 @@
 #
 """RAMSES RF - A pseudo-mocked serial port used for testing."""
 
-from typing import Callable, TypeVar
+from functools import wraps
+from typing import Any, Callable, Coroutine
 from unittest.mock import patch
 
-from ramses_rf import Gateway
-from ramses_rf.device import Fakeable
+from ramses_rf import Command, Gateway
 
-from .helpers import CONFIG, MIN_GAP_BETWEEN_WRITES
-from .helpers import FakeableDevice as _FakeableDevice
-from .helpers import make_device_fakeable, stifle_impersonation_alert
+from .helpers import (  # noqa: F401, pylint: disable=unused-import
+    FakeableDevice,
+    make_device_fakeable,
+)
 from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf
 
-_Faked = TypeVar("_Faked", bound="_FakeableDevice")
+MIN_GAP_BETWEEN_WRITES = 0
+
+CONFIG = {
+    "config": {
+        "disable_discovery": True,
+        "enforce_known_list": False,
+    }
+}
 
 
-@patch(
-    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
-)
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
-async def binding_test_wrapper(
-    fnc: Callable, supp_schema: dict, resp_schema: dict, codes: tuple
-):
-    """Create a virtual RF with two gateways, 18:111111 & 18:222222."""
+async def stifle_impersonation_alert(self, cmd: Command) -> None:
+    """Stifle impersonation alerts when testing."""
+    pass
 
-    rf = VirtualRf(2)
 
-    rf.set_gateway(rf.ports[0], "18:111111")
-    rf.set_gateway(rf.ports[1], "18:222222")
+def factory(schema_0: dict, schema_1: dict) -> Callable:
+    """Create a decorator with a two-gateway virtual RF: 18:111111 & 18:222222."""
 
-    gwy_0 = Gateway(rf.ports[0], **CONFIG, **supp_schema)
-    gwy_1 = Gateway(rf.ports[1], **CONFIG, **resp_schema)
+    # result = rf_factory(schema_0, schema_1)(fnc)(gwy_0, gwy_1, *args, **kwargs)
 
-    await gwy_0.start()
-    await gwy_1.start()
+    def decorator(fnc) -> Coroutine:
+        @patch(  # stifle_impersonation_alert()
+            "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+            stifle_impersonation_alert,
+        )
+        @patch(  # MIN_GAP_BETWEEN_WRITES = 0
+            "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES",
+            MIN_GAP_BETWEEN_WRITES,
+        )
+        @wraps(fnc)
+        async def wrapper(*args, **kwargs) -> Any:
+            rf = VirtualRf(2)
 
-    supplicant = gwy_0.device_by_id[supp_schema["orphans_hvac"][0]]
-    respondent = gwy_1.device_by_id[resp_schema["orphans_hvac"][0]]
+            rf.set_gateway(rf.ports[0], "18:111111")
+            rf.set_gateway(rf.ports[1], "18:222222")
 
-    if not isinstance(respondent, Fakeable):  # likely respondent is not fakeable...
-        make_device_fakeable(respondent)
+            gwy_0 = Gateway(rf.ports[0], **CONFIG, **schema_0)
+            gwy_1 = Gateway(rf.ports[1], **CONFIG, **schema_1)
 
-    try:
-        await fnc(supplicant, respondent, codes)
-    finally:
-        await gwy_0.stop()
-        await gwy_1.stop()
-        await rf.stop()
+            await gwy_0.start()
+            await gwy_1.start()
+
+            try:
+                return await fnc(gwy_0, gwy_1, *args, *kwargs)  # asserts within here
+            finally:
+                await gwy_0.stop()
+                await gwy_1.stop()
+
+                await rf.stop()
+
+        return wrapper
+
+    return decorator
