@@ -515,24 +515,44 @@ class _WriteProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCyc
 
 
 # ### Read-Only Protocol for FileTransport ############################################
-class FileProtocol(_ReadProtocol):
+class ReadProtocol(_ReadProtocol):
     """A protocol that can only receive Packets."""
 
-    pass
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def connection_made(self, *args, **kwargs) -> Any:
+        return super().connection_made(*args, **kwargs)
+
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def data_received(self, *args, **kwargs) -> Any:
+        return super().data_received(*args, **kwargs)
+
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    async def send_data(self, *args, **kwargs) -> Any:
+        return await self.send_data(*args, **kwargs)
+
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def connection_lost(self, *args, **kwargs) -> Any:
+        return super().connection_lost(*args, **kwargs)
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
 class PortProtocol(_WriteProtocol):
     """A protocol that can receive Packets and send Commands."""
 
-    pass
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def data_received(self, *args, **kwargs) -> Any:
+        return super().data_received(*args, **kwargs)
+
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    async def send_data(self, *args, **kwargs) -> Any:
+        return await self.send_data(*args, **kwargs)
 
 
 # ### Read-Write Protocol for QosTransport ############################################
 class QosProtocol(PortProtocol, _ProtQosTimers):
     """A protocol that can receive Packets and send Commands with QoS."""
 
-    def _msg_rcvd(self, msg: Message) -> None:
+    def _msg_received(self, msg: Message) -> None:
         """Check if Message this is the expected response (if any)."""
 
         if not self._expecting_cmd:
@@ -550,7 +570,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
             self._expecting_cmd.callback.callback(msg, cmd=self._expecting_cmd)
             self._expecting_cmd = None
 
-        super()._msg_rcvd(msg)
+        super()._msg_received(msg)
 
     async def _send_cmd(self, cmd: Command) -> None:
         """Check if this Command is expecting a response."""
@@ -563,13 +583,23 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
         await super()._send_cmd(cmd)
 
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def data_received(self, *args, **kwargs) -> Any:
+        return super().data_received(*args, **kwargs)
 
-def _protocol_factory(
-    msg_callback: Callable, /, *, read_only: bool = None, **kwargs
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    async def send_data(self, *args, **kwargs) -> Any:
+        return await self.send_data(*args, **kwargs)
+
+
+def _protocol_factory(  # TODO: no_qos default should be None
+    msg_callback: Callable, /, *, read_only: bool = None, no_qos: bool = True, **kwargs
 ) -> MsgProtocolT:
     if read_only:
-        return _ReadProtocol(msg_callback, **kwargs)
-    return PortProtocol(msg_callback, **kwargs)
+        return ReadProtocol(msg_callback, **kwargs)
+    if no_qos:
+        return PortProtocol(msg_callback, **kwargs)
+    return QosProtocol(msg_callback, **kwargs)
 
 
 def create_stack(
