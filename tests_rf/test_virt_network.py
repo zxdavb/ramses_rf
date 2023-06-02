@@ -14,7 +14,7 @@ import serial
 
 from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import (
-    CONFIG,
+    DEFAULT_GWY_CONFIG,
     MIN_GAP_BETWEEN_WRITES,
     VirtualRf,
     stifle_impersonation_alert,
@@ -98,8 +98,8 @@ async def test_virtual_rf_dev_disc():
     # rf.set_gateway(rf.ports[0], "18:111111")
     # rf.set_gateway(rf.ports[1], "18:222222")
 
-    gwy_0 = Gateway(rf.ports[0], **CONFIG)
-    gwy_1 = Gateway(rf.ports[1], **CONFIG)
+    gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG)
+    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG)
     ser_2 = serial.Serial(rf.ports[2])
 
     await assert_devices(gwy_0, [])
@@ -157,8 +157,8 @@ async def test_virtual_rf_pkt_flow():
     # rf.set_gateway(rf.ports[0], "18:111111")
     # rf.set_gateway(rf.ports[1], "18:222222")
 
-    gwy_0 = Gateway(rf.ports[0], **CONFIG, **SCHEMA_0)
-    gwy_1 = Gateway(rf.ports[1], **CONFIG, **SCHEMA_1)
+    gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG, **SCHEMA_0)
+    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG, **SCHEMA_1)
 
     await gwy_0.start()
     await gwy_1.start()
