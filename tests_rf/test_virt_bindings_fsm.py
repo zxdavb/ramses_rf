@@ -8,6 +8,7 @@
 """
 
 import asyncio
+import functools
 from inspect import isclass
 from typing import TypeVar
 from unittest.mock import patch
@@ -16,10 +17,10 @@ import pytest
 
 from ramses_rf.bind_state import BindState, Context, Exceptions, State
 from ramses_rf.device.base import Fakeable
-from tests_rf.virtual_rf import binding_test_wrapper
+from tests_rf.virtual_rf import _rf_net_cleanup, _rf_net_create, ensure_fakeable
 
-_State = TypeVar("_State", bound=State)
-_Faked = TypeVar("_Faked", bound=Fakeable)
+_DeviceStateT = TypeVar("_DeviceStateT", bound=State)
+_FakedDeviceT = TypeVar("_FakedDeviceT", bound=Fakeable)
 
 
 CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
@@ -35,7 +36,7 @@ TEST_DATA = (
 
 
 async def assert_context_state(
-    ctx: Context, expected_state: type[_State], max_sleep: int = 0
+    ctx: Context, expected_state: type[_DeviceStateT], max_sleep: int = 0
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -45,26 +46,34 @@ async def assert_context_state(
 
 
 def binding_test_decorator(fnc):
-    async def test_binding_wrapper(test_data=TEST_DATA[0]):
-        supp, resp, codes = test_data
+    supp, resp, codes = TEST_DATA[0]  # tuple, tuple, tuple
 
-        await binding_test_wrapper(
-            fnc,
+    @functools.wraps(fnc)
+    async def binding_test_wrapper():
+        rf, gwy_0, gwy_1 = _rf_net_create(
             {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},
             {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
-            codes,
         )
 
-    return test_binding_wrapper
+        supplicant = gwy_0.device_by_id[supp[0]]
+        respondent = gwy_1.device_by_id[resp[0]]
+
+        ensure_fakeable(respondent)
+
+        await fnc(supplicant, respondent, codes)
+
+        await _rf_net_cleanup(rf, gwy_0, gwy_1)
+
+    return binding_test_wrapper
 
 
-async def _phase_0(supplicant: _Faked, respondent: _Faked) -> None:
+async def _phase_0(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None:
     """Set the initial Context for each Device.
 
     Asserts the initial state and the result.
     """
 
-    assert respondent._context is None
+    assert respondent._context is None  # TDODO
     assert supplicant._context is None
 
     respondent._context = Context.respondent(respondent)
@@ -77,7 +86,7 @@ async def _phase_0(supplicant: _Faked, respondent: _Faked) -> None:
     await assert_context_state(respondent._context, BindState.LISTENING)
 
 
-async def _phase_1(supplicant: _Faked, respondent: _Faked) -> None:
+async def _phase_1(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None:
     """The supplicant sends an Offer, which is received by both.
 
     Asserts the initial state and the result.
@@ -96,7 +105,7 @@ async def _phase_1(supplicant: _Faked, respondent: _Faked) -> None:
     await assert_context_state(respondent._context, BindState.ACCEPTING)
 
 
-async def _phase_2(supplicant: _Faked, respondent: _Faked) -> None:
+async def _phase_2(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None:
     """The respondent sends an Accept, which is received by both.
 
     Asserts the initial state and the result.
@@ -115,7 +124,7 @@ async def _phase_2(supplicant: _Faked, respondent: _Faked) -> None:
     await assert_context_state(supplicant._context, BindState.CONFIRMING)
 
 
-async def _phase_3(supplicant: _Faked, respondent: _Faked) -> None:
+async def _phase_3(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None:
     """The supplicant sends a Confirm, which is received by both.
 
     Asserts the initial state and the result.
@@ -136,7 +145,7 @@ async def _phase_3(supplicant: _Faked, respondent: _Faked) -> None:
     await assert_context_state(respondent._context, BindState.BOUND, max_sleep=1)
 
 
-async def _phase_4(supplicant: _Faked, respondent: _Faked) -> None:
+async def _phase_4(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None:
     """The supplicant sends remaining Confirms, and transitions to Bound.
 
     Asserts the initial state and the result.
@@ -160,10 +169,9 @@ async def _phase_4(supplicant: _Faked, respondent: _Faked) -> None:
     await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
 
 
-@pytest.mark.xdist_group(name="serial")
 @patch("ramses_rf.bind_state.CONFIRM_TIMEOUT_SECS", CONFIRM_TIMEOUT_SECS)
 @binding_test_decorator
-async def test_binding_flow_0(supplicant: _Faked, respondent: _Faked, _):
+async def _test_binding_flow_0(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Check the change of state during a faultless binding."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
@@ -179,9 +187,8 @@ async def test_binding_flow_0(supplicant: _Faked, respondent: _Faked, _):
     await assert_context_state(respondent._context, BindState.BOUND)  # after rx x1
 
 
-@pytest.mark.xdist_group(name="serial")
 @binding_test_decorator
-async def test_binding_flow_1(supplicant: _Faked, respondent: _Faked, _):
+async def _test_binding_flow_1(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Check for inappropriate change of state (BindFlowError)."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
@@ -215,10 +222,9 @@ async def test_binding_flow_1(supplicant: _Faked, respondent: _Faked, _):
     await _phase_1(supplicant, respondent)  # The supplicant Offers, both receive it
 
 
-@pytest.mark.xdist_group(name="serial")
 @patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", WAITING_TIMEOUT_SECS)
 @binding_test_decorator
-async def test_binding_flow_2(supplicant: _Faked, respondent: _Faked, _):
+async def _test_binding_flow_2(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Check for inappropriate change of state (BindFlowError)."""
 
     await _phase_0(supplicant, respondent)  # For each Device, create a Context
@@ -251,9 +257,8 @@ async def test_binding_flow_2(supplicant: _Faked, respondent: _Faked, _):
     assert respondent._context.state._prev_state.__class__ is BindState.LISTENING
 
 
-@pytest.mark.xdist_group(name="serial")
 @binding_test_decorator
-async def test_binding_init_1(supplicant: _Faked, respondent: _Faked, _):
+async def _test_binding_init_1(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Create both Contexts via init (first try bad initial States)."""
 
     assert respondent._context is None
@@ -277,9 +282,8 @@ async def test_binding_init_1(supplicant: _Faked, respondent: _Faked, _):
     await assert_context_state(supplicant._context, BindState.OFFERING)
 
 
-@pytest.mark.xdist_group(name="serial")
 @binding_test_decorator
-async def test_binding_init_2(supplicant: _Faked, respondent: _Faked, _):
+async def _test_binding_init_2(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Create both Contexts via constructors (then try bad previous States)."""
 
     assert respondent._context is None
@@ -306,3 +310,28 @@ async def test_binding_init_2(supplicant: _Faked, respondent: _Faked, _):
 
     await assert_context_state(respondent._context, BindState.LISTENING)
     await assert_context_state(supplicant._context, BindState.OFFERING)
+
+
+@pytest.mark.xdist_group(name="serial")
+async def test_binding_flow_0():
+    await _test_binding_flow_0()
+
+
+@pytest.mark.xdist_group(name="serial")
+async def test_binding_flow_1():
+    await _test_binding_flow_1()
+
+
+@pytest.mark.xdist_group(name="serial")
+async def test_binding_flow_2():
+    await _test_binding_flow_2()
+
+
+@pytest.mark.xdist_group(name="serial")
+async def test_binding_init_1():
+    await _test_binding_init_1()
+
+
+@pytest.mark.xdist_group(name="serial")
+async def test_binding_init_2():
+    await _test_binding_init_2()
