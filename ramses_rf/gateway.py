@@ -169,8 +169,8 @@ class Engine:
             pkt_source = {
                 SZ_PACKET_LOG: self._input_file,
             }
-            self.config.disable_discovery = True  # TODO: needed?
-            self.config.disable_sending = True  # TODO: needed?
+            # self.config.disable_discovery = True  # TODO: needed?
+            # self.config.disable_sending = True  # TODO: needed?
 
         self._protocol, self._transport = self.create_client(
             self._handle_msg, **pkt_source
