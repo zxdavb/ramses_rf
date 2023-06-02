@@ -288,11 +288,13 @@ class _TranFilter(_BaseTransport):  # mixin
         self._use_regex = kwargs.get(SZ_USE_REGEX, {})  # #    gwy.config.use_regex
 
         # for the pkt log, if any, also serves to discover the HGI's device_id
-        # if not self._disable_sending:
-        self._write_fingerprint_pkt()
+        if not kwargs.get("disable_sending"):
+            self._write_fingerprint_pkt()
 
     def _write_fingerprint_pkt(self) -> None:
-        # FIXME: if not read-only...
+        if isinstance(self, FileTransport):
+            return
+
         cmd = Command._puzzle()
         self._extra[SZ_FINGERPRINT] = cmd.payload
         # use write, not send_data to bypass throttles
@@ -341,7 +343,7 @@ class _TranFilter(_BaseTransport):  # mixin
     def _pkt_received(self, pkt: Packet) -> None:
         """Validate a Packet and dispatch it to the protocol's callback."""
 
-        if self._protocol and self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
+        if self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
             super()._pkt_received(pkt)
 
 
@@ -432,7 +434,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def write(self, data) -> None:  # convenience for breakpoint
-        super().write(data)
+        super().write(data)  # will be: raise NotImplementedError
 
     def close(self, exc: None | Exception = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
