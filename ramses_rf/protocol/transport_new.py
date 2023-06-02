@@ -362,13 +362,13 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
         self._extra[SZ_READER_TASK]: dict[str, asyncio.Task] = reader
 
         # FIXME: remove this somehow
-        self._dt_str_: str = None  # type: ignore[assignment]
+        self._dtm_str: str = None  # type: ignore[assignment]
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using a packet's dtm field."""
 
         try:
-            return dt.fromisoformat(self._dt_str_)  # always current pkt's dtm
+            return dt.fromisoformat(self._dtm_str)  # always current pkt's dtm
         except (TypeError, ValueError):
             pass
 
@@ -401,7 +401,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
             for dtm_pkt_line in self._pkt_source:  # should check dtm_str is OK
                 while not self._is_reading:
                     await asyncio.sleep(0.001)
-                self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27])  # .rstrip())?
+                self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27:])
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
@@ -416,12 +416,12 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
             return
         self._is_reading = True
 
-    async def _frame_received(self, dtm: str, line: str) -> None:
+    def _frame_received(self, dtm_str: str, pkt_line: str) -> None:
         """Make a Packet from the Frame and process it."""
-        self._dt_str_ = line[:26]  # HACK: FIXME: remove
+        self._dtm_str = dtm_str  # HACK: FIXME: remove need for this, somehow
         # line = _regex_hack(line, self._use_regex.get(SZ_INBOUND, {}))
         try:
-            pkt = Packet.from_file(dtm, line)  # is OK for when src is dict
+            pkt = Packet.from_file(dtm_str, pkt_line)  # is OK for when src is dict
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
 
