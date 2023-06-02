@@ -17,8 +17,9 @@ import asyncio
 import logging
 import os
 from datetime import datetime as dt
+from io import TextIOWrapper
 from string import printable
-from typing import TYPE_CHECKING, Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Iterable, TypeVar
 
 import serial_asyncio
 from serial import Serial, SerialException, serial_for_url  # type: ignore[import]
@@ -40,8 +41,8 @@ from .schemas import (  # TODO: SZ_INBOUND, SZ_OUTBOUND
 
 # from .version import VERSION
 
-if TYPE_CHECKING:
-    from typing import TextIO
+# if TYPE_CHECKING:
+#     from io import TextIOWrapper
 
 
 _MsgProtocolT = TypeVar("_MsgProtocolT", bound="asyncio.Protocol")
@@ -116,14 +117,14 @@ def _str(value: bytes) -> str:
     return result
 
 
-class _FileTransportWrapper(asyncio.ReadTransport):
+class _FileTransportWrapper(asyncio.ReadTransport):  # Read-only
     """Homogonise the two types of Transport (serial and file/dict)."""
 
     _extra: dict  # mypy hint
 
     def __init__(
         self,
-        pkt_source: dict | TextIO,
+        pkt_source: dict | TextIOWrapper,
         protocol: None | _MsgProtocolT = None,
         extra: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
@@ -165,7 +166,7 @@ class _FileTransportWrapper(asyncio.ReadTransport):
         self._is_reading = True
 
 
-class _PortTransportWrapper(serial_asyncio.SerialTransport):
+class _PortTransportWrapper(serial_asyncio.SerialTransport):  # Read-write
     """Homogonise the two types of Transport (serial and file/dict)."""
 
     def __init__(
@@ -210,7 +211,7 @@ class _BaseTransport(asyncio.Transport):
     _loop: asyncio.AbstractEventLoop
     _protocol: _MsgProtocolT
 
-    def __init__(self, pkt_source: dict | TextIO, *args, **kwargs) -> None:
+    def __init__(self, pkt_source: dict | TextIOWrapper, *args, **kwargs) -> None:
         super().__init__(pkt_source, *args, **kwargs)
 
         self._pkt_source = pkt_source  # aka: super()._serial
@@ -394,7 +395,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
                 self._frame_received(dtm_str, pkt_line)
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
-        elif isinstance(self._pkt_source, TextIO):
+        elif isinstance(self._pkt_source, TextIOWrapper):
             for dtm_pkt_line in self._pkt_source:  # should check dtm_str is OK
                 while not self._is_reading:
                     await asyncio.sleep(0.001)
@@ -403,7 +404,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
         else:
             raise InvalidSourceError(
-                f"Packet source is not dict or TextIO: {self._pkt_source:!r}"
+                f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
 
     async def _handle_reader_done(self) -> None:  # TODO
@@ -521,7 +522,7 @@ def transport_factory(
     *,
     port_name: None | _SerPortName = None,
     port_config: None | dict = None,
-    packet_log: None | TextIO = None,
+    packet_log: None | TextIOWrapper = None,
     packet_dict: None | dict = None,
     **kwargs,
 ) -> PktTransportT:

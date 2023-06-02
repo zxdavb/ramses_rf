@@ -8,7 +8,7 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from typing import TextIO
+from io import TextIOWrapper
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -42,7 +42,7 @@ def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
         extra=vol.PREVENT_EXTRA,
     )
 
-    SCH_PACKET_SOURCE_FILE = TextIO
+    SCH_PACKET_SOURCE_FILE = TextIOWrapper
 
     def NormalisePacketSource():
         def normalise_packet_source(node_value: str | dict) -> dict:

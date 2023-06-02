@@ -22,9 +22,10 @@ import os
 import signal
 from concurrent import futures
 from datetime import datetime as dt
+from io import TextIOWrapper
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Callable, Optional, TextIO
+from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
     from .device import Device
@@ -88,7 +89,7 @@ class Engine:
     def __init__(
         self,
         port_name: None | str,
-        input_file: None | TextIO = None,
+        input_file: None | TextIOWrapper = None,
         port_config: None | dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
     ) -> None:
@@ -324,7 +325,7 @@ class Gateway(Engine):
         self,
         port_name: None | str,
         debug_mode: None | bool = None,
-        input_file: None | TextIO = None,
+        input_file: None | TextIOWrapper = None,
         loop: None | asyncio.AbstractEventLoop = None,
         port_config: None | dict = None,
         **kwargs,

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
+from io import TextIOWrapper
 from types import SimpleNamespace
-from typing import Any, Callable, TextIO
+from typing import Any, Callable
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -338,7 +339,7 @@ def extract_schema(**kwargs) -> dict:
 
 def load_config(
     port_name: None | str,
-    input_file: TextIO,
+    input_file: TextIOWrapper,
     config: dict[str, Any] = None,
     packet_log: None | dict[str, Any] = None,
     block_list: dict[_DeviceIdT, dict] = None,
