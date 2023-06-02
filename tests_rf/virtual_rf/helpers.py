@@ -18,6 +18,9 @@ def make_device_fakeable(dev: Device) -> None:
     class FakeableDevice(dev.__class__, Fakeable):
         pass
 
+    if hasattr(dev, "_make_fake"):  # no need for callable(getattr(...))
+        return
+
     dev.__class__ = FakeableDevice
     setattr(dev, "_faked", None)
     setattr(dev, "_context", None)
