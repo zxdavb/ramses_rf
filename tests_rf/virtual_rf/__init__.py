@@ -9,16 +9,16 @@ from unittest.mock import patch
 
 from ramses_rf import Command, Gateway
 
-from .helpers import (  # noqa: F401, pylint: disable=unused-import
-    FakeableDevice,
-    ensure_fakeable,
-)
+from .helpers import ensure_fakeable  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf
 
+GWY_ID_0 = "18:000000"
+GWY_ID_1 = "18:111111"
+
 MIN_GAP_BETWEEN_WRITES = 0
 
-CONFIG = {
+DEFAULT_GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
         "enforce_known_list": False,
@@ -31,12 +31,46 @@ async def stifle_impersonation_alert(self, cmd: Command) -> None:
     pass
 
 
-def factory(schema_0: dict, schema_1: dict) -> Callable:
-    """Create a decorator with a two-gateway virtual RF: 18:111111 & 18:222222."""
+def _rf_net_create(
+    schema_0: dict, schema_1: dict
+) -> tuple[VirtualRf, Gateway, Gateway]:
+    """Create a VirtualRf network with two well-known gateways."""
 
-    # result = rf_factory(schema_0, schema_1)(fnc)(gwy_0, gwy_1, *args, **kwargs)
+    rf = VirtualRf(2, start=False)
+
+    rf.set_gateway(rf.ports[0], GWY_ID_0)
+    rf.set_gateway(rf.ports[1], GWY_ID_1)
+
+    gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG, **schema_0)
+    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG, **schema_1)
+
+    rf.start()
+
+    # try:
+    #     fnc(gwy_0, gwy_1, *args, **kwargs)
+    # finally:
+    #     await rf_net_stop(rf, gwy_0, gwy_1)
+
+    return rf, gwy_0, gwy_1
+
+
+async def _rf_net_cleanup(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway) -> None:
+    """Cleanly destroy a VirtualRf network with two gateways."""
+
+    await gwy_0.stop()
+    await gwy_1.stop()
+
+    await rf.stop()
+
+
+def factory(schema_0: dict, schema_1: dict) -> Callable:
+    """Create a decorator with a two-gateway VirtualRf (18:000000, 18:111111)."""
+
+    # result = await? factory(schema_0, schema_1)(fnc)(gwy_0, gwy_1, *args, **kwargs)
 
     def decorator(fnc) -> Coroutine:
+        """Wrap the decorated funcation as below and return the result."""
+
         @patch(  # stifle_impersonation_alert()
             "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
             stifle_impersonation_alert,
@@ -47,24 +81,15 @@ def factory(schema_0: dict, schema_1: dict) -> Callable:
         )
         @wraps(fnc)
         async def wrapper(*args, **kwargs) -> Any:
-            rf = VirtualRf(2)
-
-            rf.set_gateway(rf.ports[0], "18:111111")
-            rf.set_gateway(rf.ports[1], "18:222222")
-
-            gwy_0 = Gateway(rf.ports[0], **CONFIG, **schema_0)
-            gwy_1 = Gateway(rf.ports[1], **CONFIG, **schema_1)
+            rf, gwy_0, gwy_1 = _rf_net_create(schema_0, schema_1)
 
             await gwy_0.start()
             await gwy_1.start()
 
-            try:
+            try:  # enclose the decorated function in the wrapper
                 return await fnc(gwy_0, gwy_1, *args, *kwargs)  # asserts within here
             finally:
-                await gwy_0.stop()
-                await gwy_1.stop()
-
-                await rf.stop()
+                await _rf_net_cleanup(rf, gwy_0, gwy_1)
 
         return wrapper
 

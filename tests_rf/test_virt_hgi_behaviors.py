@@ -74,12 +74,16 @@ async def assert_expected_pkt(
     assert str(gwy._this_msg._pkt) == expected_frame
 
 
-async def assert_hgi_id(gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_SLEEP):
+async def assert_gwy_has_hgi(
+    gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_SLEEP
+):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if gwy.hgi is not None:
             break
     assert gwy.hgi is not None
+    if hgi_id:
+        assert gwy.hgi.id == hgi_id
 
 
 _global_failed_ports: list[str] = []
@@ -103,7 +107,7 @@ async def _test_hgi_addrs(port_name, org_str):
     await gwy_0.start()
 
     try:
-        await assert_hgi_id(gwy_0)
+        await assert_gwy_has_hgi(gwy_0)  # , hgi_id=TST_ID_)
         assert gwy_0.hgi.id != HGI_ID_
 
         cmd_str = org_str.replace(TST_ID_, gwy_0.hgi.id)
@@ -196,7 +200,7 @@ async def test_mocked_evofw3(test_idx):
 async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    if test_idx in (0, 2, 7):
+    if test_idx in (0, 2, 7):  # FIXME
         pytest.skip("this test is a WIP")
 
     rf = VirtualRf(1)

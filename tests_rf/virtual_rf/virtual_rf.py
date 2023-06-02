@@ -3,6 +3,8 @@
 #
 """A virtual RF network useful for testing."""
 
+# NOTE: does not rely on ramses_rf library (except StrEnum)
+
 import asyncio
 import logging
 import os
@@ -17,7 +19,7 @@ from typing import TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
 
-from ramses_rf.protocol.backports import StrEnum  # when Python >= 3.11.x, use from enum
+from ramses_rf.protocol.backports import StrEnum  # TODO: enum.StrEnum
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
@@ -36,7 +38,7 @@ FW_VERSION = "fw_version"
 MAX_NUM_PORTS = 32
 
 
-class HgiFwTypes(StrEnum):
+class HgiFwTypes(StrEnum):  # TODO: when Python >= 3.11.x, use: HgiFwTypes(enum.StrEnum)
     EVOFW3 = "ghoti57/evofw3 atmega32u4 v0.7.1"  # SparkFun atmega32u4
     NATIVE = "Texas Instruments TUSB3410"  # Honeywell HGI80
 
@@ -197,31 +199,27 @@ class VirtualRfBase:
         # this assumes all .write(data) are 1+ whole frames terminated with \r\n
         for frame in (d + b"\r\n" for d in data.split(b"\r\n") if d):  # ignore b""
             if f := self._proc_before_tx(frame, master):
-                self._cast_frame_to_all_ports(f, master)
+                self._cast_frame_to_all_ports(f, master)  # can cast (is not echo only)
 
     def _cast_frame_to_all_ports(self, frame: bytes, master: _FD) -> None:
-        """Push the frame from the sending port and cast any frames."""
+        """Pull the frame from the sending port and cast it to the RF."""
 
         _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
         for fd in self._file_objs:
             self._push_frame_to_dst_port(frame, fd)
 
     def _push_frame_to_dst_port(self, frame: bytes, master: _FD) -> None:
-        """Push the frame from the sending port and cast any frames."""
+        """Push the frame to a single destination port."""
 
         if f := self._proc_after_rx(frame, master):
             self.rx_log.append((self._pty_names[master], f))
             self._file_objs[master].write(f)
 
-    def _proc_after_rx(
-        self, frame: bytes, master: _FD
-    ) -> None | bytes:  # convenience func
+    def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
         """Allow the device to modify the frame after receiving (e.g. adding RSSI)."""
         return frame
 
-    def _proc_before_tx(
-        self, frame: bytes, master: _FD
-    ) -> None | bytes:  # convenience func
+    def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
         """Allow the device to modify the frame before sending (e.g. changing addr0)."""
         return frame
 
@@ -323,7 +321,7 @@ class VirtualRf(VirtualRfBase):
     def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
         """The addr0 may be changed by the sending HGI80-compatible device before Tx.
 
-        Return None if the bytes are not to be Tx to the RF ether.
+        Return None if the bytes are not to be Tx to the RF ether (e.g. to echo only).
         """
 
         if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
