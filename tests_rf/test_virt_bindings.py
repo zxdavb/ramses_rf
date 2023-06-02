@@ -14,7 +14,7 @@ import pytest
 
 from ramses_rf import Gateway, Packet
 from ramses_rf.bind_state import BindState, Context, State
-from tests_rf.virtual_rf import FakeableDevice, factory
+from tests_rf.virtual_rf import FakeableDevice, ensure_fakeable, factory
 
 _State = TypeVar("_State", bound=State)
 
@@ -170,7 +170,10 @@ async def test_binding_state(test_data):
     async def wrapper(gwy_0: Gateway, gwy_1: Gateway, codes):
         supplicant = gwy_0.device_by_id[supp[0]]
         respondent = gwy_1.device_by_id[resp[0]]
-        _test_binding_state(supplicant, respondent, codes)
+
+        ensure_fakeable(respondent)
+
+        await _test_binding_state(supplicant, respondent, codes)
 
     await factory(
         {"orphans_hvac": [supp[0]], "known_list": {supp[0]: {"class": supp[1]}}},

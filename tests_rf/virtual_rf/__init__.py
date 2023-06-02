@@ -11,7 +11,7 @@ from ramses_rf import Command, Gateway
 
 from .helpers import (  # noqa: F401, pylint: disable=unused-import
     FakeableDevice,
-    make_device_fakeable,
+    ensure_fakeable,
 )
 from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf

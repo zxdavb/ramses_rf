@@ -12,7 +12,7 @@ class FakeableDevice(Address, Fakeable):  # HACK: for mypy typing
     _gwy: Gateway
 
 
-def make_device_fakeable(dev: Device) -> None:
+def ensure_fakeable(dev: Device) -> None:
     """If a Device is not Fakeable, make it so."""
 
     class FakeableDevice(dev.__class__, Fakeable):
