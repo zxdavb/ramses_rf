@@ -528,7 +528,7 @@ class ReadProtocol(_ReadProtocol):
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     async def send_data(self, *args, **kwargs) -> Any:
-        return await self.send_data(*args, **kwargs)
+        return await super().send_data(*args, **kwargs)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def connection_lost(self, *args, **kwargs) -> Any:
@@ -545,7 +545,7 @@ class PortProtocol(_WriteProtocol):
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     async def send_data(self, *args, **kwargs) -> Any:
-        return await self.send_data(*args, **kwargs)
+        return await super().send_data(*args, **kwargs)
 
 
 # ### Read-Write Protocol for QosTransport ############################################
@@ -589,7 +589,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     async def send_data(self, *args, **kwargs) -> Any:
-        return await self.send_data(*args, **kwargs)
+        return await super().send_data(*args, **kwargs)
 
 
 def _protocol_factory(  # TODO: no_qos default should be None
