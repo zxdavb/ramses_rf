@@ -334,15 +334,12 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
+    # NOTE: wrapper for _send_cmd(cmd)
     async def send_data(self, cmd: Command, callback: Callable = None) -> None:
-        """Called when a Command is to be sent to the Transport.
-
-        The Protocol must be given a Command (not bytes).
-        """
+        """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
             raise RuntimeError  # TODO
-
         if self._pause_writing:
             raise RuntimeError  # TODO
 
@@ -350,19 +347,23 @@ class _BaseProtocol(asyncio.Protocol):
         self._send_cmd(cmd)  # self._transport.write(...)
 
     async def _send_cmd(self, cmd: Command) -> None:
-        """Write a Command to the transport."""
+        """Called when a Command is to be sent to the Transport.
+
+        The Protocol must be given a Command (not bytes).
+        """
         await self._send_bytes(bytes(str(cmd), "ascii") + b"\r\n")
 
     async def _send_bytes(self, data: bytes) -> None:
         """Write some bytes to the transport."""
         self._transport.write(data)
 
+    # NOTE: wrapper for _pkt_received(pkt)
     def data_received(self, pkt: Packet) -> None:
-        """Called by the Transport when a Packet is received."""
-
+        """A wrapper for self._pkt_received(pkt)."""
         self._pkt_received(pkt)
 
     def _pkt_received(self, pkt: Packet) -> None:
+        """Called by the Transport when a Packet is received."""
         try:
             msg = Message(pkt)  # should log all invalid msgs appropriately
         except InvalidPacketError:  # TODO: InvalidMessageError (packet is valid)
@@ -430,13 +431,29 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
 
-        await super()._send_cmd(cmd)
+        await self._send_cmd(cmd)
 
 
-class _ProtQosTimers(ProtocolContext, _BaseProtocol):  #
-    """A mixin for avoiding sync cycles."""
+class _ProtQosTimers(_BaseProtocol):  # context/state
+    """A mixin for maintaining state via a FSM."""
 
-    pass
+    _context: ProtocolContext
+
+    def connection_made(self, transport: PktTransportT) -> Any:
+        # self._context.connection_made(transport)
+        return super().connection_made(transport)
+
+    def pkt_received(self, pkt: Packet) -> Any:
+        # self._context.pkt_received(pkt)
+        return super().pkt_received(pkt)
+
+    async def send_cmd(self, cmd: Command) -> Any:
+        # self._context.send_cmd(cmd)
+        return await super().send_cmd(cmd)
+
+    def connection_lost(self, exc: None | Exception) -> Any:
+        # self._context.connection_lost(exc)
+        return super().connection_lost(exc)
 
 
 class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
@@ -552,11 +569,16 @@ class PortProtocol(_WriteProtocol):
 class QosProtocol(PortProtocol, _ProtQosTimers):
     """A protocol that can receive Packets and send Commands with QoS."""
 
+    _expecting_cmd: None | Command = None
+
     def _msg_received(self, msg: Message) -> None:
         """Check if Message this is the expected response (if any)."""
 
         if not self._expecting_cmd:
             pass
+
+        #     if cmd._cbk:
+        #         self._expecting_cmd = cmd
 
         elif self._expecting_cmd.callback.expires <= dt.now():
             if self._expecting_cmd.callback.retries == 0:
@@ -576,10 +598,10 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
         """Check if this Command is expecting a response."""
 
         if self._expecting_cmd:
-            raise
+            raise  # should have cleared / expired any outstanding echo/callbacks
 
-        if cmd._cbk:
-            self._expecting_cmd = cmd
+        # we're sending a cmd, so should expect an echo
+        # self._context.send_cmd(cmd)
 
         await super()._send_cmd(cmd)
 
@@ -593,7 +615,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
 
 def _protocol_factory(  # TODO: no_qos default should be None
-    msg_callback: Callable, /, *, read_only: bool = None, no_qos: bool = True, **kwargs
+    msg_callback: Callable, /, *, read_only: bool = None, no_qos: bool = None, **kwargs
 ) -> MsgProtocolT:
     if read_only:
         return ReadProtocol(msg_callback, **kwargs)
