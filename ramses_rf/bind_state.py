@@ -444,7 +444,7 @@ class Confirming(State):
 class Confirmed(Confirming):
     """Supplicant has sent a Confirm pkt.
 
-    It will continue to send Confirms 3x.
+    It will continue to send Confirms, total 3x.
     """
 
     _cmds_sent: int = 1  # already sent one
@@ -475,7 +475,7 @@ class Confirmed(Confirming):
 class Bound(State):
     """Context is Bound."""
 
-    _pkts_rcvd: int = 0
+    _pkts_rcvd: int = 0  # TODO: check these counters
 
     def received_confirm(self, from_self: bool) -> None:  # TODO: warn out of order
         # self._pkts_rcvd += 1
@@ -485,6 +485,8 @@ class Bound(State):
 
 class BoundAccepted(Accepting, Bound):
     """Respondent is Bound, but should handle retransmits from the supplicant."""
+
+    _pkts_rcvd: int = 1  # already sent 1, TODO: check these counters
 
     def __init__(self, context: Context) -> None:
         super().__init__(context)
