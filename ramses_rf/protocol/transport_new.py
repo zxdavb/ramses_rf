@@ -10,7 +10,25 @@
 # - check: READER/POLLER & WRITER tasks
 
 
-"""RAMSES RF - RAMSES-II compatible packet transport."""
+"""RAMSES RF - RAMSES-II compatible packet transport.
+
+Operates at the pkt layer of: app - msg - pkt - h/w
+
+For ser2net, use the following YAML file with: ser2net -c hgi80.yaml
+
+  connection: &con00
+  accepter: telnet(rfc2217),tcp,5001
+  timeout: 0
+  connector: serialdev,/dev/ttyUSB0,115200n81,local
+  options:
+    max-connections: 3
+
+For socat, see:
+  socat -dd pty,raw,echo=0 pty,raw,echo=0
+  python client.py monitor /dev/pts/0
+  cat packet.log | cut -d ' ' -f 2- | unix2dos > /dev/pts/1
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -288,7 +306,7 @@ class _TranFilter(_BaseTransport):  # mixin
         self._use_regex = kwargs.get(SZ_USE_REGEX, {})  # #    gwy.config.use_regex
 
         # for the pkt log, if any, also serves to discover the HGI's device_id
-        if not kwargs.get("disable_sending"):
+        if not kwargs.get("disable_sending"):  # NOTE: no retries as only need echo
             self._write_fingerprint_pkt()
 
     def _write_fingerprint_pkt(self) -> None:
@@ -349,7 +367,7 @@ class _TranFilter(_BaseTransport):  # mixin
 
 # ### Read-Only Transports for dict / log file ########################################
 class FileTransport(_TranFilter, _FileTransportWrapper):
-    """Parse a file (or a dict) for packets."""
+    """Parse a file (or a dict) for packets, and never send."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -357,9 +375,9 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
         self._is_reading: bool = False
         self._protocol.pause_writing()  # but protocol would know is a R/O transport
 
-        reader = self._loop.create_task(self._ensure_reader())
+        reader = self._loop.create_task(self._start_reader())
         reader.add_done_callback(self._handle_reader_done)
-        self._extra[SZ_READER_TASK]: dict[str, asyncio.Task] = reader
+        self._extra[SZ_READER_TASK] = reader
 
         # FIXME: remove this somehow
         self._dtm_str: str = None  # type: ignore[assignment]
@@ -377,15 +395,16 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
         except AttributeError:
             return dt(1970, 1, 1, 1, 0)
 
-    def _ensure_reader(self) -> None:  # TODO
-        if self._extra[SZ_READER_TASK]:
-            return
+    async def _start_reader(self) -> None:  # TODO
         self._is_reading = True
+        await self._reader()
 
-    def _remove_reader(self):
-        if self._extra[SZ_READER_TASK]:
-            self._loop.remove_reader(self._serial.fileno())  # FIXME
-            self._extra[SZ_READER_TASK] = None
+    def _handle_reader_done(self, task: asyncio.Task) -> None:  # TODO
+        self._is_reading = False
+        try:
+            task.result()  # self._extra[SZ_READER_TASK].result()
+        finally:
+            pass
 
     async def _reader(self) -> None:  # TODO
         """Loop through the packet source for Frames and process them."""
@@ -408,13 +427,6 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
             raise InvalidSourceError(
                 f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
-
-    async def _handle_reader_done(self) -> None:  # TODO
-        """Loop through the packet source for Frames and process them."""
-
-        if self._extra[SZ_READER_TASK]:
-            return
-        self._is_reading = True
 
     def _frame_received(self, dtm_str: str, pkt_line: str) -> None:
         """Make a Packet from the Frame and process it."""
@@ -451,6 +463,8 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
 # ### Read-Write Transport for serial port ############################################
 class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
+    """Poll a port for packets, and send without QoS."""
+
     _recv_buffer: bytes = b""
 
     def get_extra_info(self, name, default=None):
@@ -515,6 +529,8 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
 
 # ### Read-Write Transport *with QoS* for serial port #################################
 class QosTransport(PortTransport):  # from a serial port, includes QoS
+    """Poll a port for packets, and send with QoS."""
+
     pass
 
 
