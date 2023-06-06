@@ -167,7 +167,7 @@ def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
             pass
 
 
-def _check_msg_addrs(msg: Message) -> None:
+def _check_msg_addrs(msg: Message) -> None:  # TODO
     """Validate the packet's address set.
 
     Raise InvalidAddrSetError if the meta data is invalid, otherwise simply return.
@@ -195,7 +195,7 @@ def _check_msg_addrs(msg: Message) -> None:
             )
 
 
-def _check_msg_src(msg: Message, *, slug: str = None) -> None:
+def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     """Validate the packet's source device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
@@ -245,7 +245,7 @@ def _check_msg_src(msg: Message, *, slug: str = None) -> None:
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
-def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
+def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
     """Validate the packet's destination device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
@@ -302,25 +302,30 @@ def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
 def process_msg(gwy: Gateway, msg: MessageBase) -> None:
     """Decoding the packet payload and route it appropriately."""
 
-    # All methods require a valid message (payload), except create_devices(), which
-    # requires a valid message only for 000C.
+    # All methods require msg with a valid payload, except _create_devices_from_addrs(),
+    # which requires a valid payload only for 000C.
 
     try:  # validate / dispatch the packet
-        _check_msg_addrs(msg)  # ? InvalidAddrSetError
+        # if gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
+        #     return
+
+        _check_msg_addrs(msg)  # ?InvalidAddrSetError  TODO: ?useful at all
 
         # TODO: any use in creating a device only if the payload is valid?
-        if gwy.config.reduce_processing < DONT_CREATE_ENTITIES:
-            try:
-                _create_devices_from_addrs(gwy, msg)
-            except LookupError as exc:
-                (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-                    "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
-                )
-                return
+        if gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
+            return
 
-        _check_msg_src(msg)  # ? InvalidPacketError
+        try:
+            _create_devices_from_addrs(gwy, msg)
+        except LookupError as exc:
+            (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+                "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
+            )
+            return
+
+        _check_src_slug(msg)  # ? InvalidPacketError
         if msg.dst is not msg.src or msg.verb != I_:
-            _check_msg_dst(msg)  # ? InvalidPacketError
+            _check_dst_slug(msg)  # ? InvalidPacketError
 
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             return
