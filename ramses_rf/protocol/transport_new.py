@@ -70,10 +70,6 @@ _SerPortName = str
 
 DONT_CREATE_MESSAGES = 3  # duplicate
 
-SZ_POLLER_TASK = "poller_task"
-SZ_WRITER_TASK = "writer_task"
-SZ_READER_TASK = "reader_task"
-
 SZ_FINGERPRINT = "fingerprint"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
@@ -153,8 +149,8 @@ class _FileTransportWrapper(asyncio.ReadTransport):  # Read-only
         self._protocol = protocol
         self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
 
-        self._closing: bool = False
-        self._reading: bool = False
+        self._is_closing: bool = False
+        self._is_reading: bool = False
 
         self._loop.call_soon(self._protocol.connection_made, self)
 
@@ -169,14 +165,14 @@ class _FileTransportWrapper(asyncio.ReadTransport):  # Read-only
 
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
-        return self._closing
+        return self._is_closing
 
     def is_reading(self):
         """Return True if the transport is receiving."""
-        return self._reading
+        return self._is_reading
 
     def pause_reading(self) -> None:
-        """Pause the receiving end (No data to protocol.data_received())."""
+        """Pause the receiving end (no data to protocol.data_received())."""
         self._is_reading = False
 
     def resume_reading(self) -> None:
@@ -224,6 +220,8 @@ class _PortTransportWrapper(serial_asyncio.SerialTransport):  # Read-write
 
 class _BaseTransport(asyncio.Transport):
     """Base class for transports."""
+
+    READER_TASK = "reader_task"
 
     _extra: dict
     _loop: asyncio.AbstractEventLoop
@@ -377,7 +375,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
         reader = self._loop.create_task(self._start_reader())
         reader.add_done_callback(self._handle_reader_done)
-        self._extra[SZ_READER_TASK] = reader
+        self._extra[self.READER_TASK] = reader
 
         # FIXME: remove this somehow
         self._dtm_str: str = None  # type: ignore[assignment]
@@ -402,9 +400,9 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
     def _handle_reader_done(self, task: asyncio.Task) -> None:  # TODO
         self._is_reading = False
         try:
-            task.result()  # self._extra[SZ_READER_TASK].result()
+            task.result()
         finally:
-            pass
+            pass  # self._extra[self.READER_TASK] = None
 
     async def _reader(self) -> None:  # TODO
         """Loop through the packet source for Frames and process them."""
@@ -450,11 +448,11 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
     def close(self, exc: None | Exception = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
-        if self._closing:
+        if self._is_closing:
             return
-        self._closing = True
+        self._is_closing = True
 
-        reader: asyncio.Task = self._extra.get(SZ_READER_TASK)
+        reader: asyncio.Task = self._extra.get(self.READER_TASK)
         if reader:
             reader.cancel()
 

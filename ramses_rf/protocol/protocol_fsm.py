@@ -17,13 +17,13 @@ if TYPE_CHECKING:
 _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 
-class ProtocolContext(asyncio.Protocol):  # mixin for tracking state
+class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     """A mixin is to add state to a Protocol."""
 
-    _state: _StateT
+    _state: _StateT = None
 
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+        # super().__init__(*args, **kwargs)
 
         self._set_state(IsInactive)  # set initial state
 
@@ -37,19 +37,18 @@ class ProtocolContext(asyncio.Protocol):  # mixin for tracking state
 
     def connection_made(self, transport: _TransportT) -> None:
         self._state.connection_made(transport)
-        super().connection_made(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
         self._state.connection_lost(exc)
-        super().connection_lost(exc)
 
-    async def send_cmd(self, cmd: Command) -> None:
-        await self._state.send_cmd(cmd)
-        await super().send_cmd(cmd)  # type: ignore[misc]
+    def send_cmd(self, cmd: Command) -> None:
+        if not isinstance(self._state, IsWaitForCommand):
+            raise RuntimeError
+        self._state.send_cmd(cmd)
 
-    def data_received(self, pkt: Packet) -> None:  # type: ignore[override]
-        self._state.data_received(pkt)
-        super().data_received(pkt)  # type: ignore[arg-type]
+    def _pkt_received(self, pkt: Packet) -> None:
+        # self._state._pkt_received(pkt)
+        pass
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)

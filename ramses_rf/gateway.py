@@ -38,14 +38,14 @@ from .helpers import schedule_task, shrink
 from .protocol import (
     Address,
     Command,
+    FileTransport,
+    create_stack,
     is_valid_dev_id,
-    set_logger_timesource,
     set_pkt_logging_config,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .protocol.protocol_new import MsgProtocolT, PktTransportT, create_stack
+from .protocol.protocol_new import MsgProtocolT, PktTransportT
 from .protocol.schemas import SZ_PACKET_LOG, SZ_PORT_CONFIG, SZ_PORT_NAME
-from .protocol.transport_new import SZ_READER_TASK  # TODO: find a better way to await
 from .schemas import (
     SCH_GLOBAL_CONFIG,
     SCH_TRAITS,
@@ -141,7 +141,7 @@ class Engine:
     def _dt_now(self):
         return self._transport._dt_now() if self._transport else dt.now()
 
-    def create_client(
+    def _create_client(
         self,
         msg_handler: Callable[[Message, None | Message], None],
         /,
@@ -149,53 +149,55 @@ class Engine:
     ) -> tuple[MsgProtocolT, PktTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
 
-        kwargs[SZ_PORT_NAME] = kwargs.get(SZ_PORT_NAME, self.ser_name)
-        kwargs[SZ_PORT_CONFIG] = kwargs.get(SZ_PORT_CONFIG, self._port_config)
-        kwargs[SZ_PACKET_LOG] = kwargs.pop(SZ_INPUT_FILE, self._input_file)
+        if self.ser_name:
+            kwargs[SZ_PORT_NAME] = self.ser_name
+            kwargs[SZ_PORT_CONFIG] = self._port_config
+        else:
+            kwargs[SZ_PACKET_LOG] = self._input_file
+            # self.config.disable_discovery = True  # TODO: needed?
 
-        return create_stack(msg_handler, **kwargs)
+        self._protocol, self._transport = create_stack(msg_handler, **kwargs)
+
+    def add_client(
+        self,
+        msg_handler: Callable[[Message], None],
+        /,
+        msg_filter: None | Callable[[Message], bool] = None,
+    ) -> None:
+        """Create a client protocol for the RAMSES-II message transport.
+
+        The optional filter will return True if the message is to be handled.
+        """
+
+        # if msg_filter is not None and not is_callback(msg_filter):
+        #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
+
+        if msg_filter:
+            msg_filter = lambda _: True  # noqa: E731
+            raise NotImplementedError
+
+        self._protocol.add_handler(msg_handler, msg_filter=msg_filter)
 
     async def start(self) -> None:
         """Initiate receiving (Messages) and sending (Commands)."""
-        self._start()
-
-    def _start(self) -> None:
-        if self.ser_name:
-            pkt_source = {
-                SZ_PORT_NAME: self.ser_name,
-                SZ_PORT_CONFIG: self._port_config,
-            }
-        else:
-            pkt_source = {
-                SZ_PACKET_LOG: self._input_file,
-            }
-            # self.config.disable_discovery = True  # TODO: needed?
-            # self.config.disable_sending = True  # TODO: needed?
-
-        self._protocol, self._transport = self.create_client(
-            self._handle_msg, **pkt_source
-        )  # TODO: may raise SerialException
-
-        if self._input_file:  # FIXME: bad smell - move to transport
-            set_logger_timesource(self._transport._dt_now)
-            _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
+        # self._transport.resume_reading()
+        # self._protocol.resume_writing()
+        pass
 
     async def stop(self) -> None:
         """Cancel all outstanding low-level tasks."""
 
         # # FIXME: leaker_task, writer_task
-        # if self._protocol and (t := self._protocol._leaker_task) and not t.done():
+        # if t := self._protocol._leaker_task and not t.done():
         #     try:
         #         await t
         #     except asyncio.CancelledError:
         #         pass
 
-        if self._transport:
-            self._transport.close()  # ? .abort()
+        self._transport.close()  # ? .abort()
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
-
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
 
         if not self._engine_lock.acquire(blocking=False):
@@ -205,22 +207,19 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to pause engine, it is already paused")
 
-        self._engine_state, callback = (None, tuple()), None
-        self._engine_lock.release()
+        self._engine_state, callback = (None, tuple()), None  # aka not None
+        self._engine_lock.release()  # is ok to release now
 
-        if self._protocol:
-            self._protocol.pause_writing()
-            self._protocol._msg_callback, callback = None, self._protocol._msg_callback
+        self._protocol.pause_writing()
+        self._transport.pause_reading()
+
+        self._protocol._msg_callback, callback = None, self._protocol._msg_callback
 
         self._engine_state = (callback, args)
 
     def _resume(self) -> tuple:  # FIXME: not atomic
         """Resume the (paused) engine or raise a RuntimeError."""
-
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Resuming engine...")
-
-        # if not self.ser_name:
-        #     raise RuntimeError("Unable to resume engine, no serial port configured")
 
         if not self._engine_lock.acquire(timeout=0.1):
             raise RuntimeError("Unable to resume engine, failed to acquire lock")
@@ -232,13 +231,13 @@ class Engine:
         callback: None | Callable  # mypy
         args: tuple  # mypy
         callback, args = self._engine_state
-
         self._engine_lock.release()
 
         # TODO: is this needed, given it can buffer if required?
-        if self._protocol:
-            self._protocol._msg_callback = callback
-            self._protocol.resume_writing()
+        self._protocol._msg_callback = callback
+
+        self._transport.resume_reading()
+        self._protocol.resume_writing()
 
         self._engine_state = None
 
@@ -338,7 +337,7 @@ class Gateway(Engine):
             port_name, input_file=input_file, port_config=port_config, loop=loop
         )
 
-        self._tasks: list = []  # TODO: used by discovery, move lower?
+        self._tasks: list[asyncio.Task] = []  # TODO: used by discovery, move lower?
         self._schema: dict[str, dict] = {}
 
         (self.config, self._schema, self._include, self._exclude) = load_config(
@@ -358,8 +357,6 @@ class Gateway(Engine):
         self.device_by_id: dict[str, Device] = {}
 
         self._setup_event_handlers()
-
-        load_schema(self, **self._schema)
 
     def __repr__(self) -> str:
         if not self.ser_name:
@@ -400,12 +397,10 @@ class Gateway(Engine):
         ):
             return self.device_by_id.get(device_id)
 
-    def create_client(
+    def _create_client(
         self,
         msg_handler: Callable[[Message, None | Message], None],
         /,
-        # msg_filter: None | Callable[[Message], bool] = None,
-        **kwargs,
     ) -> tuple[MsgProtocolT, PktTransportT]:
         """Create a client protocol for the RAMSES-II message transport."""
 
@@ -413,13 +408,12 @@ class Gateway(Engine):
         # if msg_filter is not None and not is_callback(msg_filter):
         #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
 
-        return super().create_client(
+        return super()._create_client(
             msg_handler,
             disable_sending=self.config.disable_sending,
             enforce_include_list=self.config.enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
-            **kwargs,
         )
 
     async def start(self, *, start_discovery: bool = True) -> None:
@@ -439,14 +433,16 @@ class Gateway(Engine):
                 if system.dhw:
                     system.dhw._start_discovery_poller()
 
+        load_schema(self, **self._schema)
+
+        self._create_client(self._handle_msg)
+
         await super().start()
 
         if not self.ser_name:  # wait until have processed the entire packet log...
-            await self._transport.get_extra_info(SZ_READER_TASK)
+            await self._transport.get_extra_info(self._transport.READER_TASK)
 
-        # else: source of packets is a serial port
-        # TODO: gwy.config.disable_discovery
-        elif start_discovery:
+        elif start_discovery:  # if gwy.config.disable_discovery: TODO:
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess
@@ -469,11 +465,15 @@ class Gateway(Engine):
         There is the option to save other objects, as *args.
         """
 
-        super()._pause(
-            self.config.disable_discovery, self.config.disable_sending, *args
-        )
-        self.config.disable_discovery = True
-        self.config.disable_sending = True
+        disc_flag, self.config.disable_discovery = self.config.disable_discovery, True
+        send_flag, self.config.disable_sending = self.config.disable_sending, True
+
+        try:
+            super()._pause(disc_flag, send_flag, *args)
+        except RuntimeError:
+            self.config.disable_discovery = disc_flag
+            self.config.disable_sending = send_flag
+            raise
 
         if clear_state:
             self._clear_state()
@@ -499,16 +499,15 @@ class Gateway(Engine):
         self.devices = []
         self.device_by_id = {}
 
+        self._prev_msg = None
+        self._this_msg = None
+
     def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
-        """Return the current schema & state (will pause/resume the engine)."""
+        """Return the current schema & state (may include expired packets)."""
 
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
         self._pause()
-
         result = self._get_state(include_expired=include_expired)
-
         self._resume()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Got schema/state.")
 
         return result
 
@@ -531,22 +530,23 @@ class Gateway(Engine):
         for system in self.systems:
             msgs.extend(list(system._msgs.values()))
             msgs.extend([m for z in system.zones for m in z._msgs.values()])
-            # msgs.extend([m for z in system.dhw for m in z._msgs.values()])
+            # msgs.extend([m for z in system.dhw for m in z._msgs.values()])  # TODO
 
-        # BUG: assumes pkts have unique dtms: may not be true for contrived logs...
-        pkts = {
+        pkts = {  # BUG: assumes pkts have unique dtms: may be untrue for contrived logs
             f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
             for msg in msgs
             if wanted_msg(msg, include_expired=include_expired)
-        }  # BUG: assumes pkts have unique dtms
+        }
 
         return self.schema, dict(sorted(pkts.items()))
 
     async def set_state(self, packets: dict, *, schema: dict | None = None) -> None:
-        """Restore a cached schema & state."""
+        """Restore a cached schema & state (includes expired packets).
 
-        # TODO: add a feature to exclude expired packets?
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
+        is schema is None (rather than {}), use the existing schema.
+        """
+
+        _LOGGER.warning("ENGINE: Restoring a schema/state...")
 
         if schema is None:  # TODO: also for known_list (device traits)?
             schema = shrink(self.schema)
@@ -557,23 +557,23 @@ class Gateway(Engine):
         await self._set_state(packets, schema=schema)
 
         self._resume()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
-    async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
-        tmp_transport: asyncio.Transport
+    async def _set_state(
+        self, packets: dict, *, schema: dict | None = None, clear_state: bool = True
+    ) -> None:
+        tmp_transport: FileTransport  # mypy
 
-        if self._transport:
-            pkt_receiver = self._transport.get_extra_info(self._transport.READER)
-        else:
-            pkt_receiver = None
+        if clear_state:
+            self._clear_state()
 
-        _, tmp_transport = self._create_protocol_stack(
-            pkt_receiver, packet_dict=packets
+        _, tmp_transport = create_stack(
+            self._handle_msg,
+            packet_dict=packets,
+            enforce_include_list=self.config.enforce_known_list,
+            exclude_list=self._exclude,
+            include_list=self._include,
         )
-        await tmp_transport.get_extra_info(SZ_READER_TASK)
-
-        self._prev_msg = None
-        self._this_msg = None
+        await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
 
     def get_device(
         self,
@@ -792,7 +792,8 @@ class Gateway(Engine):
         self._tasks.append(task)
         return task
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg: Message) -> None:
+        """A callback to handle messages from the protocol stack."""
         # TODO: Remove this
         # # HACK: if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
         # if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:

@@ -38,19 +38,11 @@ from .const import __dev_mode__
 # )
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
+from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
-
-# from .schemas import (
-#     SCH_SERIAL_PORT_CONFIG,
-#     SZ_BLOCK_LIST,
-#     SZ_CLASS,
-#     SZ_INBOUND,
-#     SZ_KNOWN_LIST,
-#     SZ_OUTBOUND,
-#     SZ_USE_REGEX,
-# )
+from .schemas import SZ_PORT_NAME
 from .transport_new import SZ_IS_EVOFW3, PktTransportT
 from .transport_new import transport_factory as _transport_factory
 
@@ -274,17 +266,43 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60):
     return decorator
 
 
+_MsgHandlerT = Callable[[Message], None]
+_MsgFilterT = Callable[[Message], bool]
+
+
 class _BaseProtocol(asyncio.Protocol):
+    WRITER_TASK = "writer_task"
+
     _this_msg: None | Message = None
     _prev_msg: None | Message = None
 
-    def __init__(self, msg_callback: Callable):  # , **kwargs) -> None:
-        self._msg_callback = msg_callback
+    def __init__(self, msg_handler: _MsgHandlerT):  # , **kwargs) -> None:
+        self._msg_handler = msg_handler
+        self._msg_handlers: list[_MsgHandlerT] = []
 
         self._transport: PktTransportT = None  # type: ignore[assignment]
         self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
 
         self._pause_writing = False
+
+    def add_handler(
+        self,
+        msg_handler: _MsgHandlerT,
+        msg_filter: None | _MsgFilterT = None,
+    ) -> Callable[[None], None]:
+        """Add a Message handler to the list of such callbacks.
+
+        Returns a callback that can be used to subsequently remove the Message handler.
+        """
+
+        def del_handler() -> None:
+            if msg_handler in self._msg_handlers:
+                self._msg_handlers.remove(msg_handler)
+
+        if msg_handler not in self._msg_handlers:
+            self._msg_handlers.append(msg_handler)
+
+        return del_handler
 
     def connection_made(self, transport: PktTransportT) -> None:
         """Called by the Transport when a connection is made with it.
@@ -335,7 +353,7 @@ class _BaseProtocol(asyncio.Protocol):
         self._pause_writing = False
 
     # NOTE: wrapper for _send_cmd(cmd)
-    async def send_data(self, cmd: Command, callback: Callable = None) -> None:
+    async def send_data(self, cmd: Command, callback: None | Callable = None) -> None:
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
@@ -344,7 +362,7 @@ class _BaseProtocol(asyncio.Protocol):
             raise RuntimeError  # TODO
 
         # This is necessary to track state via the context.
-        self._send_cmd(cmd)  # self._transport.write(...)
+        await self._send_cmd(cmd)  # self._transport.write(...)
 
     async def _send_cmd(self, cmd: Command) -> None:
         """Called when a Command is to be sent to the Transport.
@@ -378,7 +396,10 @@ class _BaseProtocol(asyncio.Protocol):
         Also maintain _prev_msg, _this_msg attrs.
         """
 
-        self._loop.call_soon(self._msg_callback, msg)  # to the dispatcher
+        self._msg_handler(msg)  # to the internal state machine
+        for callback in self._msg_handlers:
+            # TODO: if it's filter returns True:
+            self._loop.call_soon(callback, msg)
 
     def eof_received(self) -> None:
         raise NotImplementedError
@@ -437,23 +458,26 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 class _ProtQosTimers(_BaseProtocol):  # context/state
     """A mixin for maintaining state via a FSM."""
 
-    _context: ProtocolContext
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._context = ProtocolContext()
 
     def connection_made(self, transport: PktTransportT) -> Any:
-        # self._context.connection_made(transport)
+        self._context.connection_made(transport)
         return super().connection_made(transport)
 
-    def pkt_received(self, pkt: Packet) -> Any:
-        # self._context.pkt_received(pkt)
-        return super().pkt_received(pkt)
+    def connection_lost(self, exc: None | Exception) -> Any:
+        self._context.connection_lost(exc)
+        return super().connection_lost(exc)
+
+    def _pkt_received(self, pkt: Packet) -> Any:
+        self._context._pkt_received(pkt)
+        return super()._pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command) -> Any:
-        # self._context.send_cmd(cmd)
+        self._context.send_cmd(cmd)
         return await super().send_cmd(cmd)
-
-    def connection_lost(self, exc: None | Exception) -> Any:
-        # self._context.connection_lost(exc)
-        return super().connection_lost(exc)
 
 
 class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
@@ -466,9 +490,9 @@ class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
 
     @avoid_system_syncs
     # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
-    async def _send_bytes(self, cmd: Command) -> None:
+    async def _send_bytes(self, data: bytes) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_bytes(cmd)
+        await super()._send_bytes(data)
 
 
 class _ProtDutyCycle(_BaseProtocol):  # stay within duty cycle limits
@@ -649,4 +673,10 @@ def create_stack(
             read_only=any([bool(kwargs.get(k)) for k in KEYS]),
         )
 
-    return protocol, (transport_factory or _transport_factory)(protocol, **kwargs)
+    transport = (transport_factory or _transport_factory)(protocol, **kwargs)
+
+    if not kwargs.get(SZ_PORT_NAME):
+        set_logger_timesource(transport._dt_now)
+        _LOGGER.error("Datetimes maintained as most recent packet log timestamp")
+
+    return protocol, transport
