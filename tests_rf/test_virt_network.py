@@ -95,8 +95,8 @@ async def test_virtual_rf_dev_disc():
 
     rf = VirtualRf(3)
 
-    # rf.set_gateway(rf.ports[0], "18:111111")
-    # rf.set_gateway(rf.ports[1], "18:222222")
+    rf.set_gateway(rf.ports[0], "18:000000")
+    rf.set_gateway(rf.ports[1], "18:111111")
 
     gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG)
     gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG)
@@ -105,36 +105,37 @@ async def test_virtual_rf_dev_disc():
     await assert_devices(gwy_0, [])
     await assert_devices(gwy_1, [])
 
+    # TEST 0: Tx of fingerprint packet with one on/one off
     await gwy_0.start()
 
-    await assert_devices(gwy_0, ["18:000730"])
+    await assert_devices(gwy_0, ["18:000000"])
     await assert_devices(gwy_1, [])
 
     await gwy_1.start()
 
-    await assert_devices(gwy_0, ["18:000730"])
-    await assert_devices(gwy_1, ["18:000730"])
+    await assert_devices(gwy_0, ["18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["18:111111"])  # not started so cant hear 18:000000
 
     # TEST 1: Tx to all from GWY /dev/pty/0 (NB: no RSSI)
     cmd = Command("RP --- 01:111111 --:------ 01:111111 1F09 003 0004B5")
     gwy_0.send_cmd(cmd)
 
-    await assert_devices(gwy_0, ["18:000730", "01:111111"])
-    await assert_devices(gwy_1, ["18:000730", "01:111111"])
+    await assert_devices(gwy_0, ["01:111111", "18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["01:111111", "18:111111"])
 
     # TEST 2: Tx to all from non-GWY /dev/pty/2 (NB: no RSSI)
     cmd = Command("RP --- 01:222222 --:------ 01:222222 1F09 003 0004B5")
     ser_2.write(bytes(f"{cmd}\r\n".encode("ascii")))
 
-    await assert_devices(gwy_0, ["18:000730", "01:111111", "01:222222"])
-    await assert_devices(gwy_1, ["18:000730", "01:111111", "01:222222"])
+    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["01:111111", "01:222222", "18:111111"])
 
-    # TEST 3: Rx only by one GWY /dev/pty/0 (needs RSSI)
+    # TEST 3: Rx only by *only one* GWY (NB: needs RSSI)
     cmd = Command("RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5")
-    list(rf._file_objs.values())[0].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
+    list(rf._file_objs.values())[1].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
 
-    await assert_devices(gwy_0, ["18:000730", "01:111111", "01:222222", "01:333333"])
-    await assert_devices(gwy_1, ["18:000730", "01:111111", "01:222222"])
+    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["01:111111", "01:222222", "01:333333", "18:111111"])
 
     await gwy_0.stop()
     await gwy_1.stop()
