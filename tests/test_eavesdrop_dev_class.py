@@ -10,10 +10,6 @@ import json
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
-from ramses_rf.dispatcher import _create_devices_from_addrs
-from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.packet import Packet
-from tests.helpers import gwy  # noqa: F401
 from tests.helpers import TEST_DIR, assert_expected
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_dev_class"
@@ -28,31 +24,47 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
-    def proc_log_line(gwy, pkt_line):
-        pkt_line, dev_slugs = pkt_line.split("#", maxsplit=1)
+async def test_packets_from_log_file(dir_name):  # noqa: F811
+    """Check eavesdropping of a src device _SLUG (from each packet line)."""
 
-        if not pkt_line[27:].strip():
-            return
-
-        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
-        msg = Message(pkt)
-
-        _create_devices_from_addrs(gwy, msg)
-        msg.src._handle_msg(msg)
-
-        assert msg.src._SLUG in eval(dev_slugs)
-
-    gwy.config.enable_eavesdrop = True
+    def proc_log_line(msg):
+        assert msg.src._SLUG in eval(msg._pkt.comment)
 
     with open(f"{dir_name}/packet.log") as f:
-        while line := (f.readline()):
-            if line.strip():
-                proc_log_line(gwy, line)
+        gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": False})
+        gwy.config.enable_eavesdrop = True  # Test setting this config attr
+
+        gwy.add_msg_handler(proc_log_line)
+
+        try:
+            await gwy.start()
+        finally:
+            await gwy.stop()
 
 
+# duplicate in test_eavesdrop_schema
+async def test_dev_eavesdrop_on_(dir_name):
+    """Check discovery of schema and known_list *with* eavesdropping."""
+
+    with open(f"{dir_name}/packet.log") as f:
+        gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
+        await gwy.start()
+
+    with open(f"{dir_name}/known_list_eavesdrop_on.json") as f:
+        assert_expected(gwy.known_list, json.load(f).get("known_list"))
+
+    try:
+        with open(f"{dir_name}/schema_eavesdrop_on.json") as f:
+            assert_expected(gwy.schema, json.load(f))
+    except FileNotFoundError:
+        pass
+
+    await gwy.stop()
+
+
+# duplicate in test_eavesdrop_schema
 async def test_dev_eavesdrop_off(dir_name):
-    gwy: Gateway = None  # noqa: F811
+    """Check discovery of schema and known_list *without* eavesdropping."""
 
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": False})
@@ -66,25 +78,6 @@ async def test_dev_eavesdrop_off(dir_name):
 
     try:
         with open(f"{dir_name}/schema_eavesdrop_off.json") as f:
-            assert_expected(gwy.schema, json.load(f))
-    except FileNotFoundError:
-        pass
-
-    await gwy.stop()
-
-
-async def test_dev_eavesdrop_on(dir_name):
-    gwy: Gateway = None  # noqa: F811
-
-    with open(f"{dir_name}/packet.log") as f:
-        gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
-        await gwy.start()
-
-    with open(f"{dir_name}/known_list_eavesdrop_on.json") as f:
-        assert_expected(gwy.known_list, json.load(f).get("known_list"))
-
-    try:
-        with open(f"{dir_name}/schema_eavesdrop_on.json") as f:
             assert_expected(gwy.schema, json.load(f))
     except FileNotFoundError:
         pass

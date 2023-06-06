@@ -37,7 +37,7 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_payloads_from_log_file(dir_name):  # noqa: F811
+def test_payloads_from_log_file(dir_name):
     """Assert that each message payload is as expected."""
     # RP --- 02:044328 18:200214 --:------ 2309 003 0007D0       # {'ufh_idx': '00', 'setpoint': 20.0}
 
