@@ -55,6 +55,9 @@ def binding_test_decorator(fnc):
             {"orphans_hvac": [resp[0]], "known_list": {resp[0]: {"class": resp[1]}}},
         )
 
+        await gwy_0.start()
+        await gwy_1.start()
+
         supplicant = gwy_0.device_by_id[supp[0]]
         respondent = gwy_1.device_by_id[resp[0]]
 
