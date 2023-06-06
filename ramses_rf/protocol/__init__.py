@@ -30,7 +30,7 @@ from .protocol_new import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
     QosProtocol,
     ReadProtocol,
-    create_stack,
+    protocol_factory,
 )
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA
 from .schemas import SZ_SERIAL_PORT
@@ -38,6 +38,7 @@ from .transport_new import (  # noqa: F401, pylint: disable=unused-import
     FileTransport,
     PortTransport,
     QosTransport,
+    transport_factory,
 )
 
 # noqa: F401, pylint: disable=unused-import

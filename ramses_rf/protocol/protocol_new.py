@@ -415,8 +415,8 @@ class _BaseProtocol(asyncio.Protocol):
 class _ReadProtocol(_BaseProtocol):
     """A protocol that can only receive Packets."""
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+        super().__init__(msg_handler)
 
         self._pause_writing = True
 
@@ -458,8 +458,8 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 class _ProtQosTimers(_BaseProtocol):  # context/state
     """A mixin for maintaining state via a FSM."""
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+        super().__init__(msg_handler)
 
         self._context = ProtocolContext()
 
@@ -507,8 +507,8 @@ class _ProtDutyCycle(_BaseProtocol):  # stay within duty cycle limits
 class _ProtGapped(_BaseProtocol):  # minimum gap between writes
     """A mixin for enforcing a minimum gap between writes."""
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+        super().__init__(msg_handler)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
         self._leaker_task = None
@@ -638,14 +638,14 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
         return await super().send_data(*args, **kwargs)
 
 
-def _protocol_factory(  # TODO: no_qos default should be None
-    msg_callback: Callable, /, *, read_only: bool = None, no_qos: bool = None, **kwargs
+def protocol_factory(  # TODO: no_qos default should be None
+    msg_handler: _MsgHandlerT, /, *, read_only: bool = None, disable_qos: bool = None
 ) -> MsgProtocolT:
     if read_only:
-        return ReadProtocol(msg_callback, **kwargs)
-    if no_qos:
-        return PortProtocol(msg_callback, **kwargs)
-    return QosProtocol(msg_callback, **kwargs)
+        return ReadProtocol(msg_handler)
+    if disable_qos:
+        return PortProtocol(msg_handler)
+    return QosProtocol(msg_handler)
 
 
 def create_stack(
@@ -668,7 +668,7 @@ def create_stack(
     if protocol_factory:
         protocol = protocol_factory(msg_handler, **kwargs)
     else:
-        protocol = _protocol_factory(
+        protocol = protocol_factory(
             msg_handler,
             read_only=any([bool(kwargs.get(k)) for k in KEYS]),
         )

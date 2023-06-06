@@ -5,6 +5,9 @@
 
 Decode/process a message (payload into JSON).
 """
+
+# TODO: fix dispatching - what devices (some are Addr) are sent packets, esp. 1FC9s
+
 from __future__ import annotations
 
 import logging
@@ -352,7 +355,7 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
         else:
             return
 
-        for d in devices:
+        for d in devices:  # FIXME: some may be Addresses
             if getattr(d, "_faked", False):
                 d._handle_msg(msg)  # TODO: gwy._loop.call_soon(d._handle_msg, msg)
 

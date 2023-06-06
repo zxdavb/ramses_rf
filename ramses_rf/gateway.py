@@ -39,9 +39,10 @@ from .protocol import (
     Address,
     Command,
     FileTransport,
-    create_stack,
     is_valid_dev_id,
+    protocol_factory,
     set_pkt_logging_config,
+    transport_factory,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .protocol.protocol_new import MsgProtocolT, PktTransportT
@@ -81,6 +82,9 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+_MsgHandlerT = Callable[[Message], None]
 
 
 class Engine:
@@ -141,24 +145,17 @@ class Engine:
     def _dt_now(self):
         return self._transport._dt_now() if self._transport else dt.now()
 
-    def _create_client(
-        self,
-        msg_handler: Callable[[Message, None | Message], None],
-        /,
-        **kwargs,
+    def _set_msg_handler(
+        self, msg_handler: _MsgHandlerT, /, *, read_only: bool = False
     ) -> tuple[MsgProtocolT, PktTransportT]:
-        """Create a client protocol for the RAMSES-II message transport."""
+        """Create an appropriate protocol for the packet source (transport).
 
-        if self.ser_name:
-            kwargs[SZ_PORT_NAME] = self.ser_name
-            kwargs[SZ_PORT_CONFIG] = self._port_config
-        else:
-            kwargs[SZ_PACKET_LOG] = self._input_file
-            # self.config.disable_discovery = True  # TODO: needed?
+        The corresponding transport will be created later.
+        """
 
-        self._protocol, self._transport = create_stack(msg_handler, **kwargs)
+        self._protocol = protocol_factory(msg_handler, read_only=read_only)
 
-    def add_client(
+    def add_msg_handler(
         self,
         msg_handler: Callable[[Message], None],
         /,
@@ -172,17 +169,35 @@ class Engine:
         # if msg_filter is not None and not is_callback(msg_filter):
         #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
 
-        if msg_filter:
+        if not msg_filter:
             msg_filter = lambda _: True  # noqa: E731
+        else:
             raise NotImplementedError
 
         self._protocol.add_handler(msg_handler, msg_filter=msg_filter)
 
-    async def start(self) -> None:
-        """Initiate receiving (Messages) and sending (Commands)."""
-        # self._transport.resume_reading()
-        # self._protocol.resume_writing()
-        pass
+    async def start(self, **kwargs) -> None:
+        """Create a suitable transport for the specified packet source.
+
+        Initiate receiving (Messages) and sending (Commands).
+        """
+
+        pkt_source = {}
+        if self.ser_name:
+            pkt_source[SZ_PORT_NAME] = self.ser_name
+            pkt_source[SZ_PORT_CONFIG] = self._port_config
+        elif self._input_file:
+            pkt_source[SZ_PACKET_LOG] = self._input_file
+        else:
+            raise TypeError
+
+        self._transport = transport_factory(
+            self._protocol,
+            exclude_list=self._exclude,
+            include_list=self._include,
+            **pkt_source,
+            **kwargs,
+        )
 
     async def stop(self) -> None:
         """Cancel all outstanding low-level tasks."""
@@ -358,6 +373,8 @@ class Gateway(Engine):
 
         self._setup_event_handlers()
 
+        self._set_msg_handler(self._handle_msg, read_only=self.config.disable_sending)
+
     def __repr__(self) -> str:
         if not self.ser_name:
             return f"Gateway(input_file={self._input_file})"
@@ -397,26 +414,24 @@ class Gateway(Engine):
         ):
             return self.device_by_id.get(device_id)
 
-    def _create_client(
-        self,
-        msg_handler: Callable[[Message, None | Message], None],
-        /,
-    ) -> tuple[MsgProtocolT, PktTransportT]:
-        """Create a client protocol for the RAMSES-II message transport."""
+    def _set_msg_handler(
+        self, msg_handler: _MsgHandlerT, /, *, read_only: bool = False
+    ) -> MsgProtocolT:
+        """Create an appropriate protocol for the packet source."""
 
-        # TODO: The optional filter will return True if the message is to be handled.
-        # if msg_filter is not None and not is_callback(msg_filter):
-        #     raise TypeError(f"Msg filter {msg_filter} is not a callback")
+        if self.ser_name:
+            pass
+        elif self._input_file:
+            read_only = self.config.disable_sending = True
+        else:
+            raise TypeError
 
-        return super()._create_client(
-            msg_handler,
-            disable_sending=self.config.disable_sending,
-            enforce_include_list=self.config.enforce_known_list,
-            exclude_list=self._exclude,
-            include_list=self._include,
-        )
+        if read_only:  # TODO: needed?
+            self.config.disable_discovery = True
 
-    async def start(self, *, start_discovery: bool = True) -> None:
+        return super()._set_msg_handler(msg_handler, read_only=read_only)
+
+    async def start(self, /, *, start_discovery: bool = True) -> None:
         """Start the Gateway and Initiate discovery as required."""
 
         def initiate_discovery(dev_list, sys_list) -> None:
@@ -435,9 +450,10 @@ class Gateway(Engine):
 
         load_schema(self, **self._schema)
 
-        self._create_client(self._handle_msg)
-
-        await super().start()
+        await super().start(
+            disable_sending=self.config.disable_sending,
+            enforce_include_list=self.config.enforce_known_list,
+        )
 
         if not self.ser_name:  # wait until have processed the entire packet log...
             await self._transport.get_extra_info(self._transport.READER_TASK)
@@ -566,14 +582,17 @@ class Gateway(Engine):
         if clear_state:
             self._clear_state()
 
-        _, tmp_transport = create_stack(
-            self._handle_msg,
+        tmp_protocol = protocol_factory(self._handle_msg, read_only=True)
+
+        tmp_transport = transport_factory(
+            tmp_protocol,
             packet_dict=packets,
             enforce_include_list=self.config.enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
         )
         await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
+        print("True")
 
     def get_device(
         self,

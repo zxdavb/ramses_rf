@@ -470,7 +470,7 @@ def print_summary(gwy: Gateway, **kwargs):
 async def main(command: str, lib_kwargs: dict, **kwargs):
     """Do certain things."""
 
-    def process_msg(msg: Message) -> None:
+    def handle_msg(msg: Message) -> None:
         """Process the message as it arrives (a callback).
 
         In this case, the message is merely printed.
@@ -516,7 +516,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     if lib_kwargs[SZ_CONFIG][SZ_REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # library will not send MSGs to STDOUT, so we'll send PKTs instead
         colorama_init(autoreset=True)  # WIP: remove strip=True
-        gwy.create_client(process_msg)
+        gwy.add_msg_handler(handle_msg)
 
     if kwargs["restore_state"]:
         print(" - Restoring client state from a HA cache...")
@@ -538,10 +538,8 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
 
         elif command in MONITOR:
             tasks = spawn_scripts(gwy, **kwargs)
-            await gwy.pkt_source
-
-        elif gwy.pkt_source:  # TODO: should simply be an else:
-            await gwy.pkt_source
+            await gwy.pkt_source  # FIXME
+            await asyncio.gather(*tasks)
 
     except asyncio.CancelledError:
         msg = "ended via: CancelledError (e.g. SIGINT)"
