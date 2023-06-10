@@ -47,7 +47,7 @@ async def test_schema_discover_from_log(f_name):
 @pytest.mark.parametrize(
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/jsn_files").glob("*.json")]
 )
-async def test_schema_load_from_json(gwy, f_name):  # noqa: F811
+async def test_schema_load_from_json(gwy: Gateway, f_name):  # noqa: F811
     with open(f"{WORK_DIR}/jsn_files/{f_name}.json") as f:
         schema = json.load(f)
 
@@ -62,3 +62,5 @@ async def test_schema_load_from_json(gwy, f_name):  # noqa: F811
     # gwy._tcs = None
     # gwy.devices = []
     # gwy.device_by_id = {}
+
+    await gwy.stop()
