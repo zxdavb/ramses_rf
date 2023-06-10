@@ -38,7 +38,6 @@ from .helpers import schedule_task, shrink
 from .protocol import (
     Address,
     Command,
-    FileTransport,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -228,7 +227,7 @@ class Engine:
         self._protocol.pause_writing()
         self._transport.pause_reading()
 
-        self._protocol._msg_callback, callback = None, self._protocol._msg_callback
+        self._protocol._msg_handler, callback = None, self._protocol._msg_handler
 
         self._engine_state = (callback, args)
 
@@ -249,7 +248,7 @@ class Engine:
         self._engine_lock.release()
 
         # TODO: is this needed, given it can buffer if required?
-        self._protocol._msg_callback = callback
+        self._protocol._msg_handler = callback
 
         self._transport.resume_reading()
         self._protocol.resume_writing()
@@ -475,7 +474,7 @@ class Gateway(Engine):
 
         await super().stop()
 
-    def _pause(self, *args, clear_state: bool = False) -> None:
+    def _pause(self, *args) -> None:
         """Pause the (unpaused) gateway (disables sending/discovery).
 
         There is the option to save other objects, as *args.
@@ -490,9 +489,6 @@ class Gateway(Engine):
             self.config.disable_discovery = disc_flag
             self.config.disable_sending = send_flag
             raise
-
-        if clear_state:
-            self._clear_state()
 
     def _resume(self) -> tuple:
         """Resume the (paused) gateway (enables sending/discovery, if applicable).
@@ -556,7 +552,9 @@ class Gateway(Engine):
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def set_state(self, packets: dict, *, schema: dict | None = None) -> None:
+    async def set_state(
+        self, packets: dict, *, schema: dict | None = None, clear_state: bool = True
+    ) -> None:
         """Restore a cached schema & state (includes expired packets).
 
         is schema is None (rather than {}), use the existing schema.
@@ -564,23 +562,24 @@ class Gateway(Engine):
 
         _LOGGER.warning("ENGINE: Restoring a schema/state...")
 
-        if schema is None:  # TODO: also for known_list (device traits)?
+        self._pause()
+
+        if clear_state:
+            schema = schema or {}
+        elif schema is None:  # TODO: also for known_list (device traits)?
             schema = shrink(self.schema)
 
-        self._pause(clear_state=True)
+        if clear_state:
+            self._clear_state()
 
-        load_schema(self, **schema)
         await self._set_state(packets, schema=schema)
 
         self._resume()
 
-    async def _set_state(
-        self, packets: dict, *, schema: dict | None = None, clear_state: bool = True
-    ) -> None:
-        tmp_transport: FileTransport  # mypy
+    async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
+        tmp_transport: PktTransportT  # mypy hint
 
-        if clear_state:
-            self._clear_state()
+        load_schema(self, **schema)
 
         tmp_protocol = protocol_factory(self._handle_msg, read_only=True)
 
@@ -591,8 +590,8 @@ class Gateway(Engine):
             exclude_list=self._exclude,
             include_list=self._include,
         )
+
         await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
-        print("True")
 
     def get_device(
         self,

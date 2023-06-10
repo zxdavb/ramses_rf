@@ -521,7 +521,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     if kwargs["restore_state"]:
         print(" - Restoring client state from a HA cache...")
         state = json.load(kwargs["restore_state"])["data"]["client_state"]
-        await gwy._set_state(packets=state["packets"])
+        await gwy.set_state(packets=state["packets"])
 
     print("client.py: Starting engine...")
 
