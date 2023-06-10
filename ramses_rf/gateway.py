@@ -4,11 +4,11 @@
 
 
 # TODO:
-# - create_client() should simply add a msg_handler callback to the protocol
 # - setting ser_port config done 2x - create_client & _start
 # - sort out gwy.config...
 # - sort out send_cmd generally, and make awaitable=
 # - sort out reduced processing
+# gwt.stop() doesn't stop all gwy._tasks
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
@@ -201,14 +201,8 @@ class Engine:
     async def stop(self) -> None:
         """Cancel all outstanding low-level tasks."""
 
-        # # FIXME: leaker_task, writer_task
-        # if t := self._protocol._leaker_task and not t.done():
-        #     try:
-        #         await t
-        #     except asyncio.CancelledError:
-        #         pass
-
-        self._transport.close()  # ? .abort()
+        if self._transport:  # why is this needed?
+            self._transport.close()  # ? .abort()
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
@@ -466,7 +460,7 @@ class Gateway(Engine):
         #     self._pause()
 
         _ = [t.cancel() for t in self._tasks if not t.done()]
-        try:
+        try:  # FIXME: this is broken
             if tasks := (t for t in self._tasks if not t.done()):
                 await asyncio.gather(*tasks)
         except asyncio.CancelledError:
