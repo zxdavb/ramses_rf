@@ -660,7 +660,7 @@ def create_stack(
 
     Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
     - send Commands via Protocol.send_cmd(cmd)
-    - receive Messages via Gateway._msg_callback(msg)
+    - receive Messages via Gateway._handle_msg(msg)
     """
 
     KEYS = ("disable_sending", "packet_dict", "packet_log")
