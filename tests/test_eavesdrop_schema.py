@@ -25,14 +25,14 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-async def assert_schemas_equal(gwy, expected_schema):
+async def assert_schemas_equal(gwy: Gateway, expected_schema: dict):
     """Check the gwy schema, then shuffle and test again."""
 
     schema, packets = gwy._get_state(include_expired=True)
     assert_expected(schema, expected_schema)
 
     packets = shuffle_dict(packets)
-    await gwy._set_state(packets)
+    await gwy.set_state(packets, schema=schema)
     assert_expected(gwy.schema, expected_schema)
 
 

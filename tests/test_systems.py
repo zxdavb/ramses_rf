@@ -96,9 +96,9 @@ async def test_restore_from_log_file(dir_name):
     expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_gwy(dir_name)  # noqa: F811
 
-    _, packets = gwy._get_state(include_expired=True)
+    schema, packets = gwy._get_state(include_expired=True)
 
-    await gwy._set_state(packets)
+    await gwy.set_state(packets, schema=schema)
     assert_expected_set(gwy, expected)
 
 
@@ -108,14 +108,14 @@ async def test_shuffle_from_log_file(dir_name):
     expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_gwy(dir_name)  # noqa: F811
 
-    _, packets = gwy._get_state(include_expired=True)
+    schema, packets = gwy._get_state(include_expired=True)
 
     packets = shuffle_dict(packets)
 
-    await gwy._set_state(packets)
+    await gwy.set_state(packets, schema=schema)  # clear_state=True
     assert_expected_set(gwy, expected)
 
     packets = shuffle_dict(packets)
 
-    await gwy._set_state(packets)
+    await gwy.set_state(packets, clear_state=False)  # use existing schema
     assert_expected_set(gwy, expected)

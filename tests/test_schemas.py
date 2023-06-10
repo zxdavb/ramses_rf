@@ -37,7 +37,7 @@ async def test_schema_discover_from_log(f_name):
         gwy.ser_name = "/dev/null"  # HACK: needed to pause engine
         schema, packets = gwy._get_state(include_expired=True)
         packets = shuffle_dict(packets)
-        await gwy._set_state(packets)
+        await gwy.set_state(packets)
 
         assert shrink(gwy.schema) == shrink(schema)
 
@@ -58,7 +58,7 @@ async def test_schema_load_from_json(gwy, f_name):  # noqa: F811
 
     assert shrink(gwy.schema) == shrink(schema)
 
-    # # HACK: await self.gwy._set_state({})
+    # # HACK: await self.gwy.set_state({})
     # gwy._tcs = None
     # gwy.devices = []
     # gwy.device_by_id = {}
