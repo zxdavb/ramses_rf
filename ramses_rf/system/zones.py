@@ -490,8 +490,7 @@ class Zone(ZoneSchedule, ZoneBase):
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
-            # TODO: broken fixme
-            # self._gwy._loop.call_soon(self._setup_discovery_cmds)  # TODO: check this
+            self._setup_discovery_cmds
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)

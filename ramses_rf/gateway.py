@@ -480,7 +480,7 @@ class Gateway(Engine):
         if not self.ser_name:  # wait until have processed the entire packet log...
             await self._transport.get_extra_info(self._transport.READER_TASK)
 
-        elif start_discovery:  # if gwy.config.disable_discovery: TODO:
+        elif start_discovery and not self._read_only:
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess

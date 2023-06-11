@@ -47,7 +47,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
+    from .device import Controller
+    from .gateway import Gateway
     from .protocol import Command, Message, Packet
+    from .system import System
 
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -81,11 +84,6 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 
 class MessageDB:
     """Maintain/utilize an entity's state database."""
-
-    if TYPE_CHECKING:
-        from .device import Controller
-        from .gateway import Gateway
-        from .system import System
 
     _gwy: Gateway
     ctl: Controller
@@ -223,7 +221,7 @@ class Discovery(MessageDB):
     MAX_CYCLE_SECS = 30
     MIN_CYCLE_SECS = 3
 
-    def __init__(self, gwy, *args, **kwargs) -> None:
+    def __init__(self, gwy: Gateway, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
@@ -232,11 +230,10 @@ class Discovery(MessageDB):
         self._supported_cmds: dict[str, None | bool] = {}
         self._supported_cmds_ctx: dict[str, None | bool] = {}
 
-        if not gwy.config.disable_discovery:  # TODO: here, or in get_xxx()?
-            # gwy._loop.call_soon_threadsafe(
-            #     gwy._loop.call_later, random(0.5, 1.5), self.start_discovery_poller
-            # )
-            gwy._loop.call_soon(self._start_discovery_poller)
+        # BUG: FIXME: The Bug
+        if not gwy.config.disable_discovery and not gwy._read_only:
+            # gwy._loop.call_soon(self._start_discovery_poller)  # BUG: use next instead
+            self._start_discovery_poller
 
     @property  # TODO: needs tidy up
     def discovery_cmds(self) -> dict:
@@ -316,7 +313,6 @@ class Discovery(MessageDB):
         if not self._discovery_poller or self._discovery_poller.done():
             self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
             self._discovery_poller.set_name(f"{self.id}_discovery_poller")
-            pass
 
     async def _stop_discovery_poller(self) -> None:
         if self._discovery_poller and not self._discovery_poller.done():
@@ -334,10 +330,6 @@ class Discovery(MessageDB):
         """
 
         while True:
-            if self._gwy.config.disable_discovery:  # TODO: remove?
-                await asyncio.sleep(self.MIN_CYCLE_SECS)
-                continue
-
             await self.discover()
 
             if self.discovery_cmds:
@@ -481,7 +473,7 @@ class Entity(Discovery):
 
     _SLUG: str = None  # type: ignore[assignment]
 
-    def __init__(self, gwy) -> None:
+    def __init__(self, gwy: Gateway) -> None:
         super().__init__(gwy)
 
         self._gwy = gwy
