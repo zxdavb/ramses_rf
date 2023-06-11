@@ -255,16 +255,17 @@ class _BaseTransport(asyncio.Transport):
     #     """Return the current protocol."""
     #     return self._protocol
 
-    # TODO: call_soon(self._protocol.data_received, pkt)
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted Packets to the protocol's callback.
 
         Also maintain _prev_pkt, _this_pkt attrs.
         """
 
+        # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
+        # NOTE: Thus, excepts need checking
         try:
             if self._protocol:
-                self._protocol.data_received(pkt)  # TODO: should be a call_soon?
+                self._protocol.data_received(pkt)  # could be a call_soon
         except AssertionError as exc:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
