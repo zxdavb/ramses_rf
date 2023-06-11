@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-from io import TextIOWrapper
-from types import SimpleNamespace
 from typing import Any, Callable
 
 import voluptuous as vol  # type: ignore[import]
@@ -37,7 +35,6 @@ from .protocol.const import (
     SZ_ZONE_TYPE,
     SZ_ZONES,
 )
-from .protocol.frame import _DeviceIdT
 from .protocol.schemas import (  # noqa: F401
     SCH_DEVICE_ID_ANY,
     SCH_DEVICE_ID_APP,
@@ -236,7 +233,7 @@ SCH_GLOBAL_SCHEMAS_DICT = {  # System schemas - can be 0-many Heat/HVAC schemas
         vol.Unique([SCH_DEVICE_ID_ANY]), vol.Length(min=0)
     ),
 }
-
+SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
 
 #
 # 4/5: Gateway (parser/state) configuration
@@ -247,7 +244,7 @@ SZ_REDUCE_PROCESSING = "reduce_processing"
 SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
 
-SCH_GATEWAY_DICT = SCH_ENGINE_DICT | {
+SCH_GATEWAY_DICT = {
     vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
     vol.Optional(SZ_ENABLE_EAVESDROP, default=False): bool,
     vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
@@ -261,23 +258,25 @@ SCH_GATEWAY_DICT = SCH_ENGINE_DICT | {
         "always", "prefer", "avoid", "never"
     ),
 }
+SCH_GATEWAY_CONFIG = vol.Schema(SCH_GATEWAY_DICT, extra=vol.REMOVE_EXTRA)
 
 
 #
 # 5/5: the Global (gateway) Schema
 SZ_CONFIG = "config"
 
-SCH_GLOBAL_CONFIG = vol.All(
+SCH_GLOBAL_CONFIG = (
     vol.Schema(
         {
             # Gateway/engine Configuraton, incl. packet_log, serial_port params...
             vol.Optional(SZ_CONFIG, default={}): SCH_GATEWAY_DICT
+            | SCH_ENGINE_DICT
         },
         extra=vol.PREVENT_EXTRA,
     )
     .extend(SCH_GLOBAL_SCHEMAS_DICT)
     .extend(SCH_GLOBAL_TRAITS_DICT)
-    .extend(sch_packet_log_dict_factory(default_backups=0)),
+    .extend(sch_packet_log_dict_factory(default_backups=0))
 )
 
 
@@ -311,79 +310,6 @@ SCH_RESTORE_CACHE_DICT = {
 
 #
 # 6/5: Other stuff
-def extract_schema(**kwargs) -> dict:
-    """Return the schema embedded with a global configuration."""
-    return {
-        k: v
-        for k, v in kwargs.items()
-        if DEVICE_ID_REGEX.ANY.match(k)
-        or k in (SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
-    }
-
-    # def extract_config(**kwargs) -> dict:
-    #     """Return the config embedded with a global configuration."""
-    #     return {
-    #         k: v
-    #         for k, v in kwargs.items()
-    #         if not DEVICE_ID_REGEX.ANY.match(k) and k not in (
-    #             SZ_MAIN_TCS, SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC
-    #         )
-    #     }
-
-    # def split_configuration(**kwargs) -> tuple[dict, dict]:
-    #     """Split a global configuration into non-schema (config) & schema."""
-    #     return extract_config(**kwargs), extract_schema(**kwargs),
-
-    pass
-
-
-def load_config(
-    port_name: None | str,
-    input_file: TextIOWrapper,
-    config: dict[str, Any] = None,
-    packet_log: None | dict[str, Any] = None,
-    block_list: dict[_DeviceIdT, dict] = None,
-    known_list: dict[_DeviceIdT, dict] = None,
-    **schema,
-) -> tuple[SimpleNamespace, dict, dict, dict]:
-    """Process the configuration, including any filter lists.
-
-    Returns:
-     - config (includes config.enforce_known_list)
-     - schema (processed further later on)
-     - known_list (is a dict)
-     - block_list (is a dict)
-    """
-
-    if port_name and input_file:
-        _LOGGER.warning(
-            "Serial port was specified (%s), so input file (%s) will be ignored",
-            port_name,
-            input_file,
-        )
-    elif port_name is None:
-        config[SZ_DISABLE_SENDING] = True
-
-    if config[SZ_DISABLE_SENDING]:
-        config[SZ_DISABLE_DISCOVERY] = True
-
-    if config[SZ_ENABLE_EAVESDROP]:
-        _LOGGER.warning(
-            f"{SZ_ENABLE_EAVESDROP} enabled: this is strongly discouraged"
-            " for routine use (there be dragons here)"
-        )
-
-    config[SZ_ENFORCE_KNOWN_LIST] = select_device_filter_mode(
-        config[SZ_ENFORCE_KNOWN_LIST], known_list, block_list
-    )
-
-    config[SZ_PACKET_LOG] = packet_log
-
-    # assert schema == extract_schema(**schema)
-
-    return (SimpleNamespace(**config), schema, known_list, block_list)
-
-
 def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
     """Raise an LookupError if a device_id is filtered out by a list.
 
@@ -394,7 +320,7 @@ def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
         """Raise an LookupError if a device_id is filtered out by a list."""
 
         err_msg = None
-        if gwy.config.enforce_known_list and dev_id not in gwy._include:
+        if gwy._enforce_known_list and dev_id not in gwy._include:
             err_msg = f"it is in the {SZ_SCHEMA}, but not in the {SZ_KNOWN_LIST}"
         if dev_id in gwy._exclude:
             err_msg = f"it is in the {SZ_SCHEMA}, but also in the {SZ_BLOCK_LIST}"
@@ -411,6 +337,8 @@ def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
 
 def load_schema(gwy, **kwargs) -> None:
     """Process the schema, and the configuration and return True if it is valid."""
+
+    # kwargs: dict = SCH_GLOBAL_SCHEMAS_DICT(kwargs)
 
     [
         load_tcs(gwy, ctl_id, schema)

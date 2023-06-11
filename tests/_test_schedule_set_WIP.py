@@ -31,8 +31,6 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
             )
             await self.gwy.start()
 
-            # self.gwy.config.disable_sending = False  # Will need to poke transport
-
         with open(f"{WORK_DIR}/schedule.json") as f:
             schedule = json.load(f)
 

@@ -8,7 +8,8 @@
 # - sort out gwy.config...
 # - sort out send_cmd generally, and make awaitable=
 # - sort out reduced processing
-# gwt.stop() doesn't stop all gwy._tasks
+# gwy.stop() doesn't stop all gwy._tasks
+# change TextIOWrapper to TextIO
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
@@ -45,20 +46,29 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .protocol.protocol_new import MsgProtocolT, PktTransportT
-from .protocol.schemas import SZ_PACKET_LOG, SZ_PORT_CONFIG, SZ_PORT_NAME
+from .protocol.schemas import (
+    SCH_ENGINE_CONFIG,
+    SZ_BLOCK_LIST,
+    SZ_DISABLE_SENDING,
+    SZ_ENFORCE_KNOWN_LIST,
+    SZ_KNOWN_LIST,
+    SZ_PACKET_LOG,
+    SZ_PORT_CONFIG,
+    SZ_PORT_NAME,
+    select_device_filter_mode,
+)
 from .schemas import (
-    SCH_GLOBAL_CONFIG,
+    SCH_GATEWAY_CONFIG,
+    SCH_GLOBAL_SCHEMAS,
     SCH_TRAITS,
     SZ_ALIAS,
-    SZ_BLOCK_LIST,
     SZ_CLASS,
     SZ_CONFIG,
-    SZ_ENFORCE_KNOWN_LIST,
+    SZ_DISABLE_DISCOVERY,
+    SZ_ENABLE_EAVESDROP,
     SZ_FAKED,
-    SZ_KNOWN_LIST,
     SZ_MAIN_TCS,
     SZ_ORPHANS,
-    load_config,
     load_schema,
 )
 from .system import System
@@ -71,9 +81,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     W_,
     Code,
 )
-
-
-SZ_INPUT_FILE = "input_file"  # FIXME
 
 
 DEV_MODE = __dev_mode__ and False
@@ -94,30 +101,57 @@ class Engine:
         port_name: None | str,
         input_file: None | TextIOWrapper = None,
         port_config: None | dict = None,
+        packet_log: dict = None,
+        block_list: dict = None,
+        known_list: dict = None,
         loop: None | asyncio.AbstractEventLoop = None,
+        **kwargs,
     ) -> None:
+        if port_name and input_file:
+            _LOGGER.warning(
+                "Port (%s) specified, so file (%s) ignored",
+                port_name,
+                input_file,
+            )
+            input_file = None
+
+        if port_name:
+            self._read_only = kwargs.get(SZ_DISABLE_SENDING)
+        elif input_file:
+            self._read_only = True
+        else:
+            raise TypeError("Either a port_name or a input_file must be specified")
+
         self.ser_name = port_name
         self._input_file = input_file
+
         self._port_config = port_config or {}
+        self._packet_log = packet_log or {}
         self._loop = loop or asyncio.get_running_loop()
 
-        self._include: dict[_DeviceIdT, dict] = {}  # aka known_list, and ?allow_list
-        self._exclude: dict[_DeviceIdT, dict] = {}  # aka block_list
+        self._exclude: dict[_DeviceIdT, dict] = block_list or {}
+        self._include: dict[_DeviceIdT, dict] = known_list or {}
         self._unwanted: list[_DeviceIdT] = [
             NON_DEV_ADDR.id,
             NUL_DEV_ADDR.id,
             "01:000001",  # why this one?
         ]
+        self._enforce_known_list = select_device_filter_mode(
+            kwargs.get(SZ_ENFORCE_KNOWN_LIST),
+            self._include,
+            self._exclude,
+        )
 
-        self.config = SimpleNamespace()  # **SCH_CONFIG_GATEWAY({}))
+        self._engine_lock = Lock()
+        self._engine_state: None | tuple[None | Callable, tuple] = None
 
         self._protocol: MsgProtocolT = None  # type: ignore[assignment]
         self._transport: PktTransportT = None  # type: ignore[assignment]
 
-        self._engine_lock = Lock()
-        self._engine_state: None | tuple[None | Callable, tuple] = None
-        self._prev_msg: Message | None = None  # used by the dispatcher
-        self._this_msg: Message | None = None  # used by the dispatcher
+        self._prev_msg: None | Message = None
+        self._this_msg: None | Message = None
+
+        self._set_msg_handler(self._handle_msg, read_only=self._read_only)
 
     def __str__(self) -> str:
         if not self._transport:
@@ -152,7 +186,7 @@ class Engine:
         The corresponding transport will be created later.
         """
 
-        self._protocol = protocol_factory(msg_handler, read_only=read_only)
+        self._protocol = protocol_factory(msg_handler, read_only=self._read_only)
 
     def add_msg_handler(
         self,
@@ -192,6 +226,8 @@ class Engine:
 
         self._transport = transport_factory(
             self._protocol,
+            disable_sending=self._read_only,
+            enforce_include_list=self._enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
             **pkt_source,
@@ -331,31 +367,46 @@ class Gateway(Engine):
     def __init__(
         self,
         port_name: None | str,
-        debug_mode: None | bool = None,
         input_file: None | TextIOWrapper = None,
-        loop: None | asyncio.AbstractEventLoop = None,
         port_config: None | dict = None,
+        packet_log: dict = None,
+        block_list: dict = None,
+        known_list: dict = None,
+        loop: None | asyncio.AbstractEventLoop = None,
         **kwargs,
     ) -> None:
-        if debug_mode:
-            _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-        _LOGGER.debug("Starting RAMSES RF, **config = %s", kwargs)
+        if kwargs.pop("debug_mode", None):
+            _LOGGER.setLevel(logging.DEBUG)
+
+        kwargs = {k: v for k, v in kwargs.items() if k[:1] != "_"}  # anachronism
+        config = kwargs.pop(SZ_CONFIG, {})
 
         super().__init__(
-            port_name, input_file=input_file, port_config=port_config, loop=loop
+            port_name,
+            input_file=input_file,
+            port_config=port_config,
+            packet_log=packet_log,
+            block_list=block_list,
+            known_list=known_list,
+            loop=loop,
+            **SCH_ENGINE_CONFIG(config),
         )
 
+        if self._read_only:
+            config[SZ_DISABLE_DISCOVERY] = True
+        if config.get(SZ_ENABLE_EAVESDROP):
+            _LOGGER.warning(
+                f"{SZ_ENABLE_EAVESDROP}=True: this is strongly discouraged"
+                " for routine use (there be dragons here)"
+            )
+
+        self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
+        self._schema: dict = SCH_GLOBAL_SCHEMAS(kwargs)
         self._tasks: list[asyncio.Task] = []  # TODO: used by discovery, move lower?
-        self._schema: dict[str, dict] = {}
 
-        (self.config, self._schema, self._include, self._exclude) = load_config(
-            self.ser_name,
-            self._input_file,
-            **SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"}),
-        )
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
-            **self.config.packet_log or {},
+            **self._packet_log,
         )
 
         # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
@@ -365,8 +416,6 @@ class Gateway(Engine):
         self.device_by_id: dict[str, Device] = {}
 
         self._setup_event_handlers()
-
-        self._set_msg_handler(self._handle_msg, read_only=self.config.disable_sending)
 
     def __repr__(self) -> str:
         if not self.ser_name:
@@ -407,23 +456,6 @@ class Gateway(Engine):
         ):
             return self.device_by_id.get(device_id)
 
-    def _set_msg_handler(
-        self, msg_handler: _MsgHandlerT, /, *, read_only: bool = False
-    ) -> MsgProtocolT:
-        """Create an appropriate protocol for the packet source."""
-
-        if self.ser_name:
-            pass
-        elif self._input_file:
-            read_only = self.config.disable_sending = True
-        else:
-            raise TypeError
-
-        if read_only:  # TODO: needed?
-            self.config.disable_discovery = True
-
-        return super()._set_msg_handler(msg_handler, read_only=read_only)
-
     async def start(self, /, *, start_discovery: bool = True) -> None:
         """Start the Gateway and Initiate discovery as required."""
 
@@ -443,10 +475,7 @@ class Gateway(Engine):
 
         load_schema(self, **self._schema)
 
-        await super().start(
-            disable_sending=self.config.disable_sending,
-            enforce_include_list=self.config.enforce_known_list,
-        )
+        await super().start()
 
         if not self.ser_name:  # wait until have processed the entire packet log...
             await self._transport.get_extra_info(self._transport.READER_TASK)
@@ -475,13 +504,13 @@ class Gateway(Engine):
         """
 
         disc_flag, self.config.disable_discovery = self.config.disable_discovery, True
-        send_flag, self.config.disable_sending = self.config.disable_sending, True
+        send_flag, self._read_only = self._read_only, True
 
         try:
             super()._pause(disc_flag, send_flag, *args)
         except RuntimeError:
             self.config.disable_discovery = disc_flag
-            self.config.disable_sending = send_flag
+            self._read_only = send_flag
             raise
 
     def _resume(self) -> tuple:
@@ -490,11 +519,7 @@ class Gateway(Engine):
         Will restore other objects, as *args.
         """
 
-        (
-            self.config.disable_discovery,
-            self.config.disable_sending,
-            *args,
-        ) = super()._resume()
+        self.config.disable_discovery, self._read_only, *args = super()._resume()
 
         return args  # type: ignore[return-value]
 
@@ -580,7 +605,7 @@ class Gateway(Engine):
         tmp_transport = transport_factory(
             tmp_protocol,
             packet_dict=packets,
-            enforce_include_list=self.config.enforce_known_list,
+            enforce_include_list=self._enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
         )
@@ -611,7 +636,7 @@ class Gateway(Engine):
             if dev_id in self._unwanted:  # TODO: shouldn't invalidate a msg
                 raise LookupError(f"Can't create {dev_id}: it is unwanted or invalid")
 
-            if self.config.enforce_known_list and (
+            if self._enforce_known_list and (
                 dev_id not in self._include and dev_id != getattr(self.hgi, "id", None)
             ):
                 self._unwanted.append(dev_id)
@@ -675,7 +700,7 @@ class Gateway(Engine):
             {
                 d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
                 for d in self.devices
-                if not self.config.enforce_known_list or d.id in self._include
+                if not self._enforce_known_list or d.id in self._include
             }
         )
         return result
@@ -706,7 +731,7 @@ class Gateway(Engine):
         return {
             "_gateway_id": self.hgi.id if self.hgi else None,
             SZ_MAIN_TCS: self.tcs.id if self.tcs else None,
-            SZ_CONFIG: {SZ_ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
+            SZ_CONFIG: {SZ_ENFORCE_KNOWN_LIST: self._enforce_known_list},
             SZ_KNOWN_LIST: self.known_list,
             SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
             "_unwanted": sorted(self._transport._unwanted),
@@ -759,7 +784,7 @@ class Gateway(Engine):
     ) -> futures.Future:
         """Send a command with the option to return any response via callback."""
 
-        if self.config.disable_sending:
+        if self._read_only:
             raise RuntimeError("sending is disabled")
 
         fut = super().send_cmd(cmd, callback, **kwargs)
@@ -788,7 +813,7 @@ class Gateway(Engine):
         elif not create_device and device_id not in self.device_by_id:
             raise LookupError(f"The device id does not exist: {device_id}")
 
-        if self.config.enforce_known_list and device_id not in self._include:
+        if self._enforce_known_list and device_id not in self._include:
             self._include[device_id] = {}
         elif device_id in self._exclude:
             del self._exclude[device_id]

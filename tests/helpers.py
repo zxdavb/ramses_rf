@@ -15,9 +15,8 @@ import voluptuous as vol
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.protocol.schemas import SCH_GLOBAL_TRAITS_DICT
-from ramses_rf.schemas import SCH_GLOBAL_CONFIG, SCH_GLOBAL_SCHEMAS_DICT
+from ramses_rf.schemas import SCH_GLOBAL_CONFIG, SCH_GLOBAL_SCHEMAS
 
-SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
 SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 
 # import tracemalloc
@@ -56,7 +55,7 @@ def shuffle_dict(old_dict) -> dict:
 async def gwy() -> Gateway:  # NOTE: async to get running loop
     """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})
-    gwy.config.disable_sending = True
+    gwy._read_only = True
     return gwy
 
 

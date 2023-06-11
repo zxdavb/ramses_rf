@@ -82,11 +82,16 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 class MessageDB:
     """Maintain/utilize an entity's state database."""
 
-    _gwy: Any  # HACK
-    ctl: Any  # HACK
-    tcs: Any  # HACK
+    if TYPE_CHECKING:
+        from .device import Controller
+        from .gateway import Gateway
+        from .system import System
 
-    def __init__(self, gwy) -> None:
+    _gwy: Gateway
+    ctl: Controller
+    tcs: System
+
+    def __init__(self, gwy: Gateway) -> None:
         self._msgs: dict[_CodeT, Message] = {}  # code, should be code/ctx? ?deprecate
         self._msgz: dict[_CodeT, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
 
@@ -513,8 +518,8 @@ class Entity(Discovery):
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
     def _send_cmd(self, cmd, **kwargs) -> None | Future:
-        if self._gwy.config.disable_sending:
-            _LOGGER.info(f"{cmd} < Sending is disabled")
+        if self._gwy._read_only:
+            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request")
             return None
 
         if self._qos_tx_count > _QOS_TX_LIMIT:

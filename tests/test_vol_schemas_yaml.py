@@ -19,6 +19,7 @@ from ramses_rf.protocol.schemas import (
 )
 from ramses_rf.schemas import (
     SCH_GATEWAY_DICT,
+    SCH_GLOBAL_SCHEMAS,
     SCH_GLOBAL_SCHEMAS_DICT,
     SCH_RESTORE_CACHE_DICT,
 )
@@ -27,7 +28,6 @@ SCH_PACKET_LOG_DICT = sch_packet_log_dict_factory(default_backups=7)
 SCH_SERIAL_PORT_DICT = sch_serial_port_dict_factory()
 
 SCH_GATEWAY = vol.Schema(SCH_GATEWAY_DICT | SCH_ENGINE_DICT, extra=vol.PREVENT_EXTRA)
-SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
 SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 SCH_PACKET_LOG = vol.Schema(SCH_PACKET_LOG_DICT, extra=vol.PREVENT_EXTRA)
 SCH_RESTORE_CACHE = vol.Schema(SCH_RESTORE_CACHE_DICT, extra=vol.PREVENT_EXTRA)

@@ -75,7 +75,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
 
-        if self._gwy.config.disable_sending:
+        if self._gwy._read_only:
             raise RuntimeError("Sending is disabled")
 
         self._START = 0 if start is None else start

@@ -597,7 +597,7 @@ def create_msg_stack(
         msg_transport.add_protocol(msg_protocol)
     else:
         extra = {
-            "disable_sending": gwy.config.disable_sending,
+            "disable_sending": gwy._read_only,
             "reduce_processing": gwy.config.reduce_processing,
         }
         msg_transport = MessageTransport(gwy._loop, msg_protocol, extra=extra)

@@ -324,8 +324,8 @@ def select_device_filter_mode(
     """Determine which device filter to use, if any.
 
     Either:
+     - block if device_id in block_list (could be empty), otherwise
      - allow if device_id in known_list, or
-     - block if device_id in block_list (could be empty)
     """
 
     if both := set(known_list) & set(block_list):
@@ -396,6 +396,7 @@ SCH_ENGINE_DICT = {
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
     vol.Optional(SZ_USE_REGEX): dict,  # vol.All(ConvertNullToDict(), dict),
 }
+SCH_ENGINE_CONFIG = vol.Schema(SCH_ENGINE_DICT, extra=vol.REMOVE_EXTRA)
 
 SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
 SZ_OUTBOUND = "outbound"

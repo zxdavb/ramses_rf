@@ -34,7 +34,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Any, Awaitable, Callable, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
 from serial import SerialBase, SerialException, serial_for_url  # type: ignore[import]
 from serial.tools.list_ports import comports  # type: ignore[import]
@@ -72,6 +72,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
+
+if TYPE_CHECKING:
+    from .. import Gateway
 
 _PacketProtocolT = TypeVar("_PacketProtocolT", bound="PacketProtocolBase")
 _PacketTransportT = TypeVar("_PacketTransportT", bound=asyncio.BaseTransport)
@@ -932,13 +935,13 @@ class PacketProtocolQos(PacketProtocolPort):
 
 
 def create_protocol_factory(
-    protocol_class: type[asyncio.Protocol], gwy, pkt_callback: Callable
+    protocol_class: type[asyncio.Protocol], gwy: Gateway, pkt_callback: Callable
 ) -> Callable:
     def _protocol_factory() -> asyncio.Protocol:
         return protocol_class(
             pkt_callback,
-            disable_sending=gwy.config.disable_sending,
-            enforce_include_list=gwy.config.enforce_known_list,
+            disable_sending=gwy._read_only,
+            enforce_include_list=gwy._enforce_known_list,
             exclude_list=gwy._exclude,
             include_list=gwy._include,
             loop=gwy._loop,
@@ -950,7 +953,7 @@ def create_protocol_factory(
 
 
 def create_pkt_stack(
-    gwy,
+    gwy: Gateway,
     pkt_callback: Callable[[Packet], None],
     /,
     *,
@@ -1007,7 +1010,7 @@ def create_pkt_stack(
     def protocol_factory_() -> _PacketProtocolT:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
-        elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
+        elif gwy._read_only:
             return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()

@@ -110,7 +110,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     _SLUG: str = None  # type: ignore[assignment]
 
-    def __init__(self, ctl) -> None:
+    def __init__(self, ctl: Device) -> None:
         _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl.id, self.__class__)
 
         if ctl.id in ctl._gwy.system_by_id:
@@ -644,7 +644,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         return self._msg_0006.payload[SZ_CHANGE_COUNTER], True  # global_ver, did_io
 
     def _refresh_schedules(self) -> None:
-        if self._gwy.config.disable_sending:
+        if self._gwy._read_only:
             raise RuntimeError("Sending is disabled")
 
         # schedules based upon 'active' (not most recent) 0006 pkt
@@ -753,13 +753,13 @@ class Logbook(SystemBase):  # 0418
         #     self._send_cmd(Command.get_system_log_entry(self.ctl.id, 1))
 
         # TODO: if self._faultlog_outdated:
-        #     if not self._gwy.config.disable_sending:
+        #     if not self._gwy._read_only:
         #         self._loop.create_task(self.get_faultlog(force_io=True))
 
     async def get_faultlog(
         self, *, start=None, limit=None, force_io=None
     ) -> None | dict:
-        if self._gwy.config.disable_sending:
+        if self._gwy._read_only:
             raise RuntimeError("Sending is disabled")
 
         try:
