@@ -337,7 +337,7 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
         # systems, zones, circuits) is done by those devices (e.g. UFC to UfhCircuit)
 
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
-            msg.src._handle_msg(msg)  # TODO ._loop.call_soon(msg.src._handle_msg, msg)
+            gwy._loop.call_soon(msg.src._handle_msg, msg)
 
         # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
         if msg.dst is not msg.src:
@@ -357,7 +357,7 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
 
         for d in devices:  # FIXME: some may be Addresses
             if getattr(d, "_faked", False):
-                d._handle_msg(msg)  # TODO: gwy._loop.call_soon(d._handle_msg, msg)
+                gwy._loop.call_soon(d._handle_msg, msg)
 
     except (AssertionError, EvohomeError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
