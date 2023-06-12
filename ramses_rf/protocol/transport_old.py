@@ -116,7 +116,7 @@ Pause = SimpleNamespace(
 
 VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 
-# evofw3 commands (as of 0.7.0) include (from cmd.c):
+# EVOFW3_FLAG: evofw3 commands (as of 0.7.0) include (from cmd.c):
 # case 'V':  validCmd = cmd_version( cmd );       break;
 # case 'T':  validCmd = cmd_trace( cmd );         break;
 # case 'B':  validCmd = cmd_boot( cmd );          break;

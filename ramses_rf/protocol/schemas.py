@@ -199,7 +199,7 @@ def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict]:
 
 
 #
-# 3/5: Traits (of devices) configuraion (basic)  # TODO: moving from ..const
+# 3/5: Traits (of devices) configuraion (basic)
 def ConvertNullToDict():
     def convert_null_to_dict(node_value) -> dict:
         if node_value is None:

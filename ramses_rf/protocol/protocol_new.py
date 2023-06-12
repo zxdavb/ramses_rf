@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-
-
-# TODO:
-# - make use_regex work again
-
-
 """RAMSES RF - RAMSES-II compatible packet protocol."""
 from __future__ import annotations
 
@@ -56,9 +50,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
-
-# if TYPE_CHECKING:
-#     from io import TextIOWrapper
 
 
 MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
@@ -413,21 +404,6 @@ class _BaseProtocol(asyncio.Protocol):
         raise NotImplementedError
 
 
-class _ReadProtocol(_BaseProtocol):
-    """A protocol that can only receive Packets."""
-
-    def __init__(self, msg_handler: _MsgHandlerT) -> None:
-        super().__init__(msg_handler)
-
-        self._pause_writing = True
-
-    async def send_data(self, cmd: Command, callback: Callable = None) -> None:
-        raise NotImplementedError
-
-    def resume_writing(self) -> None:
-        pass
-
-
 class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
     """A mixin for warning that impersonation is being performed."""
 
@@ -550,15 +526,17 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
 # QosTimers last, to start any timers immediately after Tx of Command
 
 
-class _WriteProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle):
-    """A protocol that can receive Packets and send Commands."""
-
-    pass
-
-
 # ### Read-Only Protocol for FileTransport ############################################
-class ReadProtocol(_ReadProtocol):
+class ReadProtocol(_BaseProtocol):
     """A protocol that can only receive Packets."""
+
+    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+        super().__init__(msg_handler)
+
+        self._pause_writing = True
+
+    def resume_writing(self) -> None:
+        raise NotImplementedError
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def connection_made(self, transport: PktTransportT) -> None:
@@ -568,9 +546,8 @@ class ReadProtocol(_ReadProtocol):
     def data_received(self, data) -> None:
         super().data_received(data)
 
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_data(self, cmd: Command, **kwargs) -> Any:
-        return await super().send_data(cmd, **kwargs)
+    async def send_data(self, cmd: Command, callback: Callable = None) -> None:
+        raise NotImplementedError
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def connection_lost(self, exc) -> None:
@@ -578,7 +555,7 @@ class ReadProtocol(_ReadProtocol):
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
-class PortProtocol(_WriteProtocol):
+class PortProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle):
     """A protocol that can receive Packets and send Commands."""
 
     # TODO: remove me (a convenience wrapper for breakpoint)

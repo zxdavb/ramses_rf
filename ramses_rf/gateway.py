@@ -2,14 +2,12 @@
 # -*- coding: utf-8 -*-
 #
 
-
 # TODO:
-# - setting ser_port config done 2x - create_client & _start
-# - sort out gwy.config...
+# - sort out gwy.config... - evofw3 flag, use_regex (add test)
 # - sort out send_cmd generally, and make awaitable=
 # - sort out reduced processing
-# gwy.stop() doesn't stop all gwy._tasks
-# change TextIOWrapper to TextIO
+# - change TextIOWrapper to TextIO??
+
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
@@ -234,19 +232,22 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to pause engine, it is already paused")
 
-        self._engine_state, callback = (None, tuple()), None  # aka not None
+        self._engine_state = (None, tuple())  # aka not None
         self._engine_lock.release()  # is ok to release now
 
-        self._protocol.pause_writing()
-        self._transport.pause_reading()
+        self._protocol.pause_writing()  # TODO: call_soon()?
+        self._transport.pause_reading()  # TODO: call_soon()?
 
-        self._protocol._msg_handler, callback = None, self._protocol._msg_handler
+        self._protocol._msg_handler, handler = None, self._protocol._msg_handler
+        self._read_only, read_only = True, self._read_only
 
-        self._engine_state = (callback, args)
+        self._engine_state = (handler, read_only, args)
 
     def _resume(self) -> tuple:  # FIXME: not atomic
         """Resume the (paused) engine or raise a RuntimeError."""
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Resuming engine...")
+
+        args: tuple  # mypy
 
         if not self._engine_lock.acquire(timeout=0.1):
             raise RuntimeError("Unable to resume engine, failed to acquire lock")
@@ -255,16 +256,12 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to resume engine, it was not paused")
 
-        callback: None | Callable  # mypy
-        args: tuple  # mypy
-        callback, args = self._engine_state
+        self._protocol._msg_handler, self._read_only, args = self._engine_state
         self._engine_lock.release()
 
-        # TODO: is this needed, given it can buffer if required?
-        self._protocol._msg_handler = callback
-
         self._transport.resume_reading()
-        self._protocol.resume_writing()
+        if not self._read_only:
+            self._protocol.resume_writing()
 
         self._engine_state = None
 
@@ -459,14 +456,12 @@ class Gateway(Engine):
         There is the option to save other objects, as *args.
         """
 
-        disc_flag, self.config.disable_discovery = self.config.disable_discovery, True
-        send_flag, self._read_only = self._read_only, True
+        self.config.disable_discovery, disc_flag = True, self.config.disable_discovery
 
         try:
-            super()._pause(disc_flag, send_flag, *args)
+            super()._pause(disc_flag, *args)
         except RuntimeError:
             self.config.disable_discovery = disc_flag
-            self._read_only = send_flag
             raise
 
     def _resume(self) -> tuple:
@@ -475,7 +470,7 @@ class Gateway(Engine):
         Will restore other objects, as *args.
         """
 
-        self.config.disable_discovery, self._read_only, *args = super()._resume()
+        self.config.disable_discovery, *args = super()._resume()
 
         return args  # type: ignore[return-value]
 
