@@ -375,7 +375,6 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
         self._protocol.pause_writing()  # but protocol would know is a R/O transport
 
         reader = self._loop.create_task(self._start_reader())
-        reader.add_done_callback(self._handle_reader_done)
         self._extra[self.READER_TASK] = reader
 
         # FIXME: remove this somehow
@@ -396,14 +395,12 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
     async def _start_reader(self) -> None:  # TODO
         self._is_reading = True
-        await self._reader()
-
-    def _handle_reader_done(self, task: asyncio.Task) -> None:  # TODO
-        self._is_reading = False
         try:
-            task.result()
-        finally:
-            pass  # self._extra[self.READER_TASK] = None
+            await self._reader()
+        except KeyboardInterrupt as exc:
+            self._protocol.connection_lost(exc)
+        else:
+            self._protocol.connection_lost()
 
     async def _reader(self) -> None:  # TODO
         """Loop through the packet source for Frames and process them."""

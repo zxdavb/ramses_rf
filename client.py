@@ -478,9 +478,9 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
 
         if _DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
             print(
-                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
+                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
+                f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
-            # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # ("{msg.src!r}", "{msg.dst!r}")')
             return
 
         if kwargs["long_format"]:
@@ -592,7 +592,7 @@ if __name__ == "__main__":
             profile.run("asyncio.run(main(command, lib_kwargs, **kwargs))")
         else:
             asyncio.run(main(command, lib_kwargs, **kwargs))
-    except SystemExit:
+    except KeyboardInterrupt:  # , SystemExit):
         pass
 
     if _PROFILE_LIBRARY:

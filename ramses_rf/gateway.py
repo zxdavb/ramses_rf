@@ -19,8 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import signal
 from concurrent import futures
 from datetime import datetime as dt
 from io import TextIOWrapper
@@ -162,19 +160,6 @@ class Engine:
         )
         return f"{device_id} ({self.ser_name})"
 
-    def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
-        def handle_exception(loop, context):
-            """Handle exceptions on any platform."""
-            _LOGGER.error("handle_exception(): Caught: %s", context["message"])
-
-            exc = context.get("exception")
-            if exc:
-                raise exc
-
-        if DEV_MODE:
-            _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
-            self._loop.set_exception_handler(handle_exception)
-
     def _dt_now(self):
         return self._transport._dt_now() if self._transport else dt.now()
 
@@ -219,10 +204,8 @@ class Engine:
         if self.ser_name:
             pkt_source[SZ_PORT_NAME] = self.ser_name
             pkt_source[SZ_PORT_CONFIG] = self._port_config
-        elif self._input_file:
+        else:  # if self._input_file:
             pkt_source[SZ_PACKET_LOG] = self._input_file
-        else:
-            raise TypeError
 
         self._transport = transport_factory(
             self._protocol,
@@ -235,10 +218,9 @@ class Engine:
         )
 
     async def stop(self) -> None:
-        """Cancel all outstanding low-level tasks."""
+        """Cancel any outstanding low-level tasks."""
 
-        if self._transport:  # why is this needed?
-            self._transport.close()  # ? .abort()
+        raise NotImplementedError
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
@@ -415,38 +397,10 @@ class Gateway(Engine):
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
-        self._setup_event_handlers()
-
     def __repr__(self) -> str:
         if not self.ser_name:
             return f"Gateway(input_file={self._input_file})"
         return f"Gateway(port_name={self.ser_name}, port_config={self._port_config})"
-
-    def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
-        async def handle_sig_posix(sig):
-            """Handle signals on posix platform."""
-            _LOGGER.debug("Received a signal (%s), processing...", sig.name)
-
-            if sig == signal.SIGUSR1:
-                _LOGGER.info("Schema: \r\n%s", {self.tcs.id: self.tcs.schema})
-                _LOGGER.info("Params: \r\n%s", {self.tcs.id: self.tcs.params})
-                _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
-
-            elif sig == signal.SIGUSR2:
-                _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
-
-        super()._setup_event_handlers()
-
-        _LOGGER.debug("_setup_event_handlers(): Creating signal handlers...")
-        if os.name == "posix":  # full support
-            for sig in [signal.SIGUSR1, signal.SIGUSR2]:
-                self._loop.add_signal_handler(
-                    sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
-                )
-        elif os.name == "nt":  # supported, but YMMV
-            _LOGGER.warning("Be aware, YMMV with Windows...")
-        else:  # unsupported
-            raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
     @property
     def hgi(self) -> None | Device:
@@ -494,8 +448,6 @@ class Gateway(Engine):
                 await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             pass
-
-        await super().stop()
 
     def _pause(self, *args) -> None:
         """Pause the (unpaused) gateway (disables sending/discovery).
@@ -653,13 +605,20 @@ class Gateway(Engine):
                 )
 
         check_filter_lists(dev_id)
-        traits = SCH_TRAITS(self._include.get(dev_id, {}))
 
         dev = self.device_by_id.get(dev_id)
         if not dev:
+            traits = SCH_TRAITS(self._include.get(dev_id, {}))
             dev = device_factory(self, Address(dev_id), msg=msg, **traits)
 
+            if traits.get(SZ_FAKED):
+                if isinstance(dev, Fakeable):
+                    dev._make_fake()
+                else:
+                    _LOGGER.warning(f"The device is not fakable: {dev}")
+
         # TODO: the exact order of the following may need refining...
+        # TODO: some will be done my devices themselves?
 
         # if schema:  # Step 2: Only controllers have a schema...
         #     dev._update_schema(**schema)  # TODO: schema/traits
@@ -667,14 +626,8 @@ class Gateway(Engine):
         if parent or child_id:
             dev.set_parent(parent, child_id=child_id, is_sensor=is_sensor)
 
-        if traits.get(SZ_FAKED):
-            if isinstance(dev, Fakeable):
-                dev._make_fake()
-            else:
-                _LOGGER.warning(f"The device is not fakable: {dev}")
-
-        if msg:
-            dev._handle_msg(msg)
+        # if msg:
+        #     dev._handle_msg(msg)
 
         return dev
 
