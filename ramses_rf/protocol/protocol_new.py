@@ -299,7 +299,7 @@ class _BaseProtocol(asyncio.Protocol):
         """Called by the Transport when a connection is made with it.
 
         The argument is the transport representing the pipe connection. To receive data,
-        wait for data_received() calls. When the connection is closed, connection_lost()
+        wait for pkt_received() calls. When the connection is closed, connection_lost()
         is called.
         """
 
@@ -344,8 +344,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    # NOTE: wrapper for _send_cmd(cmd)
-    async def send_data(self, cmd: Command, callback: None | Callable = None) -> None:
+    async def send_cmd(self, cmd: Command, callback: None | Callable = None) -> None:
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
@@ -367,8 +366,7 @@ class _BaseProtocol(asyncio.Protocol):
         """Write some bytes to the transport."""
         self._transport.write(data)
 
-    # NOTE: wrapper for _pkt_received(pkt)
-    def data_received(self, pkt: Packet) -> None:
+    def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
         self._pkt_received(pkt)
 
@@ -424,7 +422,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_data(self, cmd: Command, callback: Callable = None) -> None:
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         """Write some data bytes to the transport."""
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
@@ -461,9 +459,9 @@ class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
     """A mixin for avoiding sync cycles."""
 
     @track_system_syncs
-    def data_received(self, pkt: Packet) -> None:
+    def pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
-        super().data_received(pkt)
+        super().pkt_received(pkt)
 
     @avoid_system_syncs
     # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
@@ -526,7 +524,7 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
 # QosTimers last, to start any timers immediately after Tx of Command
 
 
-# ### Read-Only Protocol for FileTransport ############################################
+# ### Read-Only Protocol for FileTransport, PortTransport #############################
 class ReadProtocol(_BaseProtocol):
     """A protocol that can only receive Packets."""
 
@@ -539,19 +537,11 @@ class ReadProtocol(_BaseProtocol):
         raise NotImplementedError
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def connection_made(self, transport: PktTransportT) -> None:
-        super().connection_made(transport)
+    def pkt_received(self, data) -> None:
+        super().pkt_received(data)
 
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def data_received(self, data) -> None:
-        super().data_received(data)
-
-    async def send_data(self, cmd: Command, callback: Callable = None) -> None:
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         raise NotImplementedError
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def connection_lost(self, exc) -> None:
-        super().connection_lost(exc)
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
@@ -559,12 +549,12 @@ class PortProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle
     """A protocol that can receive Packets and send Commands."""
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def data_received(self, data) -> None:
-        super().data_received(data)
+    def pkt_received(self, data) -> None:
+        super().pkt_received(data)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_data(self, cmd: Command, **kwargs) -> Any:
-        return await super().send_data(cmd, **kwargs)
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Any:
+        return await super().send_cmd(cmd, callback=callback)
 
 
 # ### Read-Write Protocol for QosTransport ############################################
@@ -572,6 +562,10 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
     """A protocol that can receive Packets and send Commands with QoS."""
 
     _expecting_cmd: None | Command = None
+
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def pkt_received(self, data) -> None:
+        super().pkt_received(data)
 
     def _msg_received(self, msg: Message) -> None:
         """Check if Message this is the expected response (if any)."""
@@ -596,6 +590,10 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
         super()._msg_received(msg)
 
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Any:
+        return await super().send_cmd(cmd, callback=callback)
+
     async def _send_cmd(self, cmd: Command) -> None:
         """Check if this Command is expecting a response."""
 
@@ -606,14 +604,6 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
         # self._context.send_cmd(cmd)
 
         await super()._send_cmd(cmd)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def data_received(self, data) -> None:
-        super().data_received(data)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_data(self, cmd: Command, **kwargs) -> Any:
-        return await super().send_data(cmd, **kwargs)
 
 
 def protocol_factory(  # TODO: no_qos default should be None

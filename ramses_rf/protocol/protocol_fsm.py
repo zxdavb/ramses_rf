@@ -78,7 +78,7 @@ class ProtocolStateBase:
     def connection_lost(self, exc: None | Exception) -> None:
         self._set_context_state(IsInactive)
 
-    def data_received(self, pkt: Packet) -> None:
+    def pkt_received(self, pkt: Packet) -> None:
         pass
 
     async def send_cmd(self, cmd: Command) -> None:
@@ -88,7 +88,7 @@ class ProtocolStateBase:
 class IsInactive(ProtocolStateBase):
     """Protocol has no active connection with a Transport."""
 
-    def data_received(self, pkt: Packet) -> None:  # raise an exception
+    def pkt_received(self, pkt: Packet) -> None:  # raise an exception
         raise RuntimeError("Protocol shouldn't rcvd whilst not connected")
 
     async def send_cmd(self, cmd: Command) -> None:  # raise an exception
@@ -120,7 +120,7 @@ class WantEchoPkt(ProtocolStateBase):
         else:
             self._num_sends += 1
 
-    def data_received(self, pkt: Packet) -> None:
+    def pkt_received(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
         assert self.cmd  # for: mypy
 
@@ -146,7 +146,7 @@ class IsWantResponsePkt(ProtocolStateBase):
         self._num_sends = old_state._num_sends
         self.cmd = old_state.cmd
 
-    def data_received(self, pkt: Packet) -> None:
+    def pkt_received(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
         assert self.cmd  # for mypy
 

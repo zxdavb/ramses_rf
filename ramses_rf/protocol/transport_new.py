@@ -172,7 +172,7 @@ class _FileTransportWrapper(asyncio.ReadTransport):  # Read-only
         return self._is_reading
 
     def pause_reading(self) -> None:
-        """Pause the receiving end (no data to protocol.data_received())."""
+        """Pause the receiving end (no data to protocol.pkt_received())."""
         self._is_reading = False
 
     def resume_reading(self) -> None:
@@ -208,7 +208,7 @@ class _PortTransportWrapper(serial_asyncio.SerialTransport):  # Read-write
             return
 
         if data:
-            self._bytes_received(data)  # was: self._protocol.data_received(data)
+            self._bytes_received(data)  # was: self._protocol.pkt_received(data)
 
     def _bytes_received(data: bytes) -> None:  # raise NotImplementedError
         raise NotImplementedError
@@ -265,7 +265,7 @@ class _BaseTransport(asyncio.Transport):
         # NOTE: Thus, excepts need checking
         try:
             if self._protocol:
-                self._protocol.data_received(pkt)  # could be a call_soon
+                self._protocol.pkt_received(pkt)  # could be a call_soon
         except AssertionError as exc:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
