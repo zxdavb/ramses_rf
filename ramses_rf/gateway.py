@@ -220,7 +220,8 @@ class Engine:
     async def stop(self) -> None:
         """Cancel any outstanding low-level tasks."""
 
-        raise NotImplementedError
+        if self._transport:  # needed by ser_port, but not input_file
+            self._transport.close()
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
@@ -439,8 +440,11 @@ class Gateway(Engine):
 
     async def stop(self) -> None:  # FIXME: a mess
         """Cancel all outstanding high-level tasks."""
+
         # if self._engine_state is None:
         #     self._pause()
+
+        await super().stop()
 
         _ = [t.cancel() for t in self._tasks if not t.done()]
         try:  # FIXME: this is broken

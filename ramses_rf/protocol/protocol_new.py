@@ -321,7 +321,8 @@ class _BaseProtocol(asyncio.Protocol):
         received or the connection was aborted or closed).
         """
 
-        pass
+        if exc:
+            raise exc
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark.
@@ -396,7 +397,7 @@ class _BaseProtocol(asyncio.Protocol):
         Also maintain _prev_msg, _this_msg attrs.
         """
 
-        self._msg_handler(msg)  # to the internal state machine
+        self._loop.call_soon(self._msg_handler, msg)  # to the internal state machine
         for callback in self._msg_handlers:
             # TODO: if it's filter returns True:
             self._loop.call_soon(callback, msg)
@@ -531,10 +532,10 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
 
     def connection_lost(self, exc: None | Exception) -> None:
         """Called when the connection is lost or closed."""
-        super().connection_lost(exc)
-
         if self._leaker_task:
             self._leaker_task.cancel()
+
+        super().connection_lost(exc)
 
     async def _send_bytes(self, cmd: Command) -> None:
         """Write some data bytes to the transport."""
@@ -560,20 +561,20 @@ class ReadProtocol(_ReadProtocol):
     """A protocol that can only receive Packets."""
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def connection_made(self, *args, **kwargs) -> Any:
-        return super().connection_made(*args, **kwargs)
+    def connection_made(self, transport: PktTransportT) -> None:
+        super().connection_made(transport)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def data_received(self, *args, **kwargs) -> Any:
-        return super().data_received(*args, **kwargs)
+    def data_received(self, data) -> None:
+        super().data_received(data)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_data(self, *args, **kwargs) -> Any:
-        return await super().send_data(*args, **kwargs)
+    async def send_data(self, cmd: Command, **kwargs) -> Any:
+        return await super().send_data(cmd, **kwargs)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def connection_lost(self, *args, **kwargs) -> Any:
-        return super().connection_lost(*args, **kwargs)
+    def connection_lost(self, exc) -> None:
+        super().connection_lost(exc)
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
@@ -581,12 +582,12 @@ class PortProtocol(_WriteProtocol):
     """A protocol that can receive Packets and send Commands."""
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def data_received(self, *args, **kwargs) -> Any:
-        return super().data_received(*args, **kwargs)
+    def data_received(self, data) -> None:
+        super().data_received(data)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_data(self, *args, **kwargs) -> Any:
-        return await super().send_data(*args, **kwargs)
+    async def send_data(self, cmd: Command, **kwargs) -> Any:
+        return await super().send_data(cmd, **kwargs)
 
 
 # ### Read-Write Protocol for QosTransport ############################################
@@ -630,12 +631,12 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
         await super()._send_cmd(cmd)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def data_received(self, *args, **kwargs) -> Any:
-        return super().data_received(*args, **kwargs)
+    def data_received(self, data) -> None:
+        super().data_received(data)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_data(self, *args, **kwargs) -> Any:
-        return await super().send_data(*args, **kwargs)
+    async def send_data(self, cmd: Command, **kwargs) -> Any:
+        return await super().send_data(cmd, **kwargs)
 
 
 def protocol_factory(  # TODO: no_qos default should be None

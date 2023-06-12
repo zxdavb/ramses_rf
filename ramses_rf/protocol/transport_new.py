@@ -400,7 +400,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
         except KeyboardInterrupt as exc:
             self._protocol.connection_lost(exc)
         else:
-            self._protocol.connection_lost()
+            self._protocol.connection_lost(None)
 
     async def _reader(self) -> None:  # TODO
         """Loop through the packet source for Frames and process them."""
