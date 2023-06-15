@@ -314,7 +314,7 @@ class _TranFilter(_BaseTransport):  # mixin
 
         cmd = Command._puzzle()
         self._extra[SZ_FINGERPRINT] = cmd.payload
-        # use write, not send_data to bypass throttles
+        # use write, not send_cmd to bypass throttles
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
 
     def _is_wanted_addrs(self, src_id: str, dst_id: str) -> bool:
