@@ -24,10 +24,6 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Callable, Optional
 
-if TYPE_CHECKING:
-    from .device import Device
-    from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
-
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
@@ -79,14 +75,18 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 )
 
 
+if TYPE_CHECKING:
+    from .device import Device
+    from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
+
+_MsgHandlerT = Callable[[Message], None]
+
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-_MsgHandlerT = Callable[[Message], None]
 
 
 class Engine:
@@ -218,7 +218,7 @@ class Engine:
     async def stop(self) -> None:
         """Cancel any outstanding low-level tasks."""
 
-        if self._transport:  # needed by ser_port, but not input_file
+        if self._transport:  # needed if pkt src is ser_port, but not input_file
             self._transport.close()
 
     def _pause(self, *args) -> None:
@@ -274,7 +274,7 @@ class Engine:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
-    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs):  # FIXME
+    def send_cmd(self, cmd: Command, callback: Callable = None):
         """Send a command with the option to return any response message via callback.
 
         Response packets, if any (an RP/I will follow an RQ/W), and have the same code.
@@ -287,12 +287,12 @@ class Engine:
         # self._loop.call_soon_threadsafe(
         #     self._protocol.send_data(cmd, callback=callback, **kwargs)
         # )
-        coro = self._protocol.send_data(cmd, callback=callback, **kwargs)
+        coro = self._protocol.send_cmd(cmd, callback=callback)
         fut: futures.Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         # fut: asyncio.Future = asyncio.wrap_future(fut)
         return fut
 
-    async def async_send_cmd(self, cmd: Command, **kwargs) -> None | Message:  # FIXME
+    async def async_send_cmd(self, cmd: Command) -> None | Message:
         """Send a command with the option to not wait for a response message.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
