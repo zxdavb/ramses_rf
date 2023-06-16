@@ -500,11 +500,15 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
                     yield self._dt_now(), line
 
         for dtm, raw_line in bytes_received(data):
+            if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
+                _LOGGER.info("RCVD: %s", raw_line)  # should be .info
+
             self._frame_received(dtm, _normalise(_str(raw_line)))
 
     # TODO: remove raw_line attr from Packet()
     def _frame_received(self, dtm: str, line: str) -> None:
         """Make a Packet from the Frame and process it."""
+
         # line = _regex_hack(line, self._use_regex.get(SZ_INBOUND, {}))
         try:
             pkt = Packet.from_port(dtm, line)
@@ -520,6 +524,9 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def write(self, data) -> None:  # convenience for breakpoint
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
+            _LOGGER.info("SENT: %s", b"    " + data)  # should be .info
+
         super().write(data)
 
 
