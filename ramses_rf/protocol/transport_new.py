@@ -470,13 +470,10 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
 
         # can probably cache this info, ?as evofw3 & HGI always use different ports
         # for now, leave that up to transport
-        return bool(
-            {
-                x.name: x.product
-                for x in comports()
-                if x.name == self.serial.name and "evofw3" in x.product
-            }
-        )
+        result = {
+            x.device: x.product for x in comports() if x.device == self.serial.name
+        }
+        return "evofw3" in list(result.values())[0]
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
