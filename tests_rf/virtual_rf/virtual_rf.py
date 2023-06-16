@@ -49,8 +49,8 @@ class VirtualComPortInfo:
     def __init__(self, port_name: _PN, dev_type: None | HgiFwTypes = None) -> None:
         """Supplies a useful subset of PortInfo attrs according to gateway type."""
 
-        self.name = port_name
-        self.device = f"/dev{port_name}"
+        self.device = port_name  # # e.g. /dev/pts/2 (a la /dev/ttyUSB0)
+        self.name = port_name[5:]  # e.g.      pts/2 (a la      ttyUSB0)
 
         self.description: None | str = None
         self.product: None | str = None
