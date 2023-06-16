@@ -285,9 +285,9 @@ class Engine:
             raise RuntimeError("there is no message protocol")
 
         # self._loop.call_soon_threadsafe(
-        #     self._protocol.send_data(cmd, callback=callback, **kwargs)
+        #     self._protocol.send_cmd(cmd, callback=callback, **kwargs)
         # )
-        coro = self._protocol.send_data(cmd, callback=callback, **kwargs)
+        coro = self._protocol.send_cmd(cmd, callback=callback, **kwargs)
         fut: futures.Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         # fut: asyncio.Future = asyncio.wrap_future(fut)
         return fut
