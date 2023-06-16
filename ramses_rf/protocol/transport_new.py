@@ -219,7 +219,7 @@ class _PortTransportWrapper(serial_asyncio.SerialTransport):  # Read-write
 
 
 class _BaseTransport(asyncio.Transport):
-    """Base class for transports."""
+    """Base class for RAMSES II transports."""
 
     READER_TASK = "reader_task"
 
