@@ -73,7 +73,7 @@ DONT_CREATE_MESSAGES = 3  # duplicate
 SZ_FINGERPRINT = "fingerprint"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
-SZ_EVOFW3_FLAG = "evo_flag"  # FIXME: is kwarg from upper layer: beware changing value
+SZ_EVOFW3_FLAG = "evofw3_flag"  # FIXME: kwarg from upper layer: beware changing value
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -219,7 +219,7 @@ class _PortTransportWrapper(serial_asyncio.SerialTransport):  # Read-write
 
 
 class _BaseTransport(asyncio.Transport):
-    """Base class for transports."""
+    """Base class for RAMSES II transports."""
 
     READER_TASK = "reader_task"
 
@@ -312,9 +312,9 @@ class _TranFilter(_BaseTransport):  # mixin
         if isinstance(self, FileTransport):
             return
 
-        cmd = Command._puzzle()
+        cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
         self._extra[SZ_FINGERPRINT] = cmd.payload
-        # use write, not send_data to bypass throttles
+        # use write, not send_cmd to bypass throttles
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
 
     def _is_wanted_addrs(self, src_id: str, dst_id: str) -> bool:
@@ -468,15 +468,13 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
         if name != SZ_IS_EVOFW3:
             return super().get_extra_info(name, default)
 
+        # TODO: issue warning if using a HGI80
         # can probably cache this info, ?as evofw3 & HGI always use different ports
         # for now, leave that up to transport
-        return bool(
-            {
-                x.name: x.product
-                for x in comports()
-                if x.name == self.serial.name and "evofw3" in x.product
-            }
-        )
+        result = {
+            x.device: x.product for x in comports() if x.device == self.serial.name
+        }
+        return "evofw3" in list(result.values())[0]
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
@@ -500,11 +498,15 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
                     yield self._dt_now(), line
 
         for dtm, raw_line in bytes_received(data):
+            if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
+                _LOGGER.info("RCVD: %s", raw_line)  # should be .info
+
             self._frame_received(dtm, _normalise(_str(raw_line)))
 
     # TODO: remove raw_line attr from Packet()
     def _frame_received(self, dtm: str, line: str) -> None:
         """Make a Packet from the Frame and process it."""
+
         # line = _regex_hack(line, self._use_regex.get(SZ_INBOUND, {}))
         try:
             pkt = Packet.from_port(dtm, line)
@@ -520,6 +522,9 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def write(self, data) -> None:  # convenience for breakpoint
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
+            _LOGGER.info("SENT: %s", b"    " + data)  # should be .info
+
         super().write(data)
 
 

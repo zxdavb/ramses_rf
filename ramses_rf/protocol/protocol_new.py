@@ -262,6 +262,8 @@ _MsgFilterT = Callable[[Message], bool]
 
 
 class _BaseProtocol(asyncio.Protocol):
+    """Base class for RAMSES II protocols."""
+
     WRITER_TASK = "writer_task"
 
     _this_msg: None | Message = None
@@ -272,9 +274,10 @@ class _BaseProtocol(asyncio.Protocol):
         self._msg_handlers: list[_MsgHandlerT] = []
 
         self._transport: PktTransportT = None  # type: ignore[assignment]
-        self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False
+        self._wait_connection_lost = self._loop.create_future()
 
     def add_handler(
         self,
@@ -312,8 +315,21 @@ class _BaseProtocol(asyncio.Protocol):
         received or the connection was aborted or closed).
         """
 
+        if self._wait_connection_lost.done():  # BUG: why is callback invoked twice?
+            return
+
         if exc:
-            raise exc
+            self._wait_connection_lost.set_exception(exc)
+        else:
+            self._wait_connection_lost.set_result(None)
+
+    @property
+    def wait_connection_lost(self):
+        """Return a future that will block until connection_lost() has been invoked.
+
+        Can call fut.result() to check for result/any exception.
+        """
+        return self._wait_connection_lost
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark.
@@ -391,16 +407,6 @@ class _BaseProtocol(asyncio.Protocol):
             # TODO: if it's filter returns True:
             self._loop.call_soon(callback, msg)
 
-    def eof_received(self) -> None:
-        raise NotImplementedError
-
-    def error_received(self, exc) -> None:
-        """Called when a send or receive operation raises an OSError.
-
-        (Other than BlockingIOError or InterruptedError.)
-        """
-        raise NotImplementedError
-
 
 class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
     """A mixin for warning that impersonation is being performed."""
@@ -438,19 +444,19 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
 
         self._context = ProtocolContext()
 
-    def connection_made(self, transport: PktTransportT) -> Any:
+    def connection_made(self, transport: PktTransportT) -> None:
+        super().connection_made(transport)
         self._context.connection_made(transport)
-        return super().connection_made(transport)
 
-    def connection_lost(self, exc: None | Exception) -> Any:
+    def connection_lost(self, exc: None | Exception) -> None:
         self._context.connection_lost(exc)
         return super().connection_lost(exc)
 
-    def _pkt_received(self, pkt: Packet) -> Any:
+    def _pkt_received(self, pkt: Packet) -> None:
         self._context._pkt_received(pkt)
         return super()._pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command) -> Any:
+    async def send_cmd(self, cmd: Command) -> None:
         self._context.send_cmd(cmd)
         return await super().send_cmd(cmd)
 
@@ -553,7 +559,7 @@ class PortProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle
         super().pkt_received(data)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Any:
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         return await super().send_cmd(cmd, callback=callback)
 
 
@@ -591,7 +597,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
         super()._msg_received(msg)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Any:
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         return await super().send_cmd(cmd, callback=callback)
 
     async def _send_cmd(self, cmd: Command) -> None:

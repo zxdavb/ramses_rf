@@ -192,7 +192,7 @@ class Engine:
 
         self._protocol.add_handler(msg_handler, msg_filter=msg_filter)
 
-    async def start(self, **kwargs) -> None:
+    async def start(self) -> None | Exception:
         """Create a suitable transport for the specified packet source.
 
         Initiate receiving (Messages) and sending (Commands).
@@ -212,14 +212,21 @@ class Engine:
             exclude_list=self._exclude,
             include_list=self._include,
             **pkt_source,
-            **kwargs,
         )
 
-    async def stop(self) -> None:
-        """Cancel any outstanding low-level tasks."""
+        if self._input_file:
+            return await self._wait_for_protocol_to_stop()
 
-        if self._transport:  # needed if pkt src is ser_port, but not input_file
+    async def stop(self) -> None | Exception:
+        """Close the transport (will stop the protocol)."""
+
+        if self._transport:
             self._transport.close()
+        return await self._wait_for_protocol_to_stop()
+
+    async def _wait_for_protocol_to_stop(self) -> None | Exception:
+        await self._protocol.wait_connection_lost
+        return self._protocol.wait_connection_lost.result()
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
@@ -285,7 +292,7 @@ class Engine:
             raise RuntimeError("there is no message protocol")
 
         # self._loop.call_soon_threadsafe(
-        #     self._protocol.send_data(cmd, callback=callback, **kwargs)
+        #     self._protocol.send_cmd(cmd, callback=callback)
         # )
         coro = self._protocol.send_cmd(cmd, callback=callback)
         fut: futures.Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
@@ -429,10 +436,7 @@ class Gateway(Engine):
 
         await super().start()
 
-        if not self.ser_name:  # wait until have processed the entire packet log...
-            await self._transport.get_extra_info(self._transport.READER_TASK)
-
-        elif start_discovery and not self._read_only:
+        if not self._read_only and start_discovery:
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess

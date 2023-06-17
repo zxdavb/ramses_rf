@@ -29,6 +29,8 @@ HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
 NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
+_STRICT_CHECKING = True  # a convenience for the test suite
+
 
 class Address:
     """The device Address class."""
@@ -199,7 +201,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     except ValueError as exc:
         raise InvalidAddrSetError(f"Invalid addr set (0x01): {addr_fragment}: {exc}")
 
-    if (
+    if _STRICT_CHECKING and (
         not (
             # .I --- 01:145038 --:------ 01:145038 1F09 003 FF073F # valid
             # .I --- 04:108173 --:------ 01:155341 2309 003 0001F4 # valid
@@ -208,7 +210,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             and addrs[2] != NON_DEV_ADDR
         )
         and not (
-            # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A # valid
+            # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A         # valid
             # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid
             addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
             and addrs[1] not in (NON_DEV_ADDR, addrs[0])
