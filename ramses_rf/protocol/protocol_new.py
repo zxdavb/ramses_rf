@@ -448,15 +448,15 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().connection_made(transport)
         self._context.connection_made(transport)
 
-    def connection_lost(self, exc: None | Exception) -> Any:
+    def connection_lost(self, exc: None | Exception) -> None:
         self._context.connection_lost(exc)
         return super().connection_lost(exc)
 
-    def _pkt_received(self, pkt: Packet) -> Any:
+    def _pkt_received(self, pkt: Packet) -> None:
         self._context._pkt_received(pkt)
         return super()._pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command) -> Any:
+    async def send_cmd(self, cmd: Command) -> None:
         self._context.send_cmd(cmd)
         return await super().send_cmd(cmd)
 
@@ -559,7 +559,7 @@ class PortProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle
         super().pkt_received(data)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Any:
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         return await super().send_cmd(cmd, callback=callback)
 
 
@@ -597,7 +597,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
         super()._msg_received(msg)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Any:
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         return await super().send_cmd(cmd, callback=callback)
 
     async def _send_cmd(self, cmd: Command) -> None:
