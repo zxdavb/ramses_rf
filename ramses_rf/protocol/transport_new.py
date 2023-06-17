@@ -468,6 +468,7 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
         if name != SZ_IS_EVOFW3:
             return super().get_extra_info(name, default)
 
+        # TODO: issue warning if using a HGI80
         # can probably cache this info, ?as evofw3 & HGI always use different ports
         # for now, leave that up to transport
         result = {
