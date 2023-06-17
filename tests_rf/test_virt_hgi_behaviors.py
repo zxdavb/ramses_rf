@@ -33,18 +33,18 @@ CONFIG = {
 
 
 TEST_CMDS = {  # test command strings (no impersonation)
-    10: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",  # ... evofw3: OK, hgi80: ???
-    11: r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",  # ... evofw3: OK, hgi80: ???
-    20: f" I --- {TST_ID_} {TST_ID_} --:------ 30C9 003 000222",  # evofw3: OK, hgi80: ???
-    21: f" I --- 18:000730 {TST_ID_} --:------ 30C9 003 000333",  # evofw3: OK, hgi80: ???
-    30: f"RP --- {TST_ID_} 18:000730 --:------ 30C9 003 000444",  # evofw3: addr1 unchanged
-    31: r"RP --- 18:000730 18:000730 --:------ 30C9 003 000555",  # evofw3: addr1 unchanged
-    40: f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000666",  # evofw3: OK, hgi80: ???
-    41: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",  # evofw3: OK, hgi80: ???
-    50: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",  # evofw3: addr2 unchanged
-    51: r" I --- 18:000730 --:------ 18:000730 30C9 003 000999",  # evofw3: addr2 unchanged
-    60: f" I --- --:------ --:------ {TST_ID_} 0008 002 00AA",  # . evofw3: OK, hgi80: ???
-    61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . evofw3: addr2 unchanged
+    10: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
+    11: r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",
+    20: f" I --- {TST_ID_} {TST_ID_} --:------ 30C9 003 000222",
+    21: f" I --- 18:000730 {TST_ID_} --:------ 30C9 003 000333",
+    30: f"RP --- {TST_ID_} 18:000730 --:------ 30C9 003 000444",  # addr1 unchanged
+    31: r"RP --- 18:000730 18:000730 --:------ 30C9 003 000555",  # addr1 unchanged
+    40: f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000666",
+    41: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",
+    50: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",  # addr2 unchanged
+    51: r" I --- 18:000730 --:------ 18:000730 30C9 003 000999",  # addr2 unchanged
+    60: f" I --- --:------ --:------ {TST_ID_} 0008 002 00AA",
+    61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . addr2 unchanged
 }
 
 
@@ -129,7 +129,11 @@ async def _test_hgi(port_name, org_str, is_evofw3: bool):
         assert gwy_0.hgi.id != HGI_ID_
 
         cmd_str = org_str.replace(TST_ID_, gwy_0.hgi.id)
-        pkt_str = cmd_str.replace(HGI_ID_, gwy_0.hgi.id)  # expected_frame
+        # expected pkt: only addr0 is corrected by the gateway device...
+        if cmd_str[7:16] == HGI_ID_:
+            pkt_str = cmd_str[:7] + gwy_0.hgi.id + cmd_str[16:]
+        else:
+            pkt_str = cmd_str
 
         cmd = Command(cmd_str, qos={"retries": 0})
         assert str(cmd) == cmd_str
@@ -139,10 +143,6 @@ async def _test_hgi(port_name, org_str, is_evofw3: bool):
         # TODO: consider: await gwy_0._protocol._send_cmd(cmd)
         await assert_expected_pkt(gwy_0, pkt_str)
 
-    # only addr0 is corrected by the gateway device...
-    except AssertionError:
-        if HGI_ID_ not in (cmd_str[17:26], cmd_str[27:36]):  # addr1, addr2
-            raise
     finally:
         await gwy_0.stop()
 
@@ -156,9 +156,6 @@ async def test_actual_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     global _global_failed_ports
-
-    # if test_idx in (0, 2, 7):
-    #     pytest.skip("these tests are TBD")
 
     port = [p.device for p in comports() if "evofw3" in p.product][0]
 
@@ -177,13 +174,10 @@ async def test_actual_evofw3(test_idx):
     not [p for p in comports() if "TUSB3410" in p.product],
     reason="No ti3410 devices found",
 )
-async def test_actual_ti3410(test_idx):
+async def _test_actual_ti3410(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     global _global_failed_ports
-
-    # if test_idx in (0, 2, 7):
-    #     pytest.skip("this test is a WIP")
 
     port = [p.device for p in comports() if "TUSB3410" in p.product][0]
 
@@ -220,9 +214,6 @@ async def test_mocked_evofw3(test_idx):
 )
 async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
-
-    if test_idx in (0, 2, 7):  # FIXME
-        pytest.skip("this test is a WIP")
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.NATIVE)

@@ -444,9 +444,9 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
 
         self._context = ProtocolContext()
 
-    def connection_made(self, transport: PktTransportT) -> Any:
+    def connection_made(self, transport: PktTransportT) -> None:
+        super().connection_made(transport)
         self._context.connection_made(transport)
-        return super().connection_made(transport)
 
     def connection_lost(self, exc: None | Exception) -> Any:
         self._context.connection_lost(exc)

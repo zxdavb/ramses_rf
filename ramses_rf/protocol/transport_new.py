@@ -73,7 +73,7 @@ DONT_CREATE_MESSAGES = 3  # duplicate
 SZ_FINGERPRINT = "fingerprint"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
-SZ_EVOFW3_FLAG = "evo_flag"  # FIXME: is kwarg from upper layer: beware changing value
+SZ_EVOFW3_FLAG = "evofw3_flag"  # FIXME: kwarg from upper layer: beware changing value
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -312,7 +312,7 @@ class _TranFilter(_BaseTransport):  # mixin
         if isinstance(self, FileTransport):
             return
 
-        cmd = Command._puzzle()
+        cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
         self._extra[SZ_FINGERPRINT] = cmd.payload
         # use write, not send_cmd to bypass throttles
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
