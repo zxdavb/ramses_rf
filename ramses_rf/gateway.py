@@ -222,6 +222,9 @@ class Engine:
 
         if self._transport:
             self._transport.close()
+        elif not self._protocol.wait_connection_lost.done():
+            # the transport was never started
+            self._protocol.connection_lost(None)
         return await self._wait_for_protocol_to_stop()
 
     async def _wait_for_protocol_to_stop(self) -> None | Exception:
