@@ -6,7 +6,8 @@
 Decode/process a message (payload into JSON).
 """
 
-# TODO: fix dispatching - what devices (some are Addr) are sent packets, esp. 1FC9s
+# TODO:
+# - fix dispatching - what devices (some are Addr) are sent packets, esp. 1FC9s
 
 from __future__ import annotations
 
