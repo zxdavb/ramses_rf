@@ -331,13 +331,7 @@ class VirtualRf(VirtualRfBase):
         # The type of Gateway will tell us what to do next
         gwy = self._gateways.get(self._pty_names[master])  # here, gwy is not a Gateway
 
-        if gwy is None or DEFAULT_GWY_ID not in frame:
-            return frame
-
-        if gwy[FW_VERSION] == HgiFwTypes.EVOFW3:
-            return gwy[DEVICE_ID_BYTES].join(frame.split(DEFAULT_GWY_ID))
-
-        if frame[7:16] == DEFAULT_GWY_ID:  # is HgiFwTypes.NATIVE
+        if gwy and frame[7:16] == DEFAULT_GWY_ID:  # confirmed for evofw3
             return frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
 
         return frame

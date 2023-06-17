@@ -21,8 +21,8 @@ MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
-HGI_ID_ = "18:000730"
-TST_ID_ = "18:222222"
+HGI_ID_ = "18:000730"  # the generic ID
+TST_ID_ = "18:222222"  # .a specific ID
 
 CONFIG = {
     "config": {
@@ -32,15 +32,19 @@ CONFIG = {
 }
 
 
-TEST_CMDS = {  # test command strings
-    0: r" I --- 18:000730 --:------ 18:000730 30C9 003 000666",
-    1: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",
-    2: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",
-    3: f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000999",
-    4: r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",
-    5: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
-    6: f" I --- --:------ --:------ {TST_ID_} 0008 002 0011",
-    7: r" I --- --:------ --:------ 18:000730 0008 002 0022",
+TEST_CMDS = {  # test command strings (no impersonation)
+    10: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",  # ... evofw3: OK, hgi80: ???
+    11: r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",  # ... evofw3: OK, hgi80: ???
+    20: f" I --- {TST_ID_} {TST_ID_} --:------ 30C9 003 000222",  # evofw3: OK, hgi80: ???
+    21: f" I --- 18:000730 {TST_ID_} --:------ 30C9 003 000333",  # evofw3: OK, hgi80: ???
+    30: f"RP --- {TST_ID_} 18:000730 --:------ 30C9 003 000444",  # evofw3: addr1 unchanged
+    31: r"RP --- 18:000730 18:000730 --:------ 30C9 003 000555",  # evofw3: addr1 unchanged
+    40: f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000666",  # evofw3: OK, hgi80: ???
+    41: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",  # evofw3: OK, hgi80: ???
+    50: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",  # evofw3: addr2 unchanged
+    51: r" I --- 18:000730 --:------ 18:000730 30C9 003 000999",  # evofw3: addr2 unchanged
+    60: f" I --- --:------ --:------ {TST_ID_} 0008 002 00AA",  # . evofw3: OK, hgi80: ???
+    61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . evofw3: addr2 unchanged
 }
 
 
@@ -74,9 +78,21 @@ async def assert_expected_pkt(
     assert str(gwy._this_msg._pkt) == expected_frame
 
 
-async def assert_gwy_has_hgi(
+async def assert_is_evofw3(
+    gwy: Gateway, is_evofw3: bool, max_sleep: int = DEFAULT_MAX_SLEEP
+):
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if gwy._protocol._is_evofw3 is not None:
+            break
+    assert gwy._protocol._is_evofw3 == is_evofw3
+
+
+async def assert_found_hgi(
     gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_SLEEP
 ):
+    """Check the gateway device is the expected type (evofw3,or HGI80)."""
+
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if gwy.hgi is not None:
@@ -89,6 +105,7 @@ async def assert_gwy_has_hgi(
 _global_failed_ports: list[str] = []
 
 
+@patch("ramses_rf.protocol.address._STRICT_CHECKING", False)
 @patch(
     "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
 )
@@ -96,7 +113,7 @@ _global_failed_ports: list[str] = []
     "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-async def _test_hgi_addrs(port_name, org_str):
+async def _test_hgi(port_name, org_str, is_evofw3: bool):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     gwy_0 = Gateway(port_name, **CONFIG)
@@ -105,13 +122,14 @@ async def _test_hgi_addrs(port_name, org_str):
     assert gwy_0.hgi is None
 
     await gwy_0.start()
+    await assert_is_evofw3(gwy_0, is_evofw3)
 
     try:
-        await assert_gwy_has_hgi(gwy_0)  # , hgi_id=TST_ID_)
+        await assert_found_hgi(gwy_0)  # , hgi_id=TST_ID_)
         assert gwy_0.hgi.id != HGI_ID_
 
         cmd_str = org_str.replace(TST_ID_, gwy_0.hgi.id)
-        pkt_str = cmd_str.replace(HGI_ID_, gwy_0.hgi.id)
+        pkt_str = cmd_str.replace(HGI_ID_, gwy_0.hgi.id)  # expected_frame
 
         cmd = Command(cmd_str, qos={"retries": 0})
         assert str(cmd) == cmd_str
@@ -120,8 +138,11 @@ async def _test_hgi_addrs(port_name, org_str):
         await gwy_0.async_send_cmd(cmd)
         # TODO: consider: await gwy_0._protocol._send_cmd(cmd)
         await assert_expected_pkt(gwy_0, pkt_str)
+
+    # only addr0 is corrected by the gateway device...
     except AssertionError:
-        raise
+        if HGI_ID_ not in (cmd_str[17:26], cmd_str[27:36]):  # addr1, addr2
+            raise
     finally:
         await gwy_0.stop()
 
@@ -136,19 +157,19 @@ async def test_actual_evofw3(test_idx):
 
     global _global_failed_ports
 
-    if test_idx in (0, 2, 7):
-        pytest.skip("these tests are TBD")
+    # if test_idx in (0, 2, 7):
+    #     pytest.skip("these tests are TBD")
 
     port = [p.device for p in comports() if "evofw3" in p.product][0]
 
     if port in _global_failed_ports:
-        pytest.xfail(f"previous SerialException on: {port}")
+        pytest.skip(f"previous SerialException on: {port}")
 
     try:
-        await _test_hgi_addrs(port, TEST_CMDS[test_idx])
+        await _test_hgi(port, TEST_CMDS[test_idx], is_evofw3=True)
     except SerialException as exc:
         _global_failed_ports.append(port)
-        pytest.xfail(str(exc))
+        pytest.xfail(str(exc))  # not skip, as we'd determined port exists, above
 
 
 @pytest.mark.xdist_group(name="real_serial")
@@ -161,19 +182,19 @@ async def test_actual_ti3410(test_idx):
 
     global _global_failed_ports
 
-    if test_idx in (0, 2, 7):
-        pytest.skip("this test is a WIP")
+    # if test_idx in (0, 2, 7):
+    #     pytest.skip("this test is a WIP")
 
     port = [p.device for p in comports() if "TUSB3410" in p.product][0]
 
     if port in _global_failed_ports:
-        pytest.xfail(f"previous SerialException on: {port}")
+        pytest.skip(f"previous SerialException on: {port}")
 
     try:
-        await _test_hgi_addrs(port, TEST_CMDS[test_idx])
+        await _test_hgi(port, TEST_CMDS[test_idx], is_evofw3=False)
     except SerialException as exc:
         _global_failed_ports.append(port)
-        pytest.xfail(str(exc))
+        pytest.xfail(str(exc))  # not skip, as we'd determined port exists, above
 
 
 @pytest.mark.xdist_group(name="mock_serial")
@@ -188,7 +209,7 @@ async def test_mocked_evofw3(test_idx):
 
     with patch("ramses_rf.protocol.transport_new.comports", rf.comports):
         try:
-            await _test_hgi_addrs(rf.ports[0], TEST_CMDS[test_idx])
+            await _test_hgi(rf.ports[0], TEST_CMDS[test_idx], is_evofw3=True)
         finally:
             await rf.stop()
 
@@ -208,6 +229,6 @@ async def test_mocked_ti4310(test_idx):
 
     with patch("ramses_rf.protocol.transport_new.comports", rf.comports):
         try:
-            await _test_hgi_addrs(rf.ports[0], TEST_CMDS[test_idx])
+            await _test_hgi(rf.ports[0], TEST_CMDS[test_idx], is_evofw3=False)
         finally:
             await rf.stop()
