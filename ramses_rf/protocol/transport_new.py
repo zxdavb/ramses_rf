@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
@@ -49,11 +50,13 @@ from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
-from .schemas import (  # TODO: SZ_INBOUND, SZ_OUTBOUND
+from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_CLASS,
+    SZ_INBOUND,
     SZ_KNOWN_LIST,
+    SZ_OUTBOUND,
     SZ_USE_REGEX,
 )
 
@@ -64,7 +67,7 @@ from .schemas import (  # TODO: SZ_INBOUND, SZ_OUTBOUND
 
 
 _MsgProtocolT = TypeVar("_MsgProtocolT", bound="asyncio.Protocol")
-PktTransportT = TypeVar("PktTransportT", bound="_TranFilter")
+PktTransportT = TypeVar("PktTransportT", bound="_DeviceFilter")
 _SerPortName = str
 
 
@@ -81,6 +84,7 @@ MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 
 
 DEV_MODE = __dev_mode__ and False
+DEV_HACK_DISABLE_REGEX_WARNING = True  # should be False for end-users
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
@@ -104,17 +108,14 @@ def _normalise(pkt_line: str) -> str:
     """Perform any (transparent) frame-level hacks, as required at (near-)RF layer.
 
     Goals:
-    - ensure an evofw3 provides the exact same output as a HGI80
+    - ensure an evofw3 provides the same output as a HGI80 (none, presently)
     - handle 'strange' packets (e.g. I/08:/0008)
     """
 
     # psuedo-RAMSES-II packets...
     if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-    else:
-        return pkt_line.strip()
 
-    # _LOGGER.warning("%s < Packet line has been normalised", pkt_line)
     return pkt_line.strip()
 
 
@@ -247,14 +248,6 @@ class _BaseTransport(asyncio.Transport):
             return self._dt_now()
         return super().get_extra_info(name, default=default)
 
-    # def set_protocol(self, protocol: _MsgProtocolT) -> None:
-    #     """Set a new protocol."""
-    #     self._protocol = protocol
-
-    # def get_protocol(self) -> None:
-    #     """Return the current protocol."""
-    #     return self._protocol
-
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted Packets to the protocol's callback.
 
@@ -270,8 +263,46 @@ class _BaseTransport(asyncio.Transport):
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
 
-class _TranFilter(_BaseTransport):  # mixin
+class _RegexFilter(_BaseTransport):  # mixin
     """"""
+
+    def __init__(self, *args, **kwargs) -> None:
+        use_regex: dict = kwargs.pop(SZ_USE_REGEX, {})
+
+        super().__init__(*args, **kwargs)
+
+        # self._use_regex = kwargs.get(SZ_USE_REGEX, {})  # #    gwy.config.use_regex
+
+        self.__inbound_rule = use_regex.get(SZ_INBOUND, {})
+        self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
+
+    @staticmethod
+    def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
+        if not regex_filters:
+            return pkt_line
+
+        result = pkt_line
+        for k, v in regex_filters.items():
+            try:
+                result = re.sub(k, v, result)
+            except re.error as exc:
+                _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
+
+        if result != pkt_line and not DEV_HACK_DISABLE_REGEX_WARNING:
+            (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
+                f"{pkt_line} < Changed by use_regex to: {result}"
+            )
+        return result
+
+    def _frame_received(self, dtm: str, line: str) -> None:
+        super()._frame_received(dtm, self._regex_hack(line, self.__inbound_rule))
+
+    def _send_data(self, line: str) -> None:
+        super()._send_data(self._regex_hack(line, self.__outbound_rule))
+
+
+class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection here
+    """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     def __init__(
         self,
@@ -281,11 +312,14 @@ class _TranFilter(_BaseTransport):  # mixin
         include_list: None | dict = None,
         **kwargs,
     ) -> None:
+        self._evofw_flag = kwargs.pop(SZ_EVOFW3_FLAG, None)  # gwy.config.evofw_flag
+
         super().__init__(*args, **kwargs)
 
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
+
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
         for key in (SZ_DEVICE_ID, SZ_FINGERPRINT, SZ_KNOWN_HGI):
@@ -301,20 +335,20 @@ class _TranFilter(_BaseTransport):  # mixin
         if len(known_hgis) > 1:
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include only one gateway (HGI)")
 
-        self._evofw_flag = kwargs.get(SZ_EVOFW3_FLAG, None)  # gwy.config.evofw_flag
-        self._use_regex = kwargs.get(SZ_USE_REGEX, {})  # #    gwy.config.use_regex
-
         # for the pkt log, if any, also serves to discover the HGI's device_id
+        # BUG: see guard on method, and d_s has been popped
         if not kwargs.get("disable_sending"):  # NOTE: no retries as only need echo
             self._write_fingerprint_pkt()
 
     def _write_fingerprint_pkt(self) -> None:
+        """Send a fingerprint command directly to the serial port."""
+
         if isinstance(self, FileTransport):
             return
 
         cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
         self._extra[SZ_FINGERPRINT] = cmd.payload
-        # use write, not send_cmd to bypass throttles
+        # use write, not send_cmd to bypass any throttles, BUG: what about logging?
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
 
     def _is_wanted_addrs(self, src_id: str, dst_id: str) -> bool:
@@ -365,7 +399,7 @@ class _TranFilter(_BaseTransport):  # mixin
 
 
 # ### Read-Only Transports for dict / log file ########################################
-class FileTransport(_TranFilter, _FileTransportWrapper):
+class FileTransport(_DeviceFilter, _FileTransportWrapper):
     """Parse a file (or a dict) for packets, and never send."""
 
     def __init__(self, *args, **kwargs) -> None:
@@ -427,7 +461,7 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
     def _frame_received(self, dtm_str: str, pkt_line: str) -> None:
         """Make a Packet from the Frame and process it."""
         self._dtm_str = dtm_str  # HACK: FIXME: remove need for this, somehow
-        # line = _regex_hack(line, self._use_regex.get(SZ_INBOUND, {}))
+
         try:
             pkt = Packet.from_file(dtm_str, pkt_line)  # is OK for when src is dict
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
@@ -435,14 +469,6 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt  # TODO:
         self._pkt_received(pkt)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def _pkt_received(self, pkt: Packet) -> None:
-        super()._pkt_received(pkt)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def write(self, data) -> None:  # convenience for breakpoint
-        super().write(data)  # will be: raise NotImplementedError
 
     def close(self, exc: None | Exception = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
@@ -458,8 +484,8 @@ class FileTransport(_TranFilter, _FileTransportWrapper):
 
 
 # ### Read-Write Transport for serial port ############################################
-class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
-    """Poll a port for packets, and send without QoS."""
+class PortTransport(_DeviceFilter, _RegexFilter, _PortTransportWrapper):
+    """Poll a serial port for packets, and send (without QoS)."""
 
     _recv_buffer: bytes = b""
 
@@ -481,11 +507,6 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
 
         return dt_now()
 
-    # def _ensure_reader(self):  # TODO: remove
-    #     if (not self._has_reader) and (not self._closing):
-    #         self._loop.add_reader(self._serial.fileno(), self._read_ready)
-    #         self._has_reader = True
-
     def _bytes_received(self, data: bytes) -> None:
         """Make a Frame from the data and process it."""
 
@@ -506,8 +527,8 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
     # TODO: remove raw_line attr from Packet()
     def _frame_received(self, dtm: str, line: str) -> None:
         """Make a Packet from the Frame and process it."""
+        #
 
-        # line = _regex_hack(line, self._use_regex.get(SZ_INBOUND, {}))
         try:
             pkt = Packet.from_port(dtm, line)
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
@@ -516,12 +537,7 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt  # TODO:
         self._pkt_received(pkt)
 
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def _pkt_received(self, pkt: Packet) -> None:
-        super()._pkt_received(pkt)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def write(self, data) -> None:  # convenience for breakpoint
+    def write(self, data) -> None:
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
             _LOGGER.info("SENT: %s", b"    " + data)  # should be .info
 
@@ -530,7 +546,7 @@ class PortTransport(_TranFilter, _PortTransportWrapper):  # from a serial port
 
 # ### Read-Write Transport *with QoS* for serial port #################################
 class QosTransport(PortTransport):  # from a serial port, includes QoS
-    """Poll a port for packets, and send with QoS."""
+    """Poll a seial port for packets, and send with QoS."""
 
     pass
 
