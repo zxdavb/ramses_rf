@@ -6,7 +6,6 @@
 # - sort out gwy.config... - evofw3 flag, use_regex (add test)
 # - sort out send_cmd generally, and make awaitable=
 # - sort out reduced processing
-# - change TextIOWrapper to TextIO??
 
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
