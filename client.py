@@ -536,10 +536,12 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
             tasks = spawn_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-        elif command in (MONITOR, LISTEN):
+        elif command == MONITOR:
+            _ = spawn_scripts(gwy, **kwargs)
             await gwy._protocol.wait_connection_lost
-            tasks = spawn_scripts(gwy, **kwargs)
-            await asyncio.gather(*tasks)
+
+        elif command == LISTEN:
+            await gwy._protocol.wait_connection_lost
 
     except asyncio.CancelledError:
         msg = "ended via: CancelledError (e.g. SIGINT)"
