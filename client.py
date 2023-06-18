@@ -536,9 +536,9 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
             tasks = spawn_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-        elif command in MONITOR:
+        elif command in (MONITOR, LISTEN):
+            await gwy._protocol.wait_connection_lost
             tasks = spawn_scripts(gwy, **kwargs)
-            await gwy.pkt_source  # FIXME
             await asyncio.gather(*tasks)
 
     except asyncio.CancelledError:
