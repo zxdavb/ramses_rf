@@ -39,7 +39,7 @@ def _test_api_fail(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
 
         try:
             cmd = _test_api_from_msg(api, msg)
-        except (AssertionError, ValueError):
+        except (AssertionError, TypeError, ValueError):
             cmd = None
         else:
             assert cmd.payload == msg._pkt.payload  # aka pkt.payload
