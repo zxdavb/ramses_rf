@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - RAMSES-II compatible packet protocol."""
+
+# send_cmd(Cmd, **kw) -> _send_cmd(Cmd) -> _send_frame(bytes) ==> Transport(bytes)
+# pkt_rcvd(Pkt)       -> _pkt_rcvd(Pkt) -> _msg_received(Msg) ==> Client(Msg)
+
 from __future__ import annotations
 
 import asyncio
@@ -51,6 +55,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
+
+# if TYPE_CHECKING:
+#     from io import TextIOWrapper
 
 MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
 
@@ -433,7 +440,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
 
-        await self._send_cmd(cmd)
+        await self._send_cmd(cmd)  # HACK: not self.send_cmd()
 
 
 class _ProtQosTimers(_BaseProtocol):  # context/state

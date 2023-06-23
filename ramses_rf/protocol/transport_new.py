@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-
-
-# TODO:
-# - make use_regex work again
-# - chase down gwy.config.disable_discovery
-# - chase down / check deprecation
-# - check: READER/POLLER & WRITER tasks
-
-
 """RAMSES RF - RAMSES-II compatible packet transport.
 
 Operates at the pkt layer of: app - msg - pkt - h/w
@@ -28,6 +19,17 @@ For socat, see:
   python client.py monitor /dev/pts/0
   cat packet.log | cut -d ' ' -f 2- | unix2dos > /dev/pts/1
 """
+
+#   send_bytes(bytes) ->  _send_bytes(bytes)        ->  write(bytes)  ==> ???(bytes)
+# [_bytes_rcvd(bytes) ->] _frame_rcvd(str/dtm, str) -> _pkt_rcvd(Pkt) ==> Protocol(Pkt)
+
+
+# TODO:
+# - make use_regex work again
+# - chase down gwy.config.disable_discovery
+# - chase down / check deprecation
+# - check: READER/POLLER & WRITER tasks
+
 
 from __future__ import annotations
 
@@ -65,9 +67,8 @@ from .schemas import (
 # if TYPE_CHECKING:
 #     from io import TextIOWrapper
 
-
 _MsgProtocolT = TypeVar("_MsgProtocolT", bound="asyncio.Protocol")
-PktTransportT = TypeVar("PktTransportT", bound="_DeviceFilter")
+PktTransportT = TypeVar("PktTransportT", bound="asyncio.Transport")
 _SerPortName = str
 
 
@@ -132,127 +133,27 @@ def _str(value: bytes) -> str:
     return result
 
 
-class _FileTransportWrapper(asyncio.ReadTransport):  # Read-only
-    """Homogonise the two types of Transport (serial and file/dict)."""
-
-    _extra: dict  # mypy hint
-
-    def __init__(
-        self,
-        pkt_source: dict | TextIOWrapper,
-        protocol: None | _MsgProtocolT = None,
-        extra: None | dict = None,
-        loop: None | asyncio.AbstractEventLoop = None,
-        **kwargs,
-    ) -> None:
-        super().__init__(extra={} if extra is None else extra)
-
-        self._protocol = protocol
-        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
-
-        self._is_closing: bool = False
-        self._is_reading: bool = False
-
-        self._loop.call_soon(self._protocol.connection_made, self)
-
-    @property
-    def loop(self):
-        """The asyncio event loop as used by SerialTransport."""
-        return self._loop
-
-    def get_extra_info(self, name, default=None):
-        """Get optional transport information."""
-        return self._extra.get(name, default)
-
-    def is_closing(self) -> bool:
-        """Return True if the transport is closing or closed."""
-        return self._is_closing
-
-    def is_reading(self):
-        """Return True if the transport is receiving."""
-        return self._is_reading
-
-    def pause_reading(self) -> None:
-        """Pause the receiving end (no data to protocol.pkt_received())."""
-        self._is_reading = False
-
-    def resume_reading(self) -> None:
-        """Resume the receiving end."""
-        self._is_reading = True
-
-
-class _PortTransportWrapper(serial_asyncio.SerialTransport):  # Read-write
-    """Homogonise the two types of Transport (serial and file/dict)."""
-
-    def __init__(
-        self,
-        pkt_source: Serial,
-        protocol: None | _MsgProtocolT = None,
-        extra: None | dict = None,
-        loop: None | asyncio.AbstractEventLoop = None,
-    ) -> None:
-        super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
-
-        self._extra: dict = {} if extra is None else extra
-
-    def get_extra_info(self, name, default=None):
-        """Get optional transport information."""
-        if name == "serial":
-            return super().get_extra_info(name, default=default)
-        return self._extra.get(name, default)
-
-    def _read_ready(self) -> None:  # redirect data to self._bytes_received()
-        try:
-            data: bytes = self._serial.read(self._max_read_size)
-        except SerialException as e:
-            self._close(exc=e)
-            return
-
-        if data:
-            self._bytes_received(data)  # was: self._protocol.pkt_received(data)
-
-    def _bytes_received(data: bytes) -> None:  # raise NotImplementedError
-        raise NotImplementedError
-
-    def is_reading(self) -> None:
-        """Return True if the transport is receiving."""
-        return self._has_reader
-
-
-class _BaseTransport(asyncio.Transport):
+class _PktMixin:
     """Base class for RAMSES II transports."""
 
-    READER_TASK = "reader_task"
-
-    _extra: dict
-    _loop: asyncio.AbstractEventLoop
     _protocol: _MsgProtocolT
 
-    def __init__(self, pkt_source: dict | TextIOWrapper, *args, **kwargs) -> None:
-        super().__init__(pkt_source, *args, **kwargs)
-
-        self._pkt_source = pkt_source  # aka: super()._serial
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._this_pkt: Packet = None
         self._prev_pkt: Packet = None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._protocol}, {self._pkt_source})"
-
-    def _dt_now(self) -> dt:  # raise NotImplementedError
-        raise NotImplementedError
-
-    def get_extra_info(self, name: str, default=None) -> Any:
-        """Get optional transport information."""
-        if name == "dt_now":
-            return self._dt_now()
-        return super().get_extra_info(name, default=default)
+        return f"{self.__class__.__name__}({self._protocol})"
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted Packets to the protocol's callback.
 
         Also maintain _prev_pkt, _this_pkt attrs.
         """
+
+        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
         # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
         # NOTE: Thus, excepts need checking
@@ -263,46 +164,10 @@ class _BaseTransport(asyncio.Transport):
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
 
-class _RegexFilter(_BaseTransport):  # mixin
-    """"""
-
-    def __init__(self, *args, **kwargs) -> None:
-        use_regex: dict = kwargs.pop(SZ_USE_REGEX, {})
-
-        super().__init__(*args, **kwargs)
-
-        # self._use_regex = kwargs.get(SZ_USE_REGEX, {})  # #    gwy.config.use_regex
-
-        self.__inbound_rule = use_regex.get(SZ_INBOUND, {})
-        self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
-
-    @staticmethod
-    def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
-        if not regex_filters:
-            return pkt_line
-
-        result = pkt_line
-        for k, v in regex_filters.items():
-            try:
-                result = re.sub(k, v, result)
-            except re.error as exc:
-                _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
-
-        if result != pkt_line and not DEV_HACK_DISABLE_REGEX_WARNING:
-            (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
-                f"{pkt_line} < Changed by use_regex to: {result}"
-            )
-        return result
-
-    def _frame_received(self, dtm: str, line: str) -> None:
-        super()._frame_received(dtm, self._regex_hack(line, self.__inbound_rule))
-
-    def _send_data(self, line: str) -> None:
-        super()._send_data(self._regex_hack(line, self.__outbound_rule))
-
-
-class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection here
+class _DevMixin:  # NOTE: gwy device_id detection here
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
+
+    _extra: bool  # mypy
 
     def __init__(
         self,
@@ -310,6 +175,7 @@ class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection h
         enforce_include_list: bool = False,
         exclude_list: None | dict = None,
         include_list: None | dict = None,
+        disable_sending: bool = None,
         **kwargs,
     ) -> None:
         self._evofw_flag = kwargs.pop(SZ_EVOFW3_FLAG, None)  # gwy.config.evofw_flag
@@ -337,7 +203,7 @@ class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection h
 
         # for the pkt log, if any, also serves to discover the HGI's device_id
         # BUG: see guard on method, and d_s has been popped
-        if not kwargs.get("disable_sending"):  # NOTE: no retries as only need echo
+        if not disable_sending:  # NOTE: no retries as only need echo
             self._write_fingerprint_pkt()
 
     def _write_fingerprint_pkt(self) -> None:
@@ -351,7 +217,9 @@ class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection h
         # use write, not send_cmd to bypass any throttles, BUG: what about logging?
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
 
-    def _is_wanted_addrs(self, src_id: str, dst_id: str) -> bool:
+    def _is_wanted_addrs(
+        self, src_id: str, dst_id: str, payload: None | str = None
+    ) -> bool:
         """Return True if the packet is not to be filtered out.
 
         In any one packet, an excluded device_id 'trumps' an included device_id.
@@ -381,8 +249,7 @@ class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection h
                 )
 
             if dev_id == self._extra[SZ_KNOWN_HGI] or (
-                dev_id == src_id
-                and self._this_pkt.payload == self._extra[SZ_FINGERPRINT]
+                dev_id == src_id and payload == self._extra[SZ_FINGERPRINT]
             ):
                 self._extra[SZ_DEVICE_ID] = dev_id
 
@@ -393,26 +260,72 @@ class _DeviceFilter(_BaseTransport):  # mixin  # NOTE: gwy device_id detection h
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Validate a Packet and dispatch it to the protocol's callback."""
-
-        if self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
+        if self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
             super()._pkt_received(pkt)
 
 
-# ### Read-Only Transports for dict / log file ########################################
-class FileTransport(_DeviceFilter, _FileTransportWrapper):
-    """Parse a file (or a dict) for packets, and never send."""
+class _RegMixin:
+    """"""
 
     def __init__(self, *args, **kwargs) -> None:
+        use_regex: dict = kwargs.pop(SZ_USE_REGEX, {})
+
         super().__init__(*args, **kwargs)
 
+        self.__inbound_rule = use_regex.get(SZ_INBOUND, {})
+        self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
+
+    @staticmethod
+    def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
+        if not regex_filters:
+            return pkt_line
+
+        result = pkt_line
+        for k, v in regex_filters.items():
+            try:
+                result = re.sub(k, v, result)
+            except re.error as exc:
+                _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
+
+        if result != pkt_line and not DEV_HACK_DISABLE_REGEX_WARNING:
+            (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
+                f"{pkt_line} < Changed by use_regex to: {result}"
+            )
+        return result
+
+    def _frame_received(self, dtm: str, frame: str) -> None:
+        super()._frame_received(dtm, self._regex_hack(frame, self.__inbound_rule))
+
+    def _send_frame(self, frame: str) -> None:
+        super()._send_frame(self._regex_hack(frame, self.__outbound_rule))
+
+
+class _FileTransport(_PktMixin, asyncio.ReadTransport):
+    """Parse a file (or a dict) for packets, and never send."""
+
+    READER_TASK = "reader_task"
+    _extra: dict[str, Any]  # mypy
+
+    _dtm_str: str = None  # type: ignore[assignment]  # FIXME: remove this somehow
+
+    def __init__(
+        self,
+        pkt_source: dict | TextIOWrapper,
+        protocol: None | _MsgProtocolT = None,
+        loop: None | asyncio.AbstractEventLoop = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+
+        self._pkt_source = pkt_source
+        self._protocol = protocol
+        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
+
+        self._is_closing: bool = False
         self._is_reading: bool = False
-        self._protocol.pause_writing()  # but protocol would know is a R/O transport
 
-        reader = self._loop.create_task(self._start_reader())
-        self._extra[self.READER_TASK] = reader
-
-        # FIXME: remove this somehow
-        self._dtm_str: str = None  # type: ignore[assignment]
+        self._extra[self.READER_TASK] = self._loop.create_task(self._start_reader())
+        self._loop.call_soon(self._protocol.connection_made, self)
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using a packet's dtm field."""
@@ -426,6 +339,27 @@ class FileTransport(_DeviceFilter, _FileTransportWrapper):
             return self._this_pkt.dtm  # if above fails, will be previous pkt's dtm
         except AttributeError:
             return dt(1970, 1, 1, 1, 0)
+
+    @property
+    def loop(self):
+        """The asyncio event loop as used by SerialTransport."""
+        return self._loop
+
+    def is_closing(self) -> bool:
+        """Return True if the transport is closing or closed."""
+        return self._is_closing
+
+    def is_reading(self):
+        """Return True if the transport is receiving."""
+        return self._is_reading
+
+    def pause_reading(self) -> None:
+        """Pause the receiving end (no data to protocol.pkt_received())."""
+        self._is_reading = False
+
+    def resume_reading(self) -> None:
+        """Resume the receiving end."""
+        self._is_reading = True
 
     async def _start_reader(self) -> None:  # TODO
         self._is_reading = True
@@ -458,16 +392,14 @@ class FileTransport(_DeviceFilter, _FileTransportWrapper):
                 f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
 
-    def _frame_received(self, dtm_str: str, pkt_line: str) -> None:
+    def _frame_received(self, dtm_str: str, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
         self._dtm_str = dtm_str  # HACK: FIXME: remove need for this, somehow
 
         try:
-            pkt = Packet.from_file(dtm_str, pkt_line)  # is OK for when src is dict
+            pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
-
-        self._this_pkt, self._prev_pkt = pkt, self._this_pkt  # TODO:
         self._pkt_received(pkt)
 
     def close(self, exc: None | Exception = None) -> None:
@@ -483,31 +415,53 @@ class FileTransport(_DeviceFilter, _FileTransportWrapper):
         self._loop.call_soon(self._protocol.connection_lost, exc)
 
 
-# ### Read-Write Transport for serial port ############################################
-class PortTransport(_DeviceFilter, _RegexFilter, _PortTransportWrapper):
+class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
     _recv_buffer: bytes = b""
 
-    def get_extra_info(self, name, default=None):
-        """Get optional transport information."""
-        if name != SZ_IS_EVOFW3:
-            return super().get_extra_info(name, default)
+    def __init__(
+        self,
+        pkt_source: Serial,
+        protocol: None | _MsgProtocolT = None,
+        loop: None | asyncio.AbstractEventLoop = None,
+        extra: None | dict = None,
+    ) -> None:
+        super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
-        # TODO: issue warning if using a HGI80
-        # can probably cache this info, ?as evofw3 & HGI always use different ports
-        # for now, leave that up to transport
-        result = {
+        self._extra: dict = {} if extra is None else extra
+        self._extra[SZ_IS_EVOFW3] = "evofw3" in {
             x.device: x.product for x in comports() if x.device == self.serial.name
-        }
-        return "evofw3" in list(result.values())[0]
+        }.get(self.serial.name, "")
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
-
         return dt_now()
 
-    def _bytes_received(self, data: bytes) -> None:
+    def get_extra_info(self, name, default=None):
+        """Get optional transport information."""
+
+        if name in self._extra:
+            return self._extra.get(name, default)
+        return super().get_extra_info(name, default)
+
+    def _read_ready(self) -> None:
+        # redirect data to self._bytes_received()
+        # instead of self._protocol.data_received(data)
+        try:
+            data: bytes = self._serial.read(self._max_read_size)
+        except SerialException as e:
+            self._close(exc=e)
+            return
+
+        if data:
+            self._bytes_received(data)  # was: self._protocol.pkt_received(data)
+
+    def is_reading(self) -> None:
+        """Return True if the transport is receiving."""
+        return self._has_reader
+
+    def _bytes_received(self, data: bytes) -> None:  # RCVD
         """Make a Frame from the data and process it."""
 
         def bytes_received(data: bytes) -> Iterable[tuple[dt, bytes]]:
@@ -516,32 +470,48 @@ class PortTransport(_DeviceFilter, _RegexFilter, _PortTransportWrapper):
                 lines = self._recv_buffer.split(b"\r\n")
                 self._recv_buffer = lines[-1]
                 for line in lines[:-1]:
-                    yield self._dt_now(), line
+                    yield self._dt_now(), line + b"\r\n"
 
         for dtm, raw_line in bytes_received(data):
             if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
                 _LOGGER.info("RCVD: %s", raw_line)  # should be .info
-
             self._frame_received(dtm, _normalise(_str(raw_line)))
 
-    # TODO: remove raw_line attr from Packet()
-    def _frame_received(self, dtm: str, line: str) -> None:
+    def _frame_received(self, dtm: dt, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
-        #
 
         try:
-            pkt = Packet.from_port(dtm, line)
+            pkt = Packet.from_port(dtm, frame)
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
+        if not pkt:
+            print(pkt)
+        self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 
-        self._this_pkt, self._prev_pkt = pkt, self._this_pkt  # TODO:
-        self._pkt_received(pkt)
+    def send_frame(self, frame: str) -> None:
+        self._send_frame(frame)
 
-    def write(self, data) -> None:
+    def _send_frame(self, frame: str) -> None:
+        self.write(bytes(frame) + "\r\n")
+
+    def write(self, data: bytes) -> None:  # SENT
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
             _LOGGER.info("SENT: %s", b"    " + data)  # should be .info
-
         super().write(data)
+
+
+# ### Read-Only Transports for dict / log file ########################################
+class FileTransport(_DevMixin, _FileTransport):
+    """Parse a file (or a dict) for packets, and never send."""
+
+    pass
+
+
+# ### Read-Write Transport for serial port ############################################
+class PortTransport(_RegMixin, _DevMixin, _PortTransport):
+    """Poll a serial port for packets, and send (without QoS)."""
+
+    pass
 
 
 # ### Read-Write Transport *with QoS* for serial port #################################
@@ -606,6 +576,8 @@ def transport_factory(
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
 
+    kwargs.pop("disable_sending", None)
+
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(pkt_source, protocol, **kwargs)
 
@@ -614,12 +586,12 @@ def transport_factory(
 
     ser_instance = get_serial_instance(port_name, port_config)  # ?SerialException
 
-    # TODO: ensure poller for NT
+    # TODO: ensure poller for Windows NT
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()
         return PortTransport(ser_instance, protocol, **kwargs)
 
-    if kwargs.pop("disable_sending"):  # no need for QoS
+    if kwargs.get("disable_sending"):  # no need for QoS
         return PortTransport(ser_instance, protocol, **kwargs)
 
     return QosTransport(ser_instance, protocol, **kwargs)
