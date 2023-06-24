@@ -65,7 +65,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             raise RuntimeError
         self._state.sent_cmd(cmd)
 
-    def _pkt_received(self, pkt: Packet) -> None:
+    def pkt_received(self, pkt: Packet) -> None:
         self._state.rcvd_pkt(pkt)
 
 
@@ -162,12 +162,12 @@ class WantEcho(ProtocolStateBase):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
 
-        if pkt._hdr != self.cmd.tx_header:
-            pass  # wait for timer to expire
-        elif self.cmd.rx_header:  # if we're expecting a response
+        if self.cmd.rx_header:  # if we're expecting a response
             self._set_context_state(WantResponse)
-        else:
+        elif pkt._hdr == self.cmd.tx_header:
             self._set_context_state(IsIdle)
+        else:
+            pass  # wait for timer to expire
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         raise RuntimeError("Protocol should not send whilst waiting for an echo")

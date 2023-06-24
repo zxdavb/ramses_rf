@@ -366,13 +366,13 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def OUT_send_cmd(self, cmd: Command, **kwargs) -> None:
+    async def send_cmd(self, cmd: Command, **kwargs) -> None:
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
-            raise RuntimeError  # TODO
+            raise RuntimeError("TODO: 001")  # TODO
         if self._pause_writing:
-            raise RuntimeError  # TODO
+            raise RuntimeError("TODO: 002")  # TODO
 
         # This is necessary to track state via the context.
         await self._send_cmd(cmd)  # self._transport.write(...)
@@ -477,7 +477,7 @@ class _ProtGapped(_ProtDutyCycle):  # minimum gap between writes
         await super()._send_frame(frame)
 
 
-class _ProtImpersonate(_ProtGapped):  # warn of impersonation
+class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
     """A mixin for warning that impersonation is being performed."""
 
     _is_evofw3: None | bool = None
@@ -502,7 +502,7 @@ class _ProtImpersonate(_ProtGapped):  # warn of impersonation
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
 
-        await self._send_cmd(cmd)  # HACK: not self.send_cmd()
+        await super().send_cmd(cmd, **kwargs)
 
 
 class _ProtQosTimers(_BaseProtocol):  # context/state
@@ -528,13 +528,13 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().resume_writing()
         self._context.resume_writing()
 
-    def _pkt_received(self, pkt: Packet) -> None:
-        super()._pkt_received(pkt)
-        self._context._pkt_received(pkt)
+    def pkt_received(self, pkt: Packet) -> None:
+        super().pkt_received(pkt)
+        self._context.pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        self._context.send_cmd(cmd, **kwargs)  # , callback: Callable = None
-        return await super().send_cmd(cmd, **kwargs)
+        await super().send_cmd(cmd, **kwargs)
+        self._context.send_cmd(cmd)  # , callback: Callable = None
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Context -> Base
@@ -564,7 +564,7 @@ class ReadProtocol(_BaseProtocol):
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
-class PortProtocol(_ProtImpersonate):
+class PortProtocol(_ProtImpersonate, _ProtGapped, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
 
     # TODO: remove me (a convenience wrapper for breakpoint)
@@ -577,7 +577,7 @@ class PortProtocol(_ProtImpersonate):
 
 
 # ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(_ProtImpersonate, _ProtQosTimers):
+class QosProtocol(_ProtImpersonate, _ProtGapped, _ProtQosTimers, _BaseProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
     # _expecting_cmd: None | Command = None
