@@ -164,7 +164,7 @@ class _PktMixin:
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
 
-class _DevMixin:  # NOTE: gwy device_id detection here
+class _DevMixin:  # NOTE: active gwy detection in here
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     _extra: bool  # mypy
@@ -214,7 +214,7 @@ class _DevMixin:  # NOTE: gwy device_id detection here
 
         cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
         self._extra[SZ_FINGERPRINT] = cmd.payload
-        # use write, not send_cmd to bypass any throttles, BUG: what about logging?
+        # use write, not send_cmd to bypass any throttles
         self.write(bytes(str(cmd), "ascii") + b"\r\n")
 
     def _is_wanted_addrs(

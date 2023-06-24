@@ -366,7 +366,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(self, cmd: Command, callback: None | Callable = None) -> None:
+    async def OUT_send_cmd(self, cmd: Command, **kwargs) -> None:
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
@@ -434,7 +434,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
+    async def send_cmd(self, cmd: Command, **kwargs) -> None:
         """Write some data bytes to the transport."""
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
@@ -447,24 +447,31 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
 
     def __init__(self, msg_handler: _MsgHandlerT) -> None:
         super().__init__(msg_handler)
-
-        self._context = ProtocolContext()
+        self._context = ProtocolContext(self)
 
     def connection_made(self, transport: PktTransportT) -> None:
         super().connection_made(transport)
         self._context.connection_made(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
+        super().connection_lost(exc)
         self._context.connection_lost(exc)
-        return super().connection_lost(exc)
+
+    def pause_writing(self) -> None:
+        super().pause_writing()
+        self._context.pause_writing()
+
+    def resume_writing(self) -> None:
+        super().resume_writing()
+        self._context.resume_writing()
 
     def _pkt_received(self, pkt: Packet) -> None:
+        super()._pkt_received(pkt)
         self._context._pkt_received(pkt)
-        return super()._pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command) -> None:
-        self._context.send_cmd(cmd)
-        return await super().send_cmd(cmd)
+    async def send_cmd(self, cmd: Command, **kwargs) -> None:
+        self._context.send_cmd(cmd, **kwargs)  # , callback: Callable = None
+        return await super().send_cmd(cmd, **kwargs)
 
 
 class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
@@ -570,14 +577,14 @@ class PortProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle
 
 
 # ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(PortProtocol, _ProtQosTimers):
+class QosProtocol(_ProtQosTimers, PortProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
     _expecting_cmd: None | Command = None
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    def pkt_received(self, data) -> None:
-        super().pkt_received(data)
+    def pkt_received(self, pkt: Packet) -> None:
+        super().pkt_received(pkt)
 
     def _msg_received(self, msg: Message) -> None:
         """Check if Message this is the expected response (if any)."""
@@ -604,7 +611,7 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
-        return await super().send_cmd(cmd, callback=callback)
+        await super().send_cmd(cmd, callback=callback)
 
     async def _send_cmd(self, cmd: Command) -> None:
         """Check if this Command is expecting a response."""

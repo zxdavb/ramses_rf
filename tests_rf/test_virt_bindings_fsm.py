@@ -76,7 +76,7 @@ async def _phase_0(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None
     Asserts the initial state and the result.
     """
 
-    assert respondent._context is None  # TDODO
+    assert respondent._context is None  # TODO
     assert supplicant._context is None
 
     respondent._context = Context.respondent(respondent)
