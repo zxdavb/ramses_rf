@@ -414,7 +414,70 @@ class _BaseProtocol(asyncio.Protocol):
             self._loop.call_soon(callback, msg)
 
 
-class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
+class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
+    """A mixin for avoiding sync cycles."""
+
+    @track_system_syncs
+    def pkt_received(self, pkt: Packet) -> None:
+        """Pass any valid/wanted packets to the callback."""
+        super().pkt_received(pkt)
+
+    @avoid_system_syncs
+    # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
+    async def _send_frame(self, data: bytes) -> None:
+        """Write some data bytes to the transport."""
+        await super()._send_frame(data)
+
+
+class _ProtDutyCycle(_ProtSyncCycle):  # stay within duty cycle limits
+    """A mixin for staying within duty cycle limits."""
+
+    @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
+    async def _send_frame(self, cmd: Command) -> None:
+        """Write some data bytes to the transport."""
+        await super()._send_frame(cmd)
+
+
+class _ProtGapped(_ProtDutyCycle):  # minimum gap between writes
+    """A mixin for enforcing a minimum gap between writes."""
+
+    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+        super().__init__(msg_handler)
+
+        self._leaker_sem = asyncio.BoundedSemaphore()
+        self._leaker_task = None
+
+    async def _leak_sem(self) -> None:
+        """Used to enforce a minimum time between calls to self._transport.write()."""
+        while True:
+            await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
+            try:
+                self._leaker_sem.release()
+            except ValueError:
+                pass
+
+    def connection_made(self, transport: PktTransportT) -> None:  # type: ignore[override]
+        """Called when a connection is made."""
+        super().connection_made(transport)
+
+        if not self._leaker_task:
+            self._leaker_task = self._loop.create_task(self._leak_sem())
+
+    def connection_lost(self, exc: None | Exception) -> None:
+        """Called when the connection is lost or closed."""
+        if self._leaker_task:
+            self._leaker_task.cancel()
+
+        super().connection_lost(exc)
+
+    async def _send_frame(self, frame: str) -> None:
+        """Write some data bytes to the transport."""
+        await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
+
+        await super()._send_frame(frame)
+
+
+class _ProtImpersonate(_ProtGapped):  # warn of impersonation
     """A mixin for warning that impersonation is being performed."""
 
     _is_evofw3: None | bool = None
@@ -474,69 +537,6 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         return await super().send_cmd(cmd, **kwargs)
 
 
-class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
-    """A mixin for avoiding sync cycles."""
-
-    @track_system_syncs
-    def pkt_received(self, pkt: Packet) -> None:
-        """Pass any valid/wanted packets to the callback."""
-        super().pkt_received(pkt)
-
-    @avoid_system_syncs
-    # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
-    async def _send_frame(self, data: bytes) -> None:
-        """Write some data bytes to the transport."""
-        await super()._send_frame(data)
-
-
-class _ProtDutyCycle(_BaseProtocol):  # stay within duty cycle limits
-    """A mixin for staying within duty cycle limits."""
-
-    @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
-    async def _send_frame(self, cmd: Command) -> None:
-        """Write some data bytes to the transport."""
-        await super()._send_frame(cmd)
-
-
-class _ProtGapped(_BaseProtocol):  # minimum gap between writes
-    """A mixin for enforcing a minimum gap between writes."""
-
-    def __init__(self, msg_handler: _MsgHandlerT) -> None:
-        super().__init__(msg_handler)
-
-        self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task = None
-
-    async def _leak_sem(self) -> None:
-        """Used to enforce a minimum time between calls to self._transport.write()."""
-        while True:
-            await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
-            try:
-                self._leaker_sem.release()
-            except ValueError:
-                pass
-
-    def connection_made(self, transport: PktTransportT) -> None:  # type: ignore[override]
-        """Called when a connection is made."""
-        super().connection_made(transport)
-
-        if not self._leaker_task:
-            self._leaker_task = self._loop.create_task(self._leak_sem())
-
-    def connection_lost(self, exc: None | Exception) -> None:
-        """Called when the connection is lost or closed."""
-        if self._leaker_task:
-            self._leaker_task.cancel()
-
-        super().connection_lost(exc)
-
-    async def _send_frame(self, frame: str) -> None:
-        """Write some data bytes to the transport."""
-        await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
-
-        await super()._send_frame(frame)
-
-
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Context -> Base
 # Impersonate first, as the Puzzle Packet needs to be sent before the Command
 # Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
@@ -564,29 +564,29 @@ class ReadProtocol(_BaseProtocol):
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
-class PortProtocol(_ProtImpersonate, _ProtGapped, _ProtDutyCycle, _ProtSyncCycle):
+class PortProtocol(_ProtImpersonate):
     """A protocol that can receive Packets and send Commands."""
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def pkt_received(self, data) -> None:
-        super().pkt_received(data)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
-        return await super().send_cmd(cmd, callback=callback)
-
-
-# ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(_ProtQosTimers, PortProtocol):
-    """A protocol that can receive Packets and send Commands with QoS."""
-
-    _expecting_cmd: None | Command = None
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     def pkt_received(self, pkt: Packet) -> None:
         super().pkt_received(pkt)
 
-    def _msg_received(self, msg: Message) -> None:
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
+        await super().send_cmd(cmd, callback=callback)
+
+
+# ### Read-Write Protocol for QosTransport ############################################
+class QosProtocol(_ProtImpersonate, _ProtQosTimers):
+    """A protocol that can receive Packets and send Commands with QoS."""
+
+    # _expecting_cmd: None | Command = None
+
+    # TODO: remove me (a convenience wrapper for breakpoint)
+    def pkt_received(self, pkt: Packet) -> None:
+        super().pkt_received(pkt)
+
+    def OUT_msg_received(self, msg: Message) -> None:
         """Check if Message this is the expected response (if any)."""
 
         if not self._expecting_cmd:
@@ -613,7 +613,7 @@ class QosProtocol(_ProtQosTimers, PortProtocol):
     async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         await super().send_cmd(cmd, callback=callback)
 
-    async def _send_cmd(self, cmd: Command) -> None:
+    async def OUT_send_cmd(self, cmd: Command) -> None:
         """Check if this Command is expecting a response."""
 
         if self._expecting_cmd:
