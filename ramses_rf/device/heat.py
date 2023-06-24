@@ -142,7 +142,7 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             msg.code == Code._3EF0
             and msg.verb == I_  # will be a 13:
             and not self._faked
-            and not self._gwy._read_only
+            and not self._gwy._disable_sending
             and not self._gwy.config.disable_discovery
         ):
             # self._make_cmd(Code._0008, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
@@ -258,7 +258,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
             return
 
         if (
-            self._gwy._read_only
+            self._gwy._disable_sending
             or not self._faked
             or self._child_id is None
             or self._child_id
@@ -669,7 +669,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
         super()._handle_msg(msg)
 
         # The following is required, as CTLs don't send such every sync_cycle
-        if msg.code == Code._1260 and self.ctl and not self._gwy._read_only:
+        if msg.code == Code._1260 and self.ctl and not self._gwy._disable_sending:
             # update the controller DHW temp
             self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 

@@ -231,7 +231,7 @@ class Discovery(MessageDB):
         self._supported_cmds_ctx: dict[str, None | bool] = {}
 
         # BUG: FIXME: The Bug
-        if not gwy.config.disable_discovery and not gwy._read_only:
+        if not gwy.config.disable_discovery and not gwy._disable_sending:
             # gwy._loop.call_soon(self._start_discovery_poller)  # BUG: use next instead
             self._start_discovery_poller
 
@@ -510,7 +510,7 @@ class Entity(Discovery):
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
     def _send_cmd(self, cmd, **kwargs) -> None | Future:
-        if self._gwy._read_only:
+        if self._gwy._disable_sending:
             _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request")
             return None
 

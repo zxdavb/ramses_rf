@@ -28,7 +28,6 @@ from .const import __dev_mode__
 #     DEV_TYPE,
 #     DEV_TYPE_MAP,
 #     SZ_DAEMON,
-#     SZ_DEVICE_ID,
 #     SZ_EXPIRES,
 #     SZ_FUNC,
 #     SZ_TIMEOUT,
@@ -383,11 +382,11 @@ class _BaseProtocol(asyncio.Protocol):
 
         The Protocol must be given a Command (not bytes).
         """
-        await self._send_bytes(bytes(str(cmd), "ascii") + b"\r\n")
+        await self._send_frame(str(cmd))
 
-    async def _send_bytes(self, data: bytes) -> None:
+    async def _send_frame(self, data: bytes) -> None:
         """Write some bytes to the transport."""
-        self._transport.write(data)
+        self._transport.send_frame(data)
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
@@ -478,18 +477,18 @@ class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
 
     @avoid_system_syncs
     # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
-    async def _send_bytes(self, data: bytes) -> None:
+    async def _send_frame(self, data: bytes) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_bytes(data)
+        await super()._send_frame(data)
 
 
 class _ProtDutyCycle(_BaseProtocol):  # stay within duty cycle limits
     """A mixin for staying within duty cycle limits."""
 
     @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
-    async def _send_bytes(self, cmd: Command) -> None:
+    async def _send_frame(self, cmd: Command) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_bytes(cmd)
+        await super()._send_frame(cmd)
 
 
 class _ProtGapped(_BaseProtocol):  # minimum gap between writes
@@ -524,11 +523,11 @@ class _ProtGapped(_BaseProtocol):  # minimum gap between writes
 
         super().connection_lost(exc)
 
-    async def _send_bytes(self, cmd: Command) -> None:
+    async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
         await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
 
-        await super()._send_bytes(cmd)
+        await super()._send_frame(frame)
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Context -> Base
@@ -620,9 +619,13 @@ class QosProtocol(PortProtocol, _ProtQosTimers):
 
 
 def protocol_factory(  # TODO: no_qos default should be None
-    msg_handler: _MsgHandlerT, /, *, read_only: bool = None, disable_qos: bool = None
+    msg_handler: _MsgHandlerT,
+    /,
+    *,
+    disable_sending: bool = None,
+    disable_qos: bool = None,
 ) -> MsgProtocolT:
-    if read_only:
+    if disable_sending:
         return ReadProtocol(msg_handler)
     if disable_qos:
         return PortProtocol(msg_handler)

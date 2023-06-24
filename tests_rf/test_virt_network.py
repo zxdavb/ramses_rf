@@ -75,6 +75,7 @@ async def assert_devices(
 
 
 async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
+    """Check, at the transport layer, that the current packet is as expected."""
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if transport._this_pkt and transport._this_pkt._frame == cmd._frame:
@@ -113,28 +114,28 @@ async def test_virtual_rf_dev_disc():
 
     await gwy_1.start()
 
-    await assert_devices(gwy_0, ["18:000000", "18:111111"])
-    await assert_devices(gwy_1, ["18:111111"])  # not started so cant hear 18:000000
+    await assert_devices(gwy_0, ["18:000000"])  # not "18:111111", as is foreign
+    await assert_devices(gwy_1, ["18:111111"])
 
     # TEST 1: Tx to all from GWY /dev/pty/0 (NB: no RSSI)
     cmd = Command("RP --- 01:111111 --:------ 01:111111 1F09 003 0004B5")
     gwy_0.send_cmd(cmd)
 
-    await assert_devices(gwy_0, ["01:111111", "18:000000", "18:111111"])
+    await assert_devices(gwy_0, ["01:111111", "18:000000"])
     await assert_devices(gwy_1, ["01:111111", "18:111111"])
 
     # TEST 2: Tx to all from non-GWY /dev/pty/2 (NB: no RSSI)
     cmd = Command("RP --- 01:222222 --:------ 01:222222 1F09 003 0004B5")
     ser_2.write(bytes(f"{cmd}\r\n".encode("ascii")))
 
-    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000", "18:111111"])
+    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000"])
     await assert_devices(gwy_1, ["01:111111", "01:222222", "18:111111"])
 
     # TEST 3: Rx only by *only one* GWY (NB: needs RSSI)
     cmd = Command("RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5")
     list(rf._file_objs.values())[1].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
 
-    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000", "18:111111"])
+    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000"])
     await assert_devices(gwy_1, ["01:111111", "01:222222", "01:333333", "18:111111"])
 
     await gwy_0.stop()

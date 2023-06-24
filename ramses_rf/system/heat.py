@@ -644,7 +644,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         return self._msg_0006.payload[SZ_CHANGE_COUNTER], True  # global_ver, did_io
 
     def _refresh_schedules(self) -> None:
-        if self._gwy._read_only:
+        if self._gwy._disable_sending:
             raise RuntimeError("Sending is disabled")
 
         # schedules based upon 'active' (not most recent) 0006 pkt
@@ -759,7 +759,7 @@ class Logbook(SystemBase):  # 0418
     async def get_faultlog(
         self, *, start=None, limit=None, force_io=None
     ) -> None | dict:
-        if self._gwy._read_only:
+        if self._gwy._disable_sending:
             raise RuntimeError("Sending is disabled")
 
         try:

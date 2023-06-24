@@ -23,11 +23,12 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Callable, Optional
 
-from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
+from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
 from .helpers import schedule_task, shrink
 from .protocol import (
+    SZ_ACTIVE_HGI,
     Address,
     Command,
     is_valid_dev_id,
@@ -110,11 +111,10 @@ class Engine:
             )
             input_file = None
 
-        if port_name:
-            self._read_only = kwargs.get(SZ_DISABLE_SENDING)
-        elif input_file:
-            self._read_only = True
-        else:
+        self._disable_sending = kwargs.pop(SZ_DISABLE_SENDING, None)
+        if input_file:
+            self._disable_sending = True
+        elif not port_name:
             raise TypeError("Either a port_name or a input_file must be specified")
 
         self.ser_name = port_name
@@ -132,10 +132,11 @@ class Engine:
             "01:000001",  # why this one?
         ]
         self._enforce_known_list = select_device_filter_mode(
-            kwargs.get(SZ_ENFORCE_KNOWN_LIST),
+            kwargs.pop(SZ_ENFORCE_KNOWN_LIST, None),
             self._include,
             self._exclude,
         )
+        self._kwargs = kwargs  # HACK
 
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
@@ -146,14 +147,14 @@ class Engine:
         self._prev_msg: None | Message = None
         self._this_msg: None | Message = None
 
-        self._set_msg_handler(self._handle_msg, read_only=self._read_only)
+        self._set_msg_handler(self._handle_msg)
 
     def __str__(self) -> str:
         if not self._transport:
             return f"{HGI_DEV_ADDR.id} ({self.ser_name})"
 
         device_id = self._transport.get_extra_info(
-            SZ_DEVICE_ID, default=HGI_DEV_ADDR.id
+            SZ_ACTIVE_HGI, default=HGI_DEV_ADDR.id
         )
         return f"{device_id} ({self.ser_name})"
 
@@ -161,14 +162,16 @@ class Engine:
         return self._transport._dt_now() if self._transport else dt.now()
 
     def _set_msg_handler(
-        self, msg_handler: _MsgHandlerT, /, *, read_only: bool = False
+        self, msg_handler: _MsgHandlerT
     ) -> tuple[MsgProtocolT, PktTransportT]:
         """Create an appropriate protocol for the packet source (transport).
 
         The corresponding transport will be created later.
         """
 
-        self._protocol = protocol_factory(msg_handler, read_only=self._read_only)
+        self._protocol = protocol_factory(
+            msg_handler, disable_sending=self._disable_sending
+        )
 
     def add_msg_handler(
         self,
@@ -206,12 +209,14 @@ class Engine:
 
         self._transport = transport_factory(
             self._protocol,
-            disable_sending=self._read_only,
+            disable_sending=self._disable_sending,
             enforce_include_list=self._enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
             **pkt_source,
+            **self._kwargs,
         )
+        self._kwargs = None  # HACK
 
         if self._input_file:
             return await self._wait_for_protocol_to_stop()
@@ -248,7 +253,7 @@ class Engine:
         self._transport.pause_reading()  # TODO: call_soon()?
 
         self._protocol._msg_handler, handler = None, self._protocol._msg_handler
-        self._read_only, read_only = True, self._read_only
+        self._disable_sending, read_only = True, self._disable_sending
 
         self._engine_state = (handler, read_only, args)
 
@@ -265,11 +270,11 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to resume engine, it was not paused")
 
-        self._protocol._msg_handler, self._read_only, args = self._engine_state
+        self._protocol._msg_handler, self._disable_sending, args = self._engine_state
         self._engine_lock.release()
 
         self._transport.resume_reading()
-        if not self._read_only:
+        if not self._disable_sending:
             self._protocol.resume_writing()
 
         self._engine_state = None
@@ -381,7 +386,7 @@ class Gateway(Engine):
             **SCH_ENGINE_CONFIG(config),
         )
 
-        if self._read_only:
+        if self._disable_sending:
             config[SZ_DISABLE_DISCOVERY] = True
         if config.get(SZ_ENABLE_EAVESDROP):
             _LOGGER.warning(
@@ -413,7 +418,7 @@ class Gateway(Engine):
     def hgi(self) -> None | Device:
         """Return the active HGI80-compatible gateway device, if known."""
         if self._transport and (
-            device_id := self._transport.get_extra_info(SZ_DEVICE_ID)
+            device_id := self._transport.get_extra_info(SZ_ACTIVE_HGI)
         ):
             return self.device_by_id.get(device_id)
 
@@ -438,7 +443,7 @@ class Gateway(Engine):
 
         await super().start()
 
-        if not self._read_only and start_discovery:
+        if not self._disable_sending and start_discovery:
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess
@@ -557,7 +562,7 @@ class Gateway(Engine):
 
         load_schema(self, **schema)
 
-        tmp_protocol = protocol_factory(self._handle_msg, read_only=True)
+        tmp_protocol = protocol_factory(self._handle_msg, disable_sending=True)
 
         tmp_transport = transport_factory(
             tmp_protocol,
@@ -742,7 +747,7 @@ class Gateway(Engine):
     ) -> futures.Future:
         """Send a command with the option to return any response via callback."""
 
-        if self._read_only:
+        if self._disable_sending:
             raise RuntimeError("sending is disabled")
 
         fut = super().send_cmd(cmd, callback, **kwargs)

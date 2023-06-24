@@ -940,7 +940,7 @@ def create_protocol_factory(
     def _protocol_factory() -> asyncio.Protocol:
         return protocol_class(
             pkt_callback,
-            disable_sending=gwy._read_only,
+            disable_sending=gwy._disable_sending,
             enforce_include_list=gwy._enforce_known_list,
             exclude_list=gwy._exclude,
             include_list=gwy._include,
@@ -1010,7 +1010,7 @@ def create_pkt_stack(
     def protocol_factory_() -> _PacketProtocolT:
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
-        elif gwy._read_only:
+        elif gwy._disable_sending:
             return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()

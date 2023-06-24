@@ -55,7 +55,7 @@ def shuffle_dict(old_dict) -> dict:
 async def gwy() -> Gateway:  # NOTE: async to get running loop
     """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})
-    gwy._read_only = True
+    gwy._disable_sending = True
     return gwy
 
 

@@ -28,7 +28,8 @@ CONFIG = {
     "config": {
         "disable_discovery": True,
         "enforce_known_list": False,
-    }
+    },
+    "known_list": {"18:000730": {}},  # required to thwart foreign HGI blacklisting
 }
 
 
@@ -37,14 +38,14 @@ TEST_CMDS = {  # test command strings (no impersonation)
     11: r"RQ --- 18:000730 63:262142 --:------ 10E0 001 00",
     20: f" I --- {TST_ID_} {TST_ID_} --:------ 30C9 003 000222",
     21: f" I --- 18:000730 {TST_ID_} --:------ 30C9 003 000333",
-    30: f"RP --- {TST_ID_} 18:000730 --:------ 30C9 003 000444",  # addr1 unchanged
-    31: r"RP --- 18:000730 18:000730 --:------ 30C9 003 000555",  # addr1 unchanged
+    30: f"RP --- {TST_ID_} 18:000730 --:------ 30C9 003 000444",  # addr1 unchanged - foreign gwy
+    31: r"RP --- 18:000730 18:000730 --:------ 30C9 003 000555",  # addr1 unchanged - foreign gwy
     40: f" I --- {TST_ID_} --:------ {TST_ID_} 30C9 003 000666",
     41: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",
-    50: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",  # addr2 unchanged
-    51: r" I --- 18:000730 --:------ 18:000730 30C9 003 000999",  # addr2 unchanged
+    50: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",  # addr2 unchanged - foreign gwy
+    51: r" I --- 18:000730 --:------ 18:000730 30C9 003 000999",  # addr2 unchanged - foreign gwy
     60: f" I --- --:------ --:------ {TST_ID_} 0008 002 00AA",
-    61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . addr2 unchanged
+    61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . addr2 unchanged - foreign gwy
 }
 
 

@@ -25,7 +25,6 @@ For socat, see:
 
 
 # TODO:
-# - make use_regex work again
 # - chase down gwy.config.disable_discovery
 # - chase down / check deprecation
 # - check: READER/POLLER & WRITER tasks
@@ -48,7 +47,7 @@ from serial.tools.list_ports import comports  # type: ignore[import]
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
+from .const import DEV_TYPE, DEV_TYPE_MAP, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -74,6 +73,7 @@ _SerPortName = str
 
 DONT_CREATE_MESSAGES = 3  # duplicate
 
+SZ_ACTIVE_HGI = "active_gwy"
 SZ_FINGERPRINT = "fingerprint"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
@@ -188,7 +188,7 @@ class _DevMixin:  # NOTE: gwy device_id detection here
 
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        for key in (SZ_DEVICE_ID, SZ_FINGERPRINT, SZ_KNOWN_HGI):
+        for key in (SZ_ACTIVE_HGI, SZ_FINGERPRINT, SZ_KNOWN_HGI):
             self._extra[key] = None
 
         known_hgis = [
@@ -225,36 +225,47 @@ class _DevMixin:  # NOTE: gwy device_id detection here
         In any one packet, an excluded device_id 'trumps' an included device_id.
         """
 
+        def deprecate_foreign_hgi(dev_id: str) -> None:
+            self._unwanted.append(dev_id)
+            _LOGGER.warning(
+                f"Blacklisting a Foreign gateway (or is it a HVAC?): {dev_id}"
+                f" (Active gateway is: {self._extra[SZ_ACTIVE_HGI]}){TIP}"
+            )
+            return False  # return self._extra[SZ_ACTIVE_HGI] in (src_id, dst_id) ???
+
+        def establish_active_hgi(dev_id: str) -> None:
+            self._extra[SZ_ACTIVE_HGI] = dev_id
+            if dev_id not in self._include:
+                _LOGGER.warning(f"Active gateway set to: {dev_id}{TIP}")
+
         for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
             # TODO: _unwanted exists since (in future) stale entries need to be removed
 
             if dev_id in self._exclude or dev_id in self._unwanted:
                 return False
 
-            if dev_id == self._extra[SZ_DEVICE_ID]:  # even if not in include list
+            if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
                 continue
 
-            if dev_id not in self._include and self.enforce_include:
+            if dev_id in self._include:  # incl. 63:262142 & --:------
+                continue
+
+            if self.enforce_include:
                 return False
 
             if dev_id[:2] != DEV_TYPE_MAP.HGI:
                 continue
 
-            if dev_id not in self._include and self._extra[SZ_DEVICE_ID]:
-                self._unwanted.append(dev_id)
+            if self._extra[SZ_ACTIVE_HGI]:
+                deprecate_foreign_hgi(dev_id)  # self._unwanted.append(dev_id)
+                return False
 
-                _LOGGER.warning(
-                    f"Blacklisting a Foreign gateway (or is it a HVAC?): {dev_id}"
-                    f" (Active gateway is: {self._extra[SZ_DEVICE_ID]}){TIP}"
-                )
+            if dev_id == src_id and payload == self._extra[SZ_FINGERPRINT]:
+                establish_active_hgi(dev_id)  # self._extra[SZ_ACTIVE_HGI] = dev_id
+                continue
 
-            if dev_id == self._extra[SZ_KNOWN_HGI] or (
-                dev_id == src_id and payload == self._extra[SZ_FINGERPRINT]
-            ):
-                self._extra[SZ_DEVICE_ID] = dev_id
-
-                if dev_id not in self._include:
-                    _LOGGER.warning(f"Active gateway set to: {dev_id}{TIP}")
+            if dev_id == self._extra[SZ_KNOWN_HGI]:
+                establish_active_hgi(dev_id)  # self._extra[SZ_ACTIVE_HGI] = dev_id
 
         return True
 
@@ -276,12 +287,12 @@ class _RegMixin:
         self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
 
     @staticmethod
-    def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
-        if not regex_filters:
+    def __regex_hack(pkt_line: str, regex_rules: dict) -> str:
+        if not regex_rules:
             return pkt_line
 
         result = pkt_line
-        for k, v in regex_filters.items():
+        for k, v in regex_rules.items():
             try:
                 result = re.sub(k, v, result)
             except re.error as exc:
@@ -294,10 +305,10 @@ class _RegMixin:
         return result
 
     def _frame_received(self, dtm: str, frame: str) -> None:
-        super()._frame_received(dtm, self._regex_hack(frame, self.__inbound_rule))
+        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))
 
     def _send_frame(self, frame: str) -> None:
-        super()._send_frame(self._regex_hack(frame, self.__outbound_rule))
+        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))
 
 
 class _FileTransport(_PktMixin, asyncio.ReadTransport):
@@ -492,7 +503,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         self._send_frame(frame)
 
     def _send_frame(self, frame: str) -> None:
-        self.write(bytes(frame) + "\r\n")
+        self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # SENT
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
