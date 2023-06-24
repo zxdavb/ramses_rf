@@ -26,7 +26,7 @@ from .exceptions import (
 from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message
 from .packet import _PKT_LOGGER, Packet
-from .protocol_new import (  # noqa: F401, pylint: disable=unused-import
+from .protocol import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
     QosProtocol,
     ReadProtocol,
@@ -34,7 +34,7 @@ from .protocol_new import (  # noqa: F401, pylint: disable=unused-import
 )
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA
 from .schemas import SZ_SERIAL_PORT
-from .transport_new import (  # noqa: F401, pylint: disable=unused-import
+from .transport import (  # noqa: F401, pylint: disable=unused-import
     SZ_ACTIVE_HGI,
     FileTransport,
     PortTransport,

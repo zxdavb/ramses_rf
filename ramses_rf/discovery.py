@@ -14,7 +14,7 @@ from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.command import _mk_cmd
 from .protocol.const import SZ_DISABLE_BACKOFF, SZ_PRIORITY, SZ_RETRIES
 from .protocol.opentherm import OTB_MSG_IDS
-from .protocol.transport_new import MIN_GAP_BETWEEN_WRITES
+from .protocol.transport import MIN_GAP_BETWEEN_WRITES
 
 # Beware, none of this is reliable - it is all subject to random change
 # However, these serve as examples how to us eteh other modules

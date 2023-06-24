@@ -69,14 +69,14 @@ def factory(schema_0: dict, schema_1: dict) -> Callable:
     # result = await? factory(schema_0, schema_1)(fnc)(gwy_0, gwy_1, *args, **kwargs)
 
     def decorator(fnc) -> Coroutine:
-        """Wrap the decorated funcation as below and return the result."""
+        """Wrap the decorated function as below and return the result."""
 
         @patch(  # stifle_impersonation_alert()
-            "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+            "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
             stifle_impersonation_alert,
         )
         @patch(  # MIN_GAP_BETWEEN_WRITES = 0
-            "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES",
+            "ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES",
             MIN_GAP_BETWEEN_WRITES,
         )
         @wraps(fnc)

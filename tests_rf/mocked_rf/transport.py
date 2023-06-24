@@ -207,7 +207,7 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
 def create_pkt_stack_new(  # to use a mocked Serial port (and a sympathetic Transport)
     gwy: Gateway, *args, **kwargs
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
-    from protocol.protocol_new import create_stack
+    from protocol.protocol import create_stack
 
     # with patch(
     #     "ramses_rf.protocol.transport.serial_for_url",

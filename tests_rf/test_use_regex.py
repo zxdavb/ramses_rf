@@ -11,7 +11,7 @@ import serial
 
 from ramses_rf import Command, Gateway
 from ramses_rf.protocol.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
-from ramses_rf.protocol.transport_new import _str
+from ramses_rf.protocol.transport import _str
 from tests_rf.test_virt_network import assert_device
 from tests_rf.virtual_rf import (
     MIN_GAP_BETWEEN_WRITES,
@@ -73,12 +73,10 @@ async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_S
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_use_regex_inbound_():
     """Check the regex filters work as expected."""
 
@@ -107,12 +105,10 @@ async def test_use_regex_inbound_():
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_regex_outbound():
     """Check the regex filters work as expected."""
 

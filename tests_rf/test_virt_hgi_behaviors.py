@@ -107,11 +107,9 @@ _global_failed_ports: list[str] = []
 
 
 @patch("ramses_rf.protocol.address._STRICT_CHECKING", False)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
-@patch(
-    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
 async def _test_hgi(port_name, org_str, is_evofw3: bool):
@@ -193,16 +191,14 @@ async def _test_actual_ti3410(test_idx):
 
 
 @pytest.mark.xdist_group(name="mock_serial")
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_mocked_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.EVOFW3)
 
-    with patch("ramses_rf.protocol.transport_new.comports", rf.comports):
+    with patch("ramses_rf.protocol.transport.comports", rf.comports):
         try:
             await _test_hgi(rf.ports[0], TEST_CMDS[test_idx], is_evofw3=True)
         finally:
@@ -210,16 +206,14 @@ async def test_mocked_evofw3(test_idx):
 
 
 @pytest.mark.xdist_group(name="mock_serial")
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.NATIVE)
 
-    with patch("ramses_rf.protocol.transport_new.comports", rf.comports):
+    with patch("ramses_rf.protocol.transport.comports", rf.comports):
         try:
             await _test_hgi(rf.ports[0], TEST_CMDS[test_idx], is_evofw3=False)
         finally:

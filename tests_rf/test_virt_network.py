@@ -85,12 +85,10 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -145,12 +143,10 @@ async def test_virtual_rf_dev_disc():
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.protocol_new._ProtImpersonate._send_impersonation_alert",
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch(
-    "ramses_rf.protocol.transport_new.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 

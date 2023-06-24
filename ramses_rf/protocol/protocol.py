@@ -40,8 +40,8 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport_new import SZ_IS_EVOFW3, PktTransportT
-from .transport_new import transport_factory as _transport_factory
+from .transport import SZ_IS_EVOFW3, PktTransportT
+from .transport import transport_factory as _transport_factory
 
 # from .version import VERSION
 

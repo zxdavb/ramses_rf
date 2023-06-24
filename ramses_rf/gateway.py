@@ -37,7 +37,7 @@ from .protocol import (
     transport_factory,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .protocol.protocol_new import MsgProtocolT, PktTransportT
+from .protocol.protocol import MsgProtocolT, PktTransportT
 from .protocol.schemas import (
     SCH_ENGINE_CONFIG,
     SZ_BLOCK_LIST,
