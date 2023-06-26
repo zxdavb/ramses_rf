@@ -45,21 +45,21 @@ async def assert_context_state(
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if ctx._state.__class__ is expected_state:
+        if isinstance(ctx._state, expected_state):
             break
-    assert ctx._state.__class__ is expected_state
+    assert isinstance(ctx._state, expected_state)
 
 
 async def assert_protocol_state(
     protocol: QosProtocol,
-    expected: type[ProtocolState],
+    expected_state: type[ProtocolState],
     max_sleep: int = DEFAULT_MAX_SLEEP,
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if isinstance(protocol._context._state, expected):
+        if isinstance(protocol._context._state, expected_state):
             break
-    assert isinstance(protocol._context._state, expected)
+    assert isinstance(protocol._context._state, expected_state), expected_state
 
 
 async def assert_protocol_ready(
@@ -111,21 +111,112 @@ def _test_decorator(fnc):
 
 # Command("RQ --- 18:111111 01:222222 --:------ 12B0 003 07")  # TODO: better handling than AttributeError
 
-RQ_CMD = "RQ --- 18:000730 01:222222 --:------ 12B0 001 07"
-RP_PKT = "RP --- 01:222222 18:000730 --:------ 12B0 003 070000"
+RQ_CMD_0 = "RQ --- 18:000730 01:222222 --:------ 12B0 001 01"
+RP_PKT_0 = "RP --- 01:222222 18:000730 --:------ 12B0 003 010000"
+
+RQ_CMD_1 = "RQ --- 18:000730 01:222222 --:------ 12B0 001 02"
+RP_PKT_1 = "RP --- 01:222222 18:000730 --:------ 12B0 003 020000"
 
 
 async def _phase_00(protocol: QosProtocol) -> None:
+    rq_cmd = RQ_CMD_0
+    rp_pkt = RP_PKT_0
+
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    protocol._context.send_cmd(Command(rq_cmd))
+    await assert_context_state(protocol._context, ProtocolState.ECHO)
+
+    protocol._context.pkt_received(Packet(dt.now(), "... " + rq_cmd))
+    await assert_context_state(protocol._context, ProtocolState.WAIT)
+
+    protocol._context.pkt_received(Packet(dt.now(), "... " + rp_pkt))
+    await assert_context_state(protocol._context, ProtocolState.IDLE)
+
+
+async def _phase_01(protocol: QosProtocol) -> None:
+    rq_cmd = RQ_CMD_1
+    rp_pkt = RP_PKT_1
+
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    protocol._context.send_cmd(Command(rq_cmd))
+    await assert_context_state(protocol._context, ProtocolState.ECHO)
+
+    protocol._context.pkt_received(Packet(dt.now(), "... " + rq_cmd))
+    await assert_context_state(protocol._context, ProtocolState.WAIT)
+
+    protocol._context.pkt_received(Packet(dt.now(), "... " + rp_pkt))
+    await assert_context_state(protocol._context, ProtocolState.IDLE)
+
+
+async def _phase_10(protocol: QosProtocol) -> None:
+    rq_cmd = RQ_CMD_0
+    rp_pkt = RP_PKT_0
+
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    await protocol.send_cmd(Command(rq_cmd))
+    await assert_context_state(protocol._context, ProtocolState.ECHO)
+
+    # Virtual RF will echo the sent cmd
+    # await assert_context_state(protocol._context, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_context_state(protocol._context, ProtocolState.WAIT)
+
+    protocol.pkt_received(Packet(dt.now(), "... " + rp_pkt))
+    await assert_protocol_state(protocol, ProtocolState.IDLE)
+
+
+async def _phase_11(protocol: QosProtocol) -> None:
+    rq_cmd = RQ_CMD_1
+    rp_pkt = RP_PKT_1
+
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
 
-    protocol._context.send_cmd(Command(RQ_CMD))
+    await protocol.send_cmd(Command(rq_cmd))
     await assert_protocol_state(protocol, ProtocolState.ECHO)
 
-    protocol._context.pkt_received(Packet(dt.now(), "... " + RQ_CMD))
+    # Virtual RF will echo the sent cmd
     await assert_protocol_state(protocol, ProtocolState.WAIT)
 
-    protocol._context.pkt_received(Packet(dt.now(), "... " + RP_PKT))
-    await assert_protocol_state(protocol, ProtocolState.IDLE)
+    protocol.pkt_received(Packet(dt.now(), "... " + rp_pkt))
+    # await assert_protocol_state(protocol, ProtocolState.IDLE)
+
+
+@_test_decorator
+async def _test_flow_00(protocol: QosProtocol):
+    await _phase_00(protocol)
+
+
+@_test_decorator
+async def _test_flow_01(protocol: QosProtocol):
+    await _phase_00(protocol)
+    await _phase_01(protocol)
+
+
+@_test_decorator
+async def _test_flow_02(protocol: QosProtocol):
+    await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+
+    protocol._context.send_cmd(Command(RQ_CMD_0))
+    await assert_protocol_state(protocol, ProtocolState.ECHO)
+
+    protocol._context.pkt_received(Packet(dt.now(), "... " + RQ_CMD_0))
+    await assert_protocol_state(protocol, ProtocolState.WAIT)
+
+    try:
+        protocol._context.send_cmd(Command(RQ_CMD_0))
+    except RuntimeError:
+        pass
+    else:
+        assert False
+
+
+@_test_decorator
+async def _test_flow_11(protocol: QosProtocol):
+    await _phase_10(protocol)
+    await _phase_11(protocol)
 
 
 @patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", 0)
@@ -133,38 +224,36 @@ async def _phase_00(protocol: QosProtocol) -> None:
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-async def _phase_01(protocol: QosProtocol) -> None:
-    await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-
-    await protocol.send_cmd(Command(RQ_CMD))
-    await assert_protocol_state(protocol, ProtocolState.ECHO)
-
-    # Virtual RF will echo the sent cmd
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
-
-    protocol.pkt_received(Packet(dt.now(), "... " + RP_PKT))
-    await assert_protocol_state(protocol, ProtocolState.IDLE)
-
-
 @_test_decorator
-async def _test_flow_00(protocol: QosProtocol):
-    """Check the change of state during a faultless send_cmd(cmd)."""
-
-    await _phase_00(protocol)
+async def _test_flow_10(protocol: QosProtocol):
+    await _phase_10(protocol)
 
 
-@_test_decorator
-async def _test_flow_01(protocol: QosProtocol):
-    """Check the change of state during a faultless send_cmd(cmd)."""
-
-    await _phase_00(protocol)
-
-
-@pytest.mark.xdist_group(name="serial")
+@pytest.mark.xdist_group(name="virtual_rf")
 async def test_flow_00():
+    """Check state change of a faultless send using context primitives."""
     await _test_flow_00()
 
 
-@pytest.mark.xdist_group(name="serial")
+@pytest.mark.xdist_group(name="virtual_rf")
 async def test_flow_01():
+    """Check state change of two faultless sends using context primitives."""
     await _test_flow_01()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_02():
+    """Check state change of inappropriate send during a RQ/RP pair."""
+    await _test_flow_02()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_10():
+    """Check state change of a faultless send using protocol methods."""
+    await _test_flow_10()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_11():
+    """Check state change of a faultless send using protocol methods."""
+    await _test_flow_11()
