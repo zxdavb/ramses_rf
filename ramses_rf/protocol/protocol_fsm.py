@@ -61,8 +61,8 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._state.writing_resumed()
 
     def send_cmd(self, cmd: Command) -> None:
-        if not isinstance(self._state, IsIdle):
-            raise RuntimeError
+        # if not isinstance(self._state, IsIdle):
+        #     raise RuntimeError(f"Protocol shouldn't send whilst sending: {cmd}")
         self._state.sent_cmd(cmd)
 
     def pkt_received(self, pkt: Packet) -> None:
@@ -121,14 +121,14 @@ class IsInactive(ProtocolStateBase):
         raise RuntimeError("Protocol shouldn't rcvd whilst not connected")
 
     async def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError("Protocol shouldn't send whilst not connected")
+        raise RuntimeError(f"Shouldn't send whilst not connected: {cmd}")
 
 
 class IsPaused(ProtocolStateBase):
     """Protocol has active connection with a Transport, but shoudl not send."""
 
     async def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError("Protocol shouldn't send whilst not connected")
+        raise RuntimeError(f"Shouldn't send whilst paused: {cmd}")
 
 
 class IsIdle(ProtocolStateBase):
@@ -162,15 +162,18 @@ class WantEcho(ProtocolStateBase):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
 
-        if self.cmd.rx_header:  # if we're expecting a response
+        if self.cmd.rx_header and pkt._hdr == self.cmd.rx_header:  # expected pkt
+            raise RuntimeError(f"Response pkt received before response: {pkt}")
+
+        if pkt._hdr != self.cmd.tx_header:
+            _LOGGER.info(f"Ignoring an unexpected pkt: {pkt}")
+        elif self.cmd.rx_header:
             self._set_context_state(WantResponse)
-        elif pkt._hdr == self.cmd.tx_header:
-            self._set_context_state(IsIdle)
         else:
-            pass  # wait for timer to expire
+            self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError("Protocol should not send whilst waiting for an echo")
+        raise RuntimeError(f"Shouldn't send whilst waiting for an echo: {cmd}")
 
 
 class WantResponse(ProtocolStateBase):
@@ -187,17 +190,17 @@ class WantResponse(ProtocolStateBase):
 
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
-        assert self.cmd  # for mypy
 
-        if pkt._hdr == self.cmd.tx_header:  # otherwise, wait for timer to expire
-            raise RuntimeError("Duplicate echo packet")  # make logger.warning
-        elif pkt._hdr == self.cmd.rx_header:  # otherwise, wait for timer to expire
+        if pkt._hdr == self.cmd.tx_header:  # expected pkt
+            raise RuntimeError(f"Echo pkt received, not response: {pkt}")
+
+        if pkt._hdr != self.cmd.rx_header:
+            _LOGGER.warning(f"Ignoring an unexpected pkt: {pkt}")
+        elif pkt._hdr == self.cmd.rx_header:  # expected pkt
             self._set_context_state(IsIdle)
-        else:  # otherwise, wait for timer to expire
-            pass
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError("Protocol should not send whilst waiting for a response")
+        raise RuntimeError(f"Shouldn't send whilst waiting for a response: {cmd}")
 
 
 class HasFailed(ProtocolStateBase):
@@ -209,7 +212,7 @@ class HasFailed(ProtocolStateBase):
         assert old_state and old_state.cmd  # for mypy
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError("Protocol should not send whilst in a Failed state")
+        raise RuntimeError(f"Shouldn't send whilst in a failed state: {cmd}")
 
 
 class HasFailedRetries(HasFailed):
