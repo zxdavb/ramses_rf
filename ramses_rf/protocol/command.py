@@ -419,7 +419,7 @@ class Command(Frame):
         """Return an brief readable string representation of this object."""
         return super().__repr__()
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: Any) -> bool:  # FIXME: needed?
         if not self._is_valid_operand(other):
             return NotImplemented
         return (self._qos.priority, self._dtm) == (other._qos.priority, other._dtm)
