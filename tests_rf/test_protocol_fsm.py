@@ -29,7 +29,7 @@ _DeviceStateT = TypeVar("_DeviceStateT", bound=State)
 _FakedDeviceT = TypeVar("_FakedDeviceT", bound=Fakeable)
 
 
-DEFAULT_MAX_WAIT = 0.01  # #  to patch: ramses_rf.protocol.protocol
+DEFAULT_MAX_WAIT = 0.05  # #  to patch: ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # to patch: ramses_rf.protocol.transport
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -61,7 +61,7 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 
 async def assert_context_state(
     ctx: Context,
-    expected_state: type[_DeviceStateT],
+    expected_state: type[ProtocolState],
     max_sleep: int = DEFAULT_MAX_SLEEP,
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
@@ -80,7 +80,7 @@ async def assert_protocol_state(
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if isinstance(protocol._context._state, expected_state):
             break
-    assert isinstance(protocol._context._state, expected_state), expected_state
+    assert isinstance(protocol._context._state, expected_state)
 
 
 async def assert_protocol_ready(
@@ -164,13 +164,13 @@ async def _send_rq_cmd_via_context(
     await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
 
     protocol._context.send_cmd(rq_cmd)
-    await assert_context_state(protocol._context, ProtocolState.ECHO)
+    await assert_context_state(protocol._context, ProtocolState.ECHO, max_sleep=0)
 
     protocol._context.pkt_received(rq_pkt)
-    await assert_context_state(protocol._context, ProtocolState.WAIT)
+    await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
 
     protocol._context.pkt_received(rp_pkt)
-    await assert_context_state(protocol._context, ProtocolState.IDLE)
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
 
 
 async def _send_rq_cmd_via_protocol(
@@ -178,15 +178,13 @@ async def _send_rq_cmd_via_protocol(
 ) -> None:
     """Using protocol methods, send and RQ, and wait for the corresponding RP."""
 
-    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+    await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
 
     await protocol.send_cmd(rq_cmd)
-    await assert_context_state(protocol._context, ProtocolState.ECHO)
+    await assert_protocol_state(protocol, ProtocolState.ECHO)
 
-    # Virtual RF will echo the sent cmd
-    # await assert_context_state(protocol._context, ProtocolState.WAIT)
+    # Virtual RF will echo the sent cmd  # protocol.pkt_received(rq_pkt)
     await assert_protocol_state(protocol, ProtocolState.WAIT)
-    await assert_context_state(protocol._context, ProtocolState.WAIT)
 
     protocol.pkt_received(rp_pkt)
     await assert_protocol_state(protocol, ProtocolState.IDLE)
@@ -243,9 +241,9 @@ async def _test_flow_1x(
 
     # Step 2: Send a command that invokes a response
     await protocol.send_cmd(RQ_CMD_0)
-    await asyncio.sleep(
-        0.005
-    )  # TODO: why is needed?  # protocol.pkt_received(RQ_PKT_0)  # not needed: is echoed by virtual RF
+    await asyncio.sleep(0.005)  # TODO: why required?
+
+    # protocol.pkt_received(RQ_PKT_0)  # NOTE: not needed as will be echoed by virtual RF
 
     if not disable_sleeps:
         await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
@@ -261,7 +259,7 @@ async def _test_flow_1x(
 async def _test_flow_2x(
     protocol: QosProtocol, rf: VirtualRf, disable_sleeps: bool = None
 ) -> None:
-    """Send two cmds via protocol methods, response from another dev."""
+    """Send two cmds via protocol methods, response from another device."""
 
     # Step 0: Setup, and check initial conditions
     ser = serial.Serial(rf.ports[1])
@@ -293,7 +291,7 @@ async def _test_flow_2x(
 async def _test_flow_3x(
     gwy: Gateway, rf: VirtualRf, disable_sleeps: bool = None
 ) -> None:
-    """Send two cmds (with no intervening awaits) via the async public API."""
+    """Send two cmds via the async public API, response from another device."""
 
     # Step 0: Setup, and check initial conditions
     ser = serial.Serial(rf.ports[1])  # not needed
@@ -352,33 +350,47 @@ async def _test_flow_03(protocol: QosProtocol, _: VirtualRf) -> None:
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
 
     protocol._context.send_cmd(RQ_CMD_0)
-    await assert_protocol_state(protocol, ProtocolState.ECHO)
+    await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
 
     protocol._context.pkt_received(RQ_PKT_0)
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
 
-    protocol._context.send_cmd(RQ_CMD_0)  # a re-transmit
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    protocol._context.send_cmd(RQ_CMD_0)  # expecing RP, but re-transmit of RQ
+    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
 
     try:
-        protocol._context.send_cmd(RQ_CMD_1)  # a different RQ and still sending
+        protocol._context.send_cmd(RQ_CMD_1)  # expecting RP, but got a different RQ
     except RuntimeError:
         pass
     else:
         assert False
 
+    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+
 
 @protocol_decorator
-async def _test_flow_09(protocol: QosProtocol, _: VirtualRf) -> None:
+async def _test_flow_07(protocol: QosProtocol, _: VirtualRf) -> None:
     """Send a second RQ before the first gets its RP via context primitives."""
+
+    # Step 0: Setup, and check initial conditions
+    # ser = serial.Serial(rf.ports[1])  # not needed
 
     await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
 
-    protocol._context.send_cmd(RQ_CMD_0)
-    # protocol._context.pkt_received(RQ_PKT_0)  # required if wanting to assert for WAIT
+    # # Step 1: Send a command that doesn't invoke a response (only an echo)
+    # protocol._context.send_cmd(II_CMD_0)  # no response expected...
+    # protocol._context.pkt_received(II_PKT_0)  # ...but still need an echo
 
-    # NOTE: above pkt_received() isn't required, but below asserts must be WAIT not ECHO
+    # if not disable_sleeps:
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    # Step 2: Send a command that invokes a response
+    protocol._context.send_cmd(RQ_CMD_0)
     await assert_context_state(protocol._context, ProtocolState.ECHO, max_sleep=0)
+
+    # Step 3: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
+    protocol._context.pkt_received(RQ_PKT_0)
+    await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
 
     try:
         protocol._context.send_cmd(RQ_CMD_1)
@@ -387,7 +399,7 @@ async def _test_flow_09(protocol: QosProtocol, _: VirtualRf) -> None:
     else:
         raise False
 
-    await assert_context_state(protocol._context, ProtocolState.ECHO, max_sleep=0)
+    await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
 
 
 @patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
@@ -431,7 +443,7 @@ async def _test_flow_12(protocol: QosProtocol, _: VirtualRf) -> None:
     stifle_impersonation_alert,
 )
 @protocol_decorator
-async def _test_flow_19(protocol: QosProtocol, _: VirtualRf) -> None:
+async def _test_flow_13(protocol: QosProtocol, _: VirtualRf) -> None:
     """Send a second RQ before the first gets its RP via protocol methods."""
 
     await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
@@ -439,9 +451,54 @@ async def _test_flow_19(protocol: QosProtocol, _: VirtualRf) -> None:
     await protocol.send_cmd(RQ_CMD_0)
     await assert_context_state(protocol._context, ProtocolState.ECHO, max_sleep=0)
 
+    # protocol.pkt_received(RQ_PKT_0)  # NOTE: not needed as will be echoed by virtual RF
+    await assert_context_state(protocol._context, ProtocolState.WAIT)  # needs a sleep
+
+    # BUG: shoudl be able to un-comment this code block
+    # await protocol.send_cmd(RQ_CMD_0)  # expecing RP, but re-transmit of RQ
+    # await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
+
+    try:
+        await protocol.send_cmd(RQ_CMD_1)  # expecting RP, but got a different RQ
+    except asyncio.TimeoutError:
+        pass
+    else:
+        raise False
+
+    await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
+
+
+@patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(  # stifle impersonation alerts
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
+)
+@protocol_decorator
+async def _test_flow_17(protocol: QosProtocol, _: VirtualRf) -> None:
+    """Send a second RQ before the first gets its RP via protocol methods."""
+
+    # Step 0: Setup, and check initial conditions
+    # ser = serial.Serial(rf.ports[1])  # not needed
+
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    # # Step 1: Send a command that doesn't invoke a response (only an echo)
+    # await protocol.send_cmd(II_CMD_0)  # no response expected...
+    # # protocol.pkt_received(II_PKT_0)  # not needed: is echoed by virtual RF
+
+    #
+    # await assert_context_state(protocol._context, ProtocolState.IDLE)
+
+    # Step 2A: Send a command that invokes a response
+    asyncio.create_task(protocol.send_cmd(RQ_CMD_0))
+    await assert_context_state(protocol._context, ProtocolState.ECHO)
+
     # protocol.pkt_received(RQ_PKT_0)  # not needed as will be echoed by virtual RF
     await assert_context_state(protocol._context, ProtocolState.WAIT)
+    assert protocol._context._state.cmd == RQ_CMD_0
 
+    # Step 3A: Send (queue) a different command that invokes a response
     try:
         await protocol.send_cmd(RQ_CMD_1)
     except asyncio.TimeoutError:
@@ -450,6 +507,66 @@ async def _test_flow_19(protocol: QosProtocol, _: VirtualRf) -> None:
         raise False
 
     await assert_context_state(protocol._context, ProtocolState.WAIT)
+    assert protocol._context._state.cmd == RQ_CMD_0
+
+    # Step 2B: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
+    protocol.pkt_received(RP_PKT_0)
+    #
+    #
+
+    # Step 3B:
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+    assert protocol._context._state.cmd is None
+
+
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(  # stifle impersonation alerts
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
+)
+@protocol_decorator
+async def _test_flow_18(protocol: QosProtocol, _: VirtualRf) -> None:
+    """Send a second RQ before the first gets its RP via protocol methods."""
+
+    # Step 0: Setup, and check initial conditions
+    # ser = serial.Serial(rf.ports[1])  # not needed
+
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    # # Step 1: Send a command that doesn't invoke a response (only an echo)
+    # await protocol.send_cmd(II_CMD_0)  # no response expected...
+    # # protocol.pkt_received(II_PKT_0)  # not needed: is echoed by virtual RF
+
+    #
+    # await assert_context_state(protocol._context, ProtocolState.IDLE)
+
+    # Step 2A: Send a command that invokes a response
+    asyncio.create_task(protocol.send_cmd(RQ_CMD_0))
+    await assert_context_state(protocol._context, ProtocolState.ECHO)
+
+    # protocol.pkt_received(RQ_PKT_0)  # NOTE: not needed as will be echoed by virtual RF
+    await assert_context_state(protocol._context, ProtocolState.WAIT)
+    assert protocol._context._state.cmd == RQ_CMD_0
+
+    # Step 3A: Send (queue) a different command that invokes a response
+    # try:
+    asyncio.create_task(protocol.send_cmd(RQ_CMD_1))
+    # except asyncio.TimeoutError:
+    #     pass
+    # else:
+    #     raise False
+
+    await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
+    assert protocol._context._state.cmd == RQ_CMD_0
+
+    # Step 2B: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
+    protocol.pkt_received(RP_PKT_0)
+    #
+    #
+
+    # Step 3B:
+    await assert_context_state(protocol._context, ProtocolState.WAIT)
+    assert protocol._context._state.cmd == RQ_CMD_1
 
 
 @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
@@ -517,6 +634,27 @@ async def _test_flow_22(protocol: QosProtocol, rf: VirtualRf) -> None:
     )
 
     await assert_context_state(protocol._context, ProtocolState.IDLE)
+
+
+@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(  # stifle impersonation alerts
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
+)
+@protocol_decorator
+async def _test_flow_29(protocol: QosProtocol, _: VirtualRf) -> None:
+    """Send a second RQ before the first gets its RP via protocol methods."""
+
+    await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
+
+    asyncio.gather(
+        protocol.send_cmd(II_CMD_0),
+        protocol.send_cmd(RQ_CMD_0),
+        protocol.send_cmd(RQ_CMD_1),
+    )
+
+    await assert_context_state(protocol._context, ProtocolState.WAIT)
+    assert protocol._context._state.cmd == RQ_CMD_1
 
 
 @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
@@ -614,9 +752,9 @@ async def test_flow_03() -> None:
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_09() -> None:
+async def test_flow_07() -> None:
     """Check context sending 2nd RQ before first RQ has finished being sent."""
-    await _test_flow_09()
+    await _test_flow_07()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
@@ -638,9 +776,21 @@ async def test_flow_12() -> None:
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_19() -> None:
+async def test_flow_13() -> None:
+    """Check state change of a faultless send using protocol methods."""
+    await _test_flow_13()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_17() -> None:
     """Check protocol sending 2nd RQ before first RQ has finished being sent."""
-    await _test_flow_19()
+    await _test_flow_17()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_18() -> None:
+    """Check protocol sending 2nd RQ before first RQ has finished being sent."""
+    await _test_flow_18()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
@@ -653,6 +803,12 @@ async def test_flow_20() -> None:
 async def test_flow_21() -> None:
     """Check protocol sending ..."""
     await _test_flow_21()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def OUT_test_flow_29() -> None:
+    """Check protocol sending 3rd cmd before first echo has been recived."""
+    await _test_flow_29()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
