@@ -143,7 +143,7 @@ class ProtocolStateBase:
         self.cmd: None | Command = getattr(old_state, "cmd", None)
         self.cmd_sends: None | int = getattr(old_state, "cmd_sends", 0)
 
-        _LOGGER.error(f"State changed to {self!r}")
+        _LOGGER.info(f"*** State changed to {self!r}")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
@@ -198,6 +198,7 @@ class IsIdle(ProtocolStateBase):
 
     def sent_cmd(self, cmd: Command) -> None:
         # these two are required, so to pass on to next state (via old_state)
+        _LOGGER.info(f"*** Sending cmd: {cmd._hdr}")
         self.cmd = cmd
         self.cmd_sends += 1
         self._set_context_state(WantEcho)
@@ -227,8 +228,10 @@ class WantEcho(ProtocolStateBase):
         if pkt._hdr != self.cmd.tx_header:
             _LOGGER.info(f"Ignoring an unexpected pkt: {pkt}")
         elif self.cmd.rx_header:
+            _LOGGER.info(f"*** Received echo (& expecting response): {pkt._hdr}")
             self._set_context_state(WantResponse)
         else:
+            _LOGGER.info(f"*** Received echo (no response expected): {pkt._hdr}")
             self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
@@ -262,8 +265,9 @@ class WantResponse(ProtocolStateBase):
             raise RuntimeError(f"Echo received, not response: {pkt}")
 
         if pkt._hdr != self.cmd.rx_header:
-            _LOGGER.warning(f"Ignoring an unexpected pkt: {pkt}")
+            _LOGGER.info(f"Ignoring an unexpected pkt: {pkt}")
         elif pkt._hdr == self.cmd.rx_header:  # expected pkt
+            _LOGGER.info(f"*** Received expected response: {pkt._hdr}")
             self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
