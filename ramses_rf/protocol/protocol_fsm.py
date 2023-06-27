@@ -117,7 +117,9 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         except Empty:
             return
 
-        if dtm + td(timeout) <= dt.now():
+        if fut.cancelled():
+            self._poll_queue()
+        elif dtm + td(timeout) <= dt.now():
             fut.set_exception(asyncio.TimeoutError)  # TODO: make a ramses Exception
             self._poll_queue()
         else:
