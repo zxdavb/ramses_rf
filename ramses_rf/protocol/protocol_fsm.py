@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime as dt
+from datetime import timedelta as td
+from queue import Empty, PriorityQueue
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
@@ -26,9 +29,14 @@ TIMEOUT_FOR_WAIT = 0.20  # incl. wait for echo
 MAX_RETRIES_ECHO = 3
 MAX_RETRIES_WAIT = 3  # incl. echo retries
 
+DEFAULT_PRIORITY = 1
+
 
 class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     """A mixin is to add state to a Protocol."""
+
+    DEFAULT_MAX_WAIT: int = 3
+    MAX_BUFFER_SIZE: int = 5
 
     _state: _StateT = None
 
@@ -36,17 +44,26 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         # super().__init__(*args, **kwargs)
         self._protocol = protocol
 
+        self._loop = asyncio.get_running_loop()
+        self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
+
         self._set_state(IsInactive)  # set initial state
 
     def _set_state(self, state: type[_StateT]) -> None:
         """Set the State of the Protocol (context)."""
+
         if state == IsIdle:
             self._state = state(self)
-        elif state != HasFailed:  # FailedRetryLimit
-            self._state = state(self, old_state=self._state)
-        else:
+
+        elif state == HasFailed:  # FailedRetryLimit?
             # TODO: do something about the fail (see self._state)
             self._state = IsIdle(self)  # drop old_state, if any
+
+        else:
+            self._state = state(self, old_state=self._state)
+
+        if not self.is_sending:
+            self._poll_queue()
 
     def connection_made(self, transport: _TransportT) -> None:
         self._state.made_connection(transport)
@@ -67,6 +84,43 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
     def pkt_received(self, pkt: Packet) -> None:
         self._state.rcvd_pkt(pkt)
+
+    @property
+    def is_sending(self) -> bool:
+        """Return True if the protocol is sending a packet/waiting for a response."""
+        return not isinstance(self._state, IsIdle)
+
+    async def ready_to_send(
+        self, cmd: Command, timeout: int = DEFAULT_MAX_WAIT
+    ) -> asyncio.Future:
+        """Return a Future that will return when the protocol is ready to send."""
+
+        fut = self._loop.create_future()
+
+        if not self.is_sending:
+            fut.set_result(None)
+            return fut
+
+        self._que.put_nowait((DEFAULT_PRIORITY, dt.now(), cmd, timeout, fut))
+
+        return fut
+
+    def _poll_queue(self) -> None:  # called by context
+        """If there are cmds waiting to be sent, inform the next in the quueue."""
+        fut: asyncio.Future
+
+        try:
+            (_, dtm, cmd, timeout, fut) = self._que.get_nowait()
+        except Empty:
+            return
+
+        if dtm + td(timeout) >= dt.now():
+            fut.set_exception(asyncio.TimeoutError)  # TODO: make a ramses Exception
+            self._poll_queue()
+        else:
+            fut.set_result(None)
+
+        self._que.task_done()
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
@@ -173,6 +227,14 @@ class WantEcho(ProtocolStateBase):
             self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
+        if (
+            cmd._hdr == self.cmd._hdr
+            and cmd._addrs == self.cmd._addrs
+            and cmd.payload == self.cmd.payload
+        ):
+            self.cmd_sends += 1
+            return
+
         raise RuntimeError(f"Shouldn't send whilst waiting for an echo: {cmd}")
 
 
@@ -200,6 +262,13 @@ class WantResponse(ProtocolStateBase):
             self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
+        if (
+            cmd._hdr == self.cmd._hdr
+            and cmd._addrs == self.cmd._addrs
+            and cmd.payload == self.cmd.payload
+        ):
+            self.cmd_sends += 1
+            return
         raise RuntimeError(f"Shouldn't send whilst waiting for a response: {cmd}")
 
 

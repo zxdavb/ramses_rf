@@ -16,8 +16,6 @@ from collections import deque
 from datetime import datetime as dt
 from datetime import timedelta as td
 from functools import wraps
-
-# from queue import Empty, Full, PriorityQueue, SimpleQueue
 from time import perf_counter
 from typing import Any, Awaitable, Callable, TypeVar
 
@@ -508,6 +506,8 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 class _ProtQosTimers(_BaseProtocol):  # context/state
     """A mixin for maintaining state via a FSM."""
 
+    DEFAULT_MAX_WAIT: int = 3
+
     def __init__(self, msg_handler: _MsgHandlerT) -> None:
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
@@ -533,8 +533,16 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         self._context.pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        await super().send_cmd(cmd, **kwargs)
+        fut: asyncio.Future = self._context.ready_to_send(cmd)  # could be priority, etc
+
+        try:
+            await asyncio.wait_for(fut, self.DEFAULT_MAX_WAIT)
+        except asyncio.TimeoutError:
+            fut.cancel()
+            raise  # a ramses Exception("The future did not complete in time.")
         self._context.send_cmd(cmd)  # , callback: Callable = None
+
+        await super().send_cmd(cmd, **kwargs)
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Context -> Base
