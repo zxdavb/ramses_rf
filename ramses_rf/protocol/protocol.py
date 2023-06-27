@@ -543,7 +543,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         await super().send_cmd(cmd, **kwargs)
 
 
-# NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Context -> Base
+# NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
 # Impersonate first, as the Puzzle Packet needs to be sent before the Command
 # Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
 # QosTimers last, to start any timers immediately after Tx of Command
