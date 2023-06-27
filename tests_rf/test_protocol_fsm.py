@@ -254,9 +254,9 @@ async def _test_flow_09(protocol: QosProtocol):
     await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
 
     protocol._context.send_cmd(RQ_CMD_0)
-    # NOTE: shouldn't matter if we do the below, but asserts must be WAIT, not ECHO
     # protocol._context.pkt_received(RQ_PKT_0)
 
+    # NOTE: above pkt_received() isn't required, but below asserts must be WAIT not ECHO
     await assert_context_state(protocol._context, ProtocolState.ECHO, max_sleep=0)
 
     try:
@@ -325,6 +325,9 @@ async def _test_flow_19(protocol: QosProtocol):
     await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
 
     await protocol.send_cmd(RQ_CMD_0)
+    # protocol.pkt_received(RQ_PKT_0)
+
+    # NOTE: above pkt_received() isn't required, but below asserts must be WAIT not ECHO
     await assert_context_state(protocol._context, ProtocolState.ECHO)
 
     try:
