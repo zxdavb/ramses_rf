@@ -106,7 +106,10 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         return fut
 
     def _poll_queue(self) -> None:  # called by context
-        """If there are cmds waiting to be sent, inform the next in the quueue."""
+        """If there are cmds waiting to be sent, inform the next Future in the queue.
+
+        WIll recursively removed all expired cmds.
+        """
         fut: asyncio.Future
 
         try:
@@ -114,7 +117,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         except Empty:
             return
 
-        if dtm + td(timeout) >= dt.now():
+        if dtm + td(timeout) <= dt.now():
             fut.set_exception(asyncio.TimeoutError)  # TODO: make a ramses Exception
             self._poll_queue()
         else:
@@ -217,7 +220,7 @@ class WantEcho(ProtocolStateBase):
         """The Transport has received a Packet, possibly the expected echo."""
 
         if self.cmd.rx_header and pkt._hdr == self.cmd.rx_header:  # expected pkt
-            raise RuntimeError(f"Response pkt received before response: {pkt}")
+            raise RuntimeError(f"Response received before echo: {pkt}")
 
         if pkt._hdr != self.cmd.tx_header:
             _LOGGER.info(f"Ignoring an unexpected pkt: {pkt}")
@@ -254,7 +257,7 @@ class WantResponse(ProtocolStateBase):
         """The Transport has received a Packet, possibly the expected response."""
 
         if pkt._hdr == self.cmd.tx_header:  # expected pkt
-            raise RuntimeError(f"Echo pkt received, not response: {pkt}")
+            raise RuntimeError(f"Echo received, not response: {pkt}")
 
         if pkt._hdr != self.cmd.rx_header:
             _LOGGER.warning(f"Ignoring an unexpected pkt: {pkt}")
