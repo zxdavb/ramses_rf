@@ -90,7 +90,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         """Return True if the protocol is sending a packet/waiting for a response."""
         return not isinstance(self._state, IsIdle)
 
-    async def ready_to_send(
+    def ready_to_send(
         self, cmd: Command, timeout: int = DEFAULT_MAX_WAIT
     ) -> asyncio.Future:
         """Return a Future that will return when the protocol is ready to send."""
