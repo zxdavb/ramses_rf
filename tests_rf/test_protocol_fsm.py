@@ -533,9 +533,9 @@ async def _test_flow_18(protocol: QosProtocol, _: VirtualRf) -> None:
 
     await assert_context_state(protocol._context, ProtocolState.IDLE, max_sleep=0)
 
-    # # Step 1: Send a command that doesn't invoke a response (only an echo)
-    # await protocol.send_cmd(II_CMD_0)  # no response expected...
-    # # protocol.pkt_received(II_PKT_0)  # not needed: is echoed by virtual RF
+    # Step 1: Send a command that doesn't invoke a response (only an echo)
+    await protocol.send_cmd(II_CMD_0)  # no response expected...
+    # protocol.pkt_received(II_PKT_0)  # not needed: is echoed by virtual RF
 
     #
     # await assert_context_state(protocol._context, ProtocolState.IDLE)
@@ -559,7 +559,7 @@ async def _test_flow_18(protocol: QosProtocol, _: VirtualRf) -> None:
     await assert_context_state(protocol._context, ProtocolState.WAIT, max_sleep=0)
     assert protocol._context._state.cmd == RQ_CMD_0
 
-    # Step 2B: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
+    # Step 2C: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
     protocol.pkt_received(RP_PKT_0)
     #
     #
@@ -567,6 +567,15 @@ async def _test_flow_18(protocol: QosProtocol, _: VirtualRf) -> None:
     # Step 3B:
     await assert_context_state(protocol._context, ProtocolState.WAIT)
     assert protocol._context._state.cmd == RQ_CMD_1
+
+    # Step 3C: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
+    protocol.pkt_received(RP_PKT_1)
+    #
+    #
+
+    # Step 4: Done
+    await assert_context_state(protocol._context, ProtocolState.IDLE)
+    assert protocol._context._state.cmd is None
 
 
 @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
