@@ -432,7 +432,7 @@ async def _test_flow_30(gwy: Gateway):
 
 @pytest.mark.xdist_group(name="virtual_rf")
 async def test_flow_00():
-    """Check state change of inappropriate send during a RQ/RP pair."""
+    """Check state change of two sends using context primitives."""
     await _test_flow_00()
 
 
