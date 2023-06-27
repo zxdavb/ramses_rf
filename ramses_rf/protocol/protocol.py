@@ -537,7 +537,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         try:
             await asyncio.wait_for(fut, DEFAULT_MAX_WAIT)
         except asyncio.TimeoutError:
-            raise  # a ramses Exception("The future did not complete in time.")
+            raise asyncio.TimeoutError("The send did not complete in time.")
         self._context.send_cmd(cmd)  # , callback: Callable = None
 
         await super().send_cmd(cmd, **kwargs)
