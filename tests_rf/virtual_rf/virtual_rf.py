@@ -204,7 +204,7 @@ class VirtualRfBase:
     def _cast_frame_to_all_ports(self, frame: bytes, master: _FD) -> None:
         """Pull the frame from the sending port and cast it to the RF."""
 
-        _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
+        _LOGGER.info(f"{self._pty_names[master]:<11} cast:  {frame!r}")
         for fd in self._file_objs:
             self._push_frame_to_dst_port(frame, fd)
 
