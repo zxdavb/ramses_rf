@@ -65,7 +65,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             self._state = IsIdle(self)  # drop old_state, if any
 
         else:
-            self._state = state(self, old_state=self._state)
+            self._state = state(self, prev_state=self._state)
 
         if not self.is_sending:
             self._cmd = None
@@ -163,14 +163,14 @@ class ProtocolStateBase:
     cmd: None | Command
     cmd_sends: int
 
-    def __init__(self, context: _ContextT, old_state: None | _StateT = None) -> None:
+    def __init__(self, context: _ContextT, prev_state: None | _StateT = None) -> None:
         self._context = context  # a Protocol
         self._set_context_state: Callable = context._set_state  # pylint: disable=W0212
 
-        self.cmd: None | Command = getattr(old_state, "cmd", None)
-        self.cmd_sends: None | int = getattr(old_state, "cmd_sends", 0)
+        self.cmd: None | Command = getattr(prev_state, "cmd", None)
+        self.cmd_sends: None | int = getattr(prev_state, "cmd_sends", 0)
 
-        _LOGGER.error(f"*** State changed from {old_state!r} to {self!r}")
+        _LOGGER.error(f"*** State changed from {prev_state!r} to {self!r}")
 
     def __repr__(self) -> str:
         # assert self.cmd is None, self.cmd  # AA
@@ -237,10 +237,8 @@ class IsIdle(ProtocolStateBase):
 class WantEcho(ProtocolStateBase):
     """Protocol is waiting for the local echo (has sent a Command)."""
 
-    def __init__(self, context: _ContextT, old_state: None | _StateT = None) -> None:
-        super().__init__(context, old_state=old_state)
-
-        assert old_state and old_state.cmd  # for mypy
+    def __init__(self, context: _ContextT, prev_state: None | _StateT = None) -> None:
+        super().__init__(context, prev_state=prev_state)
 
         if self.cmd_sends > self.cmd._qos.retry_limit:  # first send was not a retry
             self._retry_limit_exceeded()
@@ -279,11 +277,6 @@ class WantEcho(ProtocolStateBase):
 class WantResponse(ProtocolStateBase):
     """Protocol is now waiting for a response (has received the Command echo)."""
 
-    def __init__(self, context: _ContextT, old_state: None | _StateT = None) -> None:
-        super().__init__(context, old_state=old_state)
-
-        assert old_state and old_state.cmd  # for mypy
-
     def __repr__(self) -> str:
         hdr = self.cmd.rx_header if self.cmd else None
         return f"{self.__class__.__name__}(hdr={hdr}, tx={self.cmd_sends})"
@@ -313,11 +306,6 @@ class WantResponse(ProtocolStateBase):
 
 class HasFailed(ProtocolStateBase):
     """Protocol has rcvd the Command echo and is waiting for a response to be Rx'd."""
-
-    def __init__(self, context: _ContextT, old_state: None | _StateT = None) -> None:
-        super().__init__(context, old_state=old_state)
-
-        assert old_state and old_state.cmd  # for mypy
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         raise RuntimeError(f"Shouldn't send whilst in a failed state: {cmd._hdr}")
