@@ -24,19 +24,18 @@ _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 _LOGGER = logging.getLogger(__name__)
 
+DEFAULT_SEND_PRIORITY = 1
 
-TIMEOUT_FOR_ECHO = 0.05
-TIMEOUT_FOR_WAIT = 0.20  # incl. wait for echo
-MAX_RETRIES_ECHO = 3
-MAX_RETRIES_WAIT = 3  # incl. echo retries
+DEFAULT_WAIT_TIMEOUT = 3.0  # waiting in queue to send
+DEFAULT_ECHO_TIMEOUT = 0.05  # waiting for echo pkt after cmd sent
+DEFAULT_RPLY_TIMEOUT = 0.20  # waiting for reply pkt after echo pkt received
 
-DEFAULT_PRIORITY = 1
+POLLING_INTERVAL = 0.0005
 
 
 class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     """A mixin is to add state to a Protocol."""
 
-    DEFAULT_MAX_WAIT: int = 3
     MAX_BUFFER_SIZE: int = 5
 
     _state: _StateT = None
@@ -52,7 +51,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         self._set_state(IsInactive)  # set initial state
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         state_name = self._state.__class__.__name__
         cmd_hdr = self._cmd._hdr if self._cmd else None
         que_length = self._que.unfinished_tasks
@@ -64,16 +63,16 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         """Set the State of the Protocol (context)."""
 
         assert not isinstance(self._state, state)  # check transition has occurred
+        _LOGGER.error(f" *** State moved from {self._state!r} to {state.__name__}")
 
         if state == HasFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! failed: {self}")
-            # TODO: do something about the fail (see self._state)
-            self._state = IsInIdle(self, prev_state=self._state)
+
+        if state is IsInIdle:
+            self._state = state(self)
 
         else:
-            self._state = state(
-                self, prev_state=self._state, cmd=cmd, cmd_sends=cmd_sends
-            )
+            self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
 
         if not self.is_sending:
             self._cmd = None
@@ -100,26 +99,65 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     def resume_writing(self) -> None:
         self._state.writing_resumed()
 
-    async def send_cmd(self, cmd: Command) -> None:
-        dt_sent = dt.now()
-        dt_expires = dt_sent + td(seconds=self.DEFAULT_MAX_WAIT)
-        fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, dt_expires)
+    async def _wait_for_state(self, state: _StateT, until: dt) -> None:
+        """Poll the state machine until it moves to the expected state."""
 
-        while not fut.done():
-            if dt_expires <= dt.now():
-                _LOGGER.error("---  - future expired & exception set")
-                fut.set_exception(asyncio.TimeoutError)
+        while until > dt.now():
+            if isinstance(self._state, state):
                 break
-            await asyncio.sleep(0.001)
-
-        try:
-            fut.result()
-        except asyncio.TimeoutError:
-            _LOGGER.debug("!!! expired.")
-            raise asyncio.TimeoutError("The send did not start before expiring.")
+            await asyncio.sleep(POLLING_INTERVAL)
         else:
-            _LOGGER.debug("!!! sending...")
+            _LOGGER.error(f"---  - failed to attain {state.__name__} in time")
+            raise asyncio.TimeoutError
 
+    async def wait_until_echo_rcvd(
+        self, cmd: Command, timeout: float = DEFAULT_ECHO_TIMEOUT
+    ) -> None:
+        """Wait until the state machine has received the echo pkt."""
+
+        if not isinstance(self._state, WantEcho):
+            raise asyncio.InvalidStateError
+        if not self._state._is_active_cmd(cmd):
+            raise asyncio.InvalidStateError
+
+        await self._wait_for_state(WantRply, dt.now() + td(timeout))
+
+    async def wait_until_rply_rcvd(
+        self, cmd: Command, timeout: float = DEFAULT_RPLY_TIMEOUT
+    ) -> None:
+        """Wait until the state machine has received the reply pkt."""
+
+        if not isinstance(self._state, WantRply):
+            raise asyncio.InvalidStateError
+        if not self._state._is_active_cmd(cmd):
+            raise asyncio.InvalidStateError
+
+        await self._wait_for_state(IsInIdle, dt.now() + td(timeout))
+
+    async def send_cmd(
+        self, cmd: Command, timeout: float = DEFAULT_WAIT_TIMEOUT
+    ) -> None:
+        """Wait until the state machine is clear to send."""
+
+        if isinstance(self._state, (IsInactive, HasFailed)):
+            raise asyncio.InvalidStateError
+        if self._cmd and self._state._is_active_cmd(cmd):
+            self._state.sent_cmd(cmd)
+            return
+
+        dt_sent = dt.now()
+        expires = dt_sent + td(seconds=timeout)
+
+        fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, expires)
+
+        _LOGGER.error(f"---  - sending a cmd {cmd}")
+        try:
+            await self._wait_for_state(IsInIdle, expires)
+        except (asyncio.TimeoutError, asyncio.TimeoutError) as exc:
+            _LOGGER.debug("!!! expired/failed.")
+            fut.set_exception(exc)
+
+        fut.result()  # may raise exception
         self._state.sent_cmd(cmd)
 
     def pkt_received(self, pkt: Packet) -> None:
@@ -142,7 +180,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         if self._cmd is cmd:  # a retry or a re-transmit?
             fut.set_result(None)
         else:
-            self._que.put_nowait((DEFAULT_PRIORITY, sent, cmd, expires, fut))
+            self._que.put_nowait((DEFAULT_SEND_PRIORITY, sent, cmd, expires, fut))
 
         return fut
 
@@ -158,8 +196,8 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         except Empty:
             return
 
-        if fut.cancelled():  # not currently used
-            _LOGGER.error("---  - future cancelled")
+        if fut.cancelled():
+            _LOGGER.error("---  - future cancelled (e.g. connection_lost())")
 
         elif fut.done():  # handled in send_cmd()
             _LOGGER.error("---  - future done (handled in send_cmd())")
@@ -187,17 +225,14 @@ class ProtocolStateBase:
     def __init__(
         self,
         context: _ContextT,
-        prev_state: None | _StateT = None,
         cmd: None | Command = None,
         cmd_sends: int = 0,
     ) -> None:
         self._context = context  # a Protocol
         self._set_context_state: Callable = context._set_state  # pylint: disable=W0212
 
-        self.cmd: None | Command = cmd  # getattr(prev_state, "cmd", None)
-        self.cmd_sends: None | int = cmd_sends  # getattr(prev_state, "cmd_sends", 0)
-
-        _LOGGER.error(f"*** State moved from {prev_state!r} to {self!r}")
+        self.cmd: None | Command = cmd
+        self.cmd_sends: None | int = cmd_sends
 
     def __repr__(self) -> str:
         hdr = self.cmd.tx_header if self.cmd else None
@@ -271,14 +306,16 @@ class IsInIdle(ProtocolStateBase):
 class WantEcho(ProtocolStateBase):
     """Protocol is waiting for the local echo (has sent a Command)."""
 
+    _fut: asyncio.Future
+    _loop: asyncio.BaseEventLoop
+
     def __init__(
         self,
         context: _ContextT,
-        prev_state: None | _StateT = None,
         cmd: None | Command = None,
         cmd_sends: int = 0,
     ) -> None:
-        super().__init__(context, prev_state=prev_state, cmd=cmd, cmd_sends=cmd_sends)
+        super().__init__(context, cmd=cmd, cmd_sends=cmd_sends)
 
         if self.cmd_sends > self.cmd._qos.retry_limit:  # first send was not a retry
             self._retry_limit_exceeded()
@@ -313,11 +350,10 @@ class WantRply(ProtocolStateBase):
     def __init__(
         self,
         context: _ContextT,
-        prev_state: None | _StateT = None,
         cmd: None | Command = None,
         cmd_sends: int = 0,
     ) -> None:
-        super().__init__(context, prev_state=prev_state, cmd=cmd, cmd_sends=cmd_sends)
+        super().__init__(context, cmd=cmd, cmd_sends=cmd_sends)
 
         # self._start_expiry_timer(duration=3)
 

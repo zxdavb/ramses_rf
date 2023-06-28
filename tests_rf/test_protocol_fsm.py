@@ -281,52 +281,52 @@ async def _test_flow_03(_: VirtualRf, protocol: QosProtocol) -> None:
     )
 
 
-@patch("ramses_rf.protocol.protocol_fsm.ProtocolContext.DEFAULT_MAX_WAIT", 3)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_MAX_WAIT)
 @protocol_decorator
 async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
     """A 2nd RQ is sent before 1st RQ receives its reply."""
 
+    def assert_state(cmd, cmd_sends) -> None:  # TODO: can remove, later
+        assert protocol._context._cmd is cmd
+        assert protocol._context.is_sending is bool(cmd)
+        assert protocol._context._state.cmd is cmd
+        assert protocol._context._state.cmd_sends == cmd_sends
+
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-    assert protocol._context._cmd is None
-    assert protocol._context.is_sending is False
-    assert protocol._context._state.cmd is None
-    assert protocol._context._state.cmd_sends == 0
+    assert_state(None, 0)
 
     await protocol._context.send_cmd(RQ_CMD_0)
     await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
-    assert protocol._context._cmd == RQ_CMD_0
-    assert protocol._context.is_sending is True
-    assert protocol._context._state.cmd is RQ_CMD_0
-    assert protocol._context._state.cmd_sends == 1
+    assert_state(RQ_CMD_0, 1)
 
     protocol._context.pkt_received(RQ_PKT_0)
     await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
-    assert protocol._context._cmd == RQ_CMD_0
-    assert protocol._context.is_sending is True
-    assert protocol._context._state.cmd is RQ_CMD_0
-    assert protocol._context._state.cmd_sends == 1
+    assert_state(RQ_CMD_0, 1)
 
-    await protocol._context.send_cmd(RQ_CMD_0)  # expecing RP, but re-transmit of RQ
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
-    assert protocol._context._cmd == RQ_CMD_0
-    assert protocol._context.is_sending is True
-    assert protocol._context._state.cmd is RQ_CMD_0
-    assert protocol._context._state.cmd_sends == 2
+    asyncio.get_running_loop().create_task(
+        protocol._context.send_cmd(RQ_CMD_0)  # expecing RP, but re-transmit of RQ
+    )
+    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    assert_state(RQ_CMD_0, 2)
 
-    try:
-        await protocol._context.send_cmd(RQ_CMD_1)  # got different RQ instead of RP
-    except asyncio.TimeoutError:
-        # expected: this RQ is blocked by previous RQ, which hasn't received it's RP,
-        # and, currently, there are to timeouts for that (RQ, but no RP) scenario
-        pass
-    else:
-        assert False
+    asyncio.get_running_loop().create_task(
+        protocol._context.send_cmd(RQ_CMD_1)  # got different RQ instead of RP
+    )
 
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
-    assert protocol._context._cmd == RQ_CMD_0
-    assert protocol._context.is_sending is True
-    assert protocol._context._state.cmd is RQ_CMD_0
-    assert protocol._context._state.cmd_sends == 2
+    protocol._context.pkt_received(RP_PKT_0)
+    await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+    assert_state(None, 0)
+
+    await assert_protocol_state(protocol, ProtocolState.ECHO)
+    assert_state(RQ_CMD_1, 1)
+
+    protocol._context.pkt_received(RQ_PKT_1)  # cmd was already sent, above
+    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    assert_state(RQ_CMD_1, 1)
+
+    protocol._context.pkt_received(RP_PKT_1)  # cmd was already sent, above
+    await assert_protocol_state(protocol, ProtocolState.IDLE)
+    assert_state(None, 0)
 
 
 @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)

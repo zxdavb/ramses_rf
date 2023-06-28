@@ -60,7 +60,7 @@ MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
 
 
 MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
-DEFAULT_MAX_WAIT: int = 3
+DEFAULT_MAX_RETRIES = 3
 
 
 DEV_MODE = __dev_mode__ and False
@@ -533,7 +533,28 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None:
         await self._context.send_cmd(cmd)  # may raise asyncio.TimeoutError
-        await super().send_cmd(cmd, **kwargs)
+
+        max_retries = DEFAULT_MAX_RETRIES
+        num_sends = 0
+
+        while num_sends <= max_retries:
+            await super().send_cmd(cmd, **kwargs)  # may raise Exception
+            num_sends += 1
+
+            try:
+                await self._context.wait_until_echo_rcvd(cmd)
+            except asyncio.TimeoutError:
+                if num_sends > max_retries:
+                    raise asyncio.TimeoutError("Max retries exceeded (no echo)")
+                continue
+
+            try:
+                await self._context.wait_until_rply_rcvd(cmd)
+            except asyncio.TimeoutError:
+                if num_sends > max_retries:
+                    raise asyncio.TimeoutError("Max retries exceeded (no rply)")
+
+        # pass  # SUCCESS!!
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
