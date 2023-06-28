@@ -66,7 +66,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         assert not isinstance(self._state, state)  # check transition has occurred
 
         if state == HasFailed:  # FailedRetryLimit?
-            _LOGGER.warning(f"!!! ERROR; {self}")
+            _LOGGER.warning(f"!!! failed: {self}")
             # TODO: do something about the fail (see self._state)
             self._state = IsInIdle(self, prev_state=self._state)
 
@@ -83,6 +83,15 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._state.made_connection(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
+        fut: asyncio.Future  # mypy
+
+        while True:
+            try:
+                (_, _, _, _, fut) = self._que.get_nowait()
+            except Empty:
+                break
+            fut.cancel()
+
         self._state.lost_connection(exc)
 
     def pause_writing(self) -> None:  # not required?
@@ -106,7 +115,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         try:
             fut.result()
         except asyncio.TimeoutError:
-            _LOGGER.debug("!!! expired")
+            _LOGGER.debug("!!! expired.")
             raise asyncio.TimeoutError("The send did not start before expiring.")
         else:
             _LOGGER.debug("!!! sending...")
@@ -130,7 +139,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             self._cmd = self._cmd or cmd
             self._sem.release()
 
-        if self._cmd is cmd:
+        if self._cmd is cmd:  # a retry or a re-transmit?
             fut.set_result(None)
         else:
             self._que.put_nowait((DEFAULT_PRIORITY, sent, cmd, expires, fut))
@@ -142,18 +151,18 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         WIll recursively removed all expired cmds.
         """
-        fut: asyncio.Future
+        fut: asyncio.Future  # mypy
 
         try:
             (_, _, cmd, expires, fut) = self._que.get_nowait()
         except Empty:
             return
 
-        if fut.done():  # handled in send_cmd()
-            _LOGGER.error("---  - future done (handled in send_cmd())")
-
-        elif fut.cancelled():  # not currently used
+        if fut.cancelled():  # not currently used
             _LOGGER.error("---  - future cancelled")
+
+        elif fut.done():  # handled in send_cmd()
+            _LOGGER.error("---  - future done (handled in send_cmd())")
 
         # elif expires <= dt.now():  # handled in send_cmd()
         #     _LOGGER.error("---  - fut expired")
@@ -280,7 +289,7 @@ class WantEcho(ProtocolStateBase):
             self._set_context_state(WantRply, cmd=self.cmd, cmd_sends=self.cmd_sends)
         else:
             _LOGGER.error(f"...  - received echo: {pkt._hdr} (no reply expected)")
-            self._set_context_state(IsInIdle, cmd=self.cmd, cmd_sends=self.cmd_sends)
+            self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if (
