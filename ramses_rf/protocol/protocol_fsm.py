@@ -397,4 +397,4 @@ class ProtocolState:
     DEAD = IsInactive  # #      #
     IDLE = IsInIdle  # ##
     ECHO = WantEcho  # #     #
-    WAIT = WantRply  # #
+    RPLY = WantRply  # #

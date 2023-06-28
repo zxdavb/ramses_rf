@@ -159,7 +159,7 @@ async def _send_rq_cmd_via_context(
 
     protocol._context.pkt_received(rq_pkt)
     if not disable_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
         assert protocol._context._cmd == rq_cmd
 
     protocol._context.pkt_received(rp_pkt)
@@ -178,7 +178,7 @@ async def _send_rq_cmd_via_protocol(
     await assert_protocol_state(protocol, ProtocolState.ECHO)
 
     # Virtual RF will echo the sent cmd  # protocol.pkt_received(rq_pkt)
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
 
     protocol.pkt_received(rp_pkt)
     await assert_protocol_state(protocol, ProtocolState.IDLE)
@@ -206,7 +206,7 @@ async def _test_flow_via_context(
     protocol._context.pkt_received(RQ_PKT_0)
 
     if not disable_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
 
     # Step 2B: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
     protocol._context.pkt_received(RP_PKT_0)
@@ -238,7 +238,7 @@ async def _test_flow_via_protocol(
     # await protocol.send_cmd(RQ_CMD_0)  # not needed: is echoed by virtual RF
 
     if not disable_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.WAIT)
+        await assert_protocol_state(protocol, ProtocolState.RPLY)
 
     # Step 2B: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
     asyncio.get_running_loop().call_later(  # NOTE: not loop.call_soon
@@ -300,13 +300,13 @@ async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
     assert_state(RQ_CMD_0, 1)
 
     protocol._context.pkt_received(RQ_PKT_0)
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
     assert_state(RQ_CMD_0, 1)
 
     asyncio.get_running_loop().create_task(
         protocol._context.send_cmd(RQ_CMD_0)  # expecing RP, but re-transmit of RQ
     )
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert_state(RQ_CMD_0, 2)
 
     asyncio.get_running_loop().create_task(
@@ -321,7 +321,7 @@ async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
     assert_state(RQ_CMD_1, 1)
 
     protocol._context.pkt_received(RQ_PKT_1)  # cmd was already sent, above
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert_state(RQ_CMD_1, 1)
 
     protocol._context.pkt_received(RP_PKT_1)  # cmd was already sent, above
@@ -352,7 +352,7 @@ async def _test_flow_07(_: VirtualRf, protocol: QosProtocol) -> None:
 
     # Step 3: Receive the response (normally: protocol.pkt_received(RP_PKT_0))
     protocol._context.pkt_received(RQ_PKT_0)
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
 
     try:
         await protocol._context.send_cmd(RQ_CMD_1)
@@ -361,7 +361,7 @@ async def _test_flow_07(_: VirtualRf, protocol: QosProtocol) -> None:
     else:
         raise False
 
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
 
 
 # @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
@@ -431,7 +431,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
 
     # protocol.pkt_received(RQ_PKT_0)  # NOTE: not needed as will be echoed by virtual RF
     # if ...
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert protocol._context._state.cmd == RQ_CMD_0
 
     # Step 3A: Send (queue) a different command that invokes a response
@@ -443,7 +443,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
         raise False
 
     # if ...
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert protocol._context._state.cmd == RQ_CMD_0
 
     # Step 2B: Receive the 1st response
@@ -452,7 +452,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
 
     # # if ...
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert protocol._context._state.cmd == RP_PKT_1
 
     # Step 3B: Receive the 2nd response
@@ -501,7 +501,7 @@ async def _test_flow_17(
 
     # protocol.pkt_received(RQ_PKT_0)  # not needed as will be echoed by virtual RF
     # if ...
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert protocol._context._state.cmd == RQ_CMD_0
 
     # Step 3A: Send (queue) a different command that invokes a response
@@ -513,7 +513,7 @@ async def _test_flow_17(
         raise False
 
     # if ...
-    await assert_protocol_state(protocol, ProtocolState.WAIT)
+    await assert_protocol_state(protocol, ProtocolState.RPLY)
     assert protocol._context._state.cmd == RQ_CMD_0
 
     # Step 2B: Receive the 1st response (normally: protocol.pkt_received(RP_PKT_0))
@@ -531,7 +531,7 @@ async def _test_flow_17(
     )  # protocol.pkt_received(RP_PKT_0)
 
     # Step 4: Finished!
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
     # assert protocol._context._state.cmd is None
 
 
@@ -563,7 +563,7 @@ async def _test_flow_19(
     )
 
     if not disable_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.WAIT)
+        await assert_protocol_state(protocol, ProtocolState.RPLY)
         assert protocol._context._state.cmd == RQ_CMD_0
     # await asyncio.sleep(0.05)
 
@@ -574,7 +574,7 @@ async def _test_flow_19(
     )
 
     if not disable_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.WAIT)
+        await assert_protocol_state(protocol, ProtocolState.RPLY)
         # assert protocol._context._state.cmd == RQ_CMD_1
     # await asyncio.sleep(0.05)
 
