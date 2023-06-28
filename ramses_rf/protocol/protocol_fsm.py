@@ -52,17 +52,21 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         self._set_state(IsInactive)  # set initial state
 
+    def __str__(self) -> str:
+        state_name = self._state.__class__.__name__
+        cmd_hdr = self._cmd._hdr if self._cmd else None
+        que_length = self._que.unfinished_tasks
+        return f"Context({state_name}, hdr={cmd_hdr}, len(buffer)={que_length})"
+
     def _set_state(self, state: type[_StateT]) -> None:
         """Set the State of the Protocol (context)."""
 
         assert state != self._state  # there should be a transition to a different state
 
-        if state == IsIdle:
-            self._state = state(self)
-
-        elif state == HasFailed:  # FailedRetryLimit?
+        if state == HasFailed:  # FailedRetryLimit?
+            _LOGGER.warning(f"!!! ERROR; {self}")
             # TODO: do something about the fail (see self._state)
-            self._state = IsIdle(self)  # drop old_state, if any
+            self._state = IsIdle(self, prev_state=self._state)
 
         else:
             self._state = state(self, prev_state=self._state)
@@ -221,6 +225,9 @@ class IsPaused(ProtocolStateBase):
 class IsIdle(ProtocolStateBase):
     """Protocol is available to send a Command (has no outstanding Commands)."""
 
+    def __init__(self, context: _ContextT, prev_state: None | _StateT = None) -> None:
+        super().__init__(context, prev_state=prev_state)
+
     def __repr__(self) -> str:
         # this is the cmd moved that caused state to move from IsIdle to WantEcho
         hdr = self.cmd._hdr if self.cmd else None
@@ -228,7 +235,7 @@ class IsIdle(ProtocolStateBase):
 
     def sent_cmd(self, cmd: Command) -> None:
         # these two are required, so to pass on to next state (via old_state)
-        _LOGGER.error(f"...  - sending command: {cmd._hdr}")
+        _LOGGER.error(f"...  - sending a cmd: {cmd._hdr}")
         self.cmd = cmd
         self.cmd_sends += 1
         self._set_context_state(WantEcho)
@@ -256,10 +263,10 @@ class WantEcho(ProtocolStateBase):
         if pkt._hdr != self.cmd.tx_header:
             _LOGGER.error(f"Ignoring an unexpected pkt: {pkt}")
         elif self.cmd.rx_header:
-            _LOGGER.error(f"... - received echo (& expecting response): {pkt._hdr}")
+            _LOGGER.error(f"...  - received echo: {pkt._hdr} (expecting response)")
             self._set_context_state(WantResponse)
         else:
-            _LOGGER.error(f"...  - received echo (no response expected): {pkt._hdr}")
+            _LOGGER.error(f"...  - received echo: {pkt._hdr} (no response expected)")
             self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
@@ -290,7 +297,7 @@ class WantResponse(ProtocolStateBase):
         if pkt._hdr != self.cmd.rx_header:
             _LOGGER.error(f"Ignoring an unexpected pkt: {pkt}")
         elif pkt._hdr == self.cmd.rx_header:  # expected pkt
-            _LOGGER.error(f"...  - received expected response: {pkt._hdr}")
+            _LOGGER.error(f"...  - received rply: {pkt._hdr} (as expected)")
             self._set_context_state(IsIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
