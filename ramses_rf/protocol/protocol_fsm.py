@@ -9,6 +9,7 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Empty, PriorityQueue
+from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
@@ -45,7 +46,9 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._protocol = protocol
 
         self._loop = asyncio.get_running_loop()
+        self._cmd: None | Command = None
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
+        self._sem = BoundedSemaphore(value=1)
 
         self._set_state(IsInactive)  # set initial state
 
@@ -63,6 +66,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             self._state = state(self, old_state=self._state)
 
         if not self.is_sending:
+            self._cmd = None
             self._poll_queue()
 
     def connection_made(self, transport: _TransportT) -> None:
@@ -79,7 +83,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
     def send_cmd(self, cmd: Command) -> None:
         # if not isinstance(self._state, IsIdle):
-        #     raise RuntimeError(f"Protocol shouldn't send whilst sending: {cmd}")
+        #     raise RuntimeError(f"Shouldn't send whilst not Idle: {cmd._hdr}")
         self._state.sent_cmd(cmd)
 
     def pkt_received(self, pkt: Packet) -> None:
@@ -97,11 +101,15 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         fut = self._loop.create_future()
 
-        if not self.is_sending:
-            fut.set_result(None)
-            return fut
+        if self._sem.acquire(blocking=False):
+            if self._cmd is None:
+                self._cmd = cmd
+            self._sem.release()
 
-        self._que.put_nowait((DEFAULT_PRIORITY, dt.now(), cmd, timeout, fut))
+        if self._cmd is cmd:
+            fut.set_result(None)
+        else:
+            self._que.put_nowait((DEFAULT_PRIORITY, dt.now(), cmd, timeout, fut))
 
         return fut
 
@@ -177,17 +185,17 @@ class IsInactive(ProtocolStateBase):
     """Protocol has no active connection with a Transport."""
 
     def rcvd_pkt(self, pkt: Packet) -> None:  # raise an exception
-        raise RuntimeError("Protocol shouldn't rcvd whilst not connected")
+        raise RuntimeError(f"Shouldn't rcvd whilst not connected: {pkt._hdr}")
 
     async def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError(f"Shouldn't send whilst not connected: {cmd}")
+        raise RuntimeError(f"Shouldn't send whilst not connected: {cmd._hdr}")
 
 
 class IsPaused(ProtocolStateBase):
-    """Protocol has active connection with a Transport, but shoudl not send."""
+    """Protocol has active connection with a Transport, but should not send."""
 
     async def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError(f"Shouldn't send whilst paused: {cmd}")
+        raise RuntimeError(f"Shouldn't send whilst paused: {cmd._hdr}")
 
 
 class IsIdle(ProtocolStateBase):
@@ -198,7 +206,7 @@ class IsIdle(ProtocolStateBase):
 
     def sent_cmd(self, cmd: Command) -> None:
         # these two are required, so to pass on to next state (via old_state)
-        _LOGGER.info(f"*** Sending cmd: {cmd._hdr}")
+        _LOGGER.info(f"*** Sending command: {cmd._hdr}")
         self.cmd = cmd
         self.cmd_sends += 1
         self._set_context_state(WantEcho)
@@ -243,7 +251,7 @@ class WantEcho(ProtocolStateBase):
             self.cmd_sends += 1
             return
 
-        raise RuntimeError(f"Shouldn't send whilst waiting for an echo: {cmd}")
+        raise RuntimeError(f"Shouldn't send whilst expecting an echo: {cmd._hdr}")
 
 
 class WantResponse(ProtocolStateBase):
@@ -278,7 +286,7 @@ class WantResponse(ProtocolStateBase):
         ):
             self.cmd_sends += 1
             return
-        raise RuntimeError(f"Shouldn't send whilst waiting for a response: {cmd}")
+        raise RuntimeError(f"Shouldn't send whilst expecting a response: {cmd._hdr}")
 
 
 class HasFailed(ProtocolStateBase):
@@ -290,7 +298,7 @@ class HasFailed(ProtocolStateBase):
         assert old_state and old_state.cmd  # for mypy
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        raise RuntimeError(f"Shouldn't send whilst in a failed state: {cmd}")
+        raise RuntimeError(f"Shouldn't send whilst in a failed state: {cmd._hdr}")
 
 
 class HasFailedRetries(HasFailed):
