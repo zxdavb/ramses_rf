@@ -532,14 +532,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         self._context.pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        fut: asyncio.Future = self._context.ready_to_send(cmd)  # could be priority, etc
-
-        try:
-            await asyncio.wait_for(fut, DEFAULT_MAX_WAIT)
-        except asyncio.TimeoutError:
-            raise asyncio.TimeoutError("The send did not complete in time.")
-        self._context.send_cmd(cmd)  # , callback: Callable = None
-
+        await self._context.send_cmd(cmd)  # may raise asyncio.TimeoutError
         await super().send_cmd(cmd, **kwargs)
 
 
