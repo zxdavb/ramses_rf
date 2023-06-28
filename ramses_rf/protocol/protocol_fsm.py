@@ -58,18 +58,22 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         que_length = self._que.unfinished_tasks
         return f"Context({state_name}, hdr={cmd_hdr}, len(buffer)={que_length})"
 
-    def _set_state(self, state: type[_StateT]) -> None:
+    def _set_state(
+        self, state: type[_StateT], cmd: None | Command = None, cmd_sends: int = 0
+    ) -> None:
         """Set the State of the Protocol (context)."""
 
-        assert state != self._state  # there should be a transition to a different state
+        assert not isinstance(self._state, state)  # check transition has occurred
 
         if state == HasFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! ERROR; {self}")
             # TODO: do something about the fail (see self._state)
-            self._state = IsIdle(self, prev_state=self._state)
+            self._state = IsInIdle(self, prev_state=self._state)
 
         else:
-            self._state = state(self, prev_state=self._state)
+            self._state = state(
+                self, prev_state=self._state, cmd=cmd, cmd_sends=cmd_sends
+            )
 
         if not self.is_sending:
             self._cmd = None
@@ -94,10 +98,10 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         while not fut.done():
             if dt_expires <= dt.now():
+                _LOGGER.error("---  - future expired & exception set")
                 fut.set_exception(asyncio.TimeoutError)
                 break
             await asyncio.sleep(0.001)
-            # self._get_next_to_send()
 
         try:
             fut.result()
@@ -115,7 +119,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     @property
     def is_sending(self) -> bool:
         """Return True if the protocol is sending a packet/waiting for a response."""
-        return not isinstance(self._state, IsIdle)
+        return isinstance(self._state, (WantEcho, WantRply))
 
     def _set_ready_to_send(self, cmd: Command, sent: dt, expires: dt) -> asyncio.Future:
         """Return a Future that will be done when the protocol is ready to send."""
@@ -145,18 +149,22 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         except Empty:
             return
 
-        if fut.cancelled():
-            _LOGGER.debug("--- cancelled")
-            self._get_next_to_send()
+        if fut.done():  # handled in send_cmd()
+            _LOGGER.error("---  - future done (handled in send_cmd())")
 
-        elif expires <= dt.now():
-            _LOGGER.debug("--- expired")
-            fut.set_exception(asyncio.TimeoutError)  # TODO: make a ramses Exception
-            self._get_next_to_send()
+        elif fut.cancelled():  # not currently used
+            _LOGGER.error("---  - future cancelled")
+
+        # elif expires <= dt.now():  # handled in send_cmd()
+        #     _LOGGER.error("---  - fut expired")
+        #     fut.set_exception(asyncio.TimeoutError)  # TODO: make a ramses Exception
 
         else:
-            _LOGGER.debug("--- good to go")
+            _LOGGER.error("---  - fut is good to go")
             fut.set_result(None)
+            return
+
+        self._get_next_to_send()
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
@@ -167,18 +175,27 @@ class ProtocolStateBase:
     cmd: None | Command
     cmd_sends: int
 
-    def __init__(self, context: _ContextT, prev_state: None | _StateT = None) -> None:
+    def __init__(
+        self,
+        context: _ContextT,
+        prev_state: None | _StateT = None,
+        cmd: None | Command = None,
+        cmd_sends: int = 0,
+    ) -> None:
         self._context = context  # a Protocol
         self._set_context_state: Callable = context._set_state  # pylint: disable=W0212
 
-        self.cmd: None | Command = getattr(prev_state, "cmd", None)
-        self.cmd_sends: None | int = getattr(prev_state, "cmd_sends", 0)
+        self.cmd: None | Command = cmd  # getattr(prev_state, "cmd", None)
+        self.cmd_sends: None | int = cmd_sends  # getattr(prev_state, "cmd_sends", 0)
 
-        _LOGGER.error(f"*** State changed from {prev_state!r} to {self!r}")
+        _LOGGER.error(f"*** State moved from {prev_state!r} to {self!r}")
 
     def __repr__(self) -> str:
-        # assert self.cmd is None, self.cmd  # AA
-        return f"{self.__class__.__name__}()"
+        hdr = self.cmd.tx_header if self.cmd else None
+        if hdr:
+            return f"{self.__class__.__name__}(hdr={hdr}, tx={self.cmd_sends})"
+        assert self.cmd_sends == 0
+        return f"{self.__class__.__name__}(hdr={hdr})"
 
     def __str__(self) -> str:
         return self.__class__.__name__
@@ -187,7 +204,7 @@ class ProtocolStateBase:
         self._set_context_state(HasFailedRetries)
 
     def made_connection(self, transport: _TransportT) -> None:  # FIXME: may be paused
-        self._set_context_state(IsIdle)  # initial state (assumes not paused)
+        self._set_context_state(IsInIdle)  # initial state (assumes not paused)
 
     def lost_connection(self, exc: None | Exception) -> None:
         self._set_context_state(IsInactive)
@@ -196,7 +213,7 @@ class ProtocolStateBase:
         self._set_context_state(IsInactive)
 
     def writing_resumed(self) -> None:
-        self._set_context_state(IsIdle)
+        self._set_context_state(IsInIdle)
 
     def rcvd_pkt(self, pkt: Packet) -> None:
         pass
@@ -207,6 +224,10 @@ class ProtocolStateBase:
 
 class IsInactive(ProtocolStateBase):
     """Protocol has no active connection with a Transport."""
+
+    def __repr__(self) -> str:
+        assert self.cmd is None
+        return f"{self.__class__.__name__}()"
 
     def rcvd_pkt(self, pkt: Packet) -> None:  # raise an exception
         raise RuntimeError(f"Shouldn't rcvd whilst not connected: {pkt._hdr}")
@@ -222,37 +243,29 @@ class IsPaused(ProtocolStateBase):
         raise RuntimeError(f"Shouldn't send whilst paused: {cmd._hdr}")
 
 
-class IsIdle(ProtocolStateBase):
+class IsInIdle(ProtocolStateBase):
     """Protocol is available to send a Command (has no outstanding Commands)."""
-
-    def __init__(self, context: _ContextT, prev_state: None | _StateT = None) -> None:
-        super().__init__(context, prev_state=prev_state)
-
-    def __repr__(self) -> str:
-        # this is the cmd moved that caused state to move from IsIdle to WantEcho
-        hdr = self.cmd._hdr if self.cmd else None
-        return f"{self.__class__.__name__}(hdr={hdr})"
 
     def sent_cmd(self, cmd: Command) -> None:
         # these two are required, so to pass on to next state (via old_state)
         _LOGGER.error(f"...  - sending a cmd: {cmd._hdr}")
-        self.cmd = cmd
-        self.cmd_sends += 1
-        self._set_context_state(WantEcho)
+        self._set_context_state(WantEcho, cmd=cmd, cmd_sends=1)
 
 
 class WantEcho(ProtocolStateBase):
     """Protocol is waiting for the local echo (has sent a Command)."""
 
-    def __init__(self, context: _ContextT, prev_state: None | _StateT = None) -> None:
-        super().__init__(context, prev_state=prev_state)
+    def __init__(
+        self,
+        context: _ContextT,
+        prev_state: None | _StateT = None,
+        cmd: None | Command = None,
+        cmd_sends: int = 0,
+    ) -> None:
+        super().__init__(context, prev_state=prev_state, cmd=cmd, cmd_sends=cmd_sends)
 
         if self.cmd_sends > self.cmd._qos.retry_limit:  # first send was not a retry
             self._retry_limit_exceeded()
-
-    def __repr__(self) -> str:
-        hdr = self.cmd.tx_header if self.cmd else None
-        return f"{self.__class__.__name__}(hdr={hdr}, tx={self.cmd_sends})"
 
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
@@ -263,11 +276,11 @@ class WantEcho(ProtocolStateBase):
         if pkt._hdr != self.cmd.tx_header:
             _LOGGER.error(f"Ignoring an unexpected pkt: {pkt}")
         elif self.cmd.rx_header:
-            _LOGGER.error(f"...  - received echo: {pkt._hdr} (expecting response)")
-            self._set_context_state(WantResponse)
+            _LOGGER.error(f"...  - received echo: {pkt._hdr} (& expecting a reply)")
+            self._set_context_state(WantRply, cmd=self.cmd, cmd_sends=self.cmd_sends)
         else:
-            _LOGGER.error(f"...  - received echo: {pkt._hdr} (no response expected)")
-            self._set_context_state(IsIdle)
+            _LOGGER.error(f"...  - received echo: {pkt._hdr} (no reply expected)")
+            self._set_context_state(IsInIdle, cmd=self.cmd, cmd_sends=self.cmd_sends)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if (
@@ -275,18 +288,26 @@ class WantEcho(ProtocolStateBase):
             and cmd._addrs == self.cmd._addrs
             and cmd.payload == self.cmd.payload
         ):
+            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again)")
             self.cmd_sends += 1
             return
 
         raise RuntimeError(f"Shouldn't send whilst expecting an echo: {cmd._hdr}")
 
 
-class WantResponse(ProtocolStateBase):
+class WantRply(ProtocolStateBase):
     """Protocol is now waiting for a response (has received the Command echo)."""
 
-    def __repr__(self) -> str:
-        hdr = self.cmd.rx_header if self.cmd else None
-        return f"{self.__class__.__name__}(hdr={hdr}, tx={self.cmd_sends})"
+    def __init__(
+        self,
+        context: _ContextT,
+        prev_state: None | _StateT = None,
+        cmd: None | Command = None,
+        cmd_sends: int = 0,
+    ) -> None:
+        super().__init__(context, prev_state=prev_state, cmd=cmd, cmd_sends=cmd_sends)
+
+        # self._start_expiry_timer(duration=3)
 
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
@@ -298,7 +319,8 @@ class WantResponse(ProtocolStateBase):
             _LOGGER.error(f"Ignoring an unexpected pkt: {pkt}")
         elif pkt._hdr == self.cmd.rx_header:  # expected pkt
             _LOGGER.error(f"...  - received rply: {pkt._hdr} (as expected)")
-            self._set_context_state(IsIdle)
+            # self._cancel_expiry_timer()
+            self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if (
@@ -306,8 +328,10 @@ class WantResponse(ProtocolStateBase):
             and cmd._addrs == self.cmd._addrs
             and cmd.payload == self.cmd.payload
         ):
-            self.cmd_sends += 1
+            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (AGAIN)")
+            self.cmd_sends += 1  # reset wait for RP timer
             return
+
         raise RuntimeError(f"Shouldn't send whilst expecting a response: {cmd._hdr}")
 
 
@@ -327,6 +351,6 @@ _StateT = ProtocolStateBase  # TypeVar("_StateT", bound=ProtocolStateBase)
 
 class ProtocolState:
     DEAD = IsInactive  # #      #
-    IDLE = IsIdle  # ##
+    IDLE = IsInIdle  # ##
     ECHO = WantEcho  # #     #
-    WAIT = WantResponse  # #
+    WAIT = WantRply  # #

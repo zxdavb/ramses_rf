@@ -141,20 +141,30 @@ def protocol_decorator(fnc):
 
 
 async def _send_rq_cmd_via_context(
-    protocol: QosProtocol, rq_cmd: Command, rq_pkt: Packet, rp_pkt: Packet
+    protocol: QosProtocol,
+    rq_cmd: Command,
+    rq_pkt: Packet,
+    rp_pkt: Packet,
+    disable_sleeps: bool = None,
 ) -> None:
     """Using context primitives, send an RQ, and wait for the corresponding RP."""
 
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+    assert protocol._context._cmd is None
 
     await protocol._context.send_cmd(rq_cmd)
-    await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+    if not disable_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+        assert protocol._context._cmd == rq_cmd
 
     protocol._context.pkt_received(rq_pkt)
-    await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    if not disable_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+        assert protocol._context._cmd == rq_cmd
 
     protocol._context.pkt_received(rp_pkt)
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+    assert protocol._context._cmd is None
 
 
 async def _send_rq_cmd_via_protocol(
@@ -262,32 +272,64 @@ async def _test_flow_02(_: VirtualRf, protocol: QosProtocol) -> None:
 
 @protocol_decorator
 async def _test_flow_03(_: VirtualRf, protocol: QosProtocol) -> None:
-    """Send an RQ twice (with no RP), then a different RQ via context primitives."""
+    """Send two RQs back-to-back via context primitives."""
+    await _send_rq_cmd_via_context(
+        protocol, RQ_CMD_0, RQ_PKT_0, RP_PKT_0, disable_sleeps=True
+    )
+    await _send_rq_cmd_via_context(
+        protocol, RQ_CMD_1, RQ_PKT_1, RP_PKT_1, disable_sleeps=True
+    )
+
+
+@patch("ramses_rf.protocol.protocol_fsm.ProtocolContext.DEFAULT_MAX_WAIT", 3)
+@protocol_decorator
+async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
+    """A 2nd RQ is sent before 1st RQ receives its reply."""
 
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+    assert protocol._context._cmd is None
+    assert protocol._context.is_sending is False
+    assert protocol._context._state.cmd is None
+    assert protocol._context._state.cmd_sends == 0
 
     await protocol._context.send_cmd(RQ_CMD_0)
     await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+    assert protocol._context._cmd == RQ_CMD_0
+    assert protocol._context.is_sending is True
+    assert protocol._context._state.cmd is RQ_CMD_0
+    assert protocol._context._state.cmd_sends == 1
 
     protocol._context.pkt_received(RQ_PKT_0)
     await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    assert protocol._context._cmd == RQ_CMD_0
+    assert protocol._context.is_sending is True
+    assert protocol._context._state.cmd is RQ_CMD_0
+    assert protocol._context._state.cmd_sends == 1
 
-    #
     await protocol._context.send_cmd(RQ_CMD_0)  # expecing RP, but re-transmit of RQ
     await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    assert protocol._context._cmd == RQ_CMD_0
+    assert protocol._context.is_sending is True
+    assert protocol._context._state.cmd is RQ_CMD_0
+    assert protocol._context._state.cmd_sends == 2
 
     try:
-        await protocol._context.send_cmd(
-            RQ_CMD_1
-        )  # expecting RP, but got a different RQ
-    except RuntimeError:
+        await protocol._context.send_cmd(RQ_CMD_1)  # got different RQ instead of RP
+    except asyncio.TimeoutError:
+        # expected: this RQ is blocked by previous RQ, which hasn't received it's RP,
+        # and, currently, there are to timeouts for that (RQ, but no RP) scenario
         pass
     else:
         assert False
 
     await assert_protocol_state(protocol, ProtocolState.WAIT, max_sleep=0)
+    assert protocol._context._cmd == RQ_CMD_0
+    assert protocol._context.is_sending is True
+    assert protocol._context._state.cmd is RQ_CMD_0
+    assert protocol._context._state.cmd_sends == 2
 
 
+@patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
 @protocol_decorator
 async def _test_flow_07(_: VirtualRf, protocol: QosProtocol) -> None:
     """Send a second RQ before the first gets its RP via context primitives."""
@@ -572,6 +614,12 @@ async def test_flow_02() -> None:
 async def test_flow_03() -> None:
     """Check state change of inappropriate send during a RQ/RP pair."""
     await _test_flow_03()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_05() -> None:
+    """Check state change of inappropriate send during a RQ/RP pair."""
+    await _test_flow_05()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
