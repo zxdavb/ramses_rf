@@ -212,6 +212,13 @@ class ProtocolStateBase:
     def _retry_limit_exceeded(self):
         self._set_context_state(HasFailedRetries)
 
+    def _is_active_cmd(self, cmd: Command) -> bool:
+        return (
+            cmd._hdr == self.cmd._hdr
+            and cmd._addrs == self.cmd._addrs
+            and cmd.payload == self.cmd.payload
+        )
+
     def made_connection(self, transport: _TransportT) -> None:  # FIXME: may be paused
         self._set_context_state(IsInIdle)  # initial state (assumes not paused)
 
@@ -292,11 +299,7 @@ class WantEcho(ProtocolStateBase):
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        if (
-            cmd._hdr == self.cmd._hdr
-            and cmd._addrs == self.cmd._addrs
-            and cmd.payload == self.cmd.payload
-        ):
+        if self._is_active_cmd(cmd):
             _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again)")
             self.cmd_sends += 1
             return
@@ -332,11 +335,7 @@ class WantRply(ProtocolStateBase):
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
-        if (
-            cmd._hdr == self.cmd._hdr
-            and cmd._addrs == self.cmd._addrs
-            and cmd.payload == self.cmd.payload
-        ):
+        if self._is_active_cmd(cmd):
             _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (AGAIN)")
             self.cmd_sends += 1  # reset wait for RP timer
             return

@@ -629,36 +629,36 @@ async def test_flow_07() -> None:
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_10() -> None:
+async def OUT_test_flow_10() -> None:
     """Check state change of two sends using protocol methods."""
     await _test_flow_10()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_11() -> None:
+async def OUT_test_flow_11() -> None:
     """Check state change of a faultless send using protocol methods."""
     await _test_flow_11()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_12() -> None:
+async def OUT_test_flow_12() -> None:
     """Check state change of a faultless send using protocol methods."""
     await _test_flow_12()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_13() -> None:
+async def OUT_test_flow_13() -> None:
     """Check state change of a faultless send using protocol methods."""
     await _test_flow_13()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_17() -> None:
+async def OUT_test_flow_17() -> None:
     """Check protocol sending 2nd RQ before first RQ has finished being sent."""
     await _test_flow_17()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_19() -> None:
+async def OUT_test_flow_19() -> None:
     """Check protocol sending 2nd RQ before first RQ has finished being sent."""
     await _test_flow_19()
