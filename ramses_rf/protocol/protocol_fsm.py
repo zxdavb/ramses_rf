@@ -13,8 +13,6 @@ from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
-    from typing import Callable
-
     from .command import Command
     from .packet import Packet
 
@@ -150,7 +148,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, expires)
 
-        _LOGGER.error(f"*** Sending a cmd {cmd}")
+        _LOGGER.error(f"*** Sending a cmd:  {cmd}")
         try:
             await self._wait_for_state(IsInIdle, expires)
         except (asyncio.TimeoutError, asyncio.TimeoutError) as exc:
@@ -161,7 +159,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._state.sent_cmd(cmd)
 
     def pkt_received(self, pkt: Packet) -> None:
-        _LOGGER.error(f"*** Received a pkt  {pkt}")
+        _LOGGER.error(f"*** Received a pkt: {pkt}")
         self._state.rcvd_pkt(pkt)
 
     @property
@@ -223,6 +221,8 @@ class ProtocolStateBase:
     cmd: None | Command
     cmd_sends: int
 
+    _next_state: None | _StateT = None
+
     def __init__(
         self,
         context: _ContextT,
@@ -230,7 +230,6 @@ class ProtocolStateBase:
         cmd_sends: int = 0,
     ) -> None:
         self._context = context  # a Protocol
-        self._set_context_state: Callable = context._set_state  # pylint: disable=W0212
 
         self.cmd: None | Command = cmd
         self.cmd_sends: None | int = cmd_sends
@@ -244,6 +243,10 @@ class ProtocolStateBase:
 
     def __str__(self) -> str:
         return self.__class__.__name__
+
+    def _set_context_state(self, state: _StateT, *args, **kwargs) -> None:
+        self._next_state = state
+        self._context._set_state(state, *args, **kwargs)  # pylint: disable=W0212
 
     def _retry_limit_exceeded(self):
         self._set_context_state(HasFailedRetries)
@@ -299,7 +302,6 @@ class IsInIdle(ProtocolStateBase):
     """Protocol is available to send a Command (has no outstanding Commands)."""
 
     def sent_cmd(self, cmd: Command) -> None:
-        # these two are required, so to pass on to next state (via old_state)
         _LOGGER.error(f"...  - sending a cmd: {cmd._hdr}")
         self._set_context_state(WantEcho, cmd=cmd, cmd_sends=1)
 
