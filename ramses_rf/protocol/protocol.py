@@ -36,7 +36,7 @@ from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
-from .protocol_fsm import ProtocolContext
+from .protocol_fsm import ProtocolContext, ProtocolState
 from .schemas import SZ_PORT_NAME
 from .transport import SZ_IS_EVOFW3, PktTransportT
 from .transport import transport_factory as _transport_factory
@@ -542,15 +542,19 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
             num_sends += 1
 
             try:
+                assert isinstance(self._context._state, ProtocolState.ECHO)  # FIXME
                 await self._context.wait_until_echo_rcvd(cmd)
             except asyncio.TimeoutError:
+                _LOGGER.error("AAA")  # FIXME: REMOVE
                 if num_sends > max_retries:
                     raise asyncio.TimeoutError("Max retries exceeded (no echo)")
                 continue
 
             try:
+                assert isinstance(self._context._state, ProtocolState.RPLY)
                 await self._context.wait_until_rply_rcvd(cmd)
             except asyncio.TimeoutError:
+                _LOGGER.error("AAA")  # FIXME: REMOVE
                 if num_sends > max_retries:
                     raise asyncio.TimeoutError("Max retries exceeded (no rply)")
 

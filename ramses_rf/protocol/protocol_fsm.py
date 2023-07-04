@@ -115,24 +115,24 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     ) -> None:
         """Wait until the state machine has received the echo pkt."""
 
-        if not isinstance(self._state, WantEcho):
+        if not isinstance(self._state, WantEcho):  # FIXME
             raise asyncio.InvalidStateError
         if not self._state._is_active_cmd(cmd):
             raise asyncio.InvalidStateError
 
-        await self._wait_for_state(WantRply, dt.now() + td(timeout))
+        await self._wait_for_state(WantRply, dt.now() + td(seconds=timeout))
 
     async def wait_until_rply_rcvd(
         self, cmd: Command, timeout: float = DEFAULT_RPLY_TIMEOUT
     ) -> None:
         """Wait until the state machine has received the reply pkt."""
 
-        if not isinstance(self._state, WantRply):
+        if not isinstance(self._state, WantRply):  # FIXME
             raise asyncio.InvalidStateError
         if not self._state._is_active_cmd(cmd):
             raise asyncio.InvalidStateError
 
-        await self._wait_for_state(IsInIdle, dt.now() + td(timeout))
+        await self._wait_for_state(IsInIdle, dt.now() + td(seconds=timeout))
 
     async def send_cmd(
         self, cmd: Command, timeout: float = DEFAULT_WAIT_TIMEOUT
@@ -150,7 +150,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, expires)
 
-        _LOGGER.error(f"---  - sending a cmd {cmd}")
+        _LOGGER.error(f"*** Sending a cmd {cmd}")
         try:
             await self._wait_for_state(IsInIdle, expires)
         except (asyncio.TimeoutError, asyncio.TimeoutError) as exc:
@@ -161,6 +161,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._state.sent_cmd(cmd)
 
     def pkt_received(self, pkt: Packet) -> None:
+        _LOGGER.error(f"*** Received a pkt  {pkt}")
         self._state.rcvd_pkt(pkt)
 
     @property
@@ -326,18 +327,20 @@ class WantEcho(ProtocolStateBase):
         if self.cmd.rx_header and pkt._hdr == self.cmd.rx_header:  # expected pkt
             raise RuntimeError(f"Response received before echo: {pkt}")
 
-        if pkt._hdr != self.cmd.tx_header:
-            _LOGGER.error(f"Ignoring an unexpected pkt: {pkt}")
+        elif pkt._hdr != self.cmd.tx_header:
+            _LOGGER.error(f"...  - received ????: {pkt._hdr} (unexpected, ignored)")
+
         elif self.cmd.rx_header:
             _LOGGER.error(f"...  - received echo: {pkt._hdr} (& expecting a reply)")
             self._set_context_state(WantRply, cmd=self.cmd, cmd_sends=self.cmd_sends)
+
         else:
             _LOGGER.error(f"...  - received echo: {pkt._hdr} (no reply expected)")
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if self._is_active_cmd(cmd):
-            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again)")
+            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again 1)")
             self.cmd_sends += 1
             return
 
@@ -347,33 +350,23 @@ class WantEcho(ProtocolStateBase):
 class WantRply(ProtocolStateBase):
     """Protocol is now waiting for a response (has received the Command echo)."""
 
-    def __init__(
-        self,
-        context: _ContextT,
-        cmd: None | Command = None,
-        cmd_sends: int = 0,
-    ) -> None:
-        super().__init__(context, cmd=cmd, cmd_sends=cmd_sends)
-
-        # self._start_expiry_timer(duration=3)
-
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
 
         if pkt._hdr == self.cmd.tx_header:  # expected pkt
-            raise RuntimeError(f"Echo received, not response: {pkt}")
+            _LOGGER.error(f"...  - received echo: {pkt._hdr} (again 3)")
 
-        if pkt._hdr != self.cmd.rx_header:
-            _LOGGER.error(f"Ignoring an unexpected pkt: {pkt}")
+        elif pkt._hdr != self.cmd.rx_header:
+            _LOGGER.error(f"...  - received ????: {pkt._hdr} (unexpected, ignored)")
+
         elif pkt._hdr == self.cmd.rx_header:  # expected pkt
             _LOGGER.error(f"...  - received rply: {pkt._hdr} (as expected)")
-            # self._cancel_expiry_timer()
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if self._is_active_cmd(cmd):
-            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (AGAIN)")
-            self.cmd_sends += 1  # reset wait for RP timer
+            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again 3)")
+            self.cmd_sends += 1
             return
 
         raise RuntimeError(f"Shouldn't send whilst expecting a response: {cmd._hdr}")
