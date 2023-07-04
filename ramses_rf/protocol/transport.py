@@ -81,8 +81,6 @@ SZ_EVOFW3_FLAG = "evofw3_flag"  # FIXME: kwarg from upper layer: beware changing
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
-MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
-
 
 DEV_MODE = __dev_mode__ and False
 DEV_HACK_DISABLE_REGEX_WARNING = True  # should be False for end-users
