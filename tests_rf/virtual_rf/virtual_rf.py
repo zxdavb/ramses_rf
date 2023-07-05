@@ -101,8 +101,6 @@ class VirtualRfBase:
         self._port_info_list: dict[_PN, VirtualComPortInfo] = {}
 
         self._loop = asyncio.get_running_loop()
-        self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to Device
-        self.rx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to RF
 
         self._file_objs: dict[_FD, FileIO] = {}  # master fd to port object, for I/O
         self._pty_names: dict[_FD, _PN] = {}  # master fd to slave port name, for logger
@@ -112,6 +110,7 @@ class VirtualRfBase:
         for idx in range(num_ports):
             self._create_port(idx)
 
+        self._log: list[tuple[str, str, bytes]] = deque([], log_size)
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
     def _create_port(self, port_idx: int) -> None:
@@ -194,7 +193,7 @@ class VirtualRfBase:
         """Pull the data from the sending port and process any frames."""
 
         data = self._file_objs[master].read()  # read the Tx'd data
-        self.tx_log.append((self._pty_names[master], data))
+        self._log.append((self._pty_names[master], "SENT", data))
 
         # this assumes all .write(data) are 1+ whole frames terminated with \r\n
         for frame in (d + b"\r\n" for d in data.split(b"\r\n") if d):  # ignore b""
@@ -211,9 +210,9 @@ class VirtualRfBase:
     def _push_frame_to_dst_port(self, frame: bytes, master: _FD) -> None:
         """Push the frame to a single destination port."""
 
-        if f := self._proc_after_rx(frame, master):
-            self.rx_log.append((self._pty_names[master], f))
-            self._file_objs[master].write(f)
+        if data := self._proc_after_rx(frame, master):
+            self._log.append((self._pty_names[master], "RCVD", data))
+            self._file_objs[master].write(data)
 
     def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
         """Allow the device to modify the frame after receiving (e.g. adding RSSI)."""
