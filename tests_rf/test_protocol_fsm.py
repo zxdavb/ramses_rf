@@ -29,7 +29,7 @@ _DeviceStateT = TypeVar("_DeviceStateT", bound=State)
 _FakedDeviceT = TypeVar("_FakedDeviceT", bound=Fakeable)
 
 
-DEFAULT_MAX_WAIT = 0.05  # #  to patch: ramses_rf.protocol.protocol
+DEFAULT_WAIT_TIMEOUT = 0.05  # #  to patch: ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # to patch: ramses_rf.protocol.transport
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -281,7 +281,7 @@ async def _test_flow_03(_: VirtualRf, protocol: QosProtocol) -> None:
     )
 
 
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_MAX_WAIT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
     """A 2nd RQ is sent before 1st RQ receives its reply."""
@@ -329,7 +329,7 @@ async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
     assert_state(None, 0)
 
 
-@patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_07(_: VirtualRf, protocol: QosProtocol) -> None:
     """Send a second RQ before the first gets its RP via context primitives."""
@@ -365,7 +365,7 @@ async def _test_flow_07(_: VirtualRf, protocol: QosProtocol) -> None:
 
 
 # @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -376,7 +376,7 @@ async def _test_flow_10(rf: VirtualRf, protocol: QosProtocol) -> None:
     await _test_flow_via_protocol(rf, protocol)
 
 
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -387,7 +387,7 @@ async def _test_flow_11(rf: VirtualRf, protocol: QosProtocol) -> None:
     await _test_flow_via_protocol(rf, protocol, disable_sleeps=True)
 
 
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -400,7 +400,7 @@ async def _test_flow_12(_: VirtualRf, protocol: QosProtocol) -> None:
 
 
 # @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -466,7 +466,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
 
 
 # @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -536,7 +536,7 @@ async def _test_flow_17(
 
 
 # @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
