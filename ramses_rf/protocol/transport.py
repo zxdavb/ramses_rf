@@ -455,8 +455,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         return super().get_extra_info(name, default)
 
     def _read_ready(self) -> None:
-        # redirect data to self._bytes_received()
-        # instead of self._protocol.data_received(data)
+        # data to self._bytes_received() instead of self._protocol.data_received()
         try:
             data: bytes = self._serial.read(self._max_read_size)
         except SerialException as e:
