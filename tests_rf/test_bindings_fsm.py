@@ -40,9 +40,9 @@ async def assert_context_state(
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if ctx._state.__class__ is expected_state:
+        if ctx.state.__class__ is expected_state:
             break
-    assert ctx._state.__class__ is expected_state
+    assert ctx.state.__class__ is expected_state
 
 
 def binding_test_decorator(fnc):

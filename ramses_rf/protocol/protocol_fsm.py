@@ -20,9 +20,10 @@ if TYPE_CHECKING:
 _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 
+_LOGGER = logging.getLogger(__name__)
+
 MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
 
-_LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SEND_PRIORITY = 1
 

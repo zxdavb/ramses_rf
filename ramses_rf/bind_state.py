@@ -34,6 +34,8 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
+MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
+
 
 SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
 CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of sends
@@ -87,16 +89,17 @@ class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
     _is_respondent: bool  # otherwise, must be supplicant
-    _state: _State = None  # type: ignore[assignment]
+    state: _State = None  # type: ignore[assignment]
 
     def __init__(self, dev: _Faked, initial_state: type[_State]) -> None:
         self._dev = dev
+        self._loop = asyncio.get_running_loop()
 
         if initial_state not in (Listening, Offering):
             raise BindStateError(f"{self}: Incompatible inital state: {initial_state}")
 
         self._is_respondent = initial_state is Listening
-        self._set_context_state(initial_state)
+        self.set_state(initial_state)
 
     def __repr__(self) -> str:
         return f"{self._dev}: {self.role}: {self.state!r}"
@@ -104,9 +107,16 @@ class Context:
     def __str__(self) -> str:
         return f"{self._dev.id}: {self.state}"
 
-    def _set_context_state(self, state: type[_State]) -> None:
+    def set_state(self, state: type[_State]) -> None:
         """Change the State of the Context."""
-        self._state = state(self)
+
+        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+            prev_state = self.state
+
+        self.state = state(self)
+
+        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+            setattr(self.state, "_prev_state", prev_state)
 
     @classmethod
     def respondent(cls, dev: _Faked) -> Context:  # HACK: using _context is regrettable
@@ -132,7 +142,7 @@ class Context:
 
     @property
     def state(self) -> _State:
-        return self._state
+        return self.state
 
     def rcvd_msg(self, msg: Message) -> None:
         # Can assume the packet payloads have passed validation, but for mypy:
@@ -156,7 +166,7 @@ class Context:
         #     pass  # raise BindFlowError(f"{self}: unexpected Offer from itself")
         # elif not self._is_respondent and src is not self._dev:
         #     pass  # TODO: issue warning & return
-        self._state.received_offer(src is self._dev)  # not self._is_respondent)
+        self.state.received_offer(src is self._dev)  # not self._is_respondent)
 
     def _rcvd_accept(self, src: Device) -> None:
         """Context has received an Accept pkt.
@@ -167,7 +177,7 @@ class Context:
         #     pass  # TODO: issue warning & return
         # elif not self._is_respondent and src is self._dev:
         #     raise BindFlowError(f"{self}: unexpected Accept from itself")
-        self._state.received_accept(src is self._dev)  # self._is_respondent)
+        self.state.received_accept(src is self._dev)  # self._is_respondent)
 
     def _rcvd_confirm(self, src: Device) -> None:
         """Context has received a Confirm pkt.
@@ -178,7 +188,7 @@ class Context:
         #     raise BindFlowError(f"{self}: unexpected Confirm from itself")
         # elif not self._is_respondent and src is not self._dev:
         #     pass  # TODO: issue warning & return
-        self._state.received_confirm(src is self._dev)  # not self._is_respondent)
+        self.state.received_confirm(src is self._dev)  # not self._is_respondent)
 
     def sent_cmd(self, cmd: Command) -> None:
         # Assume the packet meta-data is valid
@@ -193,15 +203,18 @@ class Context:
 
     def _sent_offer(self) -> None:
         """Context has sent an Offer."""
-        self._state.sent_offer()  # raises BindRetryError if RETRY_LIMIT exceeded
+        self.state.sent_offer()  # raises BindRetryError if RETRY_LIMIT exceeded
 
     def _sent_accept(self) -> None:
         """Context has sent an Accept."""
-        self._state.sent_accept()  # raises BindRetryError if RETRY_LIMIT exceeded
+        self.state.sent_accept()  # raises BindRetryError if RETRY_LIMIT exceeded
 
     def _sent_confirm(self) -> None:
         """Context has sent an Confirm."""
-        self._state.sent_confirm()  # raises BindRetryError if RETRY_LIMIT exceeded
+        self.state.sent_confirm()  # raises BindRetryError if RETRY_LIMIT exceeded
+
+
+_ContextT = Context  # TypeVar("_ContextT", bound=Context)
 
 
 class State:
@@ -216,13 +229,8 @@ class State:
 
     def __init__(self, context: Context) -> None:
         self._context = context
-        self._set_context_state: Callable = context._set_context_state  # HACK
-        self._prev_state: _State | None = self._context.state
-
-        if self._prev_state:
-            self._loop = self._prev_state._loop
-        else:
-            self._loop = asyncio.get_running_loop()
+        self._set_context_state: Callable = context.set_state
+        self._loop = self._context._loop
 
         _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
 
