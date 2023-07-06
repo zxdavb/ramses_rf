@@ -101,7 +101,7 @@ def protocol_decorator(fnc):
             exclude_list=kwargs.pop("exclude_list", {}),
             include_list=kwargs.pop("include_list", {}),
         )
-        transport._extra["virtual_rf"] = rf
+        transport._extra["virtual_rf"] = rf  # injected to aid any debugging
 
         # ensure protocol has quiesced
         await assert_protocol_ready(protocol)
