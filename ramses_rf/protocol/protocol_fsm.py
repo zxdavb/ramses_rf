@@ -20,13 +20,19 @@ if TYPE_CHECKING:
 _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 
+MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
+
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SEND_PRIORITY = 1
 
 DEFAULT_WAIT_TIMEOUT = 3.0  # waiting in queue to send
-DEFAULT_ECHO_TIMEOUT = 0.05  # waiting for echo pkt after cmd sent
-DEFAULT_RPLY_TIMEOUT = 0.20  # waiting for reply pkt after echo pkt received
+DEFAULT_ECHO_TIMEOUT = 300.05  # waiting for echo pkt after cmd sent
+DEFAULT_RPLY_TIMEOUT = 300.50  # waiting for reply pkt after echo pkt received
+
+_DEFAULT_WAIT_TIMEOUT = td(seconds=DEFAULT_WAIT_TIMEOUT)
+_DEFAULT_ECHO_TIMEOUT = td(seconds=DEFAULT_ECHO_TIMEOUT)
+_DEFAULT_RPLY_TIMEOUT = td(seconds=DEFAULT_RPLY_TIMEOUT)
 
 POLLING_INTERVAL = 0.0005
 
@@ -36,7 +42,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
     MAX_BUFFER_SIZE: int = 5
 
-    _state: _StateT = None
+    state: _StateT = None
 
     def __init__(self, protocol, *args, **kwargs) -> None:
         # super().__init__(*args, **kwargs)
@@ -47,39 +53,53 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self._sem = BoundedSemaphore(value=1)
 
-        self._set_state(IsInactive)  # set initial state
+        self.set_state(IsInactive)  # set initial state
 
     def __repr__(self) -> str:
-        state_name = self._state.__class__.__name__
+        state_name = self.state.__class__.__name__
         cmd_hdr = self._cmd._hdr if self._cmd else None
         que_length = self._que.unfinished_tasks
         return f"Context({state_name}, hdr={cmd_hdr}, len(buffer)={que_length})"
 
-    def _set_state(
+    def set_state(
         self, state: type[_StateT], cmd: None | Command = None, cmd_sends: int = 0
     ) -> None:
         """Set the State of the Protocol (context)."""
 
-        assert not isinstance(self._state, state)  # check transition has occurred
-        _LOGGER.error(f" *** State moved from {self._state!r} to {state.__name__}")
+        assert not isinstance(self.state, state)  # check transition has occurred
+        _LOGGER.info(f" *** State was moved from {self.state!r} to {state.__name__}")
 
         if state == HasFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! failed: {self}")
 
-        if state is IsInIdle:
-            self._state = state(self)
+        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+            prev_state = self.state
 
+        if state is IsInIdle:
+            self.state = state(self)
         else:
-            self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
+            self.state = state(self, cmd=cmd, cmd_sends=cmd_sends)
+
+        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+            setattr(self.state, "_prev_state", prev_state)
 
         if not self.is_sending:
             self._cmd = None
             self._get_next_to_send()
 
     def connection_made(self, transport: _TransportT) -> None:
-        self._state.made_connection(transport)
+        _LOGGER.info(
+            f" *** Connection made when {self.state!r}: {transport.__class__.__name__}"
+        )
+        self.state.made_connection(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
+        """Called when the connection to the Transport is lost or closed.
+
+        If there is a SerialException of Serial.read() in SerialTransport._read_ready(),
+        then SerialTransport will invoke _close(exc) directly (i.e. bypass close()),
+        which then invokes Protocol.connection_lost(exc) via a Loop.call_soon().
+        """
         fut: asyncio.Future  # mypy
 
         while True:
@@ -87,87 +107,144 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 (_, _, _, _, fut) = self._que.get_nowait()
             except Empty:
                 break
-            fut.cancel()
+            fut.cancel()  # if not fut.done(): not required
 
-        self._state.lost_connection(exc)
+        _LOGGER.info(f"*** Connection lost when {self.state!r}, Exception: {exc}")
+        self.state.lost_connection(exc)
 
     def pause_writing(self) -> None:  # not required?
-        self._state.writing_paused()
+        _LOGGER.info(f"*** Writing paused, when {self.state!r}")
+        self.state.writing_paused()
 
     def resume_writing(self) -> None:
-        self._state.writing_resumed()
+        _LOGGER.info(f"*** Writing resumed when {self.state!r}")
+        self.state.writing_resumed()
 
-    async def _wait_for_state(self, state: _StateT, until: dt) -> None:
+    async def _wait_for_transition(self, old_state: _StateT, until: dt) -> _StateT:
+        """Poll the state machine until it moves its context to another state.
+
+        Raises an asyncio.TimeoutError if the default timeout is exceeded.
+        """
+
+        _LOGGER.error(f"---  - WAITING to leave {old_state}...")
+        while until > dt.now():
+            if not isinstance(self.state, old_state.__class__):
+                break
+            await asyncio.sleep(POLLING_INTERVAL)
+        else:
+            _LOGGER.error(f"---  - FAILURE to leave {old_state} (timed out)")
+            raise asyncio.TimeoutError(f"Failed to leave {old_state} (timed out)")
+
+        _LOGGER.error(f"---  - SUCCESS leaving {old_state}, now {self.state}")
+        return self.state
+
+    async def _wait_for_expected_state(
+        self, expected: type[_StateT], until: dt
+    ) -> None:
+        """Poll the state machine until it moves to the expected state.
+
+        Raises an asyncio.TimeoutError if the default timeout is exceeded.
+        """
+
+        _LOGGER.error(f"---  - WAITING to reach {expected.__name__}...")
+        state = await self._wait_for_transition(self.state, until)
+
+        if not isinstance(state, expected):
+            _LOGGER.error(f"---  - FAILURE to reach {expected.__name__} in time")
+            raise asyncio.TimeoutError(f"Failed to reach {expected.__name__} in time")
+
+        _LOGGER.error(f"---  - SUCCESS reaching {expected.__name__}")
+
+    async def wait_for_rcvd_echo(
+        self, this_state: _StateT, cmd: Command, timeout: float = _DEFAULT_ECHO_TIMEOUT
+    ) -> None:
+        """Wait until the state machine has received the expected echo pkt.
+
+        Raises an asyncio.TimeoutError if the default timeout is exceeded.
+        """
+
+        if not isinstance(self.state, WantEcho):  # FIXME
+            raise asyncio.InvalidStateError
+        if not self.state._is_active_cmd(cmd):
+            raise asyncio.InvalidStateError
+
+        # next_state = WantRply if cmd.rx_header else IsInIdle
+        # await self._wait_for_expected_state(next_state, dt.now() + timeout)
+        # # active cmd should be None or cmd (expecting a reply, cmd.rx_header not None)
+        await self._wait_for_transition(this_state, dt.now() + timeout)
+
+        if not isinstance(self.state, WantRply if cmd.rx_header else IsInIdle):  # FIXME
+            raise asyncio.InvalidStateError(f"Unexpected state: {self.state}")
+
+    async def wait_for_rcvd_rply(
+        self, this_state: _StateT, cmd: Command, timeout: float = _DEFAULT_RPLY_TIMEOUT
+    ) -> None:
+        """Wait until the state machine has received the expected reply pkt.
+
+        Raises an asyncio.TimeoutError if the default timeout is exceeded.
+        """
+
+        if not isinstance(self.state, WantRply):  # FIXME
+            raise asyncio.InvalidStateError
+        if not self.state._is_active_cmd(cmd):
+            raise asyncio.InvalidStateError
+
+        # await self._wait_for_expected_state(IsInIdle, dt.now() + timeout)
+        # # active cmd should now be None
+        await self._wait_for_transition(this_state, dt.now() + timeout)
+
+        if not isinstance(self.state, IsInIdle):  # FIXME
+            raise asyncio.InvalidStateError(f"Unexpected state: {self.state}")
+
+    async def _wait_for_state(self, state: _StateT, until: dt) -> None:  # TODO: REMOVE
         """Poll the state machine until it moves to the expected state."""
 
         while until > dt.now():
-            if isinstance(self._state, state):
+            if isinstance(self.state, state):
                 break
             await asyncio.sleep(POLLING_INTERVAL)
         else:
             _LOGGER.error(f"---  - failed to attain {state.__name__} in time")
             raise asyncio.TimeoutError
 
-    async def wait_until_echo_rcvd(
-        self, cmd: Command, timeout: float = DEFAULT_ECHO_TIMEOUT
-    ) -> None:
-        """Wait until the state machine has received the echo pkt."""
-
-        if not isinstance(self._state, WantEcho):  # FIXME
-            raise asyncio.InvalidStateError
-        if not self._state._is_active_cmd(cmd):
-            raise asyncio.InvalidStateError
-
-        await self._wait_for_state(WantRply, dt.now() + td(seconds=timeout))
-
-    async def wait_until_rply_rcvd(
-        self, cmd: Command, timeout: float = DEFAULT_RPLY_TIMEOUT
-    ) -> None:
-        """Wait until the state machine has received the reply pkt."""
-
-        if not isinstance(self._state, WantRply):  # FIXME
-            raise asyncio.InvalidStateError
-        if not self._state._is_active_cmd(cmd):
-            raise asyncio.InvalidStateError
-
-        await self._wait_for_state(IsInIdle, dt.now() + td(seconds=timeout))
-
     async def send_cmd(
         self, cmd: Command, timeout: float = DEFAULT_WAIT_TIMEOUT
     ) -> None:
         """Wait until the state machine is clear to send."""
 
-        if isinstance(self._state, (IsInactive, HasFailed)):
-            raise asyncio.InvalidStateError
-        if self._cmd and self._state._is_active_cmd(cmd):
-            self._state.sent_cmd(cmd)
+        _LOGGER.info(f"... Sending a cmd: {cmd}")
+
+        if isinstance(self.state, (IsInactive, HasFailed)):
+            raise asyncio.InvalidStateError(f"Invalid Context: {self!r}")
+        if self._cmd and self.state._is_active_cmd(cmd):
+            self.state.sent_cmd(cmd)  # assume re-transmit
             return
 
         dt_sent = dt.now()
-        expires = dt_sent + td(seconds=timeout)
+        until = dt_sent + td(seconds=timeout)
 
-        fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, expires)
+        fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, until)
 
-        _LOGGER.error(f"*** Sending a cmd:  {cmd}")
         try:
-            await self._wait_for_state(IsInIdle, expires)
-        except (asyncio.TimeoutError, asyncio.TimeoutError) as exc:
-            _LOGGER.debug("!!! expired/failed.")
+            await self._wait_for_state(IsInIdle, until)
+            # await self._wait_for_expected_state(IsInIdle, until)
+        except asyncio.TimeoutError as exc:
+            _LOGGER.warning("!!! wait_for_state(IsInIdle) has expired/failed.")
             fut.set_exception(exc)
 
         fut.result()  # may raise exception
-        self._state.sent_cmd(cmd)
+        self.state.sent_cmd(cmd)
 
     def pkt_received(self, pkt: Packet) -> None:
-        _LOGGER.error(f"*** Received a pkt: {pkt}")
-        self._state.rcvd_pkt(pkt)
+        _LOGGER.info(f"... Receivd a pkt: {pkt}")
+        self.state.rcvd_pkt(pkt)
 
     @property
     def is_sending(self) -> bool:
         """Return True if the protocol is sending a packet/waiting for a response."""
-        return isinstance(self._state, (WantEcho, WantRply))
+        return isinstance(self.state, (WantEcho, WantRply))
 
-    def _set_ready_to_send(self, cmd: Command, sent: dt, expires: dt) -> asyncio.Future:
+    def _set_ready_to_send(self, cmd: Command, sent: dt, until: dt) -> asyncio.Future:
         """Return a Future that will be done when the protocol is ready to send."""
 
         fut = self._loop.create_future()
@@ -179,7 +256,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         if self._cmd is cmd:  # a retry or a re-transmit?
             fut.set_result(None)
         else:
-            self._que.put_nowait((DEFAULT_SEND_PRIORITY, sent, cmd, expires, fut))
+            self._que.put_nowait((DEFAULT_SEND_PRIORITY, sent, cmd, until, fut))
 
         return fut
 
@@ -191,22 +268,22 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         fut: asyncio.Future  # mypy
 
         try:
-            (_, _, cmd, expires, fut) = self._que.get_nowait()
+            (_, _, cmd, until, fut) = self._que.get_nowait()
         except Empty:
             return
 
         if fut.cancelled():
-            _LOGGER.error("---  - future cancelled (e.g. connection_lost())")
+            _LOGGER.debug("---  - future cancelled (e.g. connection_lost())")
 
         elif fut.done():  # handled in send_cmd()
-            _LOGGER.error("---  - future done (handled in send_cmd())")
+            _LOGGER.debug("---  - future done (handled in send_cmd())")
 
-        # elif expires <= dt.now():  # handled in send_cmd()
-        #     _LOGGER.error("---  - fut expired")
+        # elif until <= dt.now():  # handled in send_cmd()
+        #     _LOGGER.debug("---  - future expired")
         #     fut.set_exception(asyncio.TimeoutError)  # TODO: make a ramses Exception
 
         else:
-            _LOGGER.error("---  - fut is good to go")
+            _LOGGER.debug("---  - future is good to go")
             fut.set_result(None)
             return
 
@@ -246,7 +323,7 @@ class ProtocolStateBase:
 
     def _set_context_state(self, state: _StateT, *args, **kwargs) -> None:
         self._next_state = state
-        self._context._set_state(state, *args, **kwargs)  # pylint: disable=W0212
+        self._context.set_state(state, *args, **kwargs)  # pylint: disable=W0212
 
     def _retry_limit_exceeded(self):
         self._set_context_state(HasFailedRetries)
@@ -302,7 +379,7 @@ class IsInIdle(ProtocolStateBase):
     """Protocol is available to send a Command (has no outstanding Commands)."""
 
     def sent_cmd(self, cmd: Command) -> None:
-        _LOGGER.error(f"...  - sending a cmd: {cmd._hdr}")
+        _LOGGER.debug(f"     - sending a cmd: {cmd._hdr}")
         self._set_context_state(WantEcho, cmd=cmd, cmd_sends=1)
 
 
@@ -330,19 +407,19 @@ class WantEcho(ProtocolStateBase):
             raise RuntimeError(f"Response received before echo: {pkt}")
 
         elif pkt._hdr != self.cmd.tx_header:
-            _LOGGER.error(f"...  - received ????: {pkt._hdr} (unexpected, ignored)")
+            _LOGGER.debug(f"     - received ????: {pkt._hdr} (unexpected, ignored)")
 
         elif self.cmd.rx_header:
-            _LOGGER.error(f"...  - received echo: {pkt._hdr} (& expecting a reply)")
+            _LOGGER.debug(f"     - received echo: {pkt._hdr} (& expecting a reply)")
             self._set_context_state(WantRply, cmd=self.cmd, cmd_sends=self.cmd_sends)
 
         else:
-            _LOGGER.error(f"...  - received echo: {pkt._hdr} (no reply expected)")
+            _LOGGER.debug(f"     - received echo: {pkt._hdr} (no reply expected)")
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if self._is_active_cmd(cmd):
-            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again 1)")
+            _LOGGER.debug(f"     - sending a cmd: {cmd._hdr} (again 1)")
             self.cmd_sends += 1
             return
 
@@ -356,18 +433,18 @@ class WantRply(ProtocolStateBase):
         """The Transport has received a Packet, possibly the expected response."""
 
         if pkt._hdr == self.cmd.tx_header:  # expected pkt
-            _LOGGER.error(f"...  - received echo: {pkt._hdr} (again 3)")
+            _LOGGER.debug(f"     - received echo: {pkt._hdr} (again 3)")
 
         elif pkt._hdr != self.cmd.rx_header:
-            _LOGGER.error(f"...  - received ????: {pkt._hdr} (unexpected, ignored)")
+            _LOGGER.debug(f"     - received ????: {pkt._hdr} (unexpected, ignored)")
 
         elif pkt._hdr == self.cmd.rx_header:  # expected pkt
-            _LOGGER.error(f"...  - received rply: {pkt._hdr} (as expected)")
+            _LOGGER.debug(f"     - received rply: {pkt._hdr} (as expected)")
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command) -> None:  # raise an exception
         if self._is_active_cmd(cmd):
-            _LOGGER.error(f"...  - sending a cmd: {cmd._hdr} (again 3)")
+            _LOGGER.debug(f"     - sending a cmd: {cmd._hdr} (again 3)")
             self.cmd_sends += 1
             return
 

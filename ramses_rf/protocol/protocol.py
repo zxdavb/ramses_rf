@@ -53,14 +53,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 
-# if TYPE_CHECKING:
-#     from io import TextIOWrapper
-
 MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
 
 
-MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 DEFAULT_MAX_RETRIES = 3
+MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 
 
 DEV_MODE = __dev_mode__ and False
@@ -532,33 +529,42 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         self._context.pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        await self._context.send_cmd(cmd)  # may raise asyncio.TimeoutError
+        try:
+            await self._context.send_cmd(cmd)
+        except asyncio.TimeoutError:  # don't handle InvalidStateError (yet)
+            raise asyncio.TimeoutError("Send timeout expired")
+        assert isinstance(self._context.state, ProtocolState.ECHO), self._context
 
         max_retries = DEFAULT_MAX_RETRIES
         num_sends = 0
 
         while num_sends <= max_retries:
-            await super().send_cmd(cmd, **kwargs)  # may raise Exception
             num_sends += 1
+            await super().send_cmd(cmd, **kwargs)  # may raise Exception
 
-            try:
-                assert isinstance(self._context._state, ProtocolState.ECHO)  # FIXME
-                await self._context.wait_until_echo_rcvd(cmd)
-            except asyncio.TimeoutError:
-                _LOGGER.error("AAA")  # FIXME: REMOVE
-                if num_sends > max_retries:
-                    raise asyncio.TimeoutError("Max retries exceeded (no echo)")
-                continue
+            if isinstance(self._context.state, ProtocolState.ECHO):
+                try:
+                    await self._context.wait_for_rcvd_echo(self._context.state, cmd)
+                except asyncio.TimeoutError:
+                    if num_sends > max_retries:
+                        raise asyncio.TimeoutError("Max retries exceeded (no echo)")
+                    continue
 
-            try:
-                assert isinstance(self._context._state, ProtocolState.RPLY)
-                await self._context.wait_until_rply_rcvd(cmd)
-            except asyncio.TimeoutError:
-                _LOGGER.error("AAA")  # FIXME: REMOVE
-                if num_sends > max_retries:
-                    raise asyncio.TimeoutError("Max retries exceeded (no rply)")
+            if isinstance(self._context.state, ProtocolState.RPLY):
+                try:
+                    await self._context.wait_for_rcvd_rply(self._context.state, cmd)
+                except asyncio.TimeoutError:
+                    if num_sends > max_retries:
+                        raise asyncio.TimeoutError("Max retries exceeded (no rply)")
 
-        # pass  # SUCCESS!!
+            if isinstance(self._context.state, ProtocolState.IDLE):
+                break
+
+        else:
+            raise asyncio.TimeoutError("Max retries exceeded")
+
+        # SUCCESS!!
+        assert isinstance(self._context.state, ProtocolState.IDLE), self._context
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
@@ -692,6 +698,6 @@ def create_stack(
 
     if not kwargs.get(SZ_PORT_NAME):
         set_logger_timesource(transport._dt_now)
-        _LOGGER.error("Datetimes maintained as most recent packet log timestamp")
+        _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
     return protocol, transport

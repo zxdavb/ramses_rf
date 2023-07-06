@@ -76,9 +76,9 @@ async def assert_protocol_state(
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if isinstance(protocol._context._state, expected_state):
+        if isinstance(protocol._context.state, expected_state):
             break
-    assert isinstance(protocol._context._state, expected_state)
+    assert isinstance(protocol._context.state, expected_state)
 
 
 def gateway_decorator(fnc):
@@ -289,8 +289,8 @@ async def _test_flow_05(_: VirtualRf, protocol: QosProtocol) -> None:
     def assert_state(cmd, cmd_sends) -> None:  # TODO: can remove, later
         assert protocol._context._cmd is cmd
         assert protocol._context.is_sending is bool(cmd)
-        assert protocol._context._state.cmd is cmd
-        assert protocol._context._state.cmd_sends == cmd_sends
+        assert protocol._context.state.cmd is cmd
+        assert protocol._context.state.cmd_sends == cmd_sends
 
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
     assert_state(None, 0)
@@ -413,7 +413,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
     # ser = serial.Serial(rf.ports[1])
 
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-    assert protocol._context._state.cmd is None
+    assert protocol._context.state.cmd is None
 
     # # Step 1A: Send a command that doesn't invoke a response (only an echo)
     # await protocol.send_cmd(II_CMD_0)  # no response expected
@@ -427,12 +427,12 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
     await protocol.send_cmd(RQ_CMD_0)
     # if ...
     await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
-    assert protocol._context._state.cmd == RQ_CMD_0
+    assert protocol._context.state.cmd == RQ_CMD_0
 
     # protocol.pkt_received(RQ_PKT_0)  # NOTE: not needed as will be echoed by virtual RF
     # if ...
     await assert_protocol_state(protocol, ProtocolState.RPLY)
-    assert protocol._context._state.cmd == RQ_CMD_0
+    assert protocol._context.state.cmd == RQ_CMD_0
 
     # Step 3A: Send (queue) a different command that invokes a response
     try:  # expectation is that prev RQ should finish, or timeout before this timesout
@@ -444,7 +444,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
 
     # if ...
     await assert_protocol_state(protocol, ProtocolState.RPLY)
-    assert protocol._context._state.cmd == RQ_CMD_0
+    assert protocol._context.state.cmd == RQ_CMD_0
 
     # Step 2B: Receive the 1st response
     protocol.pkt_received(RP_PKT_0)  # FIXME: doesn't queue?
@@ -453,7 +453,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
 
     # # if ...
     await assert_protocol_state(protocol, ProtocolState.RPLY)
-    assert protocol._context._state.cmd == RP_PKT_1
+    assert protocol._context.state.cmd == RP_PKT_1
 
     # Step 3B: Receive the 2nd response
     protocol.pkt_received(RP_PKT_1)
@@ -462,7 +462,7 @@ async def _test_flow_13(rf: VirtualRf, protocol: QosProtocol) -> None:
 
     # Step 4: Finished!
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-    assert protocol._context._state.cmd is None
+    assert protocol._context.state.cmd is None
 
 
 # @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_WAIT", DEFAULT_MAX_WAIT)
@@ -481,7 +481,7 @@ async def _test_flow_17(
     ser = serial.Serial(rf.ports[1])  # not needed
 
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-    assert protocol._context._state.cmd is None
+    assert protocol._context.state.cmd is None
 
     # Step 1A: Send a command that doesn't invoke a response (only an echo)
     await protocol.send_cmd(
@@ -491,18 +491,18 @@ async def _test_flow_17(
 
     # if...
     await assert_protocol_state(protocol, ProtocolState.IDLE)
-    assert protocol._context._state.cmd is None
+    assert protocol._context.state.cmd is None
 
     # Step 2A: Send a command that invokes a response
     asyncio.create_task(protocol.send_cmd(RQ_CMD_0))
     # if ...
     await assert_protocol_state(protocol, ProtocolState.ECHO)
-    assert protocol._context._state.cmd == RQ_CMD_0
+    assert protocol._context.state.cmd == RQ_CMD_0
 
     # protocol.pkt_received(RQ_PKT_0)  # not needed as will be echoed by virtual RF
     # if ...
     await assert_protocol_state(protocol, ProtocolState.RPLY)
-    assert protocol._context._state.cmd == RQ_CMD_0
+    assert protocol._context.state.cmd == RQ_CMD_0
 
     # Step 3A: Send (queue) a different command that invokes a response
     try:
@@ -514,7 +514,7 @@ async def _test_flow_17(
 
     # if ...
     await assert_protocol_state(protocol, ProtocolState.RPLY)
-    assert protocol._context._state.cmd == RQ_CMD_0
+    assert protocol._context.state.cmd == RQ_CMD_0
 
     # Step 2B: Receive the 1st response (normally: protocol.pkt_received(RP_PKT_0))
     asyncio.get_running_loop().call_soon(
@@ -551,7 +551,7 @@ async def _test_flow_19(
     ser = serial.Serial(rf.ports[1])
 
     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-    assert protocol._context._state.cmd is None
+    assert protocol._context.state.cmd is None
 
     # Step 1A: Send (queue) a command that doesn't invoke a response (only an echo)
     # Step 2A: Send (queue) a command that invokes a response
@@ -564,7 +564,7 @@ async def _test_flow_19(
 
     if not disable_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY)
-        assert protocol._context._state.cmd == RQ_CMD_0
+        assert protocol._context.state.cmd == RQ_CMD_0
     # await asyncio.sleep(0.05)
 
     # Step 2B: Receive the 1st response (normally: protocol.pkt_received(RP_PKT_0))
@@ -586,7 +586,7 @@ async def _test_flow_19(
 
     # Step 4: Finished!
     await assert_protocol_state(protocol, ProtocolState.IDLE)
-    assert protocol._context._state.cmd is None
+    assert protocol._context.state.cmd is None
 
 
 # ######################################################################################
