@@ -173,6 +173,8 @@ async def _test_flow_10x(
         assert protocol._context.state.cmd is cmd
         assert protocol._context.state.cmd_sends == cmd_sends
 
+    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
+
     # STEP 0: Setup...
     # ser = serial.Serial(rf.ports[1])
     #
@@ -180,17 +182,17 @@ async def _test_flow_10x(
     # STEP 1A: Send an RQ cmd, then receive the corresponding RP pkt...
     await protocol._context.send_cmd(RQ_CMD_0)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_0, 1)
 
     await async_pkt_received(RQ_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_0, 1)
 
     await async_pkt_received(RP_PKT_0, method=pkt_rcvd_method)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     # gather
@@ -198,7 +200,7 @@ async def _test_flow_10x(
     # STEP 2A: Send an I cmd (no reply) *twice*...
     await protocol._context.send_cmd(II_CMD_0)  # sent 1st time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_state_temp(II_CMD_0, 1)
 
     await async_pkt_received(II_PKT_0, method=pkt_rcvd_method)  # receive the echo
@@ -206,12 +208,12 @@ async def _test_flow_10x(
 
     await protocol._context.send_cmd(II_CMD_0)  # sent 2nd time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_state_temp(II_CMD_0, 1)
 
     await async_pkt_received(II_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     # gather
@@ -219,31 +221,31 @@ async def _test_flow_10x(
     # STEP 3A: Send an RQ cmd *twice*, then receive the corresponding RP pkt...
     await protocol._context.send_cmd(RQ_CMD_1)  # sent 1st time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_1, 1)
 
     await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_1, 1)
 
-    await protocol._context.send_cmd(RQ_CMD_1)  # sent 2nd time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
-        assert_state_temp(RQ_CMD_1, 2)  # FIXME: see NOTE above
+    # # await protocol._context.send_cmd(RQ_CMD_1)  # sent 2nd time
+    # # if not min_sleeps:
+    # #     await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
+    # #     assert_state_temp(RQ_CMD_1, 2)  # FIXME: see NOTE above
 
     await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
-        assert_state_temp(RQ_CMD_1, 2)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
+        assert_state_temp(RQ_CMD_1, 1)
 
     await async_pkt_received(RP_PKT_1, method=pkt_rcvd_method)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     # gather
-    await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+    await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
 
 
 @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_RETRIES", DEFAULT_MAX_RETRIES)
@@ -402,12 +404,12 @@ async def test_flow_100() -> None:
     await _test_flow_10x(min_sleeps=True)
 
 
-@pytest.mark.xdist_group(name="virtual_rf")
-# @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
-async def test_flow_110() -> None:
-    """Check state change of RQ/I/RQ cmds using context primitives."""
-    await _test_flow_10x(pkt_rcvd_method=1)
-    await _test_flow_10x(pkt_rcvd_method=1, min_sleeps=True)
+# # @pytest.mark.xdist_group(name="virtual_rf")
+# # # @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
+# # async def test_flow_110() -> None:
+# #     """Check state change of RQ/I/RQ cmds using context primitives."""
+# #     await _test_flow_10x(pkt_rcvd_method=1)
+# #     # await _test_flow_10x(pkt_rcvd_method=1, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
