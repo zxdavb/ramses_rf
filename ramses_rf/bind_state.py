@@ -118,6 +118,14 @@ class Context:
         if MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
+    @property
+    def state(self) -> _StateT:
+        return self._state
+
+    @property
+    def role(self) -> str:
+        return "respondent" if self._is_respondent else "supplicant"
+
     @classmethod
     def respondent(cls, dev: _FakedT) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
@@ -135,14 +143,6 @@ class Context:
                 f"{dev}: incompatible current State for Device: {dev._context}"
             )
         return cls(dev, BindState.OFFERING)
-
-    @property
-    def role(self) -> str:
-        return "respondent" if self._is_respondent else "supplicant"
-
-    @property
-    def state(self) -> _StateT:
-        return self._state
 
     def rcvd_msg(self, msg: Message) -> None:
         # Can assume the packet payloads have passed validation, but for mypy:
