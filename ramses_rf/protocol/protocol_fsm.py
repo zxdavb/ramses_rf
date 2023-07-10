@@ -43,7 +43,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
     MAX_BUFFER_SIZE: int = 5
 
-    state: _StateT = None
+    _state: _StateT = None  # type: ignore[assignment]
 
     def __init__(self, protocol, *args, **kwargs) -> None:
         # super().__init__(*args, **kwargs)
@@ -67,30 +67,34 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     ) -> None:
         """Set the State of the Protocol (context)."""
 
-        assert not isinstance(self.state, state)  # check transition has occurred
-        _LOGGER.info(f" *** State was moved from {self.state!r} to {state.__name__}")
+        assert not isinstance(self._state, state)  # check transition has occurred
+        _LOGGER.info(f" *** State was moved from {self._state!r} to {state.__name__}")
 
         if state == HasFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! failed: {self}")
 
         if MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            prev_state = self.state
+            prev_state = self._state
 
         if state is IsInIdle:
-            self.state = state(self)
+            self._state = state(self)
         else:
-            self.state = state(self, cmd=cmd, cmd_sends=cmd_sends)
+            self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
 
         if MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            setattr(self.state, "_prev_state", prev_state)
+            setattr(self._state, "_prev_state", prev_state)
 
         if not self.is_sending:
             self._cmd = None
             self._get_next_to_send()
 
+    @property
+    def state(self) -> _StateT:
+        return self._state
+
     def connection_made(self, transport: _TransportT) -> None:
         _LOGGER.info(
-            f" *** Connection made when {self.state!r}: {transport.__class__.__name__}"
+            f" *** Connection made when {self._state!r}: {transport.__class__.__name__}"
         )
         self.state.made_connection(transport)
 
