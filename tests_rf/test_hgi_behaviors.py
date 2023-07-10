@@ -107,7 +107,7 @@ _global_failed_ports: list[str] = []
 
 
 @patch("ramses_rf.protocol.address._STRICT_CHECKING", False)
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -191,7 +191,7 @@ async def _test_actual_ti3410(test_idx):
 
 
 @pytest.mark.xdist_group(name="mock_serial")
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_mocked_evofw3(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -206,7 +206,7 @@ async def test_mocked_evofw3(test_idx):
 
 
 @pytest.mark.xdist_group(name="mock_serial")
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 

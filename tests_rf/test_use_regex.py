@@ -76,7 +76,7 @@ async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_S
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_regex_inbound_():
     """Check the regex filters work as expected."""
 
@@ -108,7 +108,7 @@ async def test_regex_inbound_():
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_regex_outbound():
     """Check the regex filters work as expected."""
 
