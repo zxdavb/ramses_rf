@@ -89,9 +89,9 @@ class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
     _is_respondent: bool  # otherwise, must be supplicant
-    _state: _State = None  # type: ignore[assignment]
+    _state: _StateT = None  # type: ignore[assignment]
 
-    def __init__(self, dev: _Faked, initial_state: type[_State]) -> None:
+    def __init__(self, dev: _FakedT, initial_state: type[_StateT]) -> None:
         self._dev = dev
         self._loop = asyncio.get_running_loop()
 
@@ -107,7 +107,7 @@ class Context:
     def __str__(self) -> str:
         return f"{self._dev.id}: {self.state}"
 
-    def set_state(self, state: type[_State]) -> None:
+    def set_state(self, state: type[_StateT]) -> None:
         """Change the State of the Context."""
 
         if MAINTAIN_STATE_CHAIN:  # HACK for debugging
@@ -119,7 +119,7 @@ class Context:
             setattr(self._state, "_prev_state", prev_state)
 
     @classmethod
-    def respondent(cls, dev: _Faked) -> Context:  # HACK: using _context is regrettable
+    def respondent(cls, dev: _FakedT) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
         if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
             raise BindStateError(
@@ -128,7 +128,7 @@ class Context:
         return cls(dev, BindState.LISTENING)
 
     @classmethod
-    def supplicant(cls, dev: _Faked) -> Context:  # HACK: using _context is regrettable
+    def supplicant(cls, dev: _FakedT) -> Context:  # HACK: using _context is regrettable
         """Create a new Context only if the Device is coming from a suitable state."""
         if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
             raise BindStateError(
@@ -141,7 +141,7 @@ class Context:
         return "respondent" if self._is_respondent else "supplicant"
 
     @property
-    def state(self) -> _State:
+    def state(self) -> _StateT:
         return self._state
 
     def rcvd_msg(self, msg: Message) -> None:
@@ -525,8 +525,8 @@ class BoundFinal(Accepting, Bound):
 
 
 if TYPE_CHECKING:
-    _Faked = TypeVar("_Faked", bound=Fakeable)
-    _State = State  # TypeVar("_State", bound=State)  # FIXME: mypy says is unbound!!
+    _FakedT = TypeVar("_FakedT", bound=Fakeable)
+    _StateT = State  # TypeVar("_StateT", bound=State)  # FIXME: mypy says is unbound!!
 
 
 # Invalid states from which to move to a new an initial state (Listening, Offering)
