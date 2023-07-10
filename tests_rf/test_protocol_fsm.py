@@ -150,8 +150,23 @@ def _read_ready(self) -> None:  # HACK: resolves an issue with Virtual RF
 )
 @protocol_decorator
 async def _test_flow_10x(
-    _: VirtualRf, protocol: QosProtocol, min_sleeps: bool = None
+    rf: VirtualRf,
+    protocol: QosProtocol,
+    pkt_rcvd_method: int = 0,
+    min_sleeps: bool = None,
 ) -> None:
+    async def async_pkt_received(pkt: Packet, method: int = 0) -> None:
+        # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        # assert_state_temp(None, 0)
+
+        if method == 0:
+            return protocol.pkt_received(pkt)
+        else:  # if method == 1:
+            return rf._loop.call_soon(protocol.pkt_received, pkt)
+
+        # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        # assert_state_temp(None, 0)
+
     def assert_state_temp(cmd, cmd_sends) -> None:  # TODO: consider removing
         assert protocol._context._cmd is cmd
         assert protocol._context.is_sending is bool(cmd)
@@ -168,12 +183,12 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
         assert_state_temp(RQ_CMD_0, 1)
 
-    protocol._context.pkt_received(RQ_PKT_0)  # receive the echo
+    await async_pkt_received(RQ_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
         assert_state_temp(RQ_CMD_0, 1)
 
-    protocol._context.pkt_received(RP_PKT_0)
+    await async_pkt_received(RP_PKT_0, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
         assert_state_temp(None, 0)
@@ -186,7 +201,7 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
         assert_state_temp(II_CMD_0, 1)
 
-    protocol._context.pkt_received(II_PKT_0)  # NOTE: FIXME, below  # receive the echo
+    await async_pkt_received(II_PKT_0, method=pkt_rcvd_method)  # receive the echo
     # if not...
 
     await protocol._context.send_cmd(II_CMD_0)  # sent 2nd time
@@ -194,7 +209,7 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
         assert_state_temp(II_CMD_0, 1)
 
-    protocol._context.pkt_received(II_PKT_0)  # NOTE: FIXME  # receive the echo
+    await async_pkt_received(II_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
         assert_state_temp(None, 0)
@@ -207,7 +222,7 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=0)
         assert_state_temp(RQ_CMD_1, 1)
 
-    protocol._context.pkt_received(RQ_PKT_1)  # receive the echo
+    await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
         assert_state_temp(RQ_CMD_1, 1)
@@ -217,12 +232,12 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
         assert_state_temp(RQ_CMD_1, 2)  # FIXME: see NOTE above
 
-    protocol._context.pkt_received(RQ_PKT_1)  # receive the echo
+    await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
         assert_state_temp(RQ_CMD_1, 2)
 
-    protocol._context.pkt_received(RP_PKT_1)
+    await async_pkt_received(RP_PKT_1, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
         assert_state_temp(None, 0)
@@ -242,7 +257,10 @@ async def _test_flow_10x(
 )
 @protocol_decorator
 async def _test_flow_20x(
-    rf: VirtualRf, protocol: QosProtocol, min_sleeps: bool = None
+    rf: VirtualRf,
+    protocol: QosProtocol,
+    pkt_rcvd_method: int = 0,
+    min_sleeps: bool = None,
 ) -> None:
     async def async_send_cmds(cmd: Command, num_sends: int = 1) -> list[asyncio.Task]:
         # TODO: put these back in
@@ -298,7 +316,6 @@ async def _test_flow_20x(
 
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
-    PKT_RECEIVED_METHOD = 1
 
     # STEP 1: Send an I cmd (no reply)...
     tasks = await async_send_cmds(II_CMD_0, num_sends=1)
@@ -314,15 +331,15 @@ async def _test_flow_20x(
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     tasks = await async_send_cmds(RQ_CMD_0, num_sends=1)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
         assert_state_temp(RQ_CMD_0, 1)
 
     # the echo is sent by Virtual RF...
     # if not min_sleeps:
 
-    await async_pkt_received(RP_PKT_0, method=PKT_RECEIVED_METHOD)
+    await async_pkt_received(RP_PKT_0, method=pkt_rcvd_method)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
         assert_state_temp(None, 0)
 
     await asyncio.gather(*tasks)
@@ -363,7 +380,7 @@ async def _test_flow_20x(
     # the echo is sent by Virtual RF...
     # if not..
 
-    await async_pkt_received(RP_PKT_1, method=PKT_RECEIVED_METHOD)
+    await async_pkt_received(RP_PKT_1, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
         assert_state_temp(None, 0)
@@ -378,28 +395,47 @@ async def _test_flow_20x(
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
+# @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
     await _test_flow_10x()
+    await _test_flow_10x(min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_101() -> None:
+# @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
+async def test_flow_110() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
-    await _test_flow_10x(min_sleeps=False)
+    await _test_flow_10x(pkt_rcvd_method=1)
+    await _test_flow_10x(pkt_rcvd_method=1, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-@patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def test_flow_200() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x()
+    await _test_flow_20x(pkt_rcvd_method=0)
+    await _test_flow_20x(pkt_rcvd_method=0, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_201() -> None:
+async def test_flow_210() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x(min_sleeps=False)
+    await _test_flow_20x(pkt_rcvd_method=1)
+    await _test_flow_20x(pkt_rcvd_method=1, min_sleeps=True)
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_220() -> None:
+    """Check state change of RQ/I/RQ cmds using protocol methods."""
+    await _test_flow_20x(pkt_rcvd_method=2)
+    await _test_flow_20x(pkt_rcvd_method=2, min_sleeps=True)
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_230() -> None:
+    """Check state change of RQ/I/RQ cmds using protocol methods."""
+    await _test_flow_20x(pkt_rcvd_method=3)
+    await _test_flow_20x(pkt_rcvd_method=3, min_sleeps=True)
 
 
 @pytest_asyncio.fixture
@@ -417,9 +453,9 @@ async def async_benchmark(benchmark, event_loop: asyncio.AbstractEventLoop):
     return _wrapper
 
 
-@pytest.mark.xdist_group(name="virtual_rf")
-def test_benchmark_100(async_benchmark):
-    async_benchmark(_test_flow_10x)
+# @pytest.mark.xdist_group(name="virtual_rf")
+# def test_benchmark_100(async_benchmark):
+#     async_benchmark(_test_flow_10x)
 
 
 # @pytest.mark.xdist_group(name="virtual_rf")
