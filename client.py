@@ -51,7 +51,7 @@ from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import merge
 from ramses_rf.protocol import is_valid_dev_id  # noqa: F401
-from ramses_rf.protocol.exceptions import EvohomeError
+from ramses_rf.protocol.exceptions import RamsesError
 from ramses_rf.protocol.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_rf.protocol.schemas import (
     SZ_DISABLE_SENDING,
@@ -549,8 +549,8 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         msg = "ended via: GracefulExit"
     except KeyboardInterrupt:
         msg = "ended via: KeyboardInterrupt"
-    except EvohomeError as err:
-        msg = f"ended via: EvohomeError: {err}"
+    except RamsesError as err:
+        msg = f"ended via: RamsesException: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"
     finally:

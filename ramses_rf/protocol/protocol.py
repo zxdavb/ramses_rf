@@ -31,7 +31,7 @@ from .const import __dev_mode__
 #     SZ_TIMEOUT,
 #     __dev_mode__,
 # )
-from .exceptions import InvalidPacketError
+from .exceptions import InvalidPacketError, RetryLimitExceeded, SendTimeoutError
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -531,39 +531,34 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         self._context.pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        try:
-            await self._context.send_cmd(cmd)
-        except asyncio.TimeoutError:  # don't handle InvalidStateError (yet)
-            raise asyncio.TimeoutError("Send timeout expired")
-        assert isinstance(self._context.state, ProtocolState.ECHO), self._context
+        """Wrapper to send a command with retries, until success or Exception."""
 
-        max_retries = DEFAULT_MAX_RETRIES
-        num_sends = 0
+        while True:  # if required, resend until retry limit exceeded
+            try:
+                await self._context.send_cmd(cmd)  # , max_retries=...)
+            except (RetryLimitExceeded, SendTimeoutError) as exc:
+                _LOGGER.debug(f"{self._context}: Failed to send cmd: {exc}")
+                raise
 
-        while num_sends <= max_retries:
-            num_sends += 1
+            assert isinstance(self._context.state, ProtocolState.ECHO), self._context
             await super().send_cmd(cmd, **kwargs)  # may raise Exception
 
-            if isinstance(self._context.state, ProtocolState.ECHO):
-                try:
-                    await self._context.wait_for_rcvd_echo(self._context.state, cmd)
-                except asyncio.TimeoutError:
-                    if num_sends > max_retries:
-                        raise asyncio.TimeoutError("Max retries exceeded (no echo)")
-                    continue
+            try:
+                await self._context.wait_for_rcvd_echo(cmd, self._context.state)
+            except SendTimeoutError as exc:
+                _LOGGER.debug(f"{self._context}: Failed to receive echo: {exc}")
+                continue
 
-            if isinstance(self._context.state, ProtocolState.RPLY):
-                try:
-                    await self._context.wait_for_rcvd_rply(self._context.state, cmd)
-                except asyncio.TimeoutError:
-                    if num_sends > max_retries:
-                        raise asyncio.TimeoutError("Max retries exceeded (no rply)")
-
-            if isinstance(self._context.state, ProtocolState.IDLE):
+            if not cmd.rx_header:
                 break
+            assert isinstance(self._context.state, ProtocolState.RPLY), self._context
 
-        else:
-            raise asyncio.TimeoutError("Max retries exceeded")
+            try:
+                await self._context.wait_for_rcvd_rply(cmd, self._context.state)
+            except SendTimeoutError as exc:
+                _LOGGER.debug(f"{self._context}: Failed to receive reply: {exc}")
+            else:
+                break
 
         # SUCCESS!!
         assert isinstance(self._context.state, ProtocolState.IDLE), self._context

@@ -26,7 +26,7 @@ from .const import (
 from .device import Device
 from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA  # , Address
 from .protocol import Message as MessageBase
-from .protocol.exceptions import EvohomeError, InvalidAddrSetError, InvalidPacketError
+from .protocol.exceptions import InvalidAddrSetError, InvalidPacketError, RamsesError
 from .protocol.ramses import (
     CODES_OF_HEAT_DOMAIN,
     CODES_OF_HEAT_DOMAIN_ONLY,
@@ -360,7 +360,7 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
             if getattr(d, "_faked", False):
                 gwy._loop.call_soon(d._handle_msg, msg)
 
-    except (AssertionError, EvohomeError, NotImplementedError) as exc:
+    except (AssertionError, RamsesError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
         )
