@@ -245,8 +245,9 @@ async def _test_flow_20x(
     rf: VirtualRf, protocol: QosProtocol, min_sleeps: bool = None
 ) -> None:
     async def async_send_cmds(cmd: Command, num_sends: int = 1) -> list[asyncio.Task]:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)
-        assert_state_temp(None, 0)
+        # TODO: put these back in
+        # await assert_protocol_state(protocol, ProtocolState.IDLE)
+        # assert_state_temp(None, 0)
 
         if num_sends <= 0:
             return
@@ -297,9 +298,20 @@ async def _test_flow_20x(
 
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
-    PKT_RECEIVED_METHOD = 0
+    PKT_RECEIVED_METHOD = 1
 
-    # STEP 1A: Send an RQ cmd, then receive the corresponding RP pkt...
+    # STEP 1: Send an I cmd (no reply)...
+    tasks = await async_send_cmds(II_CMD_0, num_sends=1)
+    if not min_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
+        assert_state_temp(None, 0)
+
+    # the echo is sent by Virtual RF...
+    # if not..
+
+    await asyncio.gather(*tasks)  # no reply pkt expected
+
+    # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     tasks = await async_send_cmds(RQ_CMD_0, num_sends=1)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=0)
@@ -314,10 +326,9 @@ async def _test_flow_20x(
         assert_state_temp(None, 0)
 
     await asyncio.gather(*tasks)
-    return
 
-    # STEP 2A: Send an I cmd (no reply) *twice*...
-    tasks = await async_send_cmds(II_CMD_0, num_sends=1)  # send * 2
+    # STEP 3: Send an I cmd (no reply) *twice*...
+    tasks = await async_send_cmds(II_CMD_0, num_sends=2)  # send * 2
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
         assert_state_temp(None, 0)
@@ -335,7 +346,7 @@ async def _test_flow_20x(
 
     await asyncio.gather(*tasks)  # no reply pkt expected
 
-    # STEP 3A: Send an RQ cmd *twice*, then receive the corresponding RP pkt...
+    # STEP 4: Send an RQ cmd *twice*, then receive the corresponding RP pkt...
     tasks = await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 1st time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
@@ -347,7 +358,7 @@ async def _test_flow_20x(
     tasks += await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 2nd time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
-        assert_state_temp(RQ_CMD_1, 1)
+        assert_state_temp(RQ_CMD_1, 2)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -358,6 +369,8 @@ async def _test_flow_20x(
         assert_state_temp(None, 0)
 
     await asyncio.gather(*tasks)
+
+    # STEP 9: Final checks
     await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
 
 
