@@ -67,6 +67,8 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
+_DEBUG_DISABLE_QOS = False  # used for debugging
+
 
 class ProtocolError(Exception):
     """Base class for exceptions in this module."""
@@ -664,7 +666,7 @@ def protocol_factory(  # TODO: no_qos default should be None
 ) -> MsgProtocolT:
     if disable_sending:
         return ReadProtocol(msg_handler)
-    if disable_qos:
+    if disable_qos or _DEBUG_DISABLE_QOS:
         return PortProtocol(msg_handler)
     return QosProtocol(msg_handler)
 

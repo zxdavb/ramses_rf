@@ -88,8 +88,6 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-DISABLE_QOS = False  # used for debugging
-
 
 class Engine:
     """The engine class."""
@@ -172,7 +170,7 @@ class Engine:
         """
 
         self._protocol = protocol_factory(
-            msg_handler, disable_sending=self._disable_sending, disable_qos=DISABLE_QOS
+            msg_handler, disable_sending=self._disable_sending
         )
 
     def add_msg_handler(

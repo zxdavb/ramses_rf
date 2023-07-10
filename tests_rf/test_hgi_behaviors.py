@@ -107,6 +107,7 @@ _global_failed_ports: list[str] = []
 
 
 @patch("ramses_rf.protocol.address._STRICT_CHECKING", False)
+@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", True)
 @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
