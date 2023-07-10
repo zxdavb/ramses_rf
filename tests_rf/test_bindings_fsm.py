@@ -316,25 +316,25 @@ async def _test_binding_init_2(supplicant: _FakedDeviceT, respondent: _FakedDevi
 
 
 @pytest.mark.xdist_group(name="serial")
-async def test_binding_flow_0():
+async def test_flow_0():
     await _test_binding_flow_0()
 
 
 @pytest.mark.xdist_group(name="serial")
-async def test_binding_flow_1():
+async def test_flow_1():
     await _test_binding_flow_1()
 
 
 @pytest.mark.xdist_group(name="serial")
-async def test_binding_flow_2():
+async def test_flow_2():
     await _test_binding_flow_2()
 
 
 @pytest.mark.xdist_group(name="serial")
-async def test_binding_init_1():
+async def test_init_1():
     await _test_binding_init_1()
 
 
 @pytest.mark.xdist_group(name="serial")
-async def test_binding_init_2():
+async def test_init_2():
     await _test_binding_init_2()
