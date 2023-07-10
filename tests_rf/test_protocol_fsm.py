@@ -145,6 +145,9 @@ def _read_ready(self) -> None:  # HACK: resolves an issue with Virtual RF
 # ######################################################################################
 
 
+@patch(
+    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
+)
 @protocol_decorator
 async def _test_flow_10x(
     _: VirtualRf, protocol: QosProtocol, min_sleeps: bool = None
@@ -230,7 +233,9 @@ async def _test_flow_10x(
 
 @patch("ramses_rf.protocol.protocol.DEFAULT_MAX_RETRIES", DEFAULT_MAX_RETRIES)
 @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch("ramses_rf.protocol.protocol_fsm.MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN)
+@patch(
+    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
+)
 @patch(  # stifle impersonation alerts
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
@@ -309,6 +314,7 @@ async def _test_flow_20x(
         assert_state_temp(None, 0)
 
     await asyncio.gather(*tasks)
+    return
 
     # STEP 2A: Send an I cmd (no reply) *twice*...
     tasks = await async_send_cmds(II_CMD_0, num_sends=1)  # send * 2

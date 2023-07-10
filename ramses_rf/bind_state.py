@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
+_DEBUG_MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
 
 
 SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
@@ -110,12 +110,12 @@ class Context:
     def set_state(self, state: type[_StateT]) -> None:
         """Change the State of the Context."""
 
-        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             prev_state = self._state
 
         self._state = state(self)
 
-        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
     @property

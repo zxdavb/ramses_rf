@@ -22,7 +22,7 @@ _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 _LOGGER = logging.getLogger(__name__)
 
-MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
+_DEBUG_MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
 
 
 DEFAULT_SEND_PRIORITY = 1
@@ -73,7 +73,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         if state == HasFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! failed: {self}")
 
-        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             prev_state = self._state
 
         if state is IsInIdle:
@@ -81,7 +81,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         else:
             self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
 
-        if MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
         if not self.is_sending:
