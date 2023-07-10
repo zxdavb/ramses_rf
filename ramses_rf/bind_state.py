@@ -89,7 +89,7 @@ class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
     _is_respondent: bool  # otherwise, must be supplicant
-    state: _State = None  # type: ignore[assignment]
+    _state: _State = None  # type: ignore[assignment]
 
     def __init__(self, dev: _Faked, initial_state: type[_State]) -> None:
         self._dev = dev
@@ -111,12 +111,12 @@ class Context:
         """Change the State of the Context."""
 
         if MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            prev_state = self.state
+            prev_state = self._state
 
-        self.state = state(self)
+        self._state = state(self)
 
         if MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            setattr(self.state, "_prev_state", prev_state)
+            setattr(self._state, "_prev_state", prev_state)
 
     @classmethod
     def respondent(cls, dev: _Faked) -> Context:  # HACK: using _context is regrettable
@@ -142,7 +142,7 @@ class Context:
 
     @property
     def state(self) -> _State:
-        return self.state
+        return self._state
 
     def rcvd_msg(self, msg: Message) -> None:
         # Can assume the packet payloads have passed validation, but for mypy:

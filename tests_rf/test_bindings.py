@@ -71,10 +71,10 @@ async def assert_context_state(
 ):
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if ctx and ctx.state.__class__ is expected_state:
+        if ctx and ctx._state.__class__ is expected_state:
             break
     assert ctx is not None  # mypy
-    assert ctx.state.__class__ is expected_state
+    assert ctx._state.__class__ is expected_state
 
 
 # FIXME: broken

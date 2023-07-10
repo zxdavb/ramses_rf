@@ -23,8 +23,9 @@ _DeviceStateT = TypeVar("_DeviceStateT", bound=State)
 _FakedDeviceT = TypeVar("_FakedDeviceT", bound=Fakeable)
 
 
-CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
-WAITING_TIMEOUT_SECS = 0  # to patch ramses_rf.bind_state
+CONFIRM_TIMEOUT_SECS = 0.001  # # patch ramses_rf.bind_state
+MAINTAIN_STATE_CHAIN = True  # #  patch ramses_rf.bind_state (was False)
+WAITING_TIMEOUT_SECS = 0  # #     patch ramses_rf.bind_state
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 1
@@ -172,6 +173,7 @@ async def _phase_4(supplicant: _FakedDeviceT, respondent: _FakedDeviceT) -> None
     await assert_context_state(supplicant._context, BindState.BOUND)  # after tx x3
 
 
+@patch("ramses_rf.bind_state.MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN)
 @patch("ramses_rf.bind_state.CONFIRM_TIMEOUT_SECS", CONFIRM_TIMEOUT_SECS)
 @binding_test_decorator
 async def _test_binding_flow_0(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
@@ -190,6 +192,7 @@ async def _test_binding_flow_0(supplicant: _FakedDeviceT, respondent: _FakedDevi
     await assert_context_state(respondent._context, BindState.BOUND)  # after rx x1
 
 
+@patch("ramses_rf.bind_state.MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN)
 @binding_test_decorator
 async def _test_binding_flow_1(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Check for inappropriate change of state (BindFlowError)."""
@@ -225,6 +228,7 @@ async def _test_binding_flow_1(supplicant: _FakedDeviceT, respondent: _FakedDevi
     await _phase_1(supplicant, respondent)  # The supplicant Offers, both receive it
 
 
+@patch("ramses_rf.bind_state.MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN)
 @patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", WAITING_TIMEOUT_SECS)
 @binding_test_decorator
 async def _test_binding_flow_2(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
@@ -260,6 +264,7 @@ async def _test_binding_flow_2(supplicant: _FakedDeviceT, respondent: _FakedDevi
     assert respondent._context.state._prev_state.__class__ is BindState.LISTENING
 
 
+@patch("ramses_rf.bind_state.MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN)
 @binding_test_decorator
 async def _test_binding_init_1(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Create both Contexts via init (first try bad initial States)."""
@@ -285,6 +290,7 @@ async def _test_binding_init_1(supplicant: _FakedDeviceT, respondent: _FakedDevi
     await assert_context_state(supplicant._context, BindState.OFFERING)
 
 
+@patch("ramses_rf.bind_state.MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN)
 @binding_test_decorator
 async def _test_binding_init_2(supplicant: _FakedDeviceT, respondent: _FakedDeviceT, _):
     """Create both Contexts via constructors (then try bad previous States)."""
