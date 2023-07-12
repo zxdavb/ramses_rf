@@ -231,15 +231,15 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_1, 1)
 
-    # # await protocol._context.send_cmd(RQ_CMD_1)  # sent 2nd time
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-    # #     assert_state_temp(RQ_CMD_1, 2)  # FIXME: see NOTE above
-
-    await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the echo
+    await protocol._context.send_cmd(RQ_CMD_1)  # sent 2nd time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_1, 1)
+        assert_state_temp(RQ_CMD_1, 2)
+
+    await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the 2nd echo
+    if not min_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
+        assert_state_temp(RQ_CMD_1, 2)
 
     await async_pkt_received(RP_PKT_1, method=pkt_rcvd_method)
     if not min_sleeps:
@@ -380,10 +380,10 @@ async def _test_flow_20x(
     # the echo is sent by Virtual RF...
     # if not..
 
-    # # tasks += await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 2nd time
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
-    # #     assert_state_temp(RQ_CMD_1, 2)
+    # tasks += await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 2nd time
+    # if not min_sleeps:
+    #     await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
+    #     assert_state_temp(RQ_CMD_1, 2)
 
     # the echo is sent by Virtual RF...
     # if not..

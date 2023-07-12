@@ -241,12 +241,15 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         fut = self._loop.create_future()
 
-        if self._sem.acquire():
-            self._cmd = self._cmd or cmd
-            self._sem.release()
-
-        if self._cmd is cmd:  # a retry or a re-transmit?
+        if self._cmd is None:
+            _LOGGER.debug("---  - future is good to go (no wait)")
             fut.set_result(None)
+            self._cmd = cmd
+
+        elif self._cmd is cmd:  # a retry or a re-transmit?
+            _LOGGER.debug("---  - future is good to go (retransmit)")
+            fut.set_result(None)
+
         else:
             self._que.put_nowait((DEFAULT_SEND_PRIORITY, sent, cmd, until, fut))
 
@@ -270,14 +273,19 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         elif fut.done():  # handled in send_cmd()
             _LOGGER.debug("---  - future done (handled in send_cmd())")
 
-        # elif until <= dt.now():  # handled in send_cmd()
-        #     _LOGGER.debug("---  - future expired")
-        #     fut.set_exception(TimeoutError)  # TODO: make a ramses Exception
+        elif until <= dt.now():  # handled in protocol_fsm.send_cmd()
+            _LOGGER.debug("---  - future expired")
+            fut.set_exception(TimeoutError)  # TODO: make a ramses Exception
+
+        elif self._cmd is None:
+            _LOGGER.debug("---  - future is good to go (after a wait)")
+            fut.set_result(None)
+            self._cmd = cmd
+            return
 
         else:
-            _LOGGER.debug("---  - future is good to go")
-            fut.set_result(None)
-            return
+            _LOGGER.debug("---  - future expired (something went wrong!)")
+            fut.cancel()
 
         self._get_next_to_send()
 
