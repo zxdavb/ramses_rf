@@ -54,7 +54,6 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._protocol = protocol
 
         self._loop = asyncio.get_running_loop()
-        self._cmd: None | Command = None  # XXX: to remove
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self._sem = BoundedSemaphore(value=1)
 
@@ -62,13 +61,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
     def __repr__(self) -> str:
         state_name = self.state.__class__.__name__
-        cmd_hdr = self._cmd._hdr if self._cmd else None  # XXX: to remove
-        que_length = self._que.unfinished_tasks
-        return f"Context({state_name}, hdr={cmd_hdr}, len(buffer)={que_length})"
-
-    def TODO_is_active_cmd(self, cmd: Command) -> bool:
-        """Return True if there is an active command and the cmd is it."""
-        return self._state._is_active_cmd(cmd)
+        return f"Context({state_name}, len(queue)={self._que.unfinished_tasks})"
 
     def set_state(
         self, state: type[_StateT], cmd: None | Command = None, cmd_sends: int = 0
@@ -93,12 +86,20 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             setattr(self._state, "_prev_state", prev_state)
 
         if not self.is_sending:
-            self._cmd = None
             self._get_next_to_send()
 
     @property
     def state(self) -> _StateT:
         return self._state
+
+    @property
+    def is_sending(self) -> bool:
+        """Return True if the protocol is sending a packet/waiting for a response."""
+        return isinstance(self.state, (WantEcho, WantRply))
+
+    def _is_active_cmd(self, cmd: Command) -> bool:
+        """Return True if there is an active command and the supplied cmd is it."""
+        return self.state.is_active_cmd(cmd)
 
     def connection_made(self, transport: _TransportT) -> None:
         _LOGGER.info(
@@ -223,7 +224,8 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         _LOGGER.info(f"... Sending a cmd: {cmd}")
 
-        if self.state._is_active_cmd(cmd):  # assume re-transmit
+        # avoid the queue if we can?
+        if not self.is_sending or self._is_active_cmd(cmd):  # latter is a retransmit
             self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
             return
 
@@ -245,23 +247,12 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         _LOGGER.info(f"... Receivd a pkt: {pkt}")
         self.state.rcvd_pkt(pkt)
 
-    @property
-    def is_sending(self) -> bool:
-        """Return True if the protocol is sending a packet/waiting for a response."""
-        return isinstance(self.state, (WantEcho, WantRply))
-
     def _set_ready_to_send(self, cmd: Command, sent: dt, until: dt) -> asyncio.Future:
         """Return a Future that will be done when the protocol is ready to send."""
 
         fut = self._loop.create_future()
 
-        if self._cmd is None:
-            _LOGGER.debug("---  - future is good to go (no wait)")
-            fut.set_result(None)
-            self._cmd = cmd
-
-        elif self._cmd is cmd:  # is a retry or a re-transmit?
-            _LOGGER.debug("---  - future is good to go (retransmit)")
+        if not self.is_sending or self._is_active_cmd(cmd):  # latter is a retransmit?
             fut.set_result(None)
 
         else:  # place in priority queue
@@ -281,27 +272,32 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         except Empty:
             return
 
-        if fut.cancelled():
-            _LOGGER.debug("---  - future cancelled (e.g. connection_lost())")
-
-        elif fut.done():  # handled in send_cmd()
-            _LOGGER.debug("---  - future done (handled in send_cmd())")
-
-        elif until <= dt.now():  # handled in protocol_fsm.send_cmd()
-            _LOGGER.debug("---  - future expired")
-            fut.set_exception(TimeoutError)  # TODO: make a ramses Exception
-
-        elif self._cmd is None:
-            _LOGGER.debug("---  - future is good to go (after a wait)")
-            fut.set_result(None)
-            self._cmd = cmd
-            return
-
+        if fut.done():
+            self._get_next_to_send()  # these were handled by send_cmd()
         else:
-            _LOGGER.debug("---  - future expired (something went wrong!)")
-            fut.cancel()
+            fut.set_result(None)  # inform send_cmd() via the future
 
-        self._get_next_to_send()
+        # NOTE: below is used for debugging...
+        # if fut.cancelled():  # handled in send_cmd()
+        #     _LOGGER.debug("---  - future cancelled (e.g. connection_lost())")
+
+        # elif fut.done():  # handled in send_cmd()
+        #     _LOGGER.debug("---  - future done (handled in send_cmd())")
+
+        # elif until <= dt.now():  # raise TimeoutError
+        #     _LOGGER.debug("---  - future expired")
+        #     fut.set_exception(TimeoutError)  # TODO: make a ramses Exception
+
+        # elif not self.is_sending:
+        #     _LOGGER.debug("---  - future is good to go (after a wait)")
+        #     fut.set_result(None)
+        #     return
+
+        # else:
+        #     _LOGGER.debug("---  - future expired (something went wrong!)")
+        #     fut.cancel()
+
+        # self._get_next_to_send()
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
@@ -339,7 +335,7 @@ class ProtocolStateBase:
     def _retry_limit_exceeded(self):
         self._set_context_state(HasFailedRetries)
 
-    def _is_active_cmd(self, cmd: Command) -> bool:
+    def is_active_cmd(self, cmd: Command) -> bool:
         """Return True if there is an active command and the cmd is it."""
         return self.cmd and (
             cmd._hdr == self.cmd._hdr
@@ -427,8 +423,8 @@ class WantEcho(ProtocolStateBase):
         Raise RetryLimitExceeded if sending command woudl exceed retry limit.
         """
 
-        if not self._is_active_cmd(cmd):
-            raise InvalidStateError(f"{self}: Can't send {cmd._hdr}: not active cmd")
+        # if not self.is_active_cmd(cmd):  # handled by Context
+        #     raise InvalidStateError(f"{self}: Can't send {cmd._hdr}: not active cmd")
 
         self.cmd_sends += 1
         if self.cmd_sends == max_retries:
