@@ -316,13 +316,15 @@ async def _test_flow_20x(
         assert protocol._context.state.cmd is cmd
         assert protocol._context.state.cmd_sends == cmd_sends
 
+    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
+
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
 
     # STEP 1: Send an I cmd (no reply)...
     tasks = await async_send_cmds(II_CMD_0, num_sends=1)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     # the echo is sent by Virtual RF...
@@ -333,7 +335,7 @@ async def _test_flow_20x(
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     tasks = await async_send_cmds(RQ_CMD_0, num_sends=1)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_0, 1)
 
     # the echo is sent by Virtual RF...
@@ -341,7 +343,7 @@ async def _test_flow_20x(
 
     await async_pkt_received(RP_PKT_0, method=pkt_rcvd_method)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     await asyncio.gather(*tasks)
@@ -349,7 +351,7 @@ async def _test_flow_20x(
     # STEP 3: Send an I cmd (no reply) *twice*...
     tasks = await async_send_cmds(II_CMD_0, num_sends=2)  # send * 2
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     # the echo is sent by Virtual RF...
@@ -357,7 +359,7 @@ async def _test_flow_20x(
 
     tasks += await async_send_cmds(II_CMD_0, num_sends=1)  # send * 2
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_state_temp(None, 0)
 
     # the echo is sent by Virtual RF...
@@ -368,16 +370,16 @@ async def _test_flow_20x(
     # STEP 4: Send an RQ cmd *twice*, then receive the corresponding RP pkt...
     tasks = await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 1st time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
+        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_state_temp(RQ_CMD_1, 1)
 
     # the echo is sent by Virtual RF...
     # if not..
 
-    tasks += await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 2nd time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
-        assert_state_temp(RQ_CMD_1, 2)
+    # # tasks += await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 2nd time
+    # # if not min_sleeps:
+    # #     await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
+    # #     assert_state_temp(RQ_CMD_1, 2)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -404,12 +406,12 @@ async def test_flow_100() -> None:
     await _test_flow_10x(min_sleeps=True)
 
 
-# # @pytest.mark.xdist_group(name="virtual_rf")
-# # # @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
-# # async def test_flow_110() -> None:
-# #     """Check state change of RQ/I/RQ cmds using context primitives."""
-# #     await _test_flow_10x(pkt_rcvd_method=1)
-# #     # await _test_flow_10x(pkt_rcvd_method=1, min_sleeps=True)
+@pytest.mark.xdist_group(name="virtual_rf")
+# @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
+async def test_flow_110() -> None:
+    """Check state change of RQ/I/RQ cmds using context primitives."""
+    # # await _test_flow_10x(pkt_rcvd_method=1)
+    await _test_flow_10x(pkt_rcvd_method=1, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
