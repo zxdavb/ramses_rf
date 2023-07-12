@@ -36,7 +36,7 @@ from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
-from .protocol_fsm import ProtocolContext, ProtocolState
+from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
 from .transport import SZ_IS_EVOFW3, PktTransportT
 from .transport import transport_factory as _transport_factory
@@ -540,7 +540,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
                 _LOGGER.debug(f"{self._context}: Failed to send cmd: {exc}")
                 raise
 
-            assert isinstance(self._context.state, ProtocolState.ECHO), self._context
+            # assert isinstance(self._context.state, ProtocolState.ECHO), self._context
             await super().send_cmd(cmd, **kwargs)  # may raise Exception
 
             try:
@@ -551,8 +551,8 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
 
             if not cmd.rx_header:
                 break
-            assert isinstance(self._context.state, ProtocolState.RPLY), self._context
 
+            # assert isinstance(self._context.state, ProtocolState.RPLY), self._context
             try:
                 await self._context.wait_for_rcvd_rply(cmd, self._context.state)
             except SendTimeoutError as exc:
@@ -560,8 +560,8 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
             else:
                 break
 
+        # assert isinstance(self._context.state, ProtocolState.IDLE), self._context
         # SUCCESS!!
-        assert isinstance(self._context.state, ProtocolState.IDLE), self._context
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
