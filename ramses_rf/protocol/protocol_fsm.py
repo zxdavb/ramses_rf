@@ -85,7 +85,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
-        if not self.is_sending:
+        if self._ready_to_send:
             self._get_next_to_send()
 
     @property
@@ -93,9 +93,9 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         return self._state
 
     @property
-    def is_sending(self) -> bool:
-        """Return True if the protocol is sending a packet/waiting for a response."""
-        return isinstance(self.state, (WantEcho, WantRply))
+    def _ready_to_send(self) -> bool:
+        """Return True if the protocol is ready to send another command."""
+        return isinstance(self.state, IsInIdle)
 
     def _is_active_cmd(self, cmd: Command) -> bool:
         """Return True if there is an active command and the supplied cmd is it."""
@@ -225,7 +225,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         _LOGGER.info(f"... Sending a cmd: {cmd}")
 
         # avoid the queue if we can?
-        if not self.is_sending or self._is_active_cmd(cmd):  # latter is a retransmit
+        if self._ready_to_send or self._is_active_cmd(cmd):  # latter is a retransmit
             self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
             return
 
@@ -252,7 +252,9 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         fut = self._loop.create_future()
 
-        if not self.is_sending or self._is_active_cmd(cmd):  # latter is a retransmit?
+        # TODO: below, we need to ensure queue is empty too - we may be starving a
+        # higher-priority command already in the queue
+        if self._ready_to_send or self._is_active_cmd(cmd):  # latter is a retransmit?
             fut.set_result(None)
 
         else:  # place in priority queue
@@ -288,7 +290,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         #     _LOGGER.debug("---  - future expired")
         #     fut.set_exception(TimeoutError)  # TODO: make a ramses Exception
 
-        # elif not self.is_sending:
+        # elif self._ready_to_send:
         #     _LOGGER.debug("---  - future is good to go (after a wait)")
         #     fut.set_result(None)
         #     return

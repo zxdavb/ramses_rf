@@ -80,6 +80,17 @@ async def assert_protocol_state(
     assert isinstance(protocol._context.state, expected_state)
 
 
+def assert_protocol_state_detail(
+    protocol: QosProtocol, cmd: Command, cmd_sends: int
+) -> None:
+    assert cmd is None or protocol._context._is_active_cmd(cmd)  # duplicate test
+    assert protocol._context.state.cmd is cmd  # duplicate of above
+    assert protocol._context.state.cmd_sends == cmd_sends
+    assert bool(cmd) is isinstance(
+        protocol._context.state, (ProtocolState.ECHO, ProtocolState.RPLY)
+    )
+
+
 def protocol_decorator(fnc):
     """Create a virtual RF network with a protocol stack."""
 
@@ -157,7 +168,7 @@ async def _test_flow_10x(
 ) -> None:
     async def async_pkt_received(pkt: Packet, method: int = 0) -> None:
         # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-        # assert_state_temp(None, 0)
+        # assert_state_temp(protocol, None, 0)
 
         if method == 0:
             return protocol.pkt_received(pkt)
@@ -165,13 +176,7 @@ async def _test_flow_10x(
             return rf._loop.call_soon(protocol.pkt_received, pkt)
 
         # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-        # assert_state_temp(None, 0)
-
-    def assert_state_temp(cmd, cmd_sends) -> None:  # TODO: consider removing
-        assert cmd is None or protocol._context._is_active_cmd(cmd)  # duplicate test
-        assert protocol._context.is_sending is bool(cmd)
-        assert protocol._context.state.cmd is cmd  # duplicate of above
-        assert protocol._context.state.cmd_sends == cmd_sends
+        # assert_state_temp(protocol, None, 0)
 
     max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
 
@@ -182,17 +187,17 @@ async def _test_flow_10x(
     await protocol._context.send_cmd(RQ_CMD_0)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_0, 1)
+        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
     await async_pkt_received(RQ_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_0, 1)
+        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
     await async_pkt_received(RP_PKT_0, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     # gather
 
@@ -200,22 +205,22 @@ async def _test_flow_10x(
     await protocol._context.send_cmd(II_CMD_0)  # sent 1st time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
-        assert_state_temp(II_CMD_0, 1)
+        assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
     await async_pkt_received(II_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:  # these waits not needed for pkt_rcvd_method != 0
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     await protocol._context.send_cmd(II_CMD_0)  # sent 2nd time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
-        assert_state_temp(II_CMD_0, 1)  # would be 2, if no echo
+        assert_protocol_state_detail(protocol, II_CMD_0, 1)  # would be 2, if no echo
 
     await async_pkt_received(II_PKT_0, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     # gather
 
@@ -223,27 +228,27 @@ async def _test_flow_10x(
     await protocol._context.send_cmd(RQ_CMD_1)  # sent 1st time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_1, 1)
+        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
     await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_1, 1)
+        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
     await protocol._context.send_cmd(RQ_CMD_1)  # sent 2nd time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_1, 2)
+        assert_protocol_state_detail(protocol, RQ_CMD_1, 2)
 
     await async_pkt_received(RQ_PKT_1, method=pkt_rcvd_method)  # receive the 2nd echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_1, 2)
+        assert_protocol_state_detail(protocol, RQ_CMD_1, 2)
 
     await async_pkt_received(RP_PKT_1, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     # gather
 
@@ -270,7 +275,7 @@ async def _test_flow_20x(
     async def async_send_cmds(cmd: Command, num_sends: int = 1) -> list[asyncio.Task]:
         # TODO: put these back in
         # await assert_protocol_state(protocol, ProtocolState.IDLE)
-        # assert_state_temp(None, 0)
+        # assert_state_temp(protocol, None, 0)
 
         if num_sends <= 0:
             return
@@ -285,15 +290,15 @@ async def _test_flow_20x(
 
             await assert_protocol_state(protocol, state)
             if state == ProtocolState.IDLE:
-                assert_state_temp(None, 0)
+                assert_protocol_state_detail(protocol, None, 0)
             else:
-                assert_state_temp(cmd, idx)  # bug is here
+                assert_protocol_state_detail(protocol, cmd, idx)  # bug is here
 
         return tasks
 
     async def async_pkt_received(pkt: Packet, method: int = 0) -> None:
         # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-        # assert_state_temp(None, 0)
+        # assert_state_temp(protocol, None, 0)
 
         if method == 0:
             return protocol.pkt_received(pkt)
@@ -311,13 +316,7 @@ async def _test_flow_20x(
                 rf._loop.call_later(0.001, ser.write, frame)
 
         # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-        # assert_state_temp(None, 0)
-
-    def assert_state_temp(cmd, cmd_sends) -> None:  # TODO: consider removing
-        assert cmd is None or protocol._context._is_active_cmd(cmd)  # duplicate test
-        assert protocol._context.is_sending is bool(cmd)
-        assert protocol._context.state.cmd is cmd  # duplicate of above
-        assert protocol._context.state.cmd_sends == cmd_sends
+        # assert_state_temp(protocol, None, 0)
 
     max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
 
@@ -328,7 +327,7 @@ async def _test_flow_20x(
     tasks = await async_send_cmds(II_CMD_0, num_sends=1)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -339,7 +338,7 @@ async def _test_flow_20x(
     tasks = await async_send_cmds(RQ_CMD_0, num_sends=1)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_0, 1)
+        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
     # the echo is sent by Virtual RF...
     # if not min_sleeps:
@@ -347,7 +346,7 @@ async def _test_flow_20x(
     await async_pkt_received(RP_PKT_0, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     await asyncio.gather(*tasks)
 
@@ -355,7 +354,7 @@ async def _test_flow_20x(
     tasks = await async_send_cmds(II_CMD_0, num_sends=2)  # send * 2
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -363,7 +362,7 @@ async def _test_flow_20x(
     tasks += await async_send_cmds(II_CMD_0, num_sends=1)  # send * 2
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -374,7 +373,7 @@ async def _test_flow_20x(
     tasks = await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 1st time
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_state_temp(RQ_CMD_1, 1)
+        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -382,7 +381,7 @@ async def _test_flow_20x(
     # tasks += await async_send_cmds(RQ_CMD_1, num_sends=1)  # send 2nd time
     # if not min_sleeps:
     #     await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
-    #     assert_state_temp(RQ_CMD_1, 2)
+    #     assert_state_temp(protocol, RQ_CMD_1, 2)
 
     # the echo is sent by Virtual RF...
     # if not..
@@ -390,7 +389,7 @@ async def _test_flow_20x(
     await async_pkt_received(RP_PKT_1, method=pkt_rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
-        assert_state_temp(None, 0)
+        assert_protocol_state_detail(protocol, None, 0)
 
     await asyncio.gather(*tasks)
 
