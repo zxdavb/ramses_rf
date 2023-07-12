@@ -168,16 +168,15 @@ async def _test_flow_10x(
         # assert_state_temp(None, 0)
 
     def assert_state_temp(cmd, cmd_sends) -> None:  # TODO: consider removing
-        assert protocol._context._cmd is cmd
+        assert cmd is None or protocol._context._is_active_cmd(cmd)  # duplicate test
         assert protocol._context.is_sending is bool(cmd)
-        assert protocol._context.state.cmd is cmd
+        assert protocol._context.state.cmd is cmd  # duplicate of above
         assert protocol._context.state.cmd_sends == cmd_sends
 
     max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
 
     # STEP 0: Setup...
     # ser = serial.Serial(rf.ports[1])
-    #
 
     # STEP 1: Send an RQ cmd, then receive the corresponding RP pkt...
     await protocol._context.send_cmd(RQ_CMD_0)
@@ -288,7 +287,7 @@ async def _test_flow_20x(
             if state == ProtocolState.IDLE:
                 assert_state_temp(None, 0)
             else:
-                assert_state_temp(cmd, idx)
+                assert_state_temp(cmd, idx)  # bug is here
 
         return tasks
 
@@ -315,9 +314,9 @@ async def _test_flow_20x(
         # assert_state_temp(None, 0)
 
     def assert_state_temp(cmd, cmd_sends) -> None:  # TODO: consider removing
-        assert protocol._context._cmd is cmd
+        assert cmd is None or protocol._context._is_active_cmd(cmd)  # duplicate test
         assert protocol._context.is_sending is bool(cmd)
-        assert protocol._context.state.cmd is cmd
+        assert protocol._context.state.cmd is cmd  # duplicate of above
         assert protocol._context.state.cmd_sends == cmd_sends
 
     max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
