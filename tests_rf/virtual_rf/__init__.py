@@ -16,14 +16,14 @@ from .virtual_rf import VirtualRf
 GWY_ID_0 = "18:000000"
 GWY_ID_1 = "18:111111"
 
-MIN_GAP_BETWEEN_WRITES = 0
-
 DEFAULT_GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
         "enforce_known_list": False,
     }
 }
+
+MIN_GAP_BETWEEN_WRITES = 0.005  # patch ramses_rf.protocol.protocol (was 0.2)
 
 
 async def stifle_impersonation_alert(self, cmd: Command) -> None:
@@ -75,9 +75,8 @@ def factory(schema_0: dict, schema_1: dict) -> Callable:
             "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
             stifle_impersonation_alert,
         )
-        @patch(  # MIN_GAP_BETWEEN_WRITES = 0
-            "ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES",
-            MIN_GAP_BETWEEN_WRITES,
+        @patch(
+            "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
         )
         @wraps(fnc)
         async def wrapper(*args, **kwargs) -> Any:
