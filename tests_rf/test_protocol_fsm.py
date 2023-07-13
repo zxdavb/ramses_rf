@@ -142,7 +142,7 @@ def _read_ready(self) -> None:  # HACK: resolves an issue with Virtual RF
     except serial.SerialException as e:
         if e.args and e.args[0].startswith("device reports readiness to read but"):
             data = b""
-            # _LOGGER.warning("      *** Device disconnected/multiple access on port")
+            # _LOGGER.warning("Device disconnected/multiple access on port")
         else:
             self._close(exc=e)
             return
@@ -495,8 +495,8 @@ async def _test_flow_20y(
 # @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
-    # await _test_flow_10x()
-    await _test_flow_10x(min_sleeps=True)
+    await _test_flow_10x()
+    # await _test_flow_10x(min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
