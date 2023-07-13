@@ -118,7 +118,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         while True:
             try:
-                (_, _, _, _, fut) = self._que.get_nowait()
+                *_, fut = self._que.get_nowait()  # *priority, fut
             except Empty:
                 break
             fut.cancel()  # if not fut.done(): not required
@@ -198,18 +198,14 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 f"{self}: Didn't transition to {next_state.__name__}"
             )
 
-    async def _wait_for_state(self, state: _StateT, until: dt) -> None:  # TODO: REMOVE
-        """Poll the state machine until it moves to the expected state."""
-
+    async def _wait_for_ready_to_send(self, until: dt) -> None:
         while until > dt.now():
-            if isinstance(self.state, state):
-                break
+            if self._ready_to_send:
+                return
             await asyncio.sleep(POLLING_INTERVAL)
-        else:
-            _LOGGER.error(f"---  - failed to attain {state} in time")
-            raise SendTimeoutError(
-                f"{self}: Didn't transition to {state.__name__} in time"
-            )
+        raise SendTimeoutError(
+            f"{self}: Didn't transition to {IsInIdle.__name__} in time"
+        )
 
     async def send_cmd(
         self,
@@ -224,18 +220,19 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         _LOGGER.info(f"... Sending a cmd: {cmd}")
 
-        # avoid the queue if we can?
-        if self._ready_to_send or self._is_active_cmd(cmd):  # latter is a retransmit
+        if self._is_active_cmd(cmd):  # no need to queue...
             self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
             return
 
         dt_sent = dt.now()
-        until = dt_sent + td(seconds=timeout)
+        fut = self._loop.create_future()
+        self._que.put_nowait((DEFAULT_SEND_PRIORITY, dt_sent, fut))
 
-        fut: asyncio.Future = self._set_ready_to_send(cmd, dt_sent, until)
+        if self._ready_to_send:  # fut.set_result(None) for next cmd
+            self._get_next_to_send()
 
         try:
-            await self._wait_for_state(IsInIdle, until)
+            await self._wait_for_ready_to_send(dt_sent + td(seconds=timeout))
         except SendTimeoutError as exc:
             _LOGGER.warning("!!! wait_for_state(IsInIdle) has expired/failed.")
             fut.set_exception(exc)
@@ -247,30 +244,13 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         _LOGGER.info(f"... Receivd a pkt: {pkt}")
         self.state.rcvd_pkt(pkt)
 
-    def _set_ready_to_send(self, cmd: Command, sent: dt, until: dt) -> asyncio.Future:
-        """Return a Future that will be done when the protocol is ready to send."""
-
-        fut = self._loop.create_future()
-
-        # TODO: below, we need to ensure queue is empty too - we may be starving a
-        # higher-priority command already in the queue
-        if self._ready_to_send or self._is_active_cmd(cmd):  # latter is a retransmit?
-            fut.set_result(None)
-
-        else:  # place in priority queue
-            self._que.put_nowait((DEFAULT_SEND_PRIORITY, sent, cmd, until, fut))
-
-        return fut
-
     def _get_next_to_send(self) -> None:  # called by context
-        """If there are cmds waiting to be sent, inform the next Future in the queue.
+        """Recurse through the queue and notify the first 'ready' Future."""
 
-        WIll recursively removed all expired cmds.
-        """
         fut: asyncio.Future  # mypy
 
         try:
-            (_, _, cmd, until, fut) = self._que.get_nowait()
+            *_, fut = self._que.get_nowait()  # *priority, fut
         except Empty:
             return
 
@@ -278,28 +258,6 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             self._get_next_to_send()  # these were handled by send_cmd()
         else:
             fut.set_result(None)  # inform send_cmd() via the future
-
-        # NOTE: below is used for debugging...
-        # if fut.cancelled():  # handled in send_cmd()
-        #     _LOGGER.debug("---  - future cancelled (e.g. connection_lost())")
-
-        # elif fut.done():  # handled in send_cmd()
-        #     _LOGGER.debug("---  - future done (handled in send_cmd())")
-
-        # elif until <= dt.now():  # raise TimeoutError
-        #     _LOGGER.debug("---  - future expired")
-        #     fut.set_exception(TimeoutError)  # TODO: make a ramses Exception
-
-        # elif self._ready_to_send:
-        #     _LOGGER.debug("---  - future is good to go (after a wait)")
-        #     fut.set_result(None)
-        #     return
-
-        # else:
-        #     _LOGGER.debug("---  - future expired (something went wrong!)")
-        #     fut.cancel()
-
-        # self._get_next_to_send()
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
