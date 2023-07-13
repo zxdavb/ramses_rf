@@ -287,9 +287,6 @@ class ProtocolStateBase:
         self._next_state = state
         self._context.set_state(state, *args, **kwargs)  # pylint: disable=W0212
 
-    def _retry_limit_exceeded(self):
-        self._set_context_state(HasFailedRetries)
-
     def is_active_cmd(self, cmd: Command) -> bool:
         """Return True if there is an active command and the cmd is it."""
         return self.cmd and (
