@@ -69,7 +69,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         """Set the State of the Protocol (context)."""
 
         assert not isinstance(self._state, state)  # check a transition has occurred
-        _LOGGER.info(f" *** State was moved from {self._state!r} to {state.__name__}")
+        _LOGGER.info(f" ... State was moved from {self._state!r} to {state.__name__}")
 
         if state == HasFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! failed: {self}")
@@ -103,7 +103,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
     def connection_made(self, transport: _TransportT) -> None:
         _LOGGER.info(
-            f"*** Connection made when {self._state!r}: {transport.__class__.__name__}"
+            f"... Connection made when {self._state!r}: {transport.__class__.__name__}"
         )
         self.state.made_connection(transport)
 
@@ -118,20 +118,20 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         while True:
             try:
-                *_, fut = self._que.get_nowait()  # *priority, fut
+                *_, fut, _ = self._que.get_nowait()  # *priority, fut, expires
             except Empty:
                 break
             fut.cancel()  # if not fut.done(): not required
 
-        _LOGGER.info(f"*** Connection lost when {self.state!r}, Exception: {exc}")
+        _LOGGER.info(f"... Connection lost when {self.state!r}, Exception: {exc}")
         self.state.lost_connection(exc)
 
     def pause_writing(self) -> None:  # not required?
-        _LOGGER.info(f"*** Writing paused, when {self.state!r}")
+        _LOGGER.info(f"... Writing paused, when {self.state!r}")
         self.state.writing_paused()
 
     def resume_writing(self) -> None:
-        _LOGGER.info(f"*** Writing resumed when {self.state!r}")
+        _LOGGER.info(f"... Writing resumed when {self.state!r}")
         self.state.writing_resumed()
 
     async def _wait_for_transition(self, old_state: _StateT, until: dt) -> _StateT:
@@ -140,17 +140,17 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         Raises a TimeoutError if the default timeout is exceeded.
         """
 
-        _LOGGER.error(f"---  - WAITING to leave {old_state}...")
+        _LOGGER.error(f"...  - WAITING to leave {old_state}...")
         while until > dt.now():
             if old_state._next_state:
                 break
             await asyncio.sleep(POLLING_INTERVAL)
         else:
-            _LOGGER.error(f"---  - FAILURE to leave {old_state} in time")
+            _LOGGER.error(f"...  - FAILURE to leave {old_state} in time")
             raise SendTimeoutError(f"{self}: Failed to leave {old_state} in time")
 
         _LOGGER.error(
-            f"---  - SUCCESS leaving {old_state}, to {old_state._next_state.__name__}"
+            f"...  - SUCCESS leaving  {old_state}, to {old_state._next_state.__name__}"
         )
         return old_state._next_state
 
@@ -198,15 +198,6 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 f"{self}: Didn't transition to {next_state.__name__}"
             )
 
-    async def _wait_for_ready_to_send(self, until: dt) -> None:
-        while until > dt.now():
-            if self._ready_to_send:
-                return
-            await asyncio.sleep(POLLING_INTERVAL)
-        raise SendTimeoutError(
-            f"{self}: Didn't transition to {IsInIdle.__name__} in time"
-        )
-
     async def send_cmd(
         self,
         cmd: Command,
@@ -218,7 +209,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         If the state machine is not Idle, teh command will join a priority queue.
         """
 
-        _LOGGER.info(f"... Sending a cmd: {cmd}")
+        _LOGGER.info(f"### Sending a cmd: {cmd}")
 
         if self._is_active_cmd(cmd):  # no need to queue...
             self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
@@ -226,22 +217,24 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         dt_sent = dt.now()
         fut = self._loop.create_future()
-        self._que.put_nowait((DEFAULT_SEND_PRIORITY, dt_sent, fut))
+        self._que.put_nowait(
+            (DEFAULT_SEND_PRIORITY, dt_sent, fut, dt_sent + td(seconds=timeout))
+        )
 
         if self._ready_to_send:  # fut.set_result(None) for next cmd
             self._get_next_to_send()
 
         try:
-            await self._wait_for_ready_to_send(dt_sent + td(seconds=timeout))
-        except SendTimeoutError as exc:
-            _LOGGER.warning("!!! wait_for_state(IsInIdle) has expired/failed.")
-            fut.set_exception(exc)
+            await asyncio.wait_for(fut, timeout)
+        except TimeoutError:
+            _LOGGER.warning("!!! wait_for(fut) has expired")
+            fut.set_exception(SendTimeoutError("Timeout has expired (A2)"))
 
         fut.result()  # may raise exception
         self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
 
     def pkt_received(self, pkt: Packet) -> None:
-        _LOGGER.info(f"... Receivd a pkt: {pkt}")
+        _LOGGER.info(f"*** Receivd a pkt: {pkt}")
         self.state.rcvd_pkt(pkt)
 
     def _get_next_to_send(self) -> None:  # called by context
@@ -250,14 +243,16 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         fut: asyncio.Future  # mypy
 
         try:
-            *_, fut = self._que.get_nowait()  # *priority, fut
+            *_, fut, expires = self._que.get_nowait()  # *priority, fut, expires
         except Empty:
             return
 
         if fut.done():
-            self._get_next_to_send()  # these were handled by send_cmd()
+            self._get_next_to_send()
+        elif expires <= dt.now():
+            fut.set_exception(SendTimeoutError("Timeout has expired (A1)"))
         else:
-            fut.set_result(None)  # inform send_cmd() via the future
+            fut.set_result(None)
 
 
 _ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
