@@ -31,7 +31,7 @@ from .const import __dev_mode__
 #     SZ_TIMEOUT,
 #     __dev_mode__,
 # )
-from .exceptions import InvalidPacketError, RetryLimitExceeded, SendTimeoutError
+from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -530,38 +530,15 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().pkt_received(pkt)
         self._context.pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        """Wrapper to send a command with retries, until success or Exception."""
+    async def send_cmd(self, cmd: Command, **kwargs) -> Packet:
+        """Wrapper to send a command with QoS (retries, until success or Exception).
 
-        while True:  # if required, resend until retry limit exceeded
-            try:
-                await self._context.send_cmd(cmd)  # , max_retries=...)
-            except (RetryLimitExceeded, SendTimeoutError) as exc:
-                _LOGGER.debug(f"{self._context}: Failed to send cmd: {exc}")
-                raise
+        Return the response Packet or the echo Packet if there is no expected response.
+        """
 
-            # assert isinstance(self._context.state, ProtocolState.ECHO), self._context
-            await super().send_cmd(cmd, **kwargs)  # may raise Exception
-
-            try:
-                await self._context.wait_for_rcvd_echo(cmd, self._context.state)
-            except SendTimeoutError as exc:
-                _LOGGER.debug(f"{self._context}: Failed to receive echo: {exc}")
-                continue
-
-            if not cmd.rx_header:
-                break
-
-            # assert isinstance(self._context.state, ProtocolState.RPLY), self._context
-            try:
-                await self._context.wait_for_rcvd_rply(cmd, self._context.state)
-            except SendTimeoutError as exc:
-                _LOGGER.debug(f"{self._context}: Failed to receive reply: {exc}")
-            else:
-                break
-
-        # assert isinstance(self._context.state, ProtocolState.IDLE), self._context
-        # SUCCESS!!
+        # try:
+        return await self._context.send_cmd(super().send_cmd, cmd, **kwargs)
+        # except (InvalidStateError, RetryLimitExceeded, SendTimeoutError):
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base

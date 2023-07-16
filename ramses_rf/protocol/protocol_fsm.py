@@ -157,54 +157,6 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         )
         return old_state._next_state
 
-    async def wait_for_rcvd_echo(
-        self, cmd: Command, this_state: _StateT, timeout: float = _DEFAULT_ECHO_TIMEOUT
-    ) -> None | Packet:
-        """Wait until the state machine has received the expected echo pkt.
-
-        Raises a SendTimeoutError if the timeout is exceeded before trasitioning.
-        Raises a InvalidStateError if transitions to the incorrect state.
-        """
-
-        # assert isinstance(this_state, WantEcho) and this_state._is_active_cmd(cmd), (
-        #     f"{self}: Not in the correct initial state: {WantEcho.__name__}"
-        # )  # TODO: remove
-        if isinstance(this_state, (WantRply if cmd.rx_header else IsInIdle)):
-            return  # TODO: add is_active_cmd
-
-        # may: SendTimeoutError (NB: may have already transitioned)
-        next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
-        if next_state != (WantRply if cmd.rx_header else IsInIdle):
-            raise InvalidStateError(
-                f"{self}: Didn't transition to {next_state.__name__}"
-            )
-
-        return this_state._echo
-
-    async def wait_for_rcvd_rply(
-        self, cmd: Command, this_state: _StateT, timeout: float = _DEFAULT_RPLY_TIMEOUT
-    ) -> None | Packet:
-        """Wait until the state machine has received the expected reply pkt.
-
-        Raises a SendTimeoutError if the timeout is exceeded before trasitioning.
-        Raises a InvalidStateError if transitiones to the incorrect state.
-        """
-
-        # assert isinstance(this_state, WantRply) and this_state._is_active_cmd(cmd), (
-        #     f"{self}: Not in the correct initial state: {WantRply.__name__}"
-        # )  # TODO: remove
-        if isinstance(this_state, IsInIdle):  # FIXME: the problem is here
-            return  # TODO: add is_active_cmd
-
-        # may: SendTimeoutError (NB: may have already transitioned)
-        next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
-        if next_state != IsInIdle:
-            raise InvalidStateError(
-                f"{self}: Didn't transition to {next_state.__name__}"
-            )
-
-        return this_state._rply
-
     async def send_cmd(self, send_cmd: Awaitable, cmd: Command, **kwargs) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
@@ -221,7 +173,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             await send_cmd(cmd, **kwargs)  # the wrapped function
 
             try:
-                echo = await self.wait_for_rcvd_echo(cmd, self.state)
+                echo = await self._wait_for_rcvd_echo(cmd, self.state)
             except SendTimeoutError as exc:
                 _LOGGER.debug(f"{self}: Failed to receive echo: {exc}")
                 continue
@@ -231,7 +183,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
             # assert isinstance(self.state, ProtocolState.RPLY), self
             try:
-                rply = await self.wait_for_rcvd_rply(cmd, self.state)
+                rply = await self._wait_for_rcvd_rply(cmd, self.state)
             except SendTimeoutError as exc:
                 _LOGGER.debug(f"{self}: Failed to receive reply: {exc}")
             else:
@@ -283,6 +235,54 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         fut.result()  # may raise exception
         self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
+
+    async def _wait_for_rcvd_echo(
+        self, cmd: Command, this_state: _StateT, timeout: float = _DEFAULT_ECHO_TIMEOUT
+    ) -> None | Packet:
+        """Wait until the state machine has received the expected echo pkt.
+
+        Raises a SendTimeoutError if the timeout is exceeded before trasitioning.
+        Raises a InvalidStateError if transitions to the incorrect state.
+        """
+
+        # assert isinstance(this_state, WantEcho) and this_state._is_active_cmd(cmd), (
+        #     f"{self}: Not in the correct initial state: {WantEcho.__name__}"
+        # )  # TODO: remove
+        if isinstance(this_state, (WantRply if cmd.rx_header else IsInIdle)):
+            return  # TODO: add is_active_cmd
+
+        # may: SendTimeoutError (NB: may have already transitioned)
+        next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
+        if next_state != (WantRply if cmd.rx_header else IsInIdle):
+            raise InvalidStateError(
+                f"{self}: Didn't transition to {next_state.__name__}"
+            )
+
+        return this_state._echo
+
+    async def _wait_for_rcvd_rply(
+        self, cmd: Command, this_state: _StateT, timeout: float = _DEFAULT_RPLY_TIMEOUT
+    ) -> None | Packet:
+        """Wait until the state machine has received the expected reply pkt.
+
+        Raises a SendTimeoutError if the timeout is exceeded before trasitioning.
+        Raises a InvalidStateError if transitiones to the incorrect state.
+        """
+
+        # assert isinstance(this_state, WantRply) and this_state._is_active_cmd(cmd), (
+        #     f"{self}: Not in the correct initial state: {WantRply.__name__}"
+        # )  # TODO: remove
+        if isinstance(this_state, IsInIdle):  # FIXME: the problem is here
+            return  # TODO: add is_active_cmd
+
+        # may: SendTimeoutError (NB: may have already transitioned)
+        next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
+        if next_state != IsInIdle:
+            raise InvalidStateError(
+                f"{self}: Didn't transition to {next_state.__name__}"
+            )
+
+        return this_state._rply
 
     def pkt_received(self, pkt: Packet) -> None:
         _LOGGER.info(f"*** Receivd a pkt: {pkt}")
