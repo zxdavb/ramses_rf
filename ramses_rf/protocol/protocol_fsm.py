@@ -157,62 +157,61 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         )
         return old_state._next_state
 
-    async def send_cmd(self, send_cmd: Awaitable, cmd: Command, **kwargs) -> Packet:
+    async def send_cmd(self, send_fnc: Awaitable, cmd: Command, **kwargs) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
-        rply = None
+        max_retries = kwargs.get("max_retries", DEFAULT_MAX_RETRIES)
+        wait_timeout = kwargs.get("timeout", DEFAULT_WAIT_TIMEOUT)
 
         while True:  # if required, resend until retry limit exceeded
             try:
-                await self._wait_for_send_cmd(cmd, **kwargs)  # , max_retries=...)
+                this_state = await self._wait_for_send_cmd(
+                    self.state, cmd, td(seconds=wait_timeout)
+                )
+                assert self.state is this_state  # should be True, TODO: remove
             except (RetryLimitExceeded, SendTimeoutError) as exc:
                 _LOGGER.debug(f"{self}: Failed to send cmd: {exc}")
                 raise
 
-            # assert isinstance(self.state, ProtocolState.ECHO), self
-            await send_cmd(cmd, **kwargs)  # the wrapped function
+            self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
+            assert isinstance(self.state, WantEcho)  # TODO: remove
+            await send_fnc(cmd, **kwargs)  # the wrapped function
 
             try:
-                echo = await self._wait_for_rcvd_echo(cmd, self.state)
+                this_state = await self._wait_for_rcvd_echo(
+                    self.state, cmd, _DEFAULT_ECHO_TIMEOUT
+                )
+                assert self.state is this_state  # should be True, TODO: remove
             except SendTimeoutError as exc:
                 _LOGGER.debug(f"{self}: Failed to receive echo: {exc}")
                 continue
 
             if not cmd.rx_header:
-                return echo
+                return this_state._echo
+            assert isinstance(self.state, WantRply)  # TODO: remove
 
-            # assert isinstance(self.state, ProtocolState.RPLY), self
             try:
-                rply = await self._wait_for_rcvd_rply(cmd, self.state)
+                this_state = await self._wait_for_rcvd_rply(
+                    self.state, cmd, _DEFAULT_RPLY_TIMEOUT
+                )
+                assert self.state is this_state  # should be True, TODO: remove
             except SendTimeoutError as exc:
                 _LOGGER.debug(f"{self}: Failed to receive reply: {exc}")
             else:
                 break
 
         # assert isinstance(self.state, ProtocolState.IDLE), self
-        _LOGGER.error(rply)
-        if rply is None:
-            pass
-        return rply  # either echo or rply
+        return this_state._rply
 
     async def _wait_for_send_cmd(
-        self,
-        cmd: Command,
-        max_retries: int = None,
-        timeout: float = None,
+        self, this_state: _StateT, cmd: Command, timeout: td
     ) -> None:
         """When the state machine is Idle, transition to the WantEcho state.
 
-        If the state machine is not Idle, teh command will join a priority queue.
+        If the state machine is not Idle, the command will join a priority queue.
         """
 
-        _LOGGER.info(f"### Sending a cmd: {cmd}")
-
-        # done here, intead of in def, as unittest.patch doesn't work otherwise
-        if max_retries is None:
-            max_retries = DEFAULT_MAX_RETRIES
-        if timeout is None:
-            timeout = DEFAULT_WAIT_TIMEOUT
+        _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
 
         # if self._is_active_cmd(cmd):  # no need to queue...
         #     self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
@@ -220,24 +219,22 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         dt_sent = dt.now()
         fut = self._loop.create_future()
-        self._que.put_nowait(
-            (DEFAULT_SEND_PRIORITY, dt_sent, fut, dt_sent + td(seconds=timeout))
-        )
+        self._que.put_nowait((DEFAULT_SEND_PRIORITY, dt_sent, fut, dt_sent + timeout))
 
         if self._ready_to_send:  # fut.set_result(None) for next cmd
             self._get_next_to_send()
 
         try:
-            await asyncio.wait_for(fut, timeout)
+            await asyncio.wait_for(fut, timeout.seconds)
         except TimeoutError:
             _LOGGER.warning("!!! wait_for(fut) has expired")
             fut.set_exception(SendTimeoutError("Timeout has expired (A2)"))
 
         fut.result()  # may raise exception
-        self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
+        return self.state
 
     async def _wait_for_rcvd_echo(
-        self, cmd: Command, this_state: _StateT, timeout: float = _DEFAULT_ECHO_TIMEOUT
+        self, this_state: _StateT, cmd: Command, timeout: dt
     ) -> None | Packet:
         """Wait until the state machine has received the expected echo pkt.
 
@@ -245,9 +242,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         Raises a InvalidStateError if transitions to the incorrect state.
         """
 
-        # assert isinstance(this_state, WantEcho) and this_state._is_active_cmd(cmd), (
-        #     f"{self}: Not in the correct initial state: {WantEcho.__name__}"
-        # )  # TODO: remove
+        _LOGGER.info(f"### Waiting to receive an echo for: {cmd}")
         if isinstance(this_state, (WantRply if cmd.rx_header else IsInIdle)):
             return  # TODO: add is_active_cmd
 
@@ -258,10 +253,10 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 f"{self}: Didn't transition to {next_state.__name__}"
             )
 
-        return this_state._echo
+        return self.state  # this_state._echo
 
     async def _wait_for_rcvd_rply(
-        self, cmd: Command, this_state: _StateT, timeout: float = _DEFAULT_RPLY_TIMEOUT
+        self, this_state: _StateT, cmd: Command, timeout: dt
     ) -> None | Packet:
         """Wait until the state machine has received the expected reply pkt.
 
@@ -269,9 +264,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         Raises a InvalidStateError if transitiones to the incorrect state.
         """
 
-        # assert isinstance(this_state, WantRply) and this_state._is_active_cmd(cmd), (
-        #     f"{self}: Not in the correct initial state: {WantRply.__name__}"
-        # )  # TODO: remove
+        _LOGGER.info(f"### Waiting to receive a reply for: {cmd}")
         if isinstance(this_state, IsInIdle):  # FIXME: the problem is here
             return  # TODO: add is_active_cmd
 
@@ -282,7 +275,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 f"{self}: Didn't transition to {next_state.__name__}"
             )
 
-        return this_state._rply
+        return this_state  # this_state._rply
 
     def pkt_received(self, pkt: Packet) -> None:
         _LOGGER.info(f"*** Receivd a pkt: {pkt}")
