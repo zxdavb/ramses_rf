@@ -31,7 +31,7 @@ from .const import __dev_mode__
 #     SZ_TIMEOUT,
 #     __dev_mode__,
 # )
-from .exceptions import InvalidPacketError
+from .exceptions import InvalidPacketError, RetryLimitExceeded, SendTimeoutError
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -373,9 +373,9 @@ class _BaseProtocol(asyncio.Protocol):
             raise RuntimeError("TODO: 002")  # TODO
 
         # This is necessary to track state via the context.
-        await self._send_cmd(cmd, **kwargs)  # self._transport.write(...)
+        await self._send_cmd(cmd)  # self._transport.write(...)
 
-    async def _send_cmd(self, cmd: Command, **kwargs) -> None:
+    async def _send_cmd(self, cmd: Command) -> None:
         """Called when a Command is to be sent to the Transport.
 
         The Protocol must be given a Command (not bytes).
@@ -500,7 +500,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
 
-        return await super().send_cmd(cmd, **kwargs)
+        await super().send_cmd(cmd, **kwargs)
 
 
 class _ProtQosTimers(_BaseProtocol):  # context/state
@@ -530,13 +530,38 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().pkt_received(pkt)
         self._context.pkt_received(pkt)
 
-    async def _send_cmd(self, cmd: Command, **kwargs) -> Packet:
-        """Send the command, and return a Packet (echo or reply)."""
+    async def send_cmd(self, cmd: Command, **kwargs) -> None:
+        """Wrapper to send a command with retries, until success or Exception."""
 
-        # try:
-        result = await self._context.send_cmd(super()._send_cmd, cmd, **kwargs)
-        # except (RetryLimitExceeded, SendTimeoutError):
-        return result
+        while True:  # if required, resend until retry limit exceeded
+            try:
+                await self._context.send_cmd(cmd)  # , max_retries=...)
+            except (RetryLimitExceeded, SendTimeoutError) as exc:
+                _LOGGER.debug(f"{self._context}: Failed to send cmd: {exc}")
+                raise
+
+            # assert isinstance(self._context.state, ProtocolState.ECHO), self._context
+            await super().send_cmd(cmd, **kwargs)  # may raise Exception
+
+            try:
+                await self._context.wait_for_rcvd_echo(cmd, self._context.state)
+            except SendTimeoutError as exc:
+                _LOGGER.debug(f"{self._context}: Failed to receive echo: {exc}")
+                continue
+
+            if not cmd.rx_header:
+                break
+
+            # assert isinstance(self._context.state, ProtocolState.RPLY), self._context
+            try:
+                await self._context.wait_for_rcvd_rply(cmd, self._context.state)
+            except SendTimeoutError as exc:
+                _LOGGER.debug(f"{self._context}: Failed to receive reply: {exc}")
+            else:
+                break
+
+        # assert isinstance(self._context.state, ProtocolState.IDLE), self._context
+        # SUCCESS!!
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
@@ -612,8 +637,8 @@ class QosProtocol(_ProtImpersonate, _ProtGapped, _ProtQosTimers, _BaseProtocol):
         super()._msg_received(msg)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, **kwargs) -> None:
-        await super().send_cmd(cmd, **kwargs)
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
+        await super().send_cmd(cmd, callback=callback)
 
     async def OUT_send_cmd(self, cmd: Command) -> None:
         """Check if this Command is expecting a response."""
