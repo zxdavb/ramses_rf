@@ -253,8 +253,9 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
             self._add_discovery_cmd(Command.get_relay_demand(self.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
+        super()._handle_msg(msg)
+
         if msg.src.id == self.id:
-            super()._handle_msg(msg)
             return
 
         if (

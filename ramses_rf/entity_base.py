@@ -602,11 +602,8 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         super()._handle_msg(msg)
 
-        if not self._gwy.config.enable_eavesdrop:
-            return
-
-        # if True:
-        eavesdrop_ufh_circuits()
+        if self._gwy.config.enable_eavesdrop:
+            eavesdrop_ufh_circuits()
 
     @property
     def zone_idx(self) -> str:

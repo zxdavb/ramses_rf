@@ -228,9 +228,12 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             if app_cntrl is not None:
                 app_cntrl.set_parent(self, child_id=FC)  # sets self._app_cntrl
 
-        assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
+        # # assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
+
+        if msg.verb in (RQ, RQ):
+            return
 
         if (
             msg.code == Code._000C
@@ -608,6 +611,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retreive the latest global change counter."""
+
         super()._handle_msg(msg)
 
         if msg.code == Code._0006:

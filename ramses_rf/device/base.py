@@ -145,19 +145,19 @@ class DeviceBase(Entity):
         super()._send_cmd(cmd, **kwargs)
 
     def _handle_msg(self, msg: Message) -> None:
-        assert msg.src is self or (
-            msg.code == Code._1FC9 and msg.payload["phase"] == "offer"
-        ), f"msg from {msg.src} inappropriately routed to {self}"
+        # # assert msg.src is self or (
+        # #     msg.code == Code._1FC9 and msg.payload["phase"] == "offer"
+        # # ), f"msg from {msg.src} inappropriately routed to {self}"
 
         super()._handle_msg(msg)
 
-        if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:
-            # HACK: can get precise class?
+        if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:  # HACK: can get precise class?
             from . import best_dev_role
 
             cls = best_dev_role(
                 self.addr, msg=msg, eavesdrop=self._gwy.config.enable_eavesdrop
             )
+
             if cls._SLUG in (DEV_TYPE.DEV, self._SLUG):
                 return  # either a demotion (DEV), or not promotion (HEA/HVC)
 
@@ -399,9 +399,10 @@ class Fakeable(DeviceBase):
             self._context.rcvd_msg(msg)  # XXX
             # self._1fc9_state["msg"] = msg  # keep offer, not confirm
 
-        if msg.code != Code._1FC9 or msg.src is self:
-            super()._handle_msg(msg)
+        super()._handle_msg(msg)
 
+        if msg.code != Code._1FC9 or msg.src is self:
+            return
         if not self._faked or self._context is None:
             return
 
@@ -641,8 +642,6 @@ class DeviceHvac(Device):  # HVAC (ventilation, PIV, MV/HR)
 
     #     if msg.code in (Code._1298, Code._12A0, Code._22F1, Code._22F3):
     #         self._hvac_trick()
-
-    pass
 
 
 BASE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "HGI": HgiGateway

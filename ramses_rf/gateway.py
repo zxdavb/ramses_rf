@@ -147,7 +147,7 @@ class Engine:
         self._prev_msg: None | Message = None
         self._this_msg: None | Message = None
 
-        self._set_msg_handler(self._handle_msg)
+        self._set_msg_handler(self._msg_handler)
 
     def __str__(self) -> str:
         if not self._transport:
@@ -347,7 +347,7 @@ class Engine:
 
             await asyncio.sleep(0.001)  # TODO: 0.001, 0.005 or other?
 
-    def _handle_msg(self, msg) -> None:
+    def _msg_handler(self, msg) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism
         msg.__class__ = Message  # HACK (next line too)
         msg._gwy = self
@@ -562,7 +562,7 @@ class Gateway(Engine):
 
         load_schema(self, **schema)
 
-        tmp_protocol = protocol_factory(self._handle_msg, disable_sending=True)
+        tmp_protocol = protocol_factory(self._msg_handler, disable_sending=True)
 
         tmp_transport = transport_factory(
             tmp_protocol,
@@ -792,7 +792,7 @@ class Gateway(Engine):
         self._tasks.append(task)
         return task
 
-    def _handle_msg(self, msg: Message) -> None:
+    def _msg_handler(self, msg: Message) -> None:
         """A callback to handle messages from the protocol stack."""
         # TODO: Remove this
         # # HACK: if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
@@ -803,7 +803,7 @@ class Gateway(Engine):
         # ):
         #     _LOGGER.info(msg)
 
-        super()._handle_msg(msg)
+        super()._msg_handler(msg)
 
         # TODO: ideally remove this feature...
         if detect_array_fragment(self._this_msg, self._prev_msg):
