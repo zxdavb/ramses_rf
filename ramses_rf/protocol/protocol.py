@@ -530,14 +530,14 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().pkt_received(pkt)
         self._context.pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> Packet:
+    async def _send_cmd(self, cmd: Command, **kwargs) -> Packet:
         """Wrapper to send a command with QoS (retries, until success or Exception).
 
         Return the response Packet or the echo Packet if there is no expected response.
         """
 
         # try:
-        return await self._context.send_cmd(super().send_cmd, cmd, **kwargs)
+        return await self._context.send_cmd(super()._send_cmd, cmd, **kwargs)
         # except (InvalidStateError, RetryLimitExceeded, SendTimeoutError):
 
 

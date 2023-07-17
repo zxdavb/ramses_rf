@@ -378,6 +378,7 @@ async def _test_flow_20x(
     pkt_rcvd_method: int = 0,
     min_sleeps: bool = None,
 ) -> None:
+    #
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
     max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
@@ -510,8 +511,9 @@ async def _test_flow_20z(
     pkt_rcvd_method: int = 0,
     min_sleeps: bool = None,
 ) -> None:
+    #
     # STEP 0: Setup...
-    # ser = serial.Serial(rf.ports[1])
+    ser = serial.Serial(rf.ports[1])
     max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
 
     # STEP 1: Send an I cmd (no reply)...
@@ -525,58 +527,62 @@ async def _test_flow_20z(
 
     assert await task == II_CMD_0  # no reply pkt expected
 
-    # # # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
-    # # task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0))
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(
-    # #         protocol, ProtocolState.RPLY, max_sleep=DEFAULT_MAX_SLEEP
-    # #     )
-    # #     assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
+    # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
+    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0))
+    if not min_sleeps:
+        await assert_protocol_state(
+            protocol, ProtocolState.RPLY, max_sleep=DEFAULT_MAX_SLEEP
+        )
+        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
-    # # # the echo is sent by Virtual RF...
-    # # # if not min_sleeps:
+    # the echo is sent by Virtual RF...
+    # if not min_sleeps:
 
-    # # await async_pkt_received(protocol, RP_PKT_0, method=pkt_rcvd_method, ser=ser)
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-    # #     assert_protocol_state_detail(protocol, None, 0)
+    await async_pkt_received(protocol, RP_PKT_0, method=pkt_rcvd_method, ser=ser)
+    if not min_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+        assert_protocol_state_detail(protocol, None, 0)
 
-    # # assert await task == RP_PKT_0
+    assert await task == RP_PKT_0
 
-    # # # STEP 3: Send an I cmd (no reply) *twice*...
-    # # task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-    # #     assert_protocol_state_detail(protocol, None, 0)
+    # STEP 3: Send an I cmd (no reply) *twice*...
+    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
+    if not min_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        assert_protocol_state_detail(protocol, None, 0)
 
-    # # # the echo is sent by Virtual RF...
-    # # # if not..
+    # the echo is sent by Virtual RF...
+    # if not..
 
-    # # task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-    # #     assert_protocol_state_detail(protocol, None, 0)
+    assert await task == II_CMD_0  # no reply pkt expected - NOTE: fails if not awaited
 
-    # # # the echo is sent by Virtual RF...
-    # # # if not..
+    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
+    if not min_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        assert_protocol_state_detail(protocol, None, 0)
 
-    # # assert await task == II_CMD_0  # no reply pkt expected
+    # the echo is sent by Virtual RF...
+    # if not..
 
-    # # # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
-    # # task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=DEFAULT_MAX_SLEEP)
-    # #     assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
+    assert await task == II_CMD_0  # no reply pkt expected
 
-    # # # the echo is sent by Virtual RF...
-    # # # if not..
+    # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
+    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
+    if not min_sleeps:
+        await assert_protocol_state(
+            protocol, ProtocolState.RPLY, max_sleep=DEFAULT_MAX_SLEEP
+        )
+        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
-    # # await async_pkt_received(protocol, RP_PKT_1, method=pkt_rcvd_method, ser=ser)
-    # # if not min_sleeps:
-    # #     await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
-    # #     assert_protocol_state_detail(protocol, None, 0)
+    # the echo is sent by Virtual RF...
+    # if not..
 
-    # # assert await task == RP_PKT_1
+    await async_pkt_received(protocol, RP_PKT_1, method=pkt_rcvd_method, ser=ser)
+    if not min_sleeps:
+        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
+        assert_protocol_state_detail(protocol, None, 0)
+
+    assert await task == RP_PKT_1
 
 
 # ######################################################################################
