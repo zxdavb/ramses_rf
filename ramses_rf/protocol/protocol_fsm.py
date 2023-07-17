@@ -89,7 +89,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             setattr(self._state, "_prev_state", prev_state)
 
         if self._ready_to_send:
-            self._get_next_to_send()
+            self._notify_next_queued_cmd()
 
     @property
     def state(self) -> _StateT:
@@ -143,16 +143,16 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         Raises a TimeoutError if the default timeout is exceeded.
         """
 
-        _LOGGER.error(f"...  - WAITING to leave {old_state}...")
+        _LOGGER.debug(f"...  - WAITING to leave {old_state}...")
         while until > dt.now():
             if old_state._next_state:
                 break
             await asyncio.sleep(POLLING_INTERVAL)
         else:
-            _LOGGER.error(f"...  - FAILURE to leave {old_state} in time")
+            _LOGGER.debug(f"...  - FAILURE to leave {old_state} in time")
             raise SendTimeoutError(f"{self}: Failed to leave {old_state} in time")
 
-        _LOGGER.error(
+        _LOGGER.debug(
             f"...  - SUCCESS leaving  {old_state}, to {old_state._next_state.__name__}"
         )
         return old_state._next_state
@@ -165,12 +165,11 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         while True:  # if required, resend until retry limit exceeded
             try:
-                this_state = await self._wait_for_send_cmd(
+                prev_state: _StateT = await self._wait_for_send_cmd(
                     self.state, cmd, td(seconds=wait_timeout)
                 )
-                assert self.state is this_state  # should be True, TODO: remove
             except (RetryLimitExceeded, SendTimeoutError) as exc:
-                _LOGGER.debug(f"{self}: Failed to send cmd: {exc}")
+                _LOGGER.debug(f"{self}: Failed to send command: {exc}")
                 raise
 
             self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
@@ -178,37 +177,37 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             await send_fnc(cmd, **kwargs)  # the wrapped function
 
             try:
-                this_state = await self._wait_for_rcvd_echo(
+                prev_state: WantEcho = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
-                assert self.state is this_state  # should be True, TODO: remove
             except SendTimeoutError as exc:
                 _LOGGER.debug(f"{self}: Failed to receive echo: {exc}")
                 continue
 
             if not cmd.rx_header:
-                return this_state._echo
+                return prev_state._echo
             assert isinstance(self.state, WantRply)  # TODO: remove
 
             try:
-                this_state = await self._wait_for_rcvd_rply(
+                prev_state: WantRply = await self._wait_for_rcvd_rply(
                     self.state, cmd, _DEFAULT_RPLY_TIMEOUT
                 )
-                assert self.state is this_state  # should be True, TODO: remove
             except SendTimeoutError as exc:
-                _LOGGER.debug(f"{self}: Failed to receive reply: {exc}")
+                _LOGGER.debug(f"{self}: Failed to receive rply: {exc}")
             else:
                 break
 
         # assert isinstance(self.state, ProtocolState.IDLE), self
-        return this_state._rply
+        return prev_state._rply
 
     async def _wait_for_send_cmd(
         self, this_state: _StateT, cmd: Command, timeout: td
-    ) -> None:
+    ) -> _StateT:
         """When the state machine is Idle, transition to the WantEcho state.
 
         If the state machine is not Idle, the command will join a priority queue.
+
+        Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
         _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
@@ -222,7 +221,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self._que.put_nowait((DEFAULT_SEND_PRIORITY, dt_sent, fut, dt_sent + timeout))
 
         if self._ready_to_send:  # fut.set_result(None) for next cmd
-            self._get_next_to_send()
+            self._notify_next_queued_cmd()
 
         try:
             await asyncio.wait_for(fut, timeout.seconds)
@@ -230,16 +229,16 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             _LOGGER.warning("!!! wait_for(fut) has expired")
             fut.set_exception(SendTimeoutError("Timeout has expired (A2)"))
 
-        fut.result()  # may raise exception
-        return self.state
+        fut.result()  # may: raise SendTimeoutError
+        return this_state  # TODO: should have this_state._cmd_
 
     async def _wait_for_rcvd_echo(
         self, this_state: _StateT, cmd: Command, timeout: dt
-    ) -> None | Packet:
+    ) -> _StateT:
         """Wait until the state machine has received the expected echo pkt.
 
-        Raises a SendTimeoutError if the timeout is exceeded before trasitioning.
         Raises a InvalidStateError if transitions to the incorrect state.
+        Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
         _LOGGER.info(f"### Waiting to receive an echo for: {cmd}")
@@ -253,15 +252,15 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 f"{self}: Didn't transition to {next_state.__name__}"
             )
 
-        return self.state  # this_state._echo
+        return this_state  # for: this_state._echo
 
     async def _wait_for_rcvd_rply(
         self, this_state: _StateT, cmd: Command, timeout: dt
-    ) -> None | Packet:
+    ) -> _StateT:
         """Wait until the state machine has received the expected reply pkt.
 
-        Raises a SendTimeoutError if the timeout is exceeded before trasitioning.
         Raises a InvalidStateError if transitiones to the incorrect state.
+        Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
         _LOGGER.info(f"### Waiting to receive a reply for: {cmd}")
@@ -275,13 +274,13 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 f"{self}: Didn't transition to {next_state.__name__}"
             )
 
-        return this_state  # this_state._rply
+        return this_state  # for: this_state._rply
 
     def pkt_received(self, pkt: Packet) -> None:
         _LOGGER.info(f"*** Receivd a pkt: {pkt}")
         self.state.rcvd_pkt(pkt)
 
-    def _get_next_to_send(self) -> None:  # called by context
+    def _notify_next_queued_cmd(self) -> None:
         """Recurse through the queue and notify the first 'ready' Future."""
 
         fut: asyncio.Future  # mypy
@@ -292,7 +291,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             return
 
         if fut.done():
-            self._get_next_to_send()
+            self._notify_next_queued_cmd()
         elif expires <= dt.now():
             fut.set_exception(SendTimeoutError("Timeout has expired (A1)"))
         else:
