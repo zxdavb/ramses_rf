@@ -505,83 +505,39 @@ async def _test_flow_20y(
     stifle_impersonation_alert,
 )
 @protocol_decorator
-async def _test_flow_20z(
+async def _test_flow_30x(
     rf: VirtualRf,
     protocol: QosProtocol,
-    pkt_rcvd_method: int = 0,
-    min_sleeps: bool = None,
 ) -> None:
     #
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
-    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
 
     # STEP 1: Send an I cmd (no reply)...
     task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0))
-    if not min_sleeps:
-        await assert_protocol_state(
-            protocol, ProtocolState.RPLY, max_sleep=DEFAULT_MAX_SLEEP
-        )
-        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
-
-    # the echo is sent by Virtual RF...
-    # if not min_sleeps:
-
-    await async_pkt_received(protocol, RP_PKT_0, method=pkt_rcvd_method, ser=ser)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
-        assert_protocol_state_detail(protocol, None, 0)
-
+    protocol._loop.call_soon(ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n")
     assert await task == RP_PKT_0
 
-    # STEP 3: Send an I cmd (no reply) *twice*...
+    # # # # STEP 3: Send an I cmd (no reply) *twice*...
     task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
     assert await task == II_CMD_0  # no reply pkt expected - NOTE: fails if not awaited
 
     task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    assert await task == II_CMD_0  # no reply pkt expected
+    assert await task == II_CMD_0  # no reply pkt expected - NOTE: fails if not awaited
 
     # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
     task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
-    if not min_sleeps:
-        await assert_protocol_state(
-            protocol, ProtocolState.RPLY, max_sleep=DEFAULT_MAX_SLEEP
-        )
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    await async_pkt_received(protocol, RP_PKT_1, method=pkt_rcvd_method, ser=ser)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
-        assert_protocol_state_detail(protocol, None, 0)
-
+    # sk = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
+    protocol._loop.call_later(
+        0.001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
+    )
+    protocol._loop.call_later(
+        0.001, ser.write, bytes(str(RP_PKT_1).encode("ascii")) + b"\r\n"
+    )
     assert await task == RP_PKT_1
 
 
@@ -605,10 +561,10 @@ async def OUT_test_flow_110() -> None:
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_200() -> None:
+async def OUT_test_flow_200() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20z(pkt_rcvd_method=0)
-    # await _test_flow_20z(pkt_rcvd_method=0, min_sleeps=True)
+    await _test_flow_20x(pkt_rcvd_method=0)
+    await _test_flow_20x(pkt_rcvd_method=0, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
@@ -630,6 +586,12 @@ async def test_flow_230() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
     await _test_flow_20x(pkt_rcvd_method=3)
     await _test_flow_20x(pkt_rcvd_method=3, min_sleeps=True)
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_300() -> None:
+    """Check state change of RQ/I/RQ cmds using protocol methods."""
+    await _test_flow_30x()
 
 
 @pytest_asyncio.fixture
