@@ -176,35 +176,6 @@ async def async_pkt_received(
     # assert_state_temp(protocol, None, 0)
 
 
-async def async_send_cmds(
-    protocol: QosProtocol, cmd: Command, num_sends: int = 1
-) -> list[asyncio.Task]:
-    # TODO: put these back in
-    # await assert_protocol_state(protocol, ProtocolState.IDLE)
-    # assert_state_temp(protocol, None, 0)
-
-    if num_sends <= 0:
-        return
-    tasks = []
-    for idx in range(1, num_sends + 1):
-        tasks += [
-            protocol._loop.create_task(protocol.send_cmd(cmd), name=f"send_{idx}")
-        ]
-
-        if num_sends <= DEFAULT_MAX_RETRIES + 1:
-            state = ProtocolState.RPLY if cmd.rx_header else ProtocolState.IDLE
-        else:
-            state = ProtocolState.IDLE
-
-        await assert_protocol_state(protocol, state)
-        if state == ProtocolState.IDLE:
-            assert_protocol_state_detail(protocol, None, 0)
-        # else:
-        #     assert_protocol_state_detail(protocol, cmd, idx)  # bug is here
-
-    return tasks
-
-
 # ######################################################################################
 
 
@@ -215,7 +186,7 @@ async def async_send_cmds(
 async def _test_flow_10x(
     rf: VirtualRf,
     protocol: QosProtocol,
-    pkt_rcvd_method: int = 0,
+    rcvd_method: int = 0,
     min_sleeps: bool = None,
 ) -> None:
     async def send_cmd_wrapper(cmd: Command) -> None:
@@ -226,7 +197,7 @@ async def _test_flow_10x(
 
     # STEP 0: Setup...
     # ser = serial.Serial(rf.ports[1])
-    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
+    max_sleep = 0 if rcvd_method == 0 else DEFAULT_MAX_SLEEP
 
     # STEP 1: Send an I cmd (no reply)...
     await send_cmd_wrapper(II_CMD_0)  # sent 1st time
@@ -234,9 +205,7 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
-    await async_pkt_received(
-        protocol, II_PKT_0, method=pkt_rcvd_method
-    )  # receive the echo
+    await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:  # these waits not needed for pkt_rcvd_method != 0
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
@@ -249,14 +218,12 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
-    await async_pkt_received(
-        protocol, RQ_PKT_0, method=pkt_rcvd_method
-    )  # receive the echo
+    await async_pkt_received(protocol, RQ_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
-    await async_pkt_received(protocol, RP_PKT_0, method=pkt_rcvd_method)
+    await async_pkt_received(protocol, RP_PKT_0, method=rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
@@ -269,9 +236,7 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
-    await async_pkt_received(
-        protocol, II_PKT_0, method=pkt_rcvd_method
-    )  # receive the echo
+    await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:  # these waits not needed for pkt_rcvd_method != 0
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
@@ -281,9 +246,7 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, II_CMD_0, 1)  # would be 2, if no echo
 
-    await async_pkt_received(
-        protocol, II_PKT_0, method=pkt_rcvd_method
-    )  # receive the echo
+    await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
@@ -296,14 +259,12 @@ async def _test_flow_10x(
         await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
-    await async_pkt_received(
-        protocol, RQ_PKT_1, method=pkt_rcvd_method
-    )  # receive the echo
+    await async_pkt_received(protocol, RQ_PKT_1, method=rcvd_method)  # receive the echo
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
-    await async_pkt_received(protocol, RP_PKT_1, method=pkt_rcvd_method)
+    await async_pkt_received(protocol, RP_PKT_1, method=rcvd_method)
     if not min_sleeps:
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
@@ -317,121 +278,43 @@ async def _test_flow_10x(
 )
 @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
 @protocol_decorator
-async def _test_flow_20x(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-    pkt_rcvd_method: int = 0,
-    min_sleeps: bool = None,
-) -> None:
-    #
-    # STEP 0: Setup...
-    ser = serial.Serial(rf.ports[1])
-    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
-
-    # STEP 1: Send an I cmd (no reply)...
-    tasks = await async_send_cmds(protocol, II_CMD_0, num_sends=1)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    await asyncio.gather(*tasks)  # no reply pkt expected
-
-    # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
-    tasks = await async_send_cmds(protocol, RQ_CMD_0, num_sends=1)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
-
-    # the echo is sent by Virtual RF...
-    # if not min_sleeps:
-
-    await async_pkt_received(protocol, RP_PKT_0, method=pkt_rcvd_method, ser=ser)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    await asyncio.gather(*tasks)
-
-    # STEP 3: Send an I cmd (no reply) *twice*...
-    tasks = await async_send_cmds(protocol, II_CMD_0, num_sends=2)  # send * 2
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    tasks += await async_send_cmds(protocol, II_CMD_0, num_sends=1)  # send * 2
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    await asyncio.gather(*tasks)  # no reply pkt expected
-
-    # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
-    tasks = await async_send_cmds(protocol, RQ_CMD_1, num_sends=1)  # send 1st time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    await async_pkt_received(protocol, RP_PKT_1, method=pkt_rcvd_method, ser=ser)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    await asyncio.gather(*tasks)
-
-
-@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
-@patch(  # maintain state chain (for debugging)
-    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
-)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
-@protocol_decorator
 async def _test_flow_30x(
     rf: VirtualRf,
     protocol: QosProtocol,
 ) -> None:
-    #
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
 
     # STEP 1: Send an I cmd (no reply)...
-    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
+    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0), name="send_1")
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
-    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0))
+    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0), name="send_2")
     protocol._loop.call_later(
         0.0001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
     assert await task == RP_PKT_0
 
     # STEP 3: Send an I cmd (no reply) *twice*...
-    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
+    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0), name="send_3A")
     assert await task == II_CMD_0  # no reply pkt expected
 
-    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
+    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0), name="send_3B")
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
-    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
-    # sk = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
-    protocol._loop.call_later(  # TODO: make deterministic
+    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1), name="send_4A")
+    # sk = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1), name="send_4B")
+
+    # TODO: make these deterministic so ser replies *only after* it receives cmd
+    protocol._loop.call_later(
         0.001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
-    protocol._loop.call_later(  # TODO: make deterministic
+    protocol._loop.call_later(
         0.001, ser.write, bytes(str(RP_PKT_1).encode("ascii")) + b"\r\n"
     )
+
     assert await task == RP_PKT_1
 
 
@@ -444,13 +327,6 @@ async def test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
     await _test_flow_10x(pkt_rcvd_method=0)  # try 0, 1
     await _test_flow_10x(pkt_rcvd_method=0, min_sleeps=True)
-
-
-@pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_230() -> None:
-    """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x(pkt_rcvd_method=3)  # try: 0, 1, 2, 3, 4
-    await _test_flow_20x(pkt_rcvd_method=3, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
@@ -480,5 +356,5 @@ async def async_benchmark(benchmark, event_loop: asyncio.AbstractEventLoop):
 
 
 # @pytest.mark.xdist_group(name="virtual_rf")
-# def test_benchmark_200(async_benchmark):
-#     async_benchmark(_test_flow_20x)
+# def test_benchmark_300(async_benchmark):
+#     async_benchmark(_test_flow_30x)
