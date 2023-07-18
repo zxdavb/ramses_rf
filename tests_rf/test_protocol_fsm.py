@@ -18,15 +18,21 @@ import serial
 import serial_asyncio
 
 from ramses_rf import Command, Packet
-from ramses_rf.protocol.protocol import QosProtocol, protocol_factory
+from ramses_rf.protocol.protocol import (
+    QosProtocol,
+    _BaseProtocol,
+    _ProtQosTimers,
+    protocol_factory,
+)
 from ramses_rf.protocol.protocol_fsm import _DEFAULT_WAIT_TIMEOUT, ProtocolState
 from ramses_rf.protocol.transport import transport_factory
 
-from .virtual_rf import VirtualRf, stifle_impersonation_alert
+from .virtual_rf import VirtualRf
 
 DEFAULT_MAX_RETRIES = 0  # #     patch ramses_rf.protocol.protocol
 DEFAULT_WAIT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
 MAINTAIN_STATE_CHAIN = True  # # patch ramses_rf.protocol.protocol_fsm
+MAX_DUTY_CYCLE = 1.0  # #        patch ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
 
 
@@ -56,6 +62,12 @@ RP_CMD_STR_1 = "RP --- 01:222222 18:000730 --:------ 12B0 003 010000"
 RQ_CMD_1 = Command(RQ_CMD_STR_1)
 RQ_PKT_1 = Packet(dt.now(), f"... {RQ_CMD_STR_1}")
 RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
+
+
+class _QosProtocol(_ProtQosTimers, _BaseProtocol):
+    """Test only QoS, not Duty cycle limits (& gaps) and Impersonation alerts."""
+
+    pass
 
 
 async def assert_protocol_ready(
@@ -362,15 +374,11 @@ async def _test_flow_10y(
     # gather
 
 
-@patch("ramses_rf.protocol.protocol.DEFAULT_MAX_RETRIES", DEFAULT_MAX_RETRIES)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
 @patch(  # maintain state chain (for debugging)
     "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
 )
-@patch(  # stifle impersonation alerts
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
-)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_20x(
     rf: VirtualRf,
@@ -446,64 +454,11 @@ async def _test_flow_20x(
     await asyncio.gather(*tasks)
 
 
-@patch("ramses_rf.protocol.protocol.DEFAULT_MAX_RETRIES", DEFAULT_MAX_RETRIES)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
 @patch(  # maintain state chain (for debugging)
     "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
 )
-@patch(  # stifle impersonation alerts
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
-)
-@protocol_decorator
-async def _test_flow_20y(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-    pkt_rcvd_method: int = 0,
-    min_sleeps: bool = None,
-) -> None:
-    # STEP 0: Setup...
-    ser = serial.Serial(rf.ports[1])
-    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
-
-    # STEP 1: Send an RQ cmd *twice*, then receive the corresponding RP pkt...
-    tasks = await async_send_cmds(protocol, RQ_CMD_1, num_sends=1)  # send 1st time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    # TODO: get this working...
-    tasks += await async_send_cmds(protocol, RQ_CMD_1, num_sends=1)  # send 2nd time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY)  # , max_sleep=0)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 2)
-
-    # the echo is sent by Virtual RF...
-    # if not..
-
-    await async_pkt_received(protocol, ser, RP_PKT_1, method=pkt_rcvd_method, ser=ser)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    await asyncio.gather(*tasks)
-
-    # STEP 9: Final checks
-    await assert_protocol_state(protocol, ProtocolState.IDLE)  # , max_sleep=0)
-
-
-@patch("ramses_rf.protocol.protocol.DEFAULT_MAX_RETRIES", DEFAULT_MAX_RETRIES)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch(  # maintain state chain (for debugging)
-    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
-)
-@patch(  # stifle impersonation alerts
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
-)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_30x(
     rf: VirtualRf,
@@ -519,23 +474,25 @@ async def _test_flow_30x(
 
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0))
-    protocol._loop.call_soon(ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n")
+    protocol._loop.call_later(
+        0.0001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
+    )
     assert await task == RP_PKT_0
 
-    # # # # STEP 3: Send an I cmd (no reply) *twice*...
+    # STEP 3: Send an I cmd (no reply) *twice*...
     task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    assert await task == II_CMD_0  # no reply pkt expected - NOTE: fails if not awaited
+    assert await task == II_CMD_0  # no reply pkt expected
 
     task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0))
-    assert await task == II_CMD_0  # no reply pkt expected - NOTE: fails if not awaited
+    assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
     task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
     # sk = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1))
-    protocol._loop.call_later(
+    protocol._loop.call_later(  # TODO: make deterministic
         0.001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
-    protocol._loop.call_later(
+    protocol._loop.call_later(  # TODO: make deterministic
         0.001, ser.write, bytes(str(RP_PKT_1).encode("ascii")) + b"\r\n"
     )
     assert await task == RP_PKT_1
@@ -548,43 +505,14 @@ async def _test_flow_30x(
 # @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
-    await _test_flow_10x()
-    await _test_flow_10x(min_sleeps=True)
-
-
-@pytest.mark.xdist_group(name="virtual_rf")
-# @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
-async def OUT_test_flow_110() -> None:
-    """Check state change of RQ/I/RQ cmds using context primitives."""
-    await _test_flow_10x(pkt_rcvd_method=1)
-    await _test_flow_10x(pkt_rcvd_method=1, min_sleeps=True)
-
-
-@pytest.mark.xdist_group(name="virtual_rf")
-async def OUT_test_flow_200() -> None:
-    """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x(pkt_rcvd_method=0)
-    await _test_flow_20x(pkt_rcvd_method=0, min_sleeps=True)
-
-
-@pytest.mark.xdist_group(name="virtual_rf")
-async def OUT_test_flow_210() -> None:
-    """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x(pkt_rcvd_method=1)
-    await _test_flow_20x(pkt_rcvd_method=1, min_sleeps=True)
-
-
-@pytest.mark.xdist_group(name="virtual_rf")
-async def OUT_test_flow_220() -> None:
-    """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x(pkt_rcvd_method=2)
-    await _test_flow_20x(pkt_rcvd_method=2, min_sleeps=True)
+    await _test_flow_10x(pkt_rcvd_method=0)  # try 0, 1
+    await _test_flow_10x(pkt_rcvd_method=0, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
 async def test_flow_230() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_20x(pkt_rcvd_method=3)
+    await _test_flow_20x(pkt_rcvd_method=3)  # try: 0, 1, 2, 3, 4
     await _test_flow_20x(pkt_rcvd_method=3, min_sleeps=True)
 
 

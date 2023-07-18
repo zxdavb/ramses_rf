@@ -13,7 +13,6 @@ import logging
 
 # import signal
 from collections import deque
-from datetime import datetime as dt
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
@@ -55,9 +54,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
 
-
-DEFAULT_MAX_RETRIES = 3
 MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
+MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
+MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
+CYCLE_DURATION = 60  # seconds
 
 
 DEV_MODE = __dev_mode__ and False
@@ -160,7 +160,7 @@ def track_system_syncs(fnc: Callable):
     return wrapper
 
 
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
     """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
     max_duty_cycle: bandwidth available per observation window (%)
@@ -212,7 +212,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
     return decorator
 
 
-def limit_transmit_rate(max_tokens: float, time_window: int = 60):
+def limit_transmit_rate(max_tokens: float, time_window: int = CYCLE_DURATION):
     """Limit the Tx rate as # packets per period of time.
 
     Rate-limits the decorated function locally, for one process (Token Bucket).
@@ -430,7 +430,7 @@ class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
 class _ProtDutyCycle(_ProtSyncCycle):  # stay within duty cycle limits
     """A mixin for staying within duty cycle limits."""
 
-    @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
+    @limit_duty_cycle(MAX_DUTY_CYCLE)  # @limit_transmit_rate(MAX_TOKENS)
     async def _send_frame(self, cmd: Command) -> None:
         """Write some data bytes to the transport."""
         await super()._send_frame(cmd)
@@ -584,49 +584,13 @@ class PortProtocol(_ProtImpersonate, _ProtGapped, _BaseProtocol):
 class QosProtocol(_ProtImpersonate, _ProtGapped, _ProtQosTimers, _BaseProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
-    # _expecting_cmd: None | Command = None
-
     # TODO: remove me (a convenience wrapper for breakpoint)
     def pkt_received(self, pkt: Packet) -> None:
         super().pkt_received(pkt)
 
-    def OUT_msg_received(self, msg: Message) -> None:
-        """Check if Message this is the expected response (if any)."""
-
-        if not self._expecting_cmd:
-            pass
-
-        #     if cmd._cbk:
-        #         self._expecting_cmd = cmd
-
-        elif self._expecting_cmd.callback.expires <= dt.now():
-            if self._expecting_cmd.callback.retries == 0:
-                self._expecting_cmd.callback.callback(None, cmd=self._expecting_cmd)
-                self._expecting_cmd = None
-            else:
-                self._expecting_cmd.callback.retries -= 1
-                self._expecting_cmd.callback.expires = dt.now()  # FIXME: + ???
-
-        elif self._expecting_cmd._hdr == msg._pkt._hdr:  # TODO
-            self._expecting_cmd.callback.callback(msg, cmd=self._expecting_cmd)
-            self._expecting_cmd = None
-
-        super()._msg_received(msg)
-
     # TODO: remove me (a convenience wrapper for breakpoint)
     async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         await super().send_cmd(cmd, callback=callback)
-
-    async def OUT_send_cmd(self, cmd: Command) -> None:
-        """Check if this Command is expecting a response."""
-
-        if self._expecting_cmd:
-            raise  # should have cleared / expired any outstanding echo/callbacks
-
-        # we're sending a cmd, so should expect an echo
-        # self._context.send_cmd(cmd)
-
-        await super()._send_cmd(cmd)
 
 
 def protocol_factory(  # TODO: no_qos default should be None

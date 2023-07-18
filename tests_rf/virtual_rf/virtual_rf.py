@@ -187,7 +187,7 @@ class VirtualRfBase:
                     self._pull_data_from_src_port(key.fileobj)  # type: ignore[arg-type]  # fileobj type is int | HasFileno
                     await asyncio.sleep(0)
                 else:
-                    await asyncio.sleep(0.001)
+                    await asyncio.sleep(0.0001)
 
     def _pull_data_from_src_port(self, master: _FD) -> None:
         """Pull the data from the sending port and process any frames."""
