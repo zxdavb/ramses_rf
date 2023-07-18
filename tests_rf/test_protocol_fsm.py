@@ -147,22 +147,6 @@ def protocol_decorator(fnc):
     return test_wrapper
 
 
-def _read_ready(self) -> None:  # HACK: resolves an issue with Virtual RF
-    # data to self._bytes_received() instead of self._protocol.data_received()
-    try:
-        data: bytes = self._serial.read(self._max_read_size)
-    except serial.SerialException as e:
-        if e.args and e.args[0].startswith("device reports readiness to read but"):
-            data = b""
-            # _LOGGER.warning("Device disconnected/multiple access on port")
-        else:
-            self._close(exc=e)
-            return
-
-    if data:
-        self._bytes_received(data)  # was: self._protocol.pkt_received(data)
-
-
 async def async_pkt_received(
     protocol: QosProtocol,
     pkt: Packet,
