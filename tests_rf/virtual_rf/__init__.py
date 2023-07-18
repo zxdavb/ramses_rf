@@ -23,7 +23,7 @@ DEFAULT_GWY_CONFIG = {
     }
 }
 
-MIN_GAP_BETWEEN_WRITES = 0.005  # patch ramses_rf.protocol.protocol (was 0.2)
+MIN_GAP_BETWEEN_WRITES = 0.005  # patch ramses_rf.protocol.protocol
 
 
 async def stifle_impersonation_alert(self, cmd: Command) -> None:
