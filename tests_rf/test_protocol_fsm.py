@@ -311,53 +311,6 @@ async def _test_flow_10x(
     # gather
 
 
-@patch(  # maintain state chain (for debugging)
-    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
-)
-@protocol_decorator
-async def _test_flow_10y(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-    pkt_rcvd_method: int = 0,
-    min_sleeps: bool = None,
-) -> None:
-    # STEP 0: Setup...
-    # ser = serial.Serial(rf.ports[1])
-    max_sleep = 0 if pkt_rcvd_method == 0 else DEFAULT_MAX_SLEEP
-
-    # STEP 4A: Send an RQ cmd *twice*, then receive the corresponding RP pkt...
-    await protocol._context.send_cmd(RQ_CMD_1)  # sent 1st time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    await async_pkt_received(
-        protocol, RQ_PKT_1, method=pkt_rcvd_method
-    )  # receive the echo
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    await protocol._context.send_cmd(RQ_CMD_1)  # sent 2nd time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 2)
-
-    await async_pkt_received(
-        protocol, RQ_PKT_1, method=pkt_rcvd_method
-    )  # receive the 2nd echo
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 2)
-
-    await async_pkt_received(protocol, RP_PKT_1, method=pkt_rcvd_method)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # gather
-
-
 @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
 @patch(  # maintain state chain (for debugging)
     "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
@@ -527,5 +480,5 @@ async def async_benchmark(benchmark, event_loop: asyncio.AbstractEventLoop):
 
 
 # @pytest.mark.xdist_group(name="virtual_rf")
-# def test_benchmark_230(async_benchmark):
+# def test_benchmark_200(async_benchmark):
 #     async_benchmark(_test_flow_20x)
