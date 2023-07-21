@@ -1,13 +1,7 @@
-2022-05-04T19:48:00.773574 045 RP --- 01:078710 18:199952 --:------ 0005 004 000F0100      # {'zone_type': '0F', 'zone_mask': [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'zone_class': 'appliance_control'}
-2022-03-13T15:28:02.753576 ... RP --- 01:078710 18:199952 --:------ 000C 006 000F7FFFFFFF  # {'zone_type': '0F', 'domain_id': 'FC', 'device_role': 'appliance_control', 'devices': []}
+###
 
-2022-03-13T15:28:03.858343 ... RP --- 10:047707 18:199952 --:------ 3220 005 0040030118    # {'msg_id': 3,   'msg_type': 'Read-Ack',   'msg_name': 'slave_config_flags', 'value_hb': [1, 0, 0, 0, 0, 0, 0, 0], 'value_lb': 24, 'description': 'Slave configuration'}
-2022-03-13T15:28:03.859274 ... RP --- 10:047707 18:199952 --:------ 3220 005 00C0060101    # {'msg_id': 6,   'msg_type': 'Read-Ack',   'msg_name': 'remote_flags', 'value': [1, 0, 0, 0, 0, 0, 0, 0], 'description': 'Remote parameter flags'}
-2022-03-13T15:28:03.868430 ... RP --- 10:047707 18:199952 --:------ 3220 005 00C0303C28    # {'msg_id': 48,  'msg_type': 'Read-Ack',   'msg_name': {'hb': 'DHWUpperBound', 'lb': 'DHWLowerBound'}, 'value_hb': 60, 'value_lb': 40, 'description': 'DHW setpoint boundaries'}
-2022-03-13T15:28:03.870136 ... RP --- 10:047707 18:199952 --:------ 3220 005 00C0313714    # {'msg_id': 49,  'msg_type': 'Read-Ack',   'msg_name': {'hb': 'CHUpperBound', 'lb': 'CHLowerBound'}, 'value_hb': 55, 'value_lb': 20, 'description': 'Max. central heating setpoint boundaries'}
-2022-03-13T15:28:03.871689 ... RP --- 10:047707 18:199952 --:------ 3220 005 00407FFFFF    # {'msg_id': 127, 'msg_type': 'Read-Ack',   'msg_name': {'hb': 'SlaveProductType', 'lb': 'SlaveProductVersion'}, 'value_hb': 255, 'value_lb': 255, 'description': 'Slave product version and type'}
-2022-03-13T15:28:03.872406 ... RP --- 10:047707 18:199952 --:------ 3220 005 00300F0000    # {'msg_id': 15,  'msg_type': '-reserved-', 'msg_name': {'hb': 'MaxBoilerCapacity', 'lb': 'MinModulationLevel'}, 'description': 'Max. boiler capacity (kW) and modulation level setting (%)'}
-2022-03-13T15:28:03.872923 ... RP --- 10:047707 18:199952 --:------ 3220 005 00307D0000    # {'msg_id': 125, 'msg_type': '-reserved-', 'msg_name': 'SlaveOpenThermVersion', 'description': 'Opentherm version Slave'}
+2022-05-13T15:28:02.750000 045 RP --- 01:078710 18:199952 --:------ 0005 004 000F0100      # {'zone_type': '0F', 'zone_mask': [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'zone_class': 'appliance_control'}
+2022-03-13T15:28:02.753576 ... RP --- 01:078710 18:199952 --:------ 000C 006 000F7FFFFFFF  # {'zone_type': '0F', 'domain_id': 'FC', 'device_role': 'appliance_control', 'devices': []}
 
 2022-03-13T15:28:03.924687 ...  I --- 01:078710 --:------ 01:078710 0009 006 FC00FFF900FF  # [{'domain_id': 'FC', 'failsafe_enabled': False, 'unknown_0': 'FF'}, {'domain_id': 'F9', 'failsafe_enabled': False, 'unknown_0': 'FF'}]
 2022-03-13T15:28:03.925788 ...  I --- 10:047707 01:078710 --:------ 0009 003 000000        # {'failsafe_enabled': False, 'unknown_0': '00'}
@@ -17,23 +11,9 @@
 
 
 2022-03-13T15:28:04.060043 ...  I --- 10:047707 --:------ 10:047707 1FD4 003 005AFE        # {'ticker': 23294}
-2022-03-13T15:28:04.065179 ...  I --- 01:078710 --:------ 01:078710 3150 002 FC0A          # {'domain_id': 'FC', 'heat_demand': 0.05}
+2022-03-13T15:28:04.065179 ...  I --- 01:078710 --:------ 01:078710 3150 002 FC0A          # {'domain_id': 'FC', 'heat_demand':  0.05}
 2022-03-13T15:28:04.066638 ...  I --- 01:078710 --:------ 01:078710 0008 002 FC0A          # {'domain_id': 'FC', 'relay_demand': 0.05}
-2022-03-13T15:28:04.067878 ...  I --- 10:047707 --:------ 01:078710 3150 002 FCC6          # {'domain_id': 'FC', 'heat_demand': 0.99}
-
-2022-03-13T15:29:43.922216 ... RP --- 10:047707 18:199952 --:------ 1081 003 002328        # {'setpoint': 90.0}
-2022-03-13T15:29:43.805479 ... RP --- 10:047707 18:199952 --:------ 10A0 003 000FA0        # {'setpoint': 40.0}
-2022-03-13T15:28:04.080100 ... RP --- 10:047707 18:199952 --:------ 1260 003 007FFF        # {'temperature': None}
-2022-03-13T15:28:04.084596 ... RP --- 10:047707 18:199952 --:------ 1290 003 00F830        # {'temperature': -20.0}
-2022-03-13T15:28:04.079366 ... RP --- 10:047707 18:199952 --:------ 12F0 003 007FFF        # {'dhw_flow_rate': None}
-2022-03-13T15:28:04.078946 ... RP --- 10:047707 18:199952 --:------ 1300 003 0009F6        # {'pressure': 25.5}
-2022-03-13T15:28:04.082558 ... RP --- 10:047707 18:199952 --:------ 22D9 003 00092E        # {'setpoint': 23.5}
-2022-03-13T15:28:04.080733 ... RP --- 10:047707 18:199952 --:------ 2401 004 0000040A      # {'payload': '0000040A', '_value_2': 4, '_flags_2': [0, 0, 0, 0, 0, 1, 0, 0], '_percent_3': 0.05}
-2022-03-13T15:28:04.083840 ... RP --- 10:047707 18:199952 --:------ 3200 003 000DAC        # {'temperature': 35.0}
-2022-03-13T15:28:04.085214 ... RP --- 10:047707 18:199952 --:------ 3210 003 000E10        # {'temperature': 36.0}
-2022-03-13T15:28:04.081241 ... RP --- 10:047707 18:199952 --:------ 3220 005 00C0000300    # {'msg_id': 0, 'msg_type': 'Read-Ack', 'msg_name': None, 'value': [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'description': 'Status'}
-2022-03-13T15:28:04.081740 ... RP --- 10:047707 18:199952 --:------ 3220 005 00B0730000    # {'msg_id': 115, 'msg_type': '-reserved-', 'msg_name': 'OEMDiagnosticCode', 'description': 'OEM diagnostic code'}
-2022-03-13T15:28:23.123570 ... RP --- 10:047707 18:199952 --:------ 3EF0 009 0000100000FF031700  # {'modulation_level': 0.0, '_flags_2': '10', '_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'ch_active': False, 'dhw_active': False, 'flame_active': False, '_unknown_4': '00', '_unknown_5': 'FF', '_flags_6': [0, 0, 0, 0, 0, 0, 1, 1], 'ch_enabled': True, 'ch_setpoint': 23, 'max_rel_modulation': 0.0}
+2022-03-13T15:28:04.067878 ...  I --- 10:047707 --:------ 01:078710 3150 002 FCC6          # {'domain_id': 'FC', 'heat_demand':  0.99}
 
 2022-03-13T15:28:56.108603 ... RQ --- 01:078710 10:047707 --:------ 3EF0 001 00            # {}
 2022-03-13T15:28:56.135849 ... RP --- 10:047707 01:078710 --:------ 3EF0 009 0000100000FF035A00  # {'modulation_level': 0.0, '_flags_2': '10', '_flags_3': [0, 0, 0, 0, 0, 0, 0, 0], 'ch_active': False, 'dhw_active': False, 'flame_active': False, '_unknown_4': '00', '_unknown_5': 'FF', '_flags_6': [0, 0, 0, 0, 0, 0, 1, 1], 'ch_enabled': True, 'ch_setpoint': 90, 'max_rel_modulation': 0.0}

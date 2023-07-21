@@ -232,9 +232,6 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         super()._handle_msg(msg)
 
-        if msg.verb in (RQ, RQ):
-            return
-
         if (
             msg.code == Code._000C
             and msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP
