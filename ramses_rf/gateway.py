@@ -16,12 +16,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from concurrent import futures
 from datetime import datetime as dt
 from io import TextIOWrapper
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
@@ -31,6 +30,7 @@ from .protocol import (
     SZ_ACTIVE_HGI,
     Address,
     Command,
+    Packet,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -288,66 +288,27 @@ class Engine:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
-    def send_cmd(self, cmd: Command, callback: Callable = None):
-        """Send a command with the option to return any response message via callback.
+    def send_cmd(
+        self, cmd: Command, callback: Callable = None, **kwargs
+    ) -> asyncio.Task:
+        """Wrapper to schedule an async_send_cmd() and return the Task."""
 
-        Response packets, if any (an RP/I will follow an RQ/W), and have the same code.
-        This routine is thread safe.
+        assert kwargs == {}
+        return self._loop.create_task(self.send_cmd(cmd, callback=callback))
+
+    async def async_send_cmd(self, cmd: Command, **kwargs) -> Packet:
+        """Send a Command and return the response Packet or the echo Packet otherwise.
+
+        Response packets, follow an RQ/W (as an RP/I), and have the same command code.
         """
 
-        if not self._protocol:
-            raise RuntimeError("there is no message protocol")
+        callback = kwargs.pop("callback", None)
+        assert kwargs == {}
+        if callback:
+            kwargs["callback"] = callback
+        return await self._protocol.send_cmd(cmd, **kwargs)
 
-        # self._loop.call_soon_threadsafe(
-        #     self._protocol.send_cmd(cmd, callback=callback)
-        # )
-        coro = self._protocol.send_cmd(cmd, callback=callback)
-        fut: futures.Future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        # fut: asyncio.Future = asyncio.wrap_future(fut)
-        return fut
-
-    async def async_send_cmd(self, cmd: Command) -> None | Message:
-        """Send a command with the option to not wait for a response message.
-
-        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
-        This routine is thread safe.
-        """
-
-        # def callback(fut):
-        #     print(fut.result())
-
-        fut = self.send_cmd(cmd)  # , _make_awaitable=True, **kwargs)
-        # fut.add_done_callback(callback)
-
-        while True:
-            try:
-                result = fut.result(timeout=0)
-
-            # except futures.CancelledError:  # fut ?was cancelled by a higher layer
-            #     break
-
-            except futures.TimeoutError:  # fut/cmd has not yet completed
-                pass  # should be a pass
-
-            except TimeoutError as exc:  # raised by send_cmd()
-                raise TimeoutError(f"cmd ({cmd.tx_header}) timed out: {exc}")
-
-            # except RuntimeError as exc:  # raised by send_cmd()
-            #     _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
-            #     if self._transport.is_closing:
-            #         pass
-
-            except Exception as exc:
-                _LOGGER.error(f"cmd ({cmd.tx_header}) raised an exception: {exc!r}")
-                raise exc
-
-            else:
-                _LOGGER.debug(f"cmd ({cmd.tx_header}) returned: {result!r})")
-                return result
-
-            await asyncio.sleep(0.001)  # TODO: 0.001, 0.005 or other?
-
-    def _msg_handler(self, msg) -> None:
+    def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism
         msg.__class__ = Message  # HACK (next line too)
         msg._gwy = self
@@ -642,7 +603,7 @@ class Gateway(Engine):
         return dev
 
     @property
-    def tcs(self) -> Optional[System]:
+    def tcs(self) -> None | System:
         """Return the primary TCS, if any."""
 
         if self._tcs is None and self.systems:
@@ -741,20 +702,6 @@ class Gateway(Engine):
     @property
     def status(self) -> dict:
         return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
-
-    def send_cmd(  # FIXME
-        self, cmd: Command, callback: Callable = None, **kwargs
-    ) -> futures.Future:
-        """Send a command with the option to return any response via callback."""
-
-        if self._disable_sending:
-            raise RuntimeError("sending is disabled")
-
-        fut = super().send_cmd(cmd, callback, **kwargs)
-
-        self._tasks = [t for t in self._tasks if not t.done()]
-        self._tasks.append(fut)
-        return fut
 
     def fake_device(
         self,
