@@ -206,7 +206,7 @@ async def _test_flow_10x(
         assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
     await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
-    if not min_sleeps:  # these waits not needed for pkt_rcvd_method != 0
+    if not min_sleeps:  # these waits not needed for rcvd_method != 0
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
@@ -237,7 +237,7 @@ async def _test_flow_10x(
         assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
     await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
-    if not min_sleeps:  # these waits not needed for pkt_rcvd_method != 0
+    if not min_sleeps:  # these waits not needed for rcvd_method != 0
         await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
@@ -325,8 +325,8 @@ async def _test_flow_30x(
 # @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
-    await _test_flow_10x(pkt_rcvd_method=0)  # try 0, 1
-    await _test_flow_10x(pkt_rcvd_method=0, min_sleeps=True)
+    await _test_flow_10x(rcvd_method=0)  # try 0, 1
+    await _test_flow_10x(rcvd_method=0, min_sleeps=True)
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
