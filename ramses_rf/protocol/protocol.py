@@ -30,7 +30,7 @@ from .const import __dev_mode__
 #     SZ_TIMEOUT,
 #     __dev_mode__,
 # )
-from .exceptions import InvalidPacketError
+from .exceptions import InvalidPacketError, ProtocolError
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -68,12 +68,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 _DEBUG_DISABLE_QOS = False  # used for debugging
-
-
-class ProtocolError(Exception):
-    """Base class for exceptions in this module."""
-
-    pass
 
 
 _global_sync_cycles: deque = (
@@ -364,7 +358,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> None:
+    async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
@@ -373,7 +367,7 @@ class _BaseProtocol(asyncio.Protocol):
             raise RuntimeError("TODO: 002")  # TODO
 
         # This is necessary to track state via the context.
-        await self._send_cmd(cmd)  # self._transport.write(...)
+        return await self._send_cmd(cmd)  # self._transport.write(...)
 
     async def _send_cmd(self, cmd: Command) -> None:
         """Called when a Command is to be sent to the Transport.
@@ -495,12 +489,12 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> None:
+    async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
         """Write some data bytes to the transport."""
         if cmd.src.id != HGI_DEV_ADDR.id:
             await self._send_impersonation_alert(cmd)
 
-        await super().send_cmd(cmd, **kwargs)
+        return await super().send_cmd(cmd, **kwargs)
 
 
 class _ProtQosTimers(_BaseProtocol):  # context/state
@@ -536,9 +530,13 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         Return the response Packet or the echo Packet if there is no expected response.
         """
 
-        # try:
-        return await self._context.send_cmd(super()._send_cmd, cmd, **kwargs)
-        # except (InvalidStateError, RetryLimitExceeded, SendTimeoutError):
+        try:
+            return await self._context.send_cmd(super()._send_cmd, cmd, **kwargs)
+        # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
+        #     # reset protocol stack
+        except ProtocolError as exc:  # TODO: _LOGGER.warning, not .exception
+            _LOGGER.exception(f"{self}: Failed to send command: {exc}")
+            raise
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
@@ -577,7 +575,7 @@ class PortProtocol(_ProtImpersonate, _ProtGapped, _BaseProtocol):
 
     # TODO: remove me (a convenience wrapper for breakpoint)
     async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
-        await super().send_cmd(cmd, callback=callback)
+        return await super().send_cmd(cmd, callback=callback)
 
 
 # ### Read-Write Protocol for QosTransport ############################################
@@ -589,8 +587,8 @@ class QosProtocol(_ProtImpersonate, _ProtGapped, _ProtQosTimers, _BaseProtocol):
         super().pkt_received(pkt)
 
     # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
-        await super().send_cmd(cmd, callback=callback)
+    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Packet:
+        return await super().send_cmd(cmd, callback=callback)
 
 
 def protocol_factory(  # TODO: no_qos default should be None

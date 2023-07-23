@@ -24,7 +24,7 @@ _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEBUG_MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
+_DEBUG_MAINTAIN_STATE_CHAIN = False  # HACK: maintain Context._prev_state
 
 
 DEFAULT_SEND_PRIORITY = 1
@@ -143,20 +143,19 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         max_retries = kwargs.get("max_retries", DEFAULT_MAX_RETRIES)
         wait_timeout = kwargs.get("timeout", DEFAULT_WAIT_TIMEOUT)
 
-        while True:  # if required, resend until retry limit exceeded
-            try:
-                prev_state, next_state = await self._wait_for_send_cmd(
-                    self.state, cmd, td(seconds=wait_timeout)
-                )
-            except (RetryLimitExceeded, SendTimeoutError) as exc:
-                _LOGGER.debug(f"{self}: Failed to send command: {exc}")
-                raise
+        while True:  # if required, resend until RetryLimitExceeded
+            # may raise: InvalidStateError, SendTimeoutError...
+            prev_state, next_state = await self._wait_for_send_cmd(
+                self.state, cmd, td(seconds=wait_timeout)
+            )
+            # assert isinstance(next_state, ProtocolState.IDLE), self
 
-            self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
-            assert isinstance(self.state, WantEcho)  # TODO: remove
+            # may raise: InvalidStateError, RetryLimitExceeded...
+            self.state.sent_cmd(cmd, max_retries)
             await send_fnc(cmd, **kwargs)  # the wrapped function
+            # assert isinstance(self.state, ProtocolState.ECHO), self
 
-            try:
+            try:  # don't capture InvalidStateError here
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
@@ -166,19 +165,17 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
             if not cmd.rx_header:
                 return prev_state._echo
-            try:
-                assert isinstance(self.state, WantRply)  # TODO: remove
-            except AssertionError:
-                pass  # have advanced *past* WantRply, onto IsInIdle
+            # assert isinstance(next_state, ProtocolState.RPLY), self
 
-            try:
+            try:  # don't capture InvalidStateError here
                 prev_state, next_state = await self._wait_for_rcvd_rply(
-                    self.state, cmd, _DEFAULT_RPLY_TIMEOUT
-                )
+                    next_state, cmd, _DEFAULT_RPLY_TIMEOUT
+                )  # NOTE: is next_state, not self.state
             except SendTimeoutError as exc:
                 _LOGGER.debug(f"{self}: Failed to receive rply: {exc}")
-            else:
-                break
+                continue
+
+            break
 
         # assert isinstance(self.state, ProtocolState.IDLE), self
         return prev_state._rply
@@ -190,12 +187,13 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         If the state machine is not Idle, the command will join a priority queue.
 
+        Raises a InvalidStateError if transitions to the incorrect state.
         Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
         _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
 
-        # if self._is_active_cmd(cmd):  # no need to queue...
+        # TODO: if self._is_active_cmd(cmd):  # no need to queue...
         #     self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
         #     return
 
@@ -250,7 +248,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         _LOGGER.info(f"### Waiting to receive an echo for: {cmd}")
 
         if not isinstance(this_state, WantEcho):
-            raise InvalidStateError(f"{self}: Shouldn't be {this_state}")
+            raise InvalidStateError(f"{self}: Bad transition from {this_state}")
 
         # may: SendTimeoutError (NB: may have already transitioned)
         next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
@@ -271,8 +269,8 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         _LOGGER.info(f"### Waiting to receive a reply for: {cmd}")
 
-        if isinstance(this_state._prev_state, WantRply):  # FIXME: the problem is here
-            this_state = this_state._prev_state
+        if not isinstance(this_state, WantRply):
+            raise InvalidStateError(f"{self}: Bad transition from {this_state}")
 
         # may: SendTimeoutError (NB: may have already transitioned)
         next_state = await self._wait_for_transition(this_state, dt.now() + timeout)

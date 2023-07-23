@@ -296,7 +296,7 @@ class Engine:
         assert kwargs == {}
         return self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
 
-    async def async_send_cmd(self, cmd: Command, **kwargs) -> Packet:
+    async def async_send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
         """Send a Command and return the response Packet or the echo Packet otherwise.
 
         Response packets, follow an RQ/W (as an RP/I), and have the same command code.
