@@ -51,7 +51,7 @@ async def test_schedule_get(dir_name):
 
 
 async def test_schedule_helpers(dir_name):
-    """Compare the schedule helpers."""
+    """Compare the schedule helpers are consistent and have symmetry."""
 
     with open(f"{dir_name}/schedule.json") as f:
         schedule = json.load(f)
