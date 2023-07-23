@@ -24,13 +24,7 @@ class RamsesError(Exception):
 # Errors at/below the protocol/transport layer
 
 
-class ProtocolBaseError(RamsesError):
-    """Base class for exceptions in this module."""
-
-    pass
-
-
-class ProtocolError(ProtocolBaseError):
+class ProtocolError(RamsesError):
     """When attempting to transition to the next state, an error has occurred."""
 
 
