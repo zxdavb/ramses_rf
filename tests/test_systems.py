@@ -21,10 +21,6 @@ from tests.helpers import (
     shuffle_dict,
 )
 
-# import tracemalloc
-# tracemalloc.start()
-
-
 WORK_DIR = f"{TEST_DIR}/systems"
 
 
