@@ -294,7 +294,7 @@ class Engine:
         """Wrapper to schedule an async_send_cmd() and return the Task."""
 
         assert kwargs == {}
-        return self._loop.create_task(self.send_cmd(cmd, callback=callback))
+        return self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
 
     async def async_send_cmd(self, cmd: Command, **kwargs) -> Packet:
         """Send a Command and return the response Packet or the echo Packet otherwise.
