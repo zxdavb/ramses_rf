@@ -21,15 +21,6 @@ from typing import Any, Awaitable, Callable, TypeVar
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import __dev_mode__
-
-#     DEV_TYPE,
-#     DEV_TYPE_MAP,
-#     SZ_DAEMON,
-#     SZ_EXPIRES,
-#     SZ_FUNC,
-#     SZ_TIMEOUT,
-#     __dev_mode__,
-# )
 from .exceptions import InvalidPacketError, ProtocolError
 from .helpers import dt_now
 from .logger import set_logger_timesource
@@ -39,8 +30,6 @@ from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
 from .transport import SZ_IS_EVOFW3, PktTransportT
 from .transport import transport_factory as _transport_factory
-
-# from .version import VERSION
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
