@@ -232,14 +232,13 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         super()._handle_msg(msg)
 
-        if (
-            msg.code == Code._000C
-            and msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP
-            and (msg.payload[SZ_DEVICES])
-        ):
-            self._gwy.get_device(
-                msg.payload[SZ_DEVICES][0], parent=self, child_id=FC
-            )  # sets self._app_cntrl
+        if msg.code == Code._000C:
+            if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP and msg.payload.get(
+                SZ_DEVICES
+            ):
+                self._gwy.get_device(
+                    msg.payload[SZ_DEVICES][0], parent=self, child_id=FC
+                )  # sets self._app_cntrl
             return
 
         if msg.code == Code._0008:
