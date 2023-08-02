@@ -9,6 +9,7 @@
 
 import asyncio
 from typing import TypeVar
+from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +21,9 @@ from tests_rf.virtual_rf import ensure_fakeable, factory
 _State = TypeVar("_State", bound=State)
 
 
-CONFIRM_TIMEOUT_SECS = 0.001  # to patch ramses_rf.bind_state
+CONFIRM_TIMEOUT_SECS = 0.001  # patch ramses_rf.bind_state
+_DEBUG_DISABLE_QOS = False  # #  patch ramses_rf.protocol.protocol
+
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 1
@@ -187,6 +190,7 @@ async def OUT_test_binding_flow(test_data):
 
 
 @pytest.mark.xdist_group(name="serial")
+@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 async def test_binding_state(test_data):
     """Test the transition of bind state for a supplicant and a respondent."""
 
