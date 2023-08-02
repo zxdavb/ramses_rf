@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
@@ -509,7 +508,7 @@ class Entity(Discovery):
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
-    def _send_cmd(self, cmd, **kwargs) -> None | Future:
+    def _send_cmd(self, cmd: Command, **kwargs) -> None | asyncio.Task:
         if self._gwy._disable_sending:
             _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request")
             return None
