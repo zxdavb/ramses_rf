@@ -546,10 +546,6 @@ class ReadProtocol(_BaseProtocol):
     def resume_writing(self) -> None:
         raise NotImplementedError
 
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def pkt_received(self, data) -> None:
-        super().pkt_received(data)
-
     async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
         raise NotImplementedError
 
@@ -558,26 +554,14 @@ class ReadProtocol(_BaseProtocol):
 class PortProtocol(_ProtImpersonate, _ProtGapped, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
 
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def pkt_received(self, pkt: Packet) -> None:
-        super().pkt_received(pkt)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
-        return await super().send_cmd(cmd, callback=callback)
+    pass
 
 
 # ### Read-Write Protocol for QosTransport ############################################
 class QosProtocol(_ProtImpersonate, _ProtGapped, _ProtQosTimers, _BaseProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    def pkt_received(self, pkt: Packet) -> None:
-        super().pkt_received(pkt)
-
-    # TODO: remove me (a convenience wrapper for breakpoint)
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> Packet:
-        return await super().send_cmd(cmd, callback=callback)
+    pass
 
 
 def protocol_factory(  # TODO: no_qos default should be None
