@@ -22,8 +22,11 @@ if TYPE_CHECKING:
 _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
 
+DEV_MODE = False
+
 _LOGGER = logging.getLogger(__name__)
 
+# All debug flags should be False for end-users
 _DEBUG_MAINTAIN_STATE_CHAIN = False  # HACK: maintain Context._prev_state
 
 

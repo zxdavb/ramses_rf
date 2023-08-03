@@ -73,12 +73,14 @@ TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 
 DEV_MODE = __dev_mode__ and False
-DEV_HACK_DISABLE_REGEX_WARNING = True  # should be False for end-users
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+# All debug flags should be False for end-users
+_DEBUG_DISABLE_REGEX_WARNINGS = True  # should be False for end-users
 
 
 class TransportError(Exception):
@@ -289,7 +291,7 @@ class _RegHackMixin:
             except re.error as exc:
                 _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
 
-        if result != pkt_line and not DEV_HACK_DISABLE_REGEX_WARNING:
+        if result != pkt_line and not _DEBUG_DISABLE_REGEX_WARNINGS:
             (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
                 f"{pkt_line} < Changed by use_regex to: {result}"
             )

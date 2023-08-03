@@ -50,7 +50,8 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-_DEBUG_DISABLE_QOS = False  # used for debugging
+# All debug flags should be False for end-users
+_DEBUG_DISABLE_QOS = False  # used for pytest scripts
 
 
 _global_sync_cycles: deque = (
