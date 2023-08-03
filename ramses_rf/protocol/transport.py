@@ -306,7 +306,6 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
     READER_TASK = "reader_task"
-    _extra: dict[str, Any]  # mypy
     _protocol: _ProtocolT
 
     _dtm_str: str = None  # type: ignore[assignment]  # FIXME: remove this somehow
@@ -316,9 +315,9 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         protocol: _ProtocolT,
         pkt_source: dict | TextIOWrapper,
         loop: None | asyncio.AbstractEventLoop = None,
-        **kwargs,
+        extra: None | dict = None,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(extra=extra)
 
         self._pkt_source = pkt_source
         self._protocol = protocol
@@ -538,11 +537,8 @@ def transport_factory(
     packet_dict: None | dict = None,
     **kwargs,
 ) -> RamsesTransport:
-    # expected kwargs include:
-    #  disable_sending: bool = None,
-    #  enforce_include_list: bool = None,
-    #  exclude_list: None | dict = None,
-    #  include_list: None | dict = None,
+    # The kwargs must be a subset of: loop, extra, and...
+    # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
 
     def get_serial_instance(ser_name: SerPortName, ser_config: dict) -> Serial:
         # For example:
@@ -582,8 +578,6 @@ def transport_factory(
 
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
-
-    # kwargs.pop("disable_sending", False)
 
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(protocol, pkt_source, **kwargs)

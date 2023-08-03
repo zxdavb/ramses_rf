@@ -213,8 +213,9 @@ class Engine:
             enforce_include_list=self._enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
+            loop=self._loop,
             **pkt_source,
-            **self._kwargs,
+            **self._kwargs,  # HACK: only accept extra & use_regex
         )
         self._kwargs = None  # HACK
 

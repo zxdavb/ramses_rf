@@ -26,8 +26,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import SZ_IS_EVOFW3, RamsesTransport
-from .transport import transport_factory as _transport_factory
+from .transport import SZ_IS_EVOFW3, RamsesTransport, transport_factory
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -422,7 +421,7 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
         super().__init__(msg_handler)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task = None
+        self._leaker_task: None | asyncio.Task = None
 
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self._transport.write()."""
@@ -560,12 +559,12 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
     pass
 
 
-def protocol_factory(  # TODO: no_qos default should be None
+def protocol_factory(
     msg_handler: MsgHandler,
     /,
     *,
-    disable_sending: bool = None,
-    disable_qos: bool = None,
+    disable_sending: None | bool = False,
+    disable_qos: None | bool = False,
 ) -> RamsesProtocol:
     if disable_sending:
         return ReadProtocol(msg_handler)
@@ -575,11 +574,13 @@ def protocol_factory(  # TODO: no_qos default should be None
 
 
 def create_stack(
-    msg_handler: Callable[[Message, None | Message], None],
+    msg_handler: MsgHandler,
     /,
     *,
-    protocol_factory: Callable = None,
-    transport_factory: Callable = None,
+    protocol_factory_: None | Callable = None,
+    transport_factory_: None | Callable = None,
+    disable_sending: bool = False,
+    disable_qos: bool = False,
     **kwargs,
 ) -> tuple[RamsesProtocol, RamsesTransport]:
     """Utility function to provide a Protocol / Transport pair.
@@ -589,17 +590,19 @@ def create_stack(
     - receive Messages via Gateway._handle_msg(msg)
     """
 
-    KEYS = ("disable_sending", "packet_dict", "packet_log")
+    if protocol_factory_:
+        protocol = protocol_factory_(msg_handler, **kwargs)
 
-    if protocol_factory:
-        protocol = protocol_factory(msg_handler, **kwargs)
     else:
+        read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
+
         protocol = protocol_factory(
             msg_handler,
-            read_only=any([bool(kwargs.get(k)) for k in KEYS]),
+            disable_sending=disable_sending or read_only,
+            disable_qos=disable_qos,
         )
 
-    transport = (transport_factory or _transport_factory)(protocol, **kwargs)
+    transport = (transport_factory_ or transport_factory)(protocol, **kwargs)
 
     if not kwargs.get(SZ_PORT_NAME):
         set_logger_timesource(transport._dt_now)
