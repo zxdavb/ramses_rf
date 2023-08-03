@@ -64,10 +64,8 @@ from .schemas import (
 # from .version import VERSION
 
 # if TYPE_CHECKING:
-#     from io import TextIOWrapper
-
-_MsgProtocolT = TypeVar("_MsgProtocolT", bound="asyncio.Protocol")
-PktTransportT = TypeVar("PktTransportT", bound="asyncio.Transport")
+_ProtocolT = TypeVar("_ProtocolT", bound="asyncio.Protocol")
+_TransportT = TypeVar("_TransportT", bound="asyncio.Transport")
 _SerPortName = str
 
 
@@ -134,7 +132,9 @@ def _str(value: bytes) -> str:
 class _PktMixin:
     """Base class for RAMSES II transports."""
 
-    _protocol: _MsgProtocolT
+    _this_pkt: None | Packet
+    _prev_pkt: None | Packet
+    _protocol: _ProtocolT
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -162,10 +162,10 @@ class _PktMixin:
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
 
-class _DevMixin:  # NOTE: active gwy detection in here
+class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here too
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
-    _extra: bool  # mypy
+    _extra: dict[str, Any]  # mypy
 
     def __init__(
         self,
@@ -173,9 +173,12 @@ class _DevMixin:  # NOTE: active gwy detection in here
         enforce_include_list: bool = False,
         exclude_list: None | dict = None,
         include_list: None | dict = None,
-        disable_sending: bool = None,
+        disable_sending: bool = False,
         **kwargs,
     ) -> None:
+        exclude_list = exclude_list or {}
+        include_list = include_list or {}
+
         self._evofw_flag = kwargs.pop(SZ_EVOFW3_FLAG, None)  # gwy.config.evofw_flag
 
         super().__init__(*args, **kwargs)
@@ -273,7 +276,7 @@ class _DevMixin:  # NOTE: active gwy detection in here
             super()._pkt_received(pkt)
 
 
-class _RegMixin:
+class _RegHackMixin:
     """"""
 
     def __init__(self, *args, **kwargs) -> None:
@@ -320,7 +323,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
     def __init__(
         self,
         pkt_source: dict | TextIOWrapper,
-        protocol: None | _MsgProtocolT = None,
+        protocol: None | _ProtocolT = None,
         loop: None | asyncio.AbstractEventLoop = None,
         **kwargs,
     ) -> None:
@@ -432,7 +435,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
     def __init__(
         self,
         pkt_source: Serial,
-        protocol: None | _MsgProtocolT = None,
+        protocol: None | _ProtocolT = None,
         loop: None | asyncio.AbstractEventLoop = None,
         extra: None | dict = None,
     ) -> None:
@@ -509,14 +512,14 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
 
 # ### Read-Only Transports for dict / log file ########################################
-class FileTransport(_DevMixin, _FileTransport):
+class FileTransport(_DeviceIdFilterMixin, _FileTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
     pass
 
 
 # ### Read-Write Transport for serial port ############################################
-class PortTransport(_RegMixin, _DevMixin, _PortTransport):
+class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
     pass
@@ -526,11 +529,14 @@ class PortTransport(_RegMixin, _DevMixin, _PortTransport):
 class QosTransport(PortTransport):  # from a serial port, includes QoS
     """Poll a seial port for packets, and send with QoS."""
 
+    # NOTE: Might normally include code to the limit duty cycle, etc., but see
+    # the note in Protocol layer
+
     pass
 
 
 def transport_factory(
-    protocol: Callable[[], _MsgProtocolT],
+    protocol: Callable[[], _ProtocolT],
     /,
     *,
     port_name: None | _SerPortName = None,
@@ -538,7 +544,7 @@ def transport_factory(
     packet_log: None | TextIOWrapper = None,
     packet_dict: None | dict = None,
     **kwargs,
-) -> PktTransportT:
+) -> _TransportT:
     # expected kwargs include:
     #  disable_sending: bool = None,
     #  enforce_include_list: bool = None,
@@ -584,7 +590,7 @@ def transport_factory(
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
         raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
 
-    kwargs.pop("disable_sending", None)
+    # kwargs.pop("disable_sending", False)
 
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(pkt_source, protocol, **kwargs)

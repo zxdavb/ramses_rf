@@ -37,7 +37,6 @@ from .protocol import (
     transport_factory,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .protocol.protocol import MsgProtocolT, PktTransportT
 from .protocol.schemas import (
     SCH_ENGINE_CONFIG,
     SZ_BLOCK_LIST,
@@ -78,6 +77,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 if TYPE_CHECKING:
     from .device import Device
     from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
+    from .protocol.protocol import _ProtocolT, _TransportT
 
 _MsgHandlerT = Callable[[Message], None]
 
@@ -141,8 +141,8 @@ class Engine:
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
 
-        self._protocol: MsgProtocolT = None  # type: ignore[assignment]
-        self._transport: PktTransportT = None  # type: ignore[assignment]
+        self._protocol: _ProtocolT = None  # type: ignore[assignment]
+        self._transport: _TransportT = None  # type: ignore[assignment]
 
         self._prev_msg: None | Message = None
         self._this_msg: None | Message = None
@@ -163,7 +163,7 @@ class Engine:
 
     def _set_msg_handler(
         self, msg_handler: _MsgHandlerT
-    ) -> tuple[MsgProtocolT, PktTransportT]:
+    ) -> tuple[_ProtocolT, _TransportT]:
         """Create an appropriate protocol for the packet source (transport).
 
         The corresponding transport will be created later.
@@ -519,7 +519,7 @@ class Gateway(Engine):
         self._resume()
 
     async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
-        tmp_transport: PktTransportT  # mypy hint
+        tmp_transport: _TransportT  # mypy hint
 
         load_schema(self, **schema)
 

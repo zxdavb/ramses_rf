@@ -28,7 +28,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import SZ_IS_EVOFW3, PktTransportT
+from .transport import SZ_IS_EVOFW3, _TransportT
 from .transport import transport_factory as _transport_factory
 
 # skipcq: PY-W2000
@@ -40,8 +40,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-
-MsgProtocolT = TypeVar("MsgProtocolT", bound="_BaseProtocol")
+# if TYPE_CHECKING:
+_MsgHandlerT = Callable[[Message], None]
+_MsgFilterT = Callable[[Message], bool]
+_ProtocolT = TypeVar("_ProtocolT", bound="_BaseProtocol")
 
 MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
@@ -160,11 +162,11 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
         last_time_bit_added = perf_counter()
 
         @wraps(fnc)
-        async def wrapper(self, packet: str, *args, **kwargs):
+        async def wrapper(self, frame: str, *args, **kwargs):
             nonlocal bits_in_bucket
             nonlocal last_time_bit_added
 
-            rf_frame_size = 330 + len(packet[46:]) * 10
+            rf_frame_size = 330 + len(frame[46:]) * 10
 
             # top-up the bit bucket
             elapsed_time = perf_counter() - last_time_bit_added
@@ -179,7 +181,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
 
             # consume the bits from the bit bucket
             try:
-                await fnc(self, packet, *args, **kwargs)  # was return ...
+                await fnc(self, frame, *args, **kwargs)
             finally:
                 bits_in_bucket -= rf_frame_size
 
@@ -244,10 +246,6 @@ def limit_transmit_rate(max_tokens: float, time_window: int = CYCLE_DURATION):
     return decorator
 
 
-_MsgHandlerT = Callable[[Message], None]
-_MsgFilterT = Callable[[Message], bool]
-
-
 class _BaseProtocol(asyncio.Protocol):
     """Base class for RAMSES II protocols."""
 
@@ -260,7 +258,7 @@ class _BaseProtocol(asyncio.Protocol):
         self._msg_handler = msg_handler
         self._msg_handlers: list[_MsgHandlerT] = []
 
-        self._transport: PktTransportT = None  # type: ignore[assignment]
+        self._transport: _TransportT = None  # type: ignore[assignment]
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False
@@ -285,7 +283,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return del_handler
 
-    def connection_made(self, transport: PktTransportT) -> None:
+    def connection_made(self, transport: _TransportT) -> None:
         """Called by the Transport when a connection is made with it.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -365,9 +363,9 @@ class _BaseProtocol(asyncio.Protocol):
         """
         await self._send_frame(str(cmd))
 
-    async def _send_frame(self, data: bytes) -> None:
+    async def _send_frame(self, frame: str) -> None:
         """Write some bytes to the transport."""
-        self._transport.send_frame(data)
+        self._transport.send_frame(frame)
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
@@ -395,7 +393,7 @@ class _BaseProtocol(asyncio.Protocol):
             self._loop.call_soon(callback, msg)
 
 
-class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
+class _AvoidSyncCycle(_BaseProtocol):  # avoid sync cycles
     """A mixin for avoiding sync cycles."""
 
     @track_system_syncs
@@ -405,21 +403,26 @@ class _ProtSyncCycle(_BaseProtocol):  # avoid sync cycles
 
     @avoid_system_syncs
     # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
-    async def _send_frame(self, data: bytes) -> None:
+    async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_frame(data)
+        await super()._send_frame(frame)
 
 
-class _ProtDutyCycle(_ProtSyncCycle):  # stay within duty cycle limits
+# NOTE: The duty cycle limts & minimum gaps between write are in this layer, and not
+# in the Transport layer (as you might expect), because the best are enforced *before*
+# the code that avoids the controller sync cycles
+
+
+class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
     """A mixin for staying within duty cycle limits."""
 
     @limit_duty_cycle(MAX_DUTY_CYCLE)  # @limit_transmit_rate(MAX_TOKENS)
-    async def _send_frame(self, cmd: Command) -> None:
+    async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
-        await super()._send_frame(cmd)
+        await super()._send_frame(frame)
 
 
-class _ProtGapped(_ProtDutyCycle):  # minimum gap between writes
+class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
     """A mixin for enforcing a minimum gap between writes."""
 
     def __init__(self, msg_handler: _MsgHandlerT) -> None:
@@ -437,7 +440,7 @@ class _ProtGapped(_ProtDutyCycle):  # minimum gap between writes
             except ValueError:
                 pass
 
-    def connection_made(self, transport: PktTransportT) -> None:  # type: ignore[override]
+    def connection_made(self, transport: _TransportT) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         super().connection_made(transport)
 
@@ -463,7 +466,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
-    def connection_made(self, transport: PktTransportT) -> None:
+    def connection_made(self, transport: _TransportT) -> None:
         super().connection_made(transport)
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
@@ -493,7 +496,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
 
-    def connection_made(self, transport: PktTransportT) -> None:
+    def connection_made(self, transport: _TransportT) -> None:
         super().connection_made(transport)
         self._context.connection_made(transport)
 
@@ -551,14 +554,14 @@ class ReadProtocol(_BaseProtocol):
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
-class PortProtocol(_ProtImpersonate, _ProtGapped, _BaseProtocol):
+class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
 
     pass
 
 
 # ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(_ProtImpersonate, _ProtGapped, _ProtQosTimers, _BaseProtocol):
+class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
     pass
@@ -570,7 +573,7 @@ def protocol_factory(  # TODO: no_qos default should be None
     *,
     disable_sending: bool = None,
     disable_qos: bool = None,
-) -> MsgProtocolT:
+) -> _ProtocolT:
     if disable_sending:
         return ReadProtocol(msg_handler)
     if disable_qos or _DEBUG_DISABLE_QOS:
@@ -585,7 +588,7 @@ def create_stack(
     protocol_factory: Callable = None,
     transport_factory: Callable = None,
     **kwargs,
-) -> tuple[MsgProtocolT, PktTransportT]:
+) -> tuple[_ProtocolT, _TransportT]:
     """Utility function to provide a Protocol / Transport pair.
 
     Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
