@@ -61,14 +61,6 @@ from .schemas import (
     SZ_USE_REGEX,
 )
 
-# from .version import VERSION
-
-# if TYPE_CHECKING:
-_ProtocolT = TypeVar("_ProtocolT", bound="asyncio.Protocol")
-_TransportT = TypeVar("_TransportT", bound="asyncio.Transport")
-_SerPortName = str
-
-
 DONT_CREATE_MESSAGES = 3  # duplicate
 
 SZ_ACTIVE_HGI = "active_gwy"
@@ -155,9 +147,8 @@ class _PktMixin:
 
         # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
         # NOTE: Thus, excepts need checking
-        try:
-            if self._protocol:
-                self._protocol.pkt_received(pkt)  # could be a call_soon
+        try:  # below could be a call_soon?
+            self._protocol.pkt_received(pkt)  # type: ignore[attr-defined]
         except AssertionError as exc:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
@@ -216,7 +207,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
         cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
         self._extra[SZ_FINGERPRINT] = cmd.payload
         # use write, not send_cmd to bypass any throttles
-        self.write(bytes(str(cmd), "ascii") + b"\r\n")
+        self.write(bytes(str(cmd), "ascii") + b"\r\n")  # type: ignore[attr-defined]
 
     def _is_wanted_addrs(
         self, src_id: str, dst_id: str, payload: None | str = None
@@ -232,7 +223,6 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
                 f"Blacklisting a Foreign gateway (or is it a HVAC?): {dev_id}"
                 f" (Active gateway is: {self._extra[SZ_ACTIVE_HGI]}){TIP}"
             )
-            return False  # return self._extra[SZ_ACTIVE_HGI] in (src_id, dst_id) ???
 
         def establish_active_hgi(dev_id: str) -> None:
             self._extra[SZ_ACTIVE_HGI] = dev_id
@@ -273,7 +263,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
     def _pkt_received(self, pkt: Packet) -> None:
         """Validate a Packet and dispatch it to the protocol's callback."""
         if self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
-            super()._pkt_received(pkt)
+            super()._pkt_received(pkt)  # type: ignore[misc]
 
 
 class _RegHackMixin:
@@ -306,10 +296,10 @@ class _RegHackMixin:
         return result
 
     def _frame_received(self, dtm: str, frame: str) -> None:
-        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))
+        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
 
     def _send_frame(self, frame: str) -> None:
-        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))
+        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
 class _FileTransport(_PktMixin, asyncio.ReadTransport):
@@ -317,13 +307,14 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
 
     READER_TASK = "reader_task"
     _extra: dict[str, Any]  # mypy
+    _protocol: _ProtocolT
 
     _dtm_str: str = None  # type: ignore[assignment]  # FIXME: remove this somehow
 
     def __init__(
         self,
+        protocol: _ProtocolT,
         pkt_source: dict | TextIOWrapper,
-        protocol: None | _ProtocolT = None,
         loop: None | asyncio.AbstractEventLoop = None,
         **kwargs,
     ) -> None:
@@ -336,7 +327,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         self._is_closing: bool = False
         self._is_reading: bool = False
 
-        self._extra[self.READER_TASK] = self._loop.create_task(self._start_reader())
+        self._reader_task = self._loop.create_task(self._start_reader())
         self._loop.call_soon(self._protocol.connection_made, self)
 
     def _dt_now(self) -> dt:
@@ -348,7 +339,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
             pass
 
         try:
-            return self._this_pkt.dtm  # if above fails, will be previous pkt's dtm
+            return self._this_pkt.dtm
         except AttributeError:
             return dt(1970, 1, 1, 1, 0)
 
@@ -356,6 +347,11 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
     def loop(self):
         """The asyncio event loop as used by SerialTransport."""
         return self._loop
+
+    def get_extra_info(self, name, default=None):
+        if name == self.READER_TASK:
+            return self._reader_task
+        return super().get_extra_info(name, default)
 
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
@@ -420,9 +416,8 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
             return
         self._is_closing = True
 
-        reader: asyncio.Task = self._extra.get(self.READER_TASK)
-        if reader:
-            reader.cancel()
+        if self._reader_task:
+            self._reader_task.cancel()
 
         self._loop.call_soon(self._protocol.connection_lost, exc)
 
@@ -434,8 +429,8 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
     def __init__(
         self,
+        protocol: _ProtocolT,
         pkt_source: Serial,
-        protocol: None | _ProtocolT = None,
         loop: None | asyncio.AbstractEventLoop = None,
         extra: None | dict = None,
     ) -> None:
@@ -451,8 +446,6 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         return dt_now()
 
     def get_extra_info(self, name, default=None):
-        """Get optional transport information."""
-
         if name in self._extra:
             return self._extra.get(name, default)
         return super().get_extra_info(name, default)
@@ -539,19 +532,19 @@ def transport_factory(
     protocol: Callable[[], _ProtocolT],
     /,
     *,
-    port_name: None | _SerPortName = None,
+    port_name: None | SerPortName = None,
     port_config: None | dict = None,
     packet_log: None | TextIOWrapper = None,
     packet_dict: None | dict = None,
     **kwargs,
-) -> _TransportT:
+) -> RamsesTransport:
     # expected kwargs include:
     #  disable_sending: bool = None,
     #  enforce_include_list: bool = None,
     #  exclude_list: None | dict = None,
     #  include_list: None | dict = None,
 
-    def get_serial_instance(ser_name: _SerPortName, ser_config: dict) -> Serial:
+    def get_serial_instance(ser_name: SerPortName, ser_config: dict) -> Serial:
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
@@ -593,7 +586,7 @@ def transport_factory(
     # kwargs.pop("disable_sending", False)
 
     if (pkt_source := packet_log or packet_dict) is not None:
-        return FileTransport(pkt_source, protocol, **kwargs)
+        return FileTransport(protocol, pkt_source, **kwargs)
 
     assert port_name is not None  # mypy: instead of: _type: ignore[arg-type]
     assert port_config is not None  # mypy: instead of: _type: ignore[arg-type]
@@ -603,9 +596,14 @@ def transport_factory(
     # TODO: ensure poller for Windows NT
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()
-        return PortTransport(ser_instance, protocol, **kwargs)
+        return PortTransport(protocol, ser_instance, **kwargs)
 
     if kwargs.get("disable_sending"):  # no need for QoS
-        return PortTransport(ser_instance, protocol, **kwargs)
+        return PortTransport(protocol, ser_instance, **kwargs)
 
-    return QosTransport(ser_instance, protocol, **kwargs)
+    return QosTransport(protocol, ser_instance, **kwargs)
+
+
+_ProtocolT = TypeVar("_ProtocolT", bound="asyncio.Protocol")
+RamsesTransport = FileTransport | PortTransport | QosTransport
+SerPortName = str

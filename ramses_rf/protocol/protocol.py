@@ -10,13 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-
-# import signal
 from collections import deque
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import Any, Awaitable, Callable
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
@@ -28,7 +26,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import SZ_IS_EVOFW3, _TransportT
+from .transport import SZ_IS_EVOFW3, RamsesTransport
 from .transport import transport_factory as _transport_factory
 
 # skipcq: PY-W2000
@@ -39,11 +37,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
-
-# if TYPE_CHECKING:
-_MsgHandlerT = Callable[[Message], None]
-_MsgFilterT = Callable[[Message], bool]
-_ProtocolT = TypeVar("_ProtocolT", bound="_BaseProtocol")
 
 MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
@@ -254,11 +247,11 @@ class _BaseProtocol(asyncio.Protocol):
     _this_msg: None | Message = None
     _prev_msg: None | Message = None
 
-    def __init__(self, msg_handler: _MsgHandlerT):  # , **kwargs) -> None:
+    def __init__(self, msg_handler: MsgHandler):  # , **kwargs) -> None:
         self._msg_handler = msg_handler
-        self._msg_handlers: list[_MsgHandlerT] = []
+        self._msg_handlers: list[MsgHandler] = []
 
-        self._transport: _TransportT = None  # type: ignore[assignment]
+        self._transport: RamsesTransport = None  # type: ignore[assignment]
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False
@@ -266,8 +259,8 @@ class _BaseProtocol(asyncio.Protocol):
 
     def add_handler(
         self,
-        msg_handler: _MsgHandlerT,
-        msg_filter: None | _MsgFilterT = None,
+        msg_handler: MsgHandler,
+        msg_filter: None | MsgFilter = None,
     ) -> Callable[[None], None]:
         """Add a Message handler to the list of such callbacks.
 
@@ -283,7 +276,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return del_handler
 
-    def connection_made(self, transport: _TransportT) -> None:
+    def connection_made(self, transport: RamsesTransport) -> None:
         """Called by the Transport when a connection is made with it.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -425,7 +418,7 @@ class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
 class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
     """A mixin for enforcing a minimum gap between writes."""
 
-    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+    def __init__(self, msg_handler: MsgHandler) -> None:
         super().__init__(msg_handler)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
@@ -440,7 +433,7 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
             except ValueError:
                 pass
 
-    def connection_made(self, transport: _TransportT) -> None:  # type: ignore[override]
+    def connection_made(self, transport: RamsesTransport) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         super().connection_made(transport)
 
@@ -466,7 +459,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
-    def connection_made(self, transport: _TransportT) -> None:
+    def connection_made(self, transport: RamsesTransport) -> None:
         super().connection_made(transport)
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
@@ -492,11 +485,11 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 class _ProtQosTimers(_BaseProtocol):  # context/state
     """A mixin for maintaining state via a FSM."""
 
-    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+    def __init__(self, msg_handler: MsgHandler) -> None:
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
 
-    def connection_made(self, transport: _TransportT) -> None:
+    def connection_made(self, transport: RamsesTransport) -> None:
         super().connection_made(transport)
         self._context.connection_made(transport)
 
@@ -541,7 +534,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
 class ReadProtocol(_BaseProtocol):
     """A protocol that can only receive Packets."""
 
-    def __init__(self, msg_handler: _MsgHandlerT) -> None:
+    def __init__(self, msg_handler: MsgHandler) -> None:
         super().__init__(msg_handler)
 
         self._pause_writing = True
@@ -568,12 +561,12 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
 
 
 def protocol_factory(  # TODO: no_qos default should be None
-    msg_handler: _MsgHandlerT,
+    msg_handler: MsgHandler,
     /,
     *,
     disable_sending: bool = None,
     disable_qos: bool = None,
-) -> _ProtocolT:
+) -> RamsesProtocol:
     if disable_sending:
         return ReadProtocol(msg_handler)
     if disable_qos or _DEBUG_DISABLE_QOS:
@@ -588,7 +581,7 @@ def create_stack(
     protocol_factory: Callable = None,
     transport_factory: Callable = None,
     **kwargs,
-) -> tuple[_ProtocolT, _TransportT]:
+) -> tuple[RamsesProtocol, RamsesTransport]:
     """Utility function to provide a Protocol / Transport pair.
 
     Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
@@ -613,3 +606,8 @@ def create_stack(
         _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
     return protocol, transport
+
+
+MsgHandler = Callable[[Message], None]
+MsgFilter = Callable[[Message], bool]
+RamsesProtocol = ReadProtocol | PortProtocol | QosProtocol
