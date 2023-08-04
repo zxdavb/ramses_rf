@@ -509,8 +509,10 @@ class Entity(Discovery):
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
     def _send_cmd(self, cmd: Command, **kwargs) -> None | asyncio.Task:
-        if self._gwy._disable_sending:
-            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request")
+        """Send a Command & return the corresponding Task."""
+
+        if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
+            _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
             return None
 
         if self._qos_tx_count > _QOS_TX_LIMIT:
@@ -519,7 +521,21 @@ class Entity(Discovery):
 
         cmd._source_entity = self
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)  # BUG, should be: await async_send_cmd()
+        return self._gwy.send_cmd(cmd)
+
+    async def _async_send_cmd(self, cmd: Command) -> None | Packet:
+        """Send a Command & return the response Packet, or the echo Packet otherwise."""
+
+        if self._gwy._disable_sending:
+            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
+            return None
+
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.warning(f"{cmd} < Sending now deprecated for {self}")
+            return None
+
+        cmd._source_entity = self
+        return await self._gwy.async_send_cmd(cmd)
 
     @property
     def traits(self) -> dict:
