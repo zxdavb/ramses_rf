@@ -26,15 +26,11 @@ from .device import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-from . import __dev_mode__
-
-DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
-_DEBUG_MAINTAIN_STATE_CHAIN = False  # HACK: use for debugging
+# All debug flags should be False for end-users
+_DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
 SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
@@ -217,7 +213,7 @@ class Context:
 _ContextT = Context  # TypeVar("_ContextT", bound=Context)
 
 
-class State:
+class BindStateBase:
     """The common state interface for all the states."""
 
     _cmds_sent: int = 0  # num of bind cmds sent
@@ -302,7 +298,7 @@ class State:
         )  # was: BindTimeoutError
 
 
-class Unknown(State):
+class Unknown(BindStateBase):
     """Failed binding, see previous State for more info."""
 
     _warning_sent: bool = False
@@ -333,7 +329,7 @@ class Unknown(State):
         self._send_warning_if_not_already_sent()
 
 
-class Listening(State):
+class Listening(BindStateBase):
     """Respondent has started listening, and is waiting for an Offer.
 
     It will continue to wait for an Offer, unless it times out.
@@ -350,7 +346,7 @@ class Listening(State):
         self._set_context_state(Accepting)
 
 
-class Offering(State):
+class Offering(BindStateBase):
     """Supplicant can send a Offer cmd."""
 
     # can send an Offer anytime now...
@@ -389,7 +385,7 @@ class Offered(Offering):
         self._set_context_state(Confirming)
 
 
-class Accepting(State):  # aka Listened
+class Accepting(BindStateBase):  # aka Listened
     """Respondent has received an Offer, and can send an Accept cmd."""
 
     # no longer waiting for an Offer...
@@ -433,7 +429,7 @@ class Accepted(Accepting):
         self._set_context_state(BoundAccepted)
 
 
-class Confirming(State):
+class Confirming(BindStateBase):
     """Supplicant has received an Accept, and can send a Confirm cmd.
 
     It will continue to send Confirms until it gets any pkt, or times out.
@@ -480,7 +476,7 @@ class Confirmed(Confirming):
             self._set_context_state(Bound)
 
 
-class Bound(State):
+class Bound(BindStateBase):
     """Context is Bound."""
 
     _pkts_rcvd: int = 0  # TODO: check these counters
@@ -526,7 +522,7 @@ class BoundFinal(Accepting, Bound):
 
 if TYPE_CHECKING:
     _FakedT = TypeVar("_FakedT", bound=Fakeable)
-    _StateT = State  # TypeVar("_StateT", bound=State)  # FIXME: mypy says is unbound!!
+    _StateT = BindStateBase
 
 
 # Invalid states from which to move to a new an initial state (Listening, Offering)

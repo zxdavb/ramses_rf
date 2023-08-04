@@ -15,11 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
-from ramses_rf.bind_state import BindState, Context, Exceptions, State
+from ramses_rf.bind_state import BindState, BindStateBase, Context, Exceptions
 from ramses_rf.device.base import Fakeable
 from tests_rf.virtual_rf import _rf_net_cleanup, _rf_net_create, ensure_fakeable
 
-_DeviceStateT = TypeVar("_DeviceStateT", bound=State)
+_DeviceStateT = TypeVar("_DeviceStateT", bound=BindStateBase)
 _FakedDeviceT = TypeVar("_FakedDeviceT", bound=Fakeable)
 
 
