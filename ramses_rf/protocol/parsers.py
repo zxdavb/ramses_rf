@@ -50,6 +50,7 @@ from .const import (
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
+    SZ_OEM_CODE,
     SZ_OUTDOOR_HUMIDITY,
     SZ_PAYLOAD,
     SZ_PRESSURE,
@@ -953,7 +954,7 @@ def parser_10e0(payload, msg) -> dict:
         "product_id": payload[8:10],  # if CH/DHW: matches device_type (sometimes)
         # "software_ver_id": payload[10:12],
         # "list_ver_id": payload[12:14],  # if FF/01 is CH/DHW, then 01/FF
-        "oem_code": payload[14:16],  # 00/FF is CH/DHW, 01/6x is HVAC
+        SZ_OEM_CODE: payload[14:16],  # 00/FF is CH/DHW, 01/6x is HVAC
         # # "additional_ver_a": payload[16:18],
         # # "additional_ver_b": payload[18:20],
         "description": bytearray.fromhex(description).decode(),
