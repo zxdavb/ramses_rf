@@ -40,6 +40,7 @@ from .protocol.const import (  # noqa: F401
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
+    SZ_OEM_CODE,
     SZ_OUTDOOR_HUMIDITY,
     SZ_OUTDOOR_TEMP,
     SZ_PAYLOAD,
