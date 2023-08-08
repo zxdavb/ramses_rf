@@ -405,7 +405,11 @@ class Gateway(Engine):
 
         await super().start()
 
-        if not self._disable_sending and start_discovery:
+        if (
+            not self._disable_sending
+            and not self.config.disable_discovery
+            and start_discovery
+        ):
             initiate_discovery(self.devices, self.systems)
 
     async def stop(self) -> None:  # FIXME: a mess
