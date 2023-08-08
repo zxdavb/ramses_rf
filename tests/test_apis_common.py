@@ -9,16 +9,16 @@ Test the Command.put_*, Command.set_* APIs.
 from ramses_rf.protocol.command import CODE_API_MAP, Command
 
 EXCLUDED_APIS = ("from_attrs", "_from_attrs", "from_cli")
-EXCLUDED_APIS += (  # TODO: ideally, should be an empty list
+EXCLUDED_APIS += (  # TODO: APIs not yet added to the CODE_API_MAP
     "get_schedule_version",
     "put_actuator_cycle",
     "put_actuator_state",
     "put_bind",
     "set_zone_setpoint",
-)
+)  # TODO: ideally, should be an empty list
 
 
-def _test_all_apis_in_map_WIP():  # TODO: doesn't work with typechecked
+def test_all_apis_exist_in_the_map():
     """Check that all Command constrcutors are in CODE_API_MAP."""
 
     cls_apis = [
