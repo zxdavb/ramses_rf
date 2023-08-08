@@ -306,6 +306,8 @@ class Command(Frame):
 
         from_id = from_id or HGI_DEV_ADDR.id
 
+        # if dest_id == NUL_DEV_ADDR.id:
+        #     addrs = (from_id, dest_id, NON_DEV_ADDR.id)
         if dest_id == from_id:
             addrs = (from_id, NON_DEV_ADDR.id, dest_id)
         else:
@@ -1220,11 +1222,12 @@ class Command(Frame):
 
         qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
 
-        if dst_id is None and verb == I_:
-            return cls._put_bind_offer(verb, src_id, codes, qos=qos, **kwargs)
-        if dst_id and verb == W_:
+        if dst_id in (None, src_id, NUL_DEV_ADDR.id) and verb == I_:
+            dst_id = dst_id or src_id
+            return cls._put_bind_offer(verb, src_id, dst_id, codes, qos=qos, **kwargs)
+        elif dst_id and verb == W_:
             return cls._put_bind_accept(verb, src_id, dst_id, codes, qos=qos, **kwargs)
-        if verb == I_:
+        elif verb == I_:
             return cls._put_bind_confirm(verb, src_id, dst_id, codes, qos=qos, **kwargs)
         raise ValueError(f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}")
 
@@ -1234,7 +1237,8 @@ class Command(Frame):
         cls,
         verb: _VerbT,
         src_id: _DeviceIdT,
-        codes: None | _CodeT | Iterable[_CodeT],
+        dst_id: _DeviceIdT,
+        codes: _CodeT | Iterable[_CodeT],
         *,
         idx: None | str = "00",
         oem_code: None | str = "FF",
@@ -1251,15 +1255,21 @@ class Command(Frame):
         # TODO: NOTE: CTL binds to a TRV: contra-offer to the above
         # .I --- 01:220768 --:------ 01:220768 1FC9 018 06-2309-075E60 06-30C9-075E60 06-1FC9-075E60
 
+        if not codes:
+            raise ValueError(f"Invalid codes for a bind offer command: {codes}")
+
         hex_id = Address.convert_to_hex(src_id)
         idx = idx or "00"
         payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
 
         if oem_code and oem_code != "FF":
             payload += f"{oem_code}{Code._10E0}{hex_id}"
-        payload += f"00{Code._1FC9}{hex_id}"
+        if dst_id != NUL_DEV_ADDR.id:  # in 1st pkt of a TRV offer/counter-offer pair
+            payload += f"{idx}{Code._1FC9}{hex_id}"
 
-        return cls._from_attrs(verb, Code._1FC9, payload, addr0=src_id, qos=qos or {})
+        return cls.from_attrs(  # NOTE: .from_attrs, not ._from_attrs
+            verb, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
+        )
 
     @classmethod  # constructor for 1FC9 (rf_bind) accept
     @typechecked
@@ -1268,7 +1278,7 @@ class Command(Frame):
         verb: _VerbT,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
-        codes: None | _CodeT | Iterable[_CodeT],
+        codes: _CodeT | Iterable[_CodeT],
         *,
         idx: None | str = "00",
         qos: dict = None,
@@ -1278,7 +1288,8 @@ class Command(Frame):
         # .W --- 13:208181 01:078710 --:------ 1FC9 006 00-3EF0-372D35
 
         hex_id = Address.convert_to_hex(src_id)
-        payload = f"{idx}{codes[0]}{hex_id}"
+        idx = idx or "00"
+        payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
 
         return cls._from_attrs(
             verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
@@ -1291,8 +1302,8 @@ class Command(Frame):
         verb: _VerbT,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
+        codes: _CodeT | Iterable[_CodeT],
         *,
-        codes: None | _CodeT | Iterable[_CodeT] = None,
         idx: None | str = "00",
         qos: dict = None,
     ):
