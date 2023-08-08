@@ -1202,41 +1202,112 @@ class Command(Frame):
     def put_bind(
         cls,
         verb: _VerbT,
-        codes: None | _CodeT | Iterable[_CodeT],
         src_id: _DeviceIdT,
-        *,
-        idx="00",
+        codes: None | _CodeT | Iterable[_CodeT],
         dst_id: None | _DeviceIdT = None,
         **kwargs,
     ):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
-        # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
-        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
-        # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7  # or, simply: 00
+        if codes is None:
+            codes = []
+        elif len(codes[0]) == len(Code._1FC9):  # list, tuple, or dict (keys)
+            codes = list(codes)
+        elif len(codes[0]) == len(Code._1FC9[0]):
+            codes = [codes]
+        else:
+            raise TypeError(f"Invalid codes: {codes}")
+
+        qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
+
+        if dst_id is None and verb == I_:
+            return cls._put_bind_offer(verb, src_id, codes, qos=qos, **kwargs)
+        if dst_id and verb == W_:
+            return cls._put_bind_accept(verb, src_id, dst_id, codes, qos=qos, **kwargs)
+        if verb == I_:
+            return cls._put_bind_confirm(verb, src_id, dst_id, codes, qos=qos, **kwargs)
+        raise ValueError(f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}")
+
+    @classmethod  # constructor for 1FC9 (rf_bind) offer
+    @typechecked
+    def _put_bind_offer(  # TODO: add idx (BDR-CTL), and handle odd cases (TRV-CTL)
+        cls,
+        verb: _VerbT,
+        src_id: _DeviceIdT,
+        codes: None | _CodeT | Iterable[_CodeT],
+        *,
+        idx: None | str = "00",
+        oem_code: None | str = "FF",
+        qos: dict = None,
+    ):
+        # .I --- 32:208628 --:------ 32:208628 1FC9 018 00-22F1-832EF4                6C-10E0-832EF4 00-1FC9-832EF4
+        # .I --- 37:171871 --:------ 37:171871 1FC9 024 00-22F1-969F5F 00-22F3-969F5F 67-10E0-969F5F 00-1FC9-969F5F
+
+        # TODO: NOTE: CTL binds to BDR: has an idx
+        # .I --- 01:078710 --:------ 01:078710 1FC9 012 F6-2D49-053376                F6-1FC9-053376
+
+        # TODO: NOTE: TRV binds to CTL: a special case - the first two packets:
+        # .I --- 04:045072 63:262142 --:------ 1FC9 006 00-30C9-10B010
+        # TODO: NOTE: CTL binds to a TRV: contra-offer to the above
+        # .I --- 01:220768 --:------ 01:220768 1FC9 018 06-2309-075E60 06-30C9-075E60 06-1FC9-075E60
 
         hex_id = Address.convert_to_hex(src_id)
-        codes = [] if codes is None else codes  # TODO: untidy
-        codes = ([codes] if isinstance(codes, _CodeT) else list(codes)) + [Code._1FC9]
+        idx = idx or "00"
+        payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
 
-        if dst_id is None and verb == I_:  # is an Offer
-            payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
-            addr2 = src_id
+        if oem_code and oem_code != "FF":
+            payload += f"{oem_code}{Code._10E0}{hex_id}"
+        payload += f"00{Code._1FC9}{hex_id}"
 
-        # elif dst_id and verb == I_:  # optional, ? must be 00 for HVAC, but not Heat
-        #     payload = "00"
-        #     addr2 = NON_DEV_ADDR.id
+        return cls._from_attrs(verb, Code._1FC9, payload, addr0=src_id, qos=qos or {})
 
-        elif dst_id and verb in (I_, W_):
-            payload = f"00{codes[0]}{hex_id}"
-            addr2 = NON_DEV_ADDR.id
+    @classmethod  # constructor for 1FC9 (rf_bind) accept
+    @typechecked
+    def _put_bind_accept(
+        cls,
+        verb: _VerbT,
+        src_id: _DeviceIdT,
+        dst_id: _DeviceIdT,
+        codes: None | _CodeT | Iterable[_CodeT],
+        *,
+        idx: None | str = "00",
+        qos: dict = None,
+    ):
+        # .W --- 30:098165 32:208628 --:------ 1FC9 006                21-31DA-797F75
+        # .W --- 32:155617 37:171871 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1
+        # .W --- 13:208181 01:078710 --:------ 1FC9 006 00-3EF0-372D35
 
-        else:
-            raise ValueError("Invalid parameters")
+        hex_id = Address.convert_to_hex(src_id)
+        payload = f"{idx}{codes[0]}{hex_id}"
 
-        kwargs[SZ_QOS] = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
         return cls._from_attrs(
-            verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
+            verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        )
+
+    @classmethod  # constructor for 1FC9 (rf_bind) confirm
+    @typechecked
+    def _put_bind_confirm(
+        cls,
+        verb: _VerbT,
+        src_id: _DeviceIdT,
+        dst_id: _DeviceIdT,
+        *,
+        codes: None | _CodeT | Iterable[_CodeT] = None,
+        idx: None | str = "00",
+        qos: dict = None,
+    ):
+        # .I --- 32:208628 30:098165 --:------ 1FC9 001 21
+        # .I --- 37:171871 32:155617 --:------ 1FC9 001 00
+        # .I --- 01:078710 13:208181 --:------ 1FC9 006 00-FFFF-053376
+
+        if codes:  # if payload
+            hex_id = Address.convert_to_hex(src_id)
+            payload = f"{idx}{codes[0]}{hex_id}"
+        else:
+            payload = idx
+
+        return cls._from_attrs(
+            verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
         )
 
     @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
@@ -1409,6 +1480,7 @@ CODE_API_MAP = {
     f"{I_}|{Code._0002}": Command.put_weather_temp,
     f"{RQ}|{Code._0004}": Command.get_zone_name,
     f"{W_}|{Code._0004}": Command.set_zone_name,
+    f"{RQ}|{Code._0006}": Command.get_schedule_version,
     f"{RQ}|{Code._0008}": Command.get_relay_demand,
     f"{RQ}|{Code._000A}": Command.get_zone_config,
     f"{W_}|{Code._000A}": Command.set_zone_config,
@@ -1430,8 +1502,11 @@ CODE_API_MAP = {
     f"{RQ}|{Code._12B0}": Command.get_zone_window_state,
     f"{RQ}|{Code._1F41}": Command.get_dhw_mode,
     f"{W_}|{Code._1F41}": Command.set_dhw_mode,
+    f"{I_}|{Code._1FC9}": Command.put_bind,
+    f"{W_}|{Code._1FC9}": Command.put_bind,  # NOTE: same class method as I|1FC9
     f"{I_}|{Code._22F1}": Command.set_fan_mode,
     f"{W_}|{Code._22F7}": Command.set_bypass_position,
+    f"{W_}|{Code._2309}": Command.set_zone_setpoint,
     f"{RQ}|{Code._2349}": Command.get_zone_mode,
     f"{W_}|{Code._2349}": Command.set_zone_mode,
     f"{W_}|{Code._2411}": Command.set_fan_param,
@@ -1443,4 +1518,6 @@ CODE_API_MAP = {
     f"{RQ}|{Code._313F}": Command.get_system_time,
     f"{W_}|{Code._313F}": Command.set_system_time,
     f"{RQ}|{Code._3220}": Command.get_opentherm_data,
+    f"{I_}|{Code._3EF0}": Command.put_actuator_state,
+    f"{RP}|{Code._3EF1}": Command.put_actuator_cycle,  # NOTE: seems is never as an I
 }  # TODO: RQ|0404 (Zone & DHW)
