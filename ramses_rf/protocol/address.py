@@ -29,7 +29,8 @@ HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
 NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
-_STRICT_CHECKING = True  # a convenience for the test suite
+# All debug flags should be False for end-users
+_DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
 
 
 class Address:
@@ -129,9 +130,9 @@ def id_to_address(device_id) -> Address:
     return Address(device_id=device_id)
 
 
-HGI_DEV_ADDR = Address(HGI_DEVICE_ID)
-NON_DEV_ADDR = Address(NON_DEVICE_ID)
-NUL_DEV_ADDR = Address(NUL_DEVICE_ID)
+HGI_DEV_ADDR = Address(HGI_DEVICE_ID)  # 18:000730
+NON_DEV_ADDR = Address(NON_DEVICE_ID)  # --:------
+NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
 
 
 @typechecked
@@ -201,7 +202,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     except ValueError as exc:
         raise InvalidAddrSetError(f"Invalid addr set (0x01): {addr_fragment}: {exc}")
 
-    if _STRICT_CHECKING and (
+    if not _DEBUG_DISABLE_STRICT_CHECKING and (
         not (
             # .I --- 01:145038 --:------ 01:145038 1F09 003 FF073F # valid
             # .I --- 04:108173 --:------ 01:155341 2309 003 0001F4 # valid

@@ -16,7 +16,9 @@ from serial.tools.list_ports import comports
 from ramses_rf import Command, Device, Gateway
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf, stifle_impersonation_alert
 
-MIN_GAP_BETWEEN_WRITES = 0  # to patch ramses_rf.protocol.transport
+DISABLE_QOS = True  # #           patch ramses_rf.protocol.protocol
+DISABLE_STRICT_CHECKING = True  # patch ramses_rf.protocol.address
+MIN_GAP_BETWEEN_WRITES = 0  # #   patch ramses_rf.protocol.transport
 
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
@@ -106,8 +108,10 @@ async def assert_found_hgi(
 _global_failed_ports: list[str] = []
 
 
-@patch("ramses_rf.protocol.address._STRICT_CHECKING", False)
-@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", True)
+@patch(
+    "ramses_rf.protocol.address._DEBUG_DISABLE_STRICT_CHECKING", DISABLE_STRICT_CHECKING
+)
+@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", DISABLE_QOS)
 @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",

@@ -4,23 +4,25 @@
 """RAMSES RF - Test the use_regex feature."""
 
 import asyncio
+from datetime import datetime as dt
 from unittest.mock import patch
 
 import pytest
 import serial
 
-from ramses_rf import Command, Gateway
+from ramses_rf import Command, Gateway, Packet
 from ramses_rf.protocol.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_rf.protocol.transport import _str
 from tests_rf.test_virt_network import assert_device
-from tests_rf.virtual_rf import (
-    MIN_GAP_BETWEEN_WRITES,
-    VirtualRf,
-    stifle_impersonation_alert,
-)
+from tests_rf.virtual_rf import VirtualRf, stifle_impersonation_alert
 
-ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
-DEFAULT_MAX_SLEEP = 1
+DEFAULT_WAIT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
+DISABLE_QOS = True  # #          patch ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
+
+
+ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
+DEFAULT_MAX_SLEEP = 0.1
 
 
 RULES_INBOUND = {
@@ -29,17 +31,18 @@ RULES_INBOUND = {
     "--:------ --:------ 12:215819": "01:215819 --:------ 01:215819",
     "000C 006 02(04|08)00FFFFFF": "000C 006 02\\g<1>0013FFFF",
 }
+
 RULES_OUTBOUND = {
     "04:262143": "63:262143",
     "(W.*) 1FC9 (...) 00": "\\g<1> 1FC9 \\g<2> 21",
     "01:215819 --:------ 01:215819": "--:------ --:------ 12:215819",
 }
 
-TESTS_OUTBOUND = {  # sent/echo'd, received by other
+TESTS_OUTBOUND = {  # sent, received by other
     " I 003 01:215819 --:------ 01:215819 0009 003 0000FF": " I 003 --:------ --:------ 12:215819 0009 003 0000FF",
     " I --- 04:262143 --:------ 04:262143 30C9 003 000713": " I --- 63:262143 --:------ 63:262143 30C9 003 000713",
     " I --- 04:262143 --:------ 01:182924 2309 003 0205DC": " I --- 63:262143 --:------ 01:182924 2309 003 0205DC",
-    #
+    # NOTE: the below doesn't work with QoS, as expects a response pkt (would be an I)
     " W --- 30:098165 32:206251 --:------ 1FC9 006 0031DA797F75": " W --- 30:098165 32:206251 --:------ 1FC9 006 2131DA797F75",
 }
 
@@ -47,7 +50,7 @@ TESTS_INBOUND = {  # sent by other, received
     " I 003 --:------ --:------ 12:215819 0009 003 0000FF": " I 003 01:215819 --:------ 01:215819 0009 003 0000FF",
     " I --- 63:262143 --:------ 63:262143 30C9 003 000713": " I --- 04:262143 --:------ 04:262143 30C9 003 000713",
     " I --- 63:262143 --:------ 01:182924 2309 003 0205DC": " I --- 04:262143 --:------ 01:182924 2309 003 0205DC",
-    #
+    # NOTE: the below won't work with QoS
     " W --- 30:098165 32:206251 --:------ 1FC9 006 2131DA797F75": " W --- 30:098165 32:206251 --:------ 1FC9 006 0031DA797F75",
     "RP --- 01:182924 30:068640 --:------ 000C 006 020400FFFFFF": "RP --- 01:182924 30:068640 --:------ 000C 006 02040013FFFF",
     "RP --- 01:182924 30:068640 --:------ 000C 006 020800FFFFFF": "RP --- 01:182924 30:068640 --:------ 000C 006 02080013FFFF",
@@ -71,12 +74,12 @@ async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_S
     assert gwy._this_msg and gwy._this_msg._pkt._frame == expected._frame
 
 
-@pytest.mark.xdist_group(name="serial")
-@patch(
+@pytest.mark.xdist_group(name="virtual_rf")
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(  # stifle_impersonation_alert
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_regex_inbound_():
     """Check the regex filters work as expected."""
 
@@ -89,8 +92,8 @@ async def test_regex_inbound_():
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
 
+    await gwy_0.start()
     try:
-        await gwy_0.start()
         await assert_device(gwy_0, "18:000730")  # quiesce
 
         for cmd, pkt in TESTS_INBOUND.items():
@@ -103,12 +106,13 @@ async def test_regex_inbound_():
         await rf.stop()
 
 
-@pytest.mark.xdist_group(name="serial")
-@patch(
+@pytest.mark.xdist_group(name="virtual_rf")
+@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", DISABLE_QOS)
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(  # stifle_impersonation_alert
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_regex_outbound():
     """Check the regex filters work as expected."""
 
@@ -121,8 +125,8 @@ async def test_regex_outbound():
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
 
+    await gwy_0.start()
     try:
-        await gwy_0.start()
         await assert_device(gwy_0, "18:000730")  # quiesce
         _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
 
@@ -132,6 +136,51 @@ async def test_regex_outbound():
 
             pkt = ser_1.read(ser_1.in_waiting)
             await assert_this_pkt(gwy_0, Command(_str(pkt).strip()[4:]))
+
+    finally:
+        await gwy_0.stop()
+        await rf.stop()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch(  # stifle_impersonation_alert
+    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
+    stifle_impersonation_alert,
+)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+async def test_regex_with_qos():
+    """Check the regex filters work as expected."""
+
+    rf = VirtualRf(2)
+
+    config = GWY_CONFIG
+    config["config"].update(
+        {SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND, SZ_OUTBOUND: RULES_OUTBOUND}}
+    )
+
+    gwy_0 = Gateway(rf.ports[0], **config)
+    ser_1 = serial.Serial(rf.ports[1])
+
+    await gwy_0.start()
+    try:
+        await assert_device(gwy_0, "18:000730")  # quiesce
+        _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
+
+        for before, after in TESTS_OUTBOUND.items():
+            cmd = Command(before)
+            if cmd.rx_header:  # we weont be getting any replies
+                continue
+
+            pkt_src = await gwy_0.async_send_cmd(cmd)  # , timeout=DEFAULT_WAIT_TIMEOUT)
+            assert str(pkt_src) == before
+
+            pkt_dst = Packet.from_port(dt.now(), _str(ser_1.read(ser_1.in_waiting)))
+            assert str(pkt_dst) == after
+
+        for before, after in TESTS_INBOUND.items():
+            ser_1.write(bytes(before.encode("ascii")) + b"\r\n")
+            await assert_this_pkt(gwy_0, Command(after))
 
     finally:
         await gwy_0.stop()
