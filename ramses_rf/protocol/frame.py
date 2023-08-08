@@ -8,6 +8,7 @@ Provide the base class for commands (constructed/sent packets) and packets.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
@@ -52,7 +53,7 @@ _CodeT = str
 _DeviceIdT = str
 _HeaderT = str
 _PayloadT = str
-_VerbT = str
+_VerbT = Literal[" I", "RQ", "RP", " W"]
 
 
 class Frame:
