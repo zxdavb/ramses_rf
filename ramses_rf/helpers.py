@@ -109,7 +109,7 @@ def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
             try:
                 raise exc
             except KeyboardInterrupt:
-                print("ZXCVB|")
+                pass
 
     async def handle_sig_posix(sig):
         """Handle signals on posix platform."""
