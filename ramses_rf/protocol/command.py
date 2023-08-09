@@ -1466,7 +1466,9 @@ class Command(Frame):
 
         payload = f"00{msg_type}"
 
-        if msg_type != "13":
+        if int(msg_type, 16) >= int("20", 16):
+            payload += f"{int(timestamp() * 1e7):012X}"
+        elif msg_type != "13":
             payload += f"{int(timestamp() * 1000):012X}"
 
         if msg_type == "10":

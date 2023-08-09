@@ -140,6 +140,7 @@ LOOKUP_PUZZ = {
     "11": "impersonating",  # pkt header, e.g. 30C9| I|03:123001 (15 characters, packed)
     "12": "message",  # .   # message only, max len is 16 ascii characters
     "13": "message",  # .   # message only, but without a timestamp, max len 22 chars
+    "20": "engine",  # .    # version str, e.g. v0.50.0, has higher-precision timestamp
     "7F": "null",  # .      # packet is null / was nullified: payload to be ignored
 }  # "00" is reserved
 
@@ -2789,7 +2790,10 @@ def parser_7fff(payload, msg) -> dict:
         }
 
     result: dict[str, None | str] = {}
-    if payload[2:4] != "13":
+    if int(payload[2:4]) >= int("20", 16):
+        dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1e7)  # TZ-naive
+        result["datetime"] = dtm.isoformat(timespec="milliseconds")
+    elif payload[2:4] != "13":
         dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)  # TZ-naive
         result["datetime"] = dtm.isoformat(timespec="milliseconds")
 
