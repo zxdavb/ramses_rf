@@ -81,6 +81,7 @@ if DEV_MODE:
 
 # All debug flags should be False for end-users
 _DEBUG_DISABLE_REGEX_WARNINGS = True  # should be False for end-users
+_DEBUG_FORCE_LOG_FRAMES = True  # should be False for end-users
 
 
 class TransportError(Exception):
@@ -478,8 +479,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
                     yield self._dt_now(), line + b"\r\n"
 
         for dtm, raw_line in bytes_received(data):
-            if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
-                _LOGGER.info("RCVD: %s", raw_line)  # should be .info
+            if _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+                _LOGGER.info("RCVD: %s", raw_line)
+            elif _DEBUG_FORCE_LOG_FRAMES:
+                _LOGGER.warning("RCVD: %s", raw_line)
             self._frame_received(dtm, _normalise(_str(raw_line)))
 
     def _frame_received(self, dtm: dt, frame: str) -> None:
@@ -489,8 +492,6 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
             pkt = Packet.from_port(dtm, frame)
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
-        if not pkt:
-            print(pkt)
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 
     def send_frame(self, frame: str) -> None:
@@ -500,8 +501,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # SENT
-        if _LOGGER.getEffectiveLevel() == logging.INFO:  # don't log for DEBUG
-            _LOGGER.info("SENT: %s", b"    " + data)  # should be .info
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+            _LOGGER.info("SENT: %s", b"    " + data)
+        elif _DEBUG_FORCE_LOG_FRAMES:
+            _LOGGER.warning("SENT: %s", b"    " + data)
         super().write(data)
 
 
