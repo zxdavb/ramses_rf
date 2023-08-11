@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from ramses_rf import Code, Device, Gateway
-from ramses_rf.bind_state import BindState, BindStateBase, Context
+from ramses_rf.bind_state import BindContext, BindState, BindStateBase
 from ramses_rf.device import Fakeable
 from ramses_rf.protocol.protocol import QosProtocol, _BaseProtocol, _ProtQosTimers
 
@@ -132,7 +132,7 @@ def ensure_fakeable(dev: Device) -> None:
 
     dev.__class__ = _Fakeable
     setattr(dev, "_faked", None)
-    setattr(dev, "_context", Context(dev))
+    setattr(dev, "_context", BindContext(dev))
     setattr(dev, "_1fc9_state", {})
 
 

@@ -40,7 +40,7 @@ WAITING_TIMEOUT_SECS = 3  # fail Listen/Offer/Accept if no pkt rcvd > this # of 
 CONFIRM_TIMEOUT_SECS = 3  # automatically Bound, from BoundAccepted > this # of seconds
 
 
-__all__ = ["Exceptions", "Context", "BindState"]
+__all__ = ["Exceptions", "BindContext", "BindState"]
 
 
 class BindError(Exception):
@@ -86,7 +86,7 @@ SZ_SUPPLICANT = "supplicant"
 SZ_IS_DORMANT = "is_dormant"
 
 
-class Context:
+class BindContext:
     """The context is the Device class. It should be initiated with a default state."""
 
     _is_respondent: bool  # otherwise, must be supplicant
@@ -221,7 +221,7 @@ class Context:
         self._set_state(BindState.OFFERING)  # TODO: pre-offering
 
 
-_ContextT = Context  # TypeVar("_ContextT", bound=Context)
+_ContextT = BindContext  # TypeVar("_ContextT", bound=Context)
 
 
 class BindStateBase:
@@ -234,7 +234,7 @@ class BindStateBase:
     _retry_limit: int = SENDING_RETRY_LIMIT
     _timer_handle: asyncio.TimerHandle
 
-    def __init__(self, context: Context) -> None:
+    def __init__(self, context: BindContext) -> None:
         self._context = context
         self._set_context_state: Callable = context._set_state
         self._loop = self._context._loop
@@ -253,7 +253,7 @@ class BindStateBase:
         return self.__class__.__name__
 
     @property
-    def context(self) -> Context:
+    def context(self) -> BindContext:
         return self._context
 
     def received_offer(self, msg: Message) -> None:  # treat as unexpected
@@ -509,7 +509,7 @@ class BoundAccepted(Accepting, Bound):
 
     _pkts_rcvd: int = 1  # already sent 1, TODO: check these counters
 
-    def __init__(self, context: Context) -> None:
+    def __init__(self, context: BindContext) -> None:
         super().__init__(context)
 
         self._timer_handle = self._loop.call_later(

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     _CodeT = str  # 4-char, e.g. 10E0, 1FC9
     _IdxT = str  # 2-char, e.g. 00, FC
 
-from ..bind_state import Context
+from ..bind_state import BindContext
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
@@ -298,7 +298,7 @@ class Fakeable(DeviceBase):
         super().__init__(gwy, *args, **kwargs)
 
         self._faked: bool = None  # type: ignore[assignment]
-        self._context = Context(self)
+        self._context = BindContext(self)
 
         self._1fc9_state: dict[str, Any] = {}
 
