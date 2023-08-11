@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, Iterable, TypeVar
 
 if TYPE_CHECKING:
     from typing import Callable
 
-    from .device import Command, Device, Message
+    from .device import Command, Message
     from .device.base import Fakeable
 
 # skipcq: PY-W2000
@@ -81,21 +81,28 @@ class Exceptions:  # HACK  ???
     BindTimeoutError = BindTimeoutError
 
 
+SZ_RESPONDENT = "respondent"
+SZ_SUPPLICANT = "supplicant"
+SZ_IS_DORMANT = "is_dormant"
+
+
 class Context:
     """The context is the Device class. It should be initiated with a default state."""
 
     _is_respondent: bool  # otherwise, must be supplicant
     _state: _StateT = None  # type: ignore[assignment]
 
-    def __init__(self, dev: _FakedT, initial_state: type[_StateT]) -> None:
+    def __init__(
+        self, dev: _FakedT, initial_state: None | type[_StateT] = None
+    ) -> None:
         self._dev = dev
         self._loop = asyncio.get_running_loop()
+        self._fut: None | asyncio.Future = None
 
-        if initial_state not in (Listening, Offering):
+        if initial_state not in (None, Listening, Offering):
             raise BindStateError(f"{self}: Incompatible inital state: {initial_state}")
 
-        self._is_respondent = initial_state is Listening
-        self.set_state(initial_state)
+        self._set_state(initial_state or IsIdle)
 
     def __repr__(self) -> str:
         return f"{self._dev}: {self.role}: {self.state!r}"
@@ -103,13 +110,21 @@ class Context:
     def __str__(self) -> str:
         return f"{self._dev.id}: {self.state}"
 
-    def set_state(self, state: type[_StateT]) -> None:
-        """Change the State of the Context."""
+    def _set_state(self, state: type[_StateT]) -> None:
+        """Change the State of the Context (used only by the Context)."""
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             prev_state = self._state
 
         self._state = state(self)
+
+        # self._is_respondent is used in role property
+        if state == BindState.LISTENING:
+            self._is_respondent = True
+        elif state == BindState.OFFERING:
+            self._is_respondent = False
+        elif state not in _IS_BINDING_STATES:
+            self._is_respondent = None
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
@@ -120,94 +135,90 @@ class Context:
 
     @property
     def role(self) -> str:
-        return "respondent" if self._is_respondent else "supplicant"
+        if self._is_respondent is True:
+            return SZ_RESPONDENT
+        if self._is_respondent is False:
+            return SZ_SUPPLICANT
+        return SZ_IS_DORMANT
 
-    @classmethod
-    def respondent(cls, dev: _FakedT) -> Context:  # HACK: using _context is regrettable
-        """Create a new Context only if the Device is coming from a suitable state."""
-        if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
-            raise BindStateError(
-                f"{dev}: incompatible current State for Device: {dev._context}"
-            )
-        return cls(dev, BindState.LISTENING)
-
-    @classmethod
-    def supplicant(cls, dev: _FakedT) -> Context:  # HACK: using _context is regrettable
-        """Create a new Context only if the Device is coming from a suitable state."""
-        if dev._context is not None and type(dev._context.state) in _BAD_PREV_STATES:
-            raise BindStateError(
-                f"{dev}: incompatible current State for Device: {dev._context}"
-            )
-        return cls(dev, BindState.OFFERING)
+    @property
+    def is_binding(self) -> bool:
+        """Return True if is currently participating in a binding process."""
+        return isinstance(self._state, _IS_BINDING_STATES)
 
     def rcvd_msg(self, msg: Message) -> None:
-        # Can assume the packet payloads have passed validation, but for mypy:
-        if TYPE_CHECKING:
-            assert isinstance(msg.src, Device)
+        """Process any relevant Message that was received."""
+
+        # TODO: need to handle 10E0, and any others
+        if msg.code == Code._10E0:
+            return
+        if msg.code != Code._1FC9:
+            return
 
         if msg.verb == I_ and msg.src is msg.dst:  # msg["phase"] == "offer":
-            self._rcvd_offer(msg.src)
+            if msg.src is self._dev:
+                self._state.received_offer(msg)  # Supplicant: Offered
+            else:
+                self._state.received_offer(msg)  # Respondent: Listening
         elif msg.verb == W_:  # msg["phase"] == "accept":
-            self._rcvd_accept(msg.src)
+            if msg.src is self._dev:
+                self._state.received_accept(msg)
+            elif msg.dst is self._dev:
+                self._state.received_accept(msg)
+            else:
+                self._state.received_accept(msg)
         elif msg.verb == I_:  # msg["phase"] == "confirm":
-            self._rcvd_confirm(msg.src)
-
-    def _rcvd_offer(self, src: Device) -> None:
-        """Context has received an Offer pkt.
-
-        It may be from the supplicant (self._dev is msg._src), or was cast to all
-        listening devices.
-        """
-        # if self._is_respondent and src is self._dev:
-        #     pass  # raise BindFlowError(f"{self}: unexpected Offer from itself")
-        # elif not self._is_respondent and src is not self._dev:
-        #     pass  # TODO: issue warning & return
-        self.state.received_offer(src is self._dev)  # not self._is_respondent)
-
-    def _rcvd_accept(self, src: Device) -> None:
-        """Context has received an Accept pkt.
-
-        It may be from the respondent (self._dev is msg._dst), or to the supplicant.
-        """
-        # if self._is_respondent and dst is not self._dev:
-        #     pass  # TODO: issue warning & return
-        # elif not self._is_respondent and src is self._dev:
-        #     raise BindFlowError(f"{self}: unexpected Accept from itself")
-        self.state.received_accept(src is self._dev)  # self._is_respondent)
-
-    def _rcvd_confirm(self, src: Device) -> None:
-        """Context has received a Confirm pkt.
-
-        It may be from the supplicant (self._dev is msg._dst), or to the respondent.
-        """
-        # if self._is_respondent and src is self._dev:
-        #     raise BindFlowError(f"{self}: unexpected Confirm from itself")
-        # elif not self._is_respondent and src is not self._dev:
-        #     pass  # TODO: issue warning & return
-        self.state.received_confirm(src is self._dev)  # not self._is_respondent)
+            if msg.src is self._dev:
+                self._state.received_confirm(msg)
+            elif msg.dst is self._dev:
+                self._state.received_confirm(msg)
+            else:
+                self._state.received_confirm(msg)
 
     def sent_cmd(self, cmd: Command) -> None:
-        # Assume the packet meta-data is valid
+        """Process any relevant Command that was sent."""
+
+        # TODO: need to handle 10E0, and any others
+        if cmd.code == Code._10E0:
+            return
+        if cmd.code != Code._1FC9:
+            return
+
+        # these sends raise BindRetryError if RETRY_LIMIT exceeded
         if cmd.verb == I_ and cmd.src is cmd.dst:
-            self._sent_offer()
+            self._state.sent_offer(cmd)  # Supplicant: Offering
         elif cmd.verb == W_:  # and cmd.src is self:
-            self._sent_accept()
+            self._state.sent_accept(cmd)  # Respondent: Accepting
         elif cmd.verb == I_:  # and cmd.src is self:
-            self._sent_confirm()
-        else:
-            raise RuntimeError  # TODO: better error message
+            self._state.sent_confirm(cmd)  # Supplicant: Confirming
 
-    def _sent_offer(self) -> None:
-        """Context has sent an Offer."""
-        self.state.sent_offer()  # raises BindRetryError if RETRY_LIMIT exceeded
+    async def wait_for_binding_request(
+        self, codes: Iterable[Code], idx: str = "00", timeout=WAITING_TIMEOUT_SECS
+    ) -> Any:
+        """Bind as a Respondent and return the result."""
+        if self.is_binding:
+            raise BindStateError(f"{self._dev}: bad start State for a bind: {self}")
+        self._set_state(BindState.LISTENING)
 
-    def _sent_accept(self) -> None:
-        """Context has sent an Accept."""
-        self.state.sent_accept()  # raises BindRetryError if RETRY_LIMIT exceeded
+        assert self._fut is None or self._fut.done()
+        self._fut = self._loop.create_future()
 
-    def _sent_confirm(self) -> None:
-        """Context has sent an Confirm."""
-        self.state.sent_confirm()  # raises BindRetryError if RETRY_LIMIT exceeded
+        try:
+            await asyncio.wait_for(self._fut, timeout)
+        except asyncio.TimeoutError:
+            _LOGGER.warning("!!! wait_for(fut) has asyncio.TimeoutError")
+            self._fut.set_exception(BindTimeoutError("WaitforOffer timeout expired"))
+
+        return self._fut.result()
+
+    def initiate_binding_process(
+        self, codes: Iterable[Code], oem_code: None | str = None
+    ) -> Any:
+        """Bind as a Supplicant and return the result."""
+
+        if self.is_binding:
+            raise BindStateError(f"{self._dev}: bad start State for a bind: {self}")
+        self._set_state(BindState.OFFERING)  # TODO: pre-offering
 
 
 _ContextT = Context  # TypeVar("_ContextT", bound=Context)
@@ -225,7 +236,7 @@ class BindStateBase:
 
     def __init__(self, context: Context) -> None:
         self._context = context
-        self._set_context_state: Callable = context.set_state
+        self._set_context_state: Callable = context._set_state
         self._loop = self._context._loop
 
         _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
@@ -245,57 +256,52 @@ class BindStateBase:
     def context(self) -> Context:
         return self._context
 
-    def received_offer(self, from_self: bool) -> None:  # treat as unexpected
+    def received_offer(self, msg: Message) -> None:  # treat as unexpected
         """Treat an Offer as unexpected (by default) and raise a BindFlowError."""
-        raise BindFlowError(
-            f"{self.context}: unexpected Offer from {'itself' if from_self else 'another'}"
-        )
+        hint = "itself" if msg.src is self.context._dev else str(msg.src)
+        raise BindFlowError(f"{self.context}: unexpected Offer from {hint}")
 
-    def received_accept(self, from_self: bool) -> None:  # treat as unexpected
+    def received_accept(self, msg: Message) -> None:  # treat as unexpected
         """Treat an Accept as unexpected (by default) and raise a BindFlowError."""
-        raise BindFlowError(
-            f"{self.context}: unexpected Accept from {'itself' if from_self else 'another'}"
-        )
+        hint = "itself" if msg.src is self.context._dev else str(msg.src)
+        raise BindFlowError(f"{self.context}: unexpected Accept from {hint}")
 
-    def received_confirm(self, from_self: bool) -> None:  # treat as unexpected
+    def received_confirm(self, msg: Message) -> None:  # treat as unexpected
         """Treat a Confirm as unexpected (by default) and raise a BindFlowError."""
-        raise BindFlowError(
-            f"{self.context}: unexpected Confirm from {'itself' if from_self else 'another'}"
-        )
+        hint = "itself" if msg.src is self.context._dev else str(msg.src)
+        raise BindFlowError(f"{self.context}: unexpected Confirm from {hint}")
 
-    def sent_offer(self) -> None:  # treat as unexpected
+    def sent_offer(self, cmd: Command) -> None:  # treat as unexpected
         """Raise BindRetryError if the RETRY_LIMIT is exceeded."""
         raise BindFlowError(f"{self.context}: not expected to send an Offer")
 
-    def sent_accept(self) -> None:  # treat as unexpected
+    def sent_accept(self, cmd: Command) -> None:  # treat as unexpected
         """Raise BindRetryError if the RETRY_LIMIT is exceeded."""
         raise BindFlowError(f"{self.context}: not expected to send an Accept")
 
-    def sent_confirm(self) -> None:  # treat as unexpected
+    def sent_confirm(self, cmd: Command) -> None:  # treat as unexpected
         """Raise BindRetryError if the RETRY_LIMIT is exceeded."""
         raise BindFlowError(f"{self.context}: not expected to send a Confirm")
 
     def _retries_exceeded(self) -> None:
-        """Process an overrun of the RETRY_LIMIT when sending a Command.
-
-        The Tx retry limit has been exceeded, with nothing heard from the other device.
-        """
+        """Process an overrun of the RETRY_LIMIT when sending a Command."""
 
         self._set_context_state(Unknown)
         _LOGGER.warning(
-            f"{self._context}: {self._retry_limit} commands sent, but no response received"
+            f"{self._context}: {self._retry_limit} commands sent, but packet not received"
             ""
         )  # was: BindRetryError
 
     def _wait_timer_expired(self) -> None:
-        """Process an overrun of the wait timer when waiting for a Packet.
-
-        The Rx wait time has been exceeded, with nothing heard from the other device.
-        """
+        """Process an overrun of the wait timer when waiting for a Packet."""
         self._set_context_state(Unknown)
         _LOGGER.warning(
-            f"{self._context}: {WAITING_TIMEOUT_SECS} secs passed, but no response received"
+            f"{self._context}: {WAITING_TIMEOUT_SECS} secs passed, but packet not received"
         )  # was: BindTimeoutError
+
+
+class IsIdle(BindStateBase):
+    pass
 
 
 class Unknown(BindStateBase):
@@ -310,22 +316,22 @@ class Unknown(BindStateBase):
         self._warning_sent = True
         raise BindStateError(f"{self}: Current state is Unknown")
 
-    def received_offer(self, from_self: bool) -> None:
+    def received_offer(self, msg: Message) -> None:
         self._send_warning_if_not_already_sent()
 
-    def received_accept(self, from_self: bool) -> None:
+    def received_accept(self, msg: Message) -> None:
         self._send_warning_if_not_already_sent()
 
-    def received_confirm(self, from_self: bool) -> None:
+    def received_confirm(self, msg: Message) -> None:
         self._send_warning_if_not_already_sent()
 
-    def sent_offer(self) -> None:
+    def sent_offer(self, cmd: Command) -> None:
         self._send_warning_if_not_already_sent()
 
-    def sent_accept(self) -> None:
+    def sent_accept(self, cmd: Command) -> None:
         self._send_warning_if_not_already_sent()
 
-    def sent_confirm(self) -> None:
+    def sent_confirm(self, cmd: Command) -> None:
         self._send_warning_if_not_already_sent()
 
 
@@ -338,9 +344,12 @@ class Listening(BindStateBase):
     _has_wait_timer: bool = True
 
     # waiting for an Offer until timer expires...
-    def received_offer(self, from_self: bool) -> None:
-        if from_self:  # Respondents (listeners) shouldn't send Offers
-            super().received_offer(from_self)  # TODO: log & ignore?
+    def received_offer(self, msg: Message) -> None:
+        if msg.src is self.context._dev:  # Listeners shouldn't send Offers
+            super().received_offer(msg)  # TODO: log & ignore?
+
+        assert self.context._fut and not self.context._fut.done()
+        self.context._fut.set_result(msg)
 
         self._timer_handle.cancel()
         self._set_context_state(Accepting)
@@ -349,8 +358,15 @@ class Listening(BindStateBase):
 class Offering(BindStateBase):
     """Supplicant can send a Offer cmd."""
 
+    # def received_offer(self, msg: Message) -> None:  # OK if is echo from itself
+    #     """Ignore any Offer echo'd to a Device from itself."""
+    #     if msg.src is not self._context._dev:
+    #         super().received_offer(msg)
+
     # can send an Offer anytime now...
-    def sent_offer(self) -> None:
+    def sent_offer(self, cmd: Command) -> None:
+        if self._context.role != SZ_SUPPLICANT:
+            super().sent_offer(cmd)
         self._set_context_state(Offered)
 
 
@@ -365,21 +381,19 @@ class Offered(Offering):
     _has_wait_timer: bool = True
 
     # has sent one Offer so far...
-    def received_offer(self, from_self: bool) -> None:
-        if not from_self:
-            pass  # TODO: log & ignore?
+    def received_offer(self, msg: Message) -> None:
+        if msg.src is not self.context._dev:  # TODO: check me
+            super().received_offer(msg)
 
-        _LOGGER.warning(f"{self.context}: Offer received before sent")
-
-    def sent_offer(self) -> None:
+    def sent_offer(self, cmd: Command) -> None:
         self._cmds_sent += 1
         if self._retry_limit and self._cmds_sent > self._retry_limit:
             self._retries_exceeded()
 
     # waiting for an Accept until timer expires...
-    def received_accept(self, from_self: bool) -> None:
-        if from_self:  # Supplicants shouldn't send Accepts
-            super().received_accept(from_self)  # TODO: log & ignore?
+    def received_accept(self, msg: Message) -> None:
+        if msg.src is self.context._dev:  # Supplicants shouldn't send Accepts
+            super().received_accept(msg)  # TODO: log & ignore?
 
         self._timer_handle.cancel()
         self._set_context_state(Confirming)
@@ -389,12 +403,17 @@ class Accepting(BindStateBase):  # aka Listened
     """Respondent has received an Offer, and can send an Accept cmd."""
 
     # no longer waiting for an Offer...
-    def received_offer(self, from_self: bool) -> None:  # handle retransmits
-        if from_self:  # Respondents (listeners) shouldn't send Offers
-            super().received_offer(from_self)  # TODO: log & ignore?
+    def received_offer(self, msg: Message) -> None:  # handle retransmits
+        if msg.src is self.context._dev:  # Respondents shouldn't send Offers
+            super().received_offer(msg)  # TODO: log & ignore?
+
+    def received_accept(self, msg: Message) -> None:  # OK if is echo from itself
+        """Ignore any Accept echo'd to a Device from itself."""
+        if msg.src is not self._context._dev:
+            super().received_accept(msg)
 
     # can send an Accept anytime now...
-    def sent_accept(self) -> None:
+    def sent_accept(self, cmd: Command) -> None:
         self._set_context_state(Accepted)
 
 
@@ -409,21 +428,19 @@ class Accepted(Accepting):
     _has_wait_timer: bool = True
 
     # has sent one Accept so far...
-    def received_accept(self, from_self: bool) -> None:  # TODO: warn out of order
-        if not from_self:
-            super().received_accept(from_self)  # TODO: log & ignore?
+    def received_accept(self, msg: Message) -> None:  # TODO: warn out of order
+        if msg.src is not self.context._dev:
+            super().received_accept(msg)  # TODO: log & ignore?
 
-        _LOGGER.warning(f"{self.context}: Accept received before sent")
-
-    def sent_accept(self) -> None:
+    def sent_accept(self, cmd: Command) -> None:
         self._cmds_sent += 1
         if self._retry_limit and self._cmds_sent > self._retry_limit:
             self._retries_exceeded()
 
     # waiting for a Confirm until timer expires...
-    def received_confirm(self, from_self: bool) -> None:
-        if from_self:  # Respondents (listeners) shouldn't send Confirms
-            super().received_confirm(from_self)  # TODO: log & ignore?
+    def received_confirm(self, msg: Message) -> None:
+        if msg.src is self.context._dev:  # Respondents shouldn't send Confirms
+            super().received_confirm(msg)  # TODO: log & ignore?
 
         self._timer_handle.cancel()
         self._set_context_state(BoundAccepted)
@@ -436,12 +453,12 @@ class Confirming(BindStateBase):
     """
 
     # no longer waiting for an Accept...
-    def received_accept(self, from_self: bool) -> None:  # handle retransmits
-        if from_self:  # Supplicants shouldn't send Accepts
-            super().received_accept(from_self)  # TODO: log & ignore?
+    def received_accept(self, msg: Message) -> None:  # handle retransmits
+        if msg.src is self.context._dev:  # Supplicants shouldn't send Accepts
+            super().received_accept(msg)  # TODO: log & ignore?
 
     # can send a Confirm anytime now...
-    def sent_confirm(self) -> None:
+    def sent_confirm(self, cmd: Command) -> None:
         self._set_context_state(Confirmed)
 
 
@@ -461,16 +478,16 @@ class Confirmed(Confirming):
         self._set_context_state(Bound)
 
     # has sent one Confirm so far...
-    def received_confirm(self, from_self: bool) -> None:  # TODO: warn out of order
-        if not from_self:
-            super().received_confirm(from_self)  # TODO: log & ignore?
+    def received_confirm(self, msg: Message) -> None:  # TODO: warn out of order
+        if msg.src is not self.context._dev:  # Respondents shouldn't send Confirms
+            super().received_confirm(msg)
 
         self._pkts_rcvd += 1
         if self._pkts_rcvd > self._cmds_sent and not self._warning_sent:
             _LOGGER.warning(f"{self.context}: Confirmed received before sent")
             self._warning_sent = True
 
-    def sent_confirm(self) -> None:
+    def sent_confirm(self, cmd: Command) -> None:
         self._cmds_sent += 1
         if self._cmds_sent == CONFIRM_RETRY_LIMIT:
             self._set_context_state(Bound)
@@ -481,9 +498,9 @@ class Bound(BindStateBase):
 
     _pkts_rcvd: int = 0  # TODO: check these counters
 
-    def received_confirm(self, from_self: bool) -> None:  # TODO: warn out of order
+    def received_confirm(self, msg: Message) -> None:  # TODO: warn out of order
         # self._pkts_rcvd += 1
-        if not from_self:
+        if msg.src is not self.context._dev:  # TODO: what?
             pass
 
 
@@ -504,9 +521,9 @@ class BoundAccepted(Accepting, Bound):
         self._set_context_state(Bound)
 
     # no longer waiting for a Confirm (handle retransmits from Supplicant)...
-    def received_confirm(self, from_self: bool) -> None:
-        if from_self:  # Respondents (listeners) shouldn't send Confirms
-            super().received_confirm(from_self)  # TODO: log & ignore?
+    def received_confirm(self, msg: Message) -> None:
+        if msg.src is self.context._dev:  # Respondents shouldn't send Confirms
+            super().received_confirm(msg)  # TODO: log & ignore?
 
         self._pkts_rcvd += 1
         if self._pkts_rcvd == CONFIRM_RETRY_LIMIT:
@@ -526,11 +543,12 @@ if TYPE_CHECKING:
 
 
 # Invalid states from which to move to a new an initial state (Listening, Offering)
-_BAD_PREV_STATES = (Listening, Offering, Offered, Accepting, Accepted, Confirming)
+_IS_BINDING_STATES = (Listening, Offering, Offered, Accepting, Accepted, Confirming)
 
 
 class BindState:
     UNKNOWN = Unknown
+    IDLE = IsIdle
     LISTENING = Listening  # #                              waiting for offers
     OFFERING = Offering  # #   sent offer,                  waiting for echo
     OFFERED = Offered  # #     sent offer (seen echo?),     waiting for accept

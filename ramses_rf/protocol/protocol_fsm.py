@@ -122,10 +122,10 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         while True:
             try:
-                *_, fut, _ = self._que.get_nowait()  # *priority, fut, expires
+                *_, fut = self._que.get_nowait()  # *priority, cmd, expires, fut
             except Empty:
                 break
-            fut.cancel()  # if not fut.done(): not required
+            fut.cancel()  # if not fut.done(): not required as can cancel if done
 
         _LOGGER.info(f"... Connection lost when {self.state!r}, Exception: {exc}")
         self.state.lost_connection(exc)
@@ -164,6 +164,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 _LOGGER.debug(f"{self}: Failed to receive echo: {exc}")
                 continue
 
+            # TODO: re: 1FC9 offer/counter-offer: rx_header for offer wont be None
             if not cmd.rx_header:
                 return prev_state._echo
             # assert isinstance(next_state, ProtocolState.RPLY), self
@@ -184,9 +185,10 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     async def _wait_for_send_cmd(
         self, this_state: _StateT, cmd: Command, timeout: td
     ) -> tuple[_StateT, _StateT]:
-        """When the state machine is/becomes Idle, transition to the WantEcho state.
+        """Wait until state machine is such that this context can (re-)send.
 
-        If the state machine is not Idle, the command will join a priority queue.
+        When required, wait until the FSM is/becomes Idle, then transition to the
+        WantEcho state. If it is not Idle, the command will join a priority queue.
 
         Raises a InvalidStateError if transitions to the incorrect state.
         Raises a SendTimeoutError if the timeout is exceeded before transitioning.
@@ -194,22 +196,25 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
 
-        # TODO: if self._is_active_cmd(cmd):  # no need to queue...
-        #     self.state.sent_cmd(cmd, max_retries)  # ?InvalidStateErr/RetryLimitExceeded
-        #     return
+        if self._is_active_cmd(cmd):  # no need to queue...
+            return this_state, self.state
 
         dt_sent = dt.now()
         fut = self._loop.create_future()
-        self._que.put_nowait((DEFAULT_SEND_PRIORITY, dt_sent, fut, dt_sent + timeout))
+        self._que.put_nowait(
+            (DEFAULT_SEND_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
+        )
 
         if self._ready_to_send:  # fut.set_result(None) for next cmd
             self._notify_next_queued_cmd()
 
         try:
-            await asyncio.wait_for(fut, timeout.seconds)
-        except TimeoutError:
-            _LOGGER.warning("!!! wait_for(fut) has expired")
-            fut.set_exception(SendTimeoutError("Timeout has expired (A2)"))
+            await asyncio.wait_for(fut, timeout.total_seconds())
+        except asyncio.TimeoutError:
+            _LOGGER.warning("!!! wait_for(fut) has asyncio.TimeoutError")
+            fut.set_exception(SendTimeoutError("WaitforIdle timeout expired"))
+        except SendTimeoutError:  # TODO: remove. not needed?
+            _LOGGER.warning("!!! wait_for(fut) has SendTimeoutError")
 
         if isinstance(self.state, WantEcho):
             raise InvalidStateError(f"{self}: Bad transition to {self.state}")
@@ -248,7 +253,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         _LOGGER.info(f"### Waiting to receive an echo for: {cmd}")
 
-        if not isinstance(this_state, WantEcho):
+        if not isinstance(this_state, (WantEcho, WantRply)):
             raise InvalidStateError(f"{self}: Bad transition from {this_state}")
 
         # may: SendTimeoutError (NB: may have already transitioned)
@@ -291,12 +296,12 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         fut: asyncio.Future  # mypy
 
         try:
-            *_, fut, expires = self._que.get_nowait()  # *priority, fut, expires
+            *_, expires, fut = self._que.get_nowait()  # *priority, cmd, expires, fut
         except Empty:
             return
 
         if fut.done():
-            self._notify_next_queued_cmd()
+            self._notify_next_queued_cmd()  # recursion
         elif expires <= dt.now():
             fut.set_exception(SendTimeoutError("Timeout has expired (A1)"))
         else:

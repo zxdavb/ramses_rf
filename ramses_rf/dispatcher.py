@@ -23,8 +23,8 @@ from .const import (
     SZ_DEVICES,
     __dev_mode__,
 )
-from .device import Device
-from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA  # , Address
+from .device import Device, Fakeable
+from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA
 from .protocol import Message as MessageBase
 from .protocol.exceptions import InvalidAddrSetError, InvalidPacketError, RamsesError
 from .protocol.ramses import (
@@ -341,11 +341,17 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
             gwy._loop.call_soon(msg.src._handle_msg, msg)
 
         # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
-        if msg.dst is not msg.src:
+        if msg.dst is not msg.src and isinstance(msg.dst, Fakeable):
             devices = (msg.dst,)  # dont: msg.dst._handle_msg(msg)
 
         elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":  # send to all
-            devices = (d for d in gwy.devices if d is not msg.src)
+            devices = (
+                d
+                for d in gwy.devices
+                if d is not msg.src
+                and isinstance(d, Fakeable)
+                and d._context.is_binding
+            )
 
         elif hasattr(msg.src, SZ_DEVICES):
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
@@ -356,9 +362,9 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
         else:
             return
 
-        for d in devices:  # FIXME: some may be Addresses
-            if getattr(d, "_faked", False):
-                gwy._loop.call_soon(d._handle_msg, msg)
+        for d in devices:  # FIXME: some may be Addresses?
+            # if True or getattr(d, "_faked", False):
+            gwy._loop.call_soon(d._handle_msg, msg)
 
     except (AssertionError, RamsesError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(

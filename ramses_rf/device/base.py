@@ -8,20 +8,24 @@ Base for all devices.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Optional
+    from typing import Any, Optional
+
     from . import Address, Message
 
-from ..bind_state import BindState, Context
-from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, __dev_mode__
+    _CodeT = str  # 4-char, e.g. 10E0, 1FC9
+    _IdxT = str  # 2-char, e.g. 00, FC
+
+from ..bind_state import Context
+from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
 from ..protocol.command import _mk_cmd
 from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
-from . import Command
+from . import Command, Packet
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -294,7 +298,7 @@ class Fakeable(DeviceBase):
         super().__init__(gwy, *args, **kwargs)
 
         self._faked: bool = None  # type: ignore[assignment]
-        self._context: Context | None = None
+        self._context = Context(self)
 
         self._1fc9_state: dict[str, Any] = {}
 
@@ -308,7 +312,7 @@ class Fakeable(DeviceBase):
     def _bind(self):
         pass
 
-    def _make_fake(self, bind=None) -> Fakeable:
+    def _make_fake(self, bind: bool = False) -> Fakeable:
         if not self._faked:
             self._faked = True
             self._gwy._include[self.id] = {SZ_FAKED: True}
@@ -317,114 +321,105 @@ class Fakeable(DeviceBase):
             self._bind()
         return self
 
-    def _bind_waiting(self, codes, idx="00", callback: Callable = None) -> None:
-        """The RESPONDENT will wait for (listen for) a bind offer."""
+    async def _async_send_cmd(self, cmd: Command) -> Packet:
+        """Wrapper to CC: any relevant Commands to the binding Context."""
+        # TODO: Should remain is_binding until after 10E0 sent (if one expected)
+        if self._context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
+            self._context.sent_cmd(cmd)  # other codes needed for edge cases
 
-        # Bind waiting: BDR set to listen, CTL initiates handshake
-        # 19:30:44.749 051  I --- 01:054173 --:------ 01:054173 1FC9 024 FC-0008-04D39D FC-3150-04D39D FB-3150-04D39D FC-1FC9-04D39D
-        # 19:30:45.342 053  W --- 13:049798 01:054173 --:------ 1FC9 012 00-3EF0-34C286 00-3B00-34C286
-        # 19:30:45.504 049  I --- 01:054173 13:049798 --:------ 1FC9 006 00-FFFF-04D39D
-
-        # Bind waiting: OTB set to listen, CTL initiates handshake
-        # 00:25:02.779 045  I --- 01:145038 --:------ 01:145038 1FC9 024 FC-0008-06368E FC-3150-06368E FB-3150-06368E  FC-1FC9-06368E  # opentherm bridge
-        # 00:25:02.792 045  W --- 10:048122 01:145038 --:------ 1FC9 006 00-3EF0-28BBFA
-        # 00:25:02.944 045  I --- 01:145038 10:048122 --:------ 1FC9 006 00-FFFF-06368E
-
-        _LOGGER.warning(f"Binding {self}: listening for {codes} for x secs")
-        self._context = Context.respondent(self)  # XXX
-
-        # SUPPORTED_CODES = (Code._0008,)
-        # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
-
-        self._1fc9_state["codes"] = codes
-
-    def _bind_request(self, codes, callback: Callable = None) -> None:
-        """The SUPPLICANT will initiate (send the 1st packet of) the handshake."""
-
-        # Bind request: CTL set to listen, STA initiates handshake (note 3C09/2309)
-        # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
-        # 22:13:52.540 052  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
-        # 22:13:52.572 071  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
-
-        # Bind request: CTL set to listen, DHW sensor initiates handshake
-        # 19:45:16.733 045  I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388
-        # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
-        # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
-
-        _LOGGER.warning(f"Binding {self}: offering {codes}")  # TODO: info
-        self._context = Context.supplicant(self)  # XXX
-
-        if not isinstance(codes, tuple):
-            codes = (codes,)
-
-        self._1fc9_state["codes"] = codes
-
-        cmd = Command.put_bind(I_, codes, self.id)
-        self._send_cmd(cmd)
-        self._context.sent_cmd(cmd)  # XXX
+        return await super()._async_send_cmd(cmd)
 
     def _handle_msg(self, msg: Message) -> None:
-        def proc_offer_and_accept(msg: Message):  # . process 1st pkt of handshake
-            """Accept a valid offer (if listening)."""
-            self._context.rcvd_msg(msg)  # XXX
-            self._1fc9_state["msg"] = msg  # the offer
-
-            for code in self._1fc9_state["codes"]:
-                assert code in [b[1] for b in msg.payload["bindings"]]
-
-            cmd = Command.put_bind(
-                W_,
-                self._1fc9_state["codes"],
-                self.id,
-                idx="00",  # self._1fc9_state["idx"],
-                dst_id=msg.src.id,
-            )
-            self._send_cmd(cmd)
-            self._context.sent_cmd(cmd)  # XXX
-
-        def proc_accept_and_confirm(msg: Message):  # process 2nd pkt of handshake
-            """Confirm a valid accept (if offering)."""
-            self._context.rcvd_msg(msg)  # XXX
-            self._1fc9_state["msg"] = msg  # the offer
-
-            # for code in self._1fc9_state["codes"]:
-            #     assert code in [b[1] for b in msg.payload['bindings']]
-
-            cmd = Command.put_bind(I_, None, self.id, dst_id=msg.src.id)
-            self._send_cmd(cmd)
-            self._context.sent_cmd(cmd)  # XXX
-
-        def proc_confirm_and_done(msg: Message):  # . process 3rd pkt of handshake
-            """Process a valid confirmation (if accepting)."""
-            self._context.rcvd_msg(msg)  # XXX
-            # self._1fc9_state["msg"] = msg  # keep offer, not confirm
-
+        """Wrapper to CC: any relevant Packets to the binding Context."""
         super()._handle_msg(msg)
 
-        if msg.code != Code._1FC9 or msg.src is self:
-            return
-        if not self._faked or self._context is None:
-            return
+        # TODO: Should remain is_binding until after 10E0 rcvd (if one expected)
+        if self._context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
+            self._context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
-        self._context.rcvd_msg(msg)
+    async def wait_for_binding_request(
+        self, codes: Iterable[_CodeT], idx: _IdxT = "00"
+    ) -> None:
+        """Listen for a binding request and return True if it completes successfully.
 
-        if msg.payload["phase"] == "offer" and isinstance(
-            self._context.state,
-            (BindState.LISTENING, BindState.ACCEPTING, BindState.ACCEPTED),
-        ):
-            proc_offer_and_accept(msg)
+        Optionally utilize a idx in the payload array of the offer packet if a context
+        is required (e.g. Nuaire HVAC uses '21', or an evohome zone_idx).
+        """
 
-        elif msg.payload["phase"] == "accept" and isinstance(
-            self._context.state,
-            (BindState.OFFERED, BindState.CONFIRMING, BindState.CONFIRMED),
-        ):
-            proc_accept_and_confirm(msg)
+        offer: Message
 
-        elif msg.payload["phase"] == "confirm" and isinstance(
-            self._context.state,
-            (BindState.ACCEPTING, BindState.ACCEPTED, BindState.BOUND_ACCEPTED),
-        ):
-            proc_confirm_and_done(msg)
+        offer = await self._context.wait_for_binding_request(codes, idx)
+
+        confirm = await self._send_accept_cmd(
+            offer.src, codes, idx
+        )  # is W, so expected I
+        # await self._context.wait_for_confirm()  # not required?
+
+        # pkt = await self._context.wait_for_10e0_cmd()  # may raise timeout error
+
+        # TODO: self._update_bindings_table(result)  # e.g. call RQ|000C?
+        return confirm  # caller to send mode (e.g. zone name/setpoint, etc.)?
+
+    async def _send_accept_cmd(
+        self, dst: Device, codes: Iterable[_CodeT], idx: _IdxT = "00"
+    ) -> Packet:
+        """Create and send the Accept command (to the Supplicant)."""
+        cmd = Command.put_bind(W_, self.id, codes, idx=idx, dst_id=dst.id)
+        return await self._async_send_cmd(cmd)
+
+    async def initiate_binding_process(
+        self, codes: Iterable[_CodeT], use_oem_code: bool = False
+    ) -> bool:
+        """Start a binding request and return True if it completes successfully.
+
+        Optionally insert a oem_code|10E0 into the payload array of the request packet
+        if that is required by the respondent (e.g. by some HVAC systems).
+        """
+
+        oem_code = "67"  # TODO: self.oem_code if use_oem_code else None
+        if use_oem_code and oem_code is None:
+            raise TypeError("Device has no known OEM code")
+
+        self._context.initiate_binding_process(codes, oem_code)
+        offer = await self._send_offer_cmd(codes)
+        # await self._context.wait_for_accept()  # not required?
+
+        confirm = await self._send_confirm_cmd(offer.src, "")
+        # await self._context.wait_for_confirm()  # not required?
+
+        # if use_oem_code:
+        #     _ = await self._send_10e0_cmd()  # e.g. oem_code|10E0
+
+        # TODO: self._update_bindings_table(result)  # e.g. call RQ|000C?
+        return confirm  # caller to send state (e.g. temp, etc.)?
+
+    async def _send_offer_cmd(
+        self, codes: Iterable[_CodeT], oem_code: str = "FF"
+    ) -> Packet:
+        """Create and cast the Offer command (from the Supplicant)."""
+        cmd = Command.put_bind(I_, self.id, codes, oem_code=oem_code)
+        pkt = await self._async_send_cmd(cmd)  # , timeout=30)
+        return pkt
+
+    async def _send_confirm_cmd(
+        self, dst: Device, codes: None | Iterable[_CodeT]
+    ) -> Packet:
+        """Create and send the Confirm command (to the Respondent)."""
+        cmd = Command.put_bind(I_, self.id, codes, dst_id=dst.id)
+        return await self._async_send_cmd(cmd)
+
+    async def _send_10e0_cmd(self) -> Packet:  # TODO: needs fleshing out
+        """Create and cast the final (10E0) command (from the Supplicant)."""
+        cmd = Command(self._msgz[Code._10E0].payload)
+        return await self._async_send_cmd(cmd)
+
+    @property
+    def oem_code(self) -> None | str:
+        """Return the OEM code (a 2-char ascii str) for this device, if there is one."""
+        raise NotImplementedError  # self.traits is a @property
+        if not self.traits.get(SZ_OEM_CODE):
+            self.traits[SZ_OEM_CODE] = self._msg_value(Code._10E0, key=SZ_OEM_CODE)
+        return self.traits[SZ_OEM_CODE]
 
 
 class HgiGateway(DeviceInfo):  # HGI (18:)
