@@ -1211,7 +1211,7 @@ class Command(Frame):
     ):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
-        if codes is None:
+        if not codes:
             codes = []
         elif len(codes[0]) == len(Code._1FC9):  # list, tuple, or dict (keys)
             codes = list(codes)
