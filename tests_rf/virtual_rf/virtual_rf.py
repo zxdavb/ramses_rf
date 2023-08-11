@@ -223,7 +223,7 @@ class VirtualRfBase:
         return frame
 
     def _setup_event_handlers(self) -> None:
-        def handle_exception(loop, context):
+        def handle_exception(loop, context: dict):
             """Handle exceptions on any platform."""
             _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
             self._cleanup()
