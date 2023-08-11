@@ -236,8 +236,8 @@ class BindStateBase:
 
     def __init__(self, context: BindContext) -> None:
         self._context = context
+        self._loop = context._loop
         self._set_context_state: Callable = context._set_state
-        self._loop = self._context._loop
 
         _LOGGER.debug(f"{self}: Changing state from: {self._context.state} to: {self}")
 

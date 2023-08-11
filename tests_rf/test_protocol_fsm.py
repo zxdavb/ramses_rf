@@ -190,7 +190,7 @@ async def _test_flow_10x(
     min_sleeps: bool = None,
 ) -> None:
     async def send_cmd_wrapper(cmd: Command) -> None:
-        await protocol._context._wait_for_send_cmd(
+        await protocol._context._wait_for_can_send(
             protocol._context.state, cmd, _DEFAULT_WAIT_TIMEOUT
         )
         protocol._context.state.sent_cmd(cmd, DEFAULT_MAX_RETRIES)

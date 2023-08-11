@@ -146,7 +146,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         while True:  # if required, resend until RetryLimitExceeded
             # may raise: InvalidStateError, SendTimeoutError...
-            prev_state, next_state = await self._wait_for_send_cmd(
+            prev_state, next_state = await self._wait_for_can_send(
                 self.state, cmd, td(seconds=wait_timeout)
             )
             # assert isinstance(next_state, ProtocolState.IDLE), self
@@ -182,7 +182,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         # assert isinstance(self.state, ProtocolState.IDLE), self
         return prev_state._rply
 
-    async def _wait_for_send_cmd(
+    async def _wait_for_can_send(
         self, this_state: _StateT, cmd: Command, timeout: td
     ) -> tuple[_StateT, _StateT]:
         """Wait until state machine is such that this context can (re-)send.

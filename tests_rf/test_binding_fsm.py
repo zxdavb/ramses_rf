@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from ramses_rf import Code, Device, Gateway
-from ramses_rf.bind_state import BindContext, BindState, BindStateBase
+from ramses_rf.binding_fsm import BindContext, BindState, BindStateBase
 from ramses_rf.device import Fakeable
 from ramses_rf.protocol.protocol import QosProtocol, _BaseProtocol, _ProtQosTimers
 

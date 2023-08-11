@@ -43,7 +43,7 @@ _global_flow_marker: int = None  # type: ignore[assignment]
 
 
 MIN_GAP_BETWEEN_WRITES = 0  # patch ramses_rf.protocol.transport
-WAITING_TIMEOUT_SECS = 0  # # patch ramses_rf.bind_state
+WAITING_TIMEOUT_SECS = 0  # # patch ramses_rf.binding_fsm
 
 
 RQ_0006_EXPECTED = 20
@@ -283,8 +283,8 @@ async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
     #    sch_end = await zone.set_schedule(sch_old)  # put things back
 
 
-@abort_if_rf_test_fails
-@patch("ramses_rf.bind_state.WAITING_TIMEOUT_SECS", WAITING_TIMEOUT_SECS)
+@abort_if_rf_test_fails  # TODO: should be ramses_rf.protocol.protocol.???
+@patch("ramses_rf.binding_fsm.WAITING_TIMEOUT_SECS", WAITING_TIMEOUT_SECS)
 async def test_rq_0006_ver(test_port):
     """Test the TCS._schedule_version() method."""
 
