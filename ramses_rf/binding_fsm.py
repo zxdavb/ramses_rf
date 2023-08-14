@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Iterable, TypeVar
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from typing import Callable, Iterable, TypeVar
 
     from .device import Command, Message
     from .device.base import Fakeable
@@ -33,11 +33,22 @@ _LOGGER = logging.getLogger(__name__)
 _DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
-SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
-CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of sends
+SZ_RESPONDENT = "respondent"
+SZ_SUPPLICANT = "supplicant"
+SZ_IS_DORMANT = "is_dormant"
 
-WAITING_TIMEOUT_SECS = 3  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+
+CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of sends
+SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
+
 CONFIRM_TIMEOUT_SECS = 3  # automatically Bound, from BoundAccepted > this # of seconds
+WAITING_TIMEOUT_SECS = 3  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+
+# raise a BindTimeoutError if expected Pkt is not received before this number of seconds
+_TENDER_WAIT_TIME = WAITING_TIMEOUT_SECS  # resp. listening for Offer
+_ACCEPT_WAIT_TIME = WAITING_TIMEOUT_SECS  # TODO: supp. sent Offer, expecting Accept
+_AFFIRM_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # TODO: resp. sent Accept, expecting Confirm
+_RATIFY_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # TODO: resp. rcvd Confirm, expecting 10E0
 
 
 __all__ = ["Exceptions", "BindContext", "BindState"]
@@ -79,11 +90,6 @@ class Exceptions:  # HACK  ???
     BindRetryError = BindRetryError
     BindStateError = BindStateError
     BindTimeoutError = BindTimeoutError
-
-
-SZ_RESPONDENT = "respondent"
-SZ_SUPPLICANT = "supplicant"
-SZ_IS_DORMANT = "is_dormant"
 
 
 class BindContext:
@@ -193,9 +199,12 @@ class BindContext:
             self._state.sent_confirm(cmd)  # Supplicant: Confirming
 
     async def wait_for_binding_request(
-        self, codes: Iterable[Code], idx: str = "00", timeout=WAITING_TIMEOUT_SECS
-    ) -> Any:
-        """Bind as a Respondent and return the result."""
+        self,
+        codes: Iterable[Code],
+        idx: str = "00",
+    ) -> Message:
+        """Listen for a binding and return the Supplicant's Offer."""
+
         if self.is_binding:
             raise BindStateError(f"{self._dev}: bad start State for a bind: {self}")
         self._set_state(BindState.LISTENING)
@@ -203,18 +212,23 @@ class BindContext:
         assert self._fut is None or self._fut.done()
         self._fut = self._loop.create_future()
 
+        timeout = _TENDER_WAIT_TIME
         try:
             await asyncio.wait_for(self._fut, timeout)
         except asyncio.TimeoutError:
-            _LOGGER.warning("!!! wait_for(fut) has asyncio.TimeoutError")
-            self._fut.set_exception(BindTimeoutError("WaitforOffer timeout expired"))
+            _LOGGER.warning("!!! wait_for_binding_request() has asyncio.TimeoutError")
+            self._fut.set_exception(
+                BindTimeoutError(f"WaitforOffer timer expired ({timeout}s)")
+            )
 
-        return self._fut.result()
+        return self._fut.result()  # may raise BindTimeoutError
 
-    def initiate_binding_process(
-        self, codes: Iterable[Code], oem_code: None | str = None
-    ) -> Any:
-        """Bind as a Supplicant and return the result."""
+    async def initiate_binding_process(
+        self,
+        codes: Iterable[Code],
+        oem_code: None | str = None,
+    ) -> Message:
+        """Start a binding (cast an Offer) and return the Respondent's Accept."""
 
         if self.is_binding:
             raise BindStateError(f"{self._dev}: bad start State for a bind: {self}")
@@ -348,8 +362,8 @@ class Listening(BindStateBase):
         if msg.src is self.context._dev:  # Listeners shouldn't send Offers
             super().received_offer(msg)  # TODO: log & ignore?
 
-        assert self.context._fut and not self.context._fut.done()
-        self.context._fut.set_result(msg)
+        if not self.context._fut.done():
+            self.context._fut.set_result(msg)
 
         self._timer_handle.cancel()
         self._set_context_state(Accepting)

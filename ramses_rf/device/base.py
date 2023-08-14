@@ -339,73 +339,72 @@ class Fakeable(DeviceBase):
 
     async def wait_for_binding_request(
         self, codes: Iterable[_CodeT], idx: _IdxT = "00"
-    ) -> None:
-        """Listen for a binding request and return True if it completes successfully.
+    ) -> Packet:
+        """Listen for a binding and return the supplicant's Offer if successful.
+
+        Raise an exception if the binding doesn't complete successfully.
 
         Optionally utilize a idx in the payload array of the offer packet if a context
         is required (e.g. Nuaire HVAC uses '21', or an evohome zone_idx).
         """
 
-        offer: Message
+        # offer: Message
+        offer_msg = await self._context.wait_for_binding_request(codes, idx)
 
-        offer = await self._context.wait_for_binding_request(codes, idx)
-
-        confirm = await self._send_accept_cmd(
-            offer.src, codes, idx
-        )  # is W, so expected I
+        await self._send_accept_cmd(offer_msg.src, codes, idx)  # confirm_pkt =
         # await self._context.wait_for_confirm()  # not required?
 
         # pkt = await self._context.wait_for_10e0_cmd()  # may raise timeout error
 
         # TODO: self._update_bindings_table(result)  # e.g. call RQ|000C?
-        return confirm  # caller to send mode (e.g. zone name/setpoint, etc.)?
+        return offer_msg._pkt  # caller to send mode (e.g. zone name/setpoint, etc.)?
 
     async def _send_accept_cmd(
         self, dst: Device, codes: Iterable[_CodeT], idx: _IdxT = "00"
     ) -> Packet:
-        """Create and send the Accept command (to the Supplicant)."""
-        cmd = Command.put_bind(W_, self.id, codes, idx=idx, dst_id=dst.id)
+        """Send an Accept command (to the Supplicant) and return the Confirm packet."""
+        cmd = Command.put_bind(W_, self.id, codes, dst_id=dst.id, idx=idx)
         return await self._async_send_cmd(cmd)
 
     async def initiate_binding_process(
-        self, codes: Iterable[_CodeT], use_oem_code: bool = False
-    ) -> bool:
-        """Start a binding request and return True if it completes successfully.
+        self, codes: Iterable[_CodeT], oem_code: None | str = None
+    ) -> Packet:
+        """Start a binding and return the respondent's Accept if successful.
+
+        Raise an exception if the binding doesn't complete successfully.
 
         Optionally insert a oem_code|10E0 into the payload array of the request packet
         if that is required by the respondent (e.g. by some HVAC systems).
         """
 
-        oem_code = "67"  # TODO: self.oem_code if use_oem_code else None
-        if use_oem_code and oem_code is None:
-            raise TypeError("Device has no known OEM code")
-
-        self._context.initiate_binding_process(codes, oem_code)
-        offer = await self._send_offer_cmd(codes)
+        await self._context.initiate_binding_process(codes, oem_code)
+        accept_pkt = await self._send_offer_cmd(codes, oem_code=oem_code)
         # await self._context.wait_for_accept()  # not required?
 
-        confirm = await self._send_confirm_cmd(offer.src, "")
+        await self._send_confirm_cmd(
+            accept_pkt.src, None, idx=accept_pkt.payload[:2]
+        )  # confirm_pkt =
         # await self._context.wait_for_confirm()  # not required?
 
-        # if use_oem_code:
+        # if oem_code:
         #     _ = await self._send_10e0_cmd()  # e.g. oem_code|10E0
 
         # TODO: self._update_bindings_table(result)  # e.g. call RQ|000C?
-        return confirm  # caller to send state (e.g. temp, etc.)?
+        return accept_pkt  # caller to send state (e.g. temp, etc.)?
 
     async def _send_offer_cmd(
         self, codes: Iterable[_CodeT], oem_code: str = "FF"
     ) -> Packet:
-        """Create and cast the Offer command (from the Supplicant)."""
+        """Cast an Offer command (from the Supplicant) and return the Accept packet."""
         cmd = Command.put_bind(I_, self.id, codes, oem_code=oem_code)
         pkt = await self._async_send_cmd(cmd)  # , timeout=30)
         return pkt
 
     async def _send_confirm_cmd(
-        self, dst: Device, codes: None | Iterable[_CodeT]
+        self, dst: Device, codes: None | Iterable[_CodeT], idx: _IdxT = "00"
     ) -> Packet:
-        """Create and send the Confirm command (to the Respondent)."""
-        cmd = Command.put_bind(I_, self.id, codes, dst_id=dst.id)
+        """Send a Confirm command (to the Respondent) and return the Confirm packet."""
+        cmd = Command.put_bind(I_, self.id, codes, dst_id=dst.id, idx=idx)
         return await self._async_send_cmd(cmd)
 
     async def _send_10e0_cmd(self) -> Packet:  # TODO: needs fleshing out
