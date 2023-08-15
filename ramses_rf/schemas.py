@@ -55,6 +55,7 @@ from .protocol.schemas import (  # noqa: F401
     SZ_FAKED,
     SZ_KNOWN_LIST,
     SZ_PACKET_LOG,
+    SZ_SCHEME,
     sch_packet_log_dict_factory,
     select_device_filter_mode,
 )

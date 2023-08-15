@@ -212,6 +212,7 @@ def ConvertNullToDict():
 SZ_ALIAS = "alias"
 SZ_CLASS = "class"
 SZ_FAKED = "faked"
+SZ_SCHEME = "scheme"
 
 SZ_BLOCK_LIST = "block_list"
 SZ_KNOWN_LIST = "known_list"
@@ -281,7 +282,7 @@ def sch_global_traits_dict_factory(
         }
     )
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
-        {vol.Optional("scheme"): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
+        {vol.Optional(SZ_SCHEME): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
     )
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
         hvac_traits,

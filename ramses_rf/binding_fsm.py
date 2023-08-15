@@ -11,6 +11,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from .protocol.address import NUL_DEVICE_ID
+
 if TYPE_CHECKING:
     from typing import Callable, Iterable, TypeVar
 
@@ -161,19 +163,20 @@ class BindContext:
         if msg.code != Code._1FC9:
             return
 
-        if msg.verb == I_ and msg.src is msg.dst:  # msg["phase"] == "offer":
+        # TODO: tidy up this block - nested ifs exist only for breakpoint purposes
+        if msg.payload.get("phase") == "offer":
             if msg.src is self._dev:
-                self._state.received_offer(msg)  # Supplicant: Offered
+                self._state.received_offer(msg)  # Supplicant(Offered)
             else:
-                self._state.received_offer(msg)  # Respondent: Listening
-        elif msg.verb == W_:  # msg["phase"] == "accept":
+                self._state.received_offer(msg)  # Respondent(Listening), or other
+        elif msg.payload.get("phase") == "accept":
             if msg.src is self._dev:
                 self._state.received_accept(msg)
             elif msg.dst is self._dev:
                 self._state.received_accept(msg)
             else:
                 self._state.received_accept(msg)
-        elif msg.verb == I_:  # msg["phase"] == "confirm":
+        elif msg.payload.get("phase") == "confirm":
             if msg.src is self._dev:
                 self._state.received_confirm(msg)
             elif msg.dst is self._dev:
@@ -191,12 +194,13 @@ class BindContext:
             return
 
         # these sends raise BindRetryError if RETRY_LIMIT exceeded
-        if cmd.verb == I_ and cmd.src is cmd.dst:
-            self._state.sent_offer(cmd)  # Supplicant: Offering
+        # TODO: tidy up this block - nested ifs exist only for breakpoint purposes
+        if cmd.verb == I_ and cmd.dst.id in (cmd.src.id, NUL_DEVICE_ID):
+            self._state.sent_offer(cmd)  # Supplicant(Offering)
         elif cmd.verb == W_:  # and cmd.src is self:
-            self._state.sent_accept(cmd)  # Respondent: Accepting
+            self._state.sent_accept(cmd)  # Respondent(Accepting)
         elif cmd.verb == I_:  # and cmd.src is self:
-            self._state.sent_confirm(cmd)  # Supplicant: Confirming
+            self._state.sent_confirm(cmd)  # Supplicant(Confirming)
 
     async def wait_for_binding_request(
         self,

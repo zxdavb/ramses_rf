@@ -52,100 +52,101 @@ ITHO__ = "itho"
 NUAIRE = "nuaire"
 ORCON_ = "orcon"
 
-SCHEME_LOOKUP = {
-    ITHO__: {"oem_code": "01", "idx": "00", "offer_to": None},
-    NUAIRE: {"oem_code": "6C", "idx": "21", "offer_to": None},
-    ORCON_: {"oem_code": "67", "idx": "00", "offer_to": "63:262142"},
-}
 TEST_SUITE_300 = [
     {
         SZ_RESPONDENT: {
-            "30:098165": {"class": "FAN", "scheme": "nuaire", "_notes": "ECO-HEAT-HC"}
+            "30:098165": {"class": "FAN", " scheme": "nuaire", "_notes": "ECO-HEAT-HC"},
         },
         SZ_SUPPLICANT: {
             "32:208628": {"class": "REM", "scheme": "nuaire", "_notes": "4-way switch"}
         },
-        # PKT_FLOW: (
-        #     " I --- 32:208628 --:------ 32:208628 1FC9 018 00-22F1-832EF4 6C-10E0-832EF4 00-1FC9-832EF4",
-        #     " W --- 30:098165 32:208628 --:------ 1FC9 006 21-31DA-797F75",
-        #     " I --- 32:208628 30:098165 --:------ 1FC9 001 21",
-        #     # I --- 32:208628 63:262142 --:------ 10E0 030 00-0001C85A0101-6C-FFFFFFFFFFFF010607E0564D4E2D32334C4D48323300",
-        #     # I --- 32:208628 --:------ 32:208628 1060 003 00-FF01",  # sends x3
-        # ),
-    },
-    {
-        SZ_RESPONDENT: {
-            "32:155617": {"class": "FAN", "scheme": "itho", "_notes": "Itho Spider HRU"}
-        },
-        SZ_SUPPLICANT: {
-            "37:171871": {"class": "CO2", "scheme": "itho", "_notes": "Itho Spider CO2"}
-        },
-        # PKT_FLOW: (
-        #     " I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B",
-        #     " W --- 18:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C",
-        #     " I --- 37:154011 18:126620 --:------ 1FC9 001 00",
-        #     # I --- 37:154011 63:262142 --:------ 10E0 038 00-000100280901-01-FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000",
-        # ),
-    },
-    {
-        SZ_RESPONDENT: {
-            "29:158183": {
-                "class": "FAN",
-                "scheme": "orcon",
-                "_notes": "HRC-350 EcoMax/MaxComfort",
-            }
-        },
-        SZ_SUPPLICANT: {
-            "32:155617": {
-                "class": "REM",
-                "scheme": "orcon",
-                "_notes": "Orcon VMN-15LF01",
-            }
-        },
-        # PKT_FLOW: (
-        #     " I --- 29:158183 63:262142 --:------ 1FC9 024 00-22F1-7669E7 00-22F3-7669E7 67-10E0-7669E7 00-1FC9-7669E7",
-        #     " W --- 32:155617 29:158183 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1",
-        #     " I --- 29:158183 32:155617 --:------ 1FC9 001 00",
-        #     # I --- 29:158183 63:262142 --:------ 10E0 038 00-0001C8270901-67-FFFFFFFFFFFF0D0207E3564D4E2D31354C46303100000000000000000000",
-        #     # I --- 29:158183 --:------ 29:158183 1060 003 00-FF01",
-        # ),
-    },
-    {
-        SZ_RESPONDENT: {"32:155617": {"class": "FAN", "scheme": "orcon"}},
-        SZ_SUPPLICANT: {"37:171871": {"class": "DIS", "scheme": "orcon"}},
-        PKT_FLOW: (),
-    },
-    {
-        SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"07:045960": {"class": "DHW"}},
-        # PKT_FLOW: (
-        #     " I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388",
-        #     " W --- 01:145038 07:045960 --:------ 1FC9 006 00-10A0-06368E",
-        #     " I --- 07:045960 01:145038 --:------ 1FC9 006 00-1260-1CB388",
-        # ),  # TODO: need epilogue packets
-    },
-    {
-        SZ_RESPONDENT: {"01:085545": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"22:057520": {"class": "THM"}},  # is THM, not STA
+        f"{SZ_RESPONDENT}_attr": {"codes": [Code._31DA], "idx": "21"},
         PKT_FLOW: (
-            " I --- 22:057520 --:------ 22:057520 1FC9 024 00-2309-58E0B0 00-30C9-58E0B0 00-0008-58E0B0 00-1FC9-58E0B0",
-            " W --- 01:085545 22:057520 --:------ 1FC9 006 07-2309-054E29",
-            " I --- 22:057520 01:085545 --:------ 1FC9 006 00-2309-58E0B0",
+            " I --- 32:208628 --:------ 32:208628 1FC9 018 00-22F1-832EF4 6C-10E0-832EF4 00-1FC9-832EF4",
+            " W --- 30:098165 32:208628 --:------ 1FC9 006 21-31DA-797F75",
+            " I --- 32:208628 30:098165 --:------ 1FC9 001 21",
+            # I --- 32:208628 63:262142 --:------ 10E0 030 00-0001C85A0101-6C-FFFFFFFFFFFF010607E0564D4E2D32334C4D48323300",
+            # I --- 32:208628 --:------ 32:208628 1060 003 00-FF01",  # sends x3
         ),
     },
     {
-        SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"34:092243": {"class": "RND"}},
-        # PKT_FLOW: (
-        #     " I --- 34:259472 --:------ 34:259472 1FC9 024 00-2309-8BF590 00-30C9-8BF590 00-0008-8BF590 00-1FC9-8BF590",
-        #     " W --- 01:220768 34:259472 --:------ 1FC9 006 01-2309-075E60",
-        #     " I --- 34:259472 01:220768 --:------ 1FC9 006 01-2309-8BF590",
-        #     # I --- 34:259472 63:262142 --:------ 10E0 038 00-0001C8380F01-00-F1FF070B07E6030507E15438375246323032350000000000000000000000",
-        #     # I --- 34:259472 --:------ 34:259472 1060 003 00-FF01",
-        #     # I --- 34:259472 --:------ 34:259472 0005 012 000A0000000F000000100000",
-        #     # I --- 34:259472 --:------ 34:259472 000C 018 000A7FFFFFFF000F7FFFFFFF00107FFFFFFF",
-        # ),
+        SZ_RESPONDENT: {
+            "18:126620": {"class": "FAN", "scheme": "itho", "_notes": "Spider HRU"},
+        },
+        SZ_SUPPLICANT: {
+            "37:154011": {"class": "CO2", "scheme": "itho", "_notes": "Spider CO2"}
+        },
+        f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
+        PKT_FLOW: (
+            " I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B",
+            " W --- 18:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C",
+            " I --- 37:154011 18:126620 --:------ 1FC9 001 00",
+            # I --- 37:154011 63:262142 --:------ 10E0 038 00-000100280901-01-FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000",
+        ),
     },
+    # {
+    #     SZ_RESPONDENT: {
+    #         "32:155617": {"class": "FAN", "scheme": "orcon", "_notes": "HRC-350"},
+    #     },
+    #     SZ_SUPPLICANT: {
+    #         "29:158183": {"class": "REM", "scheme": "orcon", "_notes": "VMN-15LF01"}
+    #     },
+    #     f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
+    #     PKT_FLOW: (
+    #         " I --- 29:158183 63:262142 --:------ 1FC9 024 00-22F1-7669E7 00-22F3-7669E7 67-10E0-7669E7 00-1FC9-7669E7",
+    #         " W --- 32:155617 29:158183 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1",
+    #         " I --- 29:158183 32:155617 --:------ 1FC9 001 00",
+    #         # I --- 29:158183 63:262142 --:------ 10E0 038 00-0001C8270901-67-FFFFFFFFFFFF0D0207E3564D4E2D31354C46303100000000000000000000",
+    #         # I --- 29:158183 --:------ 29:158183 1060 003 00-FF01",
+    #     ),
+    # },
+    # {
+    #     SZ_RESPONDENT: {"32:155617": {"class": "FAN", "scheme": "orcon"}},
+    #     SZ_SUPPLICANT: {"37:171871": {"class": "DIS", "scheme": "orcon"}},
+    #     PKT_FLOW: (),
+    # },
+    # {
+    #     SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
+    #     SZ_SUPPLICANT: {"07:045960": {"class": "DHW"}},
+    #     PKT_FLOW: (
+    #         " I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388",
+    #         " W --- 01:145038 07:045960 --:------ 1FC9 006 00-10A0-06368E",
+    #         " I --- 07:045960 01:145038 --:------ 1FC9 006 00-1260-1CB388",
+    #     ),  # TODO: need epilogue packets
+    # },
+    # {
+    #     SZ_RESPONDENT: {"01:085545": {"class": "CTL"}},
+    #     SZ_SUPPLICANT: {"22:057520": {"class": "THM"}},  # is THM, not STA
+    #     PKT_FLOW: (
+    #         " I --- 22:057520 --:------ 22:057520 1FC9 024 00-2309-58E0B0 00-30C9-58E0B0 00-0008-58E0B0 00-1FC9-58E0B0",
+    #         " W --- 01:085545 22:057520 --:------ 1FC9 006 07-2309-054E29",
+    #         " I --- 22:057520 01:085545 --:------ 1FC9 006 00-2309-58E0B0",
+    #     ),
+    # },
+    # {
+    #     SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
+    #     SZ_SUPPLICANT: {"34:092243": {"class": "RND"}},
+    #     PKT_FLOW: (
+    #         " I --- 34:259472 --:------ 34:259472 1FC9 024 00-2309-8BF590 00-30C9-8BF590 00-0008-8BF590 00-1FC9-8BF590",
+    #         " W --- 01:220768 34:259472 --:------ 1FC9 006 01-2309-075E60",
+    #         " I --- 34:259472 01:220768 --:------ 1FC9 006 01-2309-8BF590",
+    #         # I --- 34:259472 63:262142 --:------ 10E0 038 00-0001C8380F01-00-F1FF070B07E6030507E15438375246323032350000000000000000000000",
+    #         # I --- 34:259472 --:------ 34:259472 1060 003 00-FF01",
+    #         # I --- 34:259472 --:------ 34:259472 0005 012 000A0000000F000000100000",
+    #         # I --- 34:259472 --:------ 34:259472 000C 018 000A7FFFFFFF000F7FFFFFFF00107FFFFFFF",
+    #     ),
+    # },
+]
+
+RESPONDENT_ATTRS_BY_SUPPLICANT = {
+    f"{list(d[SZ_SUPPLICANT].keys())[0]} to {list(d[SZ_RESPONDENT].keys())[0]}": d.get(
+        f"{SZ_RESPONDENT}_attr", {}
+    )  # can't use .pop in comprehension
+    for d in TEST_SUITE_300
+}
+
+TEST_SUITE_300 = [
+    {k: d[k] for k in (SZ_SUPPLICANT, SZ_RESPONDENT, PKT_FLOW)} for d in TEST_SUITE_300
 ]
 
 
@@ -156,8 +157,7 @@ def id_fnc(test_set):
 
 
 def pytest_generate_tests(metafunc):
-    folders = TEST_SUITE_300
-    metafunc.parametrize("test_set", folders, ids=id_fnc)
+    metafunc.parametrize("test_set", TEST_SUITE_300, ids=id_fnc)
 
 
 # ######################################################################################
@@ -281,11 +281,14 @@ async def _test_flow_30x(
     await assert_context_state(supplicant, BindState.IDLE)
 
     # STEP 1: Start the listener
-    task = loop.create_task(respondent.wait_for_binding_request([Code._31DA], idx="21"))
+    kwargs = RESPONDENT_ATTRS_BY_SUPPLICANT[f"{supplicant.id} to {respondent.id}"]
+    task = loop.create_task(
+        respondent.wait_for_binding_request(kwargs.pop("codes"), **kwargs)
+    )
     await assert_context_state(respondent, BindState.LISTENING)
 
     # STEP 2: Start/finish the requester, oem_code="6C"?
-    _ = await supplicant.initiate_binding_process(Code._22F1, oem_code="6C")
+    _ = await supplicant.initiate_binding_process()
     await assert_context_state(supplicant, BindState.CONFIRMED)
 
     # STEP 3: Finish the requester

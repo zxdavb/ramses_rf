@@ -22,7 +22,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Callable
 
-from .address import NON_DEV_ADDR, hex_id_to_dev_id
+from .address import NON_DEV_ADDR, NUL_DEV_ADDR, hex_id_to_dev_id
 from .const import (
     DEV_ROLE,
     DEV_ROLE_MAP,
@@ -1300,7 +1300,7 @@ def parser_1fc9(payload, msg) -> list:
             assert int(seqx[:2], 16) < 16, _INFORM_DEV_MSG
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
-    if msg.verb == I_ and msg.src is msg.dst:
+    if msg.verb == I_ and msg.dst.id in (msg.src.id, NUL_DEV_ADDR.id):
         bind_phase = "offer"
     elif msg.verb == W_ and msg.src is not msg.dst:
         bind_phase = "accept"

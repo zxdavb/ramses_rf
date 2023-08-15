@@ -39,8 +39,7 @@ from ..const import (
 )
 from ..entity_base import class_by_attr
 from ..helpers import shrink
-from ..protocol import Address, Message
-from ..protocol.command import Command
+from ..protocol import Address, Command, Message, Packet
 from ..protocol.const import SZ_BINDINGS
 from ..protocol.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
@@ -101,6 +100,11 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
 
         super()._bind()
         self._bind_request((Code._1298, Code._31E0), callback=callback)
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(
+            [Code._31E0, Code._1298, Code._2E10]
+        )
 
     @property
     def co2_level(self) -> None | float:
@@ -277,6 +281,11 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         super()._bind()
         self._bind_request((Code._22F1, Code._22F3), callback=callback)
 
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(
+            Code._22F1 if self._scheme == "nuaire" else [Code._22F1, Code._22F3]
+        )
+
     @property
     def fan_rate(self) -> None | str:
         return self._msg_value(Code._22F1, key="rate")
@@ -312,6 +321,11 @@ class HvacDisplayRemote(HvacRemote):  # DIS
     """The DIS (display switch)."""
 
     _SLUG: str = DEV_TYPE.DIS
+
+    # async def initiate_binding_process(self) -> Packet:
+    #     return await super().initiate_binding_process(
+    #         [Code._31E0, Code._1298, Code._2E10]
+    #     )
 
 
 class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]

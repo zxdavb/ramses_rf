@@ -22,9 +22,10 @@ from ..binding_fsm import BindContext
 from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
+from ..protocol.address import NUL_DEV_ADDR
 from ..protocol.command import _mk_cmd
 from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
-from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
+from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST, SZ_SCHEME
 from . import Command, Packet
 
 # skipcq: PY-W2000
@@ -91,6 +92,7 @@ class DeviceBase(Entity):
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
         self._faked: bool = False
+        self._scheme: str = None
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
@@ -114,6 +116,8 @@ class DeviceBase(Entity):
             if not isinstance(self, Fakeable):
                 raise TypeError(f"Device is not fakable: {self} (traits={traits})")
             self._make_fake()
+
+        self._scheme = traits.get(SZ_SCHEME)
 
     @classmethod
     def create_from_schema(cls, gwy, dev_addr: Address, **schema):
@@ -283,6 +287,19 @@ class DeviceInfo(DeviceBase):  # 10E0
         return result
 
 
+# TODO: change to 'vendor'
+SZ_ITHO__ = "itho"  # TODO: treat as the default scheme
+SZ_NUAIRE = "nuaire"
+SZ_ORCON_ = "orcon"
+
+SCHEME_LOOKUP = {
+    SZ_ITHO__: {"oem_code": "01", "offer_to": None},
+    SZ_NUAIRE: {"oem_code": "6C", "offer_to": None},
+    SZ_ORCON_: {"oem_code": "67", "offer_to": "63:262142"},
+    None: {},
+}
+
+
 class Fakeable(DeviceBase):
     """There are two types of Faking: impersonation (of real devices) and full-faking.
 
@@ -378,7 +395,9 @@ class Fakeable(DeviceBase):
         """
 
         await self._context.initiate_binding_process(codes, oem_code)
-        accept_pkt = await self._send_offer_cmd(codes, oem_code=oem_code)
+        accept_pkt = await self._send_offer_cmd(
+            codes, oem_code=oem_code, scheme=self._scheme
+        )
         # await self._context.wait_for_accept()  # not required?
 
         await self._send_confirm_cmd(
@@ -393,10 +412,17 @@ class Fakeable(DeviceBase):
         return accept_pkt  # caller to send state (e.g. temp, etc.)?
 
     async def _send_offer_cmd(
-        self, codes: Iterable[_CodeT], oem_code: str = "FF"
+        self,
+        codes: Iterable[_CodeT],
+        oem_code: None | str = None,
+        scheme: None | str = None,
     ) -> Packet:
         """Cast an Offer command (from the Supplicant) and return the Accept packet."""
-        cmd = Command.put_bind(I_, self.id, codes, oem_code=oem_code)
+
+        oem_code = oem_code or SCHEME_LOOKUP[self._scheme].get("oem_code", "FF")
+        dst_id = NUL_DEV_ADDR.id if scheme == "orcon" else self.id
+
+        cmd = Command.put_bind(I_, self.id, codes, dst_id=dst_id, oem_code=oem_code)
         pkt = await self._async_send_cmd(cmd)  # , timeout=30)
         return pkt
 
