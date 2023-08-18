@@ -5,9 +5,8 @@
 from __future__ import annotations
 
 import re
+from enum import StrEnum
 from types import SimpleNamespace
-
-from .backports import StrEnum
 
 __dev_mode__ = False
 DEV_MODE = __dev_mode__

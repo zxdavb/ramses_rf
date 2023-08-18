@@ -13,13 +13,12 @@ import signal
 import tty
 from collections import deque
 from contextlib import ExitStack
+from enum import StrEnum
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
 from typing import TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
-
-from ramses_rf.protocol.backports import StrEnum  # TODO: enum.StrEnum
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
