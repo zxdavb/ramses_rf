@@ -74,7 +74,7 @@ class Packet(Frame):
 
         self._validate(strict_checking=False)
 
-    def _validate(self, *, strict_checking: bool = None) -> None:
+    def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -146,7 +146,7 @@ class Packet(Frame):
         return cls(dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
-    def from_port(cls, dtm: dt, pkt_line: str, raw_line: bytes = None):
+    def from_port(cls, dtm: dt, pkt_line: str, raw_line: None | bytes = None):
         """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
