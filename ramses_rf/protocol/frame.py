@@ -62,17 +62,9 @@ class Frame:
     `RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000`
     """
 
-    _frame: str
-
-    verb: _VerbT
-    seqn: str  # TODO: or, better as int?
     src: Address
     dst: Address
     _addrs: tuple[Address, Address, Address]
-    code: _CodeT
-    len_: str  # FIXME: len_, _len & len(payload) / 2
-    _len: int  # int(len(payload) / 2)
-    payload: _PayloadT
 
     def __init__(self, frame: str) -> None:
         """Create a frame from a string.
@@ -80,18 +72,18 @@ class Frame:
         Will raise InvalidPacketError if it is invalid.
         """
 
-        self._frame = frame
+        self._frame: str = frame
         if not COMMAND_REGEX.match(self._frame):
             raise InvalidPacketError(f"Bad frame: invalid structure: >>>{frame}<<<")
 
         fields = frame.lstrip().split(" ")
 
-        self.verb = frame[:2]  # cant use fields[0] as leading space ' I'
-        self.seqn = fields[1]  # frame[3:6]
-        self.code = fields[5]  # frame[37:41]
-        self.len_ = fields[6]  # frame[42:45]
-        self.payload = fields[7]  # frame[46:].split(" ")[0]
-        self._len = int(len(self.payload) / 2)
+        self.verb: _VerbT = frame[:2]  # type: ignore[assignment]
+        self.seqn: str = fields[1]  # frame[3:6]
+        self.code: _CodeT = fields[5]  # frame[37:41]
+        self.len_: str = fields[6]  # frame[42:45]  FIXME: len_, _len & len(payload)/2
+        self.payload: _PayloadT = fields[7]  # frame[46:].split(" ")[0]
+        self._len: int = int(len(self.payload) / 2)
 
         try:
             self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
@@ -114,7 +106,7 @@ class Frame:
         self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
         self._has_payload_: bool = None  # type: ignore[assignment]
 
-        self._repr = None
+        self._repr: str = None  # type: ignore[assignment]
 
     @classmethod  # for internal use only
     def _from_attrs(
@@ -130,7 +122,7 @@ class Frame:
         except TypeError as exc:
             raise InvalidPacketError(f"Bad frame: Invalid attrs: {exc}")
 
-    def _validate(self, *, strict_checking: bool = None) -> None:
+    def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -506,7 +498,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
 
 
 def pkt_header(
-    pkt, rx_header: bool = None
+    pkt, rx_header: bool = False
 ) -> None | _HeaderT:  # NOTE: used in command.py
     """Return the header of a packet (all packets have a header).
 
