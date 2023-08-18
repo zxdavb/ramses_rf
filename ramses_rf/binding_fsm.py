@@ -12,6 +12,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .protocol.address import NUL_DEVICE_ID
+from .protocol.const import SZ_ACCEPT, SZ_CONFIRM, SZ_OFFER, SZ_PHASE
 
 if TYPE_CHECKING:
     from typing import Callable, Iterable, TypeVar
@@ -163,20 +164,19 @@ class BindContext:
         if msg.code != Code._1FC9:
             return
 
-        # TODO: tidy up this block - nested ifs exist only for breakpoint purposes
-        if msg.payload.get("phase") == "offer":
+        if msg.payload.get(SZ_PHASE) == SZ_OFFER:
             if msg.src is self._dev:
                 self._state.received_offer(msg)  # Supplicant(Offered)
             else:
                 self._state.received_offer(msg)  # Respondent(Listening), or other
-        elif msg.payload.get("phase") == "accept":
+        elif msg.payload.get(SZ_PHASE) == SZ_ACCEPT:
             if msg.src is self._dev:
                 self._state.received_accept(msg)
             elif msg.dst is self._dev:
                 self._state.received_accept(msg)
             else:
                 self._state.received_accept(msg)
-        elif msg.payload.get("phase") == "confirm":
+        elif msg.payload.get(SZ_PHASE) == SZ_CONFIRM:
             if msg.src is self._dev:
                 self._state.received_confirm(msg)
             elif msg.dst is self._dev:
@@ -194,7 +194,6 @@ class BindContext:
             return
 
         # these sends raise BindRetryError if RETRY_LIMIT exceeded
-        # TODO: tidy up this block - nested ifs exist only for breakpoint purposes
         if cmd.verb == I_ and cmd.dst.id in (cmd.src.id, NUL_DEVICE_ID):
             self._state.sent_offer(cmd)  # Supplicant(Offering)
         elif cmd.verb == W_:  # and cmd.src is self:

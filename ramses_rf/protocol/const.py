@@ -473,6 +473,12 @@ SZ_ZONE_MASK = "zone_mask"
 SZ_ZONE_TYPE = "zone_type"
 SZ_ZONES = "zones"
 
+# used in 1FC9
+SZ_OFFER = "offer"
+SZ_ACCEPT = "accept"
+SZ_CONFIRM = "confirm"
+SZ_PHASE = "phase"
+
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 # Evohome: 12 (0-11), older/initial version was 8

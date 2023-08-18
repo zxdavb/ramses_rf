@@ -21,6 +21,8 @@ from .const import (
     DONT_CREATE_ENTITIES,
     DONT_UPDATE_ENTITIES,
     SZ_DEVICES,
+    SZ_OFFER,
+    SZ_PHASE,
     __dev_mode__,
 )
 from .device import Device, Fakeable
@@ -344,7 +346,9 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
         if msg.dst is not msg.src and isinstance(msg.dst, Fakeable):
             devices = (msg.dst,)  # dont: msg.dst._handle_msg(msg)
 
-        elif msg.code == Code._1FC9 and msg.payload["phase"] == "offer":  # send to all
+        elif (
+            msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER
+        ):  # send to all
             devices = (
                 d
                 for d in gwy.devices

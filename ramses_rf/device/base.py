@@ -154,7 +154,7 @@ class DeviceBase(Entity):
 
     def _handle_msg(self, msg: Message) -> None:
         # # assert msg.src is self or (
-        # #     msg.code == Code._1FC9 and msg.payload["phase"] == "offer"
+        # #     msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER
         # # ), f"msg from {msg.src} inappropriately routed to {self}"
 
         super()._handle_msg(msg)
