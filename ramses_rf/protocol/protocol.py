@@ -261,7 +261,7 @@ class _BaseProtocol(asyncio.Protocol):
         self,
         msg_handler: MsgHandler,
         msg_filter: None | MsgFilter = None,
-    ) -> Callable[[None], None]:
+    ) -> Callable[[], None]:
         """Add a Message handler to the list of such callbacks.
 
         Returns a callback that can be used to subsequently remove the Message handler.
@@ -542,7 +542,7 @@ class ReadProtocol(_BaseProtocol):
     def resume_writing(self) -> None:
         raise NotImplementedError
 
-    async def send_cmd(self, cmd: Command, callback: Callable = None) -> None:
+    async def send_cmd(self, cmd: Command, callback: None | Callable = None) -> None:
         raise NotImplementedError
 
 
