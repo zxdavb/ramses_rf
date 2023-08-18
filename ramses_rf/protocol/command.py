@@ -929,8 +929,7 @@ class Command(Frame):
     def set_system_time(
         cls,
         ctl_id: _DeviceIdT,
-        datetime: dt,
-        str,
+        datetime: dt | str,
         is_dst: None | bool = False,
         **kwargs,
     ):
@@ -1222,8 +1221,7 @@ class Command(Frame):
 
         if not codes:  # None, "", or []
             codes = []
-        assert isinstance(codes, Iterable)  # mypy
-        if len(codes[0]) == len(Code._1FC9):  # list, tuple, or dict (keys)
+        elif len(codes[0]) == len(Code._1FC9):  # list, tuple, or dict (keys)
             codes = list(codes)
         elif len(codes[0]) == len(Code._1FC9[0]):  # str
             codes = [codes]
