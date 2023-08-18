@@ -171,7 +171,7 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
 
 @lru_cache(maxsize=128)
 @typechecked
-def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
+def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
     """Return True if a device_id is valid."""
 
     if not isinstance(value, str) or not DEVICE_ID_REGEX.ANY.match(value):
