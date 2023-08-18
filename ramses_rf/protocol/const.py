@@ -99,9 +99,9 @@ class AttrDict(dict):
 
     del __readonly
 
-    def __init__(self, main_table, attr_table=None):
-        self._main_table: dict = main_table
-        self._attr_table: dict = attr_table
+    def __init__(self, main_table: dict, attr_table: dict):
+        self._main_table = main_table
+        self._attr_table = attr_table
         self._attr_table[self._SZ_SLUGS] = tuple(sorted(main_table.keys()))
 
         self._slug_lookup: dict = {
