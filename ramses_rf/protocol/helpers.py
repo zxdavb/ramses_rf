@@ -11,6 +11,7 @@ import ctypes
 import sys
 import time
 from datetime import datetime as dt
+from functools import wraps
 from typing import (  # typeguard doesn't support PEP604 on 3.9.x
     Iterable,
     Literal,
@@ -50,6 +51,7 @@ try:
 except ImportError:
 
     def typechecked(fnc):  # type: ignore[no-redef]
+        @wraps(fnc)
         def wrapper(*args, **kwargs):
             return fnc(*args, **kwargs)
 

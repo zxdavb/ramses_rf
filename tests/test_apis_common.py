@@ -21,7 +21,7 @@ def test_all_apis_in_map():
         if isinstance(v, classmethod) and k[:1] != "_" and k not in EXCLUDED_APIS
     )
 
-    map_apis = set(v.__wrapped__.__name__ for v in CODE_API_MAP.values())
+    map_apis = set(v.__name__ for v in CODE_API_MAP.values())
 
     assert not map_apis.symmetric_difference(cls_apis)
 
