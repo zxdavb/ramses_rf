@@ -12,12 +12,7 @@ import sys
 import time
 from datetime import datetime as dt
 from functools import wraps
-from typing import (  # typeguard doesn't support PEP604 on 3.9.x
-    Iterable,
-    Literal,
-    Optional,
-    Union,
-)
+from typing import Iterable, Literal  # typeguard doesn't support PEP604 on 3.9.x
 
 from .const import (
     SZ_AIR_QUALITY,
@@ -163,7 +158,7 @@ def dt_str() -> str:
 
 
 @typechecked
-def hex_to_bool(value: HexStr2) -> Optional[bool]:  # either False, True or None
+def hex_to_bool(value: HexStr2) -> None | bool:  # either False, True or None
     """Convert a 2-char hex string into a boolean."""
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -173,7 +168,7 @@ def hex_to_bool(value: HexStr2) -> Optional[bool]:  # either False, True or None
 
 
 @typechecked
-def hex_from_bool(value: Optional[bool]) -> HexStr2:  # either 00, C8 or FF
+def hex_from_bool(value: None | bool) -> HexStr2:  # either 00, C8 or FF
     """Convert a boolean into a 2-char hex string."""
     if value is None:
         return "FF"
@@ -183,7 +178,7 @@ def hex_from_bool(value: Optional[bool]) -> HexStr2:  # either 00, C8 or FF
 
 
 @typechecked
-def hex_to_date(value: HexStr8) -> Optional[str]:  # YY-MM-DD
+def hex_to_date(value: HexStr8) -> None | str:  # YY-MM-DD
     """Convert am 8-char hex string into a date, format YY-MM-DD."""
     if not isinstance(value, str) or len(value) != 8:
         raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
@@ -197,7 +192,7 @@ def hex_to_date(value: HexStr8) -> Optional[str]:  # YY-MM-DD
 
 
 @typechecked  # FIXME: factor=1 should return an int
-def hex_to_double(value: HexStr4, factor: int = 1) -> Optional[float]:
+def hex_to_double(value: HexStr4, factor: int = 1) -> None | float:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -207,7 +202,7 @@ def hex_to_double(value: HexStr4, factor: int = 1) -> Optional[float]:
 
 
 @typechecked
-def hex_from_double(value: Optional[float], factor: int = 1) -> HexStr4:
+def hex_from_double(value: None | float, factor: int = 1) -> HexStr4:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
@@ -217,7 +212,7 @@ def hex_from_double(value: Optional[float], factor: int = 1) -> HexStr4:
 
 
 @typechecked
-def hex_to_dtm(value: HexStr12 | HexStr14) -> Optional[str]:  # from parsers
+def hex_to_dtm(value: HexStr12 | HexStr14) -> None | str:  # from parsers
     """Convert a 12/14-char hex string to an isoformat datetime (naive, local)."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
@@ -240,7 +235,7 @@ def hex_to_dtm(value: HexStr12 | HexStr14) -> Optional[str]:  # from parsers
 
 @typechecked
 def hex_from_dtm(
-    dtm: Union[None, dt, str], is_dst=False, incl_seconds=False
+    dtm: None | dt | str, is_dst: bool = False, incl_seconds: bool = False
 ) -> HexStr12 | HexStr14:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
@@ -261,7 +256,7 @@ def hex_from_dtm(
 
 
 @typechecked
-def hex_to_dts(value: HexStr12) -> Optional[str]:
+def hex_to_dts(value: HexStr12) -> None | str:
     """YY-MM-DD HH:MM:SS."""
     if not isinstance(value, str) or len(value) != 12:
         raise ValueError(f"Invalid value: {value}, is not a 12-char hex string")
@@ -279,7 +274,7 @@ def hex_to_dts(value: HexStr12) -> Optional[str]:
 
 
 @typechecked
-def hex_from_dts(dtm: Union[None, dt, str]) -> HexStr12:  # TODO: WIP
+def hex_from_dts(dtm: None | dt | str) -> HexStr12:  # TODO: WIP
     """Convert a datetime (isoformat str, or dtm) to a packed 12-char hex str."""
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
@@ -323,15 +318,15 @@ def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
     if not isinstance(flags, list) or len(flags) != 8:
         raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
-    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
+        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"  # type: ignore[return-value]
+    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"  # type: ignore[return-value]
 
 
 # TODO: add a wrapper for EF, & 0xF0
 @typechecked
 def hex_to_percent(
     value: HexStr2, high_res: bool = True
-) -> Optional[float]:  # c.f. valve_demand
+) -> None | float:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res, 00-C8) or 1% (00-64).
@@ -349,7 +344,7 @@ def hex_to_percent(
 
 
 @typechecked
-def hex_to_str(value: str) -> Optional[str]:  # printable ASCII characters
+def hex_to_str(value: str) -> None | str:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
     if not isinstance(value, str):
@@ -367,7 +362,7 @@ def hex_from_str(value: str) -> str:
 
 
 @typechecked
-def hex_to_temp(value: HexStr4) -> Union[None, bool, float]:
+def hex_to_temp(value: HexStr4) -> None | bool | float:
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -377,7 +372,7 @@ def hex_to_temp(value: HexStr4) -> Union[None, bool, float]:
         return False
     if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
         return None
-    temp = int(value, 16)
+    temp: float = int(value, 16)
     temp = (temp if temp < 2**15 else temp - 2**16) / 100
     if temp < -273.15:
         raise ValueError(f"Invalid value: {temp} (0x{value}) is < -273.15")
@@ -385,7 +380,7 @@ def hex_to_temp(value: HexStr4) -> Union[None, bool, float]:
 
 
 @typechecked
-def hex_from_temp(value: Optional[float]) -> HexStr4:
+def hex_from_temp(value: float) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
@@ -605,7 +600,7 @@ def _parse_fan_temp(param_name: str, value: HexStr4) -> dict[str, None | float |
     if int(value[:2], 16) & 0xF0 == 0x80:  # or temperature < -273.15:
         return _faulted_sensor(param_name, value)
 
-    temp = int(value, 16)
+    temp: float = int(value, 16)
     temp = (temp if temp < 2**15 else temp - 2**16) / 100
     if temp <= -273:  # TODO: < 273.15?
         return _faulted_sensor(param_name, value)
