@@ -18,6 +18,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
+_CodeT = str
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,7 +38,7 @@ EXPIRY = "expiry"
 ########################################################################################
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
-CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
+CODES_SCHEMA: dict[_CodeT, dict] = {  # rf_unknown
     Code._0001: {
         SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
@@ -666,7 +668,7 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
         code[RP] = code[I_]
 #
 # .I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
-CODES_WITH_ARRAYS: dict[Code, list] = {  # 000C/1FC9 are special
+CODES_WITH_ARRAYS: dict[_CodeT, list] = {  # 000C/1FC9 are special
     Code._0005: [4, ("34",)],
     Code._0009: [3, ("01", "12", "22")],
     Code._000A: [6, ("01", "12", "22")],  # single element I after a W
@@ -677,7 +679,7 @@ CODES_WITH_ARRAYS: dict[Code, list] = {  # 000C/1FC9 are special
     Code._3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
 #
-RQ_IDX_COMPLEX: list[Code] = [
+RQ_IDX_COMPLEX: list[_CodeT] = [
     Code._0005,  # context: zone_type
     Code._000A,  # optional payload
     Code._000C,  # context: index, zone_type
@@ -690,7 +692,7 @@ RQ_IDX_COMPLEX: list[Code] = [
     Code._2349,  # optional payload
     Code._3220,  # context: msg_id, and payload
 ]
-RQ_NO_PAYLOAD: list[Code] = [
+RQ_NO_PAYLOAD: list[_CodeT] = [
     k
     for k, v in CODES_SCHEMA.items()
     if v.get(RQ)
@@ -702,7 +704,7 @@ RQ_NO_PAYLOAD.extend((Code._0418,))
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
-CODE_IDX_COMPLEX: list[Code] = [
+CODE_IDX_COMPLEX: list[_CodeT] = [
     Code._0005,
     Code._000C,
     Code._1100,
@@ -711,7 +713,7 @@ CODE_IDX_COMPLEX: list[Code] = [
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
-CODE_IDX_SIMPLE: list[Code] = [
+CODE_IDX_SIMPLE: list[_CodeT] = [
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX
@@ -726,7 +728,7 @@ CODE_IDX_SIMPLE.extend(
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
-CODE_IDX_NONE: list[Code] = [
+CODE_IDX_NONE: list[_CodeT] = [
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
@@ -737,7 +739,7 @@ CODE_IDX_NONE.extend(
 )  # 31DA does appear to have an idx?
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
-CODE_IDX_DOMAIN: dict[Code, str] = {
+CODE_IDX_DOMAIN: dict[_CodeT, str] = {
     Code._0001: "^F[ACF])",
     Code._0008: "^F[9AC]",
     Code._0009: "^F[9AC]",
@@ -1114,31 +1116,31 @@ CODES_BY_DEV_SLUG: dict[str, dict] = {
     **{k: v for k, v in _DEV_KLASSES_HEAT.items() if k is not None},
 }
 
-CODES_OF_HEAT_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
+CODES_OF_HEAT_DOMAIN: tuple[_CodeT] = sorted(  # type: ignore[assignment]
     tuple(set(c for k in _DEV_KLASSES_HEAT.values() for c in k))
     + (Code._0B04, Code._2389)
 )
-CODES_OF_HVAC_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
+CODES_OF_HVAC_DOMAIN: tuple[_CodeT] = sorted(  # type: ignore[assignment]
     tuple(set(c for k in _DEV_KLASSES_HVAC.values() for c in k))
     + (Code._22F8, Code._4401, Code._4E01, Code._4E02, Code._4E04)
 )
-CODES_OF_HEAT_DOMAIN_ONLY: tuple[Code, ...] = tuple(
+CODES_OF_HEAT_DOMAIN_ONLY: tuple[_CodeT, ...] = tuple(
     c for c in sorted(CODES_OF_HEAT_DOMAIN) if c not in CODES_OF_HVAC_DOMAIN
 )
-CODES_OF_HVAC_DOMAIN_ONLY: tuple[Code, ...] = tuple(
+CODES_OF_HVAC_DOMAIN_ONLY: tuple[_CodeT, ...] = tuple(
     c for c in sorted(CODES_OF_HVAC_DOMAIN) if c not in CODES_OF_HEAT_DOMAIN
 )
-_CODES_OF_BOTH_DOMAINS: tuple[Code, ...] = sorted(
-    tuple(set(CODES_OF_HEAT_DOMAIN) & set(CODES_OF_HVAC_DOMAIN))
+_CODES_OF_BOTH_DOMAINS: tuple[_CodeT, ...] = tuple(
+    sorted(set(CODES_OF_HEAT_DOMAIN) & set(CODES_OF_HVAC_DOMAIN))
 )
-_CODES_OF_EITHER_DOMAIN: tuple[Code, ...] = sorted(
-    tuple(set(CODES_OF_HEAT_DOMAIN) | set(CODES_OF_HVAC_DOMAIN))
+_CODES_OF_EITHER_DOMAIN: tuple[_CodeT, ...] = tuple(
+    sorted(set(CODES_OF_HEAT_DOMAIN) | set(CODES_OF_HVAC_DOMAIN))
 )
-_CODES_OF_NO_DOMAIN: tuple[Code, ...] = tuple(
+_CODES_OF_NO_DOMAIN: tuple[_CodeT, ...] = tuple(
     c for c in CODES_SCHEMA if c not in _CODES_OF_EITHER_DOMAIN
 )
 
-_CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
+_CODE_FROM_NON_CTL: tuple[_CodeT] = tuple(  # type: ignore[assignment]
     dict.fromkeys(
         c
         for k, v1 in CODES_BY_DEV_SLUG.items()
@@ -1148,10 +1150,10 @@ _CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
 )
 _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_TYPE.CTL].keys()
 
-_CODE_ONLY_FROM_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
+_CODE_ONLY_FROM_CTL: tuple[_CodeT] = tuple(  # type: ignore[assignment]
     c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL
 )
-CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
+CODES_ONLY_FROM_CTL: tuple[_CodeT, ...] = (
     Code._1030,
     Code._1F09,
     Code._22D0,
