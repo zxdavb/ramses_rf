@@ -286,6 +286,7 @@ def set_pkt_logging(logger, dt_now=None, cc_console: bool = False, **kwargs) -> 
         return
 
     if cc_console:
+        console_fmt: ColoredFormatter | Formatter
         if _use_color_:
             console_fmt = ColoredFormatter(
                 fmt=f"%(log_color)s{CONSOLE_FMT + COLOR_SUFFIX}",
