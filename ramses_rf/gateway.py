@@ -71,12 +71,13 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RQ,
     W_,
     Code,
+    Verb,
 )
 
 
 if TYPE_CHECKING:
     from .device import Device
-    from .protocol.frame import _CodeT, _DeviceIdT, _PayloadT, _VerbT
+    from .protocol.frame import _DeviceIdT, _PayloadT
     from .protocol.protocol import RamsesProtocol, RamsesTransport
 
 _MsgHandlerT = Callable[[Message], None]
@@ -284,7 +285,7 @@ class Engine:
 
     @staticmethod
     def create_cmd(
-        verb: _VerbT, device_id: _DeviceIdT, code: _CodeT, payload: _PayloadT, **kwargs
+        verb: Verb, device_id: _DeviceIdT, code: Code, payload: _PayloadT, **kwargs
     ) -> Command:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)

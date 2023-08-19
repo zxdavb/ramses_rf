@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
     from . import Address, Message
 
-    _CodeT = str  # 4-char, e.g. 10E0, 1FC9
     _IdxT = str  # 2-char, e.g. 00, FC
 
 from ..binding_fsm import BindContext
@@ -35,6 +34,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RQ,
     W_,
     Code,
+    Verb,
 )
 
 DEFAULT_BDR_ID = "13:888888"
@@ -355,7 +355,7 @@ class Fakeable(DeviceBase):
             self._context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
     async def wait_for_binding_request(
-        self, codes: Iterable[_CodeT], idx: _IdxT = "00"
+        self, codes: Iterable[Code], idx: _IdxT = "00"
     ) -> Packet:
         """Listen for a binding and return the supplicant's Offer if successful.
 
@@ -377,14 +377,14 @@ class Fakeable(DeviceBase):
         return offer_msg._pkt  # caller to send mode (e.g. zone name/setpoint, etc.)?
 
     async def _send_accept_cmd(
-        self, dst: Device, codes: Iterable[_CodeT], idx: _IdxT = "00"
+        self, dst: Device, codes: Iterable[Code], idx: _IdxT = "00"
     ) -> Packet:
         """Send an Accept command (to the Supplicant) and return the Confirm packet."""
         cmd = Command.put_bind(W_, self.id, codes, dst_id=dst.id, idx=idx)
         return await self._async_send_cmd(cmd)
 
     async def initiate_binding_process(
-        self, codes: Iterable[_CodeT], oem_code: None | str = None
+        self, codes: Iterable[Code], oem_code: None | str = None
     ) -> Packet:
         """Start a binding and return the respondent's Accept if successful.
 
@@ -413,7 +413,7 @@ class Fakeable(DeviceBase):
 
     async def _send_offer_cmd(
         self,
-        codes: Iterable[_CodeT],
+        codes: Iterable[Code],
         oem_code: None | str = None,
         scheme: None | str = None,
     ) -> Packet:
@@ -427,7 +427,7 @@ class Fakeable(DeviceBase):
         return pkt
 
     async def _send_confirm_cmd(
-        self, dst: Device, codes: None | Iterable[_CodeT], idx: _IdxT = "00"
+        self, dst: Device, codes: None | Iterable[Code], idx: _IdxT = "00"
     ) -> Packet:
         """Send a Confirm command (to the Respondent) and return the Confirm packet."""
         cmd = Command.put_bind(I_, self.id, codes, dst_id=dst.id, idx=idx)

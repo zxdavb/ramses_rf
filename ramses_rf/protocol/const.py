@@ -5,8 +5,9 @@
 from __future__ import annotations
 
 import re
-from enum import StrEnum
+from enum import EnumCheck, StrEnum, verify
 from types import SimpleNamespace
+from typing import Literal
 
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
@@ -89,9 +90,9 @@ class AttrDict(dict):
     def __readonly(cls, *args, **kwargs):
         raise TypeError(f"'{cls.__class__.__name__}' object is read only")
 
-    __delitem__ = __readonly
-    __setitem__ = __readonly
-    clear = __readonly
+    __delitem__ = __readonly  # type:ignore[assignment]
+    __setitem__ = __readonly  # type:ignore[assignment]
+    clear = __readonly  # type:ignore[assignment]
     pop = __readonly  # type:ignore[assignment]
     popitem = __readonly  # type:ignore[assignment]
     setdefault = __readonly  # type:ignore[assignment]
@@ -597,13 +598,17 @@ FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 # ST9420C has battery back-up (as does evohome)
 
 
-I_ = " I"
-RQ = "RQ"
-RP = "RP"
-W_ = " W"
+# Below, verbs & codes - can use Verb/Code for mypy type checking
+Verb = Literal[" I", "RQ", "RP", " W"]
+
+I_: Verb = " I"
+RQ: Verb = "RQ"
+RP: Verb = "RP"
+W_: Verb = " W"
 
 
-# @verify(UNIQUE)  # TODO: v3.11+
+# StrEnum is intended include all known codes, see: test suite, code schema in ramses.py
+@verify(EnumCheck.UNIQUE)
 class Code(StrEnum):
     _0001 = "0001"
     _0002 = "0002"
@@ -632,7 +637,7 @@ class Code(StrEnum):
     _1098 = "1098"
     _10A0 = "10A0"
     _10B0 = "10B0"
-    _10D0 = "10D0"  # Orcon
+    _10D0 = "10D0"
     _10E0 = "10E0"
     _10E1 = "10E1"
     _10E2 = "10E2"
@@ -648,7 +653,7 @@ class Code(StrEnum):
     _12C8 = "12C8"
     _12F0 = "12F0"
     _1300 = "1300"
-    _1470 = "1470"  # Orcon
+    _1470 = "1470"
     _1F09 = "1F09"
     _1F41 = "1F41"
     _1F70 = "1F70"
@@ -656,20 +661,20 @@ class Code(StrEnum):
     _1FCA = "1FCA"
     _1FD0 = "1FD0"
     _1FD4 = "1FD4"
-    _2210 = "2210"  # Orcon
+    _2210 = "2210"
     _2249 = "2249"
     _22C9 = "22C9"
     _22D0 = "22D0"
     _22D9 = "22D9"
-    _22E0 = "22E0"  # Orcon
-    _22E5 = "22E5"  # Orcon
-    _22E9 = "22E9"  # Orcon
+    _22E0 = "22E0"
+    _22E5 = "22E5"
+    _22E9 = "22E9"
     _22F1 = "22F1"
-    _22F2 = "22F2"  # Orcon
+    _22F2 = "22F2"
     _22F3 = "22F3"
-    _22F4 = "22F4"  # Orcon
-    _22F7 = "22F7"  # Orcon
-    _22F8 = "22F8"  # Orcon
+    _22F4 = "22F4"
+    _22F7 = "22F7"
+    _22F8 = "22F8"
     _22B0 = "22B0"
     _2309 = "2309"
     _2349 = "2349"
@@ -685,7 +690,7 @@ class Code(StrEnum):
     _30C9 = "30C9"
     _3110 = "3110"
     _3120 = "3120"
-    _313E = "313E"  # Orcon
+    _313E = "313E"
     _313F = "313F"
     _3150 = "3150"
     _31D9 = "31D9"
@@ -695,7 +700,7 @@ class Code(StrEnum):
     _3210 = "3210"
     _3220 = "3220"
     _3221 = "3221"
-    _3222 = "3222"  # Orcon
+    _3222 = "3222"
     _3223 = "3223"
     _3B00 = "3B00"
     _3EF0 = "3EF0"
@@ -707,4 +712,4 @@ class Code(StrEnum):
     _4E0D = "4E0D"
     _4E15 = "4E15"
     _4E16 = "4E16"
-    _PUZZ = "7FFF"
+    _PUZZ = "7FFF"  # for internal use: not to be a RAMSES II code

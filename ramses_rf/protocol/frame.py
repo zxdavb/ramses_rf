@@ -8,7 +8,6 @@ Provide the base class for commands (constructed/sent packets) and packets.
 from __future__ import annotations
 
 import logging
-from typing import Literal
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
@@ -39,6 +38,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FC,
     FF,
     Code,
+    Verb,
 )
 
 
@@ -49,11 +49,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-_CodeT = str
 _DeviceIdT = str
 _HeaderT = str
 _PayloadT = str
-_VerbT = Literal[" I", "RQ", "RP", " W"]
 
 
 class Frame:
@@ -78,9 +76,9 @@ class Frame:
 
         fields = frame.lstrip().split(" ")
 
-        self.verb: _VerbT = frame[:2]  # type: ignore[assignment]
+        self.verb: Verb = frame[:2]  # type: ignore[assignment]
         self.seqn: str = fields[1]  # frame[3:6]
-        self.code: _CodeT = fields[5]  # frame[37:41]
+        self.code: Code = fields[5]  # frame[37:41]
         self.len_: str = fields[6]  # frame[42:45]  FIXME: len_, _len & len(payload)/2
         self.payload: _PayloadT = fields[7]  # frame[46:].split(" ")[0]
         self._len: int = int(len(self.payload) / 2)
@@ -110,7 +108,7 @@ class Frame:
 
     @classmethod  # for internal use only
     def _from_attrs(
-        cls, verb: _VerbT, *addrs, code: _CodeT, payload: _PayloadT, seqn=None
+        cls, verb: Verb, *addrs, code: Code, payload: _PayloadT, seqn: None | str = None
     ):
         """Create a frame from its attributes (args, kwargs)."""
 

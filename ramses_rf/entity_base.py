@@ -27,7 +27,7 @@ from .const import (
     __dev_mode__,
 )
 from .protocol import CorruptStateError
-from .protocol.frame import _CodeT, _DeviceIdT, _HeaderT, _VerbT
+from .protocol.frame import _DeviceIdT, _HeaderT
 from .protocol.opentherm import OPENTHERM_MESSAGES
 from .protocol.ramses import CODES_SCHEMA
 from .schemas import SZ_CIRCUITS
@@ -43,6 +43,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FC,
     FF,
     Code,
+    Verb,
 )
 
 if TYPE_CHECKING:
@@ -89,8 +90,8 @@ class MessageDB:
     tcs: System
 
     def __init__(self, gwy: Gateway) -> None:
-        self._msgs: dict[_CodeT, Message] = {}  # code, should be code/ctx? ?deprecate
-        self._msgz: dict[_CodeT, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
+        self._msgs: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
+        self._msgz: dict[Code, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
 
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
@@ -140,19 +141,19 @@ class MessageDB:
 
         return msg
 
-    def _msg_flag(self, code: _CodeT, key, idx) -> None | bool:
+    def _msg_flag(self, code: Code, key, idx) -> None | bool:
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: _CodeT, *args, **kwargs):
+    def _msg_value(self, code: Code, *args, **kwargs):
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
     def _msg_value_code(
-        self, code: _CodeT, verb: _VerbT = None, key=None, **kwargs
+        self, code: Code, verb: Verb = None, key=None, **kwargs
     ) -> None | dict | list:
         assert (
             not isinstance(code, tuple) or verb is None

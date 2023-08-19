@@ -31,7 +31,7 @@ from .const import (
     Priority,
     __dev_mode__,
 )
-from .frame import Frame, _CodeT, _DeviceIdT, _HeaderT, _PayloadT, _VerbT, pkt_header
+from .frame import Frame, _DeviceIdT, _HeaderT, _PayloadT, pkt_header
 from .helpers import (
     dt_now,
     hex_from_double,
@@ -58,6 +58,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FC,
     FF,
     Code,
+    Verb,
 )
 
 
@@ -262,7 +263,7 @@ def _normalise_until(
     return until, duration
 
 
-def _qos_params(verb: _VerbT, code: _CodeT, qos: dict) -> Qos:
+def _qos_params(verb: Verb, code: Code, qos: dict) -> Qos:
     """Class constructor wrapped to prevent cyclic reference."""
     return Qos.verb_code(verb, code, **qos)
 
@@ -299,9 +300,9 @@ class Command(Frame):
     @classmethod  # convenience constructor
     def from_attrs(
         cls,
-        verb: _VerbT,
+        verb: Verb,
         dest_id,
-        code: _CodeT,
+        code: Code,
         payload: _PayloadT,
         *,
         from_id=None,
@@ -333,8 +334,8 @@ class Command(Frame):
     @classmethod  # generic constructor
     def _from_attrs(
         cls,
-        verb: _VerbT,
-        code: _CodeT,
+        verb: str | Verb,
+        code: Code,
         payload: _PayloadT,
         *,
         addr0=None,
@@ -1211,9 +1212,9 @@ class Command(Frame):
     @typechecked
     def put_bind(
         cls,
-        verb: _VerbT,
+        verb: Verb,
         src_id: _DeviceIdT,
-        codes: None | _CodeT | Iterable[_CodeT],
+        codes: None | Code | Iterable[Code],
         dst_id: None | _DeviceIdT = None,
         **kwargs,
     ):
@@ -1243,10 +1244,10 @@ class Command(Frame):
     @typechecked
     def _put_bind_offer(  # TODO: add idx (BDR-CTL), and handle odd cases (TRV-CTL)
         cls,
-        verb: _VerbT,
+        verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
-        codes: _CodeT | Iterable[_CodeT],
+        codes: Code | Iterable[Code],
         *,
         idx: None | str = "00",
         oem_code: None | str = "FF",
@@ -1283,10 +1284,10 @@ class Command(Frame):
     @typechecked
     def _put_bind_accept(
         cls,
-        verb: _VerbT,
+        verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
-        codes: _CodeT | Iterable[_CodeT],
+        codes: Code | Iterable[Code],
         *,
         idx: None | str = "00",
         qos: None | dict = None,
@@ -1307,10 +1308,10 @@ class Command(Frame):
     @typechecked
     def _put_bind_confirm(
         cls,
-        verb: _VerbT,
+        verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
-        codes: _CodeT | Iterable[_CodeT],
+        codes: Code | Iterable[Code],
         *,
         idx: None | str = "00",
         qos: None | dict = None,
@@ -1485,9 +1486,7 @@ class Command(Frame):
         return cls.from_attrs(I_, NUL_DEV_ADDR.id, Code._PUZZ, payload[:48], **kwargs)
 
 
-def _mk_cmd(
-    verb: _VerbT, code: _CodeT, payload: _PayloadT, dest_id, **kwargs
-) -> Command:
+def _mk_cmd(verb: Verb, code: Code, payload: _PayloadT, dest_id, **kwargs) -> Command:
     """A convenience function, to cope with a change to the Command class."""
     return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
 

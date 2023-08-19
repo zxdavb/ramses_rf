@@ -98,6 +98,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     ZON_ROLE,
     ZON_ROLE_MAP,
     Code,
+    Verb,
 )
 
 
