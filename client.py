@@ -194,7 +194,7 @@ class DeviceIdParamType(click.ParamType):
     help="display crazy things",
 )
 @click.pass_context
-def cli(ctx, config_file=None, eavesdrop: bool = None, **kwargs):
+def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
     if kwargs[SZ_DEBUG_MODE] > 0:  # Do first
@@ -293,7 +293,7 @@ def parse(obj, **kwargs):
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
 )
 @click.pass_obj
-def monitor(obj, discover: bool = None, **kwargs):
+def monitor(obj, discover: None | bool = None, **kwargs):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
