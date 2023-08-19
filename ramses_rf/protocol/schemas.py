@@ -68,7 +68,7 @@ def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
     }
 
 
-def extract_packet_source(pkt_source_dict: dict) -> tuple[str, dict]:
+def OUT_extract_packet_source(pkt_source_dict: dict) -> tuple[str, dict]:
     """Extract a pkt source, source_config_dict tuple from a sch_packet_source_dict."""
     source_name = pkt_source_dict.get(SZ_INPUT_FILE)
     source_config = {k: v for k, v in pkt_source_dict.items() if k != SZ_INPUT_FILE}
@@ -231,8 +231,8 @@ _SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
 
 
 def sch_global_traits_dict_factory(
-    heat_traits: dict[vol.Optional, vol.Any] = None,
-    hvac_traits: dict[vol.Optional, vol.Any] = None,
+    heat_traits: None | dict[vol.Optional, vol.Any] = None,
+    hvac_traits: None | dict[vol.Optional, vol.Any] = None,
 ) -> tuple[dict[vol.Optional, vol.Any], vol.Schema]:
     """Return a global traits dict with a configurable extra traits.
 

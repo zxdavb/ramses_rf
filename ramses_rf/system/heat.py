@@ -85,6 +85,7 @@ from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impo
     FC,
     FF,
     Code,
+    Verb,
 )
 
 

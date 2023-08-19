@@ -72,6 +72,7 @@ from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impo
     FC,
     FF,
     Code,
+    Verb,
 )
 
 
@@ -290,7 +291,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Set the heating valve relay for this DHW zone (13: only)."""
         """Set the hotwater valve relay for this DHW zone (13: only).
 
-        Check and _VerbT the DHW sensor (07:) of this system/CTL (if there is one).
+        Check and ??? the DHW sensor (07:) of this system/CTL (if there is one).
 
         There is only 1 way to eavesdrop a controller's DHW sensor:
         1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)

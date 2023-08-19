@@ -44,6 +44,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RQ,
     W_,
     Code,
+    Verb,
 )
 
 if TYPE_CHECKING:
