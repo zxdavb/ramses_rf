@@ -11,7 +11,7 @@ from .const import DEV_TYPE
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP
 from .const import DEVICE_ID_REGEX, __dev_mode__
 from .exceptions import InvalidAddrSetError
-from .helpers import typechecked
+from .helpers import typechecked  # type: ignore[import-error]
 
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
@@ -36,7 +36,7 @@ _DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
 class Address:
     """The device Address class."""
 
-    def __init__(self, device_id) -> None:
+    def __init__(self, device_id: str) -> None:
         """Create an address from a valid device id."""
 
         # if device_id is None:
