@@ -62,6 +62,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     ZON_ROLE,
     ZON_ROLE_MAP,
     Code,
+    Index,
     Verb,
 )
 

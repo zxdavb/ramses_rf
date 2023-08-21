@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Awaitable, TypeVar
 from .exceptions import InvalidStateError, RetryLimitExceeded, SendTimeoutError
 
 if TYPE_CHECKING:
-    from .command import Command
-    from .packet import Packet
+    from . import Command, Packet
 
 
 _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
@@ -308,9 +307,6 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             fut.set_result(None)
 
 
-_ContextT = ProtocolContext  # TypeVar("_ContextT", bound=ProtocolContext)
-
-
 class ProtocolStateBase:
     # state attrs
     cmd: None | Command
@@ -320,7 +316,7 @@ class ProtocolStateBase:
 
     def __init__(
         self,
-        context: _ContextT,
+        context: ProtocolContext,
         cmd: None | Command = None,
         cmd_sends: int = 0,
     ) -> None:

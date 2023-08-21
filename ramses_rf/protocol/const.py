@@ -598,7 +598,7 @@ FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 # ST9420C has battery back-up (as does evohome)
 
 
-# Below, verbs & codes - can use Verb/Code for mypy type checking
+# Below, verbs & codes - can use Verb/Code/Index for mypy type checking
 Verb = Literal[" I", "RQ", "RP", " W"]
 
 I_: Verb = " I"
@@ -713,3 +713,12 @@ class Code(StrEnum):
     _4E15 = "4E15"
     _4E16 = "4E16"
     _PUZZ = "7FFF"  # for internal use: not to be a RAMSES II code
+
+
+# fmt: off
+Index = Literal[
+    "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0A", "0B", "0C", "0D", "0E", "0F",
+    "21",  # used by Nuaire
+    "F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "FA", "FB", "FC", "FD", "FE", "FF"
+]
+# fmt: on
