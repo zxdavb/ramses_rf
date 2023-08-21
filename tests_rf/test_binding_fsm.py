@@ -84,7 +84,7 @@ TEST_SUITE_300 = [
             # I --- 37:154011 63:262142 --:------ 10E0 038 00-000100280901-01-FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000",
         ),
     },
-    # {
+    # {  # FIXME: offer sent to 63:262142, so send_cmd() wont return corresponding accept
     #     SZ_RESPONDENT: {
     #         "32:155617": {"class": "FAN", "scheme": "orcon", "_notes": "HRC-350"},
     #     },
@@ -100,30 +100,38 @@ TEST_SUITE_300 = [
     #         # I --- 29:158183 --:------ 29:158183 1060 003 00-FF01",
     #     ),
     # },
-    # {
+    # {  # FIXME: supplicant used oem_code and 10E0
     #     SZ_RESPONDENT: {"32:155617": {"class": "FAN", "scheme": "orcon"}},
     #     SZ_SUPPLICANT: {"37:171871": {"class": "DIS", "scheme": "orcon"}},
-    #     PKT_FLOW: (),
+    #     f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
+    #     PKT_FLOW: (
+    #         " I --- 37:171871 --:------ 37:171871 1FC9 024 00-22F1-969F5F 00-22F3-969F5F 67-10E0-969F5F 00-1FC9-969F5F",
+    #         " W --- 32:155617 37:171871 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1",
+    #         " I --- 37:171871 32:155617 --:------ 1FC9 001 00",
+    #         # I --- 37:171871 63:262142 --:------ 10E0 038 00-0001C8940301-67-FFFFFFFFFFFF1B0807E4564D492D313557534A3533000000000000000000",
+    #     ),
     # },
-    # {
+    # {  # FIXME: confirm is:  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
     #     SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
     #     SZ_SUPPLICANT: {"07:045960": {"class": "DHW"}},
+    #     f"{SZ_RESPONDENT}_attr": {"codes": [Code._10A0]},
     #     PKT_FLOW: (
     #         " I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388",
     #         " W --- 01:145038 07:045960 --:------ 1FC9 006 00-10A0-06368E",
     #         " I --- 07:045960 01:145038 --:------ 1FC9 006 00-1260-1CB388",
     #     ),  # TODO: need epilogue packets
     # },
-    # {
+    # {  # FIXME: confirm is not:  I --- 22:057520 01:085545 --:------ 1FC9 006 07
     #     SZ_RESPONDENT: {"01:085545": {"class": "CTL"}},
     #     SZ_SUPPLICANT: {"22:057520": {"class": "THM"}},  # is THM, not STA
+    #     f"{SZ_RESPONDENT}_attr": {"codes": [Code._2309], "idx": "07"},
     #     PKT_FLOW: (
     #         " I --- 22:057520 --:------ 22:057520 1FC9 024 00-2309-58E0B0 00-30C9-58E0B0 00-0008-58E0B0 00-1FC9-58E0B0",
     #         " W --- 01:085545 22:057520 --:------ 1FC9 006 07-2309-054E29",
     #         " I --- 22:057520 01:085545 --:------ 1FC9 006 00-2309-58E0B0",
     #     ),
     # },
-    # {
+    # {  # FIXME: needs initiate_binding_process(), and above
     #     SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
     #     SZ_SUPPLICANT: {"34:092243": {"class": "RND"}},
     #     PKT_FLOW: (
@@ -287,7 +295,7 @@ async def _test_flow_30x(
     )
     await assert_context_state(respondent, BindState.LISTENING)
 
-    # STEP 2: Start/finish the requester, oem_code="6C"?
+    # STEP 2: Start/finish the requester
     _ = await supplicant.initiate_binding_process()
     await assert_context_state(supplicant, BindState.CONFIRMED)
 

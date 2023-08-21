@@ -67,7 +67,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
-    from ..protocol import Address, Message
+    from ..protocol import Address, Message, Packet
     from ..system import Zone
 
 
@@ -339,6 +339,9 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
 
         super()._bind()
         self._bind_request(Code._1260, callback=callback)
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(Code._1260)
 
     @property
     def temperature(self) -> None | float:  # 1260
@@ -1240,6 +1243,11 @@ class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
     _SLUG: str = DEV_TYPE.THM
 
     _STATE_ATTR = SZ_TEMPERATURE
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(
+            [Code._2309, Code._30C9, Code._0008]
+        )
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
