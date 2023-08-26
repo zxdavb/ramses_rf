@@ -1179,6 +1179,11 @@ def parser_1f09(payload: str, msg: Message) -> dict:
     # 22:51:19.318 068  I --- --:------ --:------ 12:193204 2309 003 010866
     # 22:51:19.321 067  I --- --:------ --:------ 12:193204 30C9 003 0108C3
 
+    # domain_id from 01:/CTL:
+    # - FF for regular sync messages
+    # - 00 when responding to a request
+    # - F8 after binding a device
+
     assert msg.len == 3, f"length is {msg.len}, expecting 3"
     assert payload[:2] in ("00", "01", F8, FF)  # W/F8
 
