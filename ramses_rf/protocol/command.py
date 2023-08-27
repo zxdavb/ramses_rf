@@ -1218,11 +1218,19 @@ class Command(Frame):
         dst_id: None | _DeviceIdT = None,
         **kwargs,
     ):
-        """Constructor for RF bind commands (1FC9), for use by faked devices."""
+        """Constructor for RF bind commands (1FC9), for use by faked devices.
+
+        Expected use-cases:
+          FAN bound by CO2 (1298), HUM (12A0), PER (2E10), SWI (22F1, 22F3)
+          CTL bound by STA (30C9), DHW (1260)
+
+        Other bindings are much more complicated than the above, and would require
+        bespoke constructors (e.g. TRV binding to a CTL).
+        """
 
         if not codes:  # None, "", or []
-            codes = []
-        elif len(codes[0]) == len(Code._1FC9):  # list, tuple, or dict (keys)
+            codes = []  # used by confirm
+        elif len(codes[0]) == len(Code._1FC9):  # iterable: list, tuple, or dict.keys()
             codes = list(codes)
         elif len(codes[0]) == len(Code._1FC9[0]):  # str
             codes = [codes]
@@ -1231,10 +1239,9 @@ class Command(Frame):
 
         qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
 
-        if dst_id in (None, src_id, NUL_DEV_ADDR.id) and verb == I_:
-            dst_id = dst_id or src_id
+        if verb == I_ and dst_id in (None, src_id, NUL_DEV_ADDR.id):
             return cls._put_bind_offer(verb, src_id, dst_id, codes, qos=qos, **kwargs)
-        elif dst_id and verb == W_:
+        elif verb == W_ and dst_id not in (None, src_id):
             return cls._put_bind_accept(verb, src_id, dst_id, codes, qos=qos, **kwargs)
         elif verb == I_:
             return cls._put_bind_confirm(verb, src_id, dst_id, codes, qos=qos, **kwargs)
@@ -1242,45 +1249,33 @@ class Command(Frame):
 
     @classmethod  # constructor for 1FC9 (rf_bind) offer
     @typechecked
-    def _put_bind_offer(  # TODO: add idx (BDR-CTL), and handle odd cases (TRV-CTL)
+    def _put_bind_offer(
         cls,
         verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
         codes: Code | Iterable[Code],
         *,
-        idx: None | str = "00",
-        oem_code: None | str = "FF",
+        oem_code: None | str = None,
         qos: None | dict = None,
     ):
-        # .I --- 32:208628 --:------ 32:208628 1FC9 018 00-22F1-832EF4                6C-10E0-832EF4 00-1FC9-832EF4
-        # .I --- 37:171871 --:------ 37:171871 1FC9 024 00-22F1-969F5F 00-22F3-969F5F 67-10E0-969F5F 00-1FC9-969F5F
+        if not codes:  # if payload
+            raise TypeError(f"Invalid codes for a bind offer: {codes}")
 
-        # TODO: NOTE: CTL binds to BDR: has an idx
-        # .I --- 01:078710 --:------ 01:078710 1FC9 012 F6-2D49-053376                F6-1FC9-053376
-
-        # TODO: NOTE: TRV binds to CTL: a special case - the first two packets:
-        # .I --- 04:045072 63:262142 --:------ 1FC9 006 00-30C9-10B010
-        # TODO: NOTE: CTL binds to a TRV: contra-offer to the above
-        # .I --- 01:220768 --:------ 01:220768 1FC9 018 06-2309-075E60 06-30C9-075E60 06-1FC9-075E60
-
-        if not codes:
-            raise ValueError(f"Invalid codes for a bind offer command: {codes}")
+        dst_id = dst_id or src_id  # might be None
 
         hex_id = Address.convert_to_hex(src_id)
-        idx = idx or "00"
-        payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
+        payload = "".join(f"00{c}{hex_id}" for c in codes)
 
-        if oem_code and oem_code != "FF":
+        if oem_code:  # 01, 67, 6C
             payload += f"{oem_code}{Code._10E0}{hex_id}"
-        if dst_id != NUL_DEV_ADDR.id:  # in 1st pkt of a TRV offer/counter-offer pair
-            payload += f"{idx}{Code._1FC9}{hex_id}"
+        payload += f"00{Code._1FC9}{hex_id}"
 
         return cls.from_attrs(  # NOTE: .from_attrs, not ._from_attrs
             verb, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
-        )
+        )  # as dst_id could be NUL_DEV_ID
 
-    @classmethod  # constructor for 1FC9 (rf_bind) accept
+    @classmethod  # constructor for 1FC9 (rf_bind) accept - mainly used for test suite
     @typechecked
     def _put_bind_accept(
         cls,
@@ -1292,13 +1287,11 @@ class Command(Frame):
         idx: None | str = "00",
         qos: None | dict = None,
     ):
-        # .W --- 30:098165 32:208628 --:------ 1FC9 006                21-31DA-797F75
-        # .W --- 32:155617 37:171871 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1
-        # .W --- 13:208181 01:078710 --:------ 1FC9 006 00-3EF0-372D35
+        if not codes:  # if payload
+            raise TypeError(f"Invalid codes for a bind accept: {codes}")
 
         hex_id = Address.convert_to_hex(src_id)
-        idx = idx or "00"
-        payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
+        payload = "".join(f"{idx or '00'}{c}{hex_id}" for c in codes)
 
         return cls._from_attrs(
             verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
@@ -1316,15 +1309,11 @@ class Command(Frame):
         idx: None | str = "00",
         qos: None | dict = None,
     ):
-        # .I --- 32:208628 30:098165 --:------ 1FC9 001 21
-        # .I --- 37:171871 32:155617 --:------ 1FC9 001 00
-        # .I --- 01:078710 13:208181 --:------ 1FC9 006 00-FFFF-053376
-
-        if codes:  # if payload
-            hex_id = Address.convert_to_hex(src_id)
-            payload = f"{idx}{codes[0]}{hex_id}"
+        if not codes:  # if payload
+            payload = idx or "00"  # Nuaire 4-way switch uses 21!
         else:
-            payload = idx
+            hex_id = Address.convert_to_hex(src_id)
+            payload = f"{idx or '00'}{codes[0]}{hex_id}"
 
         return cls._from_attrs(
             verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
