@@ -14,9 +14,17 @@ from typing import TYPE_CHECKING, Awaitable, TypeVar
 
 from .exceptions import InvalidStateError, RetryLimitExceeded, SendTimeoutError
 
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
 if TYPE_CHECKING:
     from . import Command, Packet
-
 
 _TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
 
