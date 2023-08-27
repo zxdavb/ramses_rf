@@ -118,6 +118,7 @@ from .version import VERSION
 # - brucemiranda: 3EF0, others
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 # - tomkooij: 3110
+# - RemyDeRuysscher: 10E0, 31DA (and related), others
 
 
 # skipcq: PY-W2000
