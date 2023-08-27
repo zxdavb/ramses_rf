@@ -1222,9 +1222,9 @@ class Command(Frame):
 
         Expected use-cases:
           FAN bound by CO2 (1298), HUM (12A0), PER (2E10), SWI (22F1, 22F3)
-          CTL bound by STA (30C9), DHW (1260)
+          CTL bound by DHW (1260), RND/THM (30C9)
 
-        Other bindings are much more complicated than the above, and would require
+        Many other bindings are much more complicated than the above, and may require
         bespoke constructors (e.g. TRV binding to a CTL).
         """
 
@@ -1235,23 +1235,22 @@ class Command(Frame):
         elif len(codes[0]) == len(Code._1FC9[0]):  # str
             codes = [codes]
         else:
-            raise TypeError(f"Invalid codes: {codes}")
+            raise TypeError(f"Invalid codes for a bind command: {codes}")
 
         qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
 
         if verb == I_ and dst_id in (None, src_id, NUL_DEV_ADDR.id):
-            return cls._put_bind_offer(verb, src_id, dst_id, codes, qos=qos, **kwargs)
+            return cls._put_bind_offer(src_id, dst_id, codes, qos=qos, **kwargs)
         elif verb == W_ and dst_id not in (None, src_id):
-            return cls._put_bind_accept(verb, src_id, dst_id, codes, qos=qos, **kwargs)
+            return cls._put_bind_accept(src_id, dst_id, codes, qos=qos, **kwargs)
         elif verb == I_:
-            return cls._put_bind_confirm(verb, src_id, dst_id, codes, qos=qos, **kwargs)
+            return cls._put_bind_confirm(src_id, dst_id, codes, qos=qos, **kwargs)
         raise ValueError(f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}")
 
     @classmethod  # constructor for 1FC9 (rf_bind) offer
     @typechecked
     def _put_bind_offer(
         cls,
-        verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
         codes: Code | Iterable[Code],
@@ -1259,10 +1258,8 @@ class Command(Frame):
         oem_code: None | str = None,
         qos: None | dict = None,
     ):
-        if not codes:  # if payload
+        if not codes:  # might be []
             raise TypeError(f"Invalid codes for a bind offer: {codes}")
-
-        dst_id = dst_id or src_id  # might be None
 
         hex_id = Address.convert_to_hex(src_id)
         payload = "".join(f"00{c}{hex_id}" for c in codes)
@@ -1272,14 +1269,13 @@ class Command(Frame):
         payload += f"00{Code._1FC9}{hex_id}"
 
         return cls.from_attrs(  # NOTE: .from_attrs, not ._from_attrs
-            verb, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
+            I_, dst_id or src_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
         )  # as dst_id could be NUL_DEV_ID
 
     @classmethod  # constructor for 1FC9 (rf_bind) accept - mainly used for test suite
     @typechecked
     def _put_bind_accept(
         cls,
-        verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
         codes: Code | Iterable[Code],
@@ -1287,21 +1283,23 @@ class Command(Frame):
         idx: None | str = "00",
         qos: None | dict = None,
     ):
-        if not codes:  # if payload
+        if not codes:  # might be
             raise TypeError(f"Invalid codes for a bind accept: {codes}")
 
         hex_id = Address.convert_to_hex(src_id)
         payload = "".join(f"{idx or '00'}{c}{hex_id}" for c in codes)
 
-        return cls._from_attrs(
-            verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        return cls.from_attrs(
+            W_, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
         )
+        # return cls._from_attrs(
+        #     W_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        # )
 
     @classmethod  # constructor for 1FC9 (rf_bind) confirm
     @typechecked
     def _put_bind_confirm(
         cls,
-        verb: Verb,
         src_id: _DeviceIdT,
         dst_id: _DeviceIdT,
         codes: Code | Iterable[Code],
@@ -1315,9 +1313,12 @@ class Command(Frame):
             hex_id = Address.convert_to_hex(src_id)
             payload = f"{idx or '00'}{codes[0]}{hex_id}"
 
-        return cls._from_attrs(
-            verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        return cls.from_attrs(
+            I_, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
         )
+        # return cls._from_attrs(
+        #     I_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        # )
 
     @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
     @typechecked
