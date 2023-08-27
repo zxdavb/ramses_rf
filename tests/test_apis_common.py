@@ -31,7 +31,7 @@ def test_1fc9_constructors_fail():
 
     try:
         _ = Command.put_bind(" I", "29:156898", None)  # should have codes, or dst_id
-    except ValueError:
+    except TypeError:
         pass
     else:
         assert False
@@ -96,15 +96,15 @@ def test_1fc9_constructors_good():
     cmd = Command.put_bind(" I", "07:045960", "1260", dst_id="01:145038")
     assert cmd._frame == frame  # using str for codes
 
-    #
+    # NOTE: the APIs are not (yet) intended for these edge-case packets
     # TRV binding to a CTL (2309, 30C9, 1FC9): zone idx 07 - NOTE: counter-offer pkt!
-    frame = " I --- 04:189076 63:262142 --:------ 1FC9 006 0030C912E294"
-    cmd = Command.put_bind(" I", "04:189076", ("30C9",), dst_id="63:262142")
-    assert cmd._frame == frame  # NOTE: NUL-ADDR, and there is no 1FC9 in the payload!
+    # # frame = " I --- 04:189076 63:262142 --:------ 1FC9 006 0030C912E294"
+    # # cmd = Command.put_bind(" I", "04:189076", ("30C9",), dst_id="63:262142")
+    # # assert cmd._frame == frame  # NOTE: NUL-ADDR, and there is no 1FC9 in the payload!
 
-    frame = " I --- 01:145038 --:------ 01:145038 1FC9 018 07230906368E0730C906368E071FC906368E"
-    cmd = Command.put_bind(" I", "01:145038", ("2309", "30C9"), idx="07")
-    assert cmd._frame == frame  # NOTE: this is the counter-offer
+    # # frame = " I --- 01:145038 --:------ 01:145038 1FC9 018 07230906368E0730C906368E071FC906368E"
+    # # cmd = Command.put_bind(" I", "01:145038", ("2309", "30C9"), idx="07")
+    # # assert cmd._frame == frame  # NOTE: this is the counter-offer
 
     frame = " W --- 04:189076 01:145038 --:------ 1FC9 006 0030C912E294"
     cmd = Command.put_bind(" W", "04:189076", ("30C9",), dst_id="01:145038")
