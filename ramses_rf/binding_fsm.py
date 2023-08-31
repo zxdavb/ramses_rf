@@ -24,10 +24,13 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
 if TYPE_CHECKING:
     from typing import Iterable
 
-    from .const import Index
     from .device import Message
     from .device.base import Fakeable
 
@@ -69,7 +72,7 @@ class BindFlowError(BindError):
 
 
 class BindRetryError(BindError):
-    """Retry count exceeded."""
+    """Retry count exceeded before state transition."""
 
     pass
 
@@ -81,7 +84,7 @@ class BindStateError(BindError):
 
 
 class BindTimeoutError(BindError):
-    """An error in state."""
+    """Timer expired before state transition."""
 
     pass
 
@@ -135,14 +138,14 @@ class BindContextBase:
     _attr_role = BindRole.IS_UNKNOWN
 
     _is_respondent: None | bool  # if binding, is either: respondent or supplicant
-    _state: _BindStateBase = None  # type: ignore[assignment]
+    _state: BindStateBase = None  # type: ignore[assignment]
 
     def __init__(self, dev: Fakeable) -> None:
         self._dev = dev
         self._loop = asyncio.get_running_loop()
         self._fut: None | asyncio.Future = None
 
-        self.set_state(BindState.IS_IDLE_DEVICE)
+        self.set_state(DevIsNotBinding)
 
     def __repr__(self) -> str:
         return f"{self._dev.id} ({self.role}): {self.state!r}"
@@ -151,7 +154,7 @@ class BindContextBase:
         return f"{self._dev.id}: {self.state}"
 
     def set_state(
-        self, state: type[_BindStateBase], result: None | asyncio.Future = None
+        self, state: type[BindStateBase], result: None | asyncio.Future = None
     ) -> None:
         """Transition the State of the Context, and process the result, if any."""
 
@@ -168,16 +171,16 @@ class BindContextBase:
         self._state = state(self)
         if not self.is_binding:
             self._is_respondent = None
-        elif state is BindState.NEEDING_TENDER:
+        elif state is RespIsWaitingForOffer:
             self._is_respondent = True
-        elif state is BindState.NEEDING_ACCEPT:
+        elif state is SuppSendOfferWaitForAccept:
             self._is_respondent = False
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
     @property
-    def state(self) -> _BindStateBase:
+    def state(self) -> BindStateBase:
         """Return the State (phase) of the Context."""
         return self._state
 
@@ -224,7 +227,7 @@ class BindContextRespondent(BindContextBase):
 
         if self.is_binding:
             raise BindStateError(f"{self}: bad State for bindings as a Respondent")
-        self.set_state(BindState.NEEDING_TENDER)  # self._is_respondent = True
+        self.set_state(RespIsWaitingForOffer)  # self._is_respondent = True
 
         # Step R1: Respondent expects an Offer
         tender = await self._wait_for_offer()
@@ -287,7 +290,7 @@ class BindContextSupplicant(BindContextBase):
 
         if self.is_binding:
             raise BindStateError(f"{self}: bad State for binding as a Supplicant")
-        self.set_state(BindState.NEEDING_ACCEPT)  # self._is_respondent = False
+        self.set_state(SuppSendOfferWaitForAccept)  # self._is_respondent = False
 
         # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
         tender = await self._make_offer(codes, scheme=scheme, oem_code=oem_code)
@@ -344,7 +347,7 @@ class BindContextSupplicant(BindContextBase):
         return pkt
 
     async def _cast_addenda(self, accept: Message, oem_code: None | str) -> Message:
-        """Supp casts an Addenda (the final (10E0) command)."""
+        """Supp casts an Addenda (the final 10E0 command)."""
         msg = self._dev._get_msg_by_hdr(f"{Code._10E0}|{I_}|{self._dev.id}")
         pkt = await self._dev._async_send_cmd(Command(msg._pkt._frame))
         await self.state.cast_addenda()
@@ -358,7 +361,7 @@ class BindContext(BindContextRespondent, BindContextSupplicant):
 #
 
 
-class _BindStateBase:
+class BindStateBase:
     _attr_role = BindRole.IS_UNKNOWN
 
     _cmds_sent: int = 0  # num of bind cmds sent
@@ -368,7 +371,7 @@ class _BindStateBase:
     _retry_limit: int = SENDING_RETRY_LIMIT
     _timer_handle: asyncio.TimerHandle
 
-    _next_ctx_state: type[_BindStateBase]  # next state, if successful transition
+    _next_ctx_state: type[BindStateBase]  # next state, if successful transition
 
     def __init__(self, context: BindContextBase) -> None:
         self._context = context
@@ -417,11 +420,11 @@ class _BindStateBase:
 
         _LOGGER.warning(msg)
         self._fut.set_exception(BindTimeoutError(msg))
-        self._set_context_state(HasFailedBinding)
+        self._set_context_state(DevHasFailedBinding)
 
-    def _set_context_state(self, next_state: type[_BindStateBase]) -> None:
+    def _set_context_state(self, next_state: type[BindStateBase]) -> None:
         if not self._fut.done():  # if not BindRetryError, BindTimeoutError, msg
-            raise BindFlowError()  # or: self._fut.set_exception()
+            raise BindFlowError  # or: self._fut.set_exception()
         self._context.set_state(next_state, result=self._fut)
 
     def send_cmd(self, cmd: Command) -> None:
@@ -487,7 +490,7 @@ class _BindStateBase:
         )
 
 
-class _DevIsWaitingForMsg(_BindStateBase):
+class _DevIsWaitingForMsg(BindStateBase):
     """Device waits until it receives the anticipated Packet (Offer or Addenda).
 
     Failure occurs when the timer expires (timeout) before receiving the Packet.
@@ -506,7 +509,7 @@ class _DevIsWaitingForMsg(_BindStateBase):
             self._wait_timer_limit,
         )
 
-    def _set_context_state(self, next_state: type[_BindStateBase]) -> None:
+    def _set_context_state(self, next_state: type[BindStateBase]) -> None:
         if self._timer_handle:
             self._timer_handle.cancel()
         super()._set_context_state(next_state)
@@ -517,7 +520,7 @@ class _DevIsWaitingForMsg(_BindStateBase):
             self._fut.set_result(msg)
 
 
-class _DevIsReadyToSendCmd(_BindStateBase):
+class _DevIsReadyToSendCmd(BindStateBase):
     """Device sends a Command (Confirm, Addenda) that wouldn't result in a reply Packet.
 
     Failure occurs when the retry limit is exceeded before receiving a Command echo.
@@ -545,7 +548,7 @@ class _DevIsReadyToSendCmd(_BindStateBase):
 
         _LOGGER.warning(msg)
         self._fut.set_exception(BindRetryError(msg))
-        self._set_context_state(HasFailedBinding)
+        self._set_context_state(DevHasFailedBinding)
 
     def send_cmd(self, cmd: Command) -> None:
         """If sending a cmd, expect the corresponding echo."""
@@ -579,13 +582,13 @@ class _DevSendCmdUntilReply(_DevIsWaitingForMsg, _DevIsReadyToSendCmd):
             self._fut.set_result(msg)
 
 
-class HasFailedBinding(_BindStateBase):
+class DevHasFailedBinding(BindStateBase):
     """Device has failed binding."""
 
     _attr_role = BindRole.IS_UNKNOWN
 
 
-class IsNotBinding(_BindStateBase):
+class DevIsNotBinding(BindStateBase):
     """Device is not binding."""
 
     _attr_role = BindRole.IS_DORMANT
@@ -594,25 +597,25 @@ class IsNotBinding(_BindStateBase):
 #
 
 
-class RespHasBoundAsRespondent(_BindStateBase):
+class RespHasBoundAsRespondent(BindStateBase):
     """Respondent has received an Offer (+/- an Addenda) & has nothing more to do."""
 
     _attr_role = BindRole.IS_DORMANT
 
 
-class RespIsWaitingForAddenda(_DevIsWaitingForMsg, _BindStateBase):
+class RespIsWaitingForAddenda(_DevIsWaitingForMsg, BindStateBase):
     """Respondent has received a Confirm & is waiting for an Addenda."""
 
     _attr_role = BindRole.RESPONDENT
 
     _expected_pkt_phase: BindPhase = BindPhase.RATIFY
-    _next_ctx_state: type[_BindStateBase] = RespHasBoundAsRespondent
+    _next_ctx_state: type[BindStateBase] = RespHasBoundAsRespondent
 
     async def wait_for_addenda(self, timeout: None | float = None) -> Message:
         return await self._wait_for_fut_result(timeout or _RATIFY_WAIT_TIME)
 
 
-class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, _BindStateBase):
+class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, BindStateBase):
     """Respondent is ready to send an Accept & will expect a Confirm."""
 
     _attr_role = BindRole.RESPONDENT
@@ -620,8 +623,8 @@ class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, _BindStateBase):
     _expected_cmd_phase: BindPhase = BindPhase.ACCEPT
     _expected_pkt_phase: BindPhase = BindPhase.AFFIRM
     _next_ctx_state: type[
-        _BindStateBase
-    ] = RespHasBoundAsRespondent  # RespIsWaitingForAddenda
+        BindStateBase
+    ] = RespHasBoundAsRespondent  # or: RespIsWaitingForAddenda
 
     def accept_offer(self) -> Message:
         pass
@@ -630,13 +633,13 @@ class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, _BindStateBase):
         return await self._wait_for_fut_result(timeout or _AFFIRM_WAIT_TIME)
 
 
-class RespIsWaitingForOffer(_DevIsWaitingForMsg, _BindStateBase):
+class RespIsWaitingForOffer(_DevIsWaitingForMsg, BindStateBase):
     """Respondent is waiting for an Offer."""
 
     _attr_role = BindRole.RESPONDENT
 
     _expected_pkt_phase: BindPhase = BindPhase.TENDER
-    _next_ctx_state: type[_BindStateBase] = RespSendAcceptWaitForConfirm
+    _next_ctx_state: type[BindStateBase] = RespSendAcceptWaitForConfirm
 
     async def wait_for_offer(self, timeout: None | float = None) -> Message:
         return await self._wait_for_fut_result(timeout or _TENDER_WAIT_TIME)
@@ -645,28 +648,28 @@ class RespIsWaitingForOffer(_DevIsWaitingForMsg, _BindStateBase):
 #
 
 
-class SuppHasBoundAsSupplicant(_BindStateBase):
+class SuppHasBoundAsSupplicant(BindStateBase):
     """Supplicant has sent a Confirm (+/- an Addenda) & has nothing more to do."""
 
     _attr_role = BindRole.IS_DORMANT
 
 
 class SuppIsReadyToSendAddenda(
-    _DevIsReadyToSendCmd, _BindStateBase
+    _DevIsReadyToSendCmd, BindStateBase
 ):  # send until echo, max_retry=1
     """Supplicant has sent a Confirm & is ready to send an Addenda."""
 
     _attr_role = BindRole.SUPPLICANT
 
     _expected_cmd_phase: BindPhase = BindPhase.RATIFY
-    _next_ctx_state: type[_BindStateBase] = SuppHasBoundAsSupplicant
+    _next_ctx_state: type[BindStateBase] = SuppHasBoundAsSupplicant
 
     async def cast_addenda(self, timeout: None | float = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)
 
 
 class SuppIsReadyToSendConfirm(
-    _DevIsReadyToSendCmd, _BindStateBase
+    _DevIsReadyToSendCmd, BindStateBase
 ):  # send until echo, max_retry=1
     """Supplicant has received an Accept & is ready to send a Confirm."""
 
@@ -674,21 +677,21 @@ class SuppIsReadyToSendConfirm(
 
     _expected_cmd_phase: BindPhase = BindPhase.AFFIRM
     _next_ctx_state: type[
-        _BindStateBase
-    ] = SuppHasBoundAsSupplicant  # SuppIsReadyToSendAddenda  # or: SuppHasBoundAsSupplicant
+        BindStateBase
+    ] = SuppHasBoundAsSupplicant  # or: SuppIsReadyToSendAddenda
 
     async def confirm_accept(self, timeout: None | float = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)
 
 
-class SuppSendOfferWaitForAccept(_DevSendCmdUntilReply, _BindStateBase):
+class SuppSendOfferWaitForAccept(_DevSendCmdUntilReply, BindStateBase):
     """Supplicant is ready to send an Offer & will expect an Accept."""
 
     _attr_role = BindRole.SUPPLICANT
 
     _expected_cmd_phase: BindPhase = BindPhase.TENDER
     _expected_pkt_phase: BindPhase = BindPhase.ACCEPT
-    _next_ctx_state: type[_BindStateBase] = SuppIsReadyToSendConfirm
+    _next_ctx_state: type[BindStateBase] = SuppIsReadyToSendConfirm
 
     def make_offer(self) -> Message:
         pass
@@ -700,8 +703,8 @@ class SuppSendOfferWaitForAccept(_DevSendCmdUntilReply, _BindStateBase):
 #
 
 
-class BindState:  # wont work as Enum
-    IS_IDLE_DEVICE = IsNotBinding  # may send Offer
+class _BindStates:  # used for test suite
+    IS_IDLE_DEVICE = DevIsNotBinding  # may send Offer
     NEEDING_TENDER = RespIsWaitingForOffer  # receives Offer, sends Accept
     NEEDING_ACCEPT = SuppSendOfferWaitForAccept  # receives Accept, sends
     NEEDING_AFFIRM = RespSendAcceptWaitForConfirm
@@ -710,14 +713,13 @@ class BindState:  # wont work as Enum
     TO_SEND_RATIFY = SuppIsReadyToSendAddenda  # Optional
     HAS_BOUND_RESP = RespHasBoundAsRespondent
     HAS_BOUND_SUPP = SuppHasBoundAsSupplicant
-    IS_FAILED_RESP = HasFailedBinding
-    IS_FAILED_SUPP = HasFailedBinding
+    IS_FAILED_RESP = DevHasFailedBinding
+    IS_FAILED_SUPP = DevHasFailedBinding
 
 
 _IS_NOT_BINDING_STATES = (
-    BindState.IS_IDLE_DEVICE,
-    BindState.HAS_BOUND_RESP,
-    BindState.HAS_BOUND_SUPP,
-    BindState.IS_FAILED_RESP,
-    BindState.IS_FAILED_SUPP,
+    DevHasFailedBinding,
+    DevIsNotBinding,
+    RespHasBoundAsRespondent,
+    SuppHasBoundAsSupplicant,
 )
