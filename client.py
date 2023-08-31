@@ -577,9 +577,15 @@ cli.add_command(listen)
 
 
 if __name__ == "__main__":
-    result = cli(standalone_mode=False)
+    try:
+        result = cli(standalone_mode=False)
+    except click.exceptions.NoSuchOption as exc:
+        print(f"Error: {exc}")
+        sys.exit(-1)
+
     if isinstance(result, int):
         sys.exit(result)
+
     (command, lib_kwargs, kwargs) = result
 
     print("\r\nclient.py: Starting ramses_rf...")
