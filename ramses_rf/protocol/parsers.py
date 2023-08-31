@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Callable
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, hex_id_to_dev_id
 from .const import (
-    DEV_ROLE,
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     FAULT_DEVICE_CLASS,
@@ -74,6 +73,7 @@ from .const import (
     SZ_ZONE_TYPE,
     ZON_MODE_MAP,
     ZON_ROLE_MAP,
+    DevRole,
     __dev_mode__,
 )
 from .exceptions import InvalidPayloadError
@@ -484,7 +484,7 @@ def parser_000c(payload: str, msg: Message) -> dict:
         raise InvalidPayloadError("Unable to determine element length")  # return None
 
     if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
-        dev_role = DEV_ROLE_MAP[DEV_ROLE.HT1]
+        dev_role = DEV_ROLE_MAP[DevRole.HT1]
     else:
         dev_role = DEV_ROLE_MAP[payload[2:4]]
 
@@ -729,11 +729,11 @@ def parser_0418(payload: str, msg: Message) -> dict:
     }
 
     if payload[10:12] == FC and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.APP]  # actual evohome UI
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DevRole.APP]  # actual evohome UI
     elif payload[10:12] == FA and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HTG]  # speculative
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DevRole.HTG]  # speculative
     elif payload[10:12] == F9 and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HT1]  # speculative
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DevRole.HT1]  # speculative
 
     if payload[12:14] != "00":  # TODO: Controller
         key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID

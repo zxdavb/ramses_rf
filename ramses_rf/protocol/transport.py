@@ -47,7 +47,7 @@ from serial.tools.list_ports import comports  # type: ignore[import]
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import DEV_TYPE, DEV_TYPE_MAP, __dev_mode__
+from .const import DEV_TYPE_MAP, DevType, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -55,6 +55,7 @@ from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_CLASS,
+    SZ_EVOFW_FLAG,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
@@ -67,7 +68,6 @@ SZ_ACTIVE_HGI = "active_gwy"
 SZ_FINGERPRINT = "fingerprint"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
-SZ_EVOFW3_FLAG = "evofw3_flag"  # FIXME: kwarg from upper layer: beware changing value
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -81,7 +81,7 @@ if DEV_MODE:
 
 # All debug flags should be False for end-users
 _DEBUG_DISABLE_REGEX_WARNINGS = True  # should be False for end-users
-_DEBUG_FORCE_LOG_FRAMES = True  # should be False for end-users
+_DEBUG_FORCE_LOG_FRAMES = False  # should be False for end-users
 
 
 class TransportError(Exception):
@@ -173,7 +173,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
         exclude_list = exclude_list or {}
         include_list = include_list or {}
 
-        self._evofw_flag = kwargs.pop(SZ_EVOFW3_FLAG, None)  # gwy.config.evofw_flag
+        self._evofw_flag = kwargs.pop(SZ_EVOFW_FLAG, None)  # gwy.config.evofw_flag
 
         super().__init__(*args, **kwargs)
 
@@ -187,7 +187,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
             self._extra[key] = None
 
         known_hgis = [
-            k for k, v in exclude_list.items() if v.get(SZ_CLASS) == DEV_TYPE.HGI
+            k for k, v in exclude_list.items() if v.get(SZ_CLASS) == DevType.HGI
         ]
         if not known_hgis:
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include the gateway (HGI)")
