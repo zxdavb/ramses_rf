@@ -15,14 +15,14 @@ import voluptuous as vol  # type: ignore[import]
 
 from .const import (
     DEFAULT_MAX_ZONES,
-    DEV_ROLE,
     DEV_ROLE_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
     SZ_ZONE_IDX,
     ZON_ROLE_MAP,
+    DevRole,
+    DevType,
     SystemType,
     __dev_mode__,
 )
@@ -75,22 +75,22 @@ if DEV_MODE:
 SZ_SCHEMA = "schema"
 SZ_MAIN_TCS = "main_tcs"
 
-SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
+SZ_CONTROLLER = DEV_TYPE_MAP[DevType.CTL]
 SZ_SYSTEM = "system"
-SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DEV_ROLE.APP]
+SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DevRole.APP]
 SZ_ORPHANS = "orphans"
 SZ_ORPHANS_HEAT = "orphans_heat"
 SZ_ORPHANS_HVAC = "orphans_hvac"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
-SZ_DHW_SENSOR = DEV_ROLE_MAP[DEV_ROLE.DHW]
-SZ_DHW_VALVE = DEV_ROLE_MAP[DEV_ROLE.HTG]
-SZ_HTG_VALVE = DEV_ROLE_MAP[DEV_ROLE.HT1]
+SZ_DHW_SENSOR = DEV_ROLE_MAP[DevRole.DHW]
+SZ_DHW_VALVE = DEV_ROLE_MAP[DevRole.HTG]
+SZ_HTG_VALVE = DEV_ROLE_MAP[DevRole.HT1]
 
 SZ_SENSOR_FAKED = "sensor_faked"
 
 SZ_UFH_SYSTEM = "underfloor_heating"
-SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]  # ufh_controller
+SZ_UFH_CTL = DEV_TYPE_MAP[DevType.UFC]  # ufh_controller
 SZ_CIRCUITS = "circuits"
 
 HEAT_ZONES_STRS = tuple(ZON_ROLE_MAP[t] for t in ZON_ROLE_MAP.HEAT_ZONES)

@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from ..const import (
     DEV_ROLE_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
     DOMAIN_TYPE_MAP,
     SZ_DEVICES,
@@ -30,6 +29,7 @@ from ..const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     ZON_ROLE_MAP,
+    DevType,
     __dev_mode__,
 )
 from ..entity_base import Entity, Parent, class_by_attr
@@ -407,13 +407,13 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
 class RfgGateway(DeviceHeat):  # RFG (30:)
     """The RFG100 base class."""
 
-    _SLUG: str = DEV_TYPE.RFG
+    _SLUG: str = DevType.RFG
 
 
 class Controller(DeviceHeat):  # CTL (01):
     """The Controller base class."""
 
-    _SLUG: str = DEV_TYPE.CTL
+    _SLUG: str = DevType.CTL
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -461,13 +461,13 @@ class Controller(DeviceHeat):  # CTL (01):
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    _SLUG: str = DEV_TYPE.PRG
+    _SLUG: str = DevType.PRG
 
 
 class UfhController(Parent, DeviceHeat):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    _SLUG: str = DEV_TYPE.UFC
+    _SLUG: str = DevType.UFC
 
     HEAT_DEMAND = SZ_HEAT_DEMAND
 
@@ -665,7 +665,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    _SLUG: str = DEV_TYPE.DHW
+    _SLUG: str = DevType.DHW
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = SZ_TEMPERATURE
@@ -700,7 +700,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
 class OutSensor(Weather):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
-    _SLUG: str = DEV_TYPE.OUT
+    _SLUG: str = DevType.OUT
 
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
@@ -714,7 +714,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     # see: https://www.opentherm.eu/request-details/?post_ids=2944
     # see: https://www.automatedhome.co.uk/vbulletin/showthread.php?6400-(New)-cool-mode-in-Evohome
 
-    _SLUG: str = DEV_TYPE.OTB
+    _SLUG: str = DevType.OTB
 
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
@@ -1247,7 +1247,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    _SLUG: str = DEV_TYPE.THM
+    _SLUG: str = DevType.THM
 
     _STATE_ATTR = SZ_TEMPERATURE
 
@@ -1304,7 +1304,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    _SLUG: str = DEV_TYPE.BDR
+    _SLUG: str = DevType.BDR
 
     ACTIVE = "active"
     TPI_PARAMS = "tpi_params"
@@ -1397,7 +1397,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
     """The TRV class, such as a HR92."""
 
-    _SLUG: str = DEV_TYPE.TRV
+    _SLUG: str = DevType.TRV
 
     WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
 
@@ -1423,11 +1423,11 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
 
 class JimDevice(Actuator):  # BDR (08):
-    _SLUG: str = DEV_TYPE.JIM
+    _SLUG: str = DevType.JIM
 
 
 class JstDevice(RelayDemand):  # BDR (31):
-    _SLUG: str = DEV_TYPE.JST
+    _SLUG: str = DevType.JST
 
 
 class UfhCircuit(Entity):
@@ -1498,8 +1498,8 @@ class UfhCircuit(Entity):
 HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller
 
 _HEAT_VC_PAIR_BY_CLASS = {
-    DEV_TYPE.DHW: ((I_, Code._1260),),
-    DEV_TYPE.OTB: ((I_, Code._3220), (RP, Code._3220)),
+    DevType.DHW: ((I_, Code._1260),),
+    DevType.OTB: ((I_, Code._3220), (RP, Code._3220)),
 }
 
 
@@ -1512,7 +1512,7 @@ def class_dev_heat(
     """
 
     if dev_addr.type in DEV_TYPE_MAP.THM_DEVICES:
-        return HEAT_CLASS_BY_SLUG[DEV_TYPE.THM]
+        return HEAT_CLASS_BY_SLUG[DevType.THM]
 
     try:
         slug = DEV_TYPE_MAP.slug(dev_addr.type)

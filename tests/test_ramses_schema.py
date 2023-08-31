@@ -9,7 +9,7 @@ Test the RAMSES II schema.
 from ramses_rf import RQ
 from ramses_rf.device.heat import HEAT_CLASS_BY_SLUG
 from ramses_rf.device.hvac import HVAC_CLASS_BY_SLUG
-from ramses_rf.protocol.const import DEV_TYPE, Code
+from ramses_rf.protocol.const import Code, DevType
 from ramses_rf.protocol.ramses import (
     _DEV_KLASSES_HEAT,
     _DEV_KLASSES_HVAC,
@@ -44,9 +44,7 @@ def test_device_heat_slugs():
 
     assert not [s for s in _DEV_KLASSES_HEAT if s not in HEAT_CLASS_BY_SLUG]
     assert not [
-        s
-        for s in HEAT_CLASS_BY_SLUG
-        if s not in _DEV_KLASSES_HEAT and s != DEV_TYPE.HEA
+        s for s in HEAT_CLASS_BY_SLUG if s not in _DEV_KLASSES_HEAT and s != DevType.HEA
     ]
 
 
@@ -55,9 +53,7 @@ def test_device_hvac_slugs():
 
     assert not [s for s in _DEV_KLASSES_HVAC if s not in HVAC_CLASS_BY_SLUG]
     assert not [
-        s
-        for s in HVAC_CLASS_BY_SLUG
-        if s not in _DEV_KLASSES_HVAC and s != DEV_TYPE.HVC
+        s for s in HVAC_CLASS_BY_SLUG if s not in _DEV_KLASSES_HVAC and s != DevType.HVC
     ]
 
 

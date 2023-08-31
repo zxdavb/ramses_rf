@@ -7,9 +7,8 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Dict
 
-from .const import DEV_TYPE
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP
-from .const import DEVICE_ID_REGEX, __dev_mode__
+from .const import DEVICE_ID_REGEX, DevType, __dev_mode__
 from .exceptions import InvalidAddrSetError
 from .helpers import typechecked  # type: ignore[import-error]
 
@@ -19,7 +18,7 @@ DEV_HVAC = True
 DEVICE_LOOKUP: Dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
     for k in _DEV_TYPE_MAP.SLUGS
-    if k not in (DEV_TYPE.JIM, DEV_TYPE.JST)
+    if k not in (DevType.JIM, DevType.JST)
 }
 DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
 DEV_TYPE_MAP: Dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}

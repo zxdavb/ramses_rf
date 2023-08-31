@@ -88,12 +88,12 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     FA,
     FC,
     FF,
-    DEV_ROLE,
     DEV_ROLE_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
-    ZON_ROLE,
     ZON_ROLE_MAP,
+    DevRole,
+    DevType,
+    ZoneRole,
 )
 
 # skipcq: PY-W2000

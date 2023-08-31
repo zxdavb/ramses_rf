@@ -219,44 +219,46 @@ def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAt
 
 
 # slugs for device/zone entity klasses, used by 0005/000C
-DEV_ROLE = SimpleNamespace(
+@verify(EnumCheck.UNIQUE)
+class DevRole(StrEnum):
     #
     # Generic device/zone classes
-    ACT="ACT",  # Generic heating zone actuator group
-    SEN="SEN",  # Generic heating zone sensor group
+    ACT = "ACT"  # Generic heating zone actuator group
+    SEN = "SEN"  # Generic heating zone sensor group
     #
     # Standard device/zone classes
-    ELE="ELE",  # BDRs (no heat demand)
-    MIX="MIX",  # HM8s
-    RAD="RAD",  # TRVs
-    UFH="UFH",  # UFC (circuits)
-    VAL="VAL",  # BDRs
+    ELE = "ELE"  # BDRs (no heat demand)
+    MIX = "MIX"  # HM8s
+    RAD = "RAD"  # TRVs
+    UFH = "UFH"  # UFC (circuits)
+    VAL = "VAL"  # BDRs
     #
     # DHW device/zone classes
-    DHW="DHW",  # DHW sensor (a zone, but not a heating zone)
-    HTG="HTG",  # BDR (DHW relay, HTG relay)
-    HT1="HT1",  # BDR (HTG relay)
+    DHW = "DHW"  # DHW sensor (a zone, but not a heating zone)
+    HTG = "HTG"  # BDR (DHW relay, HTG relay)
+    HT1 = "HT1"  # BDR (HTG relay)
     #
     # Other device/zone classes
-    OUT="OUT",  # OUT (external weather sensor)
-    RFG="RFG",  # RFG
-    APP="APP",  # BDR/OTB (appliance relay)
-)
+    OUT = "OUT"  # OUT (external weather sensor)
+    RFG = "RFG"  # RFG
+    APP = "APP"  # BDR/OTB (appliance relay)
+
+
 DEV_ROLE_MAP = attr_dict_factory(
     {
-        DEV_ROLE.ACT: {"00": "zone_actuator"},
-        DEV_ROLE.SEN: {"04": "zone_sensor"},
-        DEV_ROLE.RAD: {"08": "rad_actuator"},
-        DEV_ROLE.UFH: {"09": "ufh_actuator"},
-        DEV_ROLE.VAL: {"0A": "val_actuator"},
-        DEV_ROLE.MIX: {"0B": "mix_actuator"},
-        DEV_ROLE.OUT: {"0C": "out_sensor"},
-        DEV_ROLE.DHW: {"0D": "dhw_sensor"},
-        DEV_ROLE.HTG: {"0E": "hotwater_valve"},  # payload[:4] == 000E
-        DEV_ROLE.HT1: {None: "heating_valve"},  # payload[:4] == 010E
-        DEV_ROLE.APP: {"0F": "appliance_control"},  # the heat/cool source
-        DEV_ROLE.RFG: {"10": "remote_gateway"},
-        DEV_ROLE.ELE: {"11": "ele_actuator"},  # ELE(VAL) - no RP from older evos
+        DevRole.ACT: {"00": "zone_actuator"},
+        DevRole.SEN: {"04": "zone_sensor"},
+        DevRole.RAD: {"08": "rad_actuator"},
+        DevRole.UFH: {"09": "ufh_actuator"},
+        DevRole.VAL: {"0A": "val_actuator"},
+        DevRole.MIX: {"0B": "mix_actuator"},
+        DevRole.OUT: {"0C": "out_sensor"},
+        DevRole.DHW: {"0D": "dhw_sensor"},
+        DevRole.HTG: {"0E": "hotwater_valve"},  # payload[:4] == 000E
+        DevRole.HT1: {None: "heating_valve"},  # payload[:4] == 010E
+        DevRole.APP: {"0F": "appliance_control"},  # the heat/cool source
+        DevRole.RFG: {"10": "remote_gateway"},
+        DevRole.ELE: {"11": "ele_actuator"},  # ELE(VAL) - no RP from older evos
     },  # 03, 05, 06, 07: & >11 - no response from an 01:
     {
         "HEAT_DEVICES": ("00", "04", "08", "09", "0A", "0B", "11"),
@@ -267,82 +269,84 @@ DEV_ROLE_MAP = attr_dict_factory(
 
 
 # slugs for device entity types, used in device_ids
-DEV_TYPE = SimpleNamespace(
+@verify(EnumCheck.UNIQUE)
+class DevType(StrEnum):
     #
     # Promotable/Generic devices
-    DEV="DEV",  # xx: Promotable device
-    HEA="HEA",  # xx: Promotable Heat device, aka CH/DHW device
-    HVC="HVC",  # xx: Promotable HVAC device
-    THM="THM",  # xx: Generic thermostat
+    DEV = "DEV"  # xx: Promotable device
+    HEA = "HEA"  # xx: Promotable Heat device, aka CH/DHW device
+    HVC = "HVC"  # xx: Promotable HVAC device
+    THM = "THM"  # xx: Generic thermostat
     #
     # Heat (CH/DHW) devices
-    BDR="BDR",  # 13: Electrical relay
-    CTL="CTL",  # 01: Controller (zoned)
-    DHW="DHW",  # 07: DHW sensor
-    DTS="DTS",  # 12: Thermostat, DTS92(E)
-    DT2="DT2",  # 22: Thermostat, DTS92(E)
-    HCW="HCW",  # 03: Thermostat - don't use STA
-    HGI="HGI",  # 18: Gateway interface (RF to USB), HGI80
-    # 8="HM8",  # xx: HM80 mixer valve (Rx-only, does not Tx)
-    OTB="OTB",  # 10: OpenTherm bridge
-    OUT="OUT",  # 17: External weather sensor
-    PRG="PRG",  # 23: Programmer
-    RFG="RFG",  # 30: RF gateway (RF to ethernet), RFG100
-    RND="RND",  # 34: Thermostat, TR87RF
-    TRV="TRV",  # 04: Thermostatic radiator valve
-    TR0="TR0",  # 00: Thermostatic radiator valve
-    UFC="UFC",  # 02: UFH controller
+    BDR = "BDR"  # 13: Electrical relay
+    CTL = "CTL"  # 01: Controller (zoned)
+    DHW = "DHW"  # 07: DHW sensor
+    DTS = "DTS"  # 12: Thermostat, DTS92(E)
+    DT2 = "DT2"  # 22: Thermostat, DTS92(E)
+    HCW = "HCW"  # 03: Thermostat - don't use STA
+    HGI = "HGI"  # 18: Gateway interface (RF to USB), HGI80
+    # 8 = "HM8"  # xx: HM80 mixer valve (Rx-only, does not Tx)
+    OTB = "OTB"  # 10: OpenTherm bridge
+    OUT = "OUT"  # 17: External weather sensor
+    PRG = "PRG"  # 23: Programmer
+    RFG = "RFG"  # 30: RF gateway (RF to ethernet), RFG100
+    RND = "RND"  # 34: Thermostat, TR87RF
+    TRV = "TRV"  # 04: Thermostatic radiator valve
+    TR0 = "TR0"  # 00: Thermostatic radiator valve
+    UFC = "UFC"  # 02: UFH controller
     #
     # Honeywell Jasper, other Heat devices
-    JIM="JIM",  # 08: Jasper Interface Module (EIM?)
-    JST="JST",  # 31: Jasper Stat
+    JIM = "JIM"  # 08: Jasper Interface Module (EIM?)
+    JST = "JST"  # 31: Jasper Stat
     #
     # HVAC devices, these are more like classes (i.e. no reliable device type)
-    RFS="RFS",  # ??: HVAC spIDer gateway
-    FAN="FAN",  # ??: HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
-    CO2="CO2",  # ??: HVAC CO2 sensor
-    HUM="HUM",  # ??: HVAC humidity sensor, 1260: 32
-    PIR="PIR",  # ??: HVAC pesence sensor, 2E10
-    REM="REM",  # ??: HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
-    SW2="SW2",  # ??: HVAC switch, Orcon variant
-    DIS="DIS",  # ??: HVAC switch with display
-)
+    RFS = "RFS"  # ??: HVAC spIDer gateway
+    FAN = "FAN"  # ??: HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
+    CO2 = "CO2"  # ??: HVAC CO2 sensor
+    HUM = "HUM"  # ??: HVAC humidity sensor, 1260: 32
+    PIR = "PIR"  # ??: HVAC pesence sensor, 2E10
+    REM = "REM"  # ??: HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
+    SW2 = "SW2"  # ??: HVAC switch, Orcon variant
+    DIS = "DIS"  # ??: HVAC switch with display
+
+
 DEV_TYPE_MAP = attr_dict_factory(
     {
         # Generic devices (would be promoted)
-        DEV_TYPE.DEV: {None: "generic_device"},  # , AttrDict._SZ_DEFAULT: True},
-        DEV_TYPE.HEA: {None: "heat_device"},
-        DEV_TYPE.HVC: {None: "hvac_device"},
+        DevType.DEV: {None: "generic_device"},  # , AttrDict._SZ_DEFAULT: True},
+        DevType.HEA: {None: "heat_device"},
+        DevType.HVC: {None: "hvac_device"},
         # HGI80
-        DEV_TYPE.HGI: {"18": "gateway_interface"},  # HGI80
+        DevType.HGI: {"18": "gateway_interface"},  # HGI80
         # Heat (CH/DHW) devices
-        DEV_TYPE.TR0: {"00": "radiator_valve", AttrDict._SZ_AKA_SLUG: DEV_TYPE.TRV},
-        DEV_TYPE.CTL: {"01": "controller"},
-        DEV_TYPE.UFC: {"02": "ufh_controller"},
-        DEV_TYPE.HCW: {"03": "analog_thermostat"},
-        DEV_TYPE.THM: {None: "thermostat"},
-        DEV_TYPE.TRV: {"04": "radiator_valve"},
-        DEV_TYPE.DHW: {"07": "dhw_sensor"},
-        DEV_TYPE.OTB: {"10": "opentherm_bridge"},
-        DEV_TYPE.DTS: {"12": "digital_thermostat"},
-        DEV_TYPE.BDR: {"13": "electrical_relay"},
-        DEV_TYPE.OUT: {"17": "outdoor_sensor"},
-        DEV_TYPE.DT2: {"22": "digital_thermostat", AttrDict._SZ_AKA_SLUG: DEV_TYPE.DTS},
-        DEV_TYPE.PRG: {"23": "programmer"},
-        DEV_TYPE.RFG: {"30": "rf_gateway"},  # RFG100
-        DEV_TYPE.RND: {"34": "round_thermostat"},
+        DevType.TR0: {"00": "radiator_valve", AttrDict._SZ_AKA_SLUG: DevType.TRV},
+        DevType.CTL: {"01": "controller"},
+        DevType.UFC: {"02": "ufh_controller"},
+        DevType.HCW: {"03": "analog_thermostat"},
+        DevType.THM: {None: "thermostat"},
+        DevType.TRV: {"04": "radiator_valve"},
+        DevType.DHW: {"07": "dhw_sensor"},
+        DevType.OTB: {"10": "opentherm_bridge"},
+        DevType.DTS: {"12": "digital_thermostat"},
+        DevType.BDR: {"13": "electrical_relay"},
+        DevType.OUT: {"17": "outdoor_sensor"},
+        DevType.DT2: {"22": "digital_thermostat", AttrDict._SZ_AKA_SLUG: DevType.DTS},
+        DevType.PRG: {"23": "programmer"},
+        DevType.RFG: {"30": "rf_gateway"},  # RFG100
+        DevType.RND: {"34": "round_thermostat"},
         # Other (jasper) devices
-        DEV_TYPE.JIM: {"08": "jasper_interface"},
-        DEV_TYPE.JST: {"31": "jasper_thermostat"},
+        DevType.JIM: {"08": "jasper_interface"},
+        DevType.JST: {"31": "jasper_thermostat"},
         # Ventilation devices
-        DEV_TYPE.CO2: {None: "co2_sensor"},
-        DEV_TYPE.DIS: {None: "switch_display"},
-        DEV_TYPE.FAN: {None: "ventilator"},  # Both Fans and HRUs
-        DEV_TYPE.HUM: {None: "rh_sensor"},
-        DEV_TYPE.PIR: {None: "presence_sensor"},
-        DEV_TYPE.RFS: {None: "hvac_gateway"},  # Spider
-        DEV_TYPE.REM: {None: "switch"},
-        DEV_TYPE.SW2: {None: "switch_variant"},
+        DevType.CO2: {None: "co2_sensor"},
+        DevType.DIS: {None: "switch_display"},
+        DevType.FAN: {None: "ventilator"},  # Both Fans and HRUs
+        DevType.HUM: {None: "rh_sensor"},
+        DevType.PIR: {None: "presence_sensor"},
+        DevType.RFS: {None: "hvac_gateway"},  # Spider
+        DevType.REM: {None: "switch"},
+        DevType.SW2: {None: "switch_variant"},
     },
     {
         "HEAT_DEVICES": (
@@ -365,44 +369,46 @@ DEV_TYPE_MAP = attr_dict_factory(
         "THM_DEVICES": ("03", "12", "22", "34"),
         "TRV_DEVICES": ("00", "04"),
         "CONTROLLERS": ("01", "12", "22", "23", "34"),  # potentially controllers
-        "PROMOTABLE_SLUGS": (DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC),
+        "PROMOTABLE_SLUGS": (DevType.DEV, DevType.HEA, DevType.HVC),
         "HVAC_SLUGS": {
-            DEV_TYPE.CO2: "co2_sensor",
-            DEV_TYPE.FAN: "ventilator",  # Both Fans and HRUs
-            DEV_TYPE.HUM: "rh_sensor",
-            DEV_TYPE.RFS: "hvac_gateway",  # Spider
-            DEV_TYPE.REM: "switch",
+            DevType.CO2: "co2_sensor",
+            DevType.FAN: "ventilator",  # Both Fans and HRUs
+            DevType.HUM: "rh_sensor",
+            DevType.RFS: "hvac_gateway",  # Spider
+            DevType.REM: "switch",
         },
     },
 )
 
+
 # slugs for zone entity klasses, used by 0005/000C
-ZON_ROLE = SimpleNamespace(
+class ZoneRole(StrEnum):
     #
     # Generic device/zone classes
-    ACT="ACT",  # Generic heating zone actuator group
-    SEN="SEN",  # Generic heating zone sensor group
+    ACT = "ACT"  # Generic heating zone actuator group
+    SEN = "SEN"  # Generic heating zone sensor group
     #
     # Standard device/zone classes
-    ELE="ELE",  # heating zone with BDRs (no heat demand)
-    MIX="MIX",  # heating zone with HM8s
-    RAD="RAD",  # heating zone with TRVs
-    UFH="UFH",  # heating zone with UFC circuits
-    VAL="VAL",  # zheating one with BDRs
+    ELE = "ELE"  # heating zone with BDRs (no heat demand)
+    MIX = "MIX"  # heating zone with HM8s
+    RAD = "RAD"  # heating zone with TRVs
+    UFH = "UFH"  # heating zone with UFC circuits
+    VAL = "VAL"  # zheating one with BDRs
     # Standard device/zone classes *not a heating zone)
-    DHW="DHW",  # DHW zone with BDRs
-)
+    DHW = "DHW"  # DHW zone with BDRs
+
+
 ZON_ROLE_MAP = attr_dict_factory(
     {
-        ZON_ROLE.ACT: {"00": "heating_zone"},  # any actuator
-        ZON_ROLE.SEN: {"04": "heating_zone"},  # any sensor
-        ZON_ROLE.RAD: {"08": "radiator_valve"},  # TRVs
-        ZON_ROLE.UFH: {"09": "underfloor_heating"},  # UFCs
-        ZON_ROLE.VAL: {"0A": "zone_valve"},  # BDRs
-        ZON_ROLE.MIX: {"0B": "mixing_valve"},  # HM8s
-        ZON_ROLE.DHW: {"0D": "stored_hotwater"},  # DHWs
+        ZoneRole.ACT: {"00": "heating_zone"},  # any actuator
+        ZoneRole.SEN: {"04": "heating_zone"},  # any sensor
+        ZoneRole.RAD: {"08": "radiator_valve"},  # TRVs
+        ZoneRole.UFH: {"09": "underfloor_heating"},  # UFCs
+        ZoneRole.VAL: {"0A": "zone_valve"},  # BDRs
+        ZoneRole.MIX: {"0B": "mixing_valve"},  # HM8s
+        ZoneRole.DHW: {"0D": "stored_hotwater"},  # DHWs
         # N_CLASS.HTG: {"0E": "stored_hotwater", AttrDict._SZ_AKA_SLUG: ZON_ROLE.DHW},
-        ZON_ROLE.ELE: {"11": "electric_heat"},  # BDRs
+        ZoneRole.ELE: {"11": "electric_heat"},  # BDRs
     },
     {
         "HEAT_ZONES": ("08", "09", "0A", "0B", "11"),
@@ -504,10 +510,10 @@ DOMAIN_TYPE_MAP = {
     F6: "cooling_valve",  # cooling
     F7: "domain_f7",
     F8: "domain_f8",
-    F9: DEV_ROLE_MAP[DEV_ROLE.HT1],  # Heating Valve
-    FA: DEV_ROLE_MAP[DEV_ROLE.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
+    F9: DEV_ROLE_MAP[DevRole.HT1],  # Heating Valve
+    FA: DEV_ROLE_MAP[DevRole.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
     FB: "domain_fb",  # also: cooling valve?
-    FC: DEV_ROLE_MAP[DEV_ROLE.APP],  # appliance_control
+    FC: DEV_ROLE_MAP[DevRole.APP],  # appliance_control
     FD: "domain_fd",  # seen with hometronics
     # "FE": ???
     # FF: "system",  # TODO: remove this, is not a domain
@@ -560,14 +566,14 @@ FAULT_TYPE = {
     "??": "bad_value",
 }
 
-SystemType = SimpleNamespace(
-    CHRONOTHERM="chronotherm",
-    EVOHOME="evohome",
-    HOMETRONICS="hometronics",
-    PROGRAMMER="programmer",
-    SUNDIAL="sundial",
-    GENERIC="generic",
-)
+
+class SystemType(StrEnum):
+    CHRONOTHERM = "chronotherm"
+    EVOHOME = "evohome"
+    HOMETRONICS = "hometronics"
+    PROGRAMMER = "programmer"
+    SUNDIAL = "sundial"
+    GENERIC = "generic"
 
 
 # used by 22Fx parser, and FanSwitch devices

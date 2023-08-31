@@ -16,13 +16,13 @@ from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
 from .const import (
-    DEV_TYPE,
     DEV_TYPE_MAP,
     DONT_CREATE_ENTITIES,
     DONT_UPDATE_ENTITIES,
     SZ_DEVICES,
     SZ_OFFER,
     SZ_PHASE,
+    DevType,
     __dev_mode__,
 )
 from .device import Device, Fakeable
@@ -212,8 +212,8 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     """
 
     if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
-        slug = getattr(msg.src, "_SLUG", DEV_TYPE.DEV)
-    if slug in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
+        slug = getattr(msg.src, "_SLUG", DevType.DEV)
+    if slug in (DevType.HGI, DevType.DEV, DevType.HEA, DevType.HVC):
         return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
@@ -230,7 +230,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     #
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
-        if slug != DEV_TYPE.DEV:
+        if slug != DevType.DEV:
             err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -263,7 +263,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
 
     if slug is None:
         slug = getattr(msg.dst, "_SLUG", None)
-    if slug in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
+    if slug in (None, DevType.HGI, DevType.DEV, DevType.HEA, DevType.HVC):
         return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
@@ -282,7 +282,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
-        if False and slug != DEV_TYPE.HGI:  # NOTE: not yet needed because of 1st if
+        if False and slug != DevType.HGI:  # NOTE: not yet needed because of 1st if
             err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
             if STRICT_MODE:
                 raise InvalidPacketError(err_msg)
@@ -297,7 +297,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{Code._0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
-    if f"{slug}/{msg.verb}/{msg.code}" in (f"{DEV_TYPE.BDR}/{RQ}/{Code._3EF0}",):
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"{DevType.BDR}/{RQ}/{Code._3EF0}",):
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]

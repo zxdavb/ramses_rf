@@ -11,7 +11,6 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from ..const import (
-    DEV_TYPE,
     FAN_MODE,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
@@ -35,6 +34,7 @@ from ..const import (
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
+    DevType,
     __dev_mode__,
 )
 from ..entity_base import class_by_attr
@@ -220,7 +220,7 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
 class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
     """The spIDer gateway base class."""
 
-    _SLUG: str = DEV_TYPE.RFS
+    _SLUG: str = DevType.RFS
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -236,7 +236,7 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
     The cardinal code is 12A0.
     """
 
-    _SLUG: str = DEV_TYPE.HUM
+    _SLUG: str = DevType.HUM
 
     @property
     def temperature(self) -> None | float:  # Celsius
@@ -261,7 +261,7 @@ class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
     The cardinal code is 1298.
     """
 
-    _SLUG: str = DEV_TYPE.CO2
+    _SLUG: str = DevType.CO2
 
 
 class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
@@ -270,7 +270,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
     The cardinal codes are 22F1, 22F3 (also 22F8?).
     """
 
-    _SLUG: str = DEV_TYPE.REM
+    _SLUG: str = DevType.REM
 
     def _bind(self):
         # .I --- 37:155617 --:------ 37:155617 1FC9 024 0022F1965FE10022F3965FE16710E0965FE1001FC9965FE1
@@ -324,7 +324,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 class HvacDisplayRemote(HvacRemote):  # DIS
     """The DIS (display switch)."""
 
-    _SLUG: str = DEV_TYPE.DIS
+    _SLUG: str = DevType.DIS
 
     # async def initiate_binding_process(self) -> Packet:
     #     return await super().initiate_binding_process(
@@ -343,7 +343,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     # Nuaire (UK), e.g. DRI-ECO-PIV
     # Orcon/Ventiline
 
-    _SLUG: str = DEV_TYPE.FAN
+    _SLUG: str = DevType.FAN
 
     def _update_schema(self, **schema):
         """Update a FAN with new schema attrs.
