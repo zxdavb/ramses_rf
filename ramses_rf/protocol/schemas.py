@@ -12,7 +12,7 @@ from io import TextIOWrapper
 
 import voluptuous as vol  # type: ignore[import]
 
-from .const import DEV_TYPE, DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
+from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
 
 DEV_MODE = __dev_mode__ and False
 
@@ -255,15 +255,16 @@ def sch_global_traits_dict_factory(
         extra=vol.PREVENT_EXTRA,
     )
 
+    # NOTE: voluptuous doesn't like StrEnums, hence str(s)
     # TIP: the _domain key can be used to force which traits schema to use
     heat_slugs = list(
-        s for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS
+        str(s) for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS
     )
     SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend(
         {
             vol.Optional("_domain", default="heat"): "heat",
             vol.Optional(SZ_CLASS): vol.Any(
-                None, *heat_slugs, *(DEV_TYPE_MAP[s] for s in heat_slugs)
+                None, *heat_slugs, *(str(DEV_TYPE_MAP[s]) for s in heat_slugs)
             ),
         }
     )
@@ -272,12 +273,13 @@ def sch_global_traits_dict_factory(
         extra=vol.PREVENT_EXTRA if heat_traits else vol.REMOVE_EXTRA,
     )
 
-    hvac_slugs = DEV_TYPE_MAP.HVAC_SLUGS
+    # NOTE: voluptuous doesn't like StrEnums, hence str(s)
+    hvac_slugs = list(str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
     SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
         {
             vol.Optional("_domain", default="hvac"): "hvac",
             vol.Optional(SZ_CLASS, default="HVC"): vol.Any(
-                None, *hvac_slugs, *(DEV_TYPE_MAP[s] for s in hvac_slugs)
+                None, *hvac_slugs, *(str(DEV_TYPE_MAP[s]) for s in hvac_slugs)
             ),  # TODO: consider removing None
         }
     )
@@ -337,8 +339,8 @@ def select_device_filter_mode(
     hgi_list = [
         k
         for k, v in known_list.items()
-        if k[:2] == DEV_TYPE_MAP._hex(DEV_TYPE.HGI)
-        and v.get(SZ_CLASS) in (None, DEV_TYPE.HGI, DEV_TYPE_MAP[DEV_TYPE.HGI])
+        if k[:2] == DEV_TYPE_MAP._hex(DevType.HGI)
+        and v.get(SZ_CLASS) in (None, DevType.HGI, DEV_TYPE_MAP[DevType.HGI])
     ]
     if len(hgi_list) != 1:
         _LOGGER.warning(

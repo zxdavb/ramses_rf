@@ -18,8 +18,8 @@ from ramses_rf.binding_fsm import (
     SZ_RESPONDENT,
     SZ_SUPPLICANT,
     BindContext,
-    BindState,
     BindStateBase,
+    _BindStates,
 )
 from ramses_rf.device import Fakeable
 from ramses_rf.protocol.protocol import QosProtocol, _BaseProtocol, _ProtQosTimers
@@ -188,7 +188,7 @@ async def assert_protocol_ready(
 
 
 async def assert_context_state(
-    device: Fakeable, state: BindStateBase, max_sleep: int = DEFAULT_MAX_SLEEP
+    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -285,25 +285,25 @@ async def _test_flow_30x(
     ensure_fakeable(respondent)
     supplicant: Fakeable = gwy_s.devices[0]
 
-    await assert_context_state(respondent, BindState.IDLE)
-    await assert_context_state(supplicant, BindState.IDLE)
+    await assert_context_state(respondent, _BindStates.IS_IDLE_DEVICE)
+    await assert_context_state(supplicant, _BindStates.IS_IDLE_DEVICE)
 
     # STEP 1: Start the listener
     kwargs = RESPONDENT_ATTRS_BY_SUPPLICANT[f"{supplicant.id} to {respondent.id}"]
     task = loop.create_task(
         respondent.wait_for_binding_request(kwargs.pop("codes"), **kwargs)
     )
-    await assert_context_state(respondent, BindState.LISTENING)
+    await assert_context_state(respondent, _BindStates.NEEDING_TENDER)
 
     # STEP 2: Start/finish the requester
     _ = await supplicant.initiate_binding_process()
-    await assert_context_state(supplicant, BindState.CONFIRMED)
+    await assert_context_state(supplicant, _BindStates.CONFIRMED)
 
     # STEP 3: Finish the requester
     _ = task.result()
 
     # STEP 4: Confirm the bindings
-    await assert_context_state(respondent, BindState.BOUND_ACCEPTED)
+    await assert_context_state(respondent, _BindStates.BOUND_ACCEPTED)
     # takes another 0.25s, as have to wait for a timer to expire
     # await assert_context_state(supplicant, BindState.BOUND)
 

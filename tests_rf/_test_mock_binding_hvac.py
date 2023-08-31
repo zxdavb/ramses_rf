@@ -10,9 +10,10 @@ import asyncio
 from datetime import datetime as dt
 from datetime import timedelta as td
 
-from ramses_rf.const import DEV_TYPE, Code
+from ramses_rf.binding_fsm import _BindStates
+from ramses_rf.const import Code, DevType
 from ramses_rf.device import HvacRemote, HvacVentilator
-from ramses_rf.device.base import BindState, Fakeable
+from ramses_rf.device.base import Fakeable
 from ramses_rf.protocol import Message
 from ramses_rf.protocol.schemas import (
     SZ_CLASS,
@@ -90,8 +91,8 @@ async def test_hvac_bind_rem(test_port):
         SZ_CONFIG: {SZ_DISABLE_DISCOVERY: False, SZ_ENFORCE_KNOWN_LIST: True},
         SZ_ORPHANS_HVAC: [FAN_ID, REM_ID],
         SZ_KNOWN_LIST: {
-            FAN_ID: {SZ_CLASS: DEV_TYPE.FAN},
-            REM_ID: {SZ_CLASS: DEV_TYPE.REM, SZ_FAKED: True},
+            FAN_ID: {SZ_CLASS: DevType.FAN},
+            REM_ID: {SZ_CLASS: DevType.REM, SZ_FAKED: True},
         },
     }
 
@@ -103,7 +104,7 @@ async def test_hvac_bind_rem(test_port):
     # make an unfakeable device be fakeable...
     fan.__class__ = HvacVentilatorFakable
     setattr(fan, "_faked", None)
-    setattr(fan, "_1fc9_state", {"state": BindState.UNKNOWN})
+    setattr(fan, "_1fc9_state", {"state": _BindStates.IS_IDLE_DEVICE})
 
     # then enable faking on this device
     fan._make_fake()
@@ -137,8 +138,8 @@ async def test_hvac_bind_co2(test_port):
         SZ_CONFIG: {SZ_DISABLE_DISCOVERY: False, SZ_ENFORCE_KNOWN_LIST: True},
         SZ_ORPHANS_HVAC: [FAN_ID, CO2_ID],
         SZ_KNOWN_LIST: {
-            FAN_ID: {SZ_CLASS: DEV_TYPE.FAN},
-            CO2_ID: {SZ_CLASS: DEV_TYPE.CO2, SZ_FAKED: True},
+            FAN_ID: {SZ_CLASS: DevType.FAN},
+            CO2_ID: {SZ_CLASS: DevType.CO2, SZ_FAKED: True},
         },
     }
 
@@ -150,7 +151,7 @@ async def test_hvac_bind_co2(test_port):
     # make an unfakeable device be fakeable...
     fan.__class__ = HvacVentilatorFakable
     setattr(fan, "_faked", None)
-    setattr(fan, "_1fc9_state", {"state": BindState.UNKNOWN})
+    setattr(fan, "_1fc9_state", {"state": _BindStates.IS_IDLE_DEVICE})
 
     # then enable faking on this device
     fan._make_fake()
