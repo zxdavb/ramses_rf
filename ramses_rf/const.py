@@ -107,7 +107,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from .protocol import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 __dev_mode__ = False
