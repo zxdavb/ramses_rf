@@ -11,7 +11,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from threading import Lock
 from types import SimpleNamespace
-from typing import Any, Optional, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..const import (
     SYS_MODE_MAP,
@@ -75,18 +75,25 @@ from .zones import DhwZone, Zone
 
 
 # skipcq: PY-W2000
-from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
-    Code,
-    Verb,
 )
+
+# skipcq: PY-W2000
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__
@@ -278,7 +285,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
-    def tpi_params(self) -> Optional[dict]:  # 1100
+    def tpi_params(self) -> None | dict:  # 1100
         return self._msg_value(Code._1100)
 
     @property
@@ -614,7 +621,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         if msg.code == Code._0006:
             self._msg_0006 = msg
 
-    async def _schedule_version(self, *, force_io: bool = False) -> Tuple[int, bool]:
+    async def _schedule_version(self, *, force_io: bool = False) -> tuple[int, bool]:
         """Return the global schedule version number, and an indication if I/O was done.
 
         If `force_io`, then RQ the latest change counter from the TCS rather than
@@ -781,19 +788,19 @@ class Logbook(SystemBase):  # 0418
     #     return self._faultlog.faultlog
 
     @property
-    def active_fault(self) -> Optional[tuple]:
+    def active_fault(self) -> None | tuple:
         """Return the most recently logged event, but only if it is a fault."""
         if self.latest_fault != self.latest_event:
             return None
         return self.latest_fault
 
     @property
-    def latest_event(self) -> Optional[tuple]:
+    def latest_event(self) -> None | tuple:
         """Return the most recently logged event (fault or restore), if any."""
         return self._this_event and self._this_event.payload["log_entry"]
 
     @property
-    def latest_fault(self) -> Optional[tuple]:
+    def latest_fault(self) -> None | tuple:
         """Return the most recently logged fault, if any."""
         return self._this_fault and self._this_fault.payload["log_entry"]
 
@@ -924,7 +931,7 @@ class SysMode(SystemBase):  # 2E04
         self._add_discovery_cmd(Command.get_system_mode(self.id), 60 * 5, delay=5)
 
     @property
-    def system_mode(self) -> Optional[dict]:  # 2E04
+    def system_mode(self) -> None | dict:  # 2E04
         return self._msg_value(Code._2E04)
 
     def set_mode(self, system_mode, *, until=None) -> Future:
@@ -963,11 +970,11 @@ class Datetime(SystemBase):  # 313F
             if diff > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
 
-    async def get_datetime(self) -> Optional[dt]:
+    async def get_datetime(self) -> None | dt:
         msg = await self._gwy.async_send_cmd(Command.get_system_time(self.id))
         return dt.fromisoformat(msg.payload[SZ_DATETIME])
 
-    async def set_datetime(self, dtm: dt) -> Optional[Message]:
+    async def set_datetime(self, dtm: dt) -> None | Message:
         return await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
@@ -1031,21 +1038,21 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 assert False, f"Unexpected code with a domain_id: {msg.code}"
 
     @property
-    def heat_demands(self) -> Optional[dict]:  # 3150
+    def heat_demands(self) -> None | dict:  # 3150
         # FC: 00-C8 (no F9, FA), TODO: deprecate as FC only?
         if not self._heat_demands:
             return None
         return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
-    def relay_demands(self) -> Optional[dict]:  # 0008
+    def relay_demands(self) -> None | dict:  # 0008
         # FC: 00-C8, F9: 00-C8, FA: 00 or C8 only (01: all 3, 02: FC/FA only)
         if not self._relay_demands:
             return None
         return {k: v.payload["relay_demand"] for k, v in self._relay_demands.items()}
 
     @property
-    def relay_failsafes(self) -> Optional[dict]:  # 0009
+    def relay_failsafes(self) -> None | dict:  # 0009
         if not self._relay_failsafes:
             return None
         return {}  # TODO: failsafe_enabled

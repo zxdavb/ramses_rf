@@ -54,17 +54,24 @@ from .base import BatteryState, Device, DeviceHeat, Fakeable
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
     FF,
-    Code,
-    Verb,
 )
+
+# skipcq: PY-W2000
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from ..protocol import Address, Message, Packet

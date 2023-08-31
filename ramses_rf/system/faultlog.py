@@ -10,6 +10,7 @@ import json
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
+from typing import TYPE_CHECKING
 
 from ..protocol.command import Command
 from ..protocol.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
@@ -22,8 +23,11 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RQ,
     W_,
     Code,
-    Verb,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__ and False

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from logging import Logger
+from typing import TYPE_CHECKING
 
 from .address import Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, Priority
@@ -42,15 +43,8 @@ from .transport import (  # noqa: F401, pylint: disable=unused-import
     transport_factory,
 )
 
-# noqa: F401, pylint: disable=unused-import
-
-
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
@@ -61,10 +55,20 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DEV_TYPE_MAP,
     ZON_ROLE,
     ZON_ROLE_MAP,
-    Code,
-    Index,
-    Verb,
 )
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 def set_pkt_logging_config(**config) -> Logger:

@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from .const import SZ_SCHEDULE, SZ_ZONE_IDX, __dev_mode__
 from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
@@ -21,14 +22,20 @@ from .protocol.protocol import MIN_GAP_BETWEEN_WRITES
 
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
     Code,
-    Verb,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
+if TYPE_CHECKING:
+    from . import Gateway
 
 
 EXEC_CMD = "exec_cmd"
@@ -55,7 +62,7 @@ if DEV_MODE:
 
 
 def script_decorator(fnc):
-    def wrapper(gwy, *args, **kwargs):
+    def wrapper(gwy: Gateway, *args, **kwargs):
         highest = {
             SZ_PRIORITY: Priority.HIGHEST,
             SZ_RETRIES: 3,
@@ -73,7 +80,9 @@ def script_decorator(fnc):
     return wrapper
 
 
-async def periodic(gwy, cmd, count=1, interval=None):
+async def periodic(
+    gwy: Gateway, cmd: Command, count: int = 1, interval: None | int = None
+):
     async def _periodic():
         await asyncio.sleep(interval)
         gwy.send_cmd(cmd)
@@ -89,7 +98,7 @@ async def periodic(gwy, cmd, count=1, interval=None):
             await _periodic()
 
 
-def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
+def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task]:
     tasks = []
 
     if kwargs.get(EXEC_CMD):
@@ -116,12 +125,12 @@ def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
     return tasks
 
 
-async def exec_cmd(gwy, **kwargs):
+async def exec_cmd(gwy: Gateway, **kwargs):
     await gwy.async_send_cmd(Command.from_cli(kwargs[EXEC_CMD], qos=QOS_HIGH))
 
 
 # @script_decorator
-# async def script_scan_001(gwy, dev_id: str):
+# async def script_scan_001(gwy: Gateway, dev_id: str):
 #     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 #     qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 3}
 #     for idx in range(0x10):
@@ -129,13 +138,13 @@ async def exec_cmd(gwy, **kwargs):
 #         gwy.send_cmd(_mk_cmd(RQ, Code._000E, f"{idx:02X}00C8", dev_id, qos=qos))
 
 # @script_decorator
-# async def script_scan_004(gwy, dev_id: str):
+# async def script_scan_004(gwy: Gateway, dev_id: str):
 #     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
 #     cmd = Command.get_dhw_mode(dev_id, **QOS_SCAN)
-#     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
+#     return gwy._loop.create_task(periodic(gwy: Gateway, cmd: Command, count=0, interval=5))
 
 
-async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
+async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3F):
     ctl = gwy.get_device(ctl_id)
 
     try:
@@ -144,7 +153,7 @@ async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
         _LOGGER.error("get_faults(): Function timed out: %s", exc)
 
 
-async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
+async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
     zone = gwy.get_device(ctl_id).tcs.get_htg_zone(zone_idx)
 
     try:
@@ -153,7 +162,7 @@ async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
         _LOGGER.error("get_schedule(): Function timed out: %s", exc)
 
 
-async def set_schedule(gwy, ctl_id, schedule) -> None:
+async def set_schedule(gwy: Gateway, ctl_id: str, schedule: dict) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule[SZ_ZONE_IDX]
 
@@ -165,15 +174,17 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
         _LOGGER.error("set_schedule(): Function timed out: %s", exc)
 
 
-async def script_bind_req(gwy, dev_id: str):
+async def script_bind_req(gwy: Gateway, dev_id: str):
     gwy.get_device(dev_id)._make_fake(bind=True)
 
 
-async def script_bind_wait(gwy, dev_id: str, code=Code._2309, idx="00"):
+async def script_bind_wait(
+    gwy: Gateway, dev_id: str, code: Code = Code._2309, idx: Index = "00"
+):
     gwy.get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
-def script_poll_device(gwy, dev_id) -> list:
+def script_poll_device(gwy: Gateway, dev_id: str) -> list:
     _LOGGER.warning("poll_device() invoked...")
 
     tasks = []
@@ -187,14 +198,14 @@ def script_poll_device(gwy, dev_id) -> list:
 
 
 @script_decorator
-async def script_scan_disc(gwy, dev_id: str):
+async def script_scan_disc(gwy: Gateway, dev_id: str):
     _LOGGER.warning("scan_disc() invoked...")
 
     await gwy.get_device(dev_id).discover()  # discover_flag=Discover.DEFAULT)
 
 
 @script_decorator
-async def script_scan_full(gwy, dev_id: str):
+async def script_scan_full(gwy: Gateway, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     qos = {SZ_PRIORITY: Priority.DEFAULT, SZ_RETRIES: 5}
@@ -256,7 +267,7 @@ async def script_scan_full(gwy, dev_id: str):
 
 
 @script_decorator
-async def script_scan_hard(gwy, dev_id: str, *, start_code: int = None):
+async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int = None):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
     start_code = start_code or 0
@@ -267,7 +278,7 @@ async def script_scan_hard(gwy, dev_id: str, *, start_code: int = None):
 
 
 @script_decorator
-async def script_scan_fan(gwy, dev_id: str):
+async def script_scan_fan(gwy: Gateway, dev_id: str):
     _LOGGER.warning("scan_fan() invoked - expect a lot of nonsense")
     qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 3}
 
@@ -315,7 +326,7 @@ async def script_scan_fan(gwy, dev_id: str):
 
 
 @script_decorator
-async def script_scan_otb(gwy, dev_id: str):
+async def script_scan_otb(gwy: Gateway, dev_id: str):
     _LOGGER.warning("script_scan_otb_full invoked - expect a lot of nonsense")
 
     qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1}
@@ -324,7 +335,7 @@ async def script_scan_otb(gwy, dev_id: str):
 
 
 @script_decorator
-async def script_scan_otb_hard(gwy, dev_id: str):
+async def script_scan_otb_hard(gwy: Gateway, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     for msg_id in range(0x80):
@@ -332,7 +343,7 @@ async def script_scan_otb_hard(gwy, dev_id: str):
 
 
 @script_decorator
-async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
+async def script_scan_otb_map(gwy: Gateway, dev_id: str):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_map invoked - expect a lot of nonsense")
 
     RAMSES_TO_OPENTHERM = {
@@ -354,7 +365,9 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
 
 
 @script_decorator
-async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
+async def script_scan_otb_ramses(
+    gwy: Gateway, dev_id: str
+):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_ramses invoked - expect a lot of nonsense")
 
     CODES = (

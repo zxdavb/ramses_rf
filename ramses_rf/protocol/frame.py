@@ -8,6 +8,7 @@ Provide the base class for commands (constructed/sent packets) and packets.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
@@ -28,18 +29,25 @@ from .ramses import (
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F8,
     F9,
     FA,
     FC,
     FF,
-    Code,
-    Verb,
 )
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__ and False

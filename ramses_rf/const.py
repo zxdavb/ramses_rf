@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 from .protocol.const import (  # noqa: F401
     DEFAULT_MAX_ZONES,
@@ -83,10 +84,6 @@ from .protocol.const import (  # noqa: F401
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
@@ -97,10 +94,20 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     DEV_TYPE_MAP,
     ZON_ROLE,
     ZON_ROLE_MAP,
-    Code,
-    Index,
-    Verb,
 )
+
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 __dev_mode__ = False

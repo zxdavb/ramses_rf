@@ -10,7 +10,7 @@ import logging
 import struct
 import zlib
 from datetime import timedelta as td
-from typing import Any, Iterable, Tuple
+from typing import TYPE_CHECKING, Any, Iterable
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -34,8 +34,11 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RQ,
     W_,
     Code,
-    Verb,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__ and False
@@ -149,7 +152,7 @@ class Schedule:  # 0404
         if msg.payload[SZ_TOTAL_FRAGS] != 255 and self.tcs.zone_lock_idx != self.idx:
             self._rx_frags = self._incr_set(self._rx_frags, msg.payload)
 
-    async def _is_dated(self, *, force_io: bool = False) -> Tuple[bool, bool]:
+    async def _is_dated(self, *, force_io: bool = False) -> tuple[bool, bool]:
         """Indicate if it is possible that a more recent schedule is available.
 
         If required, retrieve the latest global version (change counter) from the

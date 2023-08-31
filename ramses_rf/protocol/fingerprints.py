@@ -4,13 +4,11 @@
 """RAMSES RF - RAMSES-II compatible Packet processor."""
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 __all__ = ["check_signature"]
 
 # incl. date_1. NB: date_2 can vary (firmware date), and _unknown_1 can vary for R8810A
 # fmt: off
-__DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
+__DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     # Heating (device type implies a slug only for these)...
     "0002FF0119FFFFFFFF": ("CTL", "01", "2014-01-16", "EvoTouch Colour"),  # .              ATC928-G3-0xx Evo Mk3 - EvoTouch Colour (WiFi, 12 zones)
     "0002FF0163FFFFFFFF": ("CTL", "01", "2013-08-01", "Evo Color"),  # .                    ATP928-G2-080 Evo Mk2 - Color (no WiFi)
@@ -87,7 +85,7 @@ __DEVICE_INFO_RAW: Dict[str, Tuple[str, str, str, str]] = {
 }
 # fmt: on
 
-__DEVICE_INFO: Dict[str, List[str]] = {
+__DEVICE_INFO: dict[str, list[str]] = {
     t: [k for k, v in __DEVICE_INFO_RAW.items() if v[1] == t]
     for t in sorted(dict.fromkeys(v[1] for v in __DEVICE_INFO_RAW.values()))
 }  # convert to {dev_type: [signature, ...]}
