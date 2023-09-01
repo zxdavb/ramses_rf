@@ -22,7 +22,7 @@ from ramses_rf.protocol.schemas import (
     SZ_KNOWN_LIST,
 )
 from ramses_rf.schemas import SZ_CONFIG, SZ_DISABLE_DISCOVERY, SZ_ORPHANS_HVAC
-from tests_rf.common import (
+from tests_deprecated.common import (
     MOCKED_PORT,
     MockGateway,
     abort_if_rf_test_fails,

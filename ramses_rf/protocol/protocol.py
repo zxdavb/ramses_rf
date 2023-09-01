@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import __dev_mode__
-from .exceptions import InvalidPacketError, ProtocolError
+from .exceptions import PacketInvalid, ProtocolError
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -373,7 +373,7 @@ class _BaseProtocol(asyncio.Protocol):
         """Called by the Transport when a Packet is received."""
         try:
             msg = Message(pkt)  # should log all invalid msgs appropriately
-        except InvalidPacketError:  # TODO: InvalidMessageError (packet is valid)
+        except PacketInvalid:  # TODO: InvalidMessageError (packet is valid)
             return
 
         self._this_msg, self._prev_msg = msg, self._this_msg

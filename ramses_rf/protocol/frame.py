@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
-from .exceptions import InvalidPacketError, InvalidPayloadError
+from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .ramses import (
     CODE_IDX_COMPLEX,
     CODE_IDX_DOMAIN,
@@ -80,7 +80,7 @@ class Frame:
 
         self._frame: str = frame
         if not COMMAND_REGEX.match(self._frame):
-            raise InvalidPacketError(f"Bad frame: invalid structure: >>>{frame}<<<")
+            raise PacketInvalid(f"Bad frame: invalid structure: >>>{frame}<<<")
 
         fields = frame.lstrip().split(" ")
 
@@ -95,11 +95,11 @@ class Frame:
             self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
-        except InvalidPacketError as exc:  # will be: InvalidAddrSetError
-            raise InvalidPacketError(f"Bad frame: invalid address set {exc}")
+        except PacketInvalid as exc:  # will be: InvalidAddrSetError
+            raise PacketInvalid(f"Bad frame: invalid address set {exc}")
 
         if len(self.payload) != int(self.len_) * 2:
-            raise InvalidPacketError(
+            raise PacketInvalid(
                 f"Bad frame: invalid payload: "
                 f"len({self.payload}) is not int('{self.len_}' * 2))"
             )
@@ -126,7 +126,7 @@ class Frame:
         try:
             return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
         except TypeError as exc:
-            raise InvalidPacketError(f"Bad frame: Invalid attrs: {exc}")
+            raise PacketInvalid(f"Bad frame: Invalid attrs: {exc}")
 
     def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
@@ -135,18 +135,18 @@ class Frame:
         """
 
         if (seqn := self._frame[3:6]) == "...":
-            raise InvalidPacketError(f"Bad frame: Deprecated seqn: {seqn}")
+            raise PacketInvalid(f"Bad frame: Deprecated seqn: {seqn}")
 
         if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
-            raise InvalidPacketError("Bad frame: Payload length mismatch")
+            raise PacketInvalid("Bad frame: Payload length mismatch")
 
         if not strict_checking:
             return
 
         try:
             self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore[assignment]
-        except InvalidPacketError as exc:  # will be: InvalidAddrSetError
-            raise InvalidPacketError(f"Bad frame: Invalid address set: {exc}")
+        except PacketInvalid as exc:  # will be: InvalidAddrSetError
+            raise PacketInvalid(f"Bad frame: Invalid address set: {exc}")
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
@@ -461,7 +461,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
         if CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00" and (
             pkt.payload[:2] != "00"
         ):
-            raise InvalidPayloadError(
+            raise PacketPayloadInvalid(
                 f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAA)"
             )
         return False
@@ -473,7 +473,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
     if pkt.payload[:2] in (F8, F9, FA, FC):  # TODO: F6, F7?, FB, FD
         if pkt.code not in CODE_IDX_DOMAIN:
-            raise InvalidPayloadError(
+            raise PacketPayloadInvalid(
                 f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"
             )
         return pkt.payload[:2]
@@ -491,7 +491,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     #     return pkt.payload[:2]
 
     if pkt.payload[:2] != "00":
-        raise InvalidPayloadError(
+        raise PacketPayloadInvalid(
             f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAB)"
         )  # TODO: add a test for this
 

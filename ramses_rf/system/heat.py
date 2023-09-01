@@ -42,6 +42,7 @@ from ..device import (
     UfhController,
 )
 from ..entity_base import Entity, Parent, class_by_attr
+from ..exceptions import ExpiredCallbackError
 from ..helpers import shrink
 from ..protocol import (
     DEV_ROLE_MAP,
@@ -49,7 +50,6 @@ from ..protocol import (
     ZON_ROLE_MAP,
     Address,
     Command,
-    ExpiredCallbackError,
     Message,
     Priority,
 )

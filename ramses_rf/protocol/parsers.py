@@ -76,7 +76,7 @@ from .const import (
     DevRole,
     __dev_mode__,
 )
-from .exceptions import InvalidPayloadError
+from .exceptions import PacketPayloadInvalid
 from .fingerprints import check_signature
 from .helpers import (
     hex_to_bool,
@@ -481,7 +481,7 @@ def parser_000c(payload: str, msg: Message) -> dict:
         elif all(payload[i : i + 2] == payload[2:4] for i in range(12, pkt_len, 10)):
             return True  # len(element) = 5 (10)
 
-        raise InvalidPayloadError("Unable to determine element length")  # return None
+        raise PacketPayloadInvalid("Unable to determine element length")  # return None
 
     if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
         dev_role = DEV_ROLE_MAP[DevRole.HT1]
@@ -663,7 +663,7 @@ def parser_0404(payload: str, msg: Message) -> dict:
     if int(payload[8:10], 16) * 2 != (frag_length := len(payload[14:])) and (
         msg.verb != I_ or frag_length != 0
     ):
-        raise InvalidPayloadError(f"Incorrect fragment length: 0x{payload[8:10]}")
+        raise PacketPayloadInvalid(f"Incorrect fragment length: 0x{payload[8:10]}")
 
     if msg.verb == RQ:  # have a ctx: idx|frag_idx
         return {
@@ -2259,11 +2259,11 @@ def parser_3220(payload: str, msg: Message) -> dict:
     except AssertionError as exc:
         raise AssertionError(f"OpenTherm: {exc}") from exc
     except ValueError as exc:
-        raise InvalidPayloadError(f"OpenTherm: {exc}") from exc
+        raise PacketPayloadInvalid(f"OpenTherm: {exc}") from exc
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
     if ot_schema is None and ot_type != OtMsgType.UNKNOWN_DATAID:
-        raise InvalidPayloadError(f"OpenTherm: Unknown data-id: {ot_id}")
+        raise PacketPayloadInvalid(f"OpenTherm: Unknown data-id: {ot_id}")
 
     result = {
         MSG_ID: ot_id,

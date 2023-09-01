@@ -26,7 +26,8 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .protocol import CorruptStateError
+from .exceptions import SystemSchemaInconsistent
+from .protocol import ProtocolError
 from .protocol.frame import _DeviceIdT, _HeaderT
 from .protocol.opentherm import OPENTHERM_MESSAGES
 from .protocol.ramses import CODES_SCHEMA
@@ -34,17 +35,24 @@ from .schemas import SZ_CIRCUITS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
     FF,
-    Code,
-    Verb,
 )
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from .device import Controller
@@ -65,13 +73,7 @@ if DEV_MODE:
 
 
 def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
-    """Return a mapping of a (unique) attr of classes in a module to that class.
-
-    For example:
-      {DEV_TYPE.OTB: OtbGateway, DEV_TYPE.CTL: Controller}
-      {ZON_ROLE.RAD: RadZone,    ZON_ROLE.UFH: UfhZone}
-      {"evohome": Evohome}
-    """
+    """Return a mapping of a (unique) attr of classes in a module to that class."""
 
     return {
         getattr(c[1], attr): c[1]
@@ -372,7 +374,7 @@ class Discovery(MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_task(hdr: _HeaderT, task: dict) -> None | Message:
+        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> None | Message:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -381,8 +383,11 @@ class Discovery(MessageDB):
                     timeout=60,  # self.MAX_CYCLE_SECS?
                 )
 
+            except ProtocolError as exc:  # InvalidStateError, SendTimeoutError
+                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
+
             except asyncio.TimeoutError as exc:  # safety valve timeout
-                _LOGGER.debug(f"{hdr}: {exc} (0x5A)")
+                _LOGGER.debug(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
 
             except TimeoutError as exc:  # TODO: deprecate non-responsive code/device
                 _LOGGER.debug(f"{hdr}: {exc} (0x5B)")
@@ -421,7 +426,7 @@ class Discovery(MessageDB):
             # we'll have to do I/O...
             task["next_due"] = dt_now + backoff(hdr, task["failures"])  # JIC
 
-            if msg := await send_disc_task(hdr, task):  # TODO: OK 4 some exceptions
+            if msg := await send_disc_cmd(hdr, task):  # TODO: OK 4 some exceptions
                 task["failures"] = 0  # only if task["last_msg"].verb == RP?
                 task["last_msg"] = msg
                 task["next_due"] = msg.dtm + task["interval"]
@@ -666,7 +671,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, DhwSensor)
             if self._dhw_sensor and self._dhw_sensor is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed dhw_sensor (from {self._dhw_sensor} to {child})"
                 )
             self._dhw_sensor = child
@@ -674,7 +679,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         elif is_sensor and hasattr(self, SZ_SENSOR):  # HTG zone
             assert isinstance(self, Zone)  # TODO: remove me
             if self.sensor and self.sensor is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed zone sensor (from {self.sensor} to {child})"
                 )
             self._sensor = child
@@ -703,7 +708,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._htg_valve and self._htg_valve is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed htg_valve (from {self._htg_valve} to {child})"
                 )
             self._htg_valve = child
@@ -712,7 +717,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._dhw_valve and self._dhw_valve is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed dhw_valve (from {self._dhw_valve} to {child})"
                 )
             self._dhw_valve = child
@@ -721,7 +726,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, System)  # TODO: remove me
             assert isinstance(child, (BdrSwitch, OtbGateway))
             if self._app_cntrl and self._app_cntrl is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed app_cntrl (from {self._app_cntrl} to {child})"
                 )
             self._app_cntrl = child
@@ -851,7 +856,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         #     child_id = parent._child_id  # or, for zones: parent.idx
 
         if self._parent and self._parent != parent:
-            raise CorruptStateError(
+            raise SystemSchemaInconsistent(
                 f"{self} cant change parent "
                 f"({self._parent}_{self._child_id} to {parent}_{child_id})"
             )
@@ -953,7 +958,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         if self.ctl and self.ctl is not ctl:
             # NOTE: assume a device is bound to only one CTL (usu. best practice)
-            raise CorruptStateError(
+            raise SystemSchemaInconsistent(
                 f"{self} cant change controller: {self.ctl} to {ctl} "
                 "(or perhaps the device has multiple controllers?"
             )

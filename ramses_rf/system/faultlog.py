@@ -12,9 +12,9 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
-from ..protocol.command import Command
+from ..exceptions import ExpiredCallbackError
+from ..protocol import Command
 from ..protocol.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
-from ..protocol.exceptions import ExpiredCallbackError
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

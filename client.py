@@ -46,12 +46,11 @@ if _DEBUG_CLI:
     _start_debugging(True)
 
 
-from ramses_rf import Gateway, GracefulExit, Message
+from ramses_rf import Gateway, GracefulExit, Message, RamsesException
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import merge
 from ramses_rf.protocol import is_valid_dev_id  # noqa: F401
-from ramses_rf.protocol.exceptions import RamsesError
 from ramses_rf.protocol.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_rf.protocol.schemas import (
     SZ_DISABLE_SENDING,
@@ -507,7 +506,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         lib_kwargs = lib_kwargs | state["schema"]
 
     if serial_port == "/dev/ttyMOCK":
-        from tests_rf.mocked_rf import MockGateway  # a special case
+        from tests_deprecated.mocked_rf import MockGateway  # FIXME: for test/dev
 
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:
@@ -549,7 +548,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         msg = "ended via: GracefulExit"
     except KeyboardInterrupt:
         msg = "ended via: KeyboardInterrupt"
-    except RamsesError as err:
+    except RamsesException as err:
         msg = f"ended via: RamsesException: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"
@@ -579,7 +578,7 @@ cli.add_command(listen)
 if __name__ == "__main__":
     try:
         result = cli(standalone_mode=False)
-    except click.exceptions.NoSuchOption as exc:
+    except click.NoSuchOption as exc:
         print(f"Error: {exc}")
         sys.exit(-1)
 

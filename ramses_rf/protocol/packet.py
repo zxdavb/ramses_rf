@@ -13,7 +13,7 @@ from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
 from .const import __dev_mode__
-from .exceptions import InvalidPacketError
+from .exceptions import PacketInvalid
 from .frame import Frame
 from .logger import getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
@@ -87,16 +87,16 @@ class Packet(Frame):
 
         try:
             if self.error_text:
-                raise InvalidPacketError(self.error_text)
+                raise PacketInvalid(self.error_text)
 
             if not self._frame and self.comment:  # log null pkts only if has a comment
-                raise InvalidPacketError("Null packet")
+                raise PacketInvalid("Null packet")
 
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
             _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
-        except InvalidPacketError as exc:  # incl. InvalidAddrSetError
+        except PacketInvalid as exc:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
                 _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
             raise exc
@@ -105,7 +105,7 @@ class Packet(Frame):
         """Return an unambiguous string representation of this object."""
         try:
             hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        except (InvalidPacketError, NotImplementedError):
+        except (PacketInvalid, NotImplementedError):
             hdr = ""
         try:
             dtm = self.dtm.isoformat(timespec="microseconds")

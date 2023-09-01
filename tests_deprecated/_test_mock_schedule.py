@@ -21,14 +21,14 @@ from ramses_rf.system.schedule import (
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
-from tests_rf.common import (
+from tests_deprecated.common import (
     TEST_DIR,
     abort_if_rf_test_fails,
     find_test_tcs,
     load_test_gwy,
     test_ports,
 )
-from tests_rf.mocked_rf import MOCKED_PORT
+from tests_deprecated.mocked_rf import MOCKED_PORT
 
 WORK_DIR = f"{TEST_DIR}/configs"
 CONFIG_FILE = "config_heat.json"

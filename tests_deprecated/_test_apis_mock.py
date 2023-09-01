@@ -8,12 +8,10 @@ Test the Command.put_*, Command.set_* APIs.
 
 from datetime import datetime as dt
 
-from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.helpers import shrink
-from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests_rf.mocked_rf.command import MockCommand as Command
+from tests_deprecated.mocked_rf.command import MockCommand as Command
 
 
 def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
@@ -38,7 +36,6 @@ def _assert_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
 
 
 def _assert_cmd_from_msg(api, msg) -> None:  # noqa: F811
-
     cmd = api(
         msg.src.id,
         **{k: v for k, v in msg.payload.items() if k[:1] != "_"},

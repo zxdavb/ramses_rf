@@ -39,8 +39,9 @@ from ..device import (
     UfhController,
 )
 from ..entity_base import Child, Entity, Parent, class_by_attr
+from ..exceptions import SystemSchemaInconsistent
 from ..helpers import shrink
-from ..protocol import Address, Command, CorruptStateError, Message
+from ..protocol import Address, Command, Message
 from ..protocol.command import _mk_cmd
 from ..protocol.const import SZ_PAYLOAD
 from ..schemas import (
@@ -491,7 +492,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 raise ValueError(f"Not a known zone class (for {self}): {zone_type}")
 
             if self._SLUG is not None:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed zone class: from {self._SLUG} to {klass}"
                 )
 

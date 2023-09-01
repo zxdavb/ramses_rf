@@ -9,7 +9,7 @@ Test faking of Heat devices.
 from ramses_rf.const import Code
 from ramses_rf.protocol import Command, Message
 from ramses_rf.system import System, Zone
-from tests_rf.common import (
+from tests_deprecated.common import (
     TEST_DIR,
     MockGateway,
     abort_if_rf_test_fails,

@@ -9,7 +9,7 @@ from typing import Dict
 
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP
 from .const import DEVICE_ID_REGEX, DevType, __dev_mode__
-from .exceptions import InvalidAddrSetError
+from .exceptions import PacketAddrSetInvalid
 from .helpers import typechecked  # type: ignore[import-error]
 
 DEV_MODE = __dev_mode__ and False
@@ -199,7 +199,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     try:
         addrs = [id_to_address(addr_fragment[i : i + 9]) for i in range(0, 30, 10)]
     except ValueError as exc:
-        raise InvalidAddrSetError(f"Invalid addr set (0x01): {addr_fragment}: {exc}")
+        raise PacketAddrSetInvalid(f"Invalid address set: {addr_fragment}: {exc}")
 
     if not _DEBUG_DISABLE_STRICT_CHECKING and (
         not (
@@ -223,7 +223,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             and addrs[1] == NON_DEV_ADDR
         )
     ):
-        raise InvalidAddrSetError(f"Invalid addr set (0x02): {addr_fragment}")
+        raise PacketAddrSetInvalid(f"Invalid address set: {addr_fragment}")
 
     device_addrs = list(filter(lambda a: a.type != "--", addrs))  # dex
     src_addr = device_addrs[0]

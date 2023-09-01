@@ -48,7 +48,7 @@ from serial.tools.list_ports import comports  # type: ignore[import]
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import DEV_TYPE_MAP, DevType, __dev_mode__
-from .exceptions import InvalidPacketError
+from .exceptions import PacketInvalid, TransportSourceInvalid
 from .helpers import dt_now
 from .packet import Packet
 from .schemas import (
@@ -82,18 +82,6 @@ if DEV_MODE:
 # All debug flags should be False for end-users
 _DEBUG_DISABLE_REGEX_WARNINGS = True  # should be False for end-users
 _DEBUG_FORCE_LOG_FRAMES = False  # should be False for end-users
-
-
-class TransportError(Exception):
-    """Base class for exceptions in this module."""
-
-    pass
-
-
-class InvalidSourceError(TransportError):
-    """The packet source is not valid type."""
-
-    pass
 
 
 def _normalise(pkt_line: str) -> str:
@@ -398,7 +386,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
-            raise InvalidSourceError(
+            raise TransportSourceInvalid(
                 f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
 
@@ -408,7 +396,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
 
         try:
             pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
-        except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
+        except (PacketInvalid, ValueError):  # VE from dt.fromisoformat()
             return
         self._pkt_received(pkt)
 
@@ -490,7 +478,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
         try:
             pkt = Packet.from_port(dtm, frame)
-        except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
+        except (PacketInvalid, ValueError):  # VE from dt.fromisoformat()
             return
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 

@@ -20,7 +20,7 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .exceptions import InvalidPacketError, InvalidPayloadError
+from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .packet import Packet
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
@@ -271,7 +271,7 @@ class Message:
 
             raise TypeError(f"Invalid payload type: {type(result)}")
 
-        except InvalidPacketError as exc:
+        except PacketInvalid as exc:
             (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
                 "%s < %s", self._pkt, exc
             )
@@ -284,17 +284,17 @@ class Message:
                 if DEV_MODE and self.src.type != DEV_TYPE_MAP.HGI  # DEX
                 else _LOGGER.exception
             )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
-            raise InvalidPacketError(exc)
+            raise PacketInvalid(exc)
 
         except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
             _LOGGER.exception(
                 "%s < Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
             )
-            raise InvalidPacketError from exc
+            raise PacketInvalid from exc
 
         except NotImplementedError as exc:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
-            raise InvalidPacketError from exc
+            raise PacketInvalid from exc
 
 
 @lru_cache(maxsize=256)
@@ -315,12 +315,12 @@ def _check_msg_payload(msg: Message, payload: str) -> None:
     _ = repr(msg._pkt)  # HACK: ? raise InvalidPayloadError
 
     if msg.code not in CODES_SCHEMA:
-        raise InvalidPacketError(f"Unknown code: {msg.code}")
+        raise PacketInvalid(f"Unknown code: {msg.code}")
 
     try:
         regex = CODES_SCHEMA[msg.code][msg.verb]
     except KeyError:
-        raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
+        raise PacketInvalid(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
 
     if not re_compile_re_match(regex, payload):
-        raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
+        raise PacketPayloadInvalid(f"Payload doesn't match '{regex}': {payload}")

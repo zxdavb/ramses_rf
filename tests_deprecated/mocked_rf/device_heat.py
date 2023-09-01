@@ -16,7 +16,7 @@ from queue import Full
 from typing import Callable
 
 from ramses_rf.const import I_, RP, RQ, SZ_ACTUATORS, SZ_ZONES, W_, ZON_ROLE_MAP, Code
-from ramses_rf.protocol import InvalidPacketError
+from ramses_rf.protocol import PacketInvalid
 from ramses_rf.protocol.command import Command as CommandBase
 from ramses_rf.protocol.command import validate_api_params
 from ramses_rf.schemas import SZ_CLASS
@@ -115,8 +115,8 @@ class MockDeviceBase:
 
         try:
             return Command(frame)
-        except InvalidPacketError as exc:
-            raise InvalidPacketError(f"Invalid entry the response table: {exc}")
+        except PacketInvalid as exc:
+            raise PacketInvalid(f"Invalid entry the response table: {exc}")
 
 
 _1F09_CYCLE_DURATION = td(seconds=3 * 60)  # varies between controllers, usu. 3-5 mins

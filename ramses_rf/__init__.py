@@ -16,6 +16,11 @@ from typing import TYPE_CHECKING
 
 from .const import __dev_mode__
 from .device import Device  # noqa: F401
+from .exceptions import (  # noqa: F401
+    ExpiredCallbackError,
+    RamsesException,
+    SystemSchemaInconsistent,
+)
 from .gateway import Gateway  # noqa: F401
 from .protocol import Address, Command, Message, Packet  # noqa: F401
 from .version import VERSION  # noqa: F401

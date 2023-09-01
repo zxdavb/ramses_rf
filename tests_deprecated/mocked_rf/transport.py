@@ -23,7 +23,7 @@ from typing import Callable
 
 from ramses_rf import Gateway
 from ramses_rf.const import Code
-from ramses_rf.protocol import Command, InvalidPacketError, Packet
+from ramses_rf.protocol import Command, Packet, PacketInvalid
 from ramses_rf.protocol.transport_old import (
     PacketProtocolFile,
     PacketProtocolPort,
@@ -139,7 +139,7 @@ class MockSerial:  # most of the RF 'mocking' is done in here
                 except (AttributeError, TypeError, ValueError) as exc:
                     _LOGGER.exception(exc)
 
-                except InvalidPacketError as exc:
+                except PacketInvalid as exc:
                     _LOGGER.exception(exc)
 
             cmd = None
@@ -159,7 +159,7 @@ class MockSerial:  # most of the RF 'mocking' is done in here
             data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
             self._tx_bytes_to_ether(data)  # good place for a breakpoint
-        except InvalidPacketError:
+        except PacketInvalid:
             pass
         return 0
 

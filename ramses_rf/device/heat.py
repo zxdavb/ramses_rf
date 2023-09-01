@@ -34,10 +34,10 @@ from ..const import (
 )
 from ..entity_base import Entity, Parent, class_by_attr
 from ..helpers import shrink
+from ..protocol import PacketPayloadInvalid
 from ..protocol.address import NON_DEV_ADDR
 from ..protocol.command import Command, Priority, _mk_cmd
 from ..protocol.const import SZ_BINDINGS
-from ..protocol.exceptions import InvalidPayloadError
 from ..protocol.opentherm import (
     MSG_ID,
     MSG_NAME,
@@ -1463,12 +1463,12 @@ class UfhCircuit(Entity):
             if not (dev_ids := msg.payload[SZ_DEVICES]):
                 return
             if len(dev_ids) != 1:
-                raise InvalidPayloadError("No devices")
+                raise PacketPayloadInvalid("No devices")
 
             # ctl = self._gwy.device_by_id.get(dev_ids[0])
             ctl = self._gwy.get_device(dev_ids[0])
             if not ctl or (self._ctl and self._ctl is not ctl):
-                raise InvalidPayloadError("No CTL")
+                raise PacketPayloadInvalid("No CTL")
             self._ctl = ctl
 
             ctl._make_tcs_controller()
@@ -1476,9 +1476,9 @@ class UfhCircuit(Entity):
 
             zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
             if not zon:
-                raise InvalidPayloadError("No Zone")
+                raise PacketPayloadInvalid("No Zone")
             if self._zone and self._zone is not zon:
-                raise InvalidPayloadError("Wrong Zone")
+                raise PacketPayloadInvalid("Wrong Zone")
             self._zone = zon
 
             if self not in self._zone.actuators:

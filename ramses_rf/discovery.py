@@ -11,7 +11,8 @@ import re
 from typing import TYPE_CHECKING
 
 from .const import SZ_SCHEDULE, SZ_ZONE_IDX, __dev_mode__
-from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
+from .exceptions import ExpiredCallbackError
+from .protocol import CODES_SCHEMA, Command, Priority
 from .protocol.command import _mk_cmd
 from .protocol.const import SZ_DISABLE_BACKOFF, SZ_PRIORITY, SZ_RETRIES
 from .protocol.opentherm import OTB_MSG_IDS

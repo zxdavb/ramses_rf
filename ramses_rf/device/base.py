@@ -10,18 +10,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Iterable
 
-if TYPE_CHECKING:
-    from typing import Any, Optional
-
-    from . import Address, Message
-
-    _IdxT = str  # 2-char, e.g. 00, FC
-
 from ..binding_fsm import BindContext
-from ..const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, __dev_mode__
+from ..const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, DevType, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
-from ..protocol.address import NUL_DEV_ADDR
 from ..protocol.command import _mk_cmd
 from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST, SZ_SCHEME
@@ -34,8 +26,16 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RQ,
     W_,
     Code,
-    Verb,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
+if TYPE_CHECKING:
+    from typing import Any, Optional
+
+    from . import Address, Message
 
 DEFAULT_BDR_ID = "13:888888"
 DEFAULT_EXT_ID = "17:888888"
@@ -66,7 +66,7 @@ def check_faking_enabled(fnc):
 class DeviceBase(Entity):
     """The Device base class - can also be used for unknown device types."""
 
-    _SLUG: str = DEV_TYPE.DEV  # type: ignore[assignment]
+    _SLUG: str = DevType.DEV  # type: ignore[assignment]
 
     _STATE_ATTR: str = None  # type: ignore[assignment]
 
@@ -166,13 +166,13 @@ class DeviceBase(Entity):
                 self.addr, msg=msg, eavesdrop=self._gwy.config.enable_eavesdrop
             )
 
-            if cls._SLUG in (DEV_TYPE.DEV, self._SLUG):
+            if cls._SLUG in (DevType.DEV, self._SLUG):
                 return  # either a demotion (DEV), or not promotion (HEA/HVC)
 
-            if self._SLUG == DEV_TYPE.HEA and cls._SLUG in DEV_TYPE_MAP.HVAC_SLUGS:
+            if self._SLUG == DevType.HEA and cls._SLUG in DEV_TYPE_MAP.HVAC_SLUGS:
                 return  # TODO: should raise error if CODES_OF_HVAC_DOMAIN_ONLY?
 
-            if self._SLUG == DEV_TYPE.HVC and cls._SLUG not in DEV_TYPE_MAP.HVAC_SLUGS:
+            if self._SLUG == DevType.HVC and cls._SLUG not in DEV_TYPE_MAP.HVAC_SLUGS:
                 return  # TODO: should raise error if CODES_OF_HEAT_DOMAIN_ONLY?
 
             _LOGGER.warning(
@@ -287,19 +287,6 @@ class DeviceInfo(DeviceBase):  # 10E0
         return result
 
 
-# TODO: change to 'vendor'
-SZ_ITHO__ = "itho"  # TODO: treat as the default scheme
-SZ_NUAIRE = "nuaire"
-SZ_ORCON_ = "orcon"
-
-SCHEME_LOOKUP = {
-    SZ_ITHO__: {"oem_code": "01", "offer_to": None},
-    SZ_NUAIRE: {"oem_code": "6C", "offer_to": None},
-    SZ_ORCON_: {"oem_code": "67", "offer_to": "63:262142"},
-    None: {},
-}
-
-
 class Fakeable(DeviceBase):
     """There are two types of Faking: impersonation (of real devices) and full-faking.
 
@@ -340,103 +327,35 @@ class Fakeable(DeviceBase):
 
     async def _async_send_cmd(self, cmd: Command) -> Packet:
         """Wrapper to CC: any relevant Commands to the binding Context."""
-        # TODO: Should remain is_binding until after 10E0 sent (if one expected)
         if self._context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
             self._context.sent_cmd(cmd)  # other codes needed for edge cases
-
         return await super()._async_send_cmd(cmd)
 
     def _handle_msg(self, msg: Message) -> None:
         """Wrapper to CC: any relevant Packets to the binding Context."""
         super()._handle_msg(msg)
-
-        # TODO: Should remain is_binding until after 10E0 rcvd (if one expected)
         if self._context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
             self._context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
     async def wait_for_binding_request(
-        self, codes: Iterable[Code], idx: _IdxT = "00"
-    ) -> Packet:
-        """Listen for a binding and return the supplicant's Offer if successful.
-
-        Raise an exception if the binding doesn't complete successfully.
-
-        Optionally utilize a idx in the payload array of the offer packet if a context
-        is required (e.g. Nuaire HVAC uses '21', or an evohome zone_idx).
-        """
-
-        # offer: Message
-        offer_msg = await self._context.wait_for_binding_request(codes, idx)
-
-        await self._send_accept_cmd(offer_msg.src, codes, idx)  # confirm_pkt =
-        # await self._context.wait_for_confirm()  # not required?
-
-        # pkt = await self._context.wait_for_10e0_cmd()  # may raise timeout error
-
-        # TODO: self._update_bindings_table(result)  # e.g. call RQ|000C?
-        return offer_msg._pkt  # caller to send mode (e.g. zone name/setpoint, etc.)?
-
-    async def _send_accept_cmd(
-        self, dst: Device, codes: Iterable[Code], idx: _IdxT = "00"
-    ) -> Packet:
-        """Send an Accept command (to the Supplicant) and return the Confirm packet."""
-        cmd = Command.put_bind(W_, self.id, codes, dst_id=dst.id, idx=idx)
-        return await self._async_send_cmd(cmd)
+        self,
+        codes: Iterable[Code],
+        idx: Index = "00",
+        scheme: None | str = None,
+    ) -> Message:
+        """Listen for a binding and return the Offer, or raise an exception."""
+        return await self._context.wait_for_binding_request(codes, idx, scheme=scheme)
 
     async def initiate_binding_process(
-        self, codes: Iterable[Code], oem_code: None | str = None
-    ) -> Packet:
-        """Start a binding and return the respondent's Accept if successful.
-
-        Raise an exception if the binding doesn't complete successfully.
-
-        Optionally insert a oem_code|10E0 into the payload array of the request packet
-        if that is required by the respondent (e.g. by some HVAC systems).
-        """
-
-        await self._context.initiate_binding_process(codes, oem_code)
-        accept_pkt = await self._send_offer_cmd(
-            codes, oem_code=oem_code, scheme=self._scheme
-        )
-        # await self._context.wait_for_accept()  # not required?
-
-        await self._send_confirm_cmd(
-            accept_pkt.src, None, idx=accept_pkt.payload[:2]
-        )  # confirm_pkt =
-        # await self._context.wait_for_confirm()  # not required?
-
-        # if oem_code:
-        #     _ = await self._send_10e0_cmd()  # e.g. oem_code|10E0
-
-        # TODO: self._update_bindings_table(result)  # e.g. call RQ|000C?
-        return accept_pkt  # caller to send state (e.g. temp, etc.)?
-
-    async def _send_offer_cmd(
         self,
         codes: Iterable[Code],
         oem_code: None | str = None,
         scheme: None | str = None,
-    ) -> Packet:
-        """Cast an Offer command (from the Supplicant) and return the Accept packet."""
-
-        oem_code = oem_code or SCHEME_LOOKUP[self._scheme].get("oem_code", "FF")
-        dst_id = NUL_DEV_ADDR.id if scheme == "orcon" else self.id
-
-        cmd = Command.put_bind(I_, self.id, codes, dst_id=dst_id, oem_code=oem_code)
-        pkt = await self._async_send_cmd(cmd)  # , timeout=30)
-        return pkt
-
-    async def _send_confirm_cmd(
-        self, dst: Device, codes: None | Iterable[Code], idx: _IdxT = "00"
-    ) -> Packet:
-        """Send a Confirm command (to the Respondent) and return the Confirm packet."""
-        cmd = Command.put_bind(I_, self.id, codes, dst_id=dst.id, idx=idx)
-        return await self._async_send_cmd(cmd)
-
-    async def _send_10e0_cmd(self) -> Packet:  # TODO: needs fleshing out
-        """Create and cast the final (10E0) command (from the Supplicant)."""
-        cmd = Command(self._msgz[Code._10E0].payload)
-        return await self._async_send_cmd(cmd)
+    ) -> Message:
+        """Start a binding and return the Accept, or raise an exception."""
+        return await self._context.initiate_binding_process(
+            codes, oem_code, scheme=scheme
+        )
 
     @property
     def oem_code(self) -> None | str:
@@ -450,7 +369,7 @@ class Fakeable(DeviceBase):
 class HgiGateway(DeviceInfo):  # HGI (18:)
     """The HGI80 base class."""
 
-    _SLUG: str = DEV_TYPE.HGI
+    _SLUG: str = DevType.HGI
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -580,7 +499,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
     Includes UFH and heatpumps (which can also cool).
     """
 
-    _SLUG: str = DEV_TYPE.HEA  # shouldn't be any of these instantiated
+    _SLUG: str = DevType.HEA  # shouldn't be any of these instantiated
 
     def __init__(self, gwy, dev_addr, **kwargs):
         super().__init__(gwy, dev_addr, **kwargs)
@@ -638,7 +557,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
 class DeviceHvac(Device):  # HVAC (ventilation, PIV, MV/HR)
     """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
 
-    _SLUG: str = DEV_TYPE.HVC  # these may be instantiated, and promoted later on
+    _SLUG: str = DevType.HVC  # these may be instantiated, and promoted later on
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

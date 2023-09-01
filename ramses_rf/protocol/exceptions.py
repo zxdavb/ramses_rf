@@ -1,97 +1,89 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - exceptions."""
+"""RAMSES RF - exceptions within the packet/protocol/transport layer."""
 from __future__ import annotations
 
 
-class RamsesError(Exception):
-    """Base class for exceptions in this module."""
+class _RamsesBaseException(Exception):
+    """Base class for all ramses_rf exceptions."""
 
-    ERR_MSG = "exception has occurred"
-    ERR_TIP = ""
+    pass
+
+
+class RamsesException(_RamsesBaseException):
+    """Base class for all ramses_rf exceptions."""
+
+    HINT: None | str = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
+        if self.message and self.HINT:
+            return f"{self.message} (hint: {self.HINT})"
         if self.message:
-            return f"{self.ERR_MSG}: {self.message}{self.ERR_TIP}"
-        return f"{self.ERR_MSG} {self.ERR_TIP}"
+            return self.message
+        if self.HINT:
+            return f"Hint: {self.HINT}"
+        return ""
 
 
-# Errors at/below the protocol/transport layer
+class _RamsesLowerError(RamsesException):
+    """A failure in the lower layer (parser, protocol, transport, serial)."""
 
 
-class ProtocolError(RamsesError):
-    """When attempting to transition to the next state, an error has occurred."""
+########################################################################################
+# Errors at/below the protocol/transport layer, incl. packet processing
 
 
-class InvalidStateError(ProtocolError):
-    """The context was found to be in an invalid state."""
-
-    pass
+class ProtocolError(_RamsesLowerError):
+    """An error occurred when sending, receiving or exchanging packets."""
 
 
-class RetryLimitExceeded(ProtocolError):
-    """When attempting to transition to the next state, the retry limit was exceeded."""
-
-    pass
+class ProtocolFsmError(ProtocolError):
+    """The protocol FSM was/became inconsistent (this shouldn't happen)."""
 
 
-class SendTimeoutError(ProtocolError):
-    """When attempting to transition to the next state, a timer has expired."""
-
-    pass
+class ProtocolSendFailed(ProtocolFsmError):
+    """The Command failed to elicit an echo or (if any) the expected response."""
 
 
-# Errors above the protocol/transport layer
+class TransportError(ProtocolError):  # derived from ProtocolBaseError
+    """An error when sending or receiving frames (bytes)."""
 
 
-class ExpiredCallbackError(RamsesError):
-    """Raised when the callback has expired."""
-
-    ERR_MSG = "callback has expired"
+class TransportSerialError(TransportError):
+    """The transport's serial port has thrown an error."""
 
 
-class CorruptRamsesError(RamsesError):
-    """Base class for exceptions in this module."""
-
-    pass
+class TransportSourceInvalid(TransportError):
+    """The source of packets (frames) is not a valid type (serial, dict, file)."""
 
 
-class InvalidPacketError(CorruptRamsesError):
-    """Raised when the packet is inconsistent."""
-
-    ERR_MSG = "packet is invalid"
+########################################################################################
+# Errors at/below the protocol/transport layer, incl. packet processing
 
 
-class InvalidAddrSetError(InvalidPacketError):
-    """Raised when the packet's address set is inconsistent."""
-
-    ERR_MSG = "addresses are invalid"
+class ParserBaseError(_RamsesLowerError):
+    """The packet is corrupt/not internally consistent, or cannot be parsed."""
 
 
-class InvalidPayloadError(InvalidPacketError):
-    """Raised when the packet's payload is inconsistent."""
-
-    ERR_MSG = "payload is invalid"
+class PacketInvalid(ParserBaseError):
+    """The packet is corrupt/not internally consistent."""
 
 
-class CorruptStateError(CorruptRamsesError):
-    """Raised when the system state (usu. schema) is inconsistent."""
-
-    ERR_MSG = "schema is inconsistent"
-    ERR_TIP = "(try restarting the client library)"
+class PacketAddrSetInvalid(PacketInvalid):
+    """The packet's address set is inconsistent."""
 
 
-class ForeignGatewayError(RamsesError):
-    """Raised when a foreign gateway is detected.
+class PacketPayloadInvalid(PacketInvalid):
+    """The packet's payload is inconsistent."""
 
-    These devices may not be gateways (set a class), or belong to a neighbout (exclude
-    via block_list/known_list), or should be allowed (known_list).
-    """
 
-    ERR_MSG = "multiple HGI80-compatible gateways"
-    ERR_TIP = " (consider enforcing a known_list)"
+# Errors at/below the protocol/transport layer, incl. packet processing
+
+
+class ParserError(ParserBaseError):
+    """The packet cannot be parsed without error."""

@@ -65,15 +65,17 @@ from .schemas import (
 from .system import System
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
     Code,
-    Verb,
 )
 
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from .device import Device
@@ -304,11 +306,16 @@ class Engine:
         Response packets, follow an RQ/W (as an RP/I), and have the same command code.
         """
 
+        from ramses_rf import protocol
+
         callback = kwargs.pop("callback", None)
         assert kwargs == {}
         if callback:
             kwargs["callback"] = callback
-        return await self._protocol.send_cmd(cmd, **kwargs)
+        try:
+            return await self._protocol.send_cmd(cmd, **kwargs)
+        except (asyncio.InvalidStateError, protocol.ProtocolError) as exc:
+            raise RuntimeError(f"Failed to send {cmd._hdr}: {exc}")  # Remove me
 
     def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism

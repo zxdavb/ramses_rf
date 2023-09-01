@@ -19,8 +19,8 @@ from ramses_rf.binding_fsm import (
     SZ_RESPONDENT,
     SZ_SUPPLICANT,
     BindContext,
-    BindState,
     BindStateBase,
+    _BindStates,
 )
 from ramses_rf.device import Fakeable
 from ramses_rf.protocol.protocol import QosProtocol, _BaseProtocol, _ProtQosTimers
@@ -189,7 +189,7 @@ async def assert_protocol_ready(
 
 
 async def assert_context_state(
-    device: Fakeable, state: BindStateBase, max_sleep: int = DEFAULT_MAX_SLEEP
+    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -283,22 +283,22 @@ async def _test_flow_10x(
     supplicant: Fakeable = gwy_s.devices[0]
     ensure_fakeable(respondent)
 
-    await assert_context_state(respondent, BindState.IS_IDLE_DEVICE)
-    await assert_context_state(supplicant, BindState.IS_IDLE_DEVICE)
+    await assert_context_state(respondent, _BindStates.IS_IDLE_DEVICE)
+    await assert_context_state(supplicant, _BindStates.IS_IDLE_DEVICE)
 
     assert not respondent._context.is_binding
     assert not supplicant._context.is_binding
 
     #
     # Step R0: Respondent initial state
-    respondent._context.set_state(BindState.NEEDING_TENDER)
-    await assert_context_state(respondent, BindState.NEEDING_TENDER)
+    respondent._context.set_state(_BindStates.NEEDING_TENDER)
+    await assert_context_state(respondent, _BindStates.NEEDING_TENDER)
     assert respondent._context.is_binding
 
     #
     # Step S0: Supplicant initial state
-    supplicant._context.set_state(BindState.NEEDING_ACCEPT)
-    await assert_context_state(supplicant, BindState.NEEDING_ACCEPT)
+    supplicant._context.set_state(_BindStates.NEEDING_ACCEPT)
+    await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
     assert supplicant._context.is_binding
 
     #
@@ -311,10 +311,10 @@ async def _test_flow_10x(
     codes = [b[1] for b in msg.payload["bindings"] if b[1] != Code._1FC9]
 
     pkt = await supplicant._context._make_offer(codes)
-    await assert_context_state(supplicant, BindState.NEEDING_ACCEPT)
+    await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
 
     await resp_task
-    await assert_context_state(respondent, BindState.NEEDING_AFFIRM)
+    await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
 
     tender = resp_task.result()
     assert tender._pkt == pkt, "Resp's Msg doesn't match Supp's Offer cmd"
@@ -327,10 +327,10 @@ async def _test_flow_10x(
     codes = [b[1] for b in msg.payload["bindings"]]
 
     pkt = await respondent._context._accept_offer(tender, codes)
-    await assert_context_state(respondent, BindState.NEEDING_AFFIRM)
+    await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
 
     await supp_task
-    await assert_context_state(supplicant, BindState.TO_SEND_AFFIRM)
+    await assert_context_state(supplicant, _BindStates.TO_SEND_AFFIRM)
 
     accept = supp_task.result()
     assert accept._pkt == pkt, "Supp's Msg doesn't match Resp's Accept cmd"
@@ -344,15 +344,15 @@ async def _test_flow_10x(
 
     pkt = await supplicant._context._confirm_accept(accept, codes=codes)
     if True or len(pkt_flow_expected) == 3:  # FIXME
-        await assert_context_state(supplicant, BindState.HAS_BOUND_SUPP)
+        await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
     else:
-        await assert_context_state(supplicant, BindState.TO_SEND_RATIFY)
+        await assert_context_state(supplicant, _BindStates.TO_SEND_RATIFY)
 
     await resp_task
     if True or len(pkt_flow_expected) == 3:  # FIXME
-        await assert_context_state(respondent, BindState.HAS_BOUND_RESP)
+        await assert_context_state(respondent, _BindStates.HAS_BOUND_RESP)
     else:
-        await assert_context_state(respondent, BindState.NEEDING_RATIFY)
+        await assert_context_state(respondent, _BindStates.NEEDING_RATIFY)
 
     affirm = resp_task.result()
     assert affirm._pkt == pkt, "Resp's Msg doesn't match Supp's Confirm cmd"
@@ -362,8 +362,8 @@ async def _test_flow_10x(
     if True or len(pkt_flow_expected) == 3:  # i.e. no addenda  FIXME
         return
 
-    await assert_context_state(respondent, BindState.NEEDING_RATIFY)
-    await assert_context_state(supplicant, BindState.TO_SEND_RATIFY)
+    await assert_context_state(respondent, _BindStates.NEEDING_RATIFY)
+    await assert_context_state(supplicant, _BindStates.TO_SEND_RATIFY)
 
     # Step R3: Respondent expects an Addenda (optional)
     resp_task = loop.create_task(
@@ -375,9 +375,9 @@ async def _test_flow_10x(
     supplicant._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
 
     pkt = await supplicant._context._cast_addenda()
-    await assert_context_state(supplicant, BindState.HAS_BOUND_SUPP)
+    await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
 
-    await assert_context_state(respondent, BindState.HAS_BOUND_RESP)
+    await assert_context_state(respondent, _BindStates.HAS_BOUND_RESP)
     await resp_task
 
     ratify = resp_task.result()
