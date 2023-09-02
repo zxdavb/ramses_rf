@@ -153,7 +153,7 @@ async def _test_hgi(port_name, org_str, is_evofw3: bool):
 
 @pytest.mark.xdist_group(name="real_serial")
 @pytest.mark.skipif(
-    not [p for p in comports() if "evofw3" in p.product],
+    not [p for p in comports() if p.product and "evofw3" in p.product],
     reason="No evofw3 devices found",
 )
 async def test_actual_evofw3(test_idx):
@@ -161,7 +161,7 @@ async def test_actual_evofw3(test_idx):
 
     global _global_failed_ports
 
-    port = [p.device for p in comports() if "evofw3" in p.product][0]
+    port = [p.device for p in comports() if p.product and "evofw3" in p.product][0]
 
     if port in _global_failed_ports:
         pytest.skip(f"previous SerialException on: {port}")
@@ -175,15 +175,15 @@ async def test_actual_evofw3(test_idx):
 
 @pytest.mark.xdist_group(name="real_serial")
 @pytest.mark.skipif(
-    not [p for p in comports() if "TUSB3410" in p.product],
+    not [p for p in comports() if p.product and "TUSB3410" in p.product],
     reason="No ti3410 devices found",
 )
-async def _test_actual_ti3410(test_idx):
+async def test_actual_ti3410(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     global _global_failed_ports
 
-    port = [p.device for p in comports() if "TUSB3410" in p.product][0]
+    port = [p.device for p in comports() if p.product and "TUSB3410" in p.product][0]
 
     if port in _global_failed_ports:
         pytest.skip(f"previous SerialException on: {port}")
