@@ -416,6 +416,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
     _recv_buffer: bytes = b""
+    serial: Serial
 
     def __init__(
         self,
@@ -428,7 +429,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
         self._extra: dict = {} if extra is None else extra
         self._extra[SZ_IS_EVOFW3] = "evofw3" in {
-            x.device: x.product for x in comports() if x.device == self.serial.name
+            x.device: x.product for x in comports() if x.product
         }.get(self.serial.name, "")
 
     def _dt_now(self) -> dt:
