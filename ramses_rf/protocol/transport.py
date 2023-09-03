@@ -437,13 +437,15 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         Return None if it is not possible to tell.
         """
         product = {x.device: getattr(x, "product", None) for x in comports()}.get(
-            serial_name, ""
+            serial_name
         )
 
-        if "evofw3" in product:
+        if not product:
+            pass
+        elif "evofw3" in product:
             _LOGGER.warning("The gateway is evofw-compatible")
             return True
-        if "TUSB3410" in product:
+        elif "TUSB3410" in product:
             _LOGGER.warning("The gateway is HGI80-compatible")
             return False
         _LOGGER.warning("The gateway type is not determinable")
