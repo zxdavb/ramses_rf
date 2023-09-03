@@ -437,7 +437,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         Return None if it is not possible to tell.
         """
         product = {x.device: getattr(x, "product", None) for x in comports()}.get(
-            serial_name
+            serial_name, ""
         )
 
         if "evofw3" in product:
