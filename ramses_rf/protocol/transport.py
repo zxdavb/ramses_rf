@@ -428,9 +428,26 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
         self._extra: dict = {} if extra is None else extra
-        self._extra[SZ_IS_EVOFW3] = "evofw3" in {
-            x.device: x.product for x in comports() if x.product
-        }.get(self.serial.name, "")
+        self._extra[SZ_IS_EVOFW3] = self.is_evofw3(self.serial.name)
+
+    @staticmethod
+    def is_evofw3(serial_name: str) -> None | bool:
+        """Return True/False if the serial device is/isn't an evofw3.
+
+        Return None if it is not possible to tell.
+        """
+        product = {x.device: getattr(x, "product", None) for x in comports()}.get(
+            serial_name
+        )
+
+        if "evofw3" in product:
+            _LOGGER.warning("The gateway is evofw-compatible")
+            return True
+        if "TUSB3410" in product:
+            _LOGGER.warning("The gateway is HGI80-compatible")
+            return False
+        _LOGGER.warning("The gateway type is not determinable")
+        return None
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
