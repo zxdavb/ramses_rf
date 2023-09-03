@@ -966,7 +966,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._10E0: {I_: {}},
         Code._3EF1: {RQ: {}, RP: {}},
     },
-    # DEV_TYPE.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
+    # DevType.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
     #     Code._0005: {I_: {}},
     #     Code._0008: {I_: {}},
     #     Code._000A: {I_: {}, RQ: {}},
@@ -986,7 +986,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
     #     Code._3EF0: {I_: {}, RQ: {}},  # when bound direct to a 13:
     #     Code._3EF1: {RQ: {}},  # when bound direct to a 13:
     # },
-    # DEV_TYPE.DTS: {  # e.g. DTS92(E)
+    # DevType.DTS: {  # e.g. DTS92(E)
     #     Code._0001: {W_: {}},
     #     Code._0008: {I_: {}},
     #     Code._0009: {I_: {}},
@@ -1006,7 +1006,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
     #     Code._3B00: {I_: {}},
     #     Code._3EF1: {RQ: {}},
     # },
-    # DEV_TYPE.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+    # DevType.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
     #     Code._0001: {W_: {}},
     #     Code._0002: {I_: {}},
     #     Code._0008: {I_: {}},
