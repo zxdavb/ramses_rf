@@ -84,7 +84,93 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
     }
 
 
-class MessageDB:
+class _Entity:
+    """The ultimate base class for Devices/Zones/Systems.
+
+    This class is mainly concerned with:
+     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
+    """
+
+    _SLUG: str = None  # type: ignore[assignment]
+
+    def __init__(self, gwy: Gateway) -> None:
+
+        self._gwy = gwy
+        self.id: _DeviceIdT = None  # type: ignore[assignment]
+
+        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
+
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._SLUG})"
+
+    def deprecate_device(self, pkt, reset=False) -> None:
+        """If an entity is deprecated enough times, stop sending to it."""
+
+        if reset:
+            self._qos_tx_count = 0
+            return
+
+        self._qos_tx_count += 1
+        if self._qos_tx_count == _QOS_TX_LIMIT:
+            _LOGGER.warning(
+                f"{pkt} < Sending now deprecated for {self} "
+                "(consider adjusting device_id filters)"
+            )  # TODO: take whitelist into account
+
+    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
+        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
+
+        super()._handle_msg(msg)  # store the message in the database
+
+        if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
+            self.deprecate_device(msg._pkt, reset=True)
+
+    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
+        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+
+    def _send_cmd(self, cmd: Command, **kwargs) -> None | asyncio.Task:
+        """Send a Command & return the corresponding Task."""
+
+        if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
+            _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
+            return None
+
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.info(f"{cmd} < Sending now deprecated for {self}")
+            return None
+
+        cmd._source_entity = self
+        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
+        return self._gwy.send_cmd(cmd)
+
+    async def _async_send_cmd(self, cmd: Command) -> None | Packet:
+        """Send a Command & return the response Packet, or the echo Packet otherwise."""
+
+        if self._gwy._disable_sending:
+            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
+            return None
+
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.warning(f"{cmd} < Sending now deprecated for {self}")
+            return None
+
+        cmd._source_entity = self
+        return await self._gwy.async_send_cmd(cmd)
+
+    @property
+    def traits(self) -> dict:
+        """Return the codes seen by the entity."""
+
+        codes = {
+            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
+            for k in sorted(self._msgs)
+            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
+        }
+
+        return {"_sent": list(codes.keys())}
+
+
+class _MessageDB(_Entity):
     """Maintain/utilize an entity's state database."""
 
     _gwy: Gateway
@@ -92,6 +178,8 @@ class MessageDB:
     tcs: System
 
     def __init__(self, gwy: Gateway) -> None:
+        super().__init__(gwy)
+
         self._msgs: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
         self._msgz: dict[Code, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
 
@@ -219,12 +307,12 @@ class MessageDB:
         }
 
 
-class Discovery(MessageDB):
+class _Discovery(_MessageDB):
     MAX_CYCLE_SECS = 30
     MIN_CYCLE_SECS = 3
 
-    def __init__(self, gwy: Gateway, *args, **kwargs) -> None:
-        super().__init__(gwy, *args, **kwargs)
+    def __init__(self, gwy: Gateway) -> None:
+        super().__init__(gwy)
 
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller = None
@@ -234,8 +322,8 @@ class Discovery(MessageDB):
 
         # BUG: FIXME: The Bug
         if not gwy.config.disable_discovery and not gwy._disable_sending:
-            # gwy._loop.call_soon(self._start_discovery_poller)  # BUG: use next instead
-            self._start_discovery_poller
+            gwy._loop.call_soon(self._start_discovery_poller)
+            # self._start_discovery_poller()  # Cant use: derived classes dont exist yet
 
     @property  # TODO: needs tidy up
     def discovery_cmds(self) -> dict:
@@ -469,91 +557,8 @@ class Discovery(MessageDB):
         (reinstate if reset else deprecate)(supported_dict, idx)
 
 
-class Entity(Discovery):
-    """The ultimate base class for Devices/Zones/Systems.
-
-    This class is mainly concerned with:
-     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
-    """
-
-    _SLUG: str = None  # type: ignore[assignment]
-
-    def __init__(self, gwy: Gateway) -> None:
-        super().__init__(gwy)
-
-        self._gwy = gwy
-        self.id: _DeviceIdT = None  # type: ignore[assignment]
-
-        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._SLUG})"
-
-    def deprecate_device(self, pkt, reset=False) -> None:
-        """If an entity is deprecated enough times, stop sending to it."""
-
-        if reset:
-            self._qos_tx_count = 0
-            return
-
-        self._qos_tx_count += 1
-        if self._qos_tx_count == _QOS_TX_LIMIT:
-            _LOGGER.warning(
-                f"{pkt} < Sending now deprecated for {self} "
-                "(consider adjusting device_id filters)"
-            )  # TODO: take whitelist into account
-
-    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
-        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
-
-        super()._handle_msg(msg)  # store the message in the database
-
-        if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
-            self.deprecate_device(msg._pkt, reset=True)
-
-    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
-        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
-
-    def _send_cmd(self, cmd: Command, **kwargs) -> None | asyncio.Task:
-        """Send a Command & return the corresponding Task."""
-
-        if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
-            _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
-            return None
-
-        if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.info(f"{cmd} < Sending now deprecated for {self}")
-            return None
-
-        cmd._source_entity = self
-        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)
-
-    async def _async_send_cmd(self, cmd: Command) -> None | Packet:
-        """Send a Command & return the response Packet, or the echo Packet otherwise."""
-
-        if self._gwy._disable_sending:
-            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
-            return None
-
-        if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.warning(f"{cmd} < Sending now deprecated for {self}")
-            return None
-
-        cmd._source_entity = self
-        return await self._gwy.async_send_cmd(cmd)
-
-    @property
-    def traits(self) -> dict:
-        """Return the codes seen by the entity."""
-
-        codes = {
-            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
-            for k in sorted(self._msgs)
-            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
-        }
-
-        return {"_sent": list(codes.keys())}
+class Entity(_Discovery):
+    """The base class for Devices/Zones/Systems."""
 
 
 def _delete_msg(msg: Message) -> None:

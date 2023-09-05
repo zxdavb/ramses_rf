@@ -72,6 +72,7 @@ class DeviceBase(Entity):
 
     def __init__(self, gwy, dev_addr, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
+        super().__init__(gwy)
 
         # if not check_valid(dev_addr.id):  # TODO
         #     raise ValueError(f"Invalid device id: {dev_addr.id}")
