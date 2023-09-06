@@ -354,7 +354,7 @@ class _BaseProtocol(asyncio.Protocol):
         # This is necessary to track state via the context.
         return await self._send_cmd(cmd)  # self._transport.write(...)
 
-    async def _send_cmd(self, cmd: Command) -> None:
+    async def _send_cmd(self, cmd: Command) -> None:  # only cmd, no args, kwargs
         """Called when a Command is to be sent to the Transport.
 
         The Protocol must be given a Command (not bytes).
@@ -514,14 +514,26 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().pkt_received(pkt)
         self._context.pkt_received(pkt)
 
-    async def _send_cmd(self, cmd: Command, **kwargs) -> Packet:
+    async def _send_cmd(
+        self,
+        cmd: Command,
+        wait_for_reply: None | bool = None,  # None, rather than False
+        **kwargs,
+    ) -> Packet:
         """Wrapper to send a command with QoS (retries, until success or Exception).
 
-        Return the response Packet or the echo Packet if there is no expected response.
+        Returns the Command's response Packet or the echo Packet if a response is not
+        expected (e.g. sending an RP).
+
+        If wait_for_reply is True, return the RQ's RP (or W's I), or raise an Exception
+        if one doesn't arrive. If it is False, return the echo of the Command only. If
+        it is None (the default), act as True for RQs, and False for all other Commands.
         """
 
         try:
-            return await self._context.send_cmd(super()._send_cmd, cmd, **kwargs)
+            return await self._context.send_cmd(
+                super()._send_cmd, cmd, wait_for_reply=wait_for_reply, **kwargs
+            )
         # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
         except ProtocolError as exc:  # TODO: _LOGGER.warning, not .exception

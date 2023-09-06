@@ -149,11 +149,15 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         _LOGGER.info(f"... Writing resumed when {self.state!r}")
         self.state.writing_resumed()
 
-    async def send_cmd(self, send_fnc: Awaitable, cmd: Command, **kwargs) -> Packet:
+    async def send_cmd(
+        self,
+        send_fnc: Awaitable,
+        cmd: Command,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        wait_for_reply: None | bool = None,
+        wait_timeout: float = DEFAULT_WAIT_TIMEOUT,
+    ) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
-
-        max_retries = kwargs.get("max_retries", DEFAULT_MAX_RETRIES)
-        wait_timeout = kwargs.get("timeout", DEFAULT_WAIT_TIMEOUT)
 
         while True:  # if required, resend until RetryLimitExceeded
             prev_state, next_state = await self._wait_for_can_send(
@@ -162,7 +166,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             # assert isinstance(next_state, ProtocolState.IDLE), self
 
             self.state.sent_cmd(cmd, max_retries)
-            await send_fnc(cmd, **kwargs)  # the wrapped function
+            await send_fnc(cmd)  # the wrapped function
             # assert isinstance(self.state, ProtocolState.ECHO), self
 
             try:  # don't capture InvalidStateError here
@@ -173,9 +177,18 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 _LOGGER.error(f"{self}: Failed to receive echo packet: {exc}")
                 raise exc
 
-            # TODO: re: 1FC9 offer/counter-offer: rx_header for offer wont be None
-            if not cmd.rx_header or cmd.code == Code._1FC9:  # FIXME
+            if (
+                wait_for_reply is False
+                or (wait_for_reply is None and cmd.verb != RQ)
+                or cmd.code == Code._1FC9  # otherwise issues with binding FSM
+            ):
+                # binding FSM is implemented at higher layer
+                self.set_state(ProtocolState.IDLE)
                 return prev_state._echo
+
+            if not cmd.rx_header:  # no reply to wait for
+                return prev_state._echo
+
             # assert isinstance(next_state, ProtocolState.RPLY), self
 
             try:  # don't capture InvalidStateError here
