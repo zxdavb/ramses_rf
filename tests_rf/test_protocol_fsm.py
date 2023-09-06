@@ -10,6 +10,7 @@
 import asyncio
 import functools
 from datetime import datetime as dt
+from datetime import timedelta as td
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +19,7 @@ import serial
 import serial_asyncio
 
 from ramses_rf import Command, Packet
+from ramses_rf.protocol import ProtocolFsmError
 from ramses_rf.protocol.protocol import (
     QosProtocol,
     _BaseProtocol,
@@ -29,7 +31,9 @@ from ramses_rf.protocol.transport import transport_factory
 
 from .virtual_rf import VirtualRf
 
+# patch
 DEFAULT_MAX_RETRIES = 0  # #     patch ramses_rf.protocol.protocol
+_DEFAULT_RPLY_TIMEOUT = td(seconds=0.001)  # patch ramses_rf.protocol.protocol_fsm
 DEFAULT_WAIT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
 MAINTAIN_STATE_CHAIN = True  # # patch ramses_rf.protocol.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #        patch ramses_rf.protocol.protocol
@@ -318,6 +322,72 @@ async def _test_flow_30x(
     assert await task == RP_PKT_1
 
 
+@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
+@protocol_decorator
+async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
+    #
+    # STEP 1: Simple test for an I (does not expect any rx)...
+    cmd = Command.put_sensor_temp("03:333333", 19.5)  # 3C09| I|03:333333
+
+    pkt = await protocol._send_cmd(cmd)  # , wait_for_reply=None)
+    assert pkt == cmd
+
+    pkt = await protocol._send_cmd(cmd, wait_for_reply=None)
+    assert pkt == cmd
+
+    pkt = await protocol._send_cmd(cmd, wait_for_reply=False)
+    assert pkt == cmd
+
+    pkt = await protocol._send_cmd(cmd, wait_for_reply=True)
+    assert pkt == cmd
+
+    #
+    # STEP 2: Simple test for an RQ (expects RP as rx)...
+    cmd = Command.get_system_time("01:123456")  # 313F|RQ|01:123456|00
+
+    try:
+        await protocol._send_cmd(cmd)  # , wait_for_reply=None)
+    except ProtocolFsmError:
+        protocol._context.set_state(ProtocolState.IDLE)
+    else:
+        assert False
+
+    try:
+        await protocol._send_cmd(cmd, wait_for_reply=None)
+    except ProtocolFsmError:
+        protocol._context.set_state(ProtocolState.IDLE)
+    else:
+        assert False
+
+    pkt = await protocol._send_cmd(cmd, wait_for_reply=False)
+    assert pkt == cmd
+
+    try:
+        await protocol._send_cmd(cmd, wait_for_reply=True)
+    except ProtocolFsmError:
+        protocol._context.set_state(ProtocolState.IDLE)
+    else:
+        assert False
+
+
+@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+@protocol_decorator
+async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
+    #
+    # STEP 1: Setup...
+    tasks = []
+    for idx in range(num_cmds):
+        cmd = Command.get_zone_temp("01:123456", f"{idx:02X}")
+        coro = protocol._send_cmd(cmd, wait_for_reply=False)
+        tasks.append(protocol._loop.create_task(coro, name=f"cmd_{idx:02X}"))
+
+    assert await asyncio.gather(*tasks)
+    bool(tasks)
+
+
 # ######################################################################################
 
 
@@ -333,6 +403,24 @@ async def test_flow_100() -> None:
 async def test_flow_300() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
     await _test_flow_30x()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_500() -> None:
+    """Check the wait_for_reply kwarg."""
+    await _test_flow_50x()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_601() -> None:
+    """Check the wait_for_reply kwarg."""
+    await _test_flow_60x()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def _test_flow_602() -> None:
+    """Check the wait_for_reply kwarg."""
+    await _test_flow_60x(num_cmds=2)
 
 
 @pytest_asyncio.fixture

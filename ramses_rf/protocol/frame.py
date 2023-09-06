@@ -504,7 +504,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
 
 
 def pkt_header(
-    pkt, rx_header: bool = False
+    pkt: Frame, rx_header: bool = False
 ) -> None | _HeaderT:  # NOTE: used in command.py
     """Return the header of a packet (all packets have a header).
 
