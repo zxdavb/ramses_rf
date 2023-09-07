@@ -48,6 +48,7 @@ from serial.tools.list_ports import comports  # type: ignore[import]
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import DEV_TYPE_MAP, DevType, __dev_mode__
+from .const import SZ_ACTIVE_HGI, SZ_FINGERPRINT, SZ_KNOWN_HGI, SZ_IS_EVOFW3
 from .exceptions import PacketInvalid, TransportSourceInvalid
 from .helpers import dt_now
 from .packet import Packet
@@ -63,11 +64,6 @@ from .schemas import (
 )
 
 DONT_CREATE_MESSAGES = 3  # duplicate
-
-SZ_ACTIVE_HGI = "active_gwy"
-SZ_FINGERPRINT = "fingerprint"
-SZ_KNOWN_HGI = "known_hgi"
-SZ_IS_EVOFW3 = "is_evofw3"
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 

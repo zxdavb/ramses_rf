@@ -12,7 +12,13 @@ from typing import Literal
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
-# used by tansport QoS...
+# used by transport...
+SZ_ACTIVE_HGI = "active_gwy"
+SZ_FINGERPRINT = "fingerprint"
+SZ_KNOWN_HGI = "known_hgi"
+SZ_IS_EVOFW3 = "is_evofw3"
+
+# used by protocol QoS...
 SZ_BACKOFF = "backoff"
 SZ_DISABLE_BACKOFF = "disable_backoff"
 SZ_PRIORITY = "priority"

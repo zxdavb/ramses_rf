@@ -18,15 +18,15 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import __dev_mode__
-from .exceptions import PacketInvalid, ProtocolError
+from .const import __dev_mode__, SZ_FINGERPRINT, SZ_IS_EVOFW3
+from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import SZ_IS_EVOFW3, RamsesTransport, transport_factory
+from .transport import RamsesTransport, transport_factory
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -468,14 +468,28 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
         super().connection_made(transport)
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
+        # self._loop.create_task(self._write_fingerprint_pkt())
+
+    async def _write_fingerprint_pkt(self) -> None:
+        """Send a fingerprint command to dtermine the gwy address."""
+
+        # await asyncio.sleep(1)  # HGI80s need this delay, due to their lon ini times
+
+        cmd = Command._puzzle()
+        self._transport._extra[SZ_FINGERPRINT] = cmd.payload
+        try:
+            await self.send_cmd(cmd)
+        except ProtocolSendFailed:  # HGI80s can't send echo cmds
+            pass
+
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
 
         msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
-        if self._is_evofw3:
-            _LOGGER.info(msg)
+        if self._is_evofw3 is False:
+            _LOGGER.error(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
         else:
-            _LOGGER.warning(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
+            _LOGGER.info(msg)
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
@@ -529,15 +543,14 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         if one doesn't arrive. If it is False, return the echo of the Command only. If
         it is None (the default), act as True for RQs, and False for all other Commands.
         """
-
         try:
             return await self._context.send_cmd(
                 super()._send_cmd, cmd, wait_for_reply=wait_for_reply, **kwargs
             )
         # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
-        except ProtocolError as exc:  # TODO: _LOGGER.warning, not .exception
-            _LOGGER.exception(f"{self}: Failed to send command: {exc}")
+        except ProtocolError:  # TODO: _LOGGER.error, not .exception
+            _LOGGER.exception(f"{self}: Failed to send command: {cmd}")
             raise
 
 
