@@ -185,12 +185,15 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include only one gateway (HGI)")
 
         # for the pkt log, if any, also serves to discover the HGI's device_id
-        # BUG: see guard on method, and d_s has been popped
+        # BUG: see guard in method, and disable_sending has been .pop()ed
         if not disable_sending:  # NOTE: no retries as only need echo
             self._write_fingerprint_pkt()
 
     def _write_fingerprint_pkt(self) -> None:
         """Send a fingerprint command directly to the serial port."""
+
+        # HGI80s have difficulties sending fingerprint packets as they have long
+        # initialisation times, so it is too log before they are ready to sent.
 
         if isinstance(self, FileTransport):
             return
@@ -436,17 +439,17 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
         Return None if it is not possible to tell.
         """
-        product = {x.device: getattr(x, "product", None) for x in comports()}.get(
-            serial_name
-        )
+        product: None | str = {
+            x.device: getattr(x, "product", None) for x in comports()
+        }.get(serial_name)
 
-        if not product:
+        if not product:  # is None
             pass
         elif "evofw3" in product:
-            _LOGGER.warning("The gateway is evofw-compatible")
+            _LOGGER.debug("The gateway is evofw-compatible")
             return True
         elif "TUSB3410" in product:
-            _LOGGER.warning("The gateway is HGI80-compatible")
+            _LOGGER.debug("The gateway is HGI80-compatible")
             return False
         _LOGGER.warning("The gateway type is not determinable")
         return None
