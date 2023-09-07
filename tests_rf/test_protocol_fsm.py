@@ -31,7 +31,7 @@ from ramses_rf.protocol.transport import transport_factory
 
 from .virtual_rf import VirtualRf
 
-# patch
+# patched constants
 DEFAULT_MAX_RETRIES = 0  # #     patch ramses_rf.protocol.protocol
 _DEFAULT_RPLY_TIMEOUT = td(seconds=0.001)  # patch ramses_rf.protocol.protocol_fsm
 DEFAULT_WAIT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
@@ -39,6 +39,8 @@ MAINTAIN_STATE_CHAIN = True  # # patch ramses_rf.protocol.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #        patch ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
 
+# other constants
+CALL_LATER_DELAY = 0.05  # FIXME: this is hardware-specific
 
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.1
@@ -296,7 +298,7 @@ async def _test_flow_30x(
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0), name="send_2")
     protocol._loop.call_later(
-        0.0001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
+        CALL_LATER_DELAY, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
     assert await task == RP_PKT_0
 
@@ -313,10 +315,10 @@ async def _test_flow_30x(
 
     # TODO: make these deterministic so ser replies *only after* it receives cmd
     protocol._loop.call_later(
-        0.001, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
+        CALL_LATER_DELAY, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
     protocol._loop.call_later(
-        0.001, ser.write, bytes(str(RP_PKT_1).encode("ascii")) + b"\r\n"
+        CALL_LATER_DELAY, ser.write, bytes(str(RP_PKT_1).encode("ascii")) + b"\r\n"
     )
 
     assert await task == RP_PKT_1
