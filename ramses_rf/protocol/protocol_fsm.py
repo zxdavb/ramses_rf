@@ -12,6 +12,7 @@ from queue import Empty, PriorityQueue
 from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, Awaitable, TypeVar
 
+# from .const import SZ_FINGERPRINT
 from .exceptions import ProtocolFsmError, ProtocolSendFailed
 
 # skipcq: PY-W2000
@@ -52,6 +53,18 @@ _DEFAULT_RPLY_TIMEOUT = td(seconds=DEFAULT_RPLY_TIMEOUT)
 DEFAULT_MAX_RETRIES = 3
 
 POLLING_INTERVAL = 0.0005
+
+
+class _ProtocolWaitFailed(ProtocolSendFailed):
+    """The Command timed out when waiting for its turn to send."""
+
+
+class _ProtocolEchoFailed(ProtocolSendFailed):
+    """The Command was sent OK, but failed to elicit its echo."""
+
+
+class _ProtocolRplyFailed(ProtocolSendFailed):
+    """The Command received an echo OK, but failed to elicit the expected reply."""
 
 
 class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
@@ -166,6 +179,10 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             # assert isinstance(next_state, ProtocolState.IDLE), self
 
             self.state.sent_cmd(cmd, max_retries)
+
+            # if cmd.code == Code._PUZZ:
+            #     self._handle_puzzle_cmd(cmd)
+
             await send_fnc(cmd)  # the wrapped function
             # assert isinstance(self.state, ProtocolState.ECHO), self
 
@@ -176,6 +193,9 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             except (ProtocolFsmError, ProtocolSendFailed) as exc:
                 _LOGGER.error(f"{self}: Failed to receive echo packet: {exc}")
                 raise exc
+
+            # if prev_state._echo.code == Code._PUZZ:
+            #     self._handle_puzzle_pkt(prev_state._echo)
 
             if (
                 wait_for_reply is False
@@ -204,6 +224,18 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         # assert isinstance(self.state, ProtocolState.IDLE), self
         return prev_state._rply
 
+    def _handle_puzzle_cmd(self, cmd: Command) -> None:
+        """Ensure the puzzle packet is not filtered out by the transport."""
+
+        # self._protocol._transport._extra[SZ_FINGERPRINT] = cmd.payload
+        pass
+
+    def _handle_puzzle_pkt(self, pkt: Command) -> None:
+        """Update the transport filters, according to the puzzle packet."""
+
+        if pkt.payload[2:4] == "11":
+            pass
+
     async def _wait_for_can_send(
         self, this_state: _StateT, cmd: Command, timeout: td
     ) -> tuple[_StateT, _StateT]:
@@ -212,8 +244,8 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         When required, wait until the FSM is/becomes Idle, then transition to the
         WantEcho state. If it is not Idle, the command will join a priority queue.
 
-        Raises a InvalidStateError if transitions to the incorrect state.
-        Raises a ProtocolSendFailed if the timeout is exceeded before transitioning.
+        Raises a ProtocolFsmError if transitions from/to an invalid state.
+        Raises a ProtocolWaitFailed if the timeout is exceeded before transitioning.
         """
 
         _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
@@ -313,7 +345,11 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         self.state.rcvd_pkt(pkt)
 
     def _notify_next_queued_cmd(self) -> None:
-        """Recurse through the queue and notify the first 'ready' Future."""
+        """Recurse through the queue and notify the first 'ready' Future.
+
+        The next Command is notified by setting it's fut.set_result(None)'
+        Expired Commands have fut.set_exception().
+        """
 
         fut: asyncio.Future  # mypy
 
