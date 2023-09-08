@@ -39,7 +39,7 @@ import re
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Iterable
 
 import serial_asyncio
 from serial import Serial, SerialException, serial_for_url  # type: ignore[import]
@@ -76,8 +76,8 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags should be False for end-users
-_DEBUG_DISABLE_REGEX_WARNINGS = True  # should be False for end-users
-_DEBUG_FORCE_LOG_FRAMES = False  # should be False for end-users
+_DEBUG_DISABLE_REGEX_WARNINGS = True  # useful for dev/test
+_DEBUG_FORCE_LOG_FRAMES = False  # useful for dev/test
 
 
 def _normalise(pkt_line: str) -> str:
@@ -549,6 +549,8 @@ def transport_factory(
     packet_dict: None | dict = None,
     **kwargs,
 ) -> RamsesTransportT:
+    """Create and return a Ramses-specific async Transport."""
+
     # The kwargs must be a subset of: loop, extra, and...
     # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
 
@@ -610,6 +612,6 @@ def transport_factory(
     return QosTransport(protocol, ser_instance, **kwargs)
 
 
-_ProtocolT = TypeVar("_ProtocolT", bound="asyncio.Protocol")
+_ProtocolT = asyncio.Protocol
 RamsesTransportT = FileTransport | PortTransport | QosTransport
 SerPortName = str
