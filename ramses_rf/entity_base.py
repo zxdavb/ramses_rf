@@ -94,7 +94,6 @@ class _Entity:
     _SLUG: str = None  # type: ignore[assignment]
 
     def __init__(self, gwy: Gateway) -> None:
-
         self._gwy = gwy
         self.id: _DeviceIdT = None  # type: ignore[assignment]
 
