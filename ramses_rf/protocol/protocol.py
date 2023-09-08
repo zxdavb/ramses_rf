@@ -604,8 +604,8 @@ def create_stack(
     """Utility function to provide a Protocol / Transport pair.
 
     Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
-    - send Commands via Protocol.send_cmd(cmd)
-    - receive Messages via Gateway._handle_msg(msg)
+    - send Commands via awaitable Protocol.send_cmd(cmd)
+    - receive Messages via Gateway._handle_msg(msg) callback
     """
 
     if protocol_factory_:
