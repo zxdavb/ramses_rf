@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import __dev_mode__, SZ_FINGERPRINT, SZ_IS_EVOFW3
+from .const import __dev_mode__, SZ_SIGNATURE, SZ_IS_EVOFW3
 from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
 from .logger import set_logger_timesource
@@ -464,23 +464,23 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
+    async def _send_signature_cmd(self) -> None:
+        """Send a signature command to dtermine the gwy address."""
+
+        # await asyncio.sleep(1)  # HGI80s need this delay, due to their long init times
+
+        cmd = Command._puzzle()
+        self._transport._extra[SZ_SIGNATURE] = cmd.payload
+        try:
+            await self.send_cmd(cmd, max_retries=12)
+        except ProtocolSendFailed:
+            pass
+
     def connection_made(self, transport: RamsesTransport) -> None:
         super().connection_made(transport)
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
-        # self._loop.create_task(self._write_fingerprint_pkt())
-
-    async def _write_fingerprint_pkt(self) -> None:
-        """Send a fingerprint command to dtermine the gwy address."""
-
-        # await asyncio.sleep(1)  # HGI80s need this delay, due to their lon ini times
-
-        cmd = Command._puzzle()
-        self._transport._extra[SZ_FINGERPRINT] = cmd.payload
-        try:
-            await self.send_cmd(cmd)
-        except ProtocolSendFailed:  # HGI80s can't send echo cmds
-            pass
+        self._loop.create_task(self._send_signature_cmd())
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
@@ -495,7 +495,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
         """Write some data bytes to the transport."""
-        if cmd.src.id != HGI_DEV_ADDR.id:
+        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
 
         return await super().send_cmd(cmd, **kwargs)

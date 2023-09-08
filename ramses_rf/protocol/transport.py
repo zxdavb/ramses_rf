@@ -48,7 +48,7 @@ from serial.tools.list_ports import comports  # type: ignore[import]
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import DEV_TYPE_MAP, DevType, __dev_mode__
-from .const import SZ_ACTIVE_HGI, SZ_FINGERPRINT, SZ_KNOWN_HGI, SZ_IS_EVOFW3
+from .const import SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI, SZ_IS_EVOFW3
 from .exceptions import PacketInvalid, TransportSourceInvalid
 from .helpers import dt_now
 from .packet import Packet
@@ -140,7 +140,7 @@ class _PktMixin:
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
 
-class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here too
+class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here too
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     _extra: dict[str, Any]  # mypy
@@ -167,7 +167,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
 
         self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        for key in (SZ_ACTIVE_HGI, SZ_FINGERPRINT, SZ_KNOWN_HGI):
+        for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
             self._extra[key] = None
 
         known_hgis = [
@@ -183,19 +183,19 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
         # for the pkt log, if any, also serves to discover the HGI's device_id
         # BUG: see guard in method, and disable_sending has been .pop()ed
         if not disable_sending:  # NOTE: no retries as only need echo
-            self._write_fingerprint_pkt()
+            self._write_signature_cmd()
 
-    def _write_fingerprint_pkt(self) -> None:
-        """Send a fingerprint command directly to the serial port."""
+    def _write_signature_cmd(self) -> None:
+        """Send a signature command directly to the serial port."""
 
-        # HGI80s have difficulties sending fingerprint packets as they have long
+        # HGI80s have difficulties sending signature packets as they have long
         # initialisation times, so it is too log before they are ready to sent.
 
         if isinstance(self, FileTransport):
             return
 
         cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
-        self._extra[SZ_FINGERPRINT] = cmd.payload
+        self._extra[SZ_SIGNATURE] = cmd.payload
         # use write, not send_cmd to bypass any throttles
         self.write(bytes(str(cmd), "ascii") + b"\r\n")  # type: ignore[attr-defined]
 
@@ -241,7 +241,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (fingerprint) detection in here 
                 deprecate_foreign_hgi(dev_id)  # self._unwanted.append(dev_id)
                 return False
 
-            if dev_id == src_id and payload == self._extra[SZ_FINGERPRINT]:
+            if dev_id == src_id and payload == self._extra[SZ_SIGNATURE]:
                 establish_active_hgi(dev_id)  # self._extra[SZ_ACTIVE_HGI] = dev_id
                 continue
 

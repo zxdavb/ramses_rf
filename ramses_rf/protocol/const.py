@@ -14,7 +14,7 @@ DEV_MODE = __dev_mode__
 
 # used by transport...
 SZ_ACTIVE_HGI = "active_gwy"
-SZ_FINGERPRINT = "fingerprint"
+SZ_SIGNATURE = "signature"
 SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
 

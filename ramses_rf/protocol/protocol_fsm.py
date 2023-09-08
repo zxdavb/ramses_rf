@@ -12,7 +12,7 @@ from queue import Empty, PriorityQueue
 from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, Awaitable, TypeVar
 
-# from .const import SZ_FINGERPRINT
+# from .const import SZ_SIGNATURE
 from .exceptions import ProtocolFsmError, ProtocolSendFailed
 
 # skipcq: PY-W2000
@@ -172,6 +172,9 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     ) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
+        # if cmd.code == Code._PUZZ:
+        #     self._handle_puzzle_cmd(cmd)
+
         while True:  # if required, resend until RetryLimitExceeded
             prev_state, next_state = await self._wait_for_can_send(
                 self.state, cmd, td(seconds=wait_timeout)
@@ -179,9 +182,6 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
             # assert isinstance(next_state, ProtocolState.IDLE), self
 
             self.state.sent_cmd(cmd, max_retries)
-
-            # if cmd.code == Code._PUZZ:
-            #     self._handle_puzzle_cmd(cmd)
 
             await send_fnc(cmd)  # the wrapped function
             # assert isinstance(self.state, ProtocolState.ECHO), self
@@ -191,11 +191,15 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
             except (ProtocolFsmError, ProtocolSendFailed) as exc:
+                # if cmd.code == Code._PUZZ and self._is_active_puzzle_cmd(cmd):
+                #     continue
                 _LOGGER.error(f"{self}: Failed to receive echo packet: {exc}")
                 raise exc
 
             # if prev_state._echo.code == Code._PUZZ:
             #     self._handle_puzzle_pkt(prev_state._echo)
+            #     # self.set_state(ProtocolState.IDLE)  # will happen next
+            #     # return prev_state._echo
 
             if (
                 wait_for_reply is False
@@ -207,6 +211,7 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
                 return prev_state._echo
 
             if not cmd.rx_header:  # no reply to wait for
+                # self.set_state(ProtocolState.IDLE)  # state will do this
                 return prev_state._echo
 
             # assert isinstance(next_state, ProtocolState.RPLY), self
@@ -227,14 +232,27 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     def _handle_puzzle_cmd(self, cmd: Command) -> None:
         """Ensure the puzzle packet is not filtered out by the transport."""
 
-        # self._protocol._transport._extra[SZ_FINGERPRINT] = cmd.payload
-        pass
+        # self._protocol._transport._extra[SZ_SIGNATURE] = cmd.payload
+        self._puzzle_cmd = cmd
+        self._puzzle_num_sent = 0
 
     def _handle_puzzle_pkt(self, pkt: Command) -> None:
         """Update the transport filters, according to the puzzle packet."""
 
-        if pkt.payload[2:4] == "11":
-            pass
+        if pkt.payload[2:4] != "11":
+            return
+        self._puzzle_cmd = None
+
+    def _is_active_puzzle_cmd(self, cmd: Command) -> bool:
+        """Return True if there is an acive puzzle Command, and this is it."""
+
+        result = self._puzzle_cmd and self._puzzle_cmd.payload == cmd.payload
+        if not result:
+            return False
+        self._puzzle_num_sent += 1
+        if self._puzzle_num_sent > 20:
+            return False
+        return True
 
     async def _wait_for_can_send(
         self, this_state: _StateT, cmd: Command, timeout: td
