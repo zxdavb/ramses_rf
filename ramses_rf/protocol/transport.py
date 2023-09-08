@@ -549,7 +549,7 @@ def transport_factory(
     packet_dict: None | dict = None,
     **kwargs,
 ) -> RamsesTransportT:
-    """Create and return a Ramses-specific async Transport."""
+    """Create and return a Ramses-specific async packet Transport."""
 
     # The kwargs must be a subset of: loop, extra, and...
     # disable_sending, enforce_include_list, exclude_list, include_list, use_regex

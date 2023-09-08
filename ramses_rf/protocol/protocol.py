@@ -584,7 +584,7 @@ def protocol_factory(
     disable_sending: None | bool = False,
     disable_qos: None | bool = False,
 ) -> RamsesProtocolT:
-    """Create and return a Ramses-specific async Protocol."""
+    """Create and return a Ramses-specific async packet Protocol."""
 
     if disable_sending:
         return ReadProtocol(msg_handler)
