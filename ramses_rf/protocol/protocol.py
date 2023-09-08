@@ -3,9 +3,6 @@
 #
 """RAMSES RF - RAMSES-II compatible packet protocol."""
 
-# send_cmd(Cmd, **kw) -> _send_cmd(Cmd) -> _send_frame(bytes) ==> Transport(bytes)
-# pkt_rcvd(Pkt)       -> _pkt_rcvd(Pkt) -> _msg_received(Msg) ==> Client(Msg)
-
 from __future__ import annotations
 
 import asyncio
