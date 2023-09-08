@@ -80,7 +80,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 if TYPE_CHECKING:
     from .device import Device
     from .protocol.frame import _DeviceIdT, _PayloadT
-    from .protocol.protocol import RamsesProtocol, RamsesTransport
+    from .protocol.protocol import RamsesProtocolT, RamsesTransportT
 
 _MsgHandlerT = Callable[[Message], None]
 
@@ -144,8 +144,8 @@ class Engine:
         self._engine_lock = Lock()
         self._engine_state: None | tuple[None | Callable, tuple] = None
 
-        self._protocol: None | RamsesProtocol = None
-        self._transport: None | RamsesTransport = None
+        self._protocol: None | RamsesProtocolT = None
+        self._transport: None | RamsesTransportT = None
 
         self._prev_msg: None | Message = None
         self._this_msg: None | Message = None
@@ -166,7 +166,7 @@ class Engine:
 
     def _set_msg_handler(
         self, msg_handler: _MsgHandlerT
-    ) -> tuple[RamsesProtocol, RamsesTransport]:
+    ) -> tuple[RamsesProtocolT, RamsesTransportT]:
         """Create an appropriate protocol for the packet source (transport).
 
         The corresponding transport will be created later.
@@ -532,7 +532,7 @@ class Gateway(Engine):
         self._resume()
 
     async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
-        tmp_transport: RamsesTransport  # mypy hint
+        tmp_transport: RamsesTransportT  # mypy hint
 
         load_schema(self, **schema)
 

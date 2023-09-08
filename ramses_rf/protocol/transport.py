@@ -548,7 +548,7 @@ def transport_factory(
     packet_log: None | TextIOWrapper = None,
     packet_dict: None | dict = None,
     **kwargs,
-) -> RamsesTransport:
+) -> RamsesTransportT:
     # The kwargs must be a subset of: loop, extra, and...
     # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
 
@@ -611,5 +611,5 @@ def transport_factory(
 
 
 _ProtocolT = TypeVar("_ProtocolT", bound="asyncio.Protocol")
-RamsesTransport = FileTransport | PortTransport | QosTransport
+RamsesTransportT = FileTransport | PortTransport | QosTransport
 SerPortName = str

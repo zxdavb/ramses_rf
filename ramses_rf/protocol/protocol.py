@@ -18,15 +18,15 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import __dev_mode__, SZ_SIGNATURE, SZ_IS_EVOFW3
-from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
+from .const import __dev_mode__, SZ_IS_EVOFW3
+from .exceptions import PacketInvalid, ProtocolError
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import RamsesTransport, transport_factory
+from .transport import RamsesTransportT, transport_factory
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -256,7 +256,7 @@ class _BaseProtocol(asyncio.Protocol):
         self._msg_handler = msg_handler
         self._msg_handlers: list[MsgHandler] = []
 
-        self._transport: RamsesTransport = None  # type: ignore[assignment]
+        self._transport: RamsesTransportT = None  # type: ignore[assignment]
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False
@@ -281,7 +281,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return del_handler
 
-    def connection_made(self, transport: RamsesTransport) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:
         """Called by the Transport when a connection is made with it.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -438,7 +438,7 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
             except ValueError:
                 pass
 
-    def connection_made(self, transport: RamsesTransport) -> None:  # type: ignore[override]
+    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         super().connection_made(transport)
 
@@ -464,23 +464,10 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
-    async def _send_signature_cmd(self) -> None:
-        """Send a signature command to dtermine the gwy address."""
-
-        # await asyncio.sleep(1)  # HGI80s need this delay, due to their long init times
-
-        cmd = Command._puzzle()
-        self._transport._extra[SZ_SIGNATURE] = cmd.payload
-        try:
-            await self.send_cmd(cmd, max_retries=12)
-        except ProtocolSendFailed:
-            pass
-
-    def connection_made(self, transport: RamsesTransport) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """The transport has received an echo from the evofw3/HGI80 device."""
         super().connection_made(transport)
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
-
-        self._loop.create_task(self._send_signature_cmd())
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
@@ -508,7 +495,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
 
-    def connection_made(self, transport: RamsesTransport) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:
         super().connection_made(transport)
         self._context.connection_made(transport)
 
@@ -596,7 +583,7 @@ def protocol_factory(
     *,
     disable_sending: None | bool = False,
     disable_qos: None | bool = False,
-) -> RamsesProtocol:
+) -> RamsesProtocolT:
     if disable_sending:
         return ReadProtocol(msg_handler)
     if disable_qos or _DEBUG_DISABLE_QOS:
@@ -613,7 +600,7 @@ def create_stack(
     disable_sending: bool = False,
     disable_qos: bool = False,
     **kwargs,
-) -> tuple[RamsesProtocol, RamsesTransport]:
+) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.
 
     Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
@@ -633,15 +620,17 @@ def create_stack(
             disable_qos=disable_qos,
         )
 
-    transport = (transport_factory_ or transport_factory)(protocol, **kwargs)
+    transport = (transport_factory_ or transport_factory)(
+        protocol, disable_sending=disable_sending, **kwargs
+    )
 
     if not kwargs.get(SZ_PORT_NAME):
         set_logger_timesource(transport._dt_now)
-        _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
+        _LOGGER.warning("Logger datetimes maintained as most recent packet timestamp")
 
     return protocol, transport
 
 
 MsgHandler = Callable[[Message], None]
 MsgFilter = Callable[[Message], bool]
-RamsesProtocol = ReadProtocol | PortProtocol | QosProtocol
+RamsesProtocolT = ReadProtocol | PortProtocol | QosProtocol
