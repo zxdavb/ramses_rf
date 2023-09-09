@@ -60,6 +60,7 @@ from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_CLASS,
+    SZ_DISABLE_SENDING,
     SZ_EVOFW_FLAG,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
@@ -629,7 +630,9 @@ async def transport_factory(
         )
 
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
-        raise TypeError("must have exactly one of: serial port, pkt log or pkt dict")
+        raise TransportSourceInvalid(
+            "Packet source must be exactly one of: packet_dict, packet_log, port_name"
+        )
 
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(protocol, pkt_source, **kwargs)
@@ -644,13 +647,12 @@ async def transport_factory(
         issue_warning()
         return PortTransport(protocol, ser_instance, **kwargs)
 
-    if kwargs.get("disable_sending"):  # no need for QoS
+    if kwargs.get(SZ_DISABLE_SENDING):  # no need for QoS
         transport = PortTransport(protocol, ser_instance, **kwargs)
     else:
-        # kwargs["disable_sending"] = True
         transport = QosTransport(protocol, ser_instance, **kwargs)
 
-    try:
+    try:  # HACK: wait to get first echo from evofw3/HGI80 (tidy up later)
         await asyncio.wait_for(transport._init_fut, timeout=3)
         _ = transport._init_fut.result()
     except asyncio.TimeoutError:
