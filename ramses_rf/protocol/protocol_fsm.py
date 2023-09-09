@@ -8,7 +8,7 @@ import asyncio
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from queue import Empty, PriorityQueue
+from queue import Empty, Full, PriorityQueue
 from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, Awaitable, TypeVar
 
@@ -43,7 +43,7 @@ _DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 DEFAULT_SEND_PRIORITY = 1
 
 DEFAULT_WAIT_TIMEOUT = 3.0  # waiting in queue to send
-DEFAULT_ECHO_TIMEOUT = 0.05  # waiting for echo pkt after cmd sent
+DEFAULT_ECHO_TIMEOUT = 0.50  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT = 0.50  # waiting for reply pkt after echo pkt received
 
 _DEFAULT_WAIT_TIMEOUT = td(seconds=DEFAULT_WAIT_TIMEOUT)
@@ -70,7 +70,7 @@ class _ProtocolRplyFailed(ProtocolSendFailed):
 class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
     """A mixin is to add state to a Protocol."""
 
-    MAX_BUFFER_SIZE: int = 5
+    MAX_BUFFER_SIZE: int = 10
 
     _state: _StateT = None  # type: ignore[assignment]
 
@@ -273,9 +273,13 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
 
         dt_sent = dt.now()
         fut = self._loop.create_future()
-        self._que.put_nowait(
-            (DEFAULT_SEND_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
-        )
+        try:
+            self._que.put_nowait(
+                (DEFAULT_SEND_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
+            )
+        except Full:
+            _LOGGER.error(f"### Queue is full, discarded:       {cmd._hdr}")
+            self._notify_next_queued_cmd()  # remove all the cancelled futs
 
         if self._ready_to_send:  # fut.set_result(None) for next cmd
             self._notify_next_queued_cmd()
@@ -376,11 +380,19 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         except Empty:
             return
 
-        if fut.done():
-            self._notify_next_queued_cmd()  # recursion
+        self._que.task_done()
+
+        if fut.cancelled():  # incl. cancelled()
+            _LOGGER.error(f"### Cancelled command:              {_}")
+            self._notify_next_queued_cmd()  # NOTE: recursion
+        elif fut.done():  # incl. cancelled()
+            _LOGGER.error(f"### Completed command:              {_}")
+            self._notify_next_queued_cmd()  # NOTE: recursion
         elif expires <= dt.now():
+            _LOGGER.error(f"### Expired command:                {_}")
             fut.set_exception(ProtocolSendFailed("Timeout has expired (A1)"))
         else:
+            _LOGGER.error(f"### Activated command:              {_}")
             fut.set_result(None)
 
 
@@ -447,8 +459,10 @@ class IsInactive(ProtocolStateBase):
         assert self.cmd is None
         return f"{self.__class__.__name__}()"
 
-    def rcvd_pkt(self, pkt: Packet) -> None:  # raise an exception
-        raise ProtocolFsmError(f"{self}: Can't rcvd {pkt._hdr}: not connected")
+    # method should be OK, but for a timing issue in _make_connection_after_signature()
+    # means pkt received here *before* state changed by state.connection_made()
+    # def rcvd_pkt(self, pkt: Packet) -> None:  # raise an exception
+    #     raise ProtocolFsmError(f"{self}: Can't rcvd {pkt._hdr}: not connected")
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
         raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: not connected")

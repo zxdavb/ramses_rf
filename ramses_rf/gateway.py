@@ -210,7 +210,7 @@ class Engine:
         else:  # if self._input_file:
             pkt_source[SZ_PACKET_LOG] = self._input_file
 
-        self._transport = transport_factory(
+        self._transport = await transport_factory(
             self._protocol,
             disable_sending=self._disable_sending,
             enforce_include_list=self._enforce_known_list,
@@ -220,6 +220,7 @@ class Engine:
             **pkt_source,
             **self._kwargs,  # HACK: only accept extra & use_regex
         )
+
         self._kwargs = None  # HACK
 
         if self._input_file:
@@ -538,7 +539,7 @@ class Gateway(Engine):
 
         tmp_protocol = protocol_factory(self._msg_handler, disable_sending=True)
 
-        tmp_transport = transport_factory(
+        tmp_transport = await transport_factory(
             tmp_protocol,
             packet_dict=packets,
             enforce_include_list=self._enforce_known_list,

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import __dev_mode__, SZ_IS_EVOFW3
-from .exceptions import PacketInvalid, ProtocolError
+from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -279,7 +279,7 @@ class _BaseProtocol(asyncio.Protocol):
         return del_handler
 
     def connection_made(self, transport: RamsesTransportT) -> None:
-        """Called by the Transport when a connection is made with it.
+        """Called when the connection to the Transport is established.
 
         The argument is the transport representing the pipe connection. To receive data,
         wait for pkt_received() calls. When the connection is closed, connection_lost()
@@ -344,9 +344,9 @@ class _BaseProtocol(asyncio.Protocol):
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
-            raise RuntimeError("TODO: 001")  # TODO
+            raise ProtocolSendFailed("There is no connected Transport")
         if self._pause_writing:
-            raise RuntimeError("TODO: 002")  # TODO
+            raise ProtocolSendFailed("The Protocol is currently read-only")
 
         # This is necessary to track state via the context.
         return await self._send_cmd(cmd)  # self._transport.write(...)
@@ -461,10 +461,19 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
-    def connection_made(self, transport: RamsesTransportT) -> None:
-        """The transport has received an echo from the evofw3/HGI80 device."""
-        super().connection_made(transport)
-        self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
+    def connection_made(
+        self, transport: RamsesTransportT, ramses: bool = False
+    ) -> None:
+        """Silently consume the callback if invoked by serial_asyncio.SerialTransport.
+
+        SerialTransport calls connection_made() prematurely, shortly after __init__().
+        Instead, the Ramses Protocol expects to receive a connection_made() only after
+        the signature echo is received (if one is expected, c.f. FileTransport)
+        """
+
+        if ramses:
+            super().connection_made(transport)
+            self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
@@ -590,7 +599,7 @@ def protocol_factory(
     return QosProtocol(msg_handler)
 
 
-def create_stack(
+async def create_stack(
     msg_handler: MsgHandler,
     /,
     *,
@@ -619,7 +628,7 @@ def create_stack(
             disable_qos=disable_qos,
         )
 
-    transport = (transport_factory_ or transport_factory)(
+    transport = await (transport_factory_ or transport_factory)(
         protocol, disable_sending=disable_sending, **kwargs
     )
 

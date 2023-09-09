@@ -20,10 +20,6 @@ For socat, see:
   cat packet.log | cut -d ' ' -f 2- | unix2dos > /dev/pts/1
 """
 
-#   send_bytes(bytes) ->  _send_bytes(bytes)        ->  write(bytes)  ==> ???(bytes)
-# [_bytes_rcvd(bytes) ->] _frame_rcvd(str/dtm, str) -> _pkt_rcvd(Pkt) ==> Protocol(Pkt)
-
-
 # TODO:
 # - chase down gwy.config.disable_discovery
 # - chase down / check deprecation
@@ -33,6 +29,7 @@ For socat, see:
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import re
@@ -49,7 +46,7 @@ from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import DEV_TYPE_MAP, DevType, __dev_mode__
 from .const import SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI, SZ_IS_EVOFW3
-from .exceptions import PacketInvalid, TransportSourceInvalid
+from .exceptions import PacketInvalid, TransportSerialError, TransportSourceInvalid
 from .helpers import dt_now
 from .packet import Packet
 from .schemas import (
@@ -62,6 +59,9 @@ from .schemas import (
     SZ_OUTBOUND,
     SZ_USE_REGEX,
 )
+
+SIGNATURE_MAX_TRYS = 50
+SIGNATURE_GAP_SECS = 0.02
 
 DONT_CREATE_MESSAGES = 3  # duplicate
 
@@ -179,25 +179,6 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here to
             self._extra[SZ_KNOWN_HGI] = known_hgis[0]
         if len(known_hgis) > 1:
             _LOGGER.info(f"The {SZ_KNOWN_LIST} should include only one gateway (HGI)")
-
-        # for the pkt log, if any, also serves to discover the HGI's device_id
-        # BUG: see guard in method, and disable_sending has been .pop()ed
-        if not disable_sending:  # NOTE: no retries as only need echo
-            self._write_signature_cmd()
-
-    def _write_signature_cmd(self) -> None:
-        """Send a signature command directly to the serial port."""
-
-        # HGI80s have difficulties sending signature packets as they have long
-        # initialisation times, so it is too log before they are ready to sent.
-
-        if isinstance(self, FileTransport):
-            return
-
-        cmd = Command._puzzle()  # BUG: HGI80 seems to have an issue Tx this cmd
-        self._extra[SZ_SIGNATURE] = cmd.payload
-        # use write, not send_cmd to bypass any throttles
-        self.write(bytes(str(cmd), "ascii") + b"\r\n")  # type: ignore[attr-defined]
 
     def _is_wanted_addrs(
         self, src_id: str, dst_id: str, payload: None | str = None
@@ -317,7 +298,6 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         self._is_reading: bool = False
 
         self._reader_task = self._loop.create_task(self._start_reader())
-        self._loop.call_soon(self._protocol.connection_made, self)
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using a packet's dtm field."""
@@ -414,8 +394,11 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
 class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
-    _recv_buffer: bytes = b""
+    loop: asyncio.AbstractEventLoop
     serial: Serial
+
+    _init_task: None | asyncio.Task = None
+    _recv_buffer: bytes = b""
 
     def __init__(
         self,
@@ -428,6 +411,31 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
         self._extra: dict = {} if extra is None else extra
         self._extra[SZ_IS_EVOFW3] = self.is_evofw3(self.serial.name)
+
+        self._init_fut = asyncio.Future()
+
+    async def _make_connection_after_signature(self) -> None:
+        """Poll port with signatures, call make_connection when first echo is received."""
+        # signature is for pkt log, if any, also serves to discover the HGI's device_id
+
+        sig = Command._puzzle()
+        self._extra[SZ_SIGNATURE] = sig.payload
+
+        # HGI80s have difficulties sending signature packets as they have long
+        # initialisation times, so must wait they are ready to send
+
+        num_sends = 0
+        while num_sends < SIGNATURE_MAX_TRYS:
+            num_sends += 1
+            self._send_frame(str(sig))
+            await asyncio.sleep(SIGNATURE_GAP_SECS)
+            if self._init_fut.done():
+                self._protocol.connection_made(self, ramses=True)  # usu. call soon
+                return
+
+        self._init_fut.set_exception(
+            TransportSerialError("Initializion failure: Unable to get signature echo")
+        )
 
     @staticmethod
     def is_evofw3(serial_name: str) -> None | bool:
@@ -442,13 +450,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         if not product:  # is None
             pass
         elif "evofw3" in product:
-            _LOGGER.debug("The gateway is evofw-compatible")
-            return True
+            return True  # _LOGGER.debug("The gateway is evofw-compatible")
         elif "TUSB3410" in product:
-            _LOGGER.debug("The gateway is HGI80-compatible")
-            return False
-        _LOGGER.warning("The gateway type is not determinable")
-        return None
+            return False  # _LOGGER.debug("The gateway is HGI80-compatible")
+        return None  # _LOGGER.warning("The gateway type is not determinable")
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
@@ -499,6 +504,15 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
             pkt = Packet.from_port(dtm, frame)
         except (PacketInvalid, ValueError):  # VE from dt.fromisoformat()
             return
+
+        if (
+            self._init_fut
+            and not self._init_fut.done()
+            and pkt.code == "7FFF"
+            and pkt.payload == self._extra[SZ_SIGNATURE]
+        ):
+            self._init_fut.set_result(pkt)
+
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 
     def send_frame(self, frame: str) -> None:
@@ -514,23 +528,40 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
             _LOGGER.warning("SENT: %s", b"    " + data)
         super().write(data)
 
+    def close(self, exc: None | Exception = None) -> None:
+        """Close the transport (calls self._protocol.connection_lost())."""
+        super().close()
+        if self._init_task:
+            self._init_task.cancel()
+
 
 # ### Read-Only Transports for dict / log file ########################################
 class FileTransport(_DeviceIdFilterMixin, _FileTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
-    pass
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.loop.call_soon(self._protocol.connection_made, self)
 
 
 # ### Read-Write Transport for serial port ############################################
 class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
-    pass
+    def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
+        super().__init__(*args, disable_sending=disable_sending, **kwargs)
+        if disable_sending:
+            self.loop.call_soon(
+                functools.partial(self._protocol.connection_made, self, ramses=True)
+            )
+        else:
+            self._init_task = self.loop.create_task(
+                self._make_connection_after_signature()
+            )
 
 
 # ### Read-Write Transport *with QoS* for serial port #################################
-class QosTransport(PortTransport):  # from a serial port, includes QoS
+class QosTransport(PortTransport):
     """Poll a seial port for packets, and send with QoS."""
 
     # NOTE: Might normally include code to the limit duty cycle, etc., but see
@@ -539,7 +570,7 @@ class QosTransport(PortTransport):  # from a serial port, includes QoS
     pass
 
 
-def transport_factory(
+async def transport_factory(
     protocol: Callable[[], _ProtocolT],
     /,
     *,
@@ -607,9 +638,18 @@ def transport_factory(
         return PortTransport(protocol, ser_instance, **kwargs)
 
     if kwargs.get("disable_sending"):  # no need for QoS
-        return PortTransport(protocol, ser_instance, **kwargs)
+        transport = PortTransport(protocol, ser_instance, **kwargs)
+    else:
+        # kwargs["disable_sending"] = True
+        transport = QosTransport(protocol, ser_instance, **kwargs)
 
-    return QosTransport(protocol, ser_instance, **kwargs)
+    try:
+        await asyncio.wait_for(transport._init_fut, timeout=3)
+        _ = transport._init_fut.result()
+    except asyncio.TimeoutError:
+        raise TransportSerialError("Unable to initialze Protocol/Transport pair")
+
+    return transport
 
 
 _ProtocolT = asyncio.Protocol

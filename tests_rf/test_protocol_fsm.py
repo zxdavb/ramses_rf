@@ -23,6 +23,7 @@ from ramses_rf.protocol import ProtocolFsmError
 from ramses_rf.protocol.protocol import (
     QosProtocol,
     _BaseProtocol,
+    _ProtImpersonate,
     _ProtQosTimers,
     protocol_factory,
 )
@@ -40,7 +41,7 @@ MAX_DUTY_CYCLE = 1.0  # #        patch ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
 
 # other constants
-CALL_LATER_DELAY = 0.05  # FIXME: this is hardware-specific
+CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
 
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.1
@@ -70,10 +71,12 @@ RQ_PKT_1 = Packet(dt.now(), f"... {RQ_CMD_STR_1}")
 RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 
 
-class _QosProtocol(_ProtQosTimers, _BaseProtocol):
+class _QosProtocol(_ProtImpersonate, _ProtQosTimers, _BaseProtocol):
     """Test only QoS, not Duty cycle limits (& gaps) and Impersonation alerts."""
 
-    pass
+    async def _send_impersonation_alert(self, cmd: Command) -> None:
+        """Don't send impersonation alert (puzzle) packets to the packet log."""
+        pass
 
 
 async def assert_protocol_ready(
@@ -81,9 +84,9 @@ async def assert_protocol_ready(
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if protocol._this_msg is not None:
+        if protocol._transport is not None:
             break
-    assert protocol._this_msg and protocol._this_msg.code == "7FFF"
+    assert protocol._transport
 
 
 async def assert_protocol_state(
@@ -122,7 +125,7 @@ def protocol_decorator(fnc):
         protocol = protocol_factory(kwargs.pop("msg_handler", _msg_handler))
         await assert_protocol_state(protocol, ProtocolState.DEAD, max_sleep=0)
 
-        transport: serial_asyncio.SerialTransport = transport_factory(
+        transport: serial_asyncio.SerialTransport = await transport_factory(
             protocol,
             port_name=rf.ports[0],
             port_config=kwargs.pop("port_config", {}),
