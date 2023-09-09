@@ -171,6 +171,50 @@ class ProtocolContext:
         _LOGGER.info(f"... Writing resumed when {self.state!r}")
         self.state.writing_resumed()
 
+    async def _wait_for_can_send(
+        self, this_state: _StateT, cmd: Command, timeout: td
+    ) -> tuple[_StateT, _StateT]:
+        """Wait until state machine is such that this context can (re-)send.
+
+        When required, wait until the FSM is/becomes Idle, then transition to the
+        WantEcho state. If it is not Idle, the command will join a priority queue.
+
+        Raises a ProtocolFsmError if transitions from/to an invalid state.
+        Raises a ProtocolWaitFailed if the timeout is exceeded before transitioning.
+        """
+
+        _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
+
+        if self._is_active_cmd(cmd):  # no need to queue...
+            return this_state, self.state
+
+        dt_sent = dt.now()
+        fut = self._loop.create_future()
+        try:
+            self._que.put_nowait(
+                (DEFAULT_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
+            )
+        except Full:
+            _LOGGER.error(f"### Queue is full, discarded:       {cmd._hdr}")
+            self._notify_next_queued_cmd()  # remove all the cancelled futs
+
+        if self._ready_to_send:  # fut.set_result(None) for next cmd
+            self._notify_next_queued_cmd()
+
+        try:
+            await asyncio.wait_for(fut, timeout.total_seconds())
+        except asyncio.TimeoutError as exc:
+            _LOGGER.warning(f"!!! wait_for(fut): {exc}")
+            fut.set_exception(ProtocolSendFailed("wait_for_can_send() timeout expired"))
+        except ProtocolSendFailed as exc:  # TODO: remove. not needed?
+            _LOGGER.warning(f"!!! wait_for(fut): {exc}")
+
+        if isinstance(self.state, WantEcho):
+            raise ProtocolFsmError(f"Bad transition to {self.state}")
+
+        fut.result()  # may: raise ProtocolSendFailed
+        return this_state, self.state  # TODO: should have this_state._cmd_
+
     async def send_cmd(
         self,
         send_fnc: Awaitable,
@@ -278,50 +322,6 @@ class ProtocolContext:
         if self._puzzle_num_sent > 20:
             return False
         return True
-
-    async def _wait_for_can_send(
-        self, this_state: _StateT, cmd: Command, timeout: td
-    ) -> tuple[_StateT, _StateT]:
-        """Wait until state machine is such that this context can (re-)send.
-
-        When required, wait until the FSM is/becomes Idle, then transition to the
-        WantEcho state. If it is not Idle, the command will join a priority queue.
-
-        Raises a ProtocolFsmError if transitions from/to an invalid state.
-        Raises a ProtocolWaitFailed if the timeout is exceeded before transitioning.
-        """
-
-        _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
-
-        if self._is_active_cmd(cmd):  # no need to queue...
-            return this_state, self.state
-
-        dt_sent = dt.now()
-        fut = self._loop.create_future()
-        try:
-            self._que.put_nowait(
-                (DEFAULT_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
-            )
-        except Full:
-            _LOGGER.error(f"### Queue is full, discarded:       {cmd._hdr}")
-            self._notify_next_queued_cmd()  # remove all the cancelled futs
-
-        if self._ready_to_send:  # fut.set_result(None) for next cmd
-            self._notify_next_queued_cmd()
-
-        try:
-            await asyncio.wait_for(fut, timeout.total_seconds())
-        except asyncio.TimeoutError as exc:
-            _LOGGER.warning(f"!!! wait_for(fut): {exc}")
-            fut.set_exception(ProtocolSendFailed("wait_for_can_send() timeout expired"))
-        except ProtocolSendFailed as exc:  # TODO: remove. not needed?
-            _LOGGER.warning(f"!!! wait_for(fut): {exc}")
-
-        if isinstance(self.state, WantEcho):
-            raise ProtocolFsmError(f"Bad transition to {self.state}")
-
-        fut.result()  # may: raise ProtocolSendFailed
-        return this_state, self.state  # TODO: should have this_state._cmd_
 
     async def _wait_for_transition(self, old_state: _StateT, until: dt) -> _StateT:
         """Return the new state that the context transitioned to from the old state..
