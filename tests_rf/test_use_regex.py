@@ -17,7 +17,7 @@ from ramses_rf.protocol.transport import _str
 from tests_rf.test_virt_network import assert_device
 from tests_rf.virtual_rf import VirtualRf, stifle_impersonation_alert
 
-DEFAULT_WAIT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
+DEFAULT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
 DISABLE_QOS = True  # #          patch ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
 
@@ -163,7 +163,7 @@ async def test_regex_outbound():
     "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
     stifle_impersonation_alert,
 )
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 async def test_regex_with_qos():
     """Check the regex filters work as expected."""
 

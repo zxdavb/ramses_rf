@@ -91,7 +91,7 @@ class ProtocolContext:
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self._sem = BoundedSemaphore(value=1)
 
-        self.set_state(IsInactive)  # set initial state
+        self.set_state(Inactive)  # set initial state
 
     def __repr__(self) -> str:
         state_name = self.state.__class__.__name__
@@ -108,7 +108,7 @@ class ProtocolContext:
         # assert not isinstance(self._state, state)  # check a transition has occurred
         _LOGGER.info(f" ... State was moved from {self._state!r} to {state.__name__}")
 
-        if state == HasFailed:  # FailedRetryLimit?
+        if state == IsFailed:  # FailedRetryLimit?
             _LOGGER.warning(f"!!! failed: {self}")
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
@@ -189,10 +189,10 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_can_send(
                     self.state, cmd, td(seconds=wait_timeout)
                 )
-                assert isinstance(self.state, _ProtocolState.IDLE)
+                assert isinstance(self.state, IsInIdle)
 
                 self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
-                assert isinstance(self.state, _ProtocolState.ECHO)
+                assert isinstance(self.state, WantEcho)
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
                 raise _ProtocolWaitFailed(
@@ -205,9 +205,7 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
-                assert isinstance(
-                    self.state, (_ProtocolState.RPLY, _ProtocolState.IDLE)
-                )
+                assert isinstance(self.state, (WantRply, IsInIdle))
                 assert prev_state._echo
 
                 # if prev_state._echo.code == Code._PUZZ:
@@ -222,16 +220,16 @@ class ProtocolContext:
                     or cmd.code == Code._1FC9  # otherwise issues with binding FSM
                 ):
                     # binding FSM is implemented at higher layer
-                    self.set_state(_ProtocolState.IDLE)  # maybe was: ProtocolState.RPLY
-                    assert isinstance(next_state, _ProtocolState.IDLE)
+                    self.set_state(IsInIdle)  # maybe was: ProtocolState.RPLY
+                    assert isinstance(next_state, IsInIdle)
                     return prev_state._echo
 
                 if not cmd.rx_header:  # no reply to wait for
                     # self.set_state(ProtocolState.IDLE)  # state will do this
-                    assert isinstance(next_state, _ProtocolState.IDLE)
+                    assert isinstance(next_state, IsInIdle)
                     return prev_state._echo
 
-                assert isinstance(next_state, _ProtocolState.RPLY)
+                assert isinstance(next_state, WantRply)
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
                 # if cmd.code == Code._PUZZ and self._is_active_puzzle_cmd(cmd):
@@ -244,7 +242,7 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_rcvd_rply(
                     next_state, cmd, _DEFAULT_RPLY_TIMEOUT
                 )  # NOTE: is next_state, not self.state
-                assert isinstance(next_state, _ProtocolState.IDLE)
+                assert isinstance(next_state, IsInIdle)
                 assert prev_state._rply
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
@@ -464,10 +462,10 @@ class ProtocolStateBase:
         self._set_context_state(IsInIdle)  # initial state (assumes not paused)
 
     def lost_connection(self, exc: None | Exception) -> None:
-        self._set_context_state(IsInactive)
+        self._set_context_state(Inactive)
 
     def writing_paused(self) -> None:
-        self._set_context_state(IsInactive)
+        self._set_context_state(Inactive)
 
     def writing_resumed(self) -> None:
         self._set_context_state(IsInIdle)
@@ -479,7 +477,7 @@ class ProtocolStateBase:
         raise ProtocolFsmError(f"{self}: Not implemented")
 
 
-class IsInactive(ProtocolStateBase):
+class Inactive(ProtocolStateBase):
     """Protocol has no active connection with a Transport."""
 
     def __repr__(self) -> str:
@@ -576,7 +574,7 @@ class WantRply(ProtocolStateBase):
         _LOGGER.debug(f"     - sending cmd..: {cmd._hdr} (again)")
 
 
-class HasFailed(ProtocolStateBase):
+class IsFailed(ProtocolStateBase):
     """Protocol has rcvd the Command echo and is waiting for a response to be Rx'd."""
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
@@ -584,10 +582,3 @@ class HasFailed(ProtocolStateBase):
 
 
 _StateT = ProtocolStateBase
-
-
-class _ProtocolState:
-    DEAD = IsInactive
-    IDLE = IsInIdle
-    ECHO = WantEcho
-    RPLY = WantRply
