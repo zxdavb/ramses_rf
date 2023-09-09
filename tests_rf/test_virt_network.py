@@ -13,6 +13,7 @@ import pytest
 import serial
 
 from ramses_rf import Code, Command, Device, Gateway
+from ramses_rf.protocol import QosProtocol
 from tests_rf.virtual_rf import (
     DEFAULT_GWY_CONFIG,
     MIN_GAP_BETWEEN_WRITES,
@@ -32,6 +33,16 @@ SCHEMA_1 = {
     "orphans_hvac": ["42:222222"],
     "known_list": {"42:222222": {"class": "FAN"}},
 }
+
+
+async def assert_protocol_ready(
+    protocol: QosProtocol, max_sleep: int = DEFAULT_MAX_SLEEP
+) -> None:
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if protocol._transport is not None:
+            break
+    assert protocol._transport
 
 
 async def assert_code_in_device_msgz(
@@ -95,22 +106,24 @@ async def test_virtual_rf_dev_disc():
     rf = VirtualRf(3)
 
     rf.set_gateway(rf.ports[0], "18:000000")
-    rf.set_gateway(rf.ports[1], "18:111111")
-
     gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG)
-    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG)
-    ser_2 = serial.Serial(rf.ports[2])
-
     await assert_devices(gwy_0, [])
+
+    rf.set_gateway(rf.ports[1], "18:111111")
+    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG)
     await assert_devices(gwy_1, [])
+
+    ser_2 = serial.Serial(rf.ports[2])
 
     # TEST 0: Tx of fingerprint packet with one on/one off
     await gwy_0.start()
+    await assert_protocol_ready(gwy_0._protocol)
 
     await assert_devices(gwy_0, ["18:000000"])
     await assert_devices(gwy_1, [])
 
     await gwy_1.start()
+    await assert_protocol_ready(gwy_1._protocol)
 
     await assert_devices(gwy_0, ["18:000000"])  # not "18:111111", as is foreign
     await assert_devices(gwy_1, ["18:111111"])
@@ -153,15 +166,15 @@ async def test_virtual_rf_pkt_flow():
     rf = VirtualRf(2)
 
     # rf.set_gateway(rf.ports[0], "18:111111")
-    # rf.set_gateway(rf.ports[1], "18:222222")
-
     gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG, **SCHEMA_0)
-    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG, **SCHEMA_1)
-
     await gwy_0.start()
-    await gwy_1.start()
-
+    await assert_protocol_ready(gwy_0._protocol)
     await assert_devices(gwy_0, ["18:000730", "41:111111"])
+
+    # rf.set_gateway(rf.ports[1], "18:222222")
+    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG, **SCHEMA_1)
+    await gwy_1.start()
+    await assert_protocol_ready(gwy_1._protocol)
     await assert_devices(gwy_1, ["18:000730", "42:222222"])
 
     # TEST 1:
