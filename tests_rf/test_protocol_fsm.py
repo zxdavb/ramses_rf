@@ -27,7 +27,7 @@ from ramses_rf.protocol.protocol import (
     _ProtQosTimers,
     protocol_factory,
 )
-from ramses_rf.protocol.protocol_fsm import _DEFAULT_WAIT_TIMEOUT, ProtocolState
+from ramses_rf.protocol.protocol_fsm import _DEFAULT_TIMEOUT, _ProtocolState
 from ramses_rf.protocol.transport import transport_factory
 
 from .virtual_rf import VirtualRf
@@ -91,7 +91,7 @@ async def assert_protocol_ready(
 
 async def assert_protocol_state(
     protocol: QosProtocol,
-    expected_state: type[ProtocolState],
+    expected_state: type[_ProtocolState],
     max_sleep: int = DEFAULT_MAX_SLEEP,
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
@@ -108,7 +108,7 @@ def assert_protocol_state_detail(
     assert protocol._context.state.cmd is cmd  # duplicate of above
     assert protocol._context.state.cmd_sends == cmd_sends
     assert bool(cmd) is isinstance(
-        protocol._context.state, (ProtocolState.ECHO, ProtocolState.RPLY)
+        protocol._context.state, (_ProtocolState.ECHO, _ProtocolState.RPLY)
     )
 
 
@@ -123,7 +123,7 @@ def protocol_decorator(fnc):
         rf = VirtualRf(2, start=True)
 
         protocol = protocol_factory(kwargs.pop("msg_handler", _msg_handler))
-        await assert_protocol_state(protocol, ProtocolState.DEAD, max_sleep=0)
+        await assert_protocol_state(protocol, _ProtocolState.DEAD, max_sleep=0)
 
         transport: serial_asyncio.SerialTransport = await transport_factory(
             protocol,
@@ -137,9 +137,9 @@ def protocol_decorator(fnc):
 
         try:
             await assert_protocol_ready(protocol)  # ensure protocol has quiesced
-            await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
+            await assert_protocol_state(protocol, _ProtocolState.IDLE, max_sleep=0)
             await fnc(rf, protocol, *args, **kwargs)
-            await assert_protocol_state(protocol, ProtocolState.IDLE)
+            await assert_protocol_state(protocol, _ProtocolState.IDLE)
         except serial.SerialException as exc:
             transport._close(exc=exc)
             raise
@@ -151,7 +151,7 @@ def protocol_decorator(fnc):
         finally:
             await rf.stop()
 
-        await assert_protocol_state(protocol, ProtocolState.DEAD, max_sleep=0)
+        await assert_protocol_state(protocol, _ProtocolState.DEAD, max_sleep=0)
 
     return test_wrapper
 
@@ -200,7 +200,7 @@ async def _test_flow_10x(
 ) -> None:
     async def send_cmd_wrapper(cmd: Command) -> None:
         await protocol._context._wait_for_can_send(
-            protocol._context.state, cmd, _DEFAULT_WAIT_TIMEOUT
+            protocol._context.state, cmd, _DEFAULT_TIMEOUT
         )
         protocol._context.state.sent_cmd(cmd, DEFAULT_MAX_RETRIES)
 
@@ -211,12 +211,12 @@ async def _test_flow_10x(
     # STEP 1: Send an I cmd (no reply)...
     await send_cmd_wrapper(II_CMD_0)  # sent 1st time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
     await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:  # these waits not needed for rcvd_method != 0
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
     # gather
@@ -224,17 +224,17 @@ async def _test_flow_10x(
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
     await send_cmd_wrapper(RQ_CMD_0)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
     await async_pkt_received(protocol, RQ_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.RPLY, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
 
     await async_pkt_received(protocol, RP_PKT_0, method=rcvd_method)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
     # gather
@@ -242,22 +242,22 @@ async def _test_flow_10x(
     # STEP 3: Send an I cmd (no reply) *twice* (TODO: with no intervening echo)...
     await send_cmd_wrapper(II_CMD_0)  # sent 1st time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, II_CMD_0, 1)
 
     await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:  # these waits not needed for rcvd_method != 0
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
     await send_cmd_wrapper(II_CMD_0)  # sent 2nd time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, II_CMD_0, 1)  # would be 2, if no echo
 
     await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
     # gather
@@ -265,17 +265,17 @@ async def _test_flow_10x(
     # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
     await send_cmd_wrapper(RQ_CMD_1)  # sent 1st time
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.ECHO, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.ECHO, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
     await async_pkt_received(protocol, RQ_PKT_1, method=rcvd_method)  # receive the echo
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.RPLY, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.RPLY, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
 
     await async_pkt_received(protocol, RP_PKT_1, method=rcvd_method)
     if not min_sleeps:
-        await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=max_sleep)
+        await assert_protocol_state(protocol, _ProtocolState.IDLE, max_sleep=max_sleep)
         assert_protocol_state_detail(protocol, None, 0)
 
     # gather
@@ -355,14 +355,14 @@ async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
     try:
         await protocol._send_cmd(cmd)  # , wait_for_reply=None)
     except ProtocolFsmError:
-        protocol._context.set_state(ProtocolState.IDLE)
+        protocol._context.set_state(_ProtocolState.IDLE)
     else:
         assert False
 
     try:
         await protocol._send_cmd(cmd, wait_for_reply=None)
     except ProtocolFsmError:
-        protocol._context.set_state(ProtocolState.IDLE)
+        protocol._context.set_state(_ProtocolState.IDLE)
     else:
         assert False
 
@@ -372,7 +372,7 @@ async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
     try:
         await protocol._send_cmd(cmd, wait_for_reply=True)
     except ProtocolFsmError:
-        protocol._context.set_state(ProtocolState.IDLE)
+        protocol._context.set_state(_ProtocolState.IDLE)
     else:
         assert False
 

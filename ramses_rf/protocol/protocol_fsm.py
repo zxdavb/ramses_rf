@@ -8,6 +8,7 @@ import asyncio
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
+from enum import IntEnum
 from queue import Empty, Full, PriorityQueue
 from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, Awaitable, TypeVar
@@ -40,13 +41,21 @@ _LOGGER = logging.getLogger(__name__)
 _DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
-DEFAULT_SEND_PRIORITY = 1
+class SendPriority(IntEnum):
+    _MAX = -9
+    HIGH = -2
+    DEFAULT = 0
+    LOW = 2
+    _MIN = 9
 
-DEFAULT_WAIT_TIMEOUT = 3.0  # waiting in queue to send
+
+DEFAULT_PRIORITY = SendPriority.DEFAULT
+
+DEFAULT_TIMEOUT = 3.0  # total waiting for successful send
 DEFAULT_ECHO_TIMEOUT = 0.50  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT = 0.50  # waiting for reply pkt after echo pkt received
 
-_DEFAULT_WAIT_TIMEOUT = td(seconds=DEFAULT_WAIT_TIMEOUT)
+_DEFAULT_TIMEOUT = td(seconds=DEFAULT_TIMEOUT)
 _DEFAULT_ECHO_TIMEOUT = td(seconds=DEFAULT_ECHO_TIMEOUT)
 _DEFAULT_RPLY_TIMEOUT = td(seconds=DEFAULT_RPLY_TIMEOUT)
 
@@ -168,7 +177,7 @@ class ProtocolContext:
         cmd: Command,
         max_retries: int = DEFAULT_MAX_RETRIES,
         wait_for_reply: None | bool = None,
-        wait_timeout: float = DEFAULT_WAIT_TIMEOUT,
+        wait_timeout: float = DEFAULT_TIMEOUT,
     ) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
@@ -180,10 +189,10 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_can_send(
                     self.state, cmd, td(seconds=wait_timeout)
                 )
-                assert isinstance(self.state, ProtocolState.IDLE)
+                assert isinstance(self.state, _ProtocolState.IDLE)
 
                 self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
-                assert isinstance(self.state, ProtocolState.ECHO)
+                assert isinstance(self.state, _ProtocolState.ECHO)
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
                 raise _ProtocolWaitFailed(
@@ -196,7 +205,9 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
-                assert isinstance(self.state, (ProtocolState.RPLY, ProtocolState.IDLE))
+                assert isinstance(
+                    self.state, (_ProtocolState.RPLY, _ProtocolState.IDLE)
+                )
                 assert prev_state._echo
 
                 # if prev_state._echo.code == Code._PUZZ:
@@ -211,16 +222,16 @@ class ProtocolContext:
                     or cmd.code == Code._1FC9  # otherwise issues with binding FSM
                 ):
                     # binding FSM is implemented at higher layer
-                    self.set_state(ProtocolState.IDLE)  # maybe was: ProtocolState.RPLY
-                    assert isinstance(next_state, ProtocolState.IDLE)
+                    self.set_state(_ProtocolState.IDLE)  # maybe was: ProtocolState.RPLY
+                    assert isinstance(next_state, _ProtocolState.IDLE)
                     return prev_state._echo
 
                 if not cmd.rx_header:  # no reply to wait for
                     # self.set_state(ProtocolState.IDLE)  # state will do this
-                    assert isinstance(next_state, ProtocolState.IDLE)
+                    assert isinstance(next_state, _ProtocolState.IDLE)
                     return prev_state._echo
 
-                assert isinstance(next_state, ProtocolState.RPLY)
+                assert isinstance(next_state, _ProtocolState.RPLY)
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
                 # if cmd.code == Code._PUZZ and self._is_active_puzzle_cmd(cmd):
@@ -233,7 +244,7 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_rcvd_rply(
                     next_state, cmd, _DEFAULT_RPLY_TIMEOUT
                 )  # NOTE: is next_state, not self.state
-                assert isinstance(next_state, ProtocolState.IDLE)
+                assert isinstance(next_state, _ProtocolState.IDLE)
                 assert prev_state._rply
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
@@ -291,7 +302,7 @@ class ProtocolContext:
         fut = self._loop.create_future()
         try:
             self._que.put_nowait(
-                (DEFAULT_SEND_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
+                (DEFAULT_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
             )
         except Full:
             _LOGGER.error(f"### Queue is full, discarded:       {cmd._hdr}")
@@ -572,10 +583,10 @@ class HasFailed(ProtocolStateBase):
         raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: in a failed state")
 
 
-_StateT = ProtocolStateBase  # TypeVar("_StateT", bound=ProtocolStateBase)
+_StateT = ProtocolStateBase
 
 
-class ProtocolState:
+class _ProtocolState:
     DEAD = IsInactive
     IDLE = IsInIdle
     ECHO = WantEcho

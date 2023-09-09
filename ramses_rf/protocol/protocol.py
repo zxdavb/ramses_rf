@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import __dev_mode__, SZ_IS_EVOFW3
+from .const import SZ_IS_EVOFW3, __dev_mode__
 from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
 from .logger import set_logger_timesource

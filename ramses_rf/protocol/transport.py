@@ -44,8 +44,15 @@ from serial.tools.list_ports import comports  # type: ignore[import]
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import DEV_TYPE_MAP, DevType, __dev_mode__
-from .const import SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI, SZ_IS_EVOFW3
+from .const import (
+    DEV_TYPE_MAP,
+    SZ_ACTIVE_HGI,
+    SZ_IS_EVOFW3,
+    SZ_KNOWN_HGI,
+    SZ_SIGNATURE,
+    DevType,
+    __dev_mode__,
+)
 from .exceptions import PacketInvalid, TransportSerialError, TransportSourceInvalid
 from .helpers import dt_now
 from .packet import Packet
