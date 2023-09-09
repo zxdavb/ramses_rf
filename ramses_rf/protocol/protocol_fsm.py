@@ -67,7 +67,7 @@ class _ProtocolRplyFailed(ProtocolSendFailed):
     """The Command received an echo OK, but failed to elicit the expected reply."""
 
 
-class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
+class ProtocolContext:
     """A mixin is to add state to a Protocol."""
 
     MAX_BUFFER_SIZE: int = 10
