@@ -176,57 +176,73 @@ class ProtocolContext:  # asyncio.Protocol):  # mixin for tracking state
         #     self._handle_puzzle_cmd(cmd)
 
         while True:  # if required, resend until RetryLimitExceeded
-            prev_state, next_state = await self._wait_for_can_send(
-                self.state, cmd, td(seconds=wait_timeout)
-            )
-            # assert isinstance(next_state, ProtocolState.IDLE), self
+            try:  # _wait_for_can_send
+                prev_state, next_state = await self._wait_for_can_send(
+                    self.state, cmd, td(seconds=wait_timeout)
+                )
+                assert isinstance(self.state, ProtocolState.IDLE)
 
-            self.state.sent_cmd(cmd, max_retries)
+                self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
+                assert isinstance(self.state, ProtocolState.ECHO)
+
+            except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
+                raise _ProtocolWaitFailed(
+                    f"{self}: Failed ready to send command:  {exc}"
+                )
 
             await send_fnc(cmd)  # the wrapped function
-            # assert isinstance(self.state, ProtocolState.ECHO), self
 
-            try:  # don't capture InvalidStateError here
+            try:  # _wait_for_rcvd_echo & prev_state._echo
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
-            except (ProtocolFsmError, ProtocolSendFailed) as exc:
+                assert isinstance(self.state, (ProtocolState.RPLY, ProtocolState.IDLE))
+                assert prev_state._echo
+
+                # if prev_state._echo.code == Code._PUZZ:
+                #     self._handle_puzzle_pkt(prev_state._echo)
+                #     # self.set_state(ProtocolState.IDLE)  # will happen next
+                #     # assert isinstance(next_state, ProtocolState.IDLE)
+                #     # return prev_state._echo
+
+                if (
+                    wait_for_reply is False
+                    or (wait_for_reply is None and cmd.verb != RQ)
+                    or cmd.code == Code._1FC9  # otherwise issues with binding FSM
+                ):
+                    # binding FSM is implemented at higher layer
+                    self.set_state(ProtocolState.IDLE)  # maybe was: ProtocolState.RPLY
+                    assert isinstance(next_state, ProtocolState.IDLE)
+                    return prev_state._echo
+
+                if not cmd.rx_header:  # no reply to wait for
+                    # self.set_state(ProtocolState.IDLE)  # state will do this
+                    assert isinstance(next_state, ProtocolState.IDLE)
+                    return prev_state._echo
+
+                assert isinstance(next_state, ProtocolState.RPLY)
+
+            except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
                 # if cmd.code == Code._PUZZ and self._is_active_puzzle_cmd(cmd):
                 #     continue
-                _LOGGER.error(f"{self}: Failed to receive echo packet: {exc}")
-                raise exc
+                raise _ProtocolEchoFailed(
+                    f"{self}: Failed to receive echo packet: {exc}"
+                )
 
-            # if prev_state._echo.code == Code._PUZZ:
-            #     self._handle_puzzle_pkt(prev_state._echo)
-            #     # self.set_state(ProtocolState.IDLE)  # will happen next
-            #     # return prev_state._echo
-
-            if (
-                wait_for_reply is False
-                or (wait_for_reply is None and cmd.verb != RQ)
-                or cmd.code == Code._1FC9  # otherwise issues with binding FSM
-            ):
-                # binding FSM is implemented at higher layer
-                self.set_state(ProtocolState.IDLE)
-                return prev_state._echo
-
-            if not cmd.rx_header:  # no reply to wait for
-                # self.set_state(ProtocolState.IDLE)  # state will do this
-                return prev_state._echo
-
-            # assert isinstance(next_state, ProtocolState.RPLY), self
-
-            try:  # don't capture InvalidStateError here
+            try:  # _wait_for_rcvd_rply & prev_state._rply
                 prev_state, next_state = await self._wait_for_rcvd_rply(
                     next_state, cmd, _DEFAULT_RPLY_TIMEOUT
                 )  # NOTE: is next_state, not self.state
-            except (ProtocolFsmError, ProtocolSendFailed) as exc:
-                _LOGGER.error(f"{self}: Failed to receive rply packet: {exc}")
-                raise exc
+                assert isinstance(next_state, ProtocolState.IDLE)
+                assert prev_state._rply
 
-            break
+            except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
+                raise _ProtocolRplyFailed(
+                    f"{self}: Failed to receive rply packet: {exc}"
+                )
 
-        # assert isinstance(self.state, ProtocolState.IDLE), self
+            break  # TODO: remove
+
         return prev_state._rply
 
     def _handle_puzzle_cmd(self, cmd: Command) -> None:
