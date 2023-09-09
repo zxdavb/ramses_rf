@@ -542,8 +542,8 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
             )
         # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
-        except ProtocolError:  # TODO: _LOGGER.error, not .exception
-            _LOGGER.exception(f"{self}: Failed to send command: {cmd}")
+        except ProtocolError as exc:  # TODO: _LOGGER.error, not .exception
+            _LOGGER.exception(f"{self}: Failed to send {cmd._hdr}: {exc}")
             raise
 
 
