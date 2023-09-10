@@ -10,11 +10,11 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from enum import IntEnum
 from queue import Empty, Full, PriorityQueue
-from threading import BoundedSemaphore
+from threading import Lock
 from typing import TYPE_CHECKING, Awaitable, TypeVar
 
 # from .const import SZ_SIGNATURE
-from .exceptions import ProtocolFsmError, ProtocolSendFailed
+from .exceptions import ProtocolError, ProtocolFsmError, ProtocolSendFailed
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -82,6 +82,7 @@ class ProtocolContext:
     MAX_BUFFER_SIZE: int = 10
 
     _state: _StateT = None  # type: ignore[assignment]
+    _proc_queue_task: asyncio.Task = None  # type: ignore[assignment]
 
     def __init__(self, protocol, *args, **kwargs) -> None:
         # super().__init__(*args, **kwargs)
@@ -89,9 +90,9 @@ class ProtocolContext:
 
         self._loop = asyncio.get_running_loop()
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
-        self._sem = BoundedSemaphore(value=1)
+        self._mutex = Lock()
 
-        self.set_state(Inactive)  # set initial state
+        self.set_state(Inactive)  # set initiate state, pre connection_made
 
     def __repr__(self) -> str:
         state_name = self.state.__class__.__name__
@@ -114,8 +115,8 @@ class ProtocolContext:
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             prev_state = self._state
 
-        if state is IsInIdle:
-            self._state = state(self)
+        if state in (IsFailed, IsInIdle):
+            self._state = IsInIdle(self)
         else:
             self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
 
@@ -123,7 +124,7 @@ class ProtocolContext:
             setattr(self._state, "_prev_state", prev_state)
 
         if self._ready_to_send:
-            self._notify_next_queued_cmd()
+            self._process_queue()
 
     @property
     def state(self) -> _StateT:
@@ -142,6 +143,7 @@ class ProtocolContext:
         _LOGGER.info(
             f"... Connection made when {self._state!r}: {transport.__class__.__name__}"
         )
+        self._proc_queue_task = self._loop.create_task(self._send_next_in_queue())
         self.state.made_connection(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
@@ -153,12 +155,15 @@ class ProtocolContext:
         """
         fut: asyncio.Future  # mypy
 
+        if self._proc_queue_task:
+            self._proc_queue_task.cancel()
+
         while True:
             try:
                 *_, fut = self._que.get_nowait()  # *priority, cmd, expires, fut
             except Empty:
                 break
-            fut.cancel()  # if not fut.done(): not required as can cancel if done
+            fut.cancel()
 
         _LOGGER.info(f"... Connection lost when {self.state!r}, Exception: {exc}")
         self.state.lost_connection(exc)
@@ -171,92 +176,125 @@ class ProtocolContext:
         _LOGGER.info(f"... Writing resumed when {self.state!r}")
         self.state.writing_resumed()
 
-    async def _wait_for_can_send(
-        self, this_state: _StateT, cmd: Command, timeout: td
-    ) -> tuple[_StateT, _StateT]:
-        """Wait until state machine is such that this context can (re-)send.
-
-        When required, wait until the FSM is/becomes Idle, then transition to the
-        WantEcho state. If it is not Idle, the command will join a priority queue.
-
-        Raises a ProtocolFsmError if transitions from/to an invalid state.
-        Raises a ProtocolWaitFailed if the timeout is exceeded before transitioning.
-        """
-
-        _LOGGER.info(f"### Waiting to send a command for:  {cmd}")
-
-        if self._is_active_cmd(cmd):  # no need to queue...
-            return this_state, self.state
-
-        dt_sent = dt.now()
-        fut = self._loop.create_future()
-        try:
-            self._que.put_nowait(
-                (DEFAULT_PRIORITY, dt_sent, cmd, dt_sent + timeout, fut)
-            )
-        except Full:
-            _LOGGER.error(f"### Queue is full, discarded:       {cmd._hdr}")
-            self._notify_next_queued_cmd()  # remove all the cancelled futs
-
-        if self._ready_to_send:  # fut.set_result(None) for next cmd
-            self._notify_next_queued_cmd()
-
-        try:
-            await asyncio.wait_for(fut, timeout.total_seconds())
-        except asyncio.TimeoutError as exc:
-            _LOGGER.warning(f"!!! wait_for(fut): {exc}")
-            fut.set_exception(ProtocolSendFailed("wait_for_can_send() timeout expired"))
-        except ProtocolSendFailed as exc:  # TODO: remove. not needed?
-            _LOGGER.warning(f"!!! wait_for(fut): {exc}")
-
-        if isinstance(self.state, WantEcho):
-            raise ProtocolFsmError(f"Bad transition to {self.state}")
-
-        fut.result()  # may: raise ProtocolSendFailed
-        return this_state, self.state  # TODO: should have this_state._cmd_
-
     async def send_cmd(
         self,
         send_fnc: Awaitable,
         cmd: Command,
         max_retries: int = DEFAULT_MAX_RETRIES,
         wait_for_reply: None | bool = None,
-        wait_timeout: float = DEFAULT_TIMEOUT,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> Packet:
+        """Send the Command (with retries) and wait for the expected Packet.
+
+        if wait_for reply is True, wait for the RP/I corresponding to the RQ/W,
+        otherwise simply return the echo Packet.
+
+        Raises a ProtocolSendFailed if either max_retires or timeout is exceeded before
+        receiving the expected packet.
+        """
+
+        # _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): Submitted")  # TODO: remove
+        # if self._is_active_cmd(cmd):  # no need to queue?
+
+        _LOGGER.warning(f"### send_cmd({cmd._hdr}): Submitted, queueing...")  # TODO
+        dt_sent = dt.now()
+        dt_expires = dt_sent + td(seconds=timeout)
+        fut = self._loop.create_future()
+        send_coro = self._send_cmd(send_fnc, cmd, max_retries, wait_for_reply)
+
+        try:
+            self._que.put_nowait(  # priority / dt_sent is the priority
+                (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, fut, send_coro)
+            )
+        except Full:
+            _LOGGER.error(f"### {self} send_cmd({cmd._hdr}): Queue full, cmd discarded")
+            fut.set_exception(ProtocolFsmError("Send queue full, cmd discarded"))
+
+        _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): Processing queue...")  # TODO
+        self._process_queue()
+
+        _LOGGER.warning(
+            f"### {self} send_cmd({cmd._hdr}): Waiting for result..."
+        )  # TODO
+        try:
+            pkt: Packet = await asyncio.wait_for(fut, timeout)  # TODO: make return
+        except (asyncio.TimeoutError, ProtocolError) as exc:
+            _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): {exc}")  # TODO
+            raise ProtocolSendFailed(f"{cmd._hdr}: {exc}")
+
+        _LOGGER.warning(
+            f"### {self} send_cmd({cmd._hdr}): Returning: {pkt._hdr}"
+        )  # TODO
+        return pkt
+
+    def _process_queue(self) -> None:
+        """Start processing the send queue (called when an appropriate event occurs)."""
+        if self._mutex.acquire(blocking=False):
+            if self._proc_queue_task.done():
+                self._loop.create_task(self._send_next_in_queue())
+            self._mutex.release()
+
+    async def _send_next_in_queue(self) -> None:
+        """Recurse through the queue until the first 'ready' Command, then send it."""
+
+        cmd: Command  # mypy
+        fut: asyncio.Future  # mypy
+
+        try:
+            *_, cmd, dt_expires, fut, send_coro = self._que.get_nowait()
+        except Empty:
+            return
+
+        if fut.cancelled():  # by the wait_for(), no need to log/raise # # TODO: remove
+            _LOGGER.error(f"##1 {self} Cancelled send_cmd: {cmd._hdr}")  # TODO: remove
+            await self._send_next_in_queue()  # NOTE: recursion
+
+        elif fut.done():  # incl. cancelled() - no need for above
+            _LOGGER.error(f"##1 {self} Completed send_cmd: {cmd._hdr}")  # TODO: remove
+            await self._send_next_in_queue()  # NOTE: recursion
+
+        elif dt_expires <= dt.now():  # ?needed
+            _LOGGER.error(f"##1 {self} Expired send_cmd:   {cmd._hdr}")  # TODO: remove
+            fut.set_exception(_ProtocolWaitFailed("Timeout (inner) has expired"))
+            await self._send_next_in_queue()  # NOTE: recursion
+
+        else:
+            _LOGGER.error(f"##1 {self} Activated send_cmd: {cmd._hdr}")  # TODO: remove
+            fut.set_result(await send_coro)  # mark as DONE
+
+        self._que.task_done()
+
+    async def _send_cmd(
+        self,
+        send_fnc: Awaitable,
+        cmd: Command,
+        max_retries: int,
+        wait_for_reply: None | bool,
     ) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
-        # if cmd.code == Code._PUZZ:
-        #     self._handle_puzzle_cmd(cmd)
+        try:
+            assert isinstance(self.state, IsInIdle)
 
-        while True:  # if required, resend until RetryLimitExceeded
-            try:  # _wait_for_can_send
-                prev_state, next_state = await self._wait_for_can_send(
-                    self.state, cmd, td(seconds=wait_timeout)
-                )
-                assert isinstance(self.state, IsInIdle)
+            self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
+            assert isinstance(self.state, WantEcho)
 
-                self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
-                assert isinstance(self.state, WantEcho)
+        except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
+            raise _ProtocolWaitFailed(f"{self}: Failed ready to send command:  {exc}")
 
-            except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
-                raise _ProtocolWaitFailed(
-                    f"{self}: Failed ready to send command:  {exc}"
-                )
-
+        num_sends = 0
+        while num_sends < max_retries:  # if required, resend until RetryLimitExceeded
+            num_sends += 1
             await send_fnc(cmd)  # the wrapped function
 
-            try:  # _wait_for_rcvd_echo & prev_state._echo
+            try:
+                assert isinstance(self.state, WantEcho)
+
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
                 assert isinstance(self.state, (WantRply, IsInIdle))
                 assert prev_state._echo
-
-                # if prev_state._echo.code == Code._PUZZ:
-                #     self._handle_puzzle_pkt(prev_state._echo)
-                #     # self.set_state(ProtocolState.IDLE)  # will happen next
-                #     # assert isinstance(next_state, ProtocolState.IDLE)
-                #     # return prev_state._echo
 
                 if (
                     wait_for_reply is False
@@ -264,7 +302,7 @@ class ProtocolContext:
                     or cmd.code == Code._1FC9  # otherwise issues with binding FSM
                 ):
                     # binding FSM is implemented at higher layer
-                    self.set_state(IsInIdle)  # maybe was: ProtocolState.RPLY
+                    self.set_state(IsInIdle)  # maybe was: WantRply
                     assert isinstance(next_state, IsInIdle)
                     return prev_state._echo
 
@@ -276,13 +314,11 @@ class ProtocolContext:
                 assert isinstance(next_state, WantRply)
 
             except (AssertionError, ProtocolFsmError, ProtocolSendFailed) as exc:
-                # if cmd.code == Code._PUZZ and self._is_active_puzzle_cmd(cmd):
-                #     continue
                 raise _ProtocolEchoFailed(
                     f"{self}: Failed to receive echo packet: {exc}"
                 )
 
-            try:  # _wait_for_rcvd_rply & prev_state._rply
+            try:
                 prev_state, next_state = await self._wait_for_rcvd_rply(
                     next_state, cmd, _DEFAULT_RPLY_TIMEOUT
                 )  # NOTE: is next_state, not self.state
@@ -352,7 +388,7 @@ class ProtocolContext:
         Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
-        _LOGGER.info(f"### Waiting to receive an echo for: {cmd}")
+        _LOGGER.info(f"##1 Waiting to receive an echo for: {cmd}")
 
         if not isinstance(this_state, (WantEcho, WantRply)):
             raise ProtocolFsmError(f"Bad transition from {this_state}")
@@ -374,7 +410,7 @@ class ProtocolContext:
         Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
-        _LOGGER.info(f"### Waiting to receive a reply for: {cmd}")
+        _LOGGER.info(f"##1 Waiting to receive a reply for: {cmd}")
 
         if not isinstance(this_state, WantRply):
             raise ProtocolFsmError(f"Bad transition from {this_state}")
@@ -390,35 +426,6 @@ class ProtocolContext:
     def pkt_received(self, pkt: Packet) -> None:
         _LOGGER.info(f"*** Receivd a pkt: {pkt}")
         self.state.rcvd_pkt(pkt)
-
-    def _notify_next_queued_cmd(self) -> None:
-        """Recurse through the queue and notify the first 'ready' Future.
-
-        The next Command is notified by setting it's fut.set_result(None)'
-        Expired Commands have fut.set_exception().
-        """
-
-        fut: asyncio.Future  # mypy
-
-        try:
-            *_, expires, fut = self._que.get_nowait()  # *priority, cmd, expires, fut
-        except Empty:
-            return
-
-        self._que.task_done()
-
-        if fut.cancelled():  # incl. cancelled()
-            _LOGGER.error(f"### Cancelled command:              {_}")
-            self._notify_next_queued_cmd()  # NOTE: recursion
-        elif fut.done():  # incl. cancelled()
-            _LOGGER.error(f"### Completed command:              {_}")
-            self._notify_next_queued_cmd()  # NOTE: recursion
-        elif expires <= dt.now():
-            _LOGGER.error(f"### Expired command:                {_}")
-            fut.set_exception(ProtocolSendFailed("Timeout has expired (A1)"))
-        else:
-            _LOGGER.error(f"### Activated command:              {_}")
-            fut.set_result(None)
 
 
 class ProtocolStateBase:
@@ -459,15 +466,19 @@ class ProtocolStateBase:
         )
 
     def made_connection(self, transport: _TransportT) -> None:  # FIXME: may be paused
+        """Set the Context's state to IsInIdle (can Tx/Rx)."""
         self._set_context_state(IsInIdle)  # initial state (assumes not paused)
 
     def lost_connection(self, exc: None | Exception) -> None:
+        """Set the Context's state to Inactive (can't Tx, will not Rx)."""
         self._set_context_state(Inactive)
 
     def writing_paused(self) -> None:
+        """Set the Context's state to Inactive (shouldn't Tx, might Rx)."""
         self._set_context_state(Inactive)
 
     def writing_resumed(self) -> None:
+        """Set the Context's state to IsInIdle (can Tx/Rx)."""
         self._set_context_state(IsInIdle)
 
     def rcvd_pkt(self, pkt: Packet) -> None:
