@@ -115,45 +115,30 @@ class ProtocolContext:
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             prev_state = self._state
 
-        if state in (IsFailed, IsInIdle):
-            self._state = IsInIdle(self)
+        if state in (IsInIdle, IsFailed):
+            self._state = state(self)
         else:
             self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
-        if self._ready_to_send:
+        if isinstance(self._state, (IsInIdle, IsFailed)):
             self._process_queue()
 
     @property
     def state(self) -> _StateT:
         return self._state
 
-    @property
-    def _ready_to_send(self) -> bool:
-        """Return True if the protocol is ready to send another command."""
-        return isinstance(self.state, IsInIdle)
-
-    def _is_active_cmd(self, cmd: Command) -> bool:
-        """Return True if there is an active command and the supplied cmd is it."""
-        return self.state.is_active_cmd(cmd)
-
     def connection_made(self, transport: _TransportT) -> None:
-        _LOGGER.info(
-            f"... Connection made when {self._state!r}: {transport.__class__.__name__}"
-        )
+        _LOGGER.warning(f"### {self}: connection_made()")  # TODO: remove
         self._proc_queue_task = self._loop.create_task(self._send_next_in_queue())
         self.state.made_connection(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
-        """Called when the connection to the Transport is lost or closed.
-
-        If there is a SerialException of Serial.read() in SerialTransport._read_ready(),
-        then SerialTransport will invoke _close(exc) directly (i.e. bypass close()),
-        which then invokes Protocol.connection_lost(exc) via a Loop.call_soon().
-        """
         fut: asyncio.Future  # mypy
+
+        _LOGGER.warning(f"### {self}: connection_lost({exc})")  # TODO: debug
 
         if self._proc_queue_task:
             self._proc_queue_task.cancel()
@@ -165,16 +150,19 @@ class ProtocolContext:
                 break
             fut.cancel()
 
-        _LOGGER.info(f"... Connection lost when {self.state!r}, Exception: {exc}")
         self.state.lost_connection(exc)
 
-    def pause_writing(self) -> None:  # not required?
-        _LOGGER.info(f"... Writing paused, when {self.state!r}")
+    def pause_writing(self) -> None:
+        _LOGGER.warning(f"### {self}: pause_writing()")  # TODO: debug
         self.state.writing_paused()
 
     def resume_writing(self) -> None:
-        _LOGGER.info(f"... Writing resumed when {self.state!r}")
+        _LOGGER.warning(f"### {self}: resume_writing()")  # TODO: debug
         self.state.writing_resumed()
+
+    def pkt_received(self, pkt: Packet) -> None:
+        _LOGGER.warning(f"### {self}: pkt_received({pkt._hdr})")  # TODO: remove
+        self.state.rcvd_pkt(pkt)
 
     async def send_cmd(
         self,
@@ -193,10 +181,13 @@ class ProtocolContext:
         receiving the expected packet.
         """
 
-        # _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): Submitted")  # TODO: remove
-        # if self._is_active_cmd(cmd):  # no need to queue?
+        _LOGGER.warning(f"### {self}: send_cmd({cmd._hdr})")  # TODO: debug
 
-        _LOGGER.warning(f"### send_cmd({cmd._hdr}): Submitted, queueing...")  # TODO
+        # _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): Submitted")  # TODO: remove
+        # if self.state.is_active_cmd(cmd):  # no need to queue?
+
+        _LOGGER.error(f"*** send_cmd({cmd._hdr}): Submitted, queueing...")  # TODO
+
         dt_sent = dt.now()
         dt_expires = dt_sent + td(seconds=timeout)
         fut = self._loop.create_future()
@@ -207,24 +198,20 @@ class ProtocolContext:
                 (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, fut, send_coro)
             )
         except Full:
-            _LOGGER.error(f"### {self} send_cmd({cmd._hdr}): Queue full, cmd discarded")
+            _LOGGER.error(f"*** send_cmd({cmd._hdr}): Queue full, cmd discarded")
             fut.set_exception(ProtocolFsmError("Send queue full, cmd discarded"))
 
-        _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): Processing queue...")  # TODO
+        _LOGGER.error(f"*** send_cmd({cmd._hdr}): Processing queue...")  # TODO
         self._process_queue()
 
-        _LOGGER.warning(
-            f"### {self} send_cmd({cmd._hdr}): Waiting for result..."
-        )  # TODO
+        _LOGGER.error(f"*** send_cmd({cmd._hdr}): Waiting for result...")  # TODO
         try:
             pkt: Packet = await asyncio.wait_for(fut, timeout)  # TODO: make return
         except (asyncio.TimeoutError, ProtocolError) as exc:
-            _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): {exc}")  # TODO
+            _LOGGER.eror(f"*** send_cmd({cmd._hdr}): {exc}")  # TODO
             raise ProtocolSendFailed(f"{cmd._hdr}: {exc}")
 
-        _LOGGER.warning(
-            f"### {self} send_cmd({cmd._hdr}): Returning: {pkt._hdr}"
-        )  # TODO
+        _LOGGER.error(f"*** send_cmd({cmd._hdr}): Returning: {pkt._hdr}")  # TODO
         return pkt
 
     def _process_queue(self) -> None:
@@ -246,20 +233,20 @@ class ProtocolContext:
             return
 
         if fut.cancelled():  # by the wait_for(), no need to log/raise # # TODO: remove
-            _LOGGER.error(f"##1 {self} Cancelled send_cmd: {cmd._hdr}")  # TODO: remove
+            _LOGGER.error(f"##1 {self}: Cancelled send_cmd: {cmd._hdr}")  # TODO: remove
             await self._send_next_in_queue()  # NOTE: recursion
 
         elif fut.done():  # incl. cancelled() - no need for above
-            _LOGGER.error(f"##1 {self} Completed send_cmd: {cmd._hdr}")  # TODO: remove
+            _LOGGER.error(f"##1 {self}: Completed send_cmd: {cmd._hdr}")  # TODO: remove
             await self._send_next_in_queue()  # NOTE: recursion
 
         elif dt_expires <= dt.now():  # ?needed
-            _LOGGER.error(f"##1 {self} Expired send_cmd:   {cmd._hdr}")  # TODO: remove
+            _LOGGER.error(f"##1 {self}: Expired send_cmd:   {cmd._hdr}")  # TODO: remove
             fut.set_exception(_ProtocolWaitFailed("Timeout (inner) has expired"))
             await self._send_next_in_queue()  # NOTE: recursion
 
         else:
-            _LOGGER.error(f"##1 {self} Activated send_cmd: {cmd._hdr}")  # TODO: remove
+            _LOGGER.error(f"##1 {self}: Activated send_cmd: {cmd._hdr}")  # TODO: remove
             fut.set_result(await send_coro)  # mark as DONE
 
         self._que.task_done()
@@ -334,31 +321,6 @@ class ProtocolContext:
 
         return prev_state._rply
 
-    def _handle_puzzle_cmd(self, cmd: Command) -> None:
-        """Ensure the puzzle packet is not filtered out by the transport."""
-
-        # self._protocol._transport._extra[SZ_SIGNATURE] = cmd.payload
-        self._puzzle_cmd = cmd
-        self._puzzle_num_sent = 0
-
-    def _handle_puzzle_pkt(self, pkt: Command) -> None:
-        """Update the transport filters, according to the puzzle packet."""
-
-        if pkt.payload[2:4] != "11":
-            return
-        self._puzzle_cmd = None
-
-    def _is_active_puzzle_cmd(self, cmd: Command) -> bool:
-        """Return True if there is an acive puzzle Command, and this is it."""
-
-        result = self._puzzle_cmd and self._puzzle_cmd.payload == cmd.payload
-        if not result:
-            return False
-        self._puzzle_num_sent += 1
-        if self._puzzle_num_sent > 20:
-            return False
-        return True
-
     async def _wait_for_transition(self, old_state: _StateT, until: dt) -> _StateT:
         """Return the new state that the context transitioned to from the old state..
 
@@ -388,7 +350,7 @@ class ProtocolContext:
         Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
-        _LOGGER.info(f"##1 Waiting to receive an echo for: {cmd}")
+        _LOGGER.info(f"##1 {self}: Waiting to receive an echo for: {cmd}")
 
         if not isinstance(this_state, (WantEcho, WantRply)):
             raise ProtocolFsmError(f"Bad transition from {this_state}")
@@ -410,7 +372,7 @@ class ProtocolContext:
         Raises a SendTimeoutError if the timeout is exceeded before transitioning.
         """
 
-        _LOGGER.info(f"##1 Waiting to receive a reply for: {cmd}")
+        _LOGGER.info(f"##1 {self}: Waiting to receive a reply for: {cmd}")
 
         if not isinstance(this_state, WantRply):
             raise ProtocolFsmError(f"Bad transition from {this_state}")
@@ -422,10 +384,6 @@ class ProtocolContext:
             raise ProtocolFsmError(f"Bad transition to {next_state}")
 
         return this_state, next_state  # for: this_state._rply
-
-    def pkt_received(self, pkt: Packet) -> None:
-        _LOGGER.info(f"*** Receivd a pkt: {pkt}")
-        self.state.rcvd_pkt(pkt)
 
 
 class ProtocolStateBase:
@@ -592,4 +550,4 @@ class IsFailed(ProtocolStateBase):
         raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: in a failed state")
 
 
-_StateT = ProtocolStateBase
+_StateT = Inactive | IsPaused | IsInIdle | WantEcho | WantRply | IsFailed
