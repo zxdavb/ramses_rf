@@ -428,12 +428,14 @@ class Command(Frame):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        return f"... {self}{hdr}"
+        # e.g.: RQ --- 18:000730 01:145038 --:------ 000A 002 0800  # 000A|RQ|01:145038|08
+        comment = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
+        return f"... {self}{comment}"
 
     def __str__(self) -> str:
         """Return an brief readable string representation of this object."""
-        return super().__repr__()
+        # e.g.: 000A|RQ|01:145038|08
+        return super().__repr__()  # TODO: self._hdr
 
     def __eq__(self, other: Any) -> bool:  # FIXME: needed?
         if not self._is_valid_operand(other):

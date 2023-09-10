@@ -103,6 +103,7 @@ class Packet(Frame):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
+        # e.g.: RQ --- 18:000730 01:145038 --:------ 000A 002 0800  # 000A|RQ|01:145038|08
         try:
             hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         except (PacketInvalid, NotImplementedError):
@@ -115,7 +116,8 @@ class Packet(Frame):
 
     def __str__(self) -> str:
         """Return an brief readable string representation of this object."""
-        return super().__repr__()
+        # e.g.: 000A|RQ|01:145038|08
+        return super().__repr__()  # TODO: self._hdr
 
     @property
     def dtm(self) -> dt:
