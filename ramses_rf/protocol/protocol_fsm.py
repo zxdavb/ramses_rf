@@ -475,7 +475,7 @@ class ProtocolStateBase:
 
     def writing_paused(self) -> None:
         """Set the Context's state to Inactive (shouldn't Tx, might Rx)."""
-        self._set_context_state(Inactive)
+        self._set_context_state(IsPaused)
 
     def writing_resumed(self) -> None:
         """Set the Context's state to IsInIdle (can Tx/Rx)."""
@@ -489,7 +489,7 @@ class ProtocolStateBase:
 
 
 class Inactive(ProtocolStateBase):
-    """Protocol has no active connection with a Transport."""
+    """Protocol cannot Tx at all, and wont Rx (no active connection to a Transport)."""
 
     def __repr__(self) -> str:
         assert self.cmd is None
@@ -505,14 +505,14 @@ class Inactive(ProtocolStateBase):
 
 
 class IsPaused(ProtocolStateBase):
-    """Protocol has active connection with a Transport, but should not send."""
+    """Protocol cannot Tx at all, but may Rx (Transport has no capacity to Tx)."""
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
         raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: paused")
 
 
 class IsInIdle(ProtocolStateBase):
-    """Protocol is available to send a Command (has no outstanding Commands)."""
+    """Protocol can Tx next Command, may Rx (has no outstanding Commands)."""
 
     _cmd_: None | Command = None  # used only for debugging
 
@@ -523,7 +523,7 @@ class IsInIdle(ProtocolStateBase):
 
 
 class WantEcho(ProtocolStateBase):
-    """Protocol is waiting for the local echo (has sent a Command)."""
+    """Protocol can re-Tx this Command, wanting Rx (has an sent Command)."""
 
     _echo: None | Packet = None
 
@@ -551,7 +551,7 @@ class WantEcho(ProtocolStateBase):
 
 
 class WantRply(ProtocolStateBase):
-    """Protocol is now waiting for a response (has received the Command echo)."""
+    """Protocol can re-Tx this Command, wanting Rx (has received echo)."""
 
     _rply: None | Packet = None
 
@@ -586,7 +586,7 @@ class WantRply(ProtocolStateBase):
 
 
 class IsFailed(ProtocolStateBase):
-    """Protocol has rcvd the Command echo and is waiting for a response to be Rx'd."""
+    """Protocol can Tx next Command, may Rx (has failed with last Command)."""
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
         raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: in a failed state")
