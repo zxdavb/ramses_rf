@@ -11,9 +11,8 @@ from datetime import timedelta as td
 from enum import IntEnum
 from queue import Empty, Full, PriorityQueue
 from threading import Lock
-from typing import TYPE_CHECKING, Awaitable, TypeVar
+from typing import TYPE_CHECKING, Awaitable, Callable, NoReturn
 
-# from .const import SZ_SIGNATURE
 from .exceptions import ProtocolError, ProtocolFsmError, ProtocolSendFailed
 
 # skipcq: PY-W2000
@@ -32,7 +31,8 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 if TYPE_CHECKING:
     from . import Command, Packet
 
-_TransportT = TypeVar("_TransportT", bound=asyncio.BaseTransport)
+_ProtocolT = asyncio.Protocol
+_TransportT = asyncio.Transport
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ class ProtocolContext:
     _state: _StateT = None  # type: ignore[assignment]
     _proc_queue_task: asyncio.Task = None  # type: ignore[assignment]
 
-    def __init__(self, protocol, *args, **kwargs) -> None:
+    def __init__(self, protocol: _ProtocolT, *args, **kwargs) -> None:
         # super().__init__(*args, **kwargs)
         self._protocol = protocol
 
@@ -132,25 +132,25 @@ class ProtocolContext:
 
     def connection_made(self, transport: _TransportT) -> None:
         _LOGGER.warning(f"### {self}: connection_made()")  # TODO: remove
-        self._proc_queue_task = self._loop.create_task(self._send_next_in_queue())
         self.state.made_connection(transport)
+        self._proc_queue_task = self._loop.create_task(self._send_next_in_queue())
 
     def connection_lost(self, exc: None | Exception) -> None:
         fut: asyncio.Future  # mypy
 
         _LOGGER.warning(f"### {self}: connection_lost({exc})")  # TODO: debug
+        self.state.lost_connection(exc)
 
         if self._proc_queue_task:
             self._proc_queue_task.cancel()
 
+        # with self._que.mutex.acquire():
         while True:
             try:
-                *_, fut = self._que.get_nowait()  # *priority, cmd, expires, fut
+                *_, fut = self._que.get_nowait()
             except Empty:
                 break
             fut.cancel()
-
-        self.state.lost_connection(exc)
 
     def pause_writing(self) -> None:
         _LOGGER.warning(f"### {self}: pause_writing()")  # TODO: debug
@@ -181,6 +181,21 @@ class ProtocolContext:
         receiving the expected packet.
         """
 
+        def is_future_done(item: tuple) -> bool:
+            """Return True if the item's Future is done."""
+            fut: asyncio.Future
+            *_, fut = item
+            return fut.done()
+
+        # HACK: I have no idea if this is kosher (it does appear thread-safe)
+        def remove_entries(queue: PriorityQueue, condition: Callable):
+            """Removes all entries from the queue that satisfy the condition.."""
+            with queue.mutex.acquire():
+                queue_copy = queue.queue[:]  # queue attr is a list
+                for entry in queue_copy:
+                    if condition(entry):
+                        queue.queue.remove(entry)
+
         _LOGGER.warning(f"### {self}: send_cmd({cmd._hdr})")  # TODO: debug
 
         # _LOGGER.warning(f"### {self} send_cmd({cmd._hdr}): Submitted")  # TODO: remove
@@ -193,9 +208,10 @@ class ProtocolContext:
         fut = self._loop.create_future()
         send_coro = self._send_cmd(send_fnc, cmd, max_retries, wait_for_reply)
 
+        remove_entries(self._que, is_future_done)
         try:
             self._que.put_nowait(  # priority / dt_sent is the priority
-                (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, fut, send_coro)
+                (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, send_coro, fut)
             )
         except Full:
             _LOGGER.error(f"*** send_cmd({cmd._hdr}): Queue full, cmd discarded")
@@ -228,7 +244,7 @@ class ProtocolContext:
         fut: asyncio.Future  # mypy
 
         try:
-            *_, cmd, dt_expires, fut, send_coro = self._que.get_nowait()
+            *_, cmd, dt_expires, send_coro, fut = self._que.get_nowait()
         except Empty:
             return
 
@@ -276,12 +292,16 @@ class ProtocolContext:
 
             try:
                 assert isinstance(self.state, WantEcho)
-
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state, cmd, _DEFAULT_ECHO_TIMEOUT
                 )
                 assert isinstance(self.state, (WantRply, IsInIdle))
                 assert prev_state._echo
+
+                if not cmd.rx_header:  # no reply to wait for
+                    # self.set_state(ProtocolState.IDLE)  # state will do this
+                    assert isinstance(next_state, IsInIdle)
+                    return prev_state._echo
 
                 if (
                     wait_for_reply is False
@@ -290,11 +310,6 @@ class ProtocolContext:
                 ):
                     # binding FSM is implemented at higher layer
                     self.set_state(IsInIdle)  # maybe was: WantRply
-                    assert isinstance(next_state, IsInIdle)
-                    return prev_state._echo
-
-                if not cmd.rx_header:  # no reply to wait for
-                    # self.set_state(ProtocolState.IDLE)  # state will do this
                     assert isinstance(next_state, IsInIdle)
                     return prev_state._echo
 
@@ -387,6 +402,8 @@ class ProtocolContext:
 
 
 class ProtocolStateBase:
+    """Protocol may Tx / can Rx according to it's internal state."""
+
     # state attrs
     cmd: None | Command
     cmd_sends: int
@@ -416,33 +433,40 @@ class ProtocolStateBase:
         self._next_state = self._context.state
 
     def is_active_cmd(self, cmd: Command) -> bool:
-        """Return True if there is an active command and the cmd is it."""
+        """Return True if a Puzzle cmd, or this cmd is the active active cmd."""
+        if cmd.verb == Code._PUZZ:  # TODO: need to work this out, ?include
+            return True  # an exception to the rule
         return self.cmd and (
             cmd._hdr == self.cmd._hdr
             and cmd._addrs == self.cmd._addrs
             and cmd.payload == self.cmd.payload
         )
 
-    def made_connection(self, transport: _TransportT) -> None:  # FIXME: may be paused
-        """Set the Context's state to IsInIdle (can Tx/Rx)."""
-        self._set_context_state(IsInIdle)  # initial state (assumes not paused)
+    def made_connection(self, transport: _TransportT) -> None:
+        """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""
+        if self._context._protocol._pause_writing:
+            self._set_context_state(IsPaused)
+        else:
+            self._set_context_state(IsInIdle)
 
     def lost_connection(self, exc: None | Exception) -> None:
-        """Set the Context's state to Inactive (can't Tx, will not Rx)."""
+        """Set the Context to Inactive (can't Tx, will not Rx)."""
         self._set_context_state(Inactive)
 
     def writing_paused(self) -> None:
-        """Set the Context's state to Inactive (shouldn't Tx, might Rx)."""
+        """Set the Context to IsPaused (shouldn't Tx, might Rx)."""
         self._set_context_state(IsPaused)
 
     def writing_resumed(self) -> None:
-        """Set the Context's state to IsInIdle (can Tx/Rx)."""
+        """Set the Context to IsInIdle (can Tx/Rx)."""
         self._set_context_state(IsInIdle)
 
     def rcvd_pkt(self, pkt: Packet) -> None:
+        """Receive a Packet without complaint (most times this is OK)."""
         pass
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
+    def sent_cmd(self, cmd: Command, max_retries: int) -> NoReturn:  # raises exception
+        """Object to sending a Command (most times this is OK)."""
         raise ProtocolFsmError(f"{self}: Not implemented")
 
 
@@ -458,19 +482,19 @@ class Inactive(ProtocolStateBase):
     # def rcvd_pkt(self, pkt: Packet) -> None:  # raise an exception
     #     raise ProtocolFsmError(f"{self}: Can't rcvd {pkt._hdr}: not connected")
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
-        raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: not connected")
+    def sent_cmd(self, cmd: Command, max_retries: int) -> NoReturn:  # raises exception
+        raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: no Transport connected")
 
 
 class IsPaused(ProtocolStateBase):
     """Protocol cannot Tx at all, but may Rx (Transport has no capacity to Tx)."""
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
-        raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: paused")
+    def sent_cmd(self, cmd: Command, max_retries: int) -> NoReturn:  # raises exception
+        raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: Protocol is paused")
 
 
 class IsInIdle(ProtocolStateBase):
-    """Protocol can Tx next Command, may Rx (has no outstanding Commands)."""
+    """Protocol can Tx next Command, may Rx (has no current Command)."""
 
     _cmd_: None | Command = None  # used only for debugging
 
@@ -481,7 +505,7 @@ class IsInIdle(ProtocolStateBase):
 
 
 class WantEcho(ProtocolStateBase):
-    """Protocol can re-Tx this Command, wanting Rx (has an sent Command)."""
+    """Protocol can re-Tx this Command, wanting a Rx (has an outstanding Command)."""
 
     _echo: None | Packet = None
 
@@ -505,11 +529,23 @@ class WantEcho(ProtocolStateBase):
             self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
-        raise ProtocolSendFailed(f"{self}: Can't re-send {cmd._hdr}: not received echo")
+        """The Transport has re-sent a Command.
+
+        Raise ProtocolFsmError if sending command other than the active command.
+        Raise RetryLimitExceeded if sending command woudl exceed retry limit.
+        """
+
+        if not self.is_active_cmd(cmd):
+            raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: not active Command")
+
+        if self.cmd_sends > max_retries:
+            raise ProtocolSendFailed(f"{self}: Exceeded retry limit of {max_retries}")
+        self.cmd_sends += 1
+        _LOGGER.debug(f"     - sending cmd..: {cmd._hdr} (again)")
 
 
 class WantRply(ProtocolStateBase):
-    """Protocol can re-Tx this Command, wanting Rx (has received echo)."""
+    """Protocol can re-Tx this Command, wanting a Rx (has received echo)."""
 
     _rply: None | Packet = None
 
@@ -530,12 +566,12 @@ class WantRply(ProtocolStateBase):
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
         """The Transport has re-sent a Command.
 
-        Raise InvalidStateError if sending command other than active command.
+        Raise ProtocolFsmError if sending command other than the active command.
         Raise RetryLimitExceeded if sending command woudl exceed retry limit.
         """
 
-        # if not self.is_active_cmd(cmd):  # handled by Context
-        #     raise InvalidStateError(f"{self}: Can't send {cmd._hdr}: not active cmd")
+        if not self.is_active_cmd(cmd):
+            raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: not active Command")
 
         if self.cmd_sends > max_retries:
             raise ProtocolSendFailed(f"{self}: Exceeded retry limit of {max_retries}")
@@ -544,9 +580,9 @@ class WantRply(ProtocolStateBase):
 
 
 class IsFailed(ProtocolStateBase):
-    """Protocol can Tx next Command, may Rx (has failed with last Command)."""
+    """Protocol can't (yet) Tx next Command, but may Rx (last Command has failed)."""
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raise an exception
+    def sent_cmd(self, cmd: Command, max_retries: int) -> NoReturn:  # raises exception
         raise ProtocolFsmError(f"{self}: Can't send {cmd._hdr}: in a failed state")
 
 
