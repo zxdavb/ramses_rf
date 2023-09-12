@@ -27,10 +27,12 @@ from ramses_rf.protocol.protocol import QosProtocol, _BaseProtocol, _ProtQosTime
 
 from .virtual_rf import VirtualRf
 
-_ACCEPT_WAIT_TIME = 0.95  # #  patch ramses_rf.binding_fsm
-_TENDER_WAIT_TIME = 3.95  # #  patch ramses_rf.binding_fsm
+# patched constants
+_ACCEPT_WAIT_TIME = 0.95  # #      patch ramses_rf.protocol.protocol
+_DEBUG_DISABLE_QOS = True  # #     patch ramses_rf.protocol.protocol
+_TENDER_WAIT_TIME = 3.95  # #      patch ramses_rf.binding_fsm
 DEFAULT_MAX_RETRIES = 0  # #       patch ramses_rf.protocol.protocol
-DEFAULT_WAIT_TIMEOUT = 0.05  # #   patch ramses_rf.protocol.protocol_fsm
+DEFAULT_TIMEOUT = 0.05  # #        patch ramses_rf.protocol.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #  patch ramses_rf.protocol.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #          patch ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #    patch ramses_rf.protocol.protocol
@@ -226,7 +228,7 @@ def rf_network_with_two_gateways(fnc):
         return gwy_id
 
     @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
-    @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+    @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
     @functools.wraps(fnc)
     async def test_wrapper(config_0: dict, config_1: dict, *args, **kwargs):
         rf = VirtualRf(2, start=True)
@@ -387,6 +389,7 @@ async def _test_flow_10x(
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
+@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 async def test_flow_100(test_set: dict[str:dict]) -> None:
     """Check packet flow / state change of a binding at device layer."""
 
