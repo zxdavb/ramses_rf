@@ -19,7 +19,7 @@ import serial
 import serial_asyncio
 
 from ramses_rf import Command, Packet
-from ramses_rf.protocol import ProtocolFsmError
+from ramses_rf.protocol import ProtocolSendFailed
 from ramses_rf.protocol.protocol import (
     QosProtocol,
     _BaseProtocol,
@@ -28,7 +28,7 @@ from ramses_rf.protocol.protocol import (
     protocol_factory,
 )
 from ramses_rf.protocol.protocol_fsm import (
-    _DEFAULT_TIMEOUT,
+    Inactive,
     IsFailed,
     IsInIdle,
     ProtocolStateBase,
@@ -40,12 +40,12 @@ from ramses_rf.protocol.transport import transport_factory
 from .virtual_rf import VirtualRf
 
 # patched constants
-DEFAULT_MAX_RETRIES = 0  # #     patch ramses_rf.protocol.protocol
 _DEFAULT_RPLY_TIMEOUT = td(seconds=0.001)  # patch ramses_rf.protocol.protocol_fsm
-DEFAULT_WAIT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
-MAINTAIN_STATE_CHAIN = True  # # patch ramses_rf.protocol.protocol_fsm
-MAX_DUTY_CYCLE = 1.0  # #        patch ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
+DEFAULT_MAX_RETRIES = 0  # #                 patch ramses_rf.protocol.protocol
+DEFAULT_TIMEOUT = 0.05  # #                  patch ramses_rf.protocol.protocol_fsm
+MAINTAIN_STATE_CHAIN = True  # #             patch ramses_rf.protocol.protocol_fsm
+MAX_DUTY_CYCLE = 1.0  # #                    patch ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #              patch ramses_rf.protocol.protocol
 
 # other constants
 CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
@@ -128,7 +128,7 @@ def protocol_decorator(fnc):
         rf = VirtualRf(2, start=True)
 
         protocol = protocol_factory(kwargs.pop("msg_handler", _msg_handler))
-        await assert_protocol_state(protocol, IsFailed, max_sleep=0)
+        await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
         transport: serial_asyncio.SerialTransport = await transport_factory(
             protocol,
@@ -144,7 +144,7 @@ def protocol_decorator(fnc):
             await assert_protocol_ready(protocol)  # ensure protocol has quiesced
             await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
             await fnc(rf, protocol, *args, **kwargs)
-            await assert_protocol_state(protocol, IsInIdle)
+            await assert_protocol_state(protocol, (IsInIdle, IsFailed))
         except serial.SerialException as exc:
             transport._close(exc=exc)
             raise
@@ -156,7 +156,7 @@ def protocol_decorator(fnc):
         finally:
             await rf.stop()
 
-        await assert_protocol_state(protocol, IsFailed, max_sleep=0)
+        await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
     return test_wrapper
 
@@ -203,11 +203,12 @@ async def _test_flow_10x(
     rcvd_method: int = 0,
     min_sleeps: bool = None,
 ) -> None:
-    async def send_cmd_wrapper(cmd: Command) -> None:
-        await protocol._context._wait_for_can_send(
-            protocol._context.state, cmd, _DEFAULT_TIMEOUT
-        )
-        protocol._context.state.sent_cmd(cmd, DEFAULT_MAX_RETRIES)
+    async def send_cmd_wrapper(cmd: Command) -> Packet:
+        async def _send_cmd(cmd) -> None:
+            # await protocol._send_frame(str(cmd))
+            pass
+
+        return await protocol._context.send_cmd(_send_cmd, cmd)
 
     # STEP 0: Setup...
     # ser = serial.Serial(rf.ports[1])
@@ -290,7 +291,7 @@ async def _test_flow_10x(
 @patch(  # maintain state chain (for debugging)
     "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
 )
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_30x(
     rf: VirtualRf,
@@ -333,61 +334,63 @@ async def _test_flow_30x(
 
 
 @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
 @protocol_decorator
 async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
-    # STEP 1: Simple test for an I (does not expect any rx)...
+    # Simple test for an I (does not expect any rx)...
     cmd = Command.put_sensor_temp("03:333333", 19.5)  # 3C09| I|03:333333
 
     pkt = await protocol._send_cmd(cmd)  # , wait_for_reply=None)
     assert pkt == cmd
 
-    pkt = await protocol._send_cmd(cmd, wait_for_reply=None)
-    assert pkt == cmd
+    for x in (None, False, True):
+        pkt = await protocol._send_cmd(cmd, wait_for_reply=x)
+        assert pkt == cmd
 
-    pkt = await protocol._send_cmd(cmd, wait_for_reply=False)
-    assert pkt == cmd
 
-    pkt = await protocol._send_cmd(cmd, wait_for_reply=True)
-    assert pkt == cmd
-
+@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
+@protocol_decorator
+async def _test_flow_51x(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
-    # STEP 2: Simple test for an RQ (expects RP as rx)...
+    # Simple test for an RQ (expects RP as rx)...
     cmd = Command.get_system_time("01:123456")  # 313F|RQ|01:123456|00
 
     try:
-        await protocol._send_cmd(cmd)  # , wait_for_reply=None)
-    except ProtocolFsmError:
-        protocol._context.set_state(IsInIdle)
+        await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT)  # , wait_for_reply=None)
+    except ProtocolSendFailed:
+        await assert_protocol_state(protocol, IsFailed)
     else:
         assert False
 
     try:
-        await protocol._send_cmd(cmd, wait_for_reply=None)
-    except ProtocolFsmError:
-        protocol._context.set_state(IsInIdle)
+        await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=None)
+    except ProtocolSendFailed:
+        await assert_protocol_state(protocol, IsFailed)
     else:
         assert False
 
-    pkt = await protocol._send_cmd(cmd, wait_for_reply=False)
+    pkt = await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=False)
+    await assert_protocol_state(protocol, IsInIdle)
     assert pkt == cmd
 
     try:
-        await protocol._send_cmd(cmd, wait_for_reply=True)
-    except ProtocolFsmError:
-        protocol._context.set_state(IsInIdle)
+        await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=True)
+    except ProtocolSendFailed:
+        await assert_protocol_state(protocol, IsFailed)
     else:
         assert False
 
 
 @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_WAIT_TIMEOUT", DEFAULT_WAIT_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
     #
-    # STEP 1: Setup...
+    # Setup...
     tasks = []
     for idx in range(num_cmds):
         cmd = Command.get_zone_temp("01:123456", f"{idx:02X}")
@@ -395,7 +398,6 @@ async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> No
         tasks.append(protocol._loop.create_task(coro, name=f"cmd_{idx:02X}"))
 
     assert await asyncio.gather(*tasks)
-    bool(tasks)
 
 
 # ######################################################################################
@@ -419,6 +421,12 @@ async def test_flow_300() -> None:
 async def test_flow_500() -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_50x()
+
+
+@pytest.mark.xdist_group(name="virtual_rf")
+async def test_flow_510() -> None:
+    """Check the wait_for_reply kwarg."""
+    await _test_flow_51x()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
