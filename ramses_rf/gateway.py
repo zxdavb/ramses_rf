@@ -31,6 +31,7 @@ from .protocol import (
     Address,
     Command,
     Packet,
+    exceptions,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -307,15 +308,13 @@ class Engine:
         Response packets, follow an RQ/W (as an RP/I), and have the same command code.
         """
 
-        from ramses_rf import protocol
-
         callback = kwargs.pop("callback", None)
         assert kwargs == {}
         if callback:
             kwargs["callback"] = callback
         try:
             return await self._protocol.send_cmd(cmd, **kwargs)
-        except (asyncio.InvalidStateError, protocol.ProtocolError) as exc:
+        except (asyncio.InvalidStateError, exceptions.ProtocolError) as exc:
             raise RuntimeError(f"Failed to send {cmd._hdr}: {exc}")  # Remove me
 
     def _msg_handler(self, msg: Message) -> None:
