@@ -94,6 +94,7 @@ class Packet(Frame):
 
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
+            # FIXME: this is messy
             _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
         except PacketInvalid as exc:  # incl. InvalidAddrSetError
