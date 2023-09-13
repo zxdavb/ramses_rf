@@ -595,6 +595,7 @@ def protocol_factory(
     if disable_sending:
         return ReadProtocol(msg_handler)
     if disable_qos or _DEBUG_DISABLE_QOS:
+        _LOGGER.warning("QOS has been disabled")
         return PortProtocol(msg_handler)
     return QosProtocol(msg_handler)
 
