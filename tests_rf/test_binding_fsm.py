@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ramses_rf import Code, Device, Gateway, Message, Packet
+from ramses_rf import Code, Command, Device, Gateway, Message, Packet
 from ramses_rf.binding_fsm import (
     SZ_RESPONDENT,
     SZ_SUPPLICANT,
@@ -23,13 +23,18 @@ from ramses_rf.binding_fsm import (
     _BindStates,
 )
 from ramses_rf.device import Fakeable
-from ramses_rf.protocol.protocol import QosProtocol, _BaseProtocol, _ProtQosTimers
+from ramses_rf.protocol.protocol import (
+    QosProtocol,
+    _BaseProtocol,
+    _ProtImpersonate,
+    _ProtQosTimers,
+)
 
 from .virtual_rf import VirtualRf
 
 # patched constants
 _ACCEPT_WAIT_TIME = 0.95  # #      patch ramses_rf.protocol.protocol
-_DEBUG_DISABLE_QOS = True  # #     patch ramses_rf.protocol.protocol
+_DEBUG_DISABLE_QOS = False  # #    patch ramses_rf.protocol.protocol
 _TENDER_WAIT_TIME = 3.95  # #      patch ramses_rf.binding_fsm
 DEFAULT_MAX_RETRIES = 0  # #       patch ramses_rf.protocol.protocol
 DEFAULT_TIMEOUT = 0.05  # #        patch ramses_rf.protocol.protocol_fsm
@@ -174,10 +179,12 @@ def pytest_generate_tests(metafunc):
 # ######################################################################################
 
 
-class _QosProtocol(_ProtQosTimers, _BaseProtocol):
+class _QosProtocol(_ProtImpersonate, _ProtQosTimers, _BaseProtocol):
     """Test only QoS, not Duty cycle limits (& gaps) and Impersonation alerts."""
 
-    pass
+    async def _send_impersonation_alert(self, cmd: Command) -> None:
+        """Don't send impersonation alert (puzzle) packets to the packet log."""
+        pass
 
 
 async def assert_protocol_ready(
