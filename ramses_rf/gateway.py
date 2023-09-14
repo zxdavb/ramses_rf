@@ -198,7 +198,7 @@ class Engine:
 
         self._protocol.add_handler(msg_handler, msg_filter=msg_filter)
 
-    async def start(self) -> None | Exception:
+    async def start(self) -> None:
         """Create a suitable transport for the specified packet source.
 
         Initiate receiving (Messages) and sending (Commands).
@@ -225,9 +225,9 @@ class Engine:
         self._kwargs = None  # HACK
 
         if self._input_file:
-            return await self._wait_for_protocol_to_stop()
+            await self._wait_for_protocol_to_stop()
 
-    async def stop(self) -> None | Exception:
+    async def stop(self) -> None:
         """Close the transport (will stop the protocol)."""
 
         if self._transport:
@@ -237,9 +237,9 @@ class Engine:
             self._protocol.connection_lost(None)
         return await self._wait_for_protocol_to_stop()
 
-    async def _wait_for_protocol_to_stop(self) -> None | Exception:
+    async def _wait_for_protocol_to_stop(self) -> None:
         await self._protocol.wait_connection_lost
-        return self._protocol.wait_connection_lost.result()
+        return self._protocol.wait_connection_lost.result()  # may raise an exception
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""

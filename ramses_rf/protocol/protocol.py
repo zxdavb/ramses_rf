@@ -304,7 +304,7 @@ class _BaseProtocol(asyncio.Protocol):
             self._wait_connection_lost.set_result(None)
 
     @property
-    def wait_connection_lost(self):
+    def wait_connection_lost(self) -> asyncio.Future:
         """Return a future that will block until connection_lost() has been invoked.
 
         Can call fut.result() to check for result/any exception.
