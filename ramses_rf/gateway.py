@@ -314,8 +314,9 @@ class Engine:
             kwargs["callback"] = callback
         try:
             return await self._protocol.send_cmd(cmd, **kwargs)
-        except (asyncio.InvalidStateError, exceptions.ProtocolError) as exc:
-            raise RuntimeError(f"Failed to send {cmd._hdr}: {exc}")  # Remove me
+        except exceptions.ProtocolError as exc:
+            _LOGGER.warning(f"Failed to send {cmd._hdr}: {exc}")
+            raise exc
 
     def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism
