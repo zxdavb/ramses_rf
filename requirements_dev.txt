@@ -1,4 +1,4 @@
-# last checked/updated: 2023/04/23 (based on HA 2023.4.6)
+# last checked/updated: 2023/04/23 (based on HA 2023.8.3)
 #
 
 # for using the library
@@ -8,20 +8,20 @@
   -r requirements_cli.txt
 
 # used for development
-  black >= 23.3.0
-  flake8 >= 6.0.0  # pyflakes, pycodestyle
+  black >= 23.7.0
+  flake8 >= 6.1.0  # pyflakes, pycodestyle
   isort >= 5.12.0
-  mypy >= 1.2.0
-  pre-commit >= 3.1.0
+  mypy >= 1.5.1
+  pre-commit >= 3.3.0
 
 # used for testing at runtime
   debugpy >= 1.6.7
-  typeguard >= 3.0.2  # is optional
+  typeguard >= 4.1.2  # is optional
 
 # used for testing
-  pytest >= 7.3.1
-  pytest-asyncio >= 0.20.3
-  pytest-xdist >= 3.2.1
+  pytest >= 7.4.0
+  pytest-asyncio >= 0.21.1
+  pytest-xdist >= 3.3.1
 
 # used for build/publish
 # setuptools >= 67.4.0
