@@ -19,6 +19,8 @@ SZ_KNOWN_HGI = "known_hgi"
 SZ_IS_EVOFW3 = "is_evofw3"
 
 # used by protocol QoS...
+MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
+
 SZ_BACKOFF = "backoff"
 SZ_DISABLE_BACKOFF = "disable_backoff"
 SZ_PRIORITY = "priority"
