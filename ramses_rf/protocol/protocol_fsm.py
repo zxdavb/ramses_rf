@@ -128,7 +128,6 @@ class ProtocolContext:
         return self._state
 
     def connection_made(self, transport: _TransportT) -> None:
-        # #A# _LOGGER.info(f"### {self}: connection_made({transport})")  # TODO: remove
         self._proc_queue_task = self._loop.create_task(self._send_next_queued_cmd())
         self.state.made_connection(transport)  # needs to be after prev. line
 
@@ -167,7 +166,7 @@ class ProtocolContext:
     ) -> Packet:
         """Send the Command (with retries) and wait for the expected Packet.
 
-        if wait_for reply is True, wait for the RP/I corresponding to the RQ/W,
+        if wait_for_reply is True, wait for the RP/I corresponding to the RQ/W,
         otherwise simply return the echo Packet.
 
         Raises a ProtocolSendFailed if either max_retires or timeout is exceeded before
@@ -245,23 +244,22 @@ class ProtocolContext:
         Remove any 'expired' Commands.
         """
 
-        cmd: Command  # mypy
         fut: asyncio.Future  # mypy
 
         try:
-            *_, cmd, dt_expires, send_coro, fut = self._que.get_nowait()
+            *_, dt_expires, send_coro, fut = self._que.get_nowait()
         except Empty:
             return
 
         if fut.cancelled():  # by the wait_for(), no need to log/raise
-            await self._send_next_queued_cmd()  # NOTE: recursion
+            await self._send_next_queued_cmd()
 
         elif fut.done():  # incl. cancelled() - no need for above
-            await self._send_next_queued_cmd()  # NOTE: recursion
+            await self._send_next_queued_cmd()
 
         elif dt_expires <= dt.now():  # ?needed
             fut.set_exception(_ProtocolWaitFailed("Timeout (inner) has expired"))
-            await self._send_next_queued_cmd()  # NOTE: recursion
+            await self._send_next_queued_cmd()
 
         else:
             fut.set_result(await send_coro)  # mark as DONE
@@ -371,7 +369,7 @@ class ProtocolContext:
         if not isinstance(this_state, (WantEcho, WantRply)):
             raise exceptions.ProtocolFsmError(f"Bad transition from {this_state}")
 
-        # may: SendTimeoutError (NB: may have already transitioned)
+        # may: ProtocolFsmError (NB: may have already transitioned)
         next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
 
         if not isinstance(next_state, (WantRply if cmd.rx_header else IsInIdle)):
@@ -391,7 +389,7 @@ class ProtocolContext:
         if not isinstance(this_state, WantRply):
             raise exceptions.ProtocolFsmError(f"Bad transition from {this_state}")
 
-        # may: SendTimeoutError (NB: may have already transitioned)
+        # may: ProtocolFsmError (NB: may have already transitioned)
         next_state = await self._wait_for_transition(this_state, dt.now() + timeout)
 
         if not isinstance(next_state, IsInIdle):
