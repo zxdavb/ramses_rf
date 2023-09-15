@@ -112,7 +112,7 @@ class ProtocolContext:
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             prev_state = self._state
 
-        if state in (IsInIdle,):  # was: (IsInIdle, IsFailed)
+        if state is IsInIdle:  # was: in (IsInIdle, IsFailed)
             self._state = state(self)  # force all to IsInIdle?
         else:
             self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
@@ -132,7 +132,7 @@ class ProtocolContext:
         self.state.made_connection(transport)  # needs to be after prev. line
 
     def connection_lost(self, exc: None | Exception) -> None:
-        fut: asyncio.Future  # mypy
+        fut: asyncio.Future
 
         self.state.lost_connection(exc)
 
@@ -183,26 +183,23 @@ class ProtocolContext:
             """Removes all entries from the queue that satisfy the condition.."""
             # HACK: I have no idea if this is kosher (it does appear thread-safe)
             if queue.mutex.acquire():
-                queue_copy = queue.queue[:]  # queue attr is a list
+                queue_copy = queue.queue[:]  # the queue attr is a list
                 for entry in queue_copy:
                     if condition(entry):
                         queue.queue.remove(entry)
                 queue.mutex.release()
-
-        if isinstance(self.state, IsFailed):  # is OK to send_cmd when last send failed
-            self.set_state(IsInIdle)
 
         # if self.state.is_active_cmd(cmd):  # no need to queue?
 
         dt_sent = dt.now()
         dt_expires = dt_sent + td(seconds=timeout)
         fut = self._loop.create_future()
-        send_coro = self._send_cmd(send_fnc, cmd, max_retries, wait_for_reply)
+        params = send_fnc, cmd, max_retries, wait_for_reply
 
         remove_unwanted_items(self._que, is_future_done)
         try:
             self._que.put_nowait(  # priority / dt_sent is the priority
-                (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, send_coro, fut)
+                (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, params, fut)
             )
         except Full:
             fut.set_exception(
@@ -212,13 +209,14 @@ class ProtocolContext:
         self._process_send_queue()
 
         try:
-            pkt: Packet = await asyncio.wait_for(fut, timeout)  # TODO: make return
+            pkt: Packet = await asyncio.wait_for(fut, timeout * 5)
         except asyncio.TimeoutError:
             self.set_state(IsFailed)
             raise exceptions.ProtocolSendFailed(
                 f"{cmd._hdr}: Timeout (outer) has expired"
             )
         except exceptions.ProtocolError as exc:
+            self.set_state(IsFailed)
             raise exceptions.ProtocolSendFailed(f"{cmd._hdr}: {exc}")
 
         self._process_send_queue()
@@ -231,7 +229,7 @@ class ProtocolContext:
         and immediately after a Command is added to the queue.
         """
 
-        if self._mutex.acquire(blocking=False):
+        if self._mutex.acquire(timeout=0.005):
             if self._proc_queue_task.done():
                 self._proc_queue_task = self._loop.create_task(
                     self._send_next_queued_cmd()
@@ -244,17 +242,14 @@ class ProtocolContext:
         Remove any 'expired' Commands.
         """
 
-        fut: asyncio.Future  # mypy
+        fut: asyncio.Future
 
         try:
-            *_, dt_expires, send_coro, fut = self._que.get_nowait()
+            *_, dt_expires, params, fut = self._que.get_nowait()
         except Empty:
             return
 
-        if fut.cancelled():  # by the wait_for(), no need to log/raise
-            await self._send_next_queued_cmd()
-
-        elif fut.done():  # incl. cancelled() - no need for above
+        if fut.done():  # incl. cancelled() - no need for above
             await self._send_next_queued_cmd()
 
         elif dt_expires <= dt.now():  # ?needed
@@ -262,7 +257,7 @@ class ProtocolContext:
             await self._send_next_queued_cmd()
 
         else:
-            fut.set_result(await send_coro)  # mark as DONE
+            fut.set_result(await self._send_cmd(*params))
 
         self._que.task_done()
 
@@ -275,13 +270,18 @@ class ProtocolContext:
     ) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
+        _LOGGER.error(f"{self}: About to send {cmd._hdr}")
+
+        if isinstance(self.state, IsFailed):  # is OK to send when last send failed
+            self.set_state(IsInIdle)
+
         try:
             assert isinstance(self.state, IsInIdle), f"{self}: Expects IsInIdle"
 
             self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
             assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
 
-        except (AssertionError, exceptions.ProtocolSendFailed) as exc:
+        except (AssertionError, exceptions.ProtocolFsmError) as exc:
             raise _ProtocolWaitFailed(f"{self}: Failed ready to send command:  {exc}")
 
         num_retries = -1
@@ -293,7 +293,7 @@ class ProtocolContext:
             try:
                 # assert isinstance(self.state, WantEcho)  # This won't work here
                 prev_state, next_state = await self._wait_for_rcvd_echo(
-                    self.state,
+                    self.state,  # NOTE: is self.state, not next_state
                     cmd,
                     _DEFAULT_ECHO_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES
                 )
@@ -317,27 +317,27 @@ class ProtocolContext:
 
                 # assert isinstance(next_state, WantRply)  # This won't work here
 
-            except (AssertionError, exceptions.ProtocolSendFailed) as exc:
+            except (AssertionError, exceptions.ProtocolFsmError) as exc:
                 msg = f"{self}: Failed to Rx echo {cmd.rx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolEchoFailed(f"{msg}: {exc}")
-                _LOGGER.warning(f"{msg} (will retry): {exc}")
+                _LOGGER.error(f"{msg} (will retry): {exc}")
                 continue
 
             try:
                 prev_state, next_state = await self._wait_for_rcvd_rply(
-                    next_state,
+                    next_state,  # NOTE: is next_state, not self.state
                     cmd,
                     _DEFAULT_RPLY_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES
-                )  # NOTE: is next_state, not self.state
+                )
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                 assert prev_state._rply, f"{self}: No rply packet"
 
-            except (AssertionError, exceptions.ProtocolSendFailed) as exc:
+            except (AssertionError, exceptions.ProtocolFsmError) as exc:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolRplyFailed(f"{msg}: {exc}")
-                _LOGGER.warning(f"{msg} (will retry): {exc}")
+                _LOGGER.error(f"{msg} (will retry): {exc}")
                 continue
 
             return prev_state._rply
@@ -512,7 +512,7 @@ class WantEcho(ProtocolStateBase):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
 
-        if self.cmd.rx_header and pkt._hdr == self.cmd.rx_header:  # expected pkt
+        if self.cmd.rx_header and pkt._hdr == self.cmd.rx_header:  # TODO: remove?
             raise exceptions.ProtocolFsmError(
                 f"{self}: Reply received before echo: {pkt._hdr}"
             )
@@ -535,7 +535,7 @@ class WantEcho(ProtocolStateBase):
             )
 
         if self.cmd_sends > max_retries:
-            raise exceptions.ProtocolSendFailed(
+            raise exceptions.ProtocolFsmError(
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
         self.cmd_sends += 1
@@ -562,7 +562,7 @@ class WantRply(ProtocolStateBase):
             )
 
         if self.cmd_sends > max_retries:
-            raise exceptions.ProtocolSendFailed(
+            raise exceptions.ProtocolFsmError(
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
         self.cmd_sends += 1
