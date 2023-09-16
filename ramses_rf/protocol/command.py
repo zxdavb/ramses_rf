@@ -275,7 +275,6 @@ def _qos_params(verb: Verb, code: Code, qos: dict) -> Qos:
     return Qos.verb_code(verb, code, **qos)
 
 
-@functools.total_ordering
 class Command(Frame):
     """The Command class (packets to be transmitted).
 
@@ -436,16 +435,6 @@ class Command(Frame):
         """Return an brief readable string representation of this object."""
         # e.g.: 000A|RQ|01:145038|08
         return super().__repr__()  # TODO: self._hdr
-
-    def __eq__(self, other: Any) -> bool:  # FIXME: needed?
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._qos.priority, self._dtm) == (other._qos.priority, other._dtm)
-
-    def __lt__(self, other: Any) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._qos.priority, self._dtm) < (other._qos.priority, other._dtm)
 
     @staticmethod
     def _is_valid_operand(other: Any) -> bool:
