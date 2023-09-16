@@ -270,8 +270,6 @@ class ProtocolContext:
     ) -> Packet:
         """Wrapper to send a command with retries, until success or Exception."""
 
-        _LOGGER.error(f"{self}: About to send {cmd._hdr}")
-
         if isinstance(self.state, IsFailed):  # is OK to send when last send failed
             self.set_state(IsInIdle)
 
@@ -321,7 +319,7 @@ class ProtocolContext:
                 msg = f"{self}: Failed to Rx echo {cmd.rx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolEchoFailed(f"{msg}: {exc}")
-                _LOGGER.error(f"{msg} (will retry): {exc}")
+                _LOGGER.warning(f"{msg} (will retry): {exc}")
                 continue
 
             try:
@@ -337,7 +335,7 @@ class ProtocolContext:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolRplyFailed(f"{msg}: {exc}")
-                _LOGGER.error(f"{msg} (will retry): {exc}")
+                _LOGGER.warning(f"{msg} (will retry): {exc}")
                 continue
 
             return prev_state._rply
