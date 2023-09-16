@@ -154,6 +154,7 @@ class ProtocolContext:
         self.state.writing_resumed()
 
     def pkt_received(self, pkt: Packet) -> None:
+        # if isinstance(self.state, (WantEcho, WantRply)):  # not needed
         self.state.rcvd_pkt(pkt)
 
     async def send_cmd(
@@ -316,7 +317,7 @@ class ProtocolContext:
                 # assert isinstance(next_state, WantRply)  # This won't work here
 
             except (AssertionError, exceptions.ProtocolFsmError) as exc:
-                msg = f"{self}: Failed to Rx echo {cmd.rx_header}"
+                msg = f"{self}: Failed to Rx echo {cmd.tx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolEchoFailed(f"{msg}: {exc}")
                 _LOGGER.warning(f"{msg} (will retry): {exc}")
@@ -472,11 +473,6 @@ class Inactive(ProtocolStateBase):
         assert self.cmd is None, f"{self}: self.cmd is not None"
         return f"{self.__class__.__name__}()"
 
-    # method should be OK, but for a timing issue in _make_connection_after_signature()
-    # means pkt received here *before* state changed by state.connection_made()
-    # def rcvd_pkt(self, pkt: Packet) -> None:  # raise an exception
-    #     raise ProtocolFsmError(f"{self}: Can't rcvd {pkt._hdr}: not connected")
-
     def sent_cmd(self, cmd: Command, max_retries: int) -> NoReturn:  # raises exception
         raise exceptions.ProtocolFsmError(
             f"{self}: Can't send {cmd._hdr}: no Transport connected"
@@ -510,13 +506,19 @@ class WantEcho(ProtocolStateBase):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
 
-        if self.cmd.rx_header and pkt._hdr == self.cmd.rx_header:  # TODO: remove?
-            raise exceptions.ProtocolFsmError(
-                f"{self}: Reply received before echo: {pkt._hdr}"
-            )
+        # NOTE: (if timimg is right) can get a false echo (same tx_header), e.g.:
+        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+        # RQ --- 01:145038 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
 
-        if pkt._hdr != self.cmd.tx_header:
+        #  W --- 18:198151 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
+        #  W --- 34:136285 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
+
+        if pkt._hdr != self.cmd._hdr:  # or pkt.src != self.cmd.src:
             return
+
+        # NOTE: but, unfortunately, the cmd src / echo src can be different:
+        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
 
         self._echo = pkt
         if self.cmd.rx_header:
@@ -547,9 +549,24 @@ class WantRply(ProtocolStateBase):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
 
-        if pkt._hdr == self.cmd.rx_header:  # is the reply
-            self._rply = pkt
-            self._set_context_state(IsInIdle)
+        # NOTE: (if timimg is right) can get a false rply (same rx_header), e.g.:
+        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+        # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+        # RP --- 10:048122 01:145038 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
+        #  W --- 18:198151 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
+        #  I --- 01:145038 18:198151 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
+        #  I --- 01:145038 34:136285 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
+
+        if pkt._hdr != self.cmd.rx_header:  # or pkt.dst != self.cmd.src:
+            return
+
+        # NOTE: but, unfortunately, the cmd src / rply dst can be different:
+        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+        # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
+        self._rply = pkt
+        self._set_context_state(IsInIdle)
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
         """The Transport has re-sent a Command."""
