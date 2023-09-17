@@ -274,20 +274,12 @@ class ProtocolContext:
         if isinstance(self.state, IsFailed):  # is OK to send when last send failed
             self.set_state(IsInIdle)
 
-        try:
-            assert isinstance(self.state, IsInIdle), f"{self}: Expects IsInIdle"
-
-            self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
-            assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
-
-        except (AssertionError, exceptions.ProtocolFsmError) as exc:
-            raise _ProtocolWaitFailed(f"{self}: Failed ready to send command:  {exc}")
-
         num_retries = -1
         while num_retries < max_retries:  # resend until RetryLimitExceeded
             num_retries += 1
+            self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
             await send_fnc(cmd)  # the wrapped function
-            # assert isinstance(self.state, WantEcho)  # This won't work here
+            assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
 
             try:
                 # assert isinstance(self.state, WantEcho)  # This won't work here
@@ -419,10 +411,10 @@ class ProtocolStateBase:
 
     def __repr__(self) -> str:
         hdr = self.cmd.tx_header if self.cmd else None
-        if hdr:
-            return f"{self.__class__.__name__}(hdr={hdr}, tx={self.cmd_sends})"
-        assert self.cmd_sends == 0, f"{self}: cmd_sends != 0"
-        return f"{self.__class__.__name__}(hdr={hdr})"
+        if not hdr:
+            assert self.cmd_sends == 0, f"{self}: cmd_sends != 0"
+            return f"{self.__class__.__name__}(tx_header={hdr})"
+        return f"{self.__class__.__name__}(tx_header={hdr}, cmd_sends={self.cmd_sends})"
 
     def _set_context_state(self, state: _StateT, *args, **kwargs) -> None:
         self._context.set_state(state, *args, **kwargs)  # pylint: disable=W0212
@@ -430,13 +422,9 @@ class ProtocolStateBase:
 
     def is_active_cmd(self, cmd: Command) -> bool:
         """Return True if a Puzzle cmd, or this cmd is the active active cmd."""
-        if cmd.verb == Code._PUZZ:  # TODO: need to work this out, ?include
-            return True  # an exception to the rule
-        return self.cmd and (
-            cmd._hdr == self.cmd._hdr
-            and cmd._addrs == self.cmd._addrs
-            and cmd.payload == self.cmd.payload
-        )
+        # if cmd.verb == Code._PUZZ:  # TODO: need to work this out, ?include
+        #     return True  # an exception to the rule
+        return cmd and cmd is self.cmd
 
     def made_connection(self, transport: _TransportT) -> None:
         """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""
@@ -539,6 +527,7 @@ class WantEcho(ProtocolStateBase):
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
         self.cmd_sends += 1
+        self._set_context_state(WantEcho, cmd=cmd, cmd_sends=self.cmd_sends)
 
 
 class WantRply(ProtocolStateBase):
@@ -581,6 +570,7 @@ class WantRply(ProtocolStateBase):
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
         self.cmd_sends += 1
+        self._set_context_state(WantEcho, cmd=cmd, cmd_sends=self.cmd_sends)
 
 
 class IsFailed(ProtocolStateBase):
