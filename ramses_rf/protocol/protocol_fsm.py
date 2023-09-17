@@ -105,7 +105,7 @@ class ProtocolContext:
         self,
         state: type[_StateT],
         cmd: None | Command = None,
-        cmd_sends: int = 0,
+        num_sends: int = 0,
     ) -> None:
         """Set the State of the Protocol (context)."""
 
@@ -115,7 +115,7 @@ class ProtocolContext:
         if state is IsInIdle:  # was: in (IsInIdle, IsFailed)
             self._state = state(self)  # force all to IsInIdle?
         else:
-            self._state = state(self, cmd=cmd, cmd_sends=cmd_sends)
+            self._state = state(self, cmd=cmd, num_sends=num_sends)
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
@@ -286,7 +286,7 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_rcvd_echo(
                     self.state,  # NOTE: is self.state, not next_state
                     cmd,
-                    _DEFAULT_ECHO_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES
+                    _DEFAULT_ECHO_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
                 )
                 # isinstance(self.state, (WantRply, IsInIdle))  # This won't work here
                 assert prev_state._echo, f"{self}: No echo packet"
@@ -319,7 +319,7 @@ class ProtocolContext:
                 prev_state, next_state = await self._wait_for_rcvd_rply(
                     next_state,  # NOTE: is next_state, not self.state
                     cmd,
-                    _DEFAULT_RPLY_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES
+                    _DEFAULT_RPLY_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
                 )
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                 assert prev_state._rply, f"{self}: No rply packet"
@@ -394,7 +394,7 @@ class ProtocolStateBase:
 
     # state attrs
     cmd: None | Command
-    cmd_sends: int
+    num_sends: int
 
     _next_state: None | _StateT = None
 
@@ -402,22 +402,27 @@ class ProtocolStateBase:
         self,
         context: ProtocolContext,
         cmd: None | Command = None,
-        cmd_sends: int = 0,
+        num_sends: int = 0,
     ) -> None:
         self._context = context  # a Protocol
 
         self.cmd: None | Command = cmd
-        self.cmd_sends: None | int = cmd_sends
+        self.num_sends: None | int = num_sends
 
     def __repr__(self) -> str:
         hdr = self.cmd.tx_header if self.cmd else None
         if not hdr:
-            assert self.cmd_sends == 0, f"{self}: cmd_sends != 0"
+            assert self.num_sends == 0, f"{self}: num_sends != 0"
             return f"{self.__class__.__name__}(tx_header={hdr})"
-        return f"{self.__class__.__name__}(tx_header={hdr}, cmd_sends={self.cmd_sends})"
+        return f"{self.__class__.__name__}(tx_header={hdr}, num_sends={self.num_sends})"
 
-    def _set_context_state(self, state: _StateT, *args, **kwargs) -> None:
-        self._context.set_state(state, *args, **kwargs)  # pylint: disable=W0212
+    def _set_context_state(
+        self,
+        state: type[_StateT],
+        cmd: None | Command = None,
+        num_sends: int = 0,
+    ) -> None:
+        self._context.set_state(state, cmd=cmd, num_sends=num_sends)
         self._next_state = self._context.state
 
     def is_active_cmd(self, cmd: Command) -> bool:
@@ -483,7 +488,7 @@ class IsInIdle(ProtocolStateBase):
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
         self._cmd_ = cmd
-        self._set_context_state(WantEcho, cmd=cmd, cmd_sends=1)
+        self._set_context_state(WantEcho, cmd=cmd, num_sends=1)
 
 
 class WantEcho(ProtocolStateBase):
@@ -510,7 +515,7 @@ class WantEcho(ProtocolStateBase):
 
         self._echo = pkt
         if self.cmd.rx_header:
-            self._set_context_state(WantRply, cmd=self.cmd, cmd_sends=self.cmd_sends)
+            self._set_context_state(WantRply, cmd=self.cmd, num_sends=self.num_sends)
         else:
             self._set_context_state(IsInIdle)
 
@@ -522,12 +527,12 @@ class WantEcho(ProtocolStateBase):
                 f"{self}: Can't send {cmd._hdr}: not active Command"
             )
 
-        if self.cmd_sends > max_retries:
+        if self.num_sends > max_retries:
             raise exceptions.ProtocolFsmError(
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
-        self.cmd_sends += 1
-        self._set_context_state(WantEcho, cmd=cmd, cmd_sends=self.cmd_sends)
+        self.num_sends += 1
+        self._set_context_state(WantEcho, cmd=cmd, num_sends=self.num_sends)
 
 
 class WantRply(ProtocolStateBase):
@@ -565,12 +570,12 @@ class WantRply(ProtocolStateBase):
                 f"{self}: Can't send {cmd._hdr}: not active Command"
             )
 
-        if self.cmd_sends > max_retries:
+        if self.num_sends > max_retries:
             raise exceptions.ProtocolFsmError(
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
-        self.cmd_sends += 1
-        self._set_context_state(WantEcho, cmd=cmd, cmd_sends=self.cmd_sends)
+        self.num_sends += 1
+        self._set_context_state(WantEcho, cmd=cmd, num_sends=self.num_sends)
 
 
 class IsFailed(ProtocolStateBase):
