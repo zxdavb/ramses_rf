@@ -111,7 +111,7 @@ async def assert_protocol_state(
 def assert_protocol_state_detail(
     protocol: QosProtocol, cmd: Command, cmd_sends: int
 ) -> None:
-    assert cmd is None or protocol._context._is_active_cmd(cmd)  # duplicate test
+    assert (cmd is None) or protocol._context._is_active_cmd(cmd)  # duplicate test
     assert protocol._context.state.cmd is cmd  # duplicate of above
     assert protocol._context.state.cmd_sends == cmd_sends
     assert bool(cmd) is isinstance(protocol._context.state, (WantEcho, WantRply))
