@@ -36,6 +36,7 @@ from .protocol import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
     QosProtocol,
     ReadProtocol,
+    SendPriority,
     protocol_factory,
 )
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA

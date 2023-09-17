@@ -51,8 +51,6 @@ class SendPriority(IntEnum):
     _MIN = 9
 
 
-DEFAULT_PRIORITY = SendPriority.DEFAULT
-
 DEFAULT_TIMEOUT = 3.0  # total waiting for successful send
 DEFAULT_ECHO_TIMEOUT = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT = 0.20  # waiting for reply pkt after echo pkt received
@@ -161,9 +159,12 @@ class ProtocolContext:
         self,
         send_fnc: Awaitable,
         cmd: Command,
+        /,
+        *,
         max_retries: int = DEFAULT_MAX_RETRIES,
-        wait_for_reply: None | bool = None,
+        priority: SendPriority = SendPriority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
+        wait_for_reply: None | bool = None,
     ) -> Packet:
         """Send the Command (with retries) and wait for the expected Packet.
 
@@ -200,7 +201,7 @@ class ProtocolContext:
         remove_unwanted_items(self._que, is_future_done)
         try:
             self._que.put_nowait(  # priority / dt_sent is the priority
-                (DEFAULT_PRIORITY, dt_sent, cmd, dt_expires, params, fut)
+                (priority, dt_sent, dt_expires, params, fut)
             )
         except Full:
             fut.set_exception(

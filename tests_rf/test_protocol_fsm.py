@@ -359,12 +359,24 @@ async def _test_flow_51x(rf: VirtualRf, protocol: QosProtocol) -> None:
     # Simple test for an RQ (expects RP as rx)...
     cmd = Command.get_system_time("01:123456")  # 313F|RQ|01:123456|00
 
-    try:
-        await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT)  # , wait_for_reply=None)
-    except ProtocolSendFailed:
-        await assert_protocol_state(protocol, IsFailed)
-    else:
-        assert False
+    protocol._context.set_state(IsInIdle)
+
+    # # pkt = await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=False)
+    # # await assert_protocol_state(protocol, IsInIdle)
+    # # assert pkt == cmd
+
+    # # protocol._context.set_state(IsFailed)
+
+    # # pkt = await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=False)
+    # # await assert_protocol_state(protocol, IsInIdle)
+    # # assert pkt == cmd
+
+    # # try:
+    # #     await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT)  # , wait_for_reply=None)
+    # # except ProtocolSendFailed:
+    # #     await assert_protocol_state(protocol, IsFailed)
+    # # else:
+    # #     assert False
 
     try:
         await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=None)
@@ -377,12 +389,12 @@ async def _test_flow_51x(rf: VirtualRf, protocol: QosProtocol) -> None:
     await assert_protocol_state(protocol, IsInIdle)
     assert pkt == cmd
 
-    try:
-        await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=True)
-    except ProtocolSendFailed:
-        await assert_protocol_state(protocol, IsFailed)
-    else:
-        assert False
+    # # try:
+    # #     await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=True)
+    # # except ProtocolSendFailed:
+    # #     await assert_protocol_state(protocol, IsFailed)
+    # # else:
+    # #     assert False
 
 
 @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)

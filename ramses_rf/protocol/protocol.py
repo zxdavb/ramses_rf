@@ -11,7 +11,7 @@ from collections import deque
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, NoReturn
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
@@ -21,7 +21,12 @@ from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
-from .protocol_fsm import ProtocolContext
+from .protocol_fsm import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_TIMEOUT,
+    ProtocolContext,
+    SendPriority,
+)
 from .schemas import SZ_PORT_NAME
 from .transport import RamsesTransportT, transport_factory
 
@@ -339,7 +344,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
+    async def send_cmd(self, cmd: Command, **kwargs) -> Packet | None:
         """A wrapper for self._send_cmd(cmd)."""
 
         if not self._transport:
@@ -347,7 +352,6 @@ class _BaseProtocol(asyncio.Protocol):
         if self._pause_writing:
             raise ProtocolSendFailed("The Protocol is currently read-only")
 
-        # This is necessary to track state via the context.
         return await self._send_cmd(cmd)  # self._transport.write(...)
 
     async def _send_cmd(self, cmd: Command) -> None:  # only cmd, no args, kwargs
@@ -477,7 +481,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
 
-        msg = f"Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
+        msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
         if self._is_evofw3 is False:
             _LOGGER.error(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
         else:
@@ -523,21 +527,23 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
     async def _send_cmd(
         self,
         cmd: Command,
+        /,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        priority: SendPriority = SendPriority.DEFAULT,
+        timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: None | bool = None,  # None, rather than False
-        **kwargs,
     ) -> Packet:
-        """Wrapper to send a command with QoS (retries, until success or Exception).
+        """Wrapper to send a command with QoS (with retries, until success or Exception)."""
 
-        Returns the Command's response Packet or the echo Packet if a response is not
-        expected (e.g. sending an RP).
-
-        If wait_for_reply is True, return the RQ's RP (or W's I), or raise an Exception
-        if one doesn't arrive. If it is False, return the echo of the Command only. If
-        it is None (the default), act as True for RQs, and False for all other Commands.
-        """
         try:
             return await self._context.send_cmd(
-                super()._send_cmd, cmd, wait_for_reply=wait_for_reply, **kwargs
+                super()._send_cmd,
+                cmd,
+                max_retries=max_retries,
+                priority=priority,
+                timeout=timeout,
+                wait_for_reply=wait_for_reply,
             )
         # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
@@ -564,22 +570,55 @@ class ReadProtocol(_BaseProtocol):
     def resume_writing(self) -> None:
         raise NotImplementedError
 
-    async def send_cmd(self, cmd: Command, callback: None | Callable = None) -> None:
-        raise NotImplementedError
+    async def send_cmd(self, cmd: Command, /, **kwargs) -> NoReturn:
+        raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
 
 # ### Read-Write Protocol for PortTransport ###########################################
 class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
 
-    pass
+    async def send_cmd(self, cmd: Command, /, **kwargs) -> None:
+        """Send a Command without any QoS features."""
+        if kwargs:
+            _LOGGER.warning(f"{self}: The Protocol has no Qos")
+        await super().send_cmd(cmd)
 
 
 # ### Read-Write Protocol for QosTransport ############################################
 class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
-    pass
+    async def send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        priority: SendPriority = SendPriority.DEFAULT,
+        timeout: float = DEFAULT_TIMEOUT,
+        wait_for_reply: None | bool = None,
+    ) -> Packet:
+        """Send a Command with Qos (with retries, until success or ProtocolError).
+
+        Returns the Command's response Packet or the Command echo if a response is not
+        expected (e.g. sending an RP).
+
+        If wait_for_reply is True, return the RQ's RP (or W's I), or raise an Exception
+        if one doesn't arrive. If it is False, return the echo of the Command only. If
+        it is None (the default), act as True for RQs, and False for all other Commands.
+
+        Commands are queued and sent in order, but higher-priority Commands are always
+        sent first.
+        """
+
+        return await super().send_cmd(
+            cmd,
+            max_retries=max_retries,
+            priority=priority,
+            timeout=timeout,
+            wait_for_reply=wait_for_reply,
+        )
 
 
 def protocol_factory(

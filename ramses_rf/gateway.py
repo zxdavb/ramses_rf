@@ -3,8 +3,8 @@
 #
 
 # TODO:
-# - sort out gwy.config... - evofw3 flag, use_regex (add test)
-# - sort out send_cmd generally, and make awaitable=
+# - self._tasks is not ThreadSafe
+# - sort out gwy.config...
 # - sort out reduced processing
 
 
@@ -31,13 +31,14 @@ from .protocol import (
     Address,
     Command,
     Packet,
-    exceptions,
+    SendPriority,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
     transport_factory,
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from .protocol.protocol_fsm import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 from .protocol.schemas import (
     SCH_ENGINE_CONFIG,
     SZ_BLOCK_LIST,
@@ -294,29 +295,23 @@ class Engine:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
-    def send_cmd(
-        self, cmd: Command, callback: Callable = None, **kwargs
-    ) -> asyncio.Task:
-        """Wrapper to schedule an async_send_cmd() and return the Task."""
+    async def async_send_cmd(
+        self,
+        cmd: Command,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        priority: SendPriority = SendPriority.DEFAULT,
+        timeout: float = DEFAULT_TIMEOUT,
+        wait_for_reply: None | bool = None,
+    ) -> None | Packet:
+        """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
-        assert kwargs == {}
-        return self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
-
-    async def async_send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
-        """Send a Command and return the response Packet or the echo Packet otherwise.
-
-        Response packets, follow an RQ/W (as an RP/I), and have the same command code.
-        """
-
-        callback = kwargs.pop("callback", None)
-        assert kwargs == {}
-        if callback:
-            kwargs["callback"] = callback
-        try:
-            return await self._protocol.send_cmd(cmd, **kwargs)
-        except exceptions.ProtocolError as exc:
-            _LOGGER.warning(f"Failed to send {cmd._hdr}: {exc}")
-            raise exc
+        return await self._protocol.send_cmd(
+            cmd,
+            max_retries=max_retries,
+            priority=priority,
+            timeout=timeout,
+            wait_for_reply=wait_for_reply,
+        )
 
     def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism
@@ -748,8 +743,9 @@ class Gateway(Engine):
 
     def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
         """Start a task after delay seconds and then repeat it every period seconds."""
-        self._tasks = [t for t in self._tasks if not t.done()]
         task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
+        # keep a track of tasks, so we can tidy-up
+        self._tasks = [t for t in self._tasks if not t.done()]
         self._tasks.append(task)
         return task
 
@@ -774,3 +770,44 @@ class Gateway(Engine):
             )
 
         process_msg(self, msg)
+
+    def send_cmd(
+        self, cmd: Command, callback: Callable = None, **kwargs
+    ) -> asyncio.Task:
+        """Wrapper to schedule an async_send_cmd() and return the Task."""
+
+        assert kwargs == {}
+
+        # keep a track of tasks, so we can tidy-up
+        self._tasks = [t for t in self._tasks if not t.done()]
+        self._tasks.append(
+            self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
+        )
+
+    async def async_send_cmd(
+        self,
+        cmd: Command,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        priority: SendPriority = SendPriority.DEFAULT,
+        timeout: float = DEFAULT_TIMEOUT,
+        wait_for_reply: None | bool = None,
+        **kwargs,
+    ) -> None | Packet:
+        """Send a Command and, if QoS is enabled, return the corresponding Packet."""
+
+        callback = kwargs.pop("callback", None)
+        assert kwargs == {}
+
+        pkt = await super().async_send_cmd(
+            cmd,
+            max_retries=max_retries,
+            priority=priority,
+            timeout=timeout,
+            wait_for_reply=wait_for_reply,
+        )
+
+        if callback:
+            # keep a track of tasks, so we can tidy-up
+            self._tasks = [t for t in self._tasks if not t.done()]
+            self._tasks.append(self._loop.create_task(callback(pkt)))
+        return pkt
