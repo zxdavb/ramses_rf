@@ -98,8 +98,8 @@ class ProtocolContext:
         self.set_state(Inactive)  # set initiate state, pre connection_made
 
     def __repr__(self) -> str:
-        state_name = self.state.__class__.__name__
-        return f"Context({state_name}, len(queue)={self._que.unfinished_tasks})"
+        cls = self.state.__class__.__name__
+        return f"Context({cls}, len(queue)={self._que.unfinished_tasks})"
 
     def set_state(
         self,
