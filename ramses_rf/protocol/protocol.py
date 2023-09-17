@@ -352,7 +352,7 @@ class _BaseProtocol(asyncio.Protocol):
         if self._pause_writing:
             raise ProtocolSendFailed("The Protocol is currently read-only")
 
-        return await self._send_cmd(cmd)  # self._transport.write(...)
+        return await self._send_cmd(cmd)  # type: ignore[func-returns-value]
 
     async def _send_cmd(self, cmd: Command) -> None:  # only cmd, no args, kwargs
         """Called when a Command is to be sent to the Transport.

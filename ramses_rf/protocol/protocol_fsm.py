@@ -14,7 +14,6 @@ from threading import Lock
 from typing import TYPE_CHECKING, Awaitable, Callable, NoReturn
 
 from . import exceptions
-
 from .const import MIN_GAP_BETWEEN_WRITES
 
 # skipcq: PY-W2000
@@ -31,11 +30,13 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from . import Command, Packet
+    from . import Command, Packet, QosProtocol, QosTransport
+else:
+    QosProtocol = asyncio.Protocol
+    QosTransport = asyncio.Transport
 
-_ProtocolT = asyncio.Protocol
-_TransportT = asyncio.Transport
-
+_ProtocolT = type[QosProtocol]
+_TransportT = type[QosTransport]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ class ProtocolContext:
         self._protocol = protocol
 
         self._loop = asyncio.get_running_loop()
-        self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
+        self._que: PriorityQueue = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self._mutex = Lock()
 
         self.set_state(Inactive)  # set initiate state, pre connection_made
@@ -265,7 +266,7 @@ class ProtocolContext:
 
     async def _send_cmd(  # actual Tx is in here
         self,
-        send_fnc: Awaitable,
+        send_fnc: Callable,
         cmd: Command,
         max_retries: int,
         wait_for_reply: None | bool,
@@ -332,7 +333,9 @@ class ProtocolContext:
                 _LOGGER.warning(f"{msg} (will retry): {exc}")
                 continue
 
-            return prev_state._rply
+            break
+
+        return prev_state._rply
 
     async def _wait_for_transition(self, old_state: _StateT, until: dt) -> _StateT:
         """Return the new state that the context transitioned to from the old state..
@@ -350,7 +353,7 @@ class ProtocolContext:
         return old_state._next_state
 
     async def _wait_for_rcvd_echo(
-        self, this_state: _StateT, cmd: Command, timeout: dt
+        self, this_state: _StateT, cmd: Command, timeout: td
     ) -> tuple[_StateT, _StateT]:
         """Wait until the state machine has received the expected echo pkt.
 
@@ -370,7 +373,7 @@ class ProtocolContext:
         return this_state, next_state  # for: this_state._echo
 
     async def _wait_for_rcvd_rply(
-        self, this_state: _StateT, cmd: Command, timeout: dt
+        self, this_state: _StateT, cmd: Command, timeout: td
     ) -> tuple[_StateT, _StateT]:
         """Wait until the state machine has received the expected reply pkt.
 
@@ -396,6 +399,9 @@ class ProtocolStateBase:
     # state attrs
     cmd: None | Command
     num_sends: int
+
+    _echo: None | Packet = None
+    _rply: None | Packet = None
 
     _next_state: None | _StateT = None
 
@@ -463,7 +469,7 @@ class ProtocolStateBase:
         """Receive a Packet without complaint (most times this is OK)."""
         pass
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> NoReturn:  # raises exception
+    def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raises exception
         """Object to sending a Command (most times this is OK)."""
         raise exceptions.ProtocolFsmError(f"{self}: Not implemented")
 
@@ -493,17 +499,12 @@ class IsPaused(ProtocolStateBase):
 class IsInIdle(ProtocolStateBase):
     """Protocol can Tx next Command, may Rx (has no current Command)."""
 
-    _cmd_: None | Command = None  # used only for debugging
-
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
-        self._cmd_ = cmd
         self._set_context_state(WantEcho, cmd=cmd, num_sends=1)
 
 
 class WantEcho(ProtocolStateBase):
     """Protocol can re-Tx this Command, wanting a Rx (has an outstanding Command)."""
-
-    _echo: None | Packet = None
 
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected echo."""
@@ -515,6 +516,7 @@ class WantEcho(ProtocolStateBase):
         #  W --- 18:198151 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
         #  W --- 34:136285 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
 
+        assert self.cmd is not None  # mypy
         if pkt._hdr != self.cmd._hdr:  # or pkt.src != self.cmd.src:
             return
 
@@ -547,8 +549,6 @@ class WantEcho(ProtocolStateBase):
 class WantRply(ProtocolStateBase):
     """Protocol can re-Tx this Command, wanting a Rx (has received echo)."""
 
-    _rply: None | Packet = None
-
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has received a Packet, possibly the expected response."""
 
@@ -561,6 +561,7 @@ class WantRply(ProtocolStateBase):
         #  I --- 01:145038 18:198151 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
         #  I --- 01:145038 34:136285 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
 
+        assert self.cmd is not None  # mypy
         if pkt._hdr != self.cmd.rx_header:  # or pkt.dst != self.cmd.src:
             return
 
