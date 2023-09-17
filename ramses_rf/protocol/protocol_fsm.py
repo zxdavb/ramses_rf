@@ -54,8 +54,8 @@ class SendPriority(IntEnum):
 DEFAULT_PRIORITY = SendPriority.DEFAULT
 
 DEFAULT_TIMEOUT = 3.0  # total waiting for successful send
-DEFAULT_ECHO_TIMEOUT = 0.50  # waiting for echo pkt after cmd sent
-DEFAULT_RPLY_TIMEOUT = 0.50  # waiting for reply pkt after echo pkt received
+DEFAULT_ECHO_TIMEOUT = 0.04  # waiting for echo pkt after cmd sent
+DEFAULT_RPLY_TIMEOUT = 0.20  # waiting for reply pkt after echo pkt received
 
 _DEFAULT_TIMEOUT = td(seconds=DEFAULT_TIMEOUT)
 _DEFAULT_ECHO_TIMEOUT = td(seconds=DEFAULT_ECHO_TIMEOUT)
@@ -410,11 +410,19 @@ class ProtocolStateBase:
         self.num_sends: None | int = num_sends
 
     def __repr__(self) -> str:
-        hdr = self.cmd.tx_header if self.cmd else None
-        if not hdr:
-            assert self.num_sends == 0, f"{self}: num_sends != 0"
-            return f"{self.__class__.__name__}(tx_header={hdr})"
-        return f"{self.__class__.__name__}(tx_header={hdr}, num_sends={self.num_sends})"
+        cls = self.__class__.__name__
+
+        if isinstance(self, (WantEcho, IsFailed)):
+            assert self.cmd is not None
+            return f"{cls}(tx_header={self.cmd.tx_header}, num_sends={self.num_sends})"
+
+        if isinstance(self, WantRply):
+            assert self.cmd is not None
+            return f"{cls}(rx_header={self.cmd.rx_header}, num_sends={self.num_sends})"
+
+        assert self.cmd is None  # Inactive | IsPaused | IsInIdle
+        assert self.num_sends == 0, f"{self}: num_sends != 0"
+        return f"{cls}()"
 
     def _set_context_state(
         self,
