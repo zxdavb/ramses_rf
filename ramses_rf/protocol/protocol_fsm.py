@@ -120,14 +120,14 @@ class ProtocolContext:
             setattr(self._state, "_prev_state", prev_state)
 
         if isinstance(self._state, (IsInIdle, IsFailed)):
-            self._process_send_queue()
+            self._ensure_queue_processor()
 
     @property
     def state(self) -> _StateT:
         return self._state
 
     def connection_made(self, transport: _TransportT) -> None:
-        self._proc_queue_task = self._loop.create_task(self._send_next_queued_cmd())
+        self._proc_queue_task = self._loop.create_task(self._process_queued_cmds())
         self.state.made_connection(transport)  # needs to be after prev. line
 
     def connection_lost(self, exc: None | Exception) -> None:
@@ -209,7 +209,7 @@ class ProtocolContext:
                 exceptions.ProtocolFsmError("Send queue full, cmd discarded")
             )
 
-        self._process_send_queue()
+        self._ensure_queue_processor()
 
         try:
             pkt: Packet = await asyncio.wait_for(fut, timeout * 5)
@@ -222,47 +222,44 @@ class ProtocolContext:
             self.set_state(IsFailed)
             raise exceptions.ProtocolSendFailed(f"{cmd._hdr}: {exc}")
 
-        self._process_send_queue()
+        self._ensure_queue_processor()
         return pkt
 
-    def _process_send_queue(self) -> None:
-        """Process the send queue (called when an appropriate event occurs).
-
-        Is called when the Context is able to send another Command (IsInIdle, IsFailed),
-        and immediately after a Command is added to the queue.
-        """
+    def _ensure_queue_processor(self) -> None:
+        """Ensure the queue processor is running (called when  items added)."""
 
         if self._mutex.acquire(timeout=0.005):
             if self._proc_queue_task.done():
                 self._proc_queue_task = self._loop.create_task(
-                    self._send_next_queued_cmd()
+                    self._process_queued_cmds()
                 )
             self._mutex.release()
 
-    async def _send_next_queued_cmd(self) -> None:
-        """Recurse through the queue until the first 'ready' Command, then send it.
-
-        Remove any 'expired' Commands.
-        """
+    async def _process_queued_cmds(self) -> None:
+        """Walk through the queue and send any valid Commands."""
 
         fut: asyncio.Future
 
-        try:
-            *_, dt_expires, params, fut = self._que.get_nowait()
-        except Empty:
-            return
+        while True:
+            try:
+                *_, dt_expires, params, fut = self._que.get_nowait()
+            except Empty:
+                return
 
-        if fut.done():  # incl. cancelled() - no need for above
-            await self._send_next_queued_cmd()
+            if fut.done():
+                pass
+            elif dt_expires <= dt.now():  # ?needed
+                fut.set_exception(_ProtocolWaitFailed("Timeout (inner) has expired"))
 
-        elif dt_expires <= dt.now():  # ?needed
-            fut.set_exception(_ProtocolWaitFailed("Timeout (inner) has expired"))
-            await self._send_next_queued_cmd()
+            else:
+                try:
+                    result = await self._send_cmd(*params)
+                except exceptions.ProtocolSendFailed as exc:
+                    fut.set_exception(exc)
+                else:
+                    fut.set_result(result)
 
-        else:
-            fut.set_result(await self._send_cmd(*params))
-
-        self._que.task_done()
+            self._que.task_done()
 
     async def _send_cmd(  # actual Tx is in here
         self,
@@ -279,9 +276,18 @@ class ProtocolContext:
         num_retries = -1
         while num_retries < max_retries:  # resend until RetryLimitExceeded
             num_retries += 1
-            self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
-            await send_fnc(cmd)  # the wrapped function
-            assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
+
+            try:
+                self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
+                await send_fnc(cmd)  # the wrapped function
+                assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
+
+            except (AssertionError, exceptions.ProtocolFsmError) as exc:  # FIXME
+                msg = f"{self}: Failed to Tx echo {cmd.tx_header}"
+                if num_retries == max_retries:
+                    raise _ProtocolWaitFailed(f"{msg}: {exc}")
+                _LOGGER.warning(f"{msg} (will retry): {exc}")
+                continue
 
             try:
                 # assert isinstance(self.state, WantEcho)  # This won't work here
