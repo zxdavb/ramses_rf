@@ -456,12 +456,21 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         }.get(serial_name)
 
         if not product:  # is None
-            pass
-        elif "evofw3" in product:
-            return True  # _LOGGER.debug("The gateway is evofw-compatible")
+            pass  # try sending an "!V", expect "# evofw3 0.7.1"
+        elif "evofw3" in product or "FT232R" in product:
+            _LOGGER.debug("The gateway is evofw-compatible")
+            return True  #
         elif "TUSB3410" in product:
-            return False  # _LOGGER.debug("The gateway is HGI80-compatible")
-        return None  # _LOGGER.warning("The gateway type is not determinable")
+            _LOGGER.debug("The gateway is HGI80-compatible")
+            return False  #
+
+        vid: int = {
+            x.device: getattr(x, "vid", None) for x in comports()
+        }.get(serial_name)
+        if vid:
+            return vid != 0x10AC,  # aka Honeywell, Inc.
+        _LOGGER.warning("The gateway type is not determinable")
+        return None  #
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
