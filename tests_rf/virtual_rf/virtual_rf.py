@@ -34,33 +34,33 @@ DEVICE_ID = "device_id"
 DEVICE_ID_BYTES = "device_id_bytes"
 FW_VERSION = "fw_version"
 
-MAX_NUM_PORTS = 32
+MAX_NUM_PORTS = 8
 
 
 # Below values are from real devices (with some exceptions)
 
 COMPORTS_ATMEGA32U4 = {  # 8/16 MHz atmega32u4 (HW Uart)
-    'manufacturer': 'SparkFun',
-    'product': 'evofw3 atmega32u4',
-    'vid': 0x1B4F,  # aka SparkFun Electronics
-    'pid': 0x9206,
-    'description': 'evofw3 atmega32u4',
-    'serial_number': None,
-    'interface': None,
-    'device': '/dev/ttyACM0',  # is not a fixed value
-    'name': 'ttyACM0',  # not fixed
+    "manufacturer": "SparkFun",
+    "product": "evofw3 atmega32u4",
+    "vid": 0x1B4F,  # aka SparkFun Electronics
+    "pid": 0x9206,
+    "description": "evofw3 atmega32u4",
+    "serial_number": None,
+    "interface": None,
+    "device": "/dev/ttyACM0",  # is not a fixed value
+    "name": "ttyACM0",  # not fixed
 }
 
 COMPORTS_ATMEGA328P = {  # 16MHZ atmega328 (SW Uart)
-    'manufacturer': 'FTDI',
-    'product': 'FT232R USB UART',
-    'vid': 0x0403,  # aka Future Technology Devices International Ltd.
-    'pid': 0x6001,
-    'description': 'FT232R USB UART - FT232R USB UART',
-    'serial_number': 'A50285BI',
-    'interface': 'FT232R USB UART',
-    'device': '/dev/ttyUSB0',  # is not a fixed value
-    'name': 'ttyUSB0',  # not fixed
+    "manufacturer": "FTDI",
+    "product": "FT232R USB UART",
+    "vid": 0x0403,  # aka Future Technology Devices International Ltd.
+    "pid": 0x6001,
+    "description": "FT232R USB UART - FT232R USB UART",
+    "serial_number": "A50285BI",
+    "interface": "FT232R USB UART",
+    "device": "/dev/ttyUSB0",  # is not a fixed value
+    "name": "ttyUSB0",  # not fixed
 }
 
 COMPORTS_TI4310 = {  # partially contrived
@@ -68,11 +68,11 @@ COMPORTS_TI4310 = {  # partially contrived
     "product": "TUSB3410 Boot Device",
     "vid": 0x10AC,  # aka Honeywell, Inc.
     "pid": 0x0102,
-    'description': 'TUSB3410 Boot Device',  # contrived
+    "description": "TUSB3410 Boot Device",  # contrived
     "serial_number": "TUSB3410",
     "interface": None,  # assumed
-    'device': '/dev/ttyUSB0',  # is not a fixed value
-    'name': 'ttyUSB0',  # not fixed
+    "device": "/dev/ttyUSB0",  # is not a fixed value
+    "name": "ttyUSB0",  # not fixed
 }
 
 
@@ -118,7 +118,7 @@ class VirtualComPortInfo:
             self.manufacturer = "SparkFun"
             self.product = "evofw3 atmega32u4"
 
-            self.vid = 0x1B4F,  # aka SparkFun Electronics
+            self.vid = 0x1B4F  # aka SparkFun Electronics
             self.pid = 0x9206
 
             self.description = "evofw3 atmega32u4"

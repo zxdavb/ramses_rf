@@ -473,7 +473,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
                 return
 
         self._init_fut.set_exception(
-            TransportSerialError("Initializion failure: Unable to get signature echo")
+            TransportSerialError("Never received an echo signature")
         )
 
     @staticmethod
@@ -645,20 +645,16 @@ async def transport_factory(
         try:
             ser_obj = serial_for_url(ser_name, **ser_config)
         except SerialException as exc:
-            _LOGGER.exception(
+            _LOGGER.error(
                 "Failed to open %s (config: %s): %s", ser_name, ser_config, exc
             )
-            raise
+            raise TransportSerialError(f"Unable to open the serial port: {ser_name}")
 
         # FTDI on Posix/Linux would be a common environment for this library...
         try:
             ser_obj.set_low_latency_mode(True)
-        except (
-            AttributeError,
-            NotImplementedError,
-            ValueError,
-        ):  # Wrong OS/Platform/not FTDI
-            pass
+        except (AttributeError, NotImplementedError, ValueError):
+            pass  # Wrong OS/Platform/not FTDI
 
         return ser_obj
 
@@ -679,10 +675,11 @@ async def transport_factory(
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(protocol, pkt_source, **kwargs)
 
-    assert port_name is not None  # mypy: instead of: _type: ignore[arg-type]
-    assert port_config is not None  # mypy: instead of: _type: ignore[arg-type]
+    assert port_name is not None  # mypy
+    assert port_config is not None  # mypy
 
-    ser_instance = get_serial_instance(port_name, port_config)  # ?SerialException
+    # may: raise TransportSerialError("Unable to open serial port...")
+    ser_instance = get_serial_instance(port_name, port_config)
 
     # TODO: test these...
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
@@ -696,9 +693,11 @@ async def transport_factory(
 
     try:  # HACK: wait to get first echo from evofw3/HGI80 (tidy up later)
         await asyncio.wait_for(transport._init_fut, timeout=3)
-        _ = transport._init_fut.result()
     except asyncio.TimeoutError:
-        raise TransportSerialError("Unable to initialze Protocol/Transport pair")
+        raise TransportSerialError("Unable to create a Protocol/Transport pair")
+
+    # may: raise TransportSerialError("Unable to get signature echo")
+    _ = transport._init_fut.result()
 
     return transport
 

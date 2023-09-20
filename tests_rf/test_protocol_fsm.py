@@ -31,9 +31,9 @@ from ramses_rf.protocol.protocol_fsm import (
     Inactive,
     IsFailed,
     IsInIdle,
-    _ProtocolStateT,
     WantEcho,
     WantRply,
+    _ProtocolStateT,
 )
 from ramses_rf.protocol.transport import transport_factory
 
