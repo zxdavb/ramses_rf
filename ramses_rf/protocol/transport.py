@@ -5,8 +5,7 @@
 
 Operates at the pkt layer of: app - msg - pkt - h/w
 
-For ser2net, use the following YAML file with: ser2net -c hgi80.yaml
-
+For ser2net, use the following YAML with: ser2net -c hgi80.yaml
   connection: &con00
   accepter: telnet(rfc2217),tcp,5001
   timeout: 0
@@ -18,12 +17,23 @@ For socat, see:
   socat -dd pty,raw,echo=0 pty,raw,echo=0
   python client.py monitor /dev/pts/0
   cat packet.log | cut -d ' ' -f 2- | unix2dos > /dev/pts/1
+
+For re-flashing evofw3 via Arduino IDE on *my* atmega328p (YMMV):
+ - Board:      atmega328p (SW UART)
+ - Bootloader: Old Bootloader
+ - Processor:  atmega328p (5V, 16 MHz)
+ - Host:       57600 (or 115200, YMMV)
+ - Pinout:     Nano
+
+For re-flashing evofw3 via Arduino IDE on *my* atmega32u4 (YMMV):
+ - Board:      atmega32u4 (HW UART)
+ - Processor:  atmega32u4 (5V, 16 MHz)
+ - Pinout:     Pro Micro
 """
 
 # TODO:
 # - chase down gwy.config.disable_discovery
 # - chase down / check deprecation
-# - check: READER/POLLER & WRITER tasks
 
 
 from __future__ import annotations
@@ -418,7 +428,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
         self._extra: dict = {} if extra is None else extra
-        self._extra[SZ_IS_EVOFW3] = self.is_evofw3(self.serial.name)
+        self._extra[SZ_IS_EVOFW3] = self._is_evofw3(self.serial.name)
 
         self._init_fut = asyncio.Future()
 
@@ -446,31 +456,33 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         )
 
     @staticmethod
-    def is_evofw3(serial_name: str) -> None | bool:
+    def _is_evofw3(serial_name: str) -> None | bool:
         """Return True/False if the serial device is/isn't an evofw3.
 
         Return None if it is not possible to tell.
         """
-        product: None | str = {
-            x.device: getattr(x, "product", None) for x in comports()
-        }.get(serial_name)
+        # product: None | str = {
+        #     x.device: getattr(x, "product", None) for x in comports()
+        # }.get(serial_name)
 
-        if not product:  # is None
-            pass  # try sending an "!V", expect "# evofw3 0.7.1"
-        elif "evofw3" in product or "FT232R" in product:
-            _LOGGER.debug("The gateway is evofw-compatible")
-            return True  #
-        elif "TUSB3410" in product:
-            _LOGGER.debug("The gateway is HGI80-compatible")
-            return False  #
+        # if not product:  # is None
+        #     pass  # try sending an "!V", expect "# evofw3 0.7.1"
+        # elif "evofw3" in product or "FT232R" in product:
+        #     return True  # _LOGGER.warning("The gateway is evofw-compatible")
+        # elif "TUSB3410" in product:
+        #     return False  # _LOGGER.warning("The gateway is HGI80-compatible")
+        # _LOGGER.warning("The gateway is not determinable")
+        # return True
 
-        vid: int = {
-            x.device: getattr(x, "vid", None) for x in comports()
-        }.get(serial_name)
-        if vid:
-            return vid != 0x10AC,  # aka Honeywell, Inc.
-        _LOGGER.warning("The gateway type is not determinable")
-        return None  #
+        vid: int = {x.device: x.vid for x in comports()}.get(serial_name)
+        if not vid:  # needed?
+            _LOGGER.warning("The gateway is not determinable (missing VID)")
+            return None
+        if vid == 0x10AC:  # aka Honeywell, Inc.
+            _LOGGER.warning("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
+            return False
+        _LOGGER.warning("The gateway is evofw-compatible (by VID)")  # TODO: .info()
+        return True
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
@@ -651,10 +663,10 @@ async def transport_factory(
 
     ser_instance = get_serial_instance(port_name, port_config)  # ?SerialException
 
-    # TODO: ensure poller for Windows NT
+    # TODO: test these...
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()
-        return PortTransport(protocol, ser_instance, **kwargs)
+        # return PortTransport(protocol, ser_instance, **kwargs)
 
     if kwargs.get(SZ_DISABLE_SENDING):  # no need for QoS
         transport = PortTransport(protocol, ser_instance, **kwargs)
