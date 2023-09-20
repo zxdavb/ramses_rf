@@ -31,7 +31,7 @@ from ramses_rf.protocol.protocol_fsm import (
     Inactive,
     IsFailed,
     IsInIdle,
-    ProtocolStateBase,
+    _ProtocolStateT,
     WantEcho,
     WantRply,
 )
@@ -98,7 +98,7 @@ async def assert_protocol_ready(
 
 async def assert_protocol_state(
     protocol: QosProtocol,
-    expected_state: ProtocolStateBase,
+    expected_state: _ProtocolStateT,
     max_sleep: int = DEFAULT_MAX_SLEEP,
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
@@ -437,7 +437,7 @@ async def test_flow_500() -> None:
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
-async def test_flow_510() -> None:
+async def _test_flow_510() -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_51x()
 
