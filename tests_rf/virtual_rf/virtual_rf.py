@@ -37,46 +37,94 @@ FW_VERSION = "fw_version"
 MAX_NUM_PORTS = 32
 
 
-class HgiFwTypes(StrEnum):  # TODO: when Python >= 3.11.x, use: HgiFwTypes(enum.StrEnum)
-    EVOFW3 = "ghoti57/evofw3 atmega32u4 v0.7.1"  # SparkFun atmega32u4
-    NATIVE = "Texas Instruments TUSB3410"  # Honeywell HGI80
+# Below values are from real devices (with some exceptions)
+
+COMPORTS_ATMEGA32U4 = {  # 8/16 MHz atmega32u4 (HW Uart)
+    'manufacturer': 'SparkFun',
+    'product': 'evofw3 atmega32u4',
+    'vid': 0x1B4F,  # aka SparkFun Electronics
+    'pid': 0x9206,
+    'description': 'evofw3 atmega32u4',
+    'serial_number': None,
+    'interface': None,
+    'device': '/dev/ttyACM0',  # is not a fixed value
+    'name': 'ttyACM0',  # not fixed
+}
+
+COMPORTS_ATMEGA328P = {  # 16MHZ atmega328 (SW Uart)
+    'manufacturer': 'FTDI',
+    'product': 'FT232R USB UART',
+    'vid': 0x0403,  # aka Future Technology Devices International Ltd.
+    'pid': 0x6001,
+    'description': 'FT232R USB UART - FT232R USB UART',
+    'serial_number': 'A50285BI',
+    'interface': 'FT232R USB UART',
+    'device': '/dev/ttyUSB0',  # is not a fixed value
+    'name': 'ttyUSB0',  # not fixed
+}
+
+COMPORTS_TI4310 = {  # partially contrived
+    "manufacturer": "Texas Instruments",
+    "product": "TUSB3410 Boot Device",
+    "vid": 0x10AC,  # aka Honeywell, Inc.
+    "pid": 0x0102,
+    'description': 'TUSB3410 Boot Device',  # contrived
+    "serial_number": "TUSB3410",
+    "interface": None,  # assumed
+    'device': '/dev/ttyUSB0',  # is not a fixed value
+    'name': 'ttyUSB0',  # not fixed
+}
+
+
+class HgiFwTypes(StrEnum):
+    EVOFW3 = "ghoti57/evofw3 atmega32u4 v0.7.x"  # SparkFun atmega32u4 (Arduino)
+    HGI_80 = "Texas Instruments TUSB3410"  # #     Honeywell HGI80 (TI 3410)
 
 
 class VirtualComPortInfo:
     """A container for emulating pyserial's PortInfo (SysFS) objects."""
 
-    def __init__(self, port_name: _PN, dev_type: None | HgiFwTypes = None) -> None:
+    manufacturer: str
+    product: str
+    vid: int
+    pid: int
+    description: str
+    interface: None | str
+    serial_number: None | str
+    subsystem: str
+
+    def __init__(self, port_name: _PN, dev_type: HgiFwTypes) -> None:
         """Supplies a useful subset of PortInfo attrs according to gateway type."""
 
         self.device = port_name  # # e.g. /dev/pts/2 (a la /dev/ttyUSB0)
         self.name = port_name[5:]  # e.g.      pts/2 (a la      ttyUSB0)
 
-        self.description: None | str = None
-        self.product: None | str = None
-        self.serial_number: None | str = None
-        self.manufacturer: None | str = None
-        self.subsystem: None | str = None
-
-        if dev_type is not None:
-            self._set_attrs(dev_type)
+        self._set_attrs(dev_type)
 
     def _set_attrs(self, dev_type: HgiFwTypes) -> None:
-        if dev_type == HgiFwTypes.EVOFW3:
-            self.description = "evofw3 atmega32u4"
-            self.product = "evofw3 atmega32u4"
-            self.serial_number = None
-            self.manufacturer = "SparkFun"
-            self.subsystem = "usb-serial"
-
-        elif dev_type == HgiFwTypes.NATIVE:
-            self.description = "TUSB3410 Boot Device"
-            self.product = "TUSB3410 Boot Device"
-            self.serial_number = "TUSB3410"
+        if dev_type == HgiFwTypes.HGI_80:
             self.manufacturer = "Texas Instruments"
+            self.product = "TUSB3410 Boot Device"
+
+            self.vid = 0x10AC  # aka Honeywell, Inc.
+            self.pid = 0x0102  # aka HGI80
+
+            self.description = "TUSB3410 Boot Device"
+            self.interface = None
+            self.serial_number = "TUSB3410"
             self.subsystem = "usb"
 
-        else:
-            raise ValueError(f"Unknown type of gateway {dev_type}")
+        else:  # if dev_type == HgiFwTypes.EVOFW3:
+            self.manufacturer = "SparkFun"
+            self.product = "evofw3 atmega32u4"
+
+            self.vid = 0x1B4F,  # aka SparkFun Electronics
+            self.pid = 0x9206
+
+            self.description = "evofw3 atmega32u4"
+            self.interface = None
+            self.serial_number = None
+            self.subsystem = "usb-serial"
 
 
 class VirtualRfBase:
@@ -134,9 +182,7 @@ class VirtualRfBase:
     ) -> VirtualComPortInfo:
         """Add comport info to the list (wont fail if the entry already exists)"""
         self._port_info_list.pop(port_name, None)
-        self._port_info_list[port_name] = VirtualComPortInfo(
-            port_name, dev_type=dev_type
-        )
+        self._port_info_list[port_name] = VirtualComPortInfo(port_name, dev_type)
         return self._port_info_list[port_name]
 
     @property

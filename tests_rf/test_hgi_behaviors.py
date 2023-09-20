@@ -216,7 +216,7 @@ async def test_mocked_ti4310(test_idx):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(1)
-    rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.NATIVE)
+    rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.HGI_80)
 
     with patch("ramses_rf.protocol.transport.comports", rf.comports):
         try:
