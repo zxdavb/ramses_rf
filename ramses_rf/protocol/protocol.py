@@ -589,6 +589,10 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
 class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
 
+    def __repr__(self) -> str:
+        cls = self._context.state.__class__.__name__
+        return f"QosProtocol({cls}, len(queue)={self._context._que.unfinished_tasks})"
+
     async def send_cmd(
         self,
         cmd: Command,

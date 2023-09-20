@@ -78,6 +78,20 @@ from .schemas import (
     SZ_USE_REGEX,
 )
 
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
+
 if TYPE_CHECKING:
     from . import QosProtocol
 else:
@@ -87,7 +101,7 @@ _ProtocolT = type[QosProtocol]
 
 
 _SIGNATURE_MAX_TRYS = 24
-_SIGNATURE_GAP_SECS = 0.02
+_SIGNATURE_GAP_SECS = 0.05
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -434,7 +448,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
         self._extra: dict = {} if extra is None else extra
-        self._extra[SZ_IS_EVOFW3] = not self._is_hgi80(self.serial.name)
+        self._is_hgi80 = self.is_hgi80(self.serial.name)
 
         self._init_fut = asyncio.Future()
 
@@ -454,6 +468,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
             self._send_frame(str(sig))
             await asyncio.sleep(_SIGNATURE_GAP_SECS)
             if self._init_fut.done():
+                # self._send_frame("!V")  # TODO: doesn't work, why?
                 self._protocol.connection_made(self, ramses=True)  # usu. call soon
                 return
 
@@ -462,7 +477,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         )
 
     @staticmethod
-    def _is_hgi80(serial_port: str) -> None | bool:
+    def is_hgi80(serial_port: str) -> None | bool:
         """Return True/False if the device attached to the port is/isn't an HGI80.
 
         Return None if it's not possible to tell.
@@ -496,9 +511,9 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         return dt_now()
 
     def get_extra_info(self, name, default=None):
-        if name in self._extra:
-            return self._extra.get(name, default)
-        return super().get_extra_info(name, default)
+        if name == SZ_IS_EVOFW3:
+            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
+        return self._extra.get(name, default)
 
     def _read_ready(self) -> None:
         # data to self._bytes_received() instead of self._protocol.data_received()
@@ -542,9 +557,8 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
             return
 
         if (
-            self._init_fut
-            and not self._init_fut.done()
-            and pkt.code == "7FFF"
+            not self._init_fut.done()
+            and pkt.code == Code._PUZZ
             and pkt.payload == self._extra[SZ_SIGNATURE]
         ):
             self._init_fut.set_result(pkt)
@@ -559,9 +573,9 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
     def write(self, data: bytes) -> None:  # SENT
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-            _LOGGER.info("SENT: %s", b"    " + data)
+            _LOGGER.info("SENT:     %s", data)
         elif _DEBUG_FORCE_LOG_FRAMES:
-            _LOGGER.warning("SENT: %s", b"    " + data)
+            _LOGGER.warning("SENT:     %s", data)
         super().write(data)
 
     def close(self, exc: None | Exception = None) -> None:
