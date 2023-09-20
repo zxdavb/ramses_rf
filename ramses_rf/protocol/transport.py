@@ -46,7 +46,7 @@ import re
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
-from typing import Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable
 
 import serial_asyncio
 from serial import Serial, SerialException, serial_for_url  # type: ignore[import]
@@ -78,10 +78,16 @@ from .schemas import (
     SZ_USE_REGEX,
 )
 
-SIGNATURE_MAX_TRYS = 50
-SIGNATURE_GAP_SECS = 0.02
+if TYPE_CHECKING:
+    from . import QosProtocol
+else:
+    QosProtocol = asyncio.Protocol
 
-DONT_CREATE_MESSAGES = 3  # duplicate
+_ProtocolT = type[QosProtocol]
+
+
+_SIGNATURE_MAX_TRYS = 24
+_SIGNATURE_GAP_SECS = 0.02
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -428,7 +434,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
         self._extra: dict = {} if extra is None else extra
-        self._extra[SZ_IS_EVOFW3] = self._is_evofw3(self.serial.name)
+        self._extra[SZ_IS_EVOFW3] = not self._is_hgi80(self.serial.name)
 
         self._init_fut = asyncio.Future()
 
@@ -443,10 +449,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         # initialisation times, so must wait they are ready to send
 
         num_sends = 0
-        while num_sends < SIGNATURE_MAX_TRYS:
+        while num_sends < _SIGNATURE_MAX_TRYS:
             num_sends += 1
             self._send_frame(str(sig))
-            await asyncio.sleep(SIGNATURE_GAP_SECS)
+            await asyncio.sleep(_SIGNATURE_GAP_SECS)
             if self._init_fut.done():
                 self._protocol.connection_made(self, ramses=True)  # usu. call soon
                 return
@@ -456,33 +462,34 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         )
 
     @staticmethod
-    def _is_evofw3(serial_name: str) -> None | bool:
-        """Return True/False if the serial device is/isn't an evofw3.
+    def _is_hgi80(serial_port: str) -> None | bool:
+        """Return True/False if the device attached to the port is/isn't an HGI80.
 
-        Return None if it is not possible to tell.
+        Return None if it's not possible to tell.
         """
+        vid: int = {x.device: x.vid for x in comports()}.get(serial_port)
+
+        if vid and vid == 0x10AC:  # aka Honeywell, Inc.
+            _LOGGER.warning("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
+            return True
+
         # product: None | str = {
         #     x.device: getattr(x, "product", None) for x in comports()
-        # }.get(serial_name)
+        # }.get(serial_port)
 
-        # if not product:  # is None
-        #     pass  # try sending an "!V", expect "# evofw3 0.7.1"
+        # if not product:  # is None - not member of plugdev group?
+        #     pass
+        # elif "TUSB3410" in product:  # ?needed
+        #     _LOGGER.info("The gateway is HGI80-compatible")
+        #     return True
         # elif "evofw3" in product or "FT232R" in product:
-        #     return True  # _LOGGER.warning("The gateway is evofw-compatible")
-        # elif "TUSB3410" in product:
-        #     return False  # _LOGGER.warning("The gateway is HGI80-compatible")
-        # _LOGGER.warning("The gateway is not determinable")
-        # return True
+        #     _LOGGER.info("The gateway is evofw-compatible")
+        #     return False
 
-        vid: int = {x.device: x.vid for x in comports()}.get(serial_name)
-        if not vid:  # needed?
-            _LOGGER.warning("The gateway is not determinable (missing VID)")
-            return None
-        if vid == 0x10AC:  # aka Honeywell, Inc.
-            _LOGGER.warning("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
-            return False
-        _LOGGER.warning("The gateway is evofw-compatible (by VID)")  # TODO: .info()
-        return True
+        _LOGGER.warning(
+            "The gateway type is not determinable (no rights to enumerate USB attrs?)"
+        )
+        return None  # try sending an "!V", expect "# evofw3 0.7.1"
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
@@ -682,6 +689,5 @@ async def transport_factory(
     return transport
 
 
-_ProtocolT = asyncio.Protocol
 RamsesTransportT = FileTransport | PortTransport | QosTransport
 SerPortName = str
