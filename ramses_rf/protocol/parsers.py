@@ -975,7 +975,7 @@ def parser_10e0(payload: str, msg: Message) -> dict:
         # "list_ver_id": payload[12:14],  # if FF/01 is CH/DHW, then 01/FF
         # # "additional_ver_a": payload[16:18],
         # # "additional_ver_b": payload[18:20],
-        "_signature": payload[2:20],
+        # "_signature": payload[2:20],
         "description": bytearray.fromhex(description).decode(),
     }
     if msg.verb == RP and unknown:  # TODO: why only OTBs do this?
