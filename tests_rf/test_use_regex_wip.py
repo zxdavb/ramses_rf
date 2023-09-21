@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: get tests working with QoS enabled
+# TODO: use better quiesce function (for protocol ready)
+
 """RAMSES RF - Test the use_regex feature."""
 
 import asyncio
@@ -15,13 +19,15 @@ from ramses_rf.protocol import QosProtocol
 from ramses_rf.protocol.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_rf.protocol.transport import _str
 from tests_rf.test_virt_network import assert_device
-from tests_rf.virtual_rf import VirtualRf, stifle_impersonation_alert
+from tests_rf.virtual_rf import VirtualRf
 
-DEFAULT_TIMEOUT = 0.05  # # patch ramses_rf.protocol.protocol_fsm
-DISABLE_QOS = True  # #          patch ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #  patch ramses_rf.protocol.protocol
+# patched constants
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
+DEFAULT_TIMEOUT = 0.005  # #                  ramses_rf.protocol.protocol_fsm
+DISABLE_QOS = True  # #                       ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.protocol
 
-
+# other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.1
 
@@ -85,12 +91,14 @@ async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_S
     assert gwy._this_msg and gwy._this_msg._pkt._frame == expected._frame
 
 
+# TODO: use better quiesce function
 @pytest.mark.xdist_group(name="virtual_rf")
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch(  # stifle_impersonation_alert
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
+@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 async def test_regex_inbound_():
     """Check the regex filters work as expected."""
 
@@ -119,13 +127,16 @@ async def test_regex_inbound_():
         await rf.stop()
 
 
+# TODO: get tests working with QoS enabled
+# TODO: use better quiesce function
 @pytest.mark.xdist_group(name="virtual_rf")
 @patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", DISABLE_QOS)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch(  # stifle_impersonation_alert
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
+@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 async def test_regex_outbound():
     """Check the regex filters work as expected."""
 
@@ -157,12 +168,13 @@ async def test_regex_outbound():
         await rf.stop()
 
 
+# TODO: use better quiesce function
 @pytest.mark.xdist_group(name="virtual_rf")
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch(  # stifle_impersonation_alert
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
+@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
+@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 async def test_regex_with_qos():
     """Check the regex filters work as expected."""
