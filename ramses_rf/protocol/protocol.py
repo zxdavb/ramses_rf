@@ -57,8 +57,8 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags should be False for end-users
-_DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
-_DEBUG_DISABLE_IMPERSIONATION_ALERTS = False  # used for pytest scripts
+_DEBUG_DISABLE_QOS = False  # #               used for pytest scripts
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # used for pytest scripts
 
 
 _global_sync_cycles: deque = (
@@ -482,7 +482,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
 
-        if _DEBUG_DISABLE_IMPERSIONATION_ALERTS:
+        if _DEBUG_DISABLE_IMPERSONATION_ALERTS:
             return
 
         msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
