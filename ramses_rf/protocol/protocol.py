@@ -57,7 +57,8 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags should be False for end-users
-_DEBUG_DISABLE_QOS = False  # used for pytest scripts
+_DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
+_DEBUG_DISABLE_IMPERSIONATION_ALERTS = False  # used for pytest scripts
 
 
 _global_sync_cycles: deque = (
@@ -352,7 +353,7 @@ class _BaseProtocol(asyncio.Protocol):
         if self._pause_writing:
             raise ProtocolSendFailed("The Protocol is currently read-only")
 
-        return await self._send_cmd(cmd)  # type: ignore[func-returns-value]
+        return await self._send_cmd(cmd, **kwargs)  # type: ignore[func-returns-value]
 
     async def _send_cmd(self, cmd: Command) -> None:  # only cmd, no args, kwargs
         """Called when a Command is to be sent to the Transport.
@@ -480,6 +481,9 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
+
+        if _DEBUG_DISABLE_IMPERSIONATION_ALERTS:
+            return
 
         msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
         if self._is_evofw3 is False:
