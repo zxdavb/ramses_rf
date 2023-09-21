@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: 300 fails with _QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers...
+
 """Test the binding protocol with a virtual RF
 
     NB: This test will likely fail with pytest -n x, because of the protocol's throttle
@@ -40,12 +43,13 @@ from ramses_rf.protocol.transport import transport_factory
 from .virtual_rf import VirtualRf
 
 # patched constants
-_DEFAULT_RPLY_TIMEOUT = td(seconds=0.001)  # patch ramses_rf.protocol.protocol_fsm
-DEFAULT_MAX_RETRIES = 0  # #                 patch ramses_rf.protocol.protocol
-DEFAULT_TIMEOUT = 0.05  # #                  patch ramses_rf.protocol.protocol_fsm
-MAINTAIN_STATE_CHAIN = True  # #             patch ramses_rf.protocol.protocol_fsm
-MAX_DUTY_CYCLE = 1.0  # #                    patch ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #              patch ramses_rf.protocol.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
+_DEFAULT_RPLY_TIMEOUT = td(seconds=0.001)  # #  ramses_rf.protocol.protocol_fsm
+DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
+DEFAULT_TIMEOUT = 0.05  # #                     ramses_rf.protocol.protocol_fsm
+MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
+MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
 
 # other constants
 CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
@@ -78,6 +82,7 @@ RQ_PKT_1 = Packet(dt.now(), f"... {RQ_CMD_STR_1}")
 RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 
 
+# TODO: fails with _QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers...
 class _QosProtocol(_ProtImpersonate, _ProtQosTimers, _BaseProtocol):
     """Test only QoS, not Duty cycle limits (& gaps) and Impersonation alerts."""
 
@@ -288,6 +293,10 @@ async def _test_flow_10x(
 
 
 @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+# @patch(
+#     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+#     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+# )
 @patch(  # maintain state chain (for debugging)
     "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
 )
@@ -333,9 +342,12 @@ async def _test_flow_30x(
     assert await task == RP_PKT_1
 
 
-@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
+@patch(
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+)
 @patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
+@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
@@ -350,7 +362,10 @@ async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
         assert pkt == cmd
 
 
-@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+@patch(
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+)
 @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
 @protocol_decorator
@@ -397,7 +412,10 @@ async def _test_flow_51x(rf: VirtualRf, protocol: QosProtocol) -> None:
     # #     assert False
 
 
-@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+@patch(
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+)
 @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
