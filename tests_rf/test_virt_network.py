@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: Add assert_protocol_ready to VirtualRF factory (or in library?)
+
 """Test the Virtual RF library.
 
     VirtualRF is used for testing.
@@ -14,13 +17,13 @@ import serial
 
 from ramses_rf import Code, Command, Device, Gateway
 from ramses_rf.protocol import QosProtocol
-from tests_rf.virtual_rf import (
-    DEFAULT_GWY_CONFIG,
-    MIN_GAP_BETWEEN_WRITES,
-    VirtualRf,
-    stifle_impersonation_alert,
-)
+from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf
 
+# patched constants
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.protocol
+
+# other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 1
 
@@ -35,6 +38,7 @@ SCHEMA_1 = {
 }
 
 
+# TODO: Add assert_protocol_ready to VirtualRF factory (or in library?)
 async def assert_protocol_ready(
     protocol: QosProtocol, max_sleep: int = DEFAULT_MAX_SLEEP
 ) -> None:
@@ -96,8 +100,8 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
 @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_virtual_rf_dev_disc():
@@ -156,8 +160,8 @@ async def test_virtual_rf_dev_disc():
 
 @pytest.mark.xdist_group(name="serial")
 @patch(
-    "ramses_rf.protocol.protocol._ProtImpersonate._send_impersonation_alert",
-    stifle_impersonation_alert,
+    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
 @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_virtual_rf_pkt_flow():
