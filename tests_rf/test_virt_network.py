@@ -99,7 +99,7 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch(
+@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
@@ -159,7 +159,7 @@ async def test_virtual_rf_dev_disc():
 
 
 @pytest.mark.xdist_group(name="serial")
-@patch(
+@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
 )
