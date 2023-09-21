@@ -796,7 +796,7 @@ class Gateway(Engine):
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
         callback = kwargs.pop("callback", None)
-        assert kwargs == {}
+        assert kwargs == {}, kwargs
 
         pkt = await super().async_send_cmd(
             cmd,
