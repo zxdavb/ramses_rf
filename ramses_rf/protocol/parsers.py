@@ -965,16 +965,17 @@ def parser_10e0(payload: str, msg: Message) -> dict:
     assert msg.verb == RP or not unknown, f"{unknown}"
 
     result = {
-        "date_2": hex_to_date(payload[20:28]) or "0000-00-00",  # firmware?
-        "date_1": hex_to_date(payload[28:36]) or "0000-00-00",  # hardware?
-        # "manufacturer_group": payload[2:6],  # 0001/0002
+        SZ_OEM_CODE: payload[14:16],  # 00/FF is CH/DHW, 01/6x is HVAC
+        # "_manufacturer_group": payload[2:6],  # 0001-HVAC, 0002-CH/DHW
         "manufacturer_sub_id": payload[6:8],
         "product_id": payload[8:10],  # if CH/DHW: matches device_type (sometimes)
+        "date_1": hex_to_date(payload[28:36]) or "0000-00-00",  # hardware?
+        "date_2": hex_to_date(payload[20:28]) or "0000-00-00",  # firmware?
         # "software_ver_id": payload[10:12],
         # "list_ver_id": payload[12:14],  # if FF/01 is CH/DHW, then 01/FF
-        SZ_OEM_CODE: payload[14:16],  # 00/FF is CH/DHW, 01/6x is HVAC
         # # "additional_ver_a": payload[16:18],
         # # "additional_ver_b": payload[18:20],
+        "_signature": payload[2:20],
         "description": bytearray.fromhex(description).decode(),
     }
     if msg.verb == RP and unknown:  # TODO: why only OTBs do this?
