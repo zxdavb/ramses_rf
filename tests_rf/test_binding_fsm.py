@@ -226,13 +226,15 @@ def rf_network_with_two_gateways(fnc):
 
         return gwy_id
 
-    @patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS", _DEBUG_DISABLE_IMPERSONATION_ALERTS)
+    @patch(
+        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+    )
     @patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
     @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
     @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
     @functools.wraps(fnc)
     async def test_wrapper(config_0: dict, config_1: dict, *args, **kwargs):
-
         rf = VirtualRf(2, start=True)
 
         _gwys = []  # HACK:  we need a way to extract gwy object from rf
