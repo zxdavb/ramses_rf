@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: replace with a factory in VirtualRF
+# TODO: test addenda phase of binding handshake
+# TODO: get test working with disabled QoS
+
 """Test the binding protocol with a virtual RF
 
     NB: This test will likely fail with pytest-repeat (pytest -n x); maybe because of
@@ -14,7 +19,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ramses_rf import Code, Command, Device, Gateway, Message, Packet
+from ramses_rf import Code, Device, Gateway, Message, Packet
 from ramses_rf.binding_fsm import (
     SZ_RESPONDENT,
     SZ_SUPPLICANT,
@@ -23,26 +28,20 @@ from ramses_rf.binding_fsm import (
     _BindStates,
 )
 from ramses_rf.device import Fakeable
-from ramses_rf.protocol.protocol import (
-    QosProtocol,
-    _BaseProtocol,
-    _ProtImpersonate,
-    _ProtQosTimers,
-)
+from ramses_rf.protocol.protocol import QosProtocol
 
 from .virtual_rf import VirtualRf
 
 # patched constants
-_ACCEPT_WAIT_TIME = 0.95  # #      patch ramses_rf.protocol.protocol
-_DEBUG_DISABLE_QOS = False  # #    patch ramses_rf.protocol.protocol
-_TENDER_WAIT_TIME = 3.95  # #      patch ramses_rf.binding_fsm
-DEFAULT_MAX_RETRIES = 0  # #       patch ramses_rf.protocol.protocol
-DEFAULT_TIMEOUT = 0.05  # #        patch ramses_rf.protocol.protocol_fsm
-MAINTAIN_STATE_CHAIN = False  # #  patch ramses_rf.protocol.protocol_fsm
-MAX_DUTY_CYCLE = 1.0  # #          patch ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #    patch ramses_rf.protocol.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
+_DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
+DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
+DEFAULT_TIMEOUT = 0.005  # #                    ramses_rf.protocol.protocol_fsm
+MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
+MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
 
-
+# other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.1
 
@@ -179,14 +178,6 @@ def pytest_generate_tests(metafunc):
 # ######################################################################################
 
 
-class _QosProtocol(_ProtImpersonate, _ProtQosTimers, _BaseProtocol):
-    """Test only QoS, not Duty cycle limits (& gaps) and Impersonation alerts."""
-
-    async def _send_impersonation_alert(self, cmd: Command) -> None:
-        """Don't send impersonation alert (puzzle) packets to the packet log."""
-        pass
-
-
 async def assert_protocol_ready(
     protocol: QosProtocol, max_sleep: int = DEFAULT_MAX_SLEEP
 ) -> None:
@@ -207,6 +198,7 @@ async def assert_context_state(
     assert isinstance(device._context.state, state)
 
 
+# TODO: replace with a factory in VirtualRF
 def rf_network_with_two_gateways(fnc):
     """Decorator to create a virtual RF network with two separate gateways.
 
@@ -234,10 +226,13 @@ def rf_network_with_two_gateways(fnc):
 
         return gwy_id
 
-    @patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
+    @patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS", _DEBUG_DISABLE_IMPERSONATION_ALERTS)
+    @patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
+    @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
     @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
     @functools.wraps(fnc)
     async def test_wrapper(config_0: dict, config_1: dict, *args, **kwargs):
+
         rf = VirtualRf(2, start=True)
 
         _gwys = []  # HACK:  we need a way to extract gwy object from rf
@@ -252,6 +247,8 @@ def rf_network_with_two_gateways(fnc):
             await assert_protocol_ready(gwy._protocol)
 
             _gwys += [gwy]  # HACK: messy
+
+        gwy: Gateway  # mypy
 
         try:
             await fnc(_gwys[0], _gwys[1], *args, **kwargs)  # HACK
@@ -279,6 +276,7 @@ def ensure_fakeable(dev: Device) -> None:
     setattr(dev, "_1fc9_state", {})
 
 
+# TODO: test addenda phase of binding handshake
 @rf_network_with_two_gateways
 async def _test_flow_10x(
     gwy_r: Gateway, gwy_s: Gateway, pkt_flow_expected: list[str]
@@ -395,6 +393,7 @@ async def _test_flow_10x(
     assert False
 
 
+# TODO: get test working without QoS
 @pytest.mark.xdist_group(name="virtual_rf")
 @patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 async def test_flow_100(test_set: dict[str:dict]) -> None:
