@@ -635,6 +635,10 @@ async def transport_factory(
     # The kwargs must be a subset of: loop, extra, and...
     # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
 
+    async def wait_for_transport(protocol: _ProtocolT):
+        while protocol._transport is None:
+            await asyncio.sleep(0.005)
+
     def get_serial_instance(ser_name: SerPortName, ser_config: dict) -> Serial:
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
@@ -691,13 +695,17 @@ async def transport_factory(
     else:
         transport = QosTransport(protocol, ser_instance, **kwargs)
 
-    try:  # HACK: wait to get first echo from evofw3/HGI80 (tidy up later)
+    try:  # wait to get (first) signature echo from evofw3/HGI80
         await asyncio.wait_for(transport._init_fut, timeout=3)
     except asyncio.TimeoutError:
         raise TransportSerialError("Unable to create a Protocol/Transport pair")
 
-    # may: raise TransportSerialError("Unable to get signature echo")
-    _ = transport._init_fut.result()
+    try:  # wait for protocol to receive connection_made(transport)
+        await asyncio.wait_for(wait_for_transport(protocol), timeout=3)
+    except asyncio.TimeoutError:
+        raise TransportSerialError("Protocol not initialised with Transport")
+
+    _ = transport._init_fut.result()  # may: raise TransportSerialError
 
     return transport
 

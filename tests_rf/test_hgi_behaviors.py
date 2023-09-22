@@ -6,14 +6,13 @@
 Test the gwy Addr detection and the Gateway.send_cmd API from '18:000730'.
 """
 
-import asyncio
 from unittest.mock import patch
 
 import pytest
 from serial import SerialException
 from serial.tools.list_ports import comports
 
-from ramses_rf import Command, Device, Gateway
+from ramses_rf import Command, Gateway
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
@@ -72,10 +71,10 @@ async def fake_evofw3():
         assert gwy.hgi is None
 
         await gwy.start()
-        await assert_is_evofw3(gwy, True)
-        # assert gwy._protocol._is_evofw3 is True
+        assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+        assert gwy._protocol._is_evofw3 is True
 
-        return gwy  # yield gwy is 2x slower
+        return gwy  # TODO: yield gwy
 
     await gwy.stop()
     await rf.stop()
@@ -95,10 +94,10 @@ async def fake_ti3410():
         assert gwy.hgi is None
 
         await gwy.start()
-        await assert_is_evofw3(gwy, False)
-        # assert gwy._protocol._is_evofw3 is False
+        assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+        assert gwy._protocol._is_evofw3 is False
 
-        return gwy  # yield gwy is 2x slower
+        return gwy  # TODO: yield gwy
 
     await gwy.stop()
     await rf.stop()
@@ -117,10 +116,10 @@ async def real_evofw3():
     assert gwy.hgi is None
 
     await gwy.start()
-    await assert_is_evofw3(gwy, True)
-    # assert gwy._protocol._is_evofw3 is True
+    assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+    assert gwy._protocol._is_evofw3 is True
 
-    return gwy  # yield gwy is 2x slower
+    yield gwy  # TODO: yield gwy
     await gwy.stop()
 
 
@@ -137,45 +136,11 @@ async def real_ti3410():
     assert gwy.hgi is None
 
     await gwy.start()
-    # await assert_is_evofw3(gwy, False)
-    # assert gwy._protocol._is_evofw3 is False
+    assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+    # assert gwy._protocol._is_evofw3 is False  # FIXME
 
-    return gwy  # yield gwy is 2x slower
+    return gwy  # TODO: yield gwy
     await gwy.stop()
-
-
-async def OUT_assert_devices(
-    gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
-):
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if len(gwy.devices) == len(devices):
-            break
-    assert sorted(d.id for d in gwy.devices) == sorted(devices)
-
-
-async def assert_is_evofw3(
-    gwy: Gateway, is_evofw3: bool, max_sleep: int = DEFAULT_MAX_SLEEP
-):
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if gwy._protocol._is_evofw3 is not None:
-            break
-    assert gwy._protocol._is_evofw3 == is_evofw3
-
-
-async def assert_found_hgi(
-    gwy: Gateway, hgi_id=None, max_sleep: int = DEFAULT_MAX_SLEEP
-):
-    """Check the gateway device is the expected type (evofw3,or HGI80)."""
-
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if gwy.hgi is not None:
-            break
-    assert gwy.hgi is not None
-    if hgi_id:
-        assert gwy.hgi.id == hgi_id
 
 
 _global_failed_ports: list[str] = []
@@ -186,9 +151,6 @@ _global_failed_ports: list[str] = []
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
-
-    await assert_found_hgi(gwy)  # , hgi_id=TST_ID_)
-    assert gwy.hgi.id != HGI_ID_
 
     raw_str = TEST_CMDS[test_idx]
 
@@ -218,7 +180,7 @@ async def test_factual_evofw3(real_evofw3: Gateway, test_idx: str):
 
     global _global_failed_ports
 
-    gwy = real_evofw3
+    gwy: Gateway = await anext(real_evofw3)
 
     if gwy.ser_name in _global_failed_ports:
         pytest.skip(f"previous SerialException on: {gwy.ser_name}")
