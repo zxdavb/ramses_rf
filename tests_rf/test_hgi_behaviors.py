@@ -13,6 +13,7 @@ from serial import SerialException
 from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Gateway
+from ramses_rf.device import HgiGateway
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
@@ -71,7 +72,7 @@ async def fake_evofw3():
         assert gwy.hgi is None
 
         await gwy.start()
-        assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+        assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
         assert gwy._protocol._is_evofw3 is True
 
         return gwy  # TODO: yield gwy
@@ -94,7 +95,7 @@ async def fake_ti3410():
         assert gwy.hgi is None
 
         await gwy.start()
-        assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+        assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
         assert gwy._protocol._is_evofw3 is False
 
         return gwy  # TODO: yield gwy
@@ -116,7 +117,7 @@ async def real_evofw3():
     assert gwy.hgi is None
 
     await gwy.start()
-    assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
     assert gwy._protocol._is_evofw3 is True
 
     yield gwy  # TODO: yield gwy
@@ -136,7 +137,7 @@ async def real_ti3410():
     assert gwy.hgi is None
 
     await gwy.start()
-    assert gwy.hgi and gwy.hgi.id not in (None, HGI_ID_)
+    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
     # assert gwy._protocol._is_evofw3 is False  # FIXME
 
     return gwy  # TODO: yield gwy
