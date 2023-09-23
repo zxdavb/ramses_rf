@@ -8,7 +8,6 @@ Test the gwy Addr detection and the Gateway.send_cmd API from '18:000730'.
 
 from unittest.mock import patch
 
-import logging
 import pytest
 from serial import SerialException
 from serial.tools.list_ports import comports
@@ -55,8 +54,6 @@ TEST_CMDS = {  # test command strings (no impersonation)
     61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . HGI80 discards
 }
 TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_]
-
-_LOGGER = logging.getLogger(__name__)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
@@ -183,11 +180,11 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         pkt = await gwy.async_send_cmd(cmd, max_retries=0, wait_for_reply=False)
     except ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
-            return  # these should fail, and have
+            return  # should have failed, and has
         raise
-    else:
-        if is_hgi80 and cmd_str[7:16] != HGI_ID_:
-            assert False, pkt  # it should have failed, but did not!
+
+    if is_hgi80 and cmd_str[7:16] != HGI_ID_:
+        assert False, pkt  # should have failed, but did not!
 
     # NOTE: HGI80/evofw3 will both swap out addr0 (only) for its own device_id
     if cmd_str[7:16] == HGI_ID_:
