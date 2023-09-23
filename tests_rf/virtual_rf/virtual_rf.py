@@ -369,10 +369,11 @@ class VirtualRf(VirtualRfBase):
         """
 
         # The type of Gateway will inform next steps...
-        gwy = self._gateways.get(self._pty_names[master])  # not same as a ramses_rf gwy
+        gwy = self._gateways.get(self._pty_names[master], {})  # not a ramses_rf gwy
 
+        # Handle trace flags (evofw3 only)
         if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
-            if gwy[FW_VERSION] == HgiFwTypes.EVOFW3:
+            if gwy.get(FW_VERSION) == HgiFwTypes.EVOFW3:
                 self._push_frame_to_dst_port(frame, master)  # TODO
             return None  # do not Tx the frame
 
@@ -380,11 +381,12 @@ class VirtualRf(VirtualRfBase):
             return frame
 
         # HGI80s will silently drop cmd if addr0 is not the 18:000730 sentinel
-        if gwy[FW_VERSION] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
+        if gwy.get(FW_VERSION) == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
             return None  # silently drop the frame
 
+        # Both (HGI80 & evofw3) will swap out addr0 (and only addr0)
         if frame[7:16] == DEFAULT_GWY_ID:
-            return frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
+            frame = frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
 
         return frame
 
