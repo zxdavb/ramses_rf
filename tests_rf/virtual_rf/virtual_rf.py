@@ -376,7 +376,7 @@ class VirtualRf(VirtualRfBase):
                 self._push_frame_to_dst_port(frame, master)  # TODO
             return None  # do not Tx the frame
 
-        if not gwy:  # TODO: ?should raise: probably from test suite
+        if not gwy:  # TODO: ?should raise: but is probably from test suite
             return frame
 
         # HGI80s will silently drop cmd if addr0 is not the 18:000730 sentinel
