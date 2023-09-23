@@ -368,14 +368,22 @@ class VirtualRf(VirtualRfBase):
         Return None if the bytes are not to be Tx to the RF ether (e.g. to echo only).
         """
 
+        # The type of Gateway will inform next steps...
+        gwy = self._gateways.get(self._pty_names[master])  # not same as a ramses_rf gwy
+
         if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
-            self._push_frame_to_dst_port(frame, master)
-            return None
+            if gwy[FW_VERSION] == HgiFwTypes.EVOFW3:
+                self._push_frame_to_dst_port(frame, master)  # TODO
+            return None  # do not Tx the frame
 
-        # The type of Gateway will tell us what to do next
-        gwy = self._gateways.get(self._pty_names[master])  # here, gwy is not a Gateway
+        if not gwy:  # TODO: ?should raise: probably from test suite
+            return frame
 
-        if gwy and frame[7:16] == DEFAULT_GWY_ID:  # confirmed for evofw3
+        # HGI80s will silently drop cmd if addr0 is not the 18:000730 sentinel
+        if gwy[FW_VERSION] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
+            return None  # silently drop the frame
+
+        if frame[7:16] == DEFAULT_GWY_ID:
             return frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
 
         return frame
