@@ -381,7 +381,7 @@ class VirtualRf(VirtualRfBase):
             return frame
 
         # HGI80s will silently drop cmd if addr0 is not the 18:000730 sentinel
-        if gwy.get(FW_VERSION) == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
+        if gwy[FW_VERSION] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
             return None  # silently drop the frame
 
         # Both (HGI80 & evofw3) will swap out addr0 (and only addr0)
