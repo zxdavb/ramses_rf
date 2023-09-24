@@ -355,12 +355,15 @@ class VirtualRf(VirtualRfBase):
         if frame[:1] != b"!":
             return b"000 " + frame
 
-        if (gwy := self._gateways.get(self._pty_names[master])) and (
-            gwy[FW_VERSION] != HgiFwTypes.EVOFW3
-        ):
+        # The type of Gateway will inform next steps...
+        gwy = self._gateways.get(self._pty_names[master], {})  # not a ramses_rf gwy
+
+        if gwy.get(FW_VERSION) != HgiFwTypes.EVOFW3:
             return None
 
-        return frame  # TODO: append the ! response
+        if frame == b"!V":
+            return b"# evofw3 0.7.1\r\n"  # self._file_objs[master].write(data)
+        return None  # TODO: return the ! response
 
     def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
         """The addr0 may be changed by the sending HGI80-compatible device before Tx.
@@ -374,15 +377,15 @@ class VirtualRf(VirtualRfBase):
         # Handle trace flags (evofw3 only)
         if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
             if gwy.get(FW_VERSION) == HgiFwTypes.EVOFW3:
-                self._push_frame_to_dst_port(frame, master)  # TODO
+                self._push_frame_to_dst_port(frame, master)
             return None  # do not Tx the frame
 
         if not gwy:  # TODO: ?should raise: but is probably from test suite
             return frame
 
-        # HGI80s will silently drop cmd if addr0 is not the 18:000730 sentinel
+        # Real HGI80s will silently drop cmds if addr0 is not the 18:000730 sentinel
         if gwy[FW_VERSION] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
-            return None  # silently drop the frame
+            return None
 
         # Both (HGI80 & evofw3) will swap out addr0 (and only addr0)
         if frame[7:16] == DEFAULT_GWY_ID:
