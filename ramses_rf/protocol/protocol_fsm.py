@@ -14,7 +14,8 @@ from threading import Lock
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from . import exceptions
-from .const import MIN_GAP_BETWEEN_WRITES
+from .address import HGI_DEV_ADDR
+from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -212,7 +213,7 @@ class ProtocolContext:
         self._ensure_queue_processor()  # because just added job to send queue
 
         try:
-            pkt: Packet = await asyncio.wait_for(fut, timeout * 5)
+            pkt: Packet = await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError:
             self.set_state(IsFailed)
             raise exceptions.ProtocolSendFailed(
@@ -497,20 +498,20 @@ class WantEcho(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected echo Packet."""
 
-        # NOTE: (if timimg is right) can get a false echo (same tx_header), e.g.:
-        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
-        # RQ --- 01:145038 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
-
-        #  W --- 18:198151 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
-        #  W --- 34:136285 01:145038 --:------ 2309 003 05028A  # 2309| W|01:145038|05
-
         assert self.cmd is not None  # mypy
-        if pkt._hdr != self.cmd._hdr:  # or pkt.src != self.cmd.src:
-            return
 
-        # NOTE: but, unfortunately, the gateway's cmd src / echo src can be different:
-        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
-        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+        # NOTE: unfortunately, the gateway's cmd src / echo src can be different:
+        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+
+        if self.cmd.src == HGI_DEV_ADDR:  # TODO: why doesn't 'is' work
+            src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
+            frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
+        else:
+            frame = self.cmd._frame
+
+        if pkt._frame != frame:
+            return
 
         self._echo = pkt
         if self.cmd.rx_header:
@@ -525,6 +526,8 @@ class WantRply(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected response Packet."""
 
+        assert self.cmd is not None  # mypy
+
         # NOTE: (if timimg is right) can get a false rply (same rx_header), e.g.:
         # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
         # RP --- 10:048122 01:145038 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
@@ -532,7 +535,6 @@ class WantRply(_WantPkt):
         #  I --- 01:145038 18:198151 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
         #  I --- 01:145038 34:136285 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
 
-        assert self.cmd is not None  # mypy
         if pkt._hdr != self.cmd.rx_header:  # or pkt.dst != self.cmd.src:
             return
 
