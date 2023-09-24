@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: WantEcho.rcvd_pkt().frame be calculated only once, during IsInIdle.sent_cmd()
+# TODO: WantEcho._echo should be passed to WantRply to compare with rcvd_pkt(pkt)
+
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
+
 from __future__ import annotations
 
 import asyncio
