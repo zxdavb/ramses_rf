@@ -34,8 +34,6 @@ DEFAULT_GWY_CONFIG = {
     }
 }
 
-MIN_GAP_BETWEEN_WRITES = 0.005  # patch ramses_rf.protocol.protocol
-
 
 def _rf_net_create(
     schema_0: dict, schema_1: dict
