@@ -509,7 +509,7 @@ class WantEcho(_WantPkt):
         # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
         # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
 
-        if self.cmd.src == HGI_DEV_ADDR:  # TODO: why doesn't 'is' work
+        if self.cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
             src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
             frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
         else:
