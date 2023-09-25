@@ -28,7 +28,6 @@ from ramses_rf.binding_fsm import (
     _BindStates,
 )
 from ramses_rf.device import Fakeable
-from ramses_rf.protocol.protocol import QosProtocol
 
 from .virtual_rf import VirtualRf
 
@@ -38,7 +37,6 @@ _DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
 DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
 DEFAULT_TIMEOUT = 0.005  # #                    ramses_rf.protocol.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
-MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
 
 # other constants
@@ -165,27 +163,24 @@ TEST_SUITE_300 = [
 ]
 
 
-def id_fnc(test_set):
-    r_class = list(test_set[SZ_RESPONDENT].values())[0]["class"]
-    s_class = list(test_set[SZ_SUPPLICANT].values())[0]["class"]
-    return s_class + " binding to " + r_class
+@pytest.fixture(autouse=True)
+def no_requests(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+    )
 
 
-def pytest_generate_tests(metafunc):
+def pytest_generate_tests(metafunc: pytest.Metafunc):
+    def id_fnc(test_set):
+        r_class = list(test_set[SZ_RESPONDENT].values())[0]["class"]
+        s_class = list(test_set[SZ_SUPPLICANT].values())[0]["class"]
+        return s_class + " binding to " + r_class
+
     metafunc.parametrize("test_set", TEST_SUITE_300, ids=id_fnc)
-
-
-# ######################################################################################
-
-
-async def assert_protocol_ready(
-    protocol: QosProtocol, max_sleep: int = DEFAULT_MAX_SLEEP
-) -> None:
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if protocol._transport is not None:
-            break
-    assert protocol._transport is not None
 
 
 async def assert_context_state(
@@ -226,12 +221,6 @@ def rf_network_with_two_gateways(fnc):
 
         return gwy_id
 
-    @patch(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    @patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
-    @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
     @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
     @functools.wraps(fnc)
     async def test_wrapper(config_0: dict, config_1: dict, *args, **kwargs):
@@ -246,7 +235,6 @@ def rf_network_with_two_gateways(fnc):
             gwy = Gateway(rf.ports[idx], **config)
             await gwy.start()  # start_discovery=False)
             gwy._transport._extra["rf"] = rf
-            await assert_protocol_ready(gwy._protocol)
 
             _gwys += [gwy]  # HACK: messy
 
@@ -393,6 +381,9 @@ async def _test_flow_10x(
     assert ratify._pkt == pkt, "Resp's Msg doesn't match Supp's Addenda cmd"
 
     assert False
+
+
+# ######################################################################################
 
 
 # TODO: get test working without QoS
