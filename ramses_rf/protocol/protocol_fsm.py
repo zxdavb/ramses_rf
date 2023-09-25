@@ -3,6 +3,7 @@
 #
 
 # TODO: use WantRply._echo (Packet) instead of WantEcho.cmd (Command)
+# TODO: eliminate one of ProtocolContext._send_cmd().num_retries, _ProtocolStateBase.num_sends
 
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
 
@@ -91,7 +92,7 @@ class ProtocolContext:
     _state: _ProtocolStateT = None  # type: ignore[assignment]
     _proc_queue_task: asyncio.Task = None  # type: ignore[assignment]
 
-    def __init__(self, protocol: _ProtocolT, *args, **kwargs) -> None:
+    def __init__(self, protocol: _ProtocolT) -> None:
         # super().__init__(*args, **kwargs)
         self._protocol = protocol
 
@@ -354,9 +355,9 @@ class ProtocolContext:
                 _LOGGER.warning(f"{msg} (will retry): {exc}")
                 continue
 
-            break
+            return prev_state._rply_pkt
 
-        return prev_state._rply_pkt
+        raise exceptions.ProtocolFsmError(f"{self}: Unexpected error {cmd.tx_header}")
 
     async def _wait_for_transition(
         self, this_state: _ProtocolStateT, timeout: td
@@ -481,9 +482,11 @@ class IsInIdle(_ProtocolStateBase):
         # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
         # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
 
-        if self.active_cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
+        if self.active_cmd._frame[7:16] == HGI_DEV_ADDR.id:  # applies only for addr0
             src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
-            self._echo_frame = self.active_cmd._frame[:7] + src_id + self.active_cmd._frame[16:]
+            self._echo_frame = (
+                self.active_cmd._frame[:7] + src_id + self.active_cmd._frame[16:]
+            )
         else:
             self._echo_frame = self.active_cmd._frame
 
