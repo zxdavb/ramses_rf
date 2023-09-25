@@ -116,10 +116,10 @@ class ProtocolContext:
         else:  # if state in (WantEcho, WantRply, IsFailed):
             self._state = state(
                 self,
-                cmd=self._state.cmd,
+                active_cmd=self._state.active_cmd,
                 num_sends=self._state.num_sends,
                 echo_frame=self._state._echo_frame,
-                echo=self._state._echo_pkt,
+                echo_pkt=self._state._echo_pkt,
             )
 
         if prev_state:
@@ -291,8 +291,6 @@ class ProtocolContext:
         if isinstance(self.state, IsFailed):  # is OK to send when last send failed
             self.set_state(IsInIdle)
 
-        # self._cmd = cmd
-
         num_retries = -1
         while num_retries < max_retries:  # resend until RetryLimitExceeded
             num_retries += 1
@@ -378,7 +376,7 @@ class _ProtocolStateBase:
     """Protocol may Tx / can Rx according to it's internal state."""
 
     # state attrs
-    cmd: None | Command
+    active_cmd: None | Command
     num_sends: int
 
     _echo_frame: None | str = None
@@ -394,14 +392,14 @@ class _ProtocolStateBase:
         context: ProtocolContext,
         /,
         *,
-        cmd: None | Command = None,
+        active_cmd: None | Command = None,
         num_sends: int = 0,
         echo_frame: None | str = None,
         echo_pkt: None | Packet = None,
     ) -> None:
         self._context = context  # a Protocol
 
-        self.cmd = cmd  # #              the cmd as sent (the active cmd)
+        self.active_cmd = active_cmd  # #              the cmd as sent (the active cmd)
         self.num_sends = num_sends  # #  the number of times the active cmd was sent
         self._echo_frame = echo_frame  # the expected echo Frame for the active cmd
         self._echo_pkt = echo_pkt  # #           the received echo Packet
@@ -410,20 +408,20 @@ class _ProtocolStateBase:
         cls = self.__class__.__name__
 
         if isinstance(self, WantRply):  # NOTE: WantEcho is a subclass of WantEcho
-            assert self.cmd is not None
-            return f"{cls}(rx_header={self.cmd.rx_header}, num_sends={self.num_sends})"
+            assert self.active_cmd is not None
+            return f"{cls}(rx_header={self.active_cmd.rx_header}, num_sends={self.num_sends})"
 
         if isinstance(self, (WantEcho, IsFailed)):
-            assert self.cmd is not None
-            return f"{cls}(tx_header={self.cmd.tx_header}, num_sends={self.num_sends})"
+            assert self.active_cmd is not None
+            return f"{cls}(tx_header={self.active_cmd.tx_header}, num_sends={self.num_sends})"
 
-        assert self.cmd is None  # Inactive | IsPaused | IsInIdle
+        assert self.active_cmd is None  # Inactive | IsPaused | IsInIdle
         assert self.num_sends == 0, f"{self}: num_sends != 0"
         return f"{cls}()"
 
     def is_active_cmd(self, cmd: Command) -> bool:
         """Return True if this cmd is the active cmd."""
-        return cmd and cmd is self.cmd
+        return cmd and cmd is self.active_cmd
 
     def made_connection(self, transport: _TransportT) -> None:
         """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""
@@ -476,18 +474,18 @@ class IsInIdle(_ProtocolStateBase):
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
         """The Transport has possibly sent a Command."""
 
-        assert self.cmd is None
-        self.cmd = cmd
+        assert self.active_cmd is None
+        self.active_cmd = cmd
 
         # NOTE: unfortunately, the gateway's cmd src / echo src can be different:
         # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
         # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
 
-        if self.cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
+        if self.active_cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
             src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
-            self._echo_frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
+            self._echo_frame = self.active_cmd._frame[:7] + src_id + self.active_cmd._frame[16:]
         else:
-            self._echo_frame = self.cmd._frame
+            self._echo_frame = self.active_cmd._frame
 
         self.num_sends = 1
         self._context.set_state(WantEcho)
@@ -518,13 +516,13 @@ class WantEcho(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected echo Packet."""
 
-        assert self.cmd is not None  # mypy
+        assert self.active_cmd is not None  # mypy
 
         if pkt._frame != self._echo_frame:
             return
 
         self._echo_pkt = pkt
-        if self.cmd.rx_header:
+        if self.active_cmd.rx_header:
             self._context.set_state(WantRply)
         else:
             self._context.set_state(IsInIdle)
@@ -536,7 +534,7 @@ class WantRply(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected response Packet."""
 
-        assert self.cmd is not None  # mypy
+        assert self.active_cmd is not None  # mypy
 
         # NOTE: (if timimg is right) can get a false rply (same rx_header), e.g.:
         # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
@@ -546,7 +544,7 @@ class WantRply(_WantPkt):
         #  I --- 01:145038 34:136285 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
 
         # TODO: use self._echo (Packet) instead of self.cmd (Command)
-        if pkt._hdr != self.cmd.rx_header:  # or pkt.dst != self.cmd.src:
+        if pkt._hdr != self.active_cmd.rx_header:  # or pkt.dst != self.cmd.src:
             return
 
         # NOTE: but, unfortunately, the gateway's cmd src / rply dst can be different:
