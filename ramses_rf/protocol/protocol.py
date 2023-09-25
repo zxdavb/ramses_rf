@@ -56,9 +56,10 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-# All debug flags should be False for end-users
-_DEBUG_DISABLE_QOS = False  # #               used for pytest scripts
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # used for pytest scripts
+# All debug flags should be False for published code
+_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = False  # #   used for pytest scripts
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = False  # used for pytest scripts
+_DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
 
 
 _global_sync_cycles: deque = (
@@ -175,6 +176,9 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
             )
             last_time_bit_added = perf_counter()
 
+            if _DEBUG_DISABLE_DUTY_CYCLE_LIMIT:
+                bits_in_bucket = BUCKET_CAPACITY
+
             # if required, wait for the bit bucket to refill (not for SETs/PUTs)
             if bits_in_bucket < rf_frame_size:
                 await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
@@ -189,10 +193,10 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
         async def null_wrapper(*args, **kwargs) -> Any:
             return await fnc(*args, **kwargs)
 
-        if max_duty_cycle <= 0:
-            return null_wrapper
+        if 0 < max_duty_cycle <= 1:
+            return wrapper
 
-        return wrapper
+        return null_wrapper
 
     return decorator
 
@@ -401,7 +405,6 @@ class _AvoidSyncCycle(_BaseProtocol):  # avoid sync cycles
         super().pkt_received(pkt)
 
     @avoid_system_syncs
-    # @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
     async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
         await super()._send_frame(frame)

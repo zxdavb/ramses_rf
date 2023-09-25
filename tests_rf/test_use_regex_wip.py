@@ -23,8 +23,8 @@ from tests_rf.virtual_rf import VirtualRf
 
 # patched constants
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
+_DEBUG_DISABLE_QOS = True  # #                ramses_rf.protocol.protocol
 DEFAULT_TIMEOUT = 0.005  # #                  ramses_rf.protocol.protocol_fsm
-DISABLE_QOS = True  # #                       ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.protocol
 
 # other constants
@@ -130,7 +130,7 @@ async def test_regex_inbound_():
 # TODO: get tests working with QoS enabled
 # TODO: use better quiesce function
 @pytest.mark.xdist_group(name="virtual_rf")
-@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", DISABLE_QOS)
+@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 @patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
