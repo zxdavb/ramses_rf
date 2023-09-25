@@ -119,11 +119,11 @@ class ProtocolContext:
                 cmd=self._state.cmd,
                 num_sends=self._state.num_sends,
                 echo_frame=self._state._echo_frame,
-                echo=self._state._echo,
+                echo=self._state._echo_pkt,
             )
 
         if prev_state:
-            prev_state._next_state = self._state
+            prev_state._next_state = self._state  # used to detect transitions
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
@@ -315,12 +315,12 @@ class ProtocolContext:
                     self.state,  # NOTE: is self.state, not next_state
                     _DEFAULT_ECHO_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
                 )
-                assert prev_state._echo, f"{self}: Missing echo packet"
+                assert prev_state._echo_pkt, f"{self}: Missing echo packet"
 
                 if not cmd.rx_header:  # no reply to wait for
                     # self.set_state(IsInIdle)  # FSM will do this
                     assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
-                    return prev_state._echo
+                    return prev_state._echo_pkt
 
                 if (
                     wait_for_reply is False
@@ -330,7 +330,7 @@ class ProtocolContext:
                     # binding FSM is implemented at higher layer
                     self.set_state(IsInIdle)  # some will be WantRply
                     assert isinstance(self.state, IsInIdle), f"{self}: Expects IsInIdle"
-                    return prev_state._echo
+                    return prev_state._echo_pkt
 
                 assert isinstance(next_state, WantRply), f"{self}: Expects WantRply"
 
@@ -347,7 +347,7 @@ class ProtocolContext:
                     _DEFAULT_RPLY_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
                 )
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
-                assert prev_state._rply, f"{self}: Missing rply packet"
+                assert prev_state._rply_pkt, f"{self}: Missing rply packet"
 
             except (AssertionError, exceptions.ProtocolFsmError) as exc:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
@@ -358,7 +358,7 @@ class ProtocolContext:
 
             break
 
-        return prev_state._rply
+        return prev_state._rply_pkt
 
     async def _wait_for_transition(
         self, this_state: _ProtocolStateT, timeout: td
@@ -382,8 +382,8 @@ class _ProtocolStateBase:
     num_sends: int
 
     _echo_frame: None | str = None
-    _echo: None | Packet = None
-    _rply: None | Packet = None
+    _echo_pkt: None | Packet = None
+    _rply_pkt: None | Packet = None
 
     _next_state: None | _ProtocolStateT = None  # used to detect transition
 
@@ -397,14 +397,14 @@ class _ProtocolStateBase:
         cmd: None | Command = None,
         num_sends: int = 0,
         echo_frame: None | str = None,
-        echo: None | Packet = None,
+        echo_pkt: None | Packet = None,
     ) -> None:
         self._context = context  # a Protocol
 
         self.cmd = cmd  # #              the cmd as sent (the active cmd)
         self.num_sends = num_sends  # #  the number of times the active cmd was sent
         self._echo_frame = echo_frame  # the expected echo Frame for the active cmd
-        self._echo = echo  # #           the received echo Packet
+        self._echo_pkt = echo_pkt  # #           the received echo Packet
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
@@ -422,9 +422,7 @@ class _ProtocolStateBase:
         return f"{cls}()"
 
     def is_active_cmd(self, cmd: Command) -> bool:
-        """Return True if a Puzzle cmd, or this cmd is the active active cmd."""
-        # if cmd.verb == Code._PUZZ:  # TODO: need to work this out, ?include
-        #     return True  # an exception to the rule
+        """Return True if this cmd is the active cmd."""
         return cmd and cmd is self.cmd
 
     def made_connection(self, transport: _TransportT) -> None:
@@ -525,7 +523,7 @@ class WantEcho(_WantPkt):
         if pkt._frame != self._echo_frame:
             return
 
-        self._echo = pkt
+        self._echo_pkt = pkt
         if self.cmd.rx_header:
             self._context.set_state(WantRply)
         else:
@@ -555,7 +553,7 @@ class WantRply(_WantPkt):
         # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
         # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
 
-        self._rply = pkt
+        self._rply_pkt = pkt
         self._context.set_state(IsInIdle)
 
 
