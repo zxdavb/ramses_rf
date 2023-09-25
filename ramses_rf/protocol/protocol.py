@@ -44,11 +44,6 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
-_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
-_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
-_CYCLE_DURATION = 60  # seconds
-
-
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,10 +51,15 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-# All debug flags should be False for published code
+# all debug flags should be False for published code
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = False  # #   used for pytest scripts
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = False  # used for pytest scripts
 _DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
+
+# other constants
+_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
+_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
+_CYCLE_DURATION = 60  # seconds
 
 
 _global_sync_cycles: deque = (

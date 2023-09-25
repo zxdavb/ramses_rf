@@ -64,7 +64,7 @@ _global_failed_ports: list[str] = []
 
 
 @pytest.fixture(autouse=True)
-def no_requests(monkeypatch):
+def no_requests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "ramses_rf.protocol.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
         _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,
@@ -209,6 +209,9 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         pkt_str = cmd_str
 
     assert pkt._frame == pkt_str
+
+
+# ######################################################################################
 
 
 @pytest.mark.xdist_group(name="real_serial")
