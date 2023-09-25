@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: Fix cleanup: rf.stop() & gwy.stop()
+
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Test the gwy Addr detection and the Gateway.send_cmd API from '18:000730'.
@@ -8,6 +11,7 @@ Test the gwy Addr detection and the Gateway.send_cmd API from '18:000730'.
 
 from unittest.mock import patch
 
+import asyncio
 import pytest
 from serial import SerialException
 from serial.tools.list_ports import comports
@@ -22,7 +26,7 @@ _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
 DISABLE_QOS = True  # #                       ramses_rf.protocol.protocol
 DISABLE_STRICT_CHECKING = True  # #           ramses_rf.protocol.address
 MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.transport
-
+MAX_DUTY_CYCLE = 1.0  # #                     ramses_rf.protocol.protocol
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
@@ -50,7 +54,7 @@ TEST_CMDS = {  # test command strings (no impersonation)
     41: f" I --- 18:000730 --:------ {TST_ID_} 30C9 003 000777",  #
     50: f" I --- {TST_ID_} --:------ 18:000730 30C9 003 000888",  # HGI80 discards
     51: r" I --- 18:000730 --:------ 18:000730 30C9 003 000999",  #
-    60: f" I --- --:------ --:------ {TST_ID_} 0008 002 00AA",    # HGI80 discards
+    60: f" I --- --:------ --:------ {TST_ID_} 0008 002 00AA",  # . HGI80 discards
     61: r" I --- --:------ --:------ 18:000730 0008 002 00BB",  # . HGI80 discards
 }
 TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_]
@@ -60,8 +64,19 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_idx", TEST_CMDS)
 
 
-@pytest.fixture()
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@pytest.fixture(scope="module")
+def event_loop():
+    """Overrides pytest default function scoped event loop"""
+    loop = asyncio.get_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.close()
+
+
+@pytest.fixture(scope="module")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
+@patch("ramses_rf.protocol.const.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
@@ -80,14 +95,17 @@ async def fake_evofw3():
         assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id == TST_ID_
         assert gwy._protocol._is_evofw3 is True
 
-        return gwy  # TODO: yield gwy
+        try:
+            while True:
+                yield gwy
+        finally:
+            await gwy.stop()
+            await rf.stop()
 
-    await gwy.stop()
-    await rf.stop()
 
-
-@pytest.fixture()
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@pytest.fixture(scope="module")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
+@patch("ramses_rf.protocol.const.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
@@ -106,14 +124,17 @@ async def fake_ti3410():
         assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id == TST_ID_
         assert gwy._protocol._is_evofw3 is False
 
-        return gwy  # TODO: yield gwy
+        try:
+            while True:
+                yield gwy
+        finally:
+            await gwy.stop()
+            await rf.stop()
 
-    await gwy.stop()
-    await rf.stop()
 
-
-@pytest.fixture()
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@pytest.fixture(scope="module")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
+@patch("ramses_rf.protocol.const.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
@@ -131,12 +152,16 @@ async def real_evofw3():
     assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
     assert gwy._protocol._is_evofw3 is True
 
-    yield gwy  # TODO: yield gwy
-    await gwy.stop()
+    try:
+        while True:
+            yield gwy
+    finally:
+        await gwy.stop()
 
 
-@pytest.fixture()  # TODO: remove HACK
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@pytest.fixture(scope="module")  # TODO: remove HACK
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
+@patch("ramses_rf.protocol.const.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 @patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
@@ -155,8 +180,11 @@ async def real_ti3410():
     gwy._protocol._is_evofw3 = False  # HACK: FIXME (should not be needed)
     assert gwy._protocol._is_evofw3 is False
 
-    return gwy  # TODO: yield gwy
-    await gwy.stop()
+    try:
+        while True:
+            yield gwy
+    finally:
+        await gwy.stop()
 
 
 _global_failed_ports: list[str] = []
@@ -165,6 +193,7 @@ _global_failed_ports: list[str] = []
 @patch(  # DISABLE_STRICT_CHECKING
     "ramses_rf.protocol.address._DEBUG_DISABLE_STRICT_CHECKING", DISABLE_STRICT_CHECKING
 )
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -197,12 +226,14 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
 
 @pytest.mark.xdist_group(name="real_serial")
 # @pytest.mark.skipif(not [p for p in comports() if p.product and "evofw3" in p.product], reason="No evofw3 devices found")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
 async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     global _global_failed_ports
 
     gwy: Gateway = await anext(real_evofw3)
+    # gwy: Gateway = real_evofw3
 
     if gwy.ser_name in _global_failed_ports:
         pytest.skip(f"previous SerialException on: {gwy.ser_name}")
@@ -216,12 +247,14 @@ async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
 
 @pytest.mark.xdist_group(name="real_serial")
 # @pytest.mark.skipif(not [p for p in comports() if p.product and "TUSB3410" in p.product], reason="No ti3410 devices found")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
 async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     global _global_failed_ports
 
-    gwy = real_ti3410
+    gwy: Gateway = await anext(real_ti3410)
+    # gwy: Gateway = real_ti3410
 
     if gwy.ser_name in _global_failed_ports:
         pytest.skip(f"previous SerialException on: {gwy.ser_name}")
@@ -234,18 +267,22 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
 
 
 @pytest.mark.xdist_group(name="fake_serial")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
 async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    gwy = fake_evofw3
+    gwy: Gateway = await anext(fake_evofw3)
+    # gwy: Gateway = fake_evofw3
 
     await _test_gwy_device(gwy, test_idx)
 
 
 @pytest.mark.xdist_group(name="fake_serial")
+@patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
 async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
-    gwy = fake_ti3410
+    gwy: Gateway = await anext(fake_ti3410)
+    # gwy: Gateway = fake_ti3410
 
     await _test_gwy_device(gwy, test_idx)
