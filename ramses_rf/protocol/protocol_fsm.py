@@ -109,8 +109,12 @@ class ProtocolContext:
     def set_state(
         self,
         state: type[_ProtocolStateT],
+        /,
+        *,
         cmd: None | Command = None,
         num_sends: int = 0,
+        frame: None | str = None,
+        echo: None | Command = None,
     ) -> None:
         """Set the State of the Protocol (context)."""
 
@@ -289,6 +293,8 @@ class ProtocolContext:
         if isinstance(self.state, IsFailed):  # is OK to send when last send failed
             self.set_state(IsInIdle)
 
+        # self._cmd = cmd
+
         num_retries = -1
         while num_retries < max_retries:  # resend until RetryLimitExceeded
             num_retries += 1
@@ -379,6 +385,7 @@ class _ProtocolStateBase:
 
     _echo: None | Packet = None
     _rply: None | Packet = None
+    _frame: None | str = None
 
     _next_state: None | _ProtocolStateT = None
 
@@ -413,10 +420,20 @@ class _ProtocolStateBase:
     def _set_context_state(
         self,
         state: type[_ProtocolStateT],
+        /,
+        *,
         cmd: None | Command = None,
         num_sends: int = 0,
+        frame: None | str = None,
+        echo: None | Packet = None,
     ) -> None:
-        self._context.set_state(state, cmd=cmd, num_sends=num_sends)
+        if state in (Inactive, IsPaused, IsInIdle):
+            self._context.set_state(state)
+        else:
+            self._context.set_state(
+                state, cmd=self.cmd, num_sends=num_sends  # , frame=frame, echo=echo
+            )
+
         self._next_state = self._context.state
 
     def is_active_cmd(self, cmd: Command) -> bool:
@@ -475,7 +492,18 @@ class IsInIdle(_ProtocolStateBase):
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
         """The Transport has possibly sent a Command."""
-        self._set_context_state(WantEcho, cmd=cmd, num_sends=1)
+
+        assert self.cmd is None
+        self.cmd = cmd
+
+        # if self.cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
+        #     src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
+        #     self._frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
+        # else:
+        #     self._frame = self.cmd._frame
+
+        self.num_sends = 1
+        self._set_context_state(WantEcho, num_sends=self.num_sends)
 
 
 class _WantPkt(_ProtocolStateBase):
@@ -494,7 +522,7 @@ class _WantPkt(_ProtocolStateBase):
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
         self.num_sends += 1
-        self._set_context_state(WantEcho, cmd=cmd, num_sends=self.num_sends)
+        self._set_context_state(WantEcho, num_sends=self.num_sends)
 
 
 class WantEcho(_WantPkt):
@@ -520,7 +548,7 @@ class WantEcho(_WantPkt):
 
         self._echo = pkt
         if self.cmd.rx_header:
-            self._set_context_state(WantRply, cmd=self.cmd, num_sends=self.num_sends)
+            self._set_context_state(WantRply, num_sends=self.num_sends)
         else:
             self._set_context_state(IsInIdle)
 
