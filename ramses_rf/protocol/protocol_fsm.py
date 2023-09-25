@@ -106,26 +106,23 @@ class ProtocolContext:
         cls = self.state.__class__.__name__
         return f"Context({cls}, len(queue)={self._que.unfinished_tasks})"
 
-    def set_state(
-        self,
-        state: type[_ProtocolStateT],
-        /,
-        *,
-        cmd: None | Command = None,
-        num_sends: int = 0,
-        frame: None | str = None,
-        echo: None | Command = None,
-    ) -> None:
+    def set_state(self, state: type[_ProtocolStateT]) -> None:
         """Set the State of the Protocol (context)."""
 
-        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            prev_state = self._state
+        prev_state = self._state
 
-        if state is IsInIdle:  # was: in (IsInIdle, IsFailed)
-            self._state = state(self)  # force all to IsInIdle?
-        else:
-            self._state = state(self, cmd=cmd, num_sends=num_sends)
+        if state in (Inactive, IsPaused, IsInIdle):
+            self._state = state(self)
 
+        else:  # if state in (WantEcho, WantRply, IsFailed):
+            self._state = state(
+                self,
+                cmd=self._state.cmd,
+                num_sends=self._state.num_sends  # , frame=frame, echo=echo
+            )
+
+        if prev_state:
+            prev_state._next_state = self._state
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)
 
@@ -320,7 +317,7 @@ class ProtocolContext:
                 assert prev_state._echo, f"{self}: Missing echo packet"
 
                 if not cmd.rx_header:  # no reply to wait for
-                    # self.set_state(ProtocolState.IDLE)  # FSM will do this
+                    # self.set_state(IsInIdle)  # FSM will do this
                     assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                     return prev_state._echo
 
@@ -387,9 +384,9 @@ class _ProtocolStateBase:
     _rply: None | Packet = None
     _frame: None | str = None
 
-    _next_state: None | _ProtocolStateT = None
+    _next_state: None | _ProtocolStateT = None  # used to detect transition
 
-    _cant_send_cmd_error: str = "Not Implemented"
+    _cant_send_cmd_error: None | str = "Not Implemented"
 
     def __init__(
         self,
@@ -417,25 +414,6 @@ class _ProtocolStateBase:
         assert self.num_sends == 0, f"{self}: num_sends != 0"
         return f"{cls}()"
 
-    def _set_context_state(
-        self,
-        state: type[_ProtocolStateT],
-        /,
-        *,
-        cmd: None | Command = None,
-        num_sends: int = 0,
-        frame: None | str = None,
-        echo: None | Packet = None,
-    ) -> None:
-        if state in (Inactive, IsPaused, IsInIdle):
-            self._context.set_state(state)
-        else:
-            self._context.set_state(
-                state, cmd=self.cmd, num_sends=num_sends  # , frame=frame, echo=echo
-            )
-
-        self._next_state = self._context.state
-
     def is_active_cmd(self, cmd: Command) -> bool:
         """Return True if a Puzzle cmd, or this cmd is the active active cmd."""
         # if cmd.verb == Code._PUZZ:  # TODO: need to work this out, ?include
@@ -445,21 +423,21 @@ class _ProtocolStateBase:
     def made_connection(self, transport: _TransportT) -> None:
         """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""
         if self._context._protocol._pause_writing:
-            self._set_context_state(IsPaused)
+            self._context.set_state(IsPaused)
         else:
-            self._set_context_state(IsInIdle)
+            self._context.set_state(IsInIdle)
 
     def lost_connection(self, exc: None | Exception) -> None:
         """Set the Context to Inactive (can't Tx, will not Rx)."""
-        self._set_context_state(Inactive)
+        self._context.set_state(Inactive)
 
     def writing_paused(self) -> None:
         """Set the Context to IsPaused (shouldn't Tx, might Rx)."""
-        self._set_context_state(IsPaused)
+        self._context.set_state(IsPaused)
 
     def writing_resumed(self) -> None:
         """Set the Context to IsInIdle (can Tx/Rx)."""
-        self._set_context_state(IsInIdle)
+        self._context.set_state(IsInIdle)
 
     def rcvd_pkt(self, pkt: Packet) -> None:
         """Receive a Packet without complaint (most times this is OK)."""
@@ -503,10 +481,11 @@ class IsInIdle(_ProtocolStateBase):
         #     self._frame = self.cmd._frame
 
         self.num_sends = 1
-        self._set_context_state(WantEcho, num_sends=self.num_sends)
+        self._context.set_state(WantEcho)
 
 
 class _WantPkt(_ProtocolStateBase):
+
     _cant_send_cmd_error = None
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
@@ -522,7 +501,7 @@ class _WantPkt(_ProtocolStateBase):
                 f"{self}: Exceeded retry limit of {max_retries}"
             )
         self.num_sends += 1
-        self._set_context_state(WantEcho, num_sends=self.num_sends)
+        self._context.set_state(WantEcho)
 
 
 class WantEcho(_WantPkt):
@@ -548,9 +527,9 @@ class WantEcho(_WantPkt):
 
         self._echo = pkt
         if self.cmd.rx_header:
-            self._set_context_state(WantRply, num_sends=self.num_sends)
+            self._context.set_state(WantRply)
         else:
-            self._set_context_state(IsInIdle)
+            self._context.set_state(IsInIdle)
 
 
 class WantRply(_WantPkt):
@@ -576,7 +555,7 @@ class WantRply(_WantPkt):
         # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
 
         self._rply = pkt
-        self._set_context_state(IsInIdle)
+        self._context.set_state(IsInIdle)
 
 
 class IsFailed(_ProtocolStateBase):
