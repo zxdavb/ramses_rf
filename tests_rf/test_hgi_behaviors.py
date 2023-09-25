@@ -27,6 +27,7 @@ DISABLE_QOS = True  # #                       ramses_rf.protocol.protocol
 DISABLE_STRICT_CHECKING = True  # #           ramses_rf.protocol.address
 MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.transport
 MAX_DUTY_CYCLE = 1.0  # #                     ramses_rf.protocol.protocol
+
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
