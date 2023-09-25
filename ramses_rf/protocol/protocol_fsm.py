@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: use WantRply._echo (Packet) instead of WantEcho.cmd (Command)
 # TODO: eliminate one of ProtocolContext._send_cmd().num_retries, _ProtocolStateBase.num_sends
 
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
@@ -18,7 +17,7 @@ from queue import Empty, Full, PriorityQueue
 from threading import Lock
 from typing import TYPE_CHECKING, Awaitable, Callable
 
-from . import exceptions
+from . import Command, exceptions
 from .address import HGI_DEV_ADDR
 from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
 
@@ -36,7 +35,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from . import Command, Packet, QosProtocol, QosTransport
+    from . import Packet, QosProtocol, QosTransport
 else:
     QosProtocol = asyncio.Protocol
     QosTransport = asyncio.Transport
@@ -478,10 +477,11 @@ class IsInIdle(_ProtocolStateBase):
         assert self.active_cmd is None
         self.active_cmd = cmd
 
-        # NOTE: unfortunately, the gateway's cmd src / echo src can be different:
+        # NOTE: unfortunately, the cmd's src / echo's src can be different:
         # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
         # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
 
+        # the following requires the active GWY's device_id to be known...
         if self.active_cmd._frame[7:16] == HGI_DEV_ADDR.id:  # applies only for addr0
             src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
             self._echo_frame = (
@@ -519,7 +519,7 @@ class WantEcho(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected echo Packet."""
 
-        assert self.active_cmd is not None  # mypy
+        assert isinstance(self.active_cmd, Command)  # mypy
 
         if pkt._frame != self._echo_frame:
             return
@@ -537,22 +537,21 @@ class WantRply(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected response Packet."""
 
-        assert self.active_cmd is not None  # mypy
+        assert isinstance(self.active_cmd, Command)  # mypy
 
-        # NOTE: (if timimg is right) can get a false rply (same rx_header), e.g.:
+        # NOTE: is possible get a false rply (same rx_header), e.g.:
         # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
         # RP --- 10:048122 01:145038 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
 
-        #  I --- 01:145038 18:198151 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
-        #  I --- 01:145038 34:136285 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
-
-        # TODO: use self._echo (Packet) instead of self.cmd (Command)
-        if pkt._hdr != self.active_cmd.rx_header:  # or pkt.dst != self.cmd.src:
-            return
-
-        # NOTE: but, unfortunately, the gateway's cmd src / rply dst can be different:
+        # NOTE: unfortunately, the cmd's src / rply's dst can still be different:
         # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
         # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
+        # NOTE: use: pkt.dst.id !=     self._echo_pkt.src.id
+        # and not:   pkt.dst    is not self._echo_pkt.src
+        # because Addr may become Device from one packet to the next
+        if pkt._hdr != self.active_cmd.rx_header or pkt.dst.id != self._echo_pkt.src.id:
+            return
 
         self._rply_pkt = pkt
         self._context.set_state(IsInIdle)
