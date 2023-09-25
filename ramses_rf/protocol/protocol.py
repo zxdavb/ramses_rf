@@ -44,9 +44,9 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
-MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
-MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
-CYCLE_DURATION = 60  # seconds
+_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
+_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
+_CYCLE_DURATION = 60  # seconds
 
 
 DEV_MODE = __dev_mode__ and False
@@ -146,7 +146,7 @@ def track_system_syncs(fnc: Callable):
     return wrapper
 
 
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
     """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
     max_duty_cycle: bandwidth available per observation window (%)
@@ -201,7 +201,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = CYCLE_DURATION):
     return decorator
 
 
-def limit_transmit_rate(max_tokens: float, time_window: int = CYCLE_DURATION):
+def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
     """Limit the Tx rate as # packets per period of time.
 
     Rate-limits the decorated function locally, for one process (Token Bucket).
@@ -418,7 +418,7 @@ class _AvoidSyncCycle(_BaseProtocol):  # avoid sync cycles
 class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
     """A mixin for staying within duty cycle limits."""
 
-    @limit_duty_cycle(MAX_DUTY_CYCLE)  # @limit_transmit_rate(MAX_TOKENS)
+    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # @limit_transmit_rate(_MAX_TOKENS)
     async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
         await super()._send_frame(frame)
