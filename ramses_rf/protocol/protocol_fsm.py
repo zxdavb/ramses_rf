@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: WantEcho.rcvd_pkt().frame be calculated only once, during IsInIdle.sent_cmd()
 # TODO: WantEcho._echo should be passed to WantRply to compare with rcvd_pkt(pkt)
 
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
@@ -118,7 +117,9 @@ class ProtocolContext:
             self._state = state(
                 self,
                 cmd=self._state.cmd,
-                num_sends=self._state.num_sends  # , frame=frame, echo=echo
+                num_sends=self._state.num_sends,
+                echo_frame=self._state._echo_frame,
+                echo=self._state._echo,
             )
 
         if prev_state:
@@ -380,9 +381,9 @@ class _ProtocolStateBase:
     cmd: None | Command
     num_sends: int
 
+    _echo_frame: None | str = None
     _echo: None | Packet = None
     _rply: None | Packet = None
-    _frame: None | str = None
 
     _next_state: None | _ProtocolStateT = None  # used to detect transition
 
@@ -391,13 +392,19 @@ class _ProtocolStateBase:
     def __init__(
         self,
         context: ProtocolContext,
+        /,
+        *,
         cmd: None | Command = None,
         num_sends: int = 0,
+        echo_frame: None | str = None,
+        echo: None | Packet = None,
     ) -> None:
         self._context = context  # a Protocol
 
-        self.cmd: None | Command = cmd
-        self.num_sends: None | int = num_sends
+        self.cmd = cmd  # #              the cmd as sent (the active cmd)
+        self.num_sends = num_sends  # #  the number of times the active cmd was sent
+        self._echo_frame = echo_frame  # the expected echo Frame for the active cmd
+        self._echo = echo  # #           the received echo Packet
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
@@ -474,18 +481,21 @@ class IsInIdle(_ProtocolStateBase):
         assert self.cmd is None
         self.cmd = cmd
 
-        # if self.cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
-        #     src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
-        #     self._frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
-        # else:
-        #     self._frame = self.cmd._frame
+        # NOTE: unfortunately, the gateway's cmd src / echo src can be different:
+        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+
+        if self.cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
+            src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
+            self._echo_frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
+        else:
+            self._echo_frame = self.cmd._frame
 
         self.num_sends = 1
         self._context.set_state(WantEcho)
 
 
 class _WantPkt(_ProtocolStateBase):
-
     _cant_send_cmd_error = None
 
     def sent_cmd(self, cmd: Command, max_retries: int) -> None:
@@ -512,17 +522,7 @@ class WantEcho(_WantPkt):
 
         assert self.cmd is not None  # mypy
 
-        # NOTE: unfortunately, the gateway's cmd src / echo src can be different:
-        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
-        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
-
-        if self.cmd._frame[7:16] == HGI_DEV_ADDR.id:  # NOTE: applies only for addr0
-            src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
-            frame = self.cmd._frame[:7] + src_id + self.cmd._frame[16:]
-        else:
-            frame = self.cmd._frame
-
-        if pkt._frame != frame:
+        if pkt._frame != self._echo_frame:
             return
 
         self._echo = pkt
