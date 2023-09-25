@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: WantEcho._echo should be passed to WantRply to compare with rcvd_pkt(pkt)
+# TODO: use WantRply._echo (Packet) instead of WantEcho.cmd (Command)
 
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
 
@@ -547,6 +547,7 @@ class WantRply(_WantPkt):
         #  I --- 01:145038 18:198151 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
         #  I --- 01:145038 34:136285 --:------ 2309 003 0501F4  # 2309| I|01:145038|05
 
+        # TODO: use self._echo (Packet) instead of self.cmd (Command)
         if pkt._hdr != self.cmd.rx_header:  # or pkt.dst != self.cmd.src:
             return
 
