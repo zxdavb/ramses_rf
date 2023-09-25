@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: Fix cleanup: rf.stop() & gwy.stop()
+# TODO: Remove unittest.mock.patch (use monkeypatch instead)
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
@@ -24,7 +24,7 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 # patched constants
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_rf.protocol.protocol
-_DEBUG_DISABLE_STRICT_CHECKING = True  # #           ramses_rf.protocol.address
+_DEBUG_DISABLE_STRICT_CHECKING = True  # #    ramses_rf.protocol.address
 MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.transport
 
 # other constants
