@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-
-# TODO: eliminate one of ProtocolContext._send_cmd().num_retries, _ProtocolStateBase.num_sends
-
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
 
 from __future__ import annotations
@@ -295,9 +292,10 @@ class ProtocolContext:
         while num_retries < max_retries:  # resend until RetryLimitExceeded
             num_retries += 1
 
-            try:
-                self.state.sent_cmd(cmd, max_retries)  # must be *before* actually sent
-                await send_fnc(cmd)  # the wrapped function
+            try:  # send the cmd
+                # the order of these two calls appears irrevelent, but dev/tested as is
+                self.state.sent_cmd(cmd)
+                await send_fnc(cmd)  # the wrapped function (actual Tx.write)
                 assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
 
             except (AssertionError, exceptions.ProtocolFsmError) as exc:  # FIXME
@@ -307,7 +305,7 @@ class ProtocolContext:
                 _LOGGER.warning(f"{msg} (will retry): {exc}")
                 continue
 
-            try:
+            try:  # receive the echo pkt
                 # assert isinstance(self.state, WantEcho)  # This won't work here
                 prev_state, next_state = await self._wait_for_transition(
                     self.state,  # NOTE: is self.state, not next_state
@@ -339,7 +337,7 @@ class ProtocolContext:
                 _LOGGER.warning(f"{msg} (will retry): {exc}")
                 continue
 
-            try:
+            try:  # receive the reply pkt (if any)
                 prev_state, next_state = await self._wait_for_transition(
                     next_state,  # NOTE: is next_state, not self.state
                     _DEFAULT_RPLY_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
@@ -356,6 +354,7 @@ class ProtocolContext:
 
             return prev_state._rply_pkt
 
+        # It would never be expected to reach this code, so a safety-net
         raise exceptions.ProtocolFsmError(f"{self}: Unexpected error {cmd.tx_header}")
 
     async def _wait_for_transition(
@@ -471,7 +470,7 @@ class IsInIdle(_ProtocolStateBase):
 
     _cant_send_cmd_error = None
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:
+    def sent_cmd(self, cmd: Command) -> None:
         """The Transport has possibly sent a Command."""
 
         assert self.active_cmd is None
@@ -497,7 +496,7 @@ class IsInIdle(_ProtocolStateBase):
 class _WantPkt(_ProtocolStateBase):
     _cant_send_cmd_error = None
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:
+    def sent_cmd(self, cmd: Command) -> None:
         """The Transport has likely re-sent a Command."""
 
         if not self.is_active_cmd(cmd):
@@ -505,11 +504,6 @@ class _WantPkt(_ProtocolStateBase):
                 f"{self}: Can't send {cmd._hdr}: not active Command"
             )
 
-        if self.num_sends > max_retries:
-            raise exceptions.ProtocolFsmError(
-                f"{self}: Exceeded retry limit of {max_retries}"
-            )
-        self.num_sends += 1
         self._context.set_state(WantEcho)
 
 
