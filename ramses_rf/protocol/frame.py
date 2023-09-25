@@ -409,7 +409,7 @@ class Frame:
 
 
 # TODO: a mess - has false negatives
-def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
+def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
     """Return the payload's 2-byte context (e.g. zone_idx, domain_id or log_idx).
 
     May return a 2-byte string (usu. pkt.payload[:2]), or:
@@ -503,9 +503,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     return None
 
 
-def pkt_header(
-    pkt: Frame, rx_header: bool = False
-) -> None | _HeaderT:  # NOTE: used in command.py
+def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | _HeaderT:
     """Return the header of a packet (all packets have a header).
 
     Used for QoS, and others.
@@ -536,15 +534,20 @@ def pkt_header(
         #     return "|".join((pkt.code, RP, pkt.dst.id))
         return None
 
-    addr = pkt.dst if pkt.src.type == DEV_TYPE_MAP.HGI else pkt.src  # DEX
-    if not rx_header:
-        header = "|".join((pkt.code, pkt.verb, addr.id))
+    # RQ and W use the dst.id rather than the src.id, as:
+    # - cmd.src could be 18:000730, and echo .src will have changed to (say) 18:123456
+    # - cmd.dst is the effector
 
-    elif pkt.verb in (I_, RP) or pkt.src == pkt.dst:  # announcements, etc.: no response
-        return None
+    if rx_header:
+        if pkt.verb in (I_, RP) or pkt.src == pkt.dst:  # say: xxxx| W|00:000000|xx
+            return None  # no response expected
+        header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, pkt.dst.id))
 
-    else:  # RQ/RP, or W/I
-        header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, addr.id))
+    elif pkt.verb in (I_, RP) or pkt.src == pkt.dst:
+        header = "|".join((pkt.code, pkt.verb, pkt.src.id))
+
+    else:
+        header = "|".join((pkt.code, pkt.verb, pkt.dst.id))
 
     try:
         return f"{header}|{pkt._ctx}" if isinstance(pkt._ctx, str) else header
