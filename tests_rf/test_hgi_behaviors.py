@@ -64,7 +64,7 @@ _global_failed_ports: list[str] = []
 
 
 @pytest.fixture(autouse=True)
-def no_requests(monkeypatch: pytest.MonkeyPatch):
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "ramses_rf.protocol.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
         _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,

@@ -296,17 +296,18 @@ class VirtualRfBase:
 
 
 class VirtualRf(VirtualRfBase):
-    """A virtual many-to-many network of serial port with HGI80s (or compatible).
+    """A virtual network of serial ports, each with an optional HGI80s or compatible.
 
-    If the HGI itself is the source of a frame, its addr0 (+/- addr1, addr2) will be
-    changed according to the expected behaviours of of that firmware.
+    Frames are modified/dropped according to the expected behaviours of the gateway that
+    is transmitting (addr0) / receiving (RSSI) it.
     """
 
     def __init__(self, num_ports: int, log_size: int = 100, start: bool = True) -> None:
-        """Create `num_ports` virtual serial ports.
+        """Create a number of virtual serial ports.
 
-        If addr0 of the frame is '18:000730', the frame will be modified appropriately.
+        Each port has the option of a HGI80 or evofw3-based gateway device.
         """
+
         self._gateways: dict[_PN, dict] = {}
 
         super().__init__(num_ports, log_size)
@@ -324,6 +325,11 @@ class VirtualRf(VirtualRfBase):
         device_id: str,
         fw_version: HgiFwTypes = HgiFwTypes.EVOFW3,
     ) -> None:
+        """Attach a gateway with a given device_id and FW type to a port.
+
+        Raise an exception if the device_id is already attached to another port.
+        """
+
         if port_name not in self.ports:
             raise LookupError(f"Port does not exist: {port_name}")
 
@@ -347,9 +353,11 @@ class VirtualRf(VirtualRfBase):
         self._set_comport_info(port_name, dev_type=fw_version)
 
     def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
-        """The RSSI is added by the receiving HGI80-compatible device after Rx.
+        """Return the frame as it would have been modified by a gateway after Rx.
 
         Return None if the bytes are not to be Rx by this device.
+
+        Both FW types will prepend an RSSI to the frame.
         """
 
         if frame[:1] != b"!":
@@ -366,9 +374,12 @@ class VirtualRf(VirtualRfBase):
         return None  # TODO: return the ! response
 
     def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
-        """The addr0 may be changed by the sending HGI80-compatible device before Tx.
+        """Return the frame as it would have been modified by a gateway before Tx.
 
         Return None if the bytes are not to be Tx to the RF ether (e.g. to echo only).
+
+        Both FW types will convert addr0 (only) from 18:000730 to its actual device_id.
+        HGI80-based gateways will silently drop frames with addr0 other than 18:000730.
         """
 
         # The type of Gateway will inform next steps...

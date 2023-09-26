@@ -193,7 +193,7 @@ async def assert_context_state(
     assert isinstance(device._context.state, state)
 
 
-# TODO: replace with a factory in VirtualRF
+# TODO: replace with a factory in VirtualRF, wrapped by a fixture
 def rf_network_with_two_gateways(fnc):
     """Decorator to create a virtual RF network with two separate gateways.
 
