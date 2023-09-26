@@ -22,7 +22,6 @@ import serial
 import serial_asyncio
 
 from ramses_rf import Command, Packet
-from ramses_rf.protocol import ProtocolSendFailed
 from ramses_rf.protocol.protocol import QosProtocol, protocol_factory
 from ramses_rf.protocol.protocol_fsm import (
     Inactive,
@@ -335,52 +334,6 @@ async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
         assert pkt == cmd
 
 
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
-@patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
-@protocol_decorator
-async def _test_flow_51x(rf: VirtualRf, protocol: QosProtocol) -> None:
-    #
-    # Simple test for an RQ (expects RP as rx)...
-    cmd = Command.get_system_time("01:123456")  # 313F|RQ|01:123456|00
-
-    protocol._context.set_state(IsInIdle)
-
-    # # pkt = await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=False)
-    # # await assert_protocol_state(protocol, IsInIdle)
-    # # assert pkt == cmd
-
-    # # protocol._context.set_state(IsFailed)
-
-    # # pkt = await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=False)
-    # # await assert_protocol_state(protocol, IsInIdle)
-    # # assert pkt == cmd
-
-    # # try:
-    # #     await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT)  # , wait_for_reply=None)
-    # # except ProtocolSendFailed:
-    # #     await assert_protocol_state(protocol, IsFailed)
-    # # else:
-    # #     assert False
-
-    try:
-        await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=None)
-    except ProtocolSendFailed:
-        await assert_protocol_state(protocol, IsFailed)
-    else:
-        assert False
-
-    pkt = await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=False)
-    await assert_protocol_state(protocol, IsInIdle)
-    assert pkt == cmd
-
-    # # try:
-    # #     await protocol._send_cmd(cmd, timeout=DEFAULT_TIMEOUT, wait_for_reply=True)
-    # # except ProtocolSendFailed:
-    # #     await assert_protocol_state(protocol, IsFailed)
-    # # else:
-    # #     assert False
-
-
 @protocol_decorator
 async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
     #
@@ -416,12 +369,6 @@ async def test_flow_300() -> None:
 async def test_flow_500() -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_50x()
-
-
-@pytest.mark.xdist_group(name="virtual_rf")
-async def _test_flow_510() -> None:
-    """Check the wait_for_reply kwarg."""
-    await _test_flow_51x()
 
 
 @pytest.mark.xdist_group(name="virtual_rf")
