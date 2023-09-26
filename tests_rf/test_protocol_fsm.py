@@ -23,13 +23,7 @@ import serial_asyncio
 
 from ramses_rf import Command, Packet
 from ramses_rf.protocol import ProtocolSendFailed
-from ramses_rf.protocol.protocol import (
-    QosProtocol,
-    _BaseProtocol,
-    _ProtImpersonate,
-    _ProtQosTimers,
-    protocol_factory,
-)
+from ramses_rf.protocol.protocol import QosProtocol, protocol_factory
 from ramses_rf.protocol.protocol_fsm import (
     Inactive,
     IsFailed,
@@ -82,23 +76,15 @@ RQ_PKT_1 = Packet(dt.now(), f"... {RQ_CMD_STR_1}")
 RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 
 
-# TODO: fails with _QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers...
-class _QosProtocol(_ProtImpersonate, _ProtQosTimers, _BaseProtocol):
-    """Test only QoS, not Duty cycle limits (& gaps) and Impersonation alerts."""
-
-    async def _send_impersonation_alert(self, cmd: Command) -> None:
-        """Don't send impersonation alert (puzzle) packets to the packet log."""
-        pass
-
-
-async def assert_protocol_ready(
-    protocol: QosProtocol, max_sleep: int = DEFAULT_MAX_SLEEP
-) -> None:
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if protocol._transport is not None:
-            break
-    assert protocol._transport
+@pytest.fixture(autouse=True)
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+    )
 
 
 async def assert_protocol_state(
@@ -145,7 +131,6 @@ def protocol_decorator(fnc):
         transport._extra["virtual_rf"] = rf  # injected to aid any debugging
 
         try:
-            await assert_protocol_ready(protocol)  # ensure protocol has quiesced
             await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
             await fnc(rf, protocol, *args, **kwargs)
             await assert_protocol_state(protocol, (IsInIdle, IsFailed))
@@ -292,15 +277,9 @@ async def _test_flow_10x(
     # gather
 
 
-@patch("ramses_rf.protocol.protocol.QosProtocol", _QosProtocol)
-# @patch(
-#     "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-#     _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-# )
 @patch(  # maintain state chain (for debugging)
     "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
 )
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_30x(
     rf: VirtualRf,
@@ -342,12 +321,6 @@ async def _test_flow_30x(
     assert await task == RP_PKT_1
 
 
-@patch(
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
@@ -362,10 +335,6 @@ async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
         assert pkt == cmd
 
 
-@patch(
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
 @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @patch("ramses_rf.protocol.protocol_fsm._DEFAULT_RPLY_TIMEOUT", _DEFAULT_RPLY_TIMEOUT)
 @protocol_decorator
@@ -412,11 +381,6 @@ async def _test_flow_51x(rf: VirtualRf, protocol: QosProtocol) -> None:
     # #     assert False
 
 
-@patch(
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 @protocol_decorator
 async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
     #
