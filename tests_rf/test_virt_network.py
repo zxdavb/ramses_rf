@@ -10,7 +10,6 @@
 """
 
 import asyncio
-from unittest.mock import patch
 
 import pytest
 import serial
@@ -19,6 +18,7 @@ from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf
 
 # patched constants
+_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_rf.protocol.protocol
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.protocol
 
@@ -31,10 +31,26 @@ SCHEMA_0 = {
     "orphans_hvac": ["41:111111"],
     "known_list": {"41:111111": {"class": "REM"}},
 }
+
 SCHEMA_1 = {
     "orphans_hvac": ["42:222222"],
     "known_list": {"42:222222": {"class": "FAN"}},
 }
+
+
+@pytest.fixture(autouse=True)
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
+        _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+    )
 
 
 async def assert_code_in_device_msgz(
@@ -86,12 +102,7 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
     assert transport._this_pkt and transport._this_pkt._frame == cmd._frame
 
 
-@pytest.mark.xdist_group(name="serial")
-@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@pytest.mark.xdist_group(name="fake_serial")
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -146,12 +157,7 @@ async def test_virtual_rf_dev_disc():
     await rf.stop()
 
 
-@pytest.mark.xdist_group(name="serial")
-@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@pytest.mark.xdist_group(name="fake_serial")
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 
