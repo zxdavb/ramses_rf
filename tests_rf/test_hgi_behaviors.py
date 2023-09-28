@@ -22,8 +22,8 @@ from ramses_rf.protocol.exceptions import ProtocolSendFailed
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_rf.protocol.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
 _DEBUG_DISABLE_STRICT_CHECKING = True  # #    ramses_rf.protocol.address
 MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.transport
 
