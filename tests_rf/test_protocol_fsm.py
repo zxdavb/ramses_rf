@@ -89,30 +89,7 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     )
 
 
-# ######################################################################################
-
-
-async def assert_protocol_state(
-    protocol: QosProtocol,
-    expected_state: _ProtocolStateT,
-    max_sleep: int = DEFAULT_MAX_SLEEP,
-) -> None:
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if isinstance(protocol._context.state, expected_state):
-            break
-    assert isinstance(protocol._context.state, expected_state)
-
-
-def assert_protocol_state_detail(
-    protocol: QosProtocol, cmd: Command, num_sends: int
-) -> None:
-    assert protocol._context.state.is_active_cmd(cmd)
-    assert protocol._context.state.num_sends == num_sends
-    assert bool(cmd) is isinstance(protocol._context.state, (WantEcho, WantRply))
-
-
-def protocol_decorator(fnc):
+def protocol_decorator(fnc):  # TODO: make a fixture
     """Create a virtual RF network with a protocol stack."""
 
     @functools.wraps(fnc)
@@ -153,6 +130,29 @@ def protocol_decorator(fnc):
         await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
     return test_wrapper
+
+
+# ######################################################################################
+
+
+async def assert_protocol_state(
+    protocol: QosProtocol,
+    expected_state: _ProtocolStateT,
+    max_sleep: int = DEFAULT_MAX_SLEEP,
+) -> None:
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if isinstance(protocol._context.state, expected_state):
+            break
+    assert isinstance(protocol._context.state, expected_state)
+
+
+def assert_protocol_state_detail(
+    protocol: QosProtocol, cmd: Command, num_sends: int
+) -> None:
+    assert protocol._context.state.is_active_cmd(cmd)
+    assert protocol._context.state.num_sends == num_sends
+    assert bool(cmd) is isinstance(protocol._context.state, (WantEcho, WantRply))
 
 
 async def async_pkt_received(
