@@ -4,7 +4,7 @@
 
 # TODO: replace with a factory in VirtualRF
 # TODO: test addenda phase of binding handshake
-# TODO: get test working with disabled QoS
+# TODO: get test working with (and without) disabled QoS
 
 """Test the binding protocol with a virtual RF
 
@@ -214,7 +214,6 @@ def rf_network_with_two_gateways(fnc):
 
         return gwy_id
 
-    @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
     @functools.wraps(fnc)
     async def test_wrapper(config_0: dict, config_1: dict, *args, **kwargs):
         rf = VirtualRf(2, start=True)

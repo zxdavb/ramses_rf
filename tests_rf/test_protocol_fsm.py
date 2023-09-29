@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: 300 fails with _QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers...
+# TODO: replace protocol_decorator with a factory or fixture
 
 """Test the binding protocol with a virtual RF
 
@@ -13,8 +13,6 @@
 import asyncio
 import functools
 from datetime import datetime as dt
-from datetime import timedelta as td
-from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -37,10 +35,9 @@ from .virtual_rf import VirtualRf
 
 # patched constants
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
-_DEFAULT_RPLY_TIMEOUT = td(seconds=0.001)  # #  ramses_rf.protocol.protocol_fsm
+_DEBUG_MAINTAIN_STATE_CHAIN = False  # #        ramses_rf.protocol.protocol_fsm
 DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
 DEFAULT_TIMEOUT = 0.05  # #                     ramses_rf.protocol.protocol_fsm
-MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
 MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
 
@@ -86,6 +83,10 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     )
     monkeypatch.setattr(
         "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN",
+        _DEBUG_MAINTAIN_STATE_CHAIN,
     )
 
 
@@ -187,9 +188,6 @@ async def async_pkt_received(
 # ### TESTS ############################################################################
 
 
-@patch(  # maintain state chain (for debugging)
-    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
-)
 @protocol_decorator
 async def _test_flow_10x(
     rf: VirtualRf,
@@ -282,9 +280,6 @@ async def _test_flow_10x(
     # gather
 
 
-@patch(  # maintain state chain (for debugging)
-    "ramses_rf.protocol.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN", MAINTAIN_STATE_CHAIN
-)
 @protocol_decorator
 async def _test_flow_30x(
     rf: VirtualRf,
@@ -358,7 +353,6 @@ async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> No
 
 # TODO: needs work after refactor, see BUG, above
 @pytest.mark.xdist_group(name="virt_serial")
-# @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def _test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
     await _test_flow_10x(rcvd_method=0)  # try 0, 1

@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: Remove unittest.mock.patch (use monkeypatch instead)
+# TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
+# TODO: Test with strict address checking
 
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 

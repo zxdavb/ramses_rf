@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: get tests working with QoS enabled
-# TODO: use better quiesce function (for protocol ready)
+# TODO: get tests working with QoS enabled (swap monkeypatch for unittest patch)
+# TODO: why is ser_1.read(ser_1.in_waiting) needed?
 
 """RAMSES RF - Test the use_regex feature."""
 
@@ -17,7 +17,6 @@ import serial
 from ramses_rf import Command, Gateway, Packet
 from ramses_rf.protocol.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_rf.protocol.transport import _str
-from tests_rf.test_virt_network import assert_device
 from tests_rf.virtual_rf import VirtualRf
 
 # patched constants
@@ -114,11 +113,9 @@ async def test_regex_inbound_():
     ser_1 = serial.Serial(rf.ports[1])
 
     await gwy_0.start()
-    gwy_0._protocol._transport
+    assert gwy_0._protocol._transport
 
     try:
-        await assert_device(gwy_0, "18:000730")  # quiesce
-
         for cmd, pkt in TESTS_INBOUND.items():
             ser_1.write(bytes(cmd.encode("ascii")) + b"\r\n")
 
@@ -145,10 +142,9 @@ async def test_regex_outbound():
     ser_1 = serial.Serial(rf.ports[1])
 
     await gwy_0.start()
-    gwy_0._protocol._transport
+    assert gwy_0._protocol._transport
 
     try:
-        await assert_device(gwy_0, "18:000730")  # quiesce
         _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
 
         for cmd, pkt in TESTS_OUTBOUND.items():
@@ -178,10 +174,9 @@ async def test_regex_with_qos():
     ser_1 = serial.Serial(rf.ports[1])
 
     await gwy_0.start()
-    gwy_0._protocol._transport
+    assert gwy_0._protocol._transport
 
     try:
-        await assert_device(gwy_0, "18:000730")  # quiesce
         _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
 
         for before, after in TESTS_OUTBOUND.items():
