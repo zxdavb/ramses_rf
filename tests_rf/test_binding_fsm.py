@@ -243,19 +243,6 @@ def rf_network_with_two_gateways(fnc):
     return test_wrapper
 
 
-# ######################################################################################
-
-
-async def assert_context_state(
-    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
-) -> None:
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if isinstance(device._context.state, state):
-            break
-    assert isinstance(device._context.state, state)
-
-
 def ensure_fakeable(dev: Device) -> None:
     """If a Device is not Fakeable (i.e. Fakeable, not _faked), make it so."""
 
@@ -270,6 +257,19 @@ def ensure_fakeable(dev: Device) -> None:
     setattr(dev, "_faked", None)
     setattr(dev, "_context", BindContext(dev))
     setattr(dev, "_1fc9_state", {})
+
+
+# ######################################################################################
+
+
+async def assert_context_state(
+    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
+) -> None:
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if isinstance(device._context.state, state):
+            break
+    assert isinstance(device._context.state, state)
 
 
 # ### TESTS ############################################################################
