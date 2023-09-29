@@ -38,6 +38,9 @@ SCHEMA_1 = {
 }
 
 
+# ### FIXTURES #########################################################################
+
+
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
@@ -51,6 +54,9 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
     )
+
+
+# ######################################################################################
 
 
 async def assert_code_in_device_msgz(
@@ -102,7 +108,10 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
     assert transport._this_pkt and transport._this_pkt._frame == cmd._frame
 
 
-@pytest.mark.xdist_group(name="fake_serial")
+# ### TESTS ############################################################################
+
+
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -157,7 +166,7 @@ async def test_virtual_rf_dev_disc():
     await rf.stop()
 
 
-@pytest.mark.xdist_group(name="fake_serial")
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 

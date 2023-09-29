@@ -63,6 +63,9 @@ TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_
 _global_failed_ports: list[str] = []
 
 
+# ### FIXTURES #########################################################################
+
+
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
@@ -177,6 +180,9 @@ async def real_ti3410():
         await gwy.stop()
 
 
+# ### TESTS ############################################################################
+
+
 @patch(  # DISABLE_STRICT_CHECKING
     "ramses_rf.protocol.address._DEBUG_DISABLE_STRICT_CHECKING",
     _DEBUG_DISABLE_STRICT_CHECKING,
@@ -209,9 +215,6 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         pkt_str = cmd_str
 
     assert pkt._frame == pkt_str
-
-
-# ######################################################################################
 
 
 @pytest.mark.xdist_group(name="real_serial")
@@ -258,14 +261,14 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
         pytest.xfail(str(exc))  # not skip, as we'd determined port exists, above
 
 
-@pytest.mark.xdist_group(name="fake_serial")
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     await _test_gwy_device(fake_evofw3, test_idx)
 
 
-@pytest.mark.xdist_group(name="fake_serial")
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
 

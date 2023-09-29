@@ -163,8 +163,11 @@ TEST_SUITE_300 = [
 ]
 
 
+# ### FIXTURES #########################################################################
+
+
 @pytest.fixture(autouse=True)
-def no_requests(monkeypatch: pytest.MonkeyPatch):
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
         _DEBUG_DISABLE_IMPERSONATION_ALERTS,
@@ -181,16 +184,6 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
         return s_class + " binding to " + r_class
 
     metafunc.parametrize("test_set", TEST_SUITE_300, ids=id_fnc)
-
-
-async def assert_context_state(
-    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
-) -> None:
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if isinstance(device._context.state, state):
-            break
-    assert isinstance(device._context.state, state)
 
 
 # TODO: replace with a factory in VirtualRF, wrapped by a fixture
@@ -250,6 +243,19 @@ def rf_network_with_two_gateways(fnc):
     return test_wrapper
 
 
+# ######################################################################################
+
+
+async def assert_context_state(
+    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
+) -> None:
+    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
+        await asyncio.sleep(ASSERT_CYCLE_TIME)
+        if isinstance(device._context.state, state):
+            break
+    assert isinstance(device._context.state, state)
+
+
 def ensure_fakeable(dev: Device) -> None:
     """If a Device is not Fakeable (i.e. Fakeable, not _faked), make it so."""
 
@@ -264,6 +270,9 @@ def ensure_fakeable(dev: Device) -> None:
     setattr(dev, "_faked", None)
     setattr(dev, "_context", BindContext(dev))
     setattr(dev, "_1fc9_state", {})
+
+
+# ### TESTS ############################################################################
 
 
 # TODO: test addenda phase of binding handshake
@@ -383,11 +392,8 @@ async def _test_flow_10x(
     assert False
 
 
-# ######################################################################################
-
-
 # TODO: get test working without QoS
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 @patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 async def test_flow_100(test_set: dict[str:dict]) -> None:
     """Check packet flow / state change of a binding at device layer."""

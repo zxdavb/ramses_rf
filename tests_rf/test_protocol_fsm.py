@@ -75,6 +75,9 @@ RQ_PKT_1 = Packet(dt.now(), f"... {RQ_CMD_STR_1}")
 RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 
 
+# ### FIXTURES #########################################################################
+
+
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
@@ -84,6 +87,9 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
     )
+
+
+# ######################################################################################
 
 
 async def assert_protocol_state(
@@ -178,7 +184,7 @@ async def async_pkt_received(
     # assert_state_temp(protocol, None, 0)
 
 
-# ######################################################################################
+# ### TESTS ############################################################################
 
 
 @patch(  # maintain state chain (for debugging)
@@ -351,7 +357,7 @@ async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> No
 
 
 # TODO: needs work after refactor, see BUG, above
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 # @patch("ramses_rf.protocol.transport._PortTransport._read_ready", _read_ready)
 async def _test_flow_100() -> None:
     """Check state change of RQ/I/RQ cmds using context primitives."""
@@ -359,25 +365,25 @@ async def _test_flow_100() -> None:
     await _test_flow_10x(rcvd_method=0, min_sleeps=True)
 
 
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_300() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
     await _test_flow_30x()
 
 
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_500() -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_50x()
 
 
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_601() -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_60x()
 
 
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 async def _test_flow_602() -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_60x(num_cmds=2)
@@ -398,11 +404,11 @@ async def async_benchmark(benchmark, event_loop: asyncio.AbstractEventLoop):
     return _wrapper
 
 
-# @pytest.mark.xdist_group(name="virtual_rf")
+# @pytest.mark.xdist_group(name="virt_serial")
 # def test_benchmark_100(async_benchmark):
 #     async_benchmark(_test_flow_10x)
 
 
-# @pytest.mark.xdist_group(name="virtual_rf")
+# @pytest.mark.xdist_group(name="virt_serial")
 # def test_benchmark_300(async_benchmark):
 #     async_benchmark(_test_flow_30x)

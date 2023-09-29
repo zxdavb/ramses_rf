@@ -15,7 +15,6 @@ import pytest
 import serial
 
 from ramses_rf import Command, Gateway, Packet
-from ramses_rf.protocol import QosProtocol
 from ramses_rf.protocol.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_rf.protocol.transport import _str
 from tests_rf.test_virt_network import assert_device
@@ -72,14 +71,21 @@ GWY_CONFIG = {
 }
 
 
-async def assert_protocol_ready(
-    protocol: QosProtocol, max_sleep: int = DEFAULT_MAX_SLEEP
-) -> None:
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if protocol._transport is not None:
-            break
-    assert protocol._transport
+# ### FIXTURES #########################################################################
+
+
+@pytest.fixture(autouse=True)
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+    )
+    monkeypatch.setattr(
+        "ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT
+    )
 
 
 async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
@@ -91,14 +97,10 @@ async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_S
     assert gwy._this_msg and gwy._this_msg._pkt._frame == expected._frame
 
 
-# TODO: use better quiesce function
-@pytest.mark.xdist_group(name="virtual_rf")
-@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
+# ### TESTS ############################################################################
+
+
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_regex_inbound_():
     """Check the regex filters work as expected."""
 
@@ -112,7 +114,7 @@ async def test_regex_inbound_():
     ser_1 = serial.Serial(rf.ports[1])
 
     await gwy_0.start()
-    await assert_protocol_ready(gwy_0._protocol)
+    gwy_0._protocol._transport
 
     try:
         await assert_device(gwy_0, "18:000730")  # quiesce
@@ -128,15 +130,8 @@ async def test_regex_inbound_():
 
 
 # TODO: get tests working with QoS enabled
-# TODO: use better quiesce function
-@pytest.mark.xdist_group(name="virtual_rf")
+@pytest.mark.xdist_group(name="virt_serial")
 @patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
-@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 async def test_regex_outbound():
     """Check the regex filters work as expected."""
 
@@ -150,7 +145,7 @@ async def test_regex_outbound():
     ser_1 = serial.Serial(rf.ports[1])
 
     await gwy_0.start()
-    await assert_protocol_ready(gwy_0._protocol)
+    gwy_0._protocol._transport
 
     try:
         await assert_device(gwy_0, "18:000730")  # quiesce
@@ -168,14 +163,7 @@ async def test_regex_outbound():
         await rf.stop()
 
 
-# TODO: use better quiesce function
-@pytest.mark.xdist_group(name="virtual_rf")
-@patch(  # _DEBUG_DISABLE_IMPERSONATION_ALERTS
-    "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-    _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-)
-@patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
-@patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_regex_with_qos():
     """Check the regex filters work as expected."""
 
@@ -190,7 +178,7 @@ async def test_regex_with_qos():
     ser_1 = serial.Serial(rf.ports[1])
 
     await gwy_0.start()
-    await assert_protocol_ready(gwy_0._protocol)
+    gwy_0._protocol._transport
 
     try:
         await assert_device(gwy_0, "18:000730")  # quiesce
