@@ -3,6 +3,8 @@
 #
 """RAMSES RF - A pseudo-mocked serial port used for testing."""
 
+from unittest.mock import patch
+
 from ramses_rf import Gateway
 from ramses_rf.const import DEV_TYPE_MAP, DevType
 from ramses_rf.schemas import SZ_CLASS, SZ_KNOWN_LIST
@@ -11,14 +13,10 @@ from .helpers import ensure_fakeable  # noqa: F401, pylint: disable=unused-impor
 from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf
 
-# # patched constants
+# patched constants
 # _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
 # _DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
-# DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
-# DEFAULT_TIMEOUT = 0.005  # #                    ramses_rf.protocol.protocol_fsm
-# MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
-# MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
-# MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
 
 # other constants
 GWY_ID_0 = "18:000000"
@@ -67,6 +65,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> str:
     return hgi_id, fw_type
 
 
+# @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def rf_factory(
     schemas: list[dict], start_gwys: bool = True
 ) -> tuple[VirtualRf, list[Gateway]]:
@@ -96,11 +95,12 @@ async def rf_factory(
         rf._create_port(idx)
         rf.set_gateway(rf.ports[idx], hgi_id, fw_type=HgiFwTypes.__members__[fw_type])
 
-        gwy = Gateway(rf.ports[idx], **schema)
+        with patch("ramses_rf.protocol.transport.comports", rf.comports):
+            gwy = Gateway(rf.ports[idx], **schema)
         gwys.append(gwy)
 
         if start_gwys:
             await gwy.start()
-            gwy._transport._extra["rf"] = rf
+            gwy._transport._extra["virtual_rf"] = rf
 
     return rf, gwys

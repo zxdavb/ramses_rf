@@ -15,7 +15,7 @@ import pytest
 import serial
 
 from ramses_rf import Code, Command, Device, Gateway
-from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf
+from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf, rf_factory
 
 # patched constants
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_rf.protocol.protocol
@@ -77,16 +77,6 @@ async def assert_code_in_device_msgz(
     ) != test_not  # TODO: fix me
 
 
-async def assert_device(gwy: Gateway, dev_id: str, max_sleep: int = DEFAULT_MAX_SLEEP):
-    """Fail if the devices does not exist."""
-
-    for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
-        await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if dev_id in gwy.device_by_id:
-            break
-    assert dev_id in gwy.device_by_id
-
-
 async def assert_devices(
     gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
 ):
@@ -111,6 +101,7 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
 # ### TESTS ############################################################################
 
 
+# NOTE: does not use factory
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_virtual_rf_dev_disc():
     """Check the virtual RF network behaves as expected (device discovery)."""
@@ -166,23 +157,20 @@ async def test_virtual_rf_dev_disc():
     await rf.stop()
 
 
+# NOTE: uses factory
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_virtual_rf_pkt_flow():
     """Check the virtual RF network behaves as expected (packet flow)."""
 
-    rf = VirtualRf(2)
+    rf, (gwy_0, gwy_1) = await rf_factory(
+        [DEFAULT_GWY_CONFIG | SCHEMA_0, DEFAULT_GWY_CONFIG | SCHEMA_1]
+    )
 
-    # rf.set_gateway(rf.ports[0], "18:111111")
-    gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG, **SCHEMA_0)
-    await gwy_0.start()
     assert gwy_0._protocol._transport
-    await assert_devices(gwy_0, ["18:000730", "41:111111"])
+    await assert_devices(gwy_0, ["18:000000", "41:111111"])
 
-    # rf.set_gateway(rf.ports[1], "18:222222")
-    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG, **SCHEMA_1)
-    await gwy_1.start()
     assert gwy_1._protocol._transport
-    await assert_devices(gwy_1, ["18:000730", "42:222222"])
+    await assert_devices(gwy_1, ["18:111111", "42:222222"])
 
     # TEST 1:
     await assert_code_in_device_msgz(
@@ -194,7 +182,7 @@ async def test_virtual_rf_pkt_flow():
     )  # no retries, otherwise long duration
     gwy_0.send_cmd(cmd)
 
-    await assert_device(gwy_0, "01:333333")
+    await assert_devices(gwy_0, ["18:000000", "01:333333", "41:111111"])
     await assert_code_in_device_msgz(gwy_0, "01:333333", Code._1F09)
 
     await assert_this_pkt(gwy_0._transport, cmd)
@@ -215,8 +203,8 @@ async def test_virtual_rf_pkt_flow():
     await assert_this_pkt(gwy_0._transport, cmd)
     await assert_this_pkt(gwy_1._transport, cmd)
 
-    # await assert_devices(gwy_0, ["18:000730", "01:333333", "41:111111"])
-    # await assert_devices(gwy_1, ["18:000730", "01:333333", "41:111111", "42:222222"])
+    await assert_devices(gwy_0, ["18:000000", "01:333333", "41:111111"])
+    await assert_devices(gwy_1, ["18:111111", "01:333333", "41:111111", "42:222222"])
 
     await gwy_0.stop()
     await gwy_1.stop()

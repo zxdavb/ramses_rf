@@ -184,6 +184,9 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_set", TEST_SUITE_300, ids=id_fnc)
 
 
+# ######################################################################################
+
+
 def ensure_fakeable(dev: Device) -> None:
     """If a Device is not Fakeable (i.e. Fakeable, not _faked), make it so."""
 
@@ -198,9 +201,6 @@ def ensure_fakeable(dev: Device) -> None:
     setattr(dev, "_faked", None)
     setattr(dev, "_context", BindContext(dev))
     setattr(dev, "_1fc9_state", {})
-
-
-# ######################################################################################
 
 
 async def assert_context_state(
