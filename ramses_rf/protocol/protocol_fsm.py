@@ -445,7 +445,7 @@ class _ProtocolStateBase:
         """Receive a Packet without complaint (most times this is OK)."""
         pass
 
-    def sent_cmd(self, cmd: Command, max_retries: int) -> None:  # raises exception
+    def sent_cmd(self, cmd: Command) -> None:  # raises exception
         """Send a packet if in the correct state."""
         # if self._cant_send_cmd_error:
         raise exceptions.ProtocolFsmError(
