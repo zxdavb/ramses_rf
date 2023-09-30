@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 #
 
-# TODO: replace with a factory in VirtualRF
 # TODO: test addenda phase of binding handshake
 # TODO: get test working with (and without) disabled QoS
 
@@ -13,7 +12,6 @@
 """
 
 import asyncio
-import functools
 from datetime import datetime as dt
 from unittest.mock import patch
 
@@ -29,7 +27,7 @@ from ramses_rf.binding_fsm import (
 )
 from ramses_rf.device import Fakeable
 
-from .virtual_rf import VirtualRf
+from .virtual_rf import rf_factory
 
 # patched constants
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
@@ -186,62 +184,6 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_set", TEST_SUITE_300, ids=id_fnc)
 
 
-# TODO: replace with a factory in VirtualRF, wrapped by a fixture
-def rf_network_with_two_gateways(fnc):
-    """Decorator to create a virtual RF network with two separate gateways.
-
-    Each gateway has its own schema.
-    """
-
-    def get_or_set_hgi_id_from_known_list(idx: int, config: dict) -> str:
-        """Extract or create/insert a HGI device ID from/into the configuration."""
-
-        known_list = config["known_list"] = config.get("known_list", {})
-
-        gwy_ids = [k for k, v in known_list.items() if v.get("class") == "HGI"]
-        if not gwy_ids:
-            gwy_ids = [
-                k
-                for k, v in known_list.items()
-                if v.get("class") is None and k[:3] == "18:"
-            ]
-        gwy_id = gwy_ids[0] if gwy_ids else f"18:{str(idx) * 6}"
-
-        if known_list.get(gwy_id):
-            known_list[gwy_id]["class"] = "HGI"
-        else:
-            known_list[gwy_id] = {"class": "HGI"}
-
-        return gwy_id
-
-    @functools.wraps(fnc)
-    async def test_wrapper(config_0: dict, config_1: dict, *args, **kwargs):
-        rf = VirtualRf(2, start=True)
-
-        _gwys = []  # HACK:  we need a way to extract gwy object from rf
-
-        for idx, config in enumerate((config_0, config_1)):
-            gwy_addr = get_or_set_hgi_id_from_known_list(idx, config)
-
-            rf.set_gateway(rf.ports[idx], gwy_addr)
-            gwy = Gateway(rf.ports[idx], **config)
-            await gwy.start()  # start_discovery=False)
-            gwy._transport._extra["rf"] = rf
-
-            _gwys += [gwy]  # HACK: messy
-
-        gwy: Gateway  # mypy
-
-        try:
-            await fnc(_gwys[0], _gwys[1], *args, **kwargs)  # HACK
-        finally:
-            for gwy in _gwys:  # HACK
-                await gwy.stop()
-            await rf.stop()
-
-    return test_wrapper
-
-
 def ensure_fakeable(dev: Device) -> None:
     """If a Device is not Fakeable (i.e. Fakeable, not _faked), make it so."""
 
@@ -275,7 +217,6 @@ async def assert_context_state(
 
 
 # TODO: test addenda phase of binding handshake
-@rf_network_with_two_gateways
 async def _test_flow_10x(
     gwy_r: Gateway, gwy_s: Gateway, pkt_flow_expected: list[str]
 ) -> None:
@@ -410,4 +351,12 @@ async def test_flow_100(test_set: dict[str:dict]) -> None:
         for x in test_set.get(PKT_FLOW, [])
     ]
 
-    await _test_flow_10x(config[SZ_RESPONDENT], config[SZ_SUPPLICANT], pkt_flow)
+    # cant use fixture for this, as new schema required for every test
+    rf, gwys = await rf_factory([config[SZ_RESPONDENT], config[SZ_SUPPLICANT]])
+
+    try:
+        await _test_flow_10x(gwys[0], gwys[1], pkt_flow)
+    finally:
+        for gwy in gwys:
+            await gwy.stop()
+        await rf.stop()

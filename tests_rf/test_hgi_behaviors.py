@@ -101,7 +101,7 @@ async def fake_evofw3():
     """Utilize a virtual evofw3-compatible gateway."""
 
     rf = VirtualRf(1)
-    rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.EVOFW3)
+    rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.EVOFW3)
 
     with patch("ramses_rf.protocol.transport.comports", rf.comports):
         gwy = Gateway(rf.ports[0], **CONFIG)
@@ -123,7 +123,7 @@ async def fake_ti3410():
     """Utilize a virtual HGI80-compatible gateway."""
 
     rf = VirtualRf(1)
-    rf.set_gateway(rf.ports[0], TST_ID_, fw_version=HgiFwTypes.HGI_80)
+    rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.HGI_80)
 
     with patch("ramses_rf.protocol.transport.comports", rf.comports):
         gwy = Gateway(rf.ports[0], **CONFIG)

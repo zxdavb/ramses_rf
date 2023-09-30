@@ -3,25 +3,22 @@
 #
 """RAMSES RF - A pseudo-mocked serial port used for testing."""
 
-from functools import wraps
-from typing import Any, Callable, Coroutine
-from unittest.mock import patch
-
-from ramses_rf import Command, Gateway
+from ramses_rf import Gateway
+from ramses_rf.const import DEV_TYPE_MAP, DevType
+from ramses_rf.schemas import SZ_CLASS, SZ_KNOWN_LIST
 
 from .helpers import ensure_fakeable  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf
 
-
-# patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
-_DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
-DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
-DEFAULT_TIMEOUT = 0.005  # #                    ramses_rf.protocol.protocol_fsm
-MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
-MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
+# # patched constants
+# _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
+# _DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
+# DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
+# DEFAULT_TIMEOUT = 0.005  # #                    ramses_rf.protocol.protocol_fsm
+# MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
+# MAX_DUTY_CYCLE = 1.0  # #                       ramses_rf.protocol.protocol
+# MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
 
 # other constants
 GWY_ID_0 = "18:000000"
@@ -35,69 +32,75 @@ DEFAULT_GWY_CONFIG = {
 }
 
 
-def _rf_net_create(
-    schema_0: dict, schema_1: dict
-) -> tuple[VirtualRf, Gateway, Gateway]:
-    """Create a VirtualRf network with two well-known gateways."""
+def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> str:
+    """Return the Gateway's device_id for a schema (if required, construct an id).
 
-    rf = VirtualRf(2, start=False)
+    Does not modify the schema.
 
-    rf.set_gateway(rf.ports[0], GWY_ID_0)
-    rf.set_gateway(rf.ports[1], GWY_ID_1)
+    If a Gateway (18:) device is present in the schema, it must have a defined class of
+    "HGI". Otherwise, the Gateway device_id is derived from the serial port ordinal
+    (port_idx, 0-5).
+    """
 
-    gwy_0 = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG, **schema_0)
-    gwy_1 = Gateway(rf.ports[1], **DEFAULT_GWY_CONFIG, **schema_1)
+    known_list: dict = schema.get(SZ_KNOWN_LIST, {})
 
-    rf.start()
+    hgi_ids = [k for k, v in known_list.items() if v.get(SZ_CLASS) == DevType.HGI]
 
-    # try:
-    #     fnc(gwy_0, gwy_1, *args, **kwargs)
-    # finally:
-    #     await rf_net_stop(rf, gwy_0, gwy_1)
+    if len(hgi_ids) > 1:
+        raise TypeError("Multiple Gateways per schema are not support")
 
-    return rf, gwy_0, gwy_1
+    elif len(hgi_ids) == 1:
+        hgi_id = hgi_ids[0]
+        fw_type = known_list[hgi_id].get("_type", "EVOFW3")
+
+    elif [
+        k
+        for k, v in known_list.items()
+        if k[:2] == DEV_TYPE_MAP.HGI and not v.get(SZ_CLASS)
+    ]:
+        raise TypeError("Any Gateway must have its class defined explicitly")
+
+    else:
+        hgi_id = f"18:{str(port_idx) * 6}"
+        fw_type = "EVOFW3"
+
+    return hgi_id, fw_type
 
 
-async def _rf_net_cleanup(rf: VirtualRf, *gwys: tuple[Gateway, ...]) -> None:
-    """Cleanly destroy a VirtualRf network with two gateways."""
+async def rf_factory(
+    schemas: list[dict], start_gwys: bool = True
+) -> tuple[VirtualRf, list[Gateway]]:
+    """Return the virtual network corresponding to a list of gateway schema/configs.
 
-    gwy: Gateway  # mypy
+    Each dict entry will consist of a standard gateway config/schema (or None). Any
+    serial port configs are ignored, and are instead allocated sequentially from the
+    virtual RF pool.
+    """
 
-    for gwy in gwys:
-        await gwy.stop()
+    MAX_PORTS = 6  # 18:666666 is not a valid device_id, but 18:000000 is OK
 
-    await rf.stop()
+    if len(schemas) > MAX_PORTS:
+        raise TypeError(f"Only a maximum of {MAX_PORTS} ports is supported")
 
+    gwys = []
 
-def rf_net_factory(schema_0: dict, schema_1: dict) -> Callable:
-    """Create a decorator with a two-gateway VirtualRf (18:000000, 18:111111)."""
+    rf = VirtualRf(len(schemas))
 
-    # result = await? factory(schema_0, schema_1)(fnc)(gwy_0, gwy_1, *args, **kwargs)
+    for idx, schema in enumerate(schemas):
+        if schema is None:  # assume no gateway device
+            rf._create_port(idx)
+            continue
 
-    def decorator(fnc) -> Coroutine:
-        """Wrap the decorated function as below and return the result."""
+        hgi_id, fw_type = _get_hgi_id_for_schema(schema, idx)
 
-        @patch(
-            "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-            _DEBUG_DISABLE_IMPERSONATION_ALERTS,
-        )
-        @patch("ramses_rf.protocol.protocol.MAX_DUTY_CYCLE", MAX_DUTY_CYCLE)
-        @patch(
-            "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-        )
-        @patch("ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
-        @wraps(fnc)
-        async def wrapper(*args, **kwargs) -> Any:
-            rf, gwy_0, gwy_1 = _rf_net_create(schema_0, schema_1)
+        rf._create_port(idx)
+        rf.set_gateway(rf.ports[idx], hgi_id, fw_type=HgiFwTypes.__members__[fw_type])
 
-            await gwy_0.start()
-            await gwy_1.start()
+        gwy = Gateway(rf.ports[idx], **schema)
+        gwys.append(gwy)
 
-            try:  # enclose the decorated function in the wrapper
-                return await fnc(gwy_0, gwy_1, *args, *kwargs)  # asserts within here
-            finally:
-                await _rf_net_cleanup(rf, gwy_0, gwy_1)
+        if start_gwys:
+            await gwy.start()
+            gwy._transport._extra["rf"] = rf
 
-        return wrapper
-
-    return decorator
+    return rf, gwys

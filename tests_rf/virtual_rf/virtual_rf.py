@@ -3,7 +3,7 @@
 #
 """A virtual RF network useful for testing."""
 
-# NOTE: does not rely on ramses_rf library (except StrEnum)
+# NOTE: does not rely on ramses_rf library
 
 import asyncio
 import logging
@@ -13,12 +13,13 @@ import signal
 import tty
 from collections import deque
 from contextlib import ExitStack
-from enum import StrEnum
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
 from typing import TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
+
+from .const import HgiFwTypes
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
@@ -34,51 +35,7 @@ DEVICE_ID = "device_id"
 DEVICE_ID_BYTES = "device_id_bytes"
 FW_VERSION = "fw_version"
 
-MAX_NUM_PORTS = 8
-
-
-# Below values are from real devices (with some exceptions)
-
-COMPORTS_ATMEGA32U4 = {  # 8/16 MHz atmega32u4 (HW Uart)
-    "manufacturer": "SparkFun",
-    "product": "evofw3 atmega32u4",
-    "vid": 0x1B4F,  # aka SparkFun Electronics
-    "pid": 0x9206,
-    "description": "evofw3 atmega32u4",
-    "serial_number": None,
-    "interface": None,
-    "device": "/dev/ttyACM0",  # is not a fixed value
-    "name": "ttyACM0",  # not fixed
-}
-
-COMPORTS_ATMEGA328P = {  # 16MHZ atmega328 (SW Uart)
-    "manufacturer": "FTDI",
-    "product": "FT232R USB UART",
-    "vid": 0x0403,  # aka Future Technology Devices International Ltd.
-    "pid": 0x6001,
-    "description": "FT232R USB UART - FT232R USB UART",
-    "serial_number": "A50285BI",
-    "interface": "FT232R USB UART",
-    "device": "/dev/ttyUSB0",  # is not a fixed value
-    "name": "ttyUSB0",  # not fixed
-}
-
-COMPORTS_TI4310 = {  # partially contrived
-    "manufacturer": "Texas Instruments",
-    "product": "TUSB3410 Boot Device",
-    "vid": 0x10AC,  # aka Honeywell, Inc.
-    "pid": 0x0102,
-    "description": "TUSB3410 Boot Device",  # contrived
-    "serial_number": "TUSB3410",
-    "interface": None,  # assumed
-    "device": "/dev/ttyUSB0",  # is not a fixed value
-    "name": "ttyUSB0",  # not fixed
-}
-
-
-class HgiFwTypes(StrEnum):
-    EVOFW3 = "ghoti57/evofw3 atmega32u4 v0.7.x"  # SparkFun atmega32u4 (Arduino)
-    HGI_80 = "Texas Instruments TUSB3410"  # #     Honeywell HGI80 (TI 3410)
+MAX_NUM_PORTS = 6
 
 
 class VirtualComPortInfo:
@@ -142,7 +99,7 @@ class VirtualRfBase:
         if os.name != "posix":
             raise RuntimeError(f"Unsupported OS: {os.name} (requires termios)")
 
-        if 0 > num_ports > MAX_NUM_PORTS:
+        if 1 > num_ports > MAX_NUM_PORTS:
             raise ValueError(f"Port limit exceeded: {num_ports}")
 
         self._port_info_list: dict[_PN, VirtualComPortInfo] = {}
@@ -160,7 +117,7 @@ class VirtualRfBase:
         self._log: list[tuple[str, str, bytes]] = deque([], log_size)
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
-    def _create_port(self, port_idx: int) -> None:
+    def _create_port(self, port_idx: int, dev_type: None | HgiFwTypes = None) -> None:
         """Create a port without a HGI80 attached."""
         master_fd, slave_fd = pty.openpty()  # pty, tty
 
@@ -171,7 +128,7 @@ class VirtualRfBase:
         self._pty_names[master_fd] = os.ttyname(slave_fd)
         self._tty_names[os.ttyname(slave_fd)] = slave_fd
 
-        self._set_comport_info(self._pty_names[master_fd])
+        self._set_comport_info(self._pty_names[master_fd], dev_type=dev_type)
 
     def comports(self, include_links=False) -> list[VirtualComPortInfo]:  # unsorted
         """Use this method to monkey patch serial.tools.list_ports.comports()."""
@@ -323,7 +280,7 @@ class VirtualRf(VirtualRfBase):
         self,
         port_name: _PN,
         device_id: str,
-        fw_version: HgiFwTypes = HgiFwTypes.EVOFW3,
+        fw_type: HgiFwTypes = HgiFwTypes.EVOFW3,
     ) -> None:
         """Attach a gateway with a given device_id and FW type to a port.
 
@@ -336,21 +293,16 @@ class VirtualRf(VirtualRfBase):
         if [v for k, v in self.gateways.items() if k != port_name and v == device_id]:
             raise LookupError(f"Gateway exists on another port: {device_id}")
 
-        # if fw_version is None:
-        #     self._gateways[port_name] = {}
-        #     self._set_comport_info(port_name, dev_type=None)
-        #     return
-
-        if fw_version not in HgiFwTypes:
-            raise LookupError(f"Unknown FW specified for gateway: {fw_version}")
+        if fw_type not in HgiFwTypes:
+            raise LookupError(f"Unknown FW specified for gateway: {fw_type}")
 
         self._gateways[port_name] = {
             DEVICE_ID: device_id,
-            FW_VERSION: fw_version,
+            FW_VERSION: fw_type,
             DEVICE_ID_BYTES: bytes(device_id, "ascii"),
         }
 
-        self._set_comport_info(port_name, dev_type=fw_version)
+        self._set_comport_info(port_name, dev_type=fw_type)
 
     def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
         """Return the frame as it would have been modified by a gateway after Rx.
