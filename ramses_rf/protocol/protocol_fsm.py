@@ -100,7 +100,10 @@ class ProtocolContext:
 
     def __repr__(self) -> str:
         cls = self.state.__class__.__name__
-        return f"Context({cls}, len(queue)={self._que.unfinished_tasks})"
+        return (
+            f"Context({cls}, len(Queue)="
+            f"{self._que.unfinished_tasks}/{self._que._qsize()})"
+        )
 
     def set_state(self, state: type[_ProtocolStateT]) -> None:
         """Set the State of the Protocol (context)."""
@@ -266,8 +269,8 @@ class ProtocolContext:
                 fut.set_exception(exc)
             else:
                 fut.set_result(result)
-
-            self._que.task_done()
+            finally:
+                self._que.task_done()
             break
 
     async def _send_cmd(  # actual Tx is in here
