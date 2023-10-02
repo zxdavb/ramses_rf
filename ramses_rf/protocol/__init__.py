@@ -7,7 +7,7 @@ from __future__ import annotations
 from logging import Logger
 from typing import TYPE_CHECKING
 
-from .address import Address, is_valid_dev_id
+from .address import NUL_DEV_ADDR, NUL_DEVICE_ID, Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, Priority
 from .const import (
     SZ_DEVICE_ROLE,
