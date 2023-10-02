@@ -200,7 +200,9 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     is_hgi80 = not gwy._protocol._is_evofw3  # TODO: is_hgi80?
 
     try:
-        pkt = await gwy.async_send_cmd(cmd, max_retries=0, wait_for_reply=False)
+        # NOTE: using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
+        # latter may swallow the exception we wish to capture (ProtocolSendFailed)
+        pkt = await gwy._protocol.send_cmd(cmd, max_retries=0, wait_for_reply=False)
     except ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
             return  # should have failed, and has
