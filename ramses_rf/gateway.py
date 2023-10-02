@@ -32,6 +32,7 @@ from .protocol import (
     Command,
     Packet,
     SendPriority,
+    exceptions,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -798,13 +799,17 @@ class Gateway(Engine):
         callback = kwargs.pop("callback", None)
         assert kwargs == {}, kwargs
 
-        pkt = await super().async_send_cmd(
-            cmd,
-            max_retries=max_retries,
-            priority=priority,
-            timeout=timeout,
-            wait_for_reply=wait_for_reply,
-        )
+        try:
+            pkt = await super().async_send_cmd(
+                cmd,
+                max_retries=max_retries,
+                priority=priority,
+                timeout=timeout,
+                wait_for_reply=wait_for_reply,
+            )
+        except exceptions.ProtocolSendFailed as exc:
+            _LOGGER.warning(f"Failed to send: {cmd}: {exc}")
+            return
 
         if callback:
             # keep a track of tasks, so we can tidy-up
