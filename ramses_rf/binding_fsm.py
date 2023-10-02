@@ -13,8 +13,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from .exceptions import BindingError, BindingFlowFailed, BindingFsmError
-from .protocol import Command
-from .protocol.address import NUL_DEV_ADDR, NUL_DEVICE_ID
+from .protocol import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
