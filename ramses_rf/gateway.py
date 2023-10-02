@@ -595,7 +595,7 @@ class Gateway(Engine):
                 if isinstance(dev, Fakeable):
                     dev._make_fake()
                 else:
-                    _LOGGER.warning(f"The device is not fakable: {dev}")
+                    _LOGGER.warning(f"The device is not fakeable: {dev}")
 
         # TODO: the exact order of the following may need refining...
         # TODO: some will be done my devices themselves?
