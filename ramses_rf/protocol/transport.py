@@ -616,7 +616,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
 
 # ### Read-Write Transport *with QoS* for serial port #################################
 class QosTransport(PortTransport):
-    """Poll a seial port for packets, and send with QoS."""
+    """Poll a serial port for packets, and send with QoS."""
 
     # NOTE: Might normally include code to the limit duty cycle, etc., but see
     # the note in Protocol layer
