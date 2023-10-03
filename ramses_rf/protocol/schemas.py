@@ -388,12 +388,14 @@ def select_device_filter_mode(
 #
 # 4/5: Gateway (engine) configuration
 SZ_DISABLE_SENDING = "disable_sending"
+SZ_DISABLE_QOS = "disable_qos"
 SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
 SZ_EVOFW_FLAG = "evofw_flag"
 SZ_USE_REGEX = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
+    vol.Optional(SZ_DISABLE_QOS, default=False): bool,
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
