@@ -70,6 +70,7 @@ from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_CLASS,
+    SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
     SZ_EVOFW_FLAG,
     SZ_INBOUND,
@@ -485,21 +486,21 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         vid: int = {x.device: x.vid for x in comports()}.get(serial_port)
 
         if vid and vid == 0x10AC:  # aka Honeywell, Inc.
-            _LOGGER.warning("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
+            _LOGGER.info("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
             return True
 
-        # product: None | str = {
-        #     x.device: getattr(x, "product", None) for x in comports()
-        # }.get(serial_port)
+        product: None | str = {
+            x.device: getattr(x, "product", None) for x in comports()
+        }.get(serial_port)
 
-        # if not product:  # is None - not member of plugdev group?
-        #     pass
+        if not product:  # is None - not member of plugdev group?
+            pass
         # elif "TUSB3410" in product:  # ?needed
-        #     _LOGGER.info("The gateway is HGI80-compatible")
+        #     _LOGGER.info("The gateway is HGI80-compatible (by USB attrs)")
         #     return True
-        # elif "evofw3" in product or "FT232R" in product:
-        #     _LOGGER.info("The gateway is evofw-compatible")
-        #     return False
+        elif "evofw3" in product or "FT232R" in product:
+            _LOGGER.info("The gateway appears evofw-compatible (by USB attrs)")
+            return False
 
         _LOGGER.warning(
             "The gateway type is not determinable (no rights to enumerate USB attrs?)"
@@ -598,15 +599,18 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
 class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
-    def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
+    def __init__(
+        self, *args, disable_qos: bool = False, disable_sending: bool = False, **kwargs
+    ) -> None:
         super().__init__(*args, disable_sending=disable_sending, **kwargs)
-        if disable_sending:
-            self.loop.call_soon(
-                functools.partial(self._protocol.connection_made, self, ramses=True)
-            )
-        else:
+
+        if disable_qos or not disable_sending:
             self._init_task = self.loop.create_task(
                 self._make_connection_after_signature()
+            )
+        else:
+            self.loop.call_soon(
+                functools.partial(self._protocol.connection_made, self, ramses=True)
             )
 
 
@@ -636,6 +640,7 @@ async def transport_factory(
     # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
 
     async def wait_for_transport(protocol: _ProtocolT):
+        """Poll until the Transport is bound to the Protocol."""
         while protocol._transport is None:
             await asyncio.sleep(0.005)
 
@@ -663,6 +668,7 @@ async def transport_factory(
         return ser_obj
 
     def issue_warning() -> None:
+        """Warn of the perils of semi-supported configurations."""
         _LOGGER.warning(
             f"{'Windows' if os.name == 'nt' else 'This type of serial interface'} "
             "is not fully supported by this library: "
@@ -690,20 +696,22 @@ async def transport_factory(
         issue_warning()
         # return PortTransport(protocol, ser_instance, **kwargs)
 
-    if kwargs.get(SZ_DISABLE_SENDING):  # no need for QoS
+    if kwargs.get(SZ_DISABLE_SENDING) or kwargs.get(SZ_DISABLE_QOS):  # no need for QoS
         transport = PortTransport(protocol, ser_instance, **kwargs)
     else:
         transport = QosTransport(protocol, ser_instance, **kwargs)
 
-    try:  # wait to get (first) signature echo from evofw3/HGI80
+    # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
+    try:
         await asyncio.wait_for(transport._init_fut, timeout=3)
     except asyncio.TimeoutError:
-        raise TransportSerialError("Unable to create a Protocol/Transport pair")
+        raise TransportSerialError("Transport not initialised")
 
-    try:  # wait for protocol to receive connection_made(transport)
+    # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
+    try:
         await asyncio.wait_for(wait_for_transport(protocol), timeout=3)
     except asyncio.TimeoutError:
-        raise TransportSerialError("Protocol not initialised with Transport")
+        raise TransportSerialError("Transport not bound to Protocol")
 
     _ = transport._init_fut.result()  # may: raise TransportSerialError
 
