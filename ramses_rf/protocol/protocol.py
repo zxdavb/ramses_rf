@@ -425,7 +425,7 @@ class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
 
 
 class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
-    """A mixin for enforcing a minimum gap between writes."""
+    """Enforce a minimum gap between writes using the leaky bucket algorithm."""
 
     def __init__(self, msg_handler: MsgHandler) -> None:
         super().__init__(msg_handler)
@@ -442,8 +442,8 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
             except ValueError:
                 pass
 
-    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
-        """Called when a connection is made."""
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """Invoke the leaky bucket algorithm."""
         super().connection_made(transport)
 
         if not self._leaker_task:
@@ -468,19 +468,11 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: None | bool = None
 
-    def connection_made(
-        self, transport: RamsesTransportT, ramses: bool = False
-    ) -> None:
-        """Silently consume the callback if invoked by serial_asyncio.SerialTransport.
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """Record if the gateway device is evofw3-compatible."""
+        super().connection_made(transport)
 
-        SerialTransport calls connection_made() prematurely, shortly after __init__().
-        Instead, the Ramses Protocol expects to receive a connection_made() only after
-        the signature echo is received (if one is expected, c.f. FileTransport)
-        """
-
-        if ramses:
-            super().connection_made(transport)
-            self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
+        self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
@@ -497,37 +489,43 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
     async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
-        """Write some data bytes to the transport."""
+        """Send a Command to the transport."""
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
 
         return await super().send_cmd(cmd, **kwargs)
 
 
-class _ProtQosTimers(_BaseProtocol):  # context/state
-    """A mixin for maintaining state via a FSM."""
+class _ProtQosTimers(_BaseProtocol):  # inserts context/state
+    """A mixin for providing QoS by maintaining the state of the Protocol."""
 
     def __init__(self, msg_handler: MsgHandler) -> None:
+        """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
+        """Inform the FSM that the connection with the Transport has been made."""
         super().connection_made(transport)
         self._context.connection_made(transport)
 
     def connection_lost(self, exc: None | Exception) -> None:
+        """Inform the FSM that the connection with the Transport has been lost."""
         super().connection_lost(exc)
         self._context.connection_lost(exc)
 
     def pause_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
         super().pause_writing()
         self._context.pause_writing()
 
     def resume_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
         super().resume_writing()
         self._context.resume_writing()
 
     def pkt_received(self, pkt: Packet) -> None:
+        """Inform the FSM that a Packet has been received."""
         super().pkt_received(pkt)
         self._context.pkt_received(pkt)
 
@@ -541,7 +539,7 @@ class _ProtQosTimers(_BaseProtocol):  # context/state
         timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: None | bool = None,  # None, rather than False
     ) -> Packet:
-        """Wrapper to send a command with QoS (with retries, until success or Exception)."""
+        """Wrapper to send a Command with QoS (retries, until success or Exception)."""
 
         try:
             return await self._context.send_cmd(
@@ -574,6 +572,17 @@ class ReadProtocol(_BaseProtocol):
 
         self._pause_writing = True
 
+    def connection_made(
+        self, transport: RamsesTransportT, /, *, ramses: bool = False
+    ) -> None:
+        """Consume the callback if invoked by SerialTransport rather than PortTransport.
+
+        Our PortTransport wraps SerialTransport and will wait for the signature echo
+        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
+        """
+
+        super().connection_made(transport)
+
     def resume_writing(self) -> None:
         raise NotImplementedError
 
@@ -581,9 +590,21 @@ class ReadProtocol(_BaseProtocol):
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
 
-# ### Read-Write Protocol for PortTransport ###########################################
+# ### Read-Write (sans QoS) Protocol for PortTransport ################################
 class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
+
+    def connection_made(
+        self, transport: RamsesTransportT, /, *, ramses: bool = False
+    ) -> None:
+        """Consume the callback if invoked by SerialTransport rather than PortTransport.
+
+        Our PortTransport wraps SerialTransport and will wait for the signature echo
+        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
+        """
+
+        if ramses:
+            super().connection_made(transport)
 
     async def send_cmd(self, cmd: Command, /, **kwargs) -> None:
         """Send a Command without any QoS features."""
@@ -599,6 +620,18 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
     def __repr__(self) -> str:
         cls = self._context.state.__class__.__name__
         return f"QosProtocol({cls}, len(queue)={self._context._que.unfinished_tasks})"
+
+    def connection_made(
+        self, transport: RamsesTransportT, /, *, ramses: bool = False
+    ) -> None:
+        """Consume the callback if invoked by SerialTransport rather than PortTransport.
+
+        Our PortTransport wraps SerialTransport and will wait for the signature echo
+        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
+        """
+
+        if ramses:
+            super().connection_made(transport)
 
     async def send_cmd(
         self,
