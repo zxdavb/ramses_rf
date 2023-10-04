@@ -15,9 +15,8 @@ import voluptuous as vol
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.protocol.schemas import SCH_GLOBAL_TRAITS_DICT
-from ramses_rf.schemas import SCH_GLOBAL_CONFIG, SCH_GLOBAL_SCHEMAS_DICT
+from ramses_rf.schemas import SCH_GLOBAL_CONFIG, SCH_GLOBAL_SCHEMAS
 
-SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
 SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 
 # import tracemalloc
@@ -56,7 +55,7 @@ def shuffle_dict(old_dict) -> dict:
 async def gwy() -> Gateway:  # NOTE: async to get running loop
     """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})
-    gwy.config.disable_sending = True
+    gwy._disable_sending = True
     return gwy
 
 
@@ -91,7 +90,7 @@ def assert_raises(exception, fnc, *args):
 async def load_test_gwy(dir_name, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    kwargs: dict = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(f"{dir_name}/config.json") as f:

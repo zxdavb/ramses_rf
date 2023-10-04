@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta as td
+from typing import TYPE_CHECKING
 
-from .const import DEV_TYPE, SZ_NAME, __dev_mode__
+from .const import SZ_NAME, DevType, __dev_mode__
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -17,6 +18,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 DEV_MODE = __dev_mode__ and False
 
@@ -53,6 +58,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "zone_name",
         I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
+        W_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # contrived
         EXPIRES: td(days=1),
     },
     Code._0005: {  # system_zones
@@ -177,6 +183,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "mixvalve_params",
         # .I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
+        W_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",  # contrived
     },
     Code._1060: {  # device_battery
         SZ_NAME: "device_battery",
@@ -224,7 +231,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._10E0: {  # device_info
         SZ_NAME: "device_info",
-        I_: r"^00[0-9A-F]{30,}$",  # r"^[0-9A-F]{32,}$" might be OK
+        I_: r"^00([0-9A-F]{30,})?$",  # r"^[0-9A-F]{32,}$" might be OK
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
         EXPIRES: False,
@@ -241,13 +248,15 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
     },
     Code._1100: {  # tpi_params
         SZ_NAME: "tpi_params",
+        #  I --- 01:172368 --:------ 01:172368 1100 008 FC180400007FFF00
+        #  I --- 01:172368 13:040439 --:------ 1100 008 FC042814007FFF00
         # RQ --- 01:145038 13:163733 --:------ 1100 008 00180400007FFF01  # boiler relay
         # RP --- 13:163733 01:145038 --:------ 1100 008 00180400FF7FFF01
         # RQ --- 01:145038 13:035462 --:------ 1100 008 FC240428007FFF01  # not bolier relay
         # RP --- 13:035462 01:145038 --:------ 1100 008 00240428007FFF01
-        I_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?$",
-        W_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?$",  # TODO: is there no I?
-        RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?)?$",  # RQ/13:/00, or RQ/01:/FC:
+        I_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}0[01])?$",
+        W_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}0[01])?$",  # TODO: is there no I?
+        RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}0[01])?)?$",  # RQ/13:/00, or RQ/01:/FC:
         EXPIRES: td(days=1),
     },
     Code._11F0: {  # unknown_11f0, from heatpump relay
@@ -349,7 +358,7 @@ CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
-        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00$",  # NOTE: payload can be 00
+        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00|21$",  # NOTE: payload can be 00
         W_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
     },
     Code._1FCA: {  # unknown_1fca
@@ -753,7 +762,7 @@ if DEV_MODE:
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
 #
 _DEV_KLASSES_HEAT: dict[str, dict] = {
-    DEV_TYPE.RFG: {  # RFG100: RF to Internet gateway (and others)
+    DevType.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},
         Code._0004: {I_: {}, RQ: {}},
         Code._0005: {RQ: {}},
@@ -779,7 +788,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._3220: {RQ: {}},
         Code._3EF0: {RQ: {}},
     },
-    DEV_TYPE.CTL: {  # e.g. ATC928: Evohome Colour Controller
+    DevType.CTL: {  # e.g. ATC928: Evohome Colour Controller
         Code._0001: {W_: {}},
         Code._0002: {I_: {}, RP: {}},
         Code._0004: {I_: {}, RP: {}},
@@ -818,7 +827,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._3B00: {I_: {}},
         Code._3EF0: {RQ: {}},
     },
-    DEV_TYPE.PRG: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+    DevType.PRG: {  # e.g. HCF82/HCW82: Room Temperature Sensor
         Code._0009: {I_: {}},
         Code._1090: {RP: {}},
         Code._10A0: {RP: {}},
@@ -830,7 +839,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._3B00: {I_: {}},
         Code._3EF1: {RP: {}},
     },
-    DEV_TYPE.THM: {  # e.g. Generic Thermostat
+    DevType.THM: {  # e.g. Generic Thermostat
         Code._0001: {W_: {}},
         Code._0005: {I_: {}},
         Code._0008: {I_: {}},
@@ -859,7 +868,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._3EF0: {RQ: {}},  # when bound direct to a 13:
         Code._3EF1: {RQ: {}},  # when bound direct to a 13:
     },
-    DEV_TYPE.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
+    DevType.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
         Code._0001: {RP: {}, W_: {}},  # TODO: Ix RP
         Code._0005: {RP: {}},
         Code._0008: {I_: {}},
@@ -872,7 +881,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._2309: {RP: {}},
         Code._3150: {I_: {}},
     },
-    DEV_TYPE.TRV: {  # e.g. HR92/HR91: Radiator Controller
+    DevType.TRV: {  # e.g. HR92/HR91: Radiator Controller
         Code._0001: {W_: {r"^0[0-9A-F]"}},
         Code._0004: {RQ: {r"^0[0-9A-F]00$"}},
         Code._0016: {RQ: {}, RP: {}},
@@ -889,14 +898,14 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._313F: {RQ: {r"^00$"}},
         Code._3150: {I_: {r"^0[0-9A-F]{3}$"}},
     },
-    DEV_TYPE.DHW: {  # e.g. CS92: (DHW) Cylinder Thermostat
+    DevType.DHW: {  # e.g. CS92: (DHW) Cylinder Thermostat
         Code._0016: {RQ: {}},
         Code._1060: {I_: {}},
         Code._10A0: {RQ: {}},  # This RQ/07/10A0 includes a payload
         Code._1260: {I_: {}},
         Code._1FC9: {I_: {}},
     },
-    DEV_TYPE.OTB: {  # e.g. R8810/R8820: OpenTherm Bridge
+    DevType.OTB: {  # e.g. R8810/R8820: OpenTherm Bridge
         Code._0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
         Code._0150: {RP: {}},  # R8820A only?
         Code._042F: {I_: {}, RP: {}},
@@ -927,7 +936,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._3EF0: {I_: {}, RP: {}},
         Code._3EF1: {RP: {}},
     },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
-    DEV_TYPE.BDR: {  # e.g. BDR91A/BDR91T: Wireless Relay Box
+    DevType.BDR: {  # e.g. BDR91A/BDR91T: Wireless Relay Box
         Code._0008: {RP: {}},  # doesn't RP/0009
         Code._0016: {RP: {}},
         # Code._10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
@@ -940,24 +949,24 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         Code._3EF1: {RP: {}},
     },
-    DEV_TYPE.OUT: {
+    DevType.OUT: {
         Code._0002: {I_: {}},
         Code._1FC9: {I_: {}},
     },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
     #
-    DEV_TYPE.JIM: {  # Jasper Interface Module, 08
+    DevType.JIM: {  # Jasper Interface Module, 08
         Code._0008: {RQ: {}},
         Code._10E0: {I_: {}},
         Code._1100: {I_: {}},
         Code._3EF0: {I_: {}},
         Code._3EF1: {RP: {}},
     },
-    DEV_TYPE.JST: {  # Jasper Stat, 31
+    DevType.JST: {  # Jasper Stat, 31
         Code._0008: {I_: {}},
         Code._10E0: {I_: {}},
         Code._3EF1: {RQ: {}, RP: {}},
     },
-    # DEV_TYPE.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
+    # DevType.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
     #     Code._0005: {I_: {}},
     #     Code._0008: {I_: {}},
     #     Code._000A: {I_: {}, RQ: {}},
@@ -977,7 +986,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
     #     Code._3EF0: {I_: {}, RQ: {}},  # when bound direct to a 13:
     #     Code._3EF1: {RQ: {}},  # when bound direct to a 13:
     # },
-    # DEV_TYPE.DTS: {  # e.g. DTS92(E)
+    # DevType.DTS: {  # e.g. DTS92(E)
     #     Code._0001: {W_: {}},
     #     Code._0008: {I_: {}},
     #     Code._0009: {I_: {}},
@@ -997,7 +1006,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
     #     Code._3B00: {I_: {}},
     #     Code._3EF1: {RQ: {}},
     # },
-    # DEV_TYPE.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+    # DevType.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
     #     Code._0001: {W_: {}},
     #     Code._0002: {I_: {}},
     #     Code._0008: {I_: {}},
@@ -1013,7 +1022,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
 }
 # TODO: add 1FC9 everywhere?
 _DEV_KLASSES_HVAC: dict[str, dict] = {
-    DEV_TYPE.DIS: {  # Orcon RF15 Display: ?a superset of a REM
+    DevType.DIS: {  # Orcon RF15 Display: ?a superset of a REM
         Code._0001: {RQ: {}},
         Code._042F: {I_: {}},
         Code._10E0: {I_: {}, RQ: {}},
@@ -1028,7 +1037,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
         Code._313F: {RQ: {}},
         Code._31DA: {RQ: {}},
     },
-    DEV_TYPE.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
+    DevType.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
         Code._1060: {I_: {}},
         Code._10E0: {I_: {}, RP: {}},
         Code._12C0: {I_: {}},
@@ -1043,7 +1052,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
         Code._31DA: {RQ: {}},
         Code._3EF0: {I_: {}},
     },
-    DEV_TYPE.FAN: {
+    DevType.FAN: {
         Code._0001: {RP: {}},
         Code._042F: {I_: {}},
         Code._10D0: {I_: {}, RP: {}},
@@ -1062,7 +1071,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
         Code._31DA: {I_: {}, RP: {}},
         # Code._31E0: {I_: {}},
     },
-    DEV_TYPE.CO2: {
+    DevType.CO2: {
         Code._042F: {I_: {}},
         Code._10E0: {I_: {}, RP: {}},
         Code._1298: {I_: {}},
@@ -1073,7 +1082,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
         Code._31DA: {RQ: {}},
         Code._31E0: {I_: {}},
     },
-    DEV_TYPE.HUM: {
+    DevType.HUM: {
         Code._042F: {I_: {}},
         Code._1060: {I_: {}},
         Code._10E0: {I_: {}},
@@ -1082,7 +1091,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
         Code._31DA: {RQ: {}},
         Code._31E0: {I_: {}},
     },
-    DEV_TYPE.REM: {  # HVAC: two-way switch; also an "06/22F1"?
+    DevType.REM: {  # HVAC: two-way switch; also an "06/22F1"?
         Code._0001: {RQ: {}},  # from a VMI (only?)
         Code._042F: {I_: {}},  # from a VMI (only?)
         Code._1060: {I_: {}},
@@ -1103,7 +1112,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
 }
 
 CODES_BY_DEV_SLUG: dict[str, dict] = {
-    DEV_TYPE.HGI: {  # HGI80: RF to (USB) serial gateway interface
+    DevType.HGI: {  # HGI80: RF to (USB) serial gateway interface
         Code._PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
     **{k: v for k, v in _DEV_KLASSES_HVAC.items() if k is not None},
@@ -1124,11 +1133,11 @@ CODES_OF_HEAT_DOMAIN_ONLY: tuple[Code, ...] = tuple(
 CODES_OF_HVAC_DOMAIN_ONLY: tuple[Code, ...] = tuple(
     c for c in sorted(CODES_OF_HVAC_DOMAIN) if c not in CODES_OF_HEAT_DOMAIN
 )
-_CODES_OF_BOTH_DOMAINS: tuple[Code, ...] = sorted(
-    tuple(set(CODES_OF_HEAT_DOMAIN) & set(CODES_OF_HVAC_DOMAIN))
+_CODES_OF_BOTH_DOMAINS: tuple[Code, ...] = tuple(
+    sorted(set(CODES_OF_HEAT_DOMAIN) & set(CODES_OF_HVAC_DOMAIN))
 )
-_CODES_OF_EITHER_DOMAIN: tuple[Code, ...] = sorted(
-    tuple(set(CODES_OF_HEAT_DOMAIN) | set(CODES_OF_HVAC_DOMAIN))
+_CODES_OF_EITHER_DOMAIN: tuple[Code, ...] = tuple(
+    sorted(set(CODES_OF_HEAT_DOMAIN) | set(CODES_OF_HVAC_DOMAIN))
 )
 _CODES_OF_NO_DOMAIN: tuple[Code, ...] = tuple(
     c for c in CODES_SCHEMA if c not in _CODES_OF_EITHER_DOMAIN
@@ -1139,10 +1148,10 @@ _CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
         c
         for k, v1 in CODES_BY_DEV_SLUG.items()
         for c, v2 in v1.items()
-        if k != DEV_TYPE.CTL and (I_ in v2 or RP in v2)
+        if k != DevType.CTL and (I_ in v2 or RP in v2)
     )
 )
-_CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_TYPE.CTL].keys()
+_CODE_FROM_CTL = _DEV_KLASSES_HEAT[DevType.CTL].keys()
 
 _CODE_ONLY_FROM_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
     c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL
@@ -1174,10 +1183,10 @@ CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
 
 
 _HVAC_VC_PAIR_BY_CLASS: dict[str, tuple] = {
-    DEV_TYPE.CO2: ((I_, Code._1298),),
-    DEV_TYPE.FAN: ((I_, Code._31D9), (I_, Code._31DA), (RP, Code._31DA)),
-    DEV_TYPE.HUM: ((I_, Code._12A0),),
-    DEV_TYPE.REM: ((I_, Code._22F1), (I_, Code._22F3)),
+    DevType.CO2: ((I_, Code._1298),),
+    DevType.FAN: ((I_, Code._31D9), (I_, Code._31DA), (RP, Code._31DA)),
+    DevType.HUM: ((I_, Code._12A0),),
+    DevType.REM: ((I_, Code._22F1), (I_, Code._22F3)),
 }
 HVAC_KLASS_BY_VC_PAIR: dict[tuple, str] = {
     t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v

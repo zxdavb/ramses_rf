@@ -46,12 +46,11 @@ if _DEBUG_CLI:
     _start_debugging(True)
 
 
-from ramses_rf import Gateway, GracefulExit, Message
+from ramses_rf import Gateway, GracefulExit, Message, RamsesException
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import merge
 from ramses_rf.protocol import is_valid_dev_id  # noqa: F401
-from ramses_rf.protocol.exceptions import EvohomeError
 from ramses_rf.protocol.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_rf.protocol.schemas import (
     SZ_DISABLE_SENDING,
@@ -194,7 +193,7 @@ class DeviceIdParamType(click.ParamType):
     help="display crazy things",
 )
 @click.pass_context
-def cli(ctx, config_file=None, eavesdrop: bool = None, **kwargs):
+def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
     if kwargs[SZ_DEBUG_MODE] > 0:  # Do first
@@ -293,16 +292,16 @@ def parse(obj, **kwargs):
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
 )
 @click.pass_obj
-def monitor(obj, discover: bool = None, **kwargs):
+def monitor(obj, discover: None | bool = None, **kwargs):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
     if discover is None:
         if kwargs["exec_scr"] is None and kwargs["poll_devices"] is None:
-            print(" - Discovery is enabled...")
+            print(" - discovery is enabled")
             lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
         else:
-            print(" - Discovery is disabled...")
+            print(" - discovery is disabled")
             lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
 
     return MONITOR, lib_config, config
@@ -338,7 +337,7 @@ def execute(obj, **kwargs):
     """
     config, lib_config = split_kwargs(obj, kwargs)
 
-    print(" - Discovery is force-disabled...")
+    print(" - discovery is force-disabled")
     lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
 
     if kwargs[GET_FAULTS]:
@@ -351,7 +350,7 @@ def execute(obj, **kwargs):
         known_list = {}
 
     if known_list:
-        print(" - Known list is force-configured/enforced...")
+        print(" - known list is force-configured/enforced")
         lib_config[SZ_KNOWN_LIST] = known_list
         lib_config[SZ_CONFIG][SZ_ENFORCE_KNOWN_LIST] = True
 
@@ -366,7 +365,7 @@ def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
-    print(" - Sending is force-disabled...")
+    print(" - sending is force-disabled")
     lib_config[SZ_CONFIG][SZ_DISABLE_SENDING] = True
 
     return LISTEN, lib_config, config
@@ -470,7 +469,7 @@ def print_summary(gwy: Gateway, **kwargs):
 async def main(command: str, lib_kwargs: dict, **kwargs):
     """Do certain things."""
 
-    def process_msg(msg: Message) -> None:
+    def handle_msg(msg: Message) -> None:
         """Process the message as it arrives (a callback).
 
         In this case, the message is merely printed.
@@ -478,9 +477,9 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
 
         if _DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
             print(
-                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # {msg.payload}'
+                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
+                f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
-            # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}  # ("{msg.src!r}", "{msg.dst!r}")')
             return
 
         if kwargs["long_format"]:
@@ -490,7 +489,9 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
             dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
             con_cols = CONSOLE_COLS
 
-        if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
+        if msg.code == Code._PUZZ:
+            print(f"{Style.BRIGHT}{Fore.YELLOW}{dtm} {msg}"[:con_cols])
+        elif msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
         elif msg.code == Code._1F09 and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
@@ -502,12 +503,12 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     serial_port, lib_kwargs = normalise_config(lib_kwargs)
 
     if kwargs["restore_schema"]:
-        print(" - Restoring client schema from a HA cache...")
+        print(" - restoring client schema from a HA cache...")
         state = json.load(kwargs["restore_schema"])["data"]["client_state"]
         lib_kwargs = lib_kwargs | state["schema"]
 
     if serial_port == "/dev/ttyMOCK":
-        from tests_rf.mock import MockGateway  # a special case
+        from tests_deprecated.mocked_rf import MockGateway  # FIXME: for test/dev
 
         gwy = MockGateway(serial_port, **lib_kwargs)
     else:
@@ -516,14 +517,14 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     if lib_kwargs[SZ_CONFIG][SZ_REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # library will not send MSGs to STDOUT, so we'll send PKTs instead
         colorama_init(autoreset=True)  # WIP: remove strip=True
-        gwy.create_client(process_msg)
+        gwy.add_msg_handler(handle_msg)
 
     if kwargs["restore_state"]:
-        print(" - Restoring client state from a HA cache...")
+        print(" - restoring client state from a HA cache...")
         state = json.load(kwargs["restore_state"])["data"]["client_state"]
-        await gwy._set_state(packets=state["packets"])
+        await gwy.set_state(packets=state["packets"])
 
-    print("client.py: Starting engine...")
+    print("\r\nclient.py: Starting engine...")
 
     try:  # main code here
         await gwy.start()
@@ -536,27 +537,27 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
             tasks = spawn_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-        elif command in MONITOR:
-            tasks = spawn_scripts(gwy, **kwargs)
-            await gwy.pkt_source
+        elif command == MONITOR:
+            _ = spawn_scripts(gwy, **kwargs)
+            await gwy._protocol.wait_connection_lost
 
-        elif gwy.pkt_source:  # TODO: should simply be an else:
-            await gwy.pkt_source
+        elif command == LISTEN:
+            await gwy._protocol.wait_connection_lost
 
     except asyncio.CancelledError:
         msg = "ended via: CancelledError (e.g. SIGINT)"
     except GracefulExit:
         msg = "ended via: GracefulExit"
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # FIXME: why isn't this captured here? see main
         msg = "ended via: KeyboardInterrupt"
-    except EvohomeError as err:
-        msg = f"ended via: EvohomeError: {err}"
+    except RamsesException as err:
+        msg = f"ended via: RamsesException: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"
     finally:
         await gwy.stop()
 
-    print(f"client.py: Engine stopped: {msg}.")
+    print(f"\r\nclient.py: Engine stopped: {msg}")
 
     # if kwargs["save_state"]:
     #    _save_state(gwy)
@@ -577,15 +578,21 @@ cli.add_command(listen)
 
 
 if __name__ == "__main__":
-    result = cli(standalone_mode=False)
-    if isinstance(result, int):
-        sys.exit(result)
-    (command, lib_kwargs, kwargs) = result
-
     print("\r\nclient.py: Starting ramses_rf...")
 
+    try:
+        result = cli(standalone_mode=False)
+    except click.NoSuchOption as exc:
+        print(f"Error: {exc}")
+        sys.exit(-1)
+
+    if isinstance(result, int):
+        sys.exit(result)
+
+    (command, lib_kwargs, kwargs) = result
+
     if sys.platform == "win32":
-        print(" - setting event_loop_policy for win32...")  # do before asyncio.run()
+        print(" - event_loop_policy set for win32")  # do before asyncio.run()
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     try:
@@ -594,11 +601,11 @@ if __name__ == "__main__":
             profile.run("asyncio.run(main(command, lib_kwargs, **kwargs))")
         else:
             asyncio.run(main(command, lib_kwargs, **kwargs))
-    except SystemExit:
-        pass
+    except KeyboardInterrupt:  # , SystemExit):
+        print("\r\nclient.py: Engine stopped: ended via: KeyboardInterrupt")
 
     if _PROFILE_LIBRARY:
         ps = pstats.Stats(profile)
         ps.sort_stats(pstats.SortKey.TIME).print_stats(20)
 
-    print("\r\nclient.py: Finished ramses_rf.")
+    print(" - finished ramses_rf.\r\n")

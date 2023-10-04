@@ -11,15 +11,6 @@ import logging
 
 from ..const import __dev_mode__
 
-# skipcq: PY-W2000
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
-    Code,
-)
-
 # # skipcq: PY-W2000
 # from .schedule import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 # )

@@ -9,10 +9,9 @@ import math
 from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..const import (
-    DEV_ROLE,
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     SZ_DOMAIN_ID,
@@ -26,8 +25,9 @@ from ..const import (
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
     ZON_MODE_MAP,
-    ZON_ROLE,
     ZON_ROLE_MAP,
+    DevRole,
+    ZoneRole,
     __dev_mode__,
 )
 from ..device import (
@@ -39,8 +39,9 @@ from ..device import (
     UfhController,
 )
 from ..entity_base import Child, Entity, Parent, class_by_attr
+from ..exceptions import SystemSchemaInconsistent
 from ..helpers import shrink
-from ..protocol import Address, Command, CorruptStateError, Message
+from ..protocol import Address, Command, Message
 from ..protocol.command import _mk_cmd
 from ..protocol.const import SZ_PAYLOAD
 from ..schemas import (
@@ -62,17 +63,25 @@ from .schedule import Schedule
 
 
 # skipcq: PY-W2000
-from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
+)
+
+# skipcq: PY-W2000
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__
@@ -181,7 +190,7 @@ class ZoneSchedule:  # 0404
 class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
-    _SLUG: str = ZON_ROLE.DHW
+    _SLUG: str = ZoneRole.DHW
 
     def __init__(self, tcs, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
@@ -290,7 +299,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Set the heating valve relay for this DHW zone (13: only)."""
         """Set the hotwater valve relay for this DHW zone (13: only).
 
-        Check and _VerbT the DHW sensor (07:) of this system/CTL (if there is one).
+        Check and ??? the DHW sensor (07:) of this system/CTL (if there is one).
 
         There is only 1 way to eavesdrop a controller's DHW sensor:
         1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
@@ -306,10 +315,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 dev_id, parent=self, child_id=FA, is_sensor=True
             )
 
-        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HTG]):
+        if dev_id := schema.get(DEV_ROLE_MAP[DevRole.HTG]):
             self._dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id=FA)
 
-        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HT1]):
+        if dev_id := schema.get(DEV_ROLE_MAP[DevRole.HT1]):
             self._htg_valve = self._gwy.get_device(dev_id, parent=self, child_id=F9)
 
     @property
@@ -473,9 +482,9 @@ class Zone(ZoneSchedule, ZoneBase):
             if klass == self._SLUG:
                 return
 
-            if klass == ZON_ROLE.VAL and self._SLUG not in (
+            if klass == ZoneRole.VAL and self._SLUG not in (
                 None,
-                ZON_ROLE.ELE,
+                ZoneRole.ELE,
             ):
                 raise ValueError(f"Not a compatible zone class for {self}: {zone_type}")
 
@@ -483,15 +492,14 @@ class Zone(ZoneSchedule, ZoneBase):
                 raise ValueError(f"Not a known zone class (for {self}): {zone_type}")
 
             if self._SLUG is not None:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed zone class: from {self._SLUG} to {klass}"
                 )
 
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
-            # TODO: broken fixme
-            # self._gwy._loop.call_soon(self._setup_discovery_cmds)  # TODO: check this
+            self._setup_discovery_cmds
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
@@ -565,30 +573,30 @@ class Zone(ZoneSchedule, ZoneBase):
             if this.code in (Code._0008, Code._0009):
                 assert self._SLUG in (
                     None,
-                    ZON_ROLE.ELE,
-                    ZON_ROLE.VAL,
-                    ZON_ROLE.MIX,
+                    ZoneRole.ELE,
+                    ZoneRole.VAL,
+                    ZoneRole.MIX,
                 ), self._SLUG
 
                 if self._SLUG is None:
                     # this might eventually be: ZON_ROLE.VAL
-                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.ELE]})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZoneRole.ELE]})
 
             elif this.code == Code._3150:  # TODO: and this.verb in (I_, RP)?
                 # MIX/ELE don't 3150
                 assert self._SLUG in (
                     None,
-                    ZON_ROLE.RAD,
-                    ZON_ROLE.UFH,
-                    ZON_ROLE.VAL,
+                    ZoneRole.RAD,
+                    ZoneRole.UFH,
+                    ZoneRole.VAL,
                 ), self._SLUG
 
                 if isinstance(this.src, TrvActuator):
-                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.RAD]})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZoneRole.RAD]})
                 elif isinstance(this.src, BdrSwitch):
-                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.VAL]})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZoneRole.VAL]})
                 elif isinstance(this.src, UfhController):
-                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZON_ROLE.UFH]})
+                    self._update_schema(**{SZ_CLASS: ZON_ROLE_MAP[ZoneRole.UFH]})
 
             assert (
                 msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC
@@ -631,7 +639,7 @@ class Zone(ZoneSchedule, ZoneBase):
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (
             None,
-            ZON_ROLE.ELE,
+            ZoneRole.ELE,
         ):
             eavesdrop_zone_type(msg)
 
@@ -776,7 +784,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
-    _SLUG: str = ZON_ROLE.ELE
+    _SLUG: str = ZoneRole.ELE
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ELE
 
     def _handle_msg(self, msg: Message) -> None:
@@ -816,7 +824,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
     # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
-    _SLUG: str = ZON_ROLE.MIX
+    _SLUG: str = ZoneRole.MIX
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.MIX
 
     def _setup_discovery_cmds(self) -> None:
@@ -843,7 +851,7 @@ class RadZone(Zone):  # HR92/HR80
 
     # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
-    _SLUG: str = ZON_ROLE.RAD
+    _SLUG: str = ZoneRole.RAD
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.RAD
 
 
@@ -852,7 +860,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
     # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
-    _SLUG: str = ZON_ROLE.UFH
+    _SLUG: str = ZoneRole.UFH
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.UFH
 
     @property
@@ -868,7 +876,7 @@ class ValZone(EleZone):  # BDR91A/T
 
     # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
-    _SLUG: str = ZON_ROLE.VAL
+    _SLUG: str = ZoneRole.VAL
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.VAL
 
     @property

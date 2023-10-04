@@ -1,33 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - RAMSES-II compatible Message processor.
+"""RAMSES RF - RAMSES-II compatible packet protocol."""
 
-Operates at the msg layer of: app - msg - pkt - h/w
-"""
 from __future__ import annotations
 
 import asyncio
 import logging
-import signal
-from datetime import datetime as dt
+from collections import deque
 from datetime import timedelta as td
-from queue import Empty, Full, PriorityQueue, SimpleQueue
-from typing import Awaitable, Callable, Dict, Iterable, List, Optional, TypeVar
+from functools import wraps
+from time import perf_counter
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, NoReturn
 
+from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import SZ_DAEMON, SZ_EXPIRES, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
-from .exceptions import InvalidPacketError
+from .const import MIN_GAP_BETWEEN_WRITES, SZ_IS_EVOFW3, __dev_mode__
+from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
+from .helpers import dt_now
+from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
+from .protocol_fsm import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_TIMEOUT,
+    ProtocolContext,
+    SendPriority,
+)
+from .schemas import SZ_PORT_NAME
+from .transport import RamsesTransportT, transport_factory
 
-_MessageProtocolT = TypeVar("_MessageProtocolT", bound="MessageProtocol")
-_MessageTransportT = TypeVar("_MessageTransportT", bound="MessageTransport")
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
 
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-DONT_CREATE_MESSAGES = 3  # duplicate
-
-SZ_WRITER_TASK = "writer_task"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -36,556 +51,677 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
+# all debug flags should be False for published code
+_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = False  # #   used for pytest scripts
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = False  # used for pytest scripts
+_DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
 
-class CallbackAsAwaitable:
-    """Create an pair of functions so that the callback can be awaited.
-
-    The awaitable (getter) starts its `timeout` timer only when it is invoked.
-    It may raise a `TimeoutError` or a `TypeError`.
-
-    The callback (putter) may put the message in the queue before the getter is invoked.
-    """
-
-    SAFETY_TIMEOUT_DEFAULT = 9.9  # used to prevent waiting forever
-    SAFETY_TIMEOUT_MINIMUM = 5.0
-    HAS_TIMED_OUT = False
-    SHORT_WAIT = 0.001  # seconds
-
-    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop  # or asyncio.get_event_loop()
-        self._queue: SimpleQueue = SimpleQueue()  # unbounded, but we use only 1 entry
-
-        self.expires: dt = None  # type: ignore[assignment]
-
-    # the awaitable...
-    async def getter(self, timeout: float = SAFETY_TIMEOUT_DEFAULT) -> Message:
-        """Poll the queue until the message arrives, or the timer expires."""
-
-        if timeout <= self.SAFETY_TIMEOUT_MINIMUM:
-            timeout = self.SAFETY_TIMEOUT_MINIMUM
-        self.expires = dt.now() + td(seconds=timeout)
-
-        while dt.now() < self.expires:
-            try:
-                msg = self._queue.get_nowait()
-                break
-            except Empty:
-                await asyncio.sleep(self.SHORT_WAIT)
-        else:
-            raise TimeoutError(f"Safety timer expired (timeout={timeout}s)")
-
-        if msg is self.HAS_TIMED_OUT:
-            raise TimeoutError("Command timer expired")
-        if not isinstance(msg, Message):
-            raise TypeError(f"Response is not a message: {msg}")
-        return msg
-
-    # the callback...
-    def putter(self, msg: Message) -> None:
-        """Put the message in the queue (when invoked)."""
-
-        self._queue.put_nowait(msg)
+# other constants
+_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
+_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
+_CYCLE_DURATION = 60  # seconds
 
 
-def awaitable_callback(
-    loop: asyncio.AbstractEventLoop,
-) -> tuple[Callable[..., Awaitable[Message]], Callable]:
-    """Create a pair of functions, so that a callback can be awaited."""
-    obj = CallbackAsAwaitable(loop)
-    return obj.getter, obj.putter  # awaitable, callback
+_global_sync_cycles: deque = (
+    deque()
+)  # used by @avoid_system_syncs / @track_system_syncs
 
 
-class MessageTransport(asyncio.Transport):
-    """Interface for a message transport.
+def avoid_system_syncs(fnc: Callable[..., Awaitable]):
+    """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
-    There may be several implementations, but typically, the user does not implement
-    new transports; rather, the platform provides some useful transports that are
-    implemented using the platform's best practices.
+    DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
+    DURATION_LONG_PKT = 0.022  # time to tx I|2309|048 (or 30C9, or 000A)
+    DURATION_SYNC_PKT = 0.010  # time to tx I|1F09|003
 
-    The user never instantiates a transport directly; they call a utility function,
-    passing it a protocol factory and other information necessary to create the
-    transport and protocol.  (E.g. EventLoop.create_connection() or
-    EventLoop.create_server().)
+    SYNC_WAIT_LONG = (DURATION_PKT_GAP + DURATION_LONG_PKT) * 2
+    SYNC_WAIT_SHORT = DURATION_SYNC_PKT
+    SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
+    SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
 
-    The utility function will asynchronously create a transport and a protocol and
-    hook them up by calling the protocol's connection_made() method, passing it the
-    transport.
-    """
+    times_0 = []  # FIXME: remove
 
-    MAX_BUFFER_SIZE = 200
-    MAX_SUBSCRIBERS = 3
+    async def wrapper(*args, **kwargs):
+        global _global_sync_cycles  # skipcq: PYL-W0602
 
-    READER = "receiver_callback"
-    WRITER = SZ_WRITER_TASK
-
-    _extra: dict  # asyncio.BaseTransport
-
-    def __init__(self, gwy, protocol: MessageProtocol, extra: dict = None) -> None:
-        super().__init__(extra=extra)
-
-        self._loop: asyncio.AbstractEventLoop = gwy._loop
-
-        self._gwy = gwy
-        self._protocols: List[MessageProtocol] = []
-        self._extra[self.READER] = self._pkt_receiver
-        self._dispatcher: Callable = None  # type: ignore[assignment]
-
-        self._callbacks: Dict[str, dict] = {}
-
-        self._que: PriorityQueue = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
-        self._write_buffer_limit_high: int = self.MAX_BUFFER_SIZE
-        self._write_buffer_limit_low: int = 0
-        self._write_buffer_paused = False
-        self.set_write_buffer_limits()
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            self._loop.add_signal_handler(sig, self.abort)
-
-        self._is_closing = False
-
-        self.add_protocol(protocol)  # calls protocol.commection_made()
-
-    def _set_dispatcher(self, dispatcher: Callable) -> None:
-        _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
-
-        async def call_send_data(cmd):
-            _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
-            if cmd._cbk:
-                self._add_callback(cmd.rx_header or cmd.tx_header, cmd._cbk, cmd=cmd)
-
-            if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-                _LOGGER.info("SENT: %s", cmd)
-
-            await self._dispatcher(cmd)  # send_data, *once* callback registered
-
-        async def pkt_dispatcher():
-            """Poll the queue and send any command packets to the lower layer."""
-            while True:
-                try:
-                    cmd = self._que.get_nowait()
-                except Empty:
-                    if self._is_closing:
-                        break
-                    await asyncio.sleep(0.005)
-                    continue
-                except AttributeError:  # when self._que == None, from abort()
-                    break
-
-                try:
-                    if self._dispatcher:
-                        await call_send_data(cmd)
-                except (AssertionError, NotImplementedError):  # TODO: needs checking
-                    pass
-                # except:
-                #     _LOGGER.exception("")
-                #     continue
-
-                self._que.task_done()
-                self.get_write_buffer_size()
-
-            _LOGGER.error("MsgTransport.pkt_dispatcher(): connection_lost(None)")
-            [p.connection_lost(None) for p in self._protocols]
-
-        self._dispatcher = dispatcher  # type: ignore[assignment]
-        self._extra[self.WRITER] = self._loop.create_task(pkt_dispatcher())
-
-        return self._extra[self.WRITER]
-
-    def _expire_callbacks(self, dtm: dt) -> None:
-        """Remove (and notify) expired callbacks form the table."""
-
-        # 1st, stop tracking expired callbacks
-        expired_cbks = {
-            hdr: cbk
-            for hdr, cbk in self._callbacks.items()
-            if cbk.get(SZ_EXPIRES, dt.max) < dtm
-        }
-        self._callbacks = {
-            hdr: cbk for hdr, cbk in self._callbacks.items() if hdr not in expired_cbks
-        }
-
-        # 2nd, notify all expired callbacks
-        for hdr, cbk in expired_cbks.items():  # see also: PktProtocolQos.send_data()?
-            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
-                "MsgTransport._pkt_receiver(%s): Expired callback", hdr
+        def is_imminent(p):
+            """Return True if a sync cycle is imminent."""
+            return (
+                SYNC_WINDOW_LOWER
+                < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
+                < SYNC_WINDOW_UPPER
             )
-            self._loop.call_soon(cbk[SZ_FUNC], CallbackAsAwaitable.HAS_TIMED_OUT)
 
-    def _add_callback(
-        self, header: str, callback: dict, cmd: None | Command = None
-    ) -> None:
-        """Add a callback to the table."""
-        # assert header not in self._callbacks  # CBK, below
-        # self._callbacks[header] = CallbackWrapper(header, callback, cmd=cmd)
+        start = perf_counter()  # TODO: remove
 
-        self._expire_callbacks(dt.now())
+        # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
+        while any(is_imminent(p) for p in _global_sync_cycles):
+            await asyncio.sleep(SYNC_WAIT_SHORT)
 
-        if header in self._callbacks:
-            raise RuntimeError("That header is already in the callback table")
+        # wait for the remainder of sync cycle (I|2309/30C9) to complete
+        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
+            await asyncio.sleep(SYNC_WAIT_LONG)
+            # FIXME: remove this block, and merge both ifs
+            times_0.append(x)
+            _LOGGER.warning(
+                f"*** sync cycle stats: {x:.3f}, "
+                f"avg: {sum(times_0) / len(times_0):.3f}, "
+                f"lower: {min(times_0):.3f}, "
+                f"upper: {max(times_0):.3f}, "
+                f"times: {[f'{t:.3f}' for t in times_0]}"
+            )  # TODO: wrap with if effectiveloglevel
 
-        callback[SZ_EXPIRES] = (
-            dt.max
-            if callback.get(SZ_DAEMON)
-            else dt.now() + td(seconds=callback.get(SZ_TIMEOUT, 1))
+        await fnc(*args, **kwargs)
+
+    return wrapper
+
+
+def track_system_syncs(fnc: Callable):
+    """Track/remember the any new/outstanding TCS sync cycle."""
+
+    MAX_SYNCS_TRACKED = 3
+
+    def wrapper(self, pkt: Packet, *args, **kwargs) -> None:
+        global _global_sync_cycles
+
+        def is_pending(p):
+            """Return True if a sync cycle is still pending (ignores drift)."""
+            return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
+
+        if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
+            return fnc(self, pkt, *args, **kwargs)
+
+        _global_sync_cycles = deque(
+            p for p in _global_sync_cycles if p.src != pkt.src and is_pending(p)
         )
-        callback["cmd"] = cmd
-        self._callbacks[header] = callback  # check for existing hdr?
+        _global_sync_cycles.append(pkt)  # TODO: sort
 
-    def _pkt_receiver(self, pkt: Packet) -> None:  # callback used by PktProtocol layer
-        _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
+        if (
+            len(_global_sync_cycles) > MAX_SYNCS_TRACKED
+        ):  # safety net for corrupted payloads
+            _global_sync_cycles.popleft()
 
-        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-            _LOGGER.info("rcvd: %s", pkt)
+        fnc(self, pkt, *args, **kwargs)
 
-        self._expire_callbacks(pkt.dtm)
+    return wrapper
 
-        if len(self._protocols) == 0 or (
-            self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES
-        ):
-            return
 
-        # BUG: all InvalidPacketErrors are not being raised here - some later?
-        try:
-            msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
-        except (
-            InvalidPacketError
-        ):  # TODO: InvalidMessageError (wont have got this far if was an invalid Pkt)
-            return
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
+    """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
-        # 3rd, invoke any matched callback
-        # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
-        if self._callbacks and (callback := self._callbacks.get(msg._pkt._hdr)):  # type: ignore[assignment]
-            self._loop.call_soon(callback[SZ_FUNC], msg)
-            if not callback.get(SZ_DAEMON):
-                del self._callbacks[msg._pkt._hdr]
-
-        for p in self._protocols:
-            self._loop.call_soon(p.data_received, msg)
-
-    def get_extra_info(self, name: str, default=None):
-        """Get optional transport information."""
-
-        return self._extra.get(name, default)
-
-    def abort(self) -> None:
-        """Close the transport immediately.
-
-        Buffered data will be lost. No more data will be received. The protocol's
-        connection_lost() method will (eventually) be called with None as its argument.
-        """
-
-        self._is_closing = True
-        self._clear_write_buffer()
-        self.close()
-
-    def close(self) -> None:
-        """Close the transport.
-
-        Buffered data will be flushed asynchronously. No more data will be received.
-        After all buffered data is flushed, the protocol's connection_lost() method will
-        (eventually) be called with None as its argument.
-        """
-
-        if self._is_closing:
-            return
-        self._is_closing = True
-
-        self._pause_protocols()
-        if task := self._extra.get(self.WRITER):
-            task.cancel()
-
-        [self._loop.call_soon(p.connection_lost, None) for p in self._protocols]
-
-    def is_closing(self) -> bool:
-        """Return True if the transport is closing or closed."""
-        return self._is_closing
-
-    def add_protocol(self, protocol: MessageProtocol) -> None:
-        """Attach a new protocol.
-
-        Allow multiple protocols per transport.
-        """
-
-        if protocol not in self._protocols:
-            if len(self._protocols) > self.MAX_SUBSCRIBERS - 1:
-                raise ValueError("Exceeded maximum number of subscribing protocols")
-
-            self._protocols.append(protocol)
-            protocol.connection_made(self)
-
-    def get_protocols(self) -> list:
-        """Return the list of active protocols.
-
-        There can be multiple protocols per transport.
-        """
-
-        return self._protocols
-
-    def is_reading(self) -> bool:
-        """Return True if the transport is receiving new data."""
-
-        raise NotImplementedError
-
-    def pause_reading(self) -> None:
-        """Pause the receiving end.
-
-        No data will be passed to the protocol's data_received() method until
-        resume_reading() is called.
-        """
-
-        raise NotImplementedError
-
-    def resume_reading(self) -> None:
-        """Resume the receiving end.
-
-        Data received will once again be passed to the protocol's data_received()
-        method.
-        """
-
-        raise NotImplementedError
-
-    def _clear_write_buffer(self) -> None:
-        """Empty the dispatch queue.
-
-        Should not call `get_write_buffer_size()`.
-        """
-
-        while not self._que.empty():
-            try:
-                self._que.get_nowait()
-            except Empty:
-                continue
-            self._que.task_done()
-
-    def _pause_protocols(self, force: bool = None) -> None:
-        """Pause the other end."""
-
-        if not self._write_buffer_paused or force:
-            self._write_buffer_paused = True
-            for p in self._protocols:
-                p.pause_writing()
-
-    def _resume_protocols(self, force: bool = None) -> None:
-        """Resume the other end."""
-
-        if self._write_buffer_paused or force:
-            self._write_buffer_paused = False
-            for p in self._protocols:
-                p.resume_writing()
-
-    def get_write_buffer_limits(self) -> tuple[int, int]:
-        """Get the high and low watermarks for write flow control.
-
-        Return a tuple (low, high) where low and high are positive number of bytes.
-        """
-
-        return self._write_buffer_limit_low, self._write_buffer_limit_high
-
-    def set_write_buffer_limits(self, high: int = None, low: int = None) -> None:
-        """Set the high- and low-water limits for write flow control.
-
-        These two values control when to call the protocol's pause_writing() and
-        resume_writing() methods. If specified, the low-water limit must be less than
-        or equal to the high-water limit. Neither value can be negative. The defaults
-        are implementation-specific. If only the high-water limit is given, the
-        low-water limit defaults to an implementation-specific value less than or equal
-        to the high-water limit. Setting high to zero forces low to zero as well, and
-        causes pause_writing() to be called whenever the buffer becomes non-empty.
-        Setting low to zero causes resume_writing() to be called only once the buffer is
-        empty. Use of zero for either limit is generally sub-optimal as it reduces
-        opportunities for doing I/O and computation concurrently.
-        """
-
-        high = self.MAX_BUFFER_SIZE if high is None else high
-        low = int(self._write_buffer_limit_high * 0.8) if low is None else low
-
-        self._write_buffer_limit_high = max((min((high, self.MAX_BUFFER_SIZE)), 0))
-        self._write_buffer_limit_low = min((max((low, 0)), high))
-
-        self.get_write_buffer_size()
-
-    def get_write_buffer_size(self) -> int:
-        """Return the current size of the write buffer.
-
-        If required, pause or resume the protocols.
-        """
-
-        qsize = self._que.qsize()
-
-        if qsize >= self._write_buffer_limit_high:
-            self._pause_protocols()
-
-        elif qsize <= self._write_buffer_limit_low:
-            self._resume_protocols()
-
-        return qsize
-
-    def write(self, cmd: Command) -> None:
-        """Write some data bytes to the transport.
-
-        This does not block; it buffers the data and arranges for it to be sent out
-        asynchronously.
-        """
-        _LOGGER.debug("MsgTransport.write(%s)", cmd)
-
-        if self._is_closing:
-            raise RuntimeError("MsgTransport is closing or has closed")
-
-        if self._write_buffer_paused:
-            raise RuntimeError("MsgTransport write buffer is paused")
-
-        if self._gwy.config.disable_sending:
-            raise RuntimeError("MsgTransport sending is disabled (cmd discarded)")
-
-        else:
-            # if not self._dispatcher:  # TODO: do better?
-            #     _LOGGER.debug("MsgTransport.write(%s): no dispatcher", cmd)
-
-            try:
-                self._que.put_nowait(cmd)
-            except Full:
-                pass  # TODO: why? - consider restarting the dispatcher
-
-        self.get_write_buffer_size()
-
-    def writelines(self, list_of_cmds: Iterable[Command]) -> None:
-        """Write a list (or any iterable) of data bytes to the transport.
-
-        The default implementation concatenates the arguments and calls write() on the
-        result.list_of_cmds
-        """
-
-        for cmd in list_of_cmds:
-            self.write(cmd)
-
-    def write_eof(self) -> None:
-        """Close the write end after flushing buffered data.
-
-        This is like typing ^D into a UNIX program reading from stdin. Data may still be
-        received.
-        """
-
-        raise NotImplementedError
-
-    def can_write_eof(self) -> bool:
-        """Return True if this transport supports write_eof(), False if not."""
-
-        return False
-
-
-class MessageProtocol(asyncio.Protocol):
-    """Interface for a message protocol.
-
-    The user should implement this interface.  They can inherit from this class but
-    don't need to.  The implementations here do nothing (they don't raise
-    exceptions).
-
-    When the user wants to requests a transport, they pass a protocol factory to a
-    utility function (e.g., EventLoop.create_connection()).
-
-    When the connection is made successfully, connection_made() is called with a
-    suitable transport object.  Then data_received() will be called 0 or more times
-    with data (bytes) received from the transport; finally, connection_lost() will
-    be called exactly once with either an exception object or None as an argument.
-
-    State machine of calls:
-
-    start -> CM [-> DR*] [-> ER?] -> CL -> end
-
-    * CM: connection_made()
-    * DR: data_received()
-    * ER: eof_received()
-    * CL: connection_lost()
+    max_duty_cycle: bandwidth available per observation window (%)
+    time_window: duration of the sliding observation window (default 60 seconds)
     """
 
-    def __init__(self, gwy, callback: Callable) -> None:
-        # self._gwy = gwy  # is not used
-        self._loop: asyncio.AbstractEventLoop = gwy._loop
-        self._callback = callback
+    TX_RATE_AVAIL: int = 38400  # bits per second (deemed)
+    FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
+    BUCKET_CAPACITY: float = FILL_RATE * time_window
 
-        self._transport: MessageTransport = None  # type: ignore[assignment]
-        self._this_msg: None | Message = None
+    def decorator(fnc: Callable[..., Awaitable]):
+        # start with a full bit bucket
+        bits_in_bucket: float = BUCKET_CAPACITY
+        last_time_bit_added = perf_counter()
 
-        self._pause_writing = True
+        @wraps(fnc)
+        async def wrapper(self, frame: str, *args, **kwargs):
+            nonlocal bits_in_bucket
+            nonlocal last_time_bit_added
 
-    def connection_made(self, transport: MessageTransport) -> None:  # type: ignore[override]
-        """Called when a connection is made."""
+            rf_frame_size = 330 + len(frame[46:]) * 10
+
+            # top-up the bit bucket
+            elapsed_time = perf_counter() - last_time_bit_added
+            bits_in_bucket = min(
+                bits_in_bucket + elapsed_time * FILL_RATE, BUCKET_CAPACITY
+            )
+            last_time_bit_added = perf_counter()
+
+            if _DEBUG_DISABLE_DUTY_CYCLE_LIMIT:
+                bits_in_bucket = BUCKET_CAPACITY
+
+            # if required, wait for the bit bucket to refill (not for SETs/PUTs)
+            if bits_in_bucket < rf_frame_size:
+                await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
+
+            # consume the bits from the bit bucket
+            try:
+                await fnc(self, frame, *args, **kwargs)
+            finally:
+                bits_in_bucket -= rf_frame_size
+
+        @wraps(fnc)
+        async def null_wrapper(*args, **kwargs) -> Any:
+            return await fnc(*args, **kwargs)
+
+        if 0 < max_duty_cycle <= 1:
+            return wrapper
+
+        return null_wrapper
+
+    return decorator
+
+
+def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
+    """Limit the Tx rate as # packets per period of time.
+
+    Rate-limits the decorated function locally, for one process (Token Bucket).
+
+    max_tokens: maximum number of calls of function in time_window
+    time_window: duration of the sliding observation window (default 60 seconds)
+    """
+    # thanks, kudos to: Thomas Meschede, license: MIT
+    # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
+
+    token_fill_rate: float = max_tokens / time_window
+
+    def decorator(fnc: Callable):
+        token_bucket: float = max_tokens  # initialize with max tokens
+        last_time_token_added = perf_counter()
+
+        @wraps(fnc)
+        async def wrapper(*args, **kwargs):
+            nonlocal token_bucket
+            nonlocal last_time_token_added
+
+            # top-up the bit bucket
+            elapsed = perf_counter() - last_time_token_added
+            token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
+            last_time_token_added = perf_counter()
+
+            # if required, wait for a token (not for SETs/PUTs)
+            if token_bucket < 1.0:
+                await asyncio.sleep((1 - token_bucket) / token_fill_rate)
+
+            # consume one token for every call
+            try:
+                await fnc(*args, **kwargs)
+            finally:
+                token_bucket -= 1.0
+
+        return wrapper
+
+        @wraps(fnc)
+        async def null_wrapper(*args, **kwargs) -> Any:
+            return await fnc(*args, **kwargs)
+
+        if max_tokens <= 0:
+            return null_wrapper
+
+    return decorator
+
+
+class _BaseProtocol(asyncio.Protocol):
+    """Base class for RAMSES II protocols."""
+
+    WRITER_TASK = "writer_task"
+
+    _this_msg: None | Message = None
+    _prev_msg: None | Message = None
+
+    def __init__(self, msg_handler: MsgHandler):  # , **kwargs) -> None:
+        self._msg_handler = msg_handler
+        self._msg_handlers: list[MsgHandler] = []
+
+        self._transport: RamsesTransportT = None  # type: ignore[assignment]
+        self._loop = asyncio.get_running_loop()
+
+        self._pause_writing = False
+        self._wait_connection_lost = self._loop.create_future()
+
+    def add_handler(
+        self,
+        msg_handler: MsgHandler,
+        msg_filter: None | MsgFilter = None,
+    ) -> Callable[[], None]:
+        """Add a Message handler to the list of such callbacks.
+
+        Returns a callback that can be used to subsequently remove the Message handler.
+        """
+
+        def del_handler() -> None:
+            if msg_handler in self._msg_handlers:
+                self._msg_handlers.remove(msg_handler)
+
+        if msg_handler not in self._msg_handlers:
+            self._msg_handlers.append(msg_handler)
+
+        return del_handler
+
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """Called when the connection to the Transport is established.
+
+        The argument is the transport representing the pipe connection. To receive data,
+        wait for pkt_received() calls. When the connection is closed, connection_lost()
+        is called.
+        """
+
         self._transport = transport
-        self.resume_writing()
 
-    def data_received(self, msg: Message) -> None:  # type: ignore[override]
-        """Called by the transport when a message is received."""
-        _LOGGER.debug("MsgProtocol.data_received(%s)", msg)
+    def connection_lost(self, exc: None | Exception) -> None:
+        """Called when the connection to the Transport is lost or closed.
 
-        self._this_msg = msg
-        self._loop.call_soon(self._callback, self._this_msg)  # to the dispatcher
+        The argument is an exception object or None (the latter meaning a regular EOF is
+        received or the connection was aborted or closed).
+        """
 
-    async def send_data(
-        self, cmd: Command, callback: Callable = None, _make_awaitable: bool = None
-    ) -> Optional[Message]:
-        """Called when a command is to be sent."""
-        _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
+        if self._wait_connection_lost.done():  # BUG: why is callback invoked twice?
+            return
 
-        if _make_awaitable and callback is not None:
-            raise ValueError("only one of `awaitable` and `callback` can be provided")
-        if _make_awaitable:  # and callback is None:
-            awaitable, callback = awaitable_callback(self._loop)  # ZX: 3/3
-        if callback:  # func, args, daemon, timeout (& expired)
-            cmd._cbk = {SZ_FUNC: callback, SZ_TIMEOUT: 3}
+        if exc:
+            self._wait_connection_lost.set_exception(exc)
+        else:
+            self._wait_connection_lost.set_result(None)
 
-        while self._pause_writing:
-            await asyncio.sleep(0.005)
+    @property
+    def wait_connection_lost(self) -> asyncio.Future:
+        """Return a future that will block until connection_lost() has been invoked.
 
-        self._transport.write(cmd)
-
-        if _make_awaitable:
-            return await awaitable()  # CallbackAsAwaitable.getter(timeout: float = ...)
-        return None
-
-    def connection_lost(self, exc: Optional[Exception]) -> None:
-        """Called when the connection is lost or closed."""
-        if exc is not None:
-            raise exc
+        Can call fut.result() to check for result/any exception.
+        """
+        return self._wait_connection_lost
 
     def pause_writing(self) -> None:
-        """Called by the transport when its buffer goes over the high-water mark."""
+        """Called when the transport's buffer goes over the high-water mark.
+
+        Pause and resume calls are paired -- pause_writing() is called once when the
+        buffer goes strictly over the high-water mark (even if subsequent writes
+        increases the buffer size even more), and eventually resume_writing() is called
+        once when the buffer size reaches the low-water mark.
+
+        Note that if the buffer size equals the high-water mark, pause_writing() is not
+        called -- it must go strictly over. Conversely, resume_writing() is called when
+        the buffer size is equal or lower than the low-water mark.  These end conditions
+        are important to ensure that things go as expected when either mark is zero.
+
+        NOTE: This is the only Protocol callback that is not called through
+        EventLoop.call_soon() -- if it were, it would have no effect when it's most
+        needed (when the app keeps writing without yielding until pause_writing() is
+        called).
+        """
+
         self._pause_writing = True
 
     def resume_writing(self) -> None:
-        """Called by the transport when its buffer drains below the low-water mark."""
+        """Called when the transport's buffer drains below the low-water mark.
+
+        See pause_writing() for details.
+        """
+
         self._pause_writing = False
 
+    async def send_cmd(self, cmd: Command, **kwargs) -> Packet | None:
+        """A wrapper for self._send_cmd(cmd)."""
 
-def create_protocol_factory(
-    protocol_class: type[asyncio.Protocol], *args, **kwargs
-) -> Callable:
-    def _protocol_factory() -> asyncio.Protocol:
-        return protocol_class(*args, **kwargs)
+        if not self._transport:
+            raise ProtocolSendFailed("There is no connected Transport")
+        if self._pause_writing:
+            raise ProtocolSendFailed("The Protocol is currently read-only")
 
-    return _protocol_factory
+        return await self._send_cmd(cmd, **kwargs)  # type: ignore[func-returns-value]
+
+    async def _send_cmd(self, cmd: Command) -> None:  # only cmd, no args, kwargs
+        """Called when a Command is to be sent to the Transport.
+
+        The Protocol must be given a Command (not bytes).
+        """
+        await self._send_frame(str(cmd))
+
+    async def _send_frame(self, frame: str) -> None:
+        """Write some bytes to the transport."""
+        self._transport.send_frame(frame)
+
+    def pkt_received(self, pkt: Packet) -> None:
+        """A wrapper for self._pkt_received(pkt)."""
+        self._pkt_received(pkt)
+
+    def _pkt_received(self, pkt: Packet) -> None:
+        """Called by the Transport when a Packet is received."""
+        try:
+            msg = Message(pkt)  # should log all invalid msgs appropriately
+        except PacketInvalid:  # TODO: InvalidMessageError (packet is valid)
+            return
+
+        self._this_msg, self._prev_msg = msg, self._this_msg
+        self._msg_received(msg)
+
+    def _msg_received(self, msg: Message) -> None:
+        """Pass any valid/wanted Messages to the client's callback.
+
+        Also maintain _prev_msg, _this_msg attrs.
+        """
+
+        self._loop.call_soon(self._msg_handler, msg)  # to the internal state machine
+        for callback in self._msg_handlers:
+            # TODO: if it's filter returns True:
+            self._loop.call_soon(callback, msg)
 
 
-def create_msg_stack(
-    gwy,
-    msg_callback: Callable[[Message, Optional[Message]], None],
+class _AvoidSyncCycle(_BaseProtocol):  # avoid sync cycles
+    """A mixin for avoiding sync cycles."""
+
+    @track_system_syncs
+    def pkt_received(self, pkt: Packet) -> None:
+        """Pass any valid/wanted packets to the callback."""
+        super().pkt_received(pkt)
+
+    @avoid_system_syncs
+    async def _send_frame(self, frame: str) -> None:
+        """Write some data bytes to the transport."""
+        await super()._send_frame(frame)
+
+
+# NOTE: The duty cycle limts & minimum gaps between write are in this layer, and not
+# in the Transport layer (as you might expect), because the best are enforced *before*
+# the code that avoids the controller sync cycles
+
+
+class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
+    """A mixin for staying within duty cycle limits."""
+
+    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # @limit_transmit_rate(_MAX_TOKENS)
+    async def _send_frame(self, frame: str) -> None:
+        """Write some data bytes to the transport."""
+        await super()._send_frame(frame)
+
+
+class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
+    """Enforce a minimum gap between writes using the leaky bucket algorithm."""
+
+    def __init__(self, msg_handler: MsgHandler) -> None:
+        super().__init__(msg_handler)
+
+        self._leaker_sem = asyncio.BoundedSemaphore()
+        self._leaker_task: None | asyncio.Task = None
+
+    async def _leak_sem(self) -> None:
+        """Used to enforce a minimum time between calls to self._transport.write()."""
+        while True:
+            await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
+            try:
+                self._leaker_sem.release()
+            except ValueError:
+                pass
+
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """Invoke the leaky bucket algorithm."""
+        super().connection_made(transport)
+
+        if not self._leaker_task:
+            self._leaker_task = self._loop.create_task(self._leak_sem())
+
+    def connection_lost(self, exc: None | Exception) -> None:
+        """Called when the connection is lost or closed."""
+        if self._leaker_task:
+            self._leaker_task.cancel()
+
+        super().connection_lost(exc)
+
+    async def _send_frame(self, frame: str) -> None:
+        """Write some data bytes to the transport."""
+        await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
+
+        await super()._send_frame(frame)
+
+
+class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
+    """A mixin for warning that impersonation is being performed."""
+
+    _is_evofw3: None | bool = None
+
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """Record if the gateway device is evofw3-compatible."""
+        super().connection_made(transport)
+
+        self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
+
+    async def _send_impersonation_alert(self, cmd: Command) -> None:
+        """Send an puzzle packet warning that impersonation is occurring."""
+
+        if _DEBUG_DISABLE_IMPERSONATION_ALERTS:
+            return
+
+        msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
+        if self._is_evofw3 is False:
+            _LOGGER.error(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
+        else:
+            _LOGGER.info(msg)
+
+        await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
+
+    async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
+        """Send a Command to the transport."""
+        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
+            await self._send_impersonation_alert(cmd)
+
+        return await super().send_cmd(cmd, **kwargs)
+
+
+class _ProtQosTimers(_BaseProtocol):  # inserts context/state
+    """A mixin for providing QoS by maintaining the state of the Protocol."""
+
+    def __init__(self, msg_handler: MsgHandler) -> None:
+        """Add a FSM to the Protocol, to provide QoS."""
+        super().__init__(msg_handler)
+        self._context = ProtocolContext(self)
+
+    def connection_made(self, transport: RamsesTransportT) -> None:
+        """Inform the FSM that the connection with the Transport has been made."""
+        super().connection_made(transport)
+        self._context.connection_made(transport)
+
+    def connection_lost(self, exc: None | Exception) -> None:
+        """Inform the FSM that the connection with the Transport has been lost."""
+        super().connection_lost(exc)
+        self._context.connection_lost(exc)
+
+    def pause_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+        super().pause_writing()
+        self._context.pause_writing()
+
+    def resume_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+        super().resume_writing()
+        self._context.resume_writing()
+
+    def pkt_received(self, pkt: Packet) -> None:
+        """Inform the FSM that a Packet has been received."""
+        super().pkt_received(pkt)
+        self._context.pkt_received(pkt)
+
+    async def _send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        priority: SendPriority = SendPriority.DEFAULT,
+        timeout: float = DEFAULT_TIMEOUT,
+        wait_for_reply: None | bool = None,  # None, rather than False
+    ) -> Packet:
+        """Wrapper to send a Command with QoS (retries, until success or Exception)."""
+
+        try:
+            return await self._context.send_cmd(
+                super()._send_cmd,
+                cmd,
+                max_retries=max_retries,
+                priority=priority,
+                timeout=timeout,
+                wait_for_reply=wait_for_reply,
+            )
+        # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
+        #     # reset protocol stack
+        except ProtocolError as exc:  # TODO: _LOGGER.error, not .exception
+            _LOGGER.exception(f"{self}: Failed to send {cmd._hdr}: {exc}")
+            raise
+
+
+# NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
+# Impersonate first, as the Puzzle Packet needs to be sent before the Command
+# Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
+# QosTimers last, to start any timers immediately after Tx of Command
+
+
+# ### Read-Only Protocol for FileTransport, PortTransport #############################
+class ReadProtocol(_BaseProtocol):
+    """A protocol that can only receive Packets."""
+
+    def __init__(self, msg_handler: MsgHandler) -> None:
+        super().__init__(msg_handler)
+
+        self._pause_writing = True
+
+    def connection_made(
+        self, transport: RamsesTransportT, /, *, ramses: bool = False
+    ) -> None:
+        """Consume the callback if invoked by SerialTransport rather than PortTransport.
+
+        Our PortTransport wraps SerialTransport and will wait for the signature echo
+        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
+        """
+
+        super().connection_made(transport)
+
+    def resume_writing(self) -> None:
+        raise NotImplementedError
+
+    async def send_cmd(self, cmd: Command, /, **kwargs) -> NoReturn:
+        raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
+
+
+# ### Read-Write (sans QoS) Protocol for PortTransport ################################
+class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
+    """A protocol that can receive Packets and send Commands."""
+
+    def connection_made(
+        self, transport: RamsesTransportT, /, *, ramses: bool = False
+    ) -> None:
+        """Consume the callback if invoked by SerialTransport rather than PortTransport.
+
+        Our PortTransport wraps SerialTransport and will wait for the signature echo
+        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
+        """
+
+        if ramses:
+            super().connection_made(transport)
+
+    async def send_cmd(self, cmd: Command, /, **kwargs) -> None:
+        """Send a Command without any QoS features."""
+        if kwargs:
+            _LOGGER.warning(f"{self}: The Protocol has no Qos")
+        await super().send_cmd(cmd)
+
+
+# ### Read-Write Protocol for QosTransport ############################################
+class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtocol):
+    """A protocol that can receive Packets and send Commands with QoS."""
+
+    def __repr__(self) -> str:
+        cls = self._context.state.__class__.__name__
+        return f"QosProtocol({cls}, len(queue)={self._context._que.unfinished_tasks})"
+
+    def connection_made(
+        self, transport: RamsesTransportT, /, *, ramses: bool = False
+    ) -> None:
+        """Consume the callback if invoked by SerialTransport rather than PortTransport.
+
+        Our PortTransport wraps SerialTransport and will wait for the signature echo
+        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
+        """
+
+        if ramses:
+            super().connection_made(transport)
+
+    async def send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        priority: SendPriority = SendPriority.DEFAULT,
+        timeout: float = DEFAULT_TIMEOUT,
+        wait_for_reply: None | bool = None,
+    ) -> Packet:
+        """Send a Command with Qos (with retries, until success or ProtocolError).
+
+        Returns the Command's response Packet or the Command echo if a response is not
+        expected (e.g. sending an RP).
+
+        If wait_for_reply is True, return the RQ's RP (or W's I), or raise an Exception
+        if one doesn't arrive. If it is False, return the echo of the Command only. If
+        it is None (the default), act as True for RQs, and False for all other Commands.
+
+        Commands are queued and sent in order, but higher-priority Commands are always
+        sent first.
+        """
+
+        return await super().send_cmd(
+            cmd,
+            max_retries=max_retries,
+            priority=priority,
+            timeout=timeout,
+            wait_for_reply=wait_for_reply,
+        )
+
+
+def protocol_factory(
+    msg_handler: MsgHandler,
     /,
     *,
-    protocol_factory: Callable[[], _MessageProtocolT] = None,
-) -> tuple[_MessageProtocolT, _MessageTransportT]:
-    """Utility function to provide a transport to a client protocol.
+    disable_sending: None | bool = False,
+    disable_qos: None | bool = False,
+) -> RamsesProtocolT:
+    """Create and return a Ramses-specific async packet Protocol."""
 
-    The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
+    if disable_sending:
+        return ReadProtocol(msg_handler)
+    if disable_qos or _DEBUG_DISABLE_QOS:
+        _LOGGER.warning("QOS has been disabled")
+        return PortProtocol(msg_handler)
+    return QosProtocol(msg_handler)
+
+
+async def create_stack(
+    msg_handler: MsgHandler,
+    /,
+    *,
+    protocol_factory_: None | Callable = None,
+    transport_factory_: None | Callable = None,
+    disable_sending: bool = False,
+    disable_qos: bool = False,
+    **kwargs,
+) -> tuple[RamsesProtocolT, RamsesTransportT]:
+    """Utility function to provide a Protocol / Transport pair.
+
+    Architecture: gwy (client) -> msg (Protocol) -> pkt (Transport) -> HGI/log (or dict)
+    - send Commands via awaitable Protocol.send_cmd(cmd)
+    - receive Messages via Gateway._handle_msg(msg) callback
     """
 
-    def _protocol_factory():
-        return create_protocol_factory(MessageProtocol, gwy, msg_callback)()
+    if protocol_factory_:
+        protocol = protocol_factory_(msg_handler, **kwargs)
 
-    msg_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-
-    if gwy.msg_transport:  # TODO: a little messy?
-        msg_transport = gwy.msg_transport
-        msg_transport.add_protocol(msg_protocol)
     else:
-        msg_transport = MessageTransport(gwy, msg_protocol)
+        read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
 
-    return (msg_protocol, msg_transport)
+        protocol = protocol_factory(
+            msg_handler,
+            disable_sending=disable_sending or read_only,
+            disable_qos=disable_qos,
+        )
+
+    transport = await (transport_factory_ or transport_factory)(
+        protocol, disable_sending=disable_sending, **kwargs
+    )
+
+    if not kwargs.get(SZ_PORT_NAME):
+        set_logger_timesource(transport._dt_now)
+        _LOGGER.warning("Logger datetimes maintained as most recent packet timestamp")
+
+    return protocol, transport
+
+
+MsgHandler = Callable[[Message], None]
+MsgFilter = Callable[[Message], bool]
+RamsesProtocolT = ReadProtocol | PortProtocol | QosProtocol

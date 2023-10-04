@@ -3,6 +3,8 @@
 #
 """A virtual RF network useful for testing."""
 
+# NOTE: does not rely on ramses_rf library
+
 import asyncio
 import logging
 import os
@@ -17,7 +19,7 @@ from typing import TypeAlias
 
 from serial import Serial, serial_for_url  # type: ignore[import]
 
-from ramses_rf.protocol.backports import StrEnum  # when Python >= 3.11.x, use from enum
+from .const import HgiFwTypes
 
 _FD: TypeAlias = int  # file descriptor
 _PN: TypeAlias = str  # port name
@@ -33,49 +35,53 @@ DEVICE_ID = "device_id"
 DEVICE_ID_BYTES = "device_id_bytes"
 FW_VERSION = "fw_version"
 
-MAX_NUM_PORTS = 32
-
-
-class HgiFwTypes(StrEnum):
-    EVOFW3 = "ghoti57/evofw3 atmega32u4 v0.7.1"  # SparkFun atmega32u4
-    NATIVE = "Texas Instruments TUSB3410"  # Honeywell HGI80
+MAX_NUM_PORTS = 6
 
 
 class VirtualComPortInfo:
     """A container for emulating pyserial's PortInfo (SysFS) objects."""
 
-    def __init__(self, port_name: _PN, dev_type: None | HgiFwTypes = None) -> None:
+    manufacturer: str
+    product: str
+    vid: int
+    pid: int
+    description: str
+    interface: None | str
+    serial_number: None | str
+    subsystem: str
+
+    def __init__(self, port_name: _PN, dev_type: HgiFwTypes) -> None:
         """Supplies a useful subset of PortInfo attrs according to gateway type."""
 
-        self.name = port_name
-        self.device = f"/dev{port_name}"
+        self.device = port_name  # # e.g. /dev/pts/2 (a la /dev/ttyUSB0)
+        self.name = port_name[5:]  # e.g.      pts/2 (a la      ttyUSB0)
 
-        self.description: None | str = None
-        self.product: None | str = None
-        self.serial_number: None | str = None
-        self.manufacturer: None | str = None
-        self.subsystem: None | str = None
-
-        if dev_type is not None:
-            self._set_attrs(dev_type)
+        self._set_attrs(dev_type)
 
     def _set_attrs(self, dev_type: HgiFwTypes) -> None:
-        if dev_type == HgiFwTypes.EVOFW3:
-            self.description = "evofw3 atmega32u4"
-            self.product = "evofw3 atmega32u4"
-            self.serial_number = None
-            self.manufacturer = "SparkFun"
-            self.subsystem = "usb-serial"
-
-        elif dev_type == HgiFwTypes.NATIVE:
-            self.description = "TUSB3410 Boot Device"
-            self.product = "TUSB3410 Boot Device"
-            self.serial_number = "TUSB3410"
+        if dev_type == HgiFwTypes.HGI_80:
             self.manufacturer = "Texas Instruments"
+            self.product = "TUSB3410 Boot Device"
+
+            self.vid = 0x10AC  # aka Honeywell, Inc.
+            self.pid = 0x0102  # aka HGI80
+
+            self.description = "TUSB3410 Boot Device"
+            self.interface = None
+            self.serial_number = "TUSB3410"
             self.subsystem = "usb"
 
-        else:
-            raise ValueError(f"Unknown type of gateway {dev_type}")
+        else:  # if dev_type == HgiFwTypes.EVOFW3:
+            self.manufacturer = "SparkFun"
+            self.product = "evofw3 atmega32u4"
+
+            self.vid = 0x1B4F  # aka SparkFun Electronics
+            self.pid = 0x9206
+
+            self.description = "evofw3 atmega32u4"
+            self.interface = None
+            self.serial_number = None
+            self.subsystem = "usb-serial"
 
 
 class VirtualRfBase:
@@ -93,14 +99,12 @@ class VirtualRfBase:
         if os.name != "posix":
             raise RuntimeError(f"Unsupported OS: {os.name} (requires termios)")
 
-        if 0 > num_ports > MAX_NUM_PORTS:
+        if 1 > num_ports > MAX_NUM_PORTS:
             raise ValueError(f"Port limit exceeded: {num_ports}")
 
         self._port_info_list: dict[_PN, VirtualComPortInfo] = {}
 
         self._loop = asyncio.get_running_loop()
-        self.tx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to Device
-        self.rx_log: deque[tuple[str, bytes]] = deque([], log_size)  # as sent to RF
 
         self._file_objs: dict[_FD, FileIO] = {}  # master fd to port object, for I/O
         self._pty_names: dict[_FD, _PN] = {}  # master fd to slave port name, for logger
@@ -110,9 +114,10 @@ class VirtualRfBase:
         for idx in range(num_ports):
             self._create_port(idx)
 
+        self._log: list[tuple[str, str, bytes]] = deque([], log_size)
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
-    def _create_port(self, port_idx: int) -> None:
+    def _create_port(self, port_idx: int, dev_type: None | HgiFwTypes = None) -> None:
         """Create a port without a HGI80 attached."""
         master_fd, slave_fd = pty.openpty()  # pty, tty
 
@@ -123,7 +128,7 @@ class VirtualRfBase:
         self._pty_names[master_fd] = os.ttyname(slave_fd)
         self._tty_names[os.ttyname(slave_fd)] = slave_fd
 
-        self._set_comport_info(self._pty_names[master_fd])
+        self._set_comport_info(self._pty_names[master_fd], dev_type=dev_type)
 
     def comports(self, include_links=False) -> list[VirtualComPortInfo]:  # unsorted
         """Use this method to monkey patch serial.tools.list_ports.comports()."""
@@ -134,9 +139,7 @@ class VirtualRfBase:
     ) -> VirtualComPortInfo:
         """Add comport info to the list (wont fail if the entry already exists)"""
         self._port_info_list.pop(port_name, None)
-        self._port_info_list[port_name] = VirtualComPortInfo(
-            port_name, dev_type=dev_type
-        )
+        self._port_info_list[port_name] = VirtualComPortInfo(port_name, dev_type)
         return self._port_info_list[port_name]
 
     @property
@@ -186,47 +189,43 @@ class VirtualRfBase:
                     self._pull_data_from_src_port(key.fileobj)  # type: ignore[arg-type]  # fileobj type is int | HasFileno
                     await asyncio.sleep(0)
                 else:
-                    await asyncio.sleep(0.001)
+                    await asyncio.sleep(0.0001)
 
     def _pull_data_from_src_port(self, master: _FD) -> None:
         """Pull the data from the sending port and process any frames."""
 
         data = self._file_objs[master].read()  # read the Tx'd data
-        self.tx_log.append((self._pty_names[master], data))
+        self._log.append((self._pty_names[master], "SENT", data))
 
         # this assumes all .write(data) are 1+ whole frames terminated with \r\n
         for frame in (d + b"\r\n" for d in data.split(b"\r\n") if d):  # ignore b""
             if f := self._proc_before_tx(frame, master):
-                self._cast_frame_to_all_ports(f, master)
+                self._cast_frame_to_all_ports(f, master)  # can cast (is not echo only)
 
     def _cast_frame_to_all_ports(self, frame: bytes, master: _FD) -> None:
-        """Push the frame from the sending port and cast any frames."""
+        """Pull the frame from the sending port and cast it to the RF."""
 
-        _LOGGER.error(f"{self._pty_names[master]:<11} cast:  {frame!r}")
+        _LOGGER.info(f"{self._pty_names[master]:<11} cast:  {frame!r}")
         for fd in self._file_objs:
             self._push_frame_to_dst_port(frame, fd)
 
     def _push_frame_to_dst_port(self, frame: bytes, master: _FD) -> None:
-        """Push the frame from the sending port and cast any frames."""
+        """Push the frame to a single destination port."""
 
-        if f := self._proc_after_rx(frame, master):
-            self.rx_log.append((self._pty_names[master], f))
-            self._file_objs[master].write(f)
+        if data := self._proc_after_rx(frame, master):
+            self._log.append((self._pty_names[master], "RCVD", data))
+            self._file_objs[master].write(data)
 
-    def _proc_after_rx(
-        self, frame: bytes, master: _FD
-    ) -> None | bytes:  # convenience func
+    def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
         """Allow the device to modify the frame after receiving (e.g. adding RSSI)."""
         return frame
 
-    def _proc_before_tx(
-        self, frame: bytes, master: _FD
-    ) -> None | bytes:  # convenience func
+    def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
         """Allow the device to modify the frame before sending (e.g. changing addr0)."""
         return frame
 
     def _setup_event_handlers(self) -> None:
-        def handle_exception(loop, context):
+        def handle_exception(loop, context: dict):
             """Handle exceptions on any platform."""
             _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
             self._cleanup()
@@ -254,17 +253,18 @@ class VirtualRfBase:
 
 
 class VirtualRf(VirtualRfBase):
-    """A virtual many-to-many network of serial port with HGI80s (or compatible).
+    """A virtual network of serial ports, each with an optional HGI80s or compatible.
 
-    If the HGI itself is the source of a frame, its addr0 (+/- addr1, addr2) will be
-    changed according to the expected behaviours of of that firmware.
+    Frames are modified/dropped according to the expected behaviours of the gateway that
+    is transmitting (addr0) / receiving (RSSI) it.
     """
 
     def __init__(self, num_ports: int, log_size: int = 100, start: bool = True) -> None:
-        """Create `num_ports` virtual serial ports.
+        """Create a number of virtual serial ports.
 
-        If addr0 of the frame is '18:000730', the frame will be modified appropriately.
+        Each port has the option of a HGI80 or evofw3-based gateway device.
         """
+
         self._gateways: dict[_PN, dict] = {}
 
         super().__init__(num_ports, log_size)
@@ -280,67 +280,79 @@ class VirtualRf(VirtualRfBase):
         self,
         port_name: _PN,
         device_id: str,
-        fw_version: HgiFwTypes = HgiFwTypes.EVOFW3,
+        fw_type: HgiFwTypes = HgiFwTypes.EVOFW3,
     ) -> None:
+        """Attach a gateway with a given device_id and FW type to a port.
+
+        Raise an exception if the device_id is already attached to another port.
+        """
+
         if port_name not in self.ports:
             raise LookupError(f"Port does not exist: {port_name}")
 
         if [v for k, v in self.gateways.items() if k != port_name and v == device_id]:
             raise LookupError(f"Gateway exists on another port: {device_id}")
 
-        # if fw_version is None:
-        #     self._gateways[port_name] = {}
-        #     self._set_comport_info(port_name, dev_type=None)
-        #     return
-
-        if fw_version not in HgiFwTypes:
-            raise LookupError(f"Unknown FW specified for gateway: {fw_version}")
+        if fw_type not in HgiFwTypes:
+            raise LookupError(f"Unknown FW specified for gateway: {fw_type}")
 
         self._gateways[port_name] = {
             DEVICE_ID: device_id,
-            FW_VERSION: fw_version,
+            FW_VERSION: fw_type,
             DEVICE_ID_BYTES: bytes(device_id, "ascii"),
         }
 
-        self._set_comport_info(port_name, dev_type=fw_version)
+        self._set_comport_info(port_name, dev_type=fw_type)
 
     def _proc_after_rx(self, frame: bytes, master: _FD) -> None | bytes:
-        """The RSSI is added by the receiving HGI80-compatible device after Rx.
+        """Return the frame as it would have been modified by a gateway after Rx.
 
         Return None if the bytes are not to be Rx by this device.
+
+        Both FW types will prepend an RSSI to the frame.
         """
 
         if frame[:1] != b"!":
             return b"000 " + frame
 
-        if (gwy := self._gateways.get(self._pty_names[master])) and (
-            gwy[FW_VERSION] != HgiFwTypes.EVOFW3
-        ):
+        # The type of Gateway will inform next steps...
+        gwy = self._gateways.get(self._pty_names[master], {})  # not a ramses_rf gwy
+
+        if gwy.get(FW_VERSION) != HgiFwTypes.EVOFW3:
             return None
 
-        return frame  # TODO: append the ! response
+        if frame == b"!V":
+            return b"# evofw3 0.7.1\r\n"  # self._file_objs[master].write(data)
+        return None  # TODO: return the ! response
 
     def _proc_before_tx(self, frame: bytes, master: _FD) -> None | bytes:
-        """The addr0 may be changed by the sending HGI80-compatible device before Tx.
+        """Return the frame as it would have been modified by a gateway before Tx.
 
-        Return None if the bytes are not to be Tx to the RF ether.
+        Return None if the bytes are not to be Tx to the RF ether (e.g. to echo only).
+
+        Both FW types will convert addr0 (only) from 18:000730 to its actual device_id.
+        HGI80-based gateways will silently drop frames with addr0 other than 18:000730.
         """
 
+        # The type of Gateway will inform next steps...
+        gwy = self._gateways.get(self._pty_names[master], {})  # not a ramses_rf gwy
+
+        # Handle trace flags (evofw3 only)
         if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
-            self._push_frame_to_dst_port(frame, master)
-            return None
+            if gwy.get(FW_VERSION) == HgiFwTypes.EVOFW3:
+                self._push_frame_to_dst_port(frame, master)
+            return None  # do not Tx the frame
 
-        # The type of Gateway will tell us what to do next
-        gwy = self._gateways.get(self._pty_names[master])  # here, gwy is not a Gateway
-
-        if gwy is None or DEFAULT_GWY_ID not in frame:
+        if not gwy:  # TODO: ?should raise: but is probably from test suite
             return frame
 
-        if gwy[FW_VERSION] == HgiFwTypes.EVOFW3:
-            return gwy[DEVICE_ID_BYTES].join(frame.split(DEFAULT_GWY_ID))
+        # Real HGI80s will silently drop cmds if addr0 is not the 18:000730 sentinel
+        if gwy[FW_VERSION] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
+            return None
 
-        if frame[7:16] == DEFAULT_GWY_ID:  # is HgiFwTypes.NATIVE
-            return frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
+        # Both (HGI80 & evofw3) will swap out addr0 (and only addr0)
+        if frame[7:16] == DEFAULT_GWY_ID:
+            frame = frame[:7] + gwy[DEVICE_ID_BYTES] + frame[16:]
 
         return frame
 

@@ -24,14 +24,13 @@ from ramses_rf.protocol.helpers import (
 )
 from ramses_rf.protocol.packet import Packet
 from ramses_rf.system.zones import _transform
-from tests.helpers import gwy  # noqa: F401
 from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/parser_helpers"
 
 
-def test_pkt_addr_parser(gwy):  # noqa: F811
-    def proc_log_line(gwy, pkt_line):
+def test_pkt_addr_parser():  # noqa: F811
+    def proc_log_line(pkt_line):
         if "#" not in pkt_line:
             return
 
@@ -40,14 +39,14 @@ def test_pkt_addr_parser(gwy):  # noqa: F811
         if not pkt_line[27:].strip():
             return
 
-        pkt = Packet.from_file(gwy, pkt_line[:26], pkt_line[27:])
+        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
 
         assert (pkt.src.id, pkt.dst.id) == eval(pkt_dict)
 
     with open(f"{WORK_DIR}/pkt_addrs.log") as f:
         while line := (f.readline()):
             if line.strip():
-                proc_log_line(gwy, line)
+                proc_log_line(line)
 
 
 def test_demand_transform() -> None:

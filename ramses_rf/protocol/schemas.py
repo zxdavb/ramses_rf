@@ -8,11 +8,11 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from typing import TextIO
+from io import TextIOWrapper
 
 import voluptuous as vol  # type: ignore[import]
 
-from .const import DEV_TYPE, DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
+from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
 
 DEV_MODE = __dev_mode__ and False
 
@@ -42,7 +42,7 @@ def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
         extra=vol.PREVENT_EXTRA,
     )
 
-    SCH_PACKET_SOURCE_FILE = TextIO
+    SCH_PACKET_SOURCE_FILE = TextIOWrapper
 
     def NormalisePacketSource():
         def normalise_packet_source(node_value: str | dict) -> dict:
@@ -68,7 +68,7 @@ def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
     }
 
 
-def extract_packet_source(pkt_source_dict: dict) -> tuple[str, dict]:
+def OUT_extract_packet_source(pkt_source_dict: dict) -> tuple[str, dict]:
     """Extract a pkt source, source_config_dict tuple from a sch_packet_source_dict."""
     source_name = pkt_source_dict.get(SZ_INPUT_FILE)
     source_config = {k: v for k, v in pkt_source_dict.items() if k != SZ_INPUT_FILE}
@@ -199,7 +199,7 @@ def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict]:
 
 
 #
-# 3/5: Traits (of devices) configuraion (basic)  # TODO: moving from ..const
+# 3/5: Traits (of devices) configuraion (basic)
 def ConvertNullToDict():
     def convert_null_to_dict(node_value) -> dict:
         if node_value is None:
@@ -212,6 +212,7 @@ def ConvertNullToDict():
 SZ_ALIAS = "alias"
 SZ_CLASS = "class"
 SZ_FAKED = "faked"
+SZ_SCHEME = "scheme"
 
 SZ_BLOCK_LIST = "block_list"
 SZ_KNOWN_LIST = "known_list"
@@ -230,8 +231,8 @@ _SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
 
 
 def sch_global_traits_dict_factory(
-    heat_traits: dict[vol.Optional, vol.Any] = None,
-    hvac_traits: dict[vol.Optional, vol.Any] = None,
+    heat_traits: None | dict[vol.Optional, vol.Any] = None,
+    hvac_traits: None | dict[vol.Optional, vol.Any] = None,
 ) -> tuple[dict[vol.Optional, vol.Any], vol.Schema]:
     """Return a global traits dict with a configurable extra traits.
 
@@ -254,15 +255,16 @@ def sch_global_traits_dict_factory(
         extra=vol.PREVENT_EXTRA,
     )
 
+    # NOTE: voluptuous doesn't like StrEnums, hence str(s)
     # TIP: the _domain key can be used to force which traits schema to use
     heat_slugs = list(
-        s for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS
+        str(s) for s in DEV_TYPE_MAP.slugs() if s not in DEV_TYPE_MAP.HVAC_SLUGS
     )
     SCH_TRAITS_HEAT = SCH_TRAITS_BASE.extend(
         {
             vol.Optional("_domain", default="heat"): "heat",
             vol.Optional(SZ_CLASS): vol.Any(
-                None, *heat_slugs, *(DEV_TYPE_MAP[s] for s in heat_slugs)
+                None, *heat_slugs, *(str(DEV_TYPE_MAP[s]) for s in heat_slugs)
             ),
         }
     )
@@ -271,17 +273,18 @@ def sch_global_traits_dict_factory(
         extra=vol.PREVENT_EXTRA if heat_traits else vol.REMOVE_EXTRA,
     )
 
-    hvac_slugs = DEV_TYPE_MAP.HVAC_SLUGS
+    # NOTE: voluptuous doesn't like StrEnums, hence str(s)
+    hvac_slugs = list(str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
     SCH_TRAITS_HVAC = SCH_TRAITS_BASE.extend(
         {
             vol.Optional("_domain", default="hvac"): "hvac",
             vol.Optional(SZ_CLASS, default="HVC"): vol.Any(
-                None, *hvac_slugs, *(DEV_TYPE_MAP[s] for s in hvac_slugs)
+                None, *hvac_slugs, *(str(DEV_TYPE_MAP[s]) for s in hvac_slugs)
             ),  # TODO: consider removing None
         }
     )
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
-        {vol.Optional("scheme"): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
+        {vol.Optional(SZ_SCHEME): vol.Any(*_SCH_TRAITS_HVAC_SCHEMES)}
     )
     SCH_TRAITS_HVAC = SCH_TRAITS_HVAC.extend(
         hvac_traits,
@@ -324,8 +327,8 @@ def select_device_filter_mode(
     """Determine which device filter to use, if any.
 
     Either:
+     - block if device_id in block_list (could be empty), otherwise
      - allow if device_id in known_list, or
-     - block if device_id in block_list (could be empty)
     """
 
     if both := set(known_list) & set(block_list):
@@ -336,8 +339,8 @@ def select_device_filter_mode(
     hgi_list = [
         k
         for k, v in known_list.items()
-        if k[:2] == DEV_TYPE_MAP._hex(DEV_TYPE.HGI)
-        and v.get(SZ_CLASS) in (None, DEV_TYPE.HGI, DEV_TYPE_MAP[DEV_TYPE.HGI])
+        if k[:2] == DEV_TYPE_MAP._hex(DevType.HGI)
+        and v.get(SZ_CLASS) in (None, DevType.HGI, DEV_TYPE_MAP[DevType.HGI])
     ]
     if len(hgi_list) != 1:
         _LOGGER.warning(
@@ -385,17 +388,20 @@ def select_device_filter_mode(
 #
 # 4/5: Gateway (engine) configuration
 SZ_DISABLE_SENDING = "disable_sending"
+SZ_DISABLE_QOS = "disable_qos"
 SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
 SZ_EVOFW_FLAG = "evofw_flag"
 SZ_USE_REGEX = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
+    # vol.Optional(SZ_DISABLE_QOS, default=False): bool,  # TODO
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
     vol.Optional(SZ_USE_REGEX): dict,  # vol.All(ConvertNullToDict(), dict),
 }
+SCH_ENGINE_CONFIG = vol.Schema(SCH_ENGINE_DICT, extra=vol.REMOVE_EXTRA)
 
 SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
 SZ_OUTBOUND = "outbound"

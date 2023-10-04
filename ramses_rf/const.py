@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 from .protocol.const import (  # noqa: F401
     DEFAULT_MAX_ZONES,
@@ -12,6 +13,7 @@ from .protocol.const import (  # noqa: F401
     DOMAIN_TYPE_MAP,
     FAN_MODE,
     SYS_MODE_MAP,
+    SZ_ACCEPT,
     SZ_ACTUATORS,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
@@ -19,11 +21,13 @@ from .protocol.const import (  # noqa: F401
     SZ_BYPASS_POSITION,
     SZ_CHANGE_COUNTER,
     SZ_CO2_LEVEL,
+    SZ_CONFIRM,
     SZ_DATETIME,
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
     SZ_DHW_IDX,
+    SZ_DISABLE_BACKOFF,
     SZ_DOMAIN_ID,
     SZ_DURATION,
     SZ_EXHAUST_FAN_SPEED,
@@ -40,9 +44,12 @@ from .protocol.const import (  # noqa: F401
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
+    SZ_OEM_CODE,
+    SZ_OFFER,
     SZ_OUTDOOR_HUMIDITY,
     SZ_OUTDOOR_TEMP,
     SZ_PAYLOAD,
+    SZ_PHASE,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
@@ -78,22 +85,30 @@ from .protocol.const import (  # noqa: F401
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
     FF,
-    DEV_ROLE,
     DEV_ROLE_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
-    ZON_ROLE,
     ZON_ROLE_MAP,
+    DevRole,
+    DevType,
+    ZoneRole,
+)
+
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .protocol import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 __dev_mode__ = False

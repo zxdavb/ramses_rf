@@ -8,10 +8,9 @@ HVAC devices.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from ..const import (
-    DEV_TYPE,
     FAN_MODE,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
@@ -35,12 +34,12 @@ from ..const import (
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
+    DevType,
     __dev_mode__,
 )
 from ..entity_base import class_by_attr
 from ..helpers import shrink
-from ..protocol import Address, Message
-from ..protocol.command import Command
+from ..protocol import Address, Command, Message, Packet
 from ..protocol.const import SZ_BINDINGS
 from ..protocol.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
@@ -54,6 +53,10 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 # TODO: Switch this module to utilise the (run-time) decorator design pattern...
 # - https://refactoring.guru/design-patterns/decorator/python/example
@@ -101,6 +104,11 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
 
         super()._bind()
         self._bind_request((Code._1298, Code._31E0), callback=callback)
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(
+            [Code._31E0, Code._1298, Code._2E10]
+        )
 
     @property
     def co2_level(self) -> None | float:
@@ -212,7 +220,7 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
 class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
     """The spIDer gateway base class."""
 
-    _SLUG: str = DEV_TYPE.RFS
+    _SLUG: str = DevType.RFS
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -228,7 +236,7 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
     The cardinal code is 12A0.
     """
 
-    _SLUG: str = DEV_TYPE.HUM
+    _SLUG: str = DevType.HUM
 
     @property
     def temperature(self) -> None | float:  # Celsius
@@ -253,7 +261,7 @@ class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
     The cardinal code is 1298.
     """
 
-    _SLUG: str = DEV_TYPE.CO2
+    _SLUG: str = DevType.CO2
 
 
 class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
@@ -262,7 +270,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
     The cardinal codes are 22F1, 22F3 (also 22F8?).
     """
 
-    _SLUG: str = DEV_TYPE.REM
+    _SLUG: str = DevType.REM
 
     def _bind(self):
         # .I --- 37:155617 --:------ 37:155617 1FC9 024 0022F1965FE10022F3965FE16710E0965FE1001FC9965FE1
@@ -276,6 +284,11 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 
         super()._bind()
         self._bind_request((Code._22F1, Code._22F3), callback=callback)
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(
+            Code._22F1 if self._scheme == "nuaire" else [Code._22F1, Code._22F3]
+        )
 
     @property
     def fan_rate(self) -> None | str:
@@ -311,7 +324,12 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 class HvacDisplayRemote(HvacRemote):  # DIS
     """The DIS (display switch)."""
 
-    _SLUG: str = DEV_TYPE.DIS
+    _SLUG: str = DevType.DIS
+
+    # async def initiate_binding_process(self) -> Packet:
+    #     return await super().initiate_binding_process(
+    #         [Code._31E0, Code._1298, Code._2E10]
+    #     )
 
 
 class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
@@ -325,7 +343,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     # Nuaire (UK), e.g. DRI-ECO-PIV
     # Orcon/Ventiline
 
-    _SLUG: str = DEV_TYPE.FAN
+    _SLUG: str = DevType.FAN
 
     def _update_schema(self, **schema):
         """Update a FAN with new schema attrs.

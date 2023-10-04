@@ -8,10 +8,11 @@ Provide the base class for commands (constructed/sent packets) and packets.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
-from .exceptions import InvalidPacketError, InvalidPayloadError
+from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .ramses import (
     CODE_IDX_COMPLEX,
     CODE_IDX_DOMAIN,
@@ -28,17 +29,25 @@ from .ramses import (
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F8,
     F9,
     FA,
     FC,
     FF,
+)
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__ and False
@@ -48,11 +57,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-_CodeT = str
 _DeviceIdT = str
 _HeaderT = str
 _PayloadT = str
-_VerbT = str
 
 
 class Frame:
@@ -61,17 +68,9 @@ class Frame:
     `RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000`
     """
 
-    _frame: str
-
-    verb: _VerbT
-    seqn: str  # TODO: or, better as int?
     src: Address
     dst: Address
     _addrs: tuple[Address, Address, Address]
-    code: _CodeT
-    len_: str  # FIXME: len_, _len & len(payload) / 2
-    _len: int  # int(len(payload) / 2)
-    payload: _PayloadT
 
     def __init__(self, frame: str) -> None:
         """Create a frame from a string.
@@ -79,28 +78,28 @@ class Frame:
         Will raise InvalidPacketError if it is invalid.
         """
 
-        self._frame = frame
+        self._frame: str = frame
         if not COMMAND_REGEX.match(self._frame):
-            raise InvalidPacketError(f"Bad frame: invalid structure: >>>{frame}<<<")
+            raise PacketInvalid(f"Bad frame: invalid structure: >>>{frame}<<<")
 
         fields = frame.lstrip().split(" ")
 
-        self.verb = frame[:2]  # cant use fields[0] as leading space ' I'
-        self.seqn = fields[1]  # frame[3:6]
-        self.code = fields[5]  # frame[37:41]
-        self.len_ = fields[6]  # frame[42:45]
-        self.payload = fields[7]  # frame[46:].split(" ")[0]
-        self._len = int(len(self.payload) / 2)
+        self.verb: Verb = frame[:2]  # type: ignore[assignment]
+        self.seqn: str = fields[1]  # frame[3:6]
+        self.code: Code = fields[5]  # frame[37:41]
+        self.len_: str = fields[6]  # frame[42:45]  FIXME: len_, _len & len(payload)/2
+        self.payload: _PayloadT = fields[7]  # frame[46:].split(" ")[0]
+        self._len: int = int(len(self.payload) / 2)
 
         try:
             self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
-        except InvalidPacketError as exc:  # will be: InvalidAddrSetError
-            raise InvalidPacketError(f"Bad frame: invalid address set {exc}")
+        except PacketInvalid as exc:  # will be: InvalidAddrSetError
+            raise PacketInvalid(f"Bad frame: invalid address set {exc}")
 
         if len(self.payload) != int(self.len_) * 2:
-            raise InvalidPacketError(
+            raise PacketInvalid(
                 f"Bad frame: invalid payload: "
                 f"len({self.payload}) is not int('{self.len_}' * 2))"
             )
@@ -113,11 +112,11 @@ class Frame:
         self._has_ctl_: bool = None  # type: ignore[assignment]  # TODO: remove
         self._has_payload_: bool = None  # type: ignore[assignment]
 
-        self._repr = None
+        self._repr: str = None  # type: ignore[assignment]
 
     @classmethod  # for internal use only
     def _from_attrs(
-        cls, verb: _VerbT, *addrs, code: _CodeT, payload: _PayloadT, seqn=None
+        cls, verb: Verb, *addrs, code: Code, payload: _PayloadT, seqn: None | str = None
     ):
         """Create a frame from its attributes (args, kwargs)."""
 
@@ -127,33 +126,27 @@ class Frame:
         try:
             return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
         except TypeError as exc:
-            raise InvalidPacketError(f"Bad frame: invalid attr: {exc}")
+            raise PacketInvalid(f"Bad frame: Invalid attrs: {exc}")
 
-    def _validate(self, *, strict_checking: bool = None) -> None:
+    def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
         """
 
         if (seqn := self._frame[3:6]) == "...":
-            raise InvalidPacketError(f"Bad frame: deprecated seqn: {seqn}")
+            raise PacketInvalid(f"Bad frame: Deprecated seqn: {seqn}")
+
+        if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
+            raise PacketInvalid("Bad frame: Payload length mismatch")
 
         if not strict_checking:
             return
 
-        if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
-            raise InvalidPacketError("Bad frame: payload length mismatch")
-
         try:
             self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore[assignment]
-        except InvalidPacketError as exc:  # will be: InvalidAddrSetError
-            raise InvalidPacketError(f"Bad frame: invalid address set: {exc}")
-
-        if True:  # below is done at a higher layer
-            return
-
-        if (code := self._frame[37.41]) not in CODES_SCHEMA:
-            raise InvalidPacketError(f"Bad frame: unknown code: {code}")
+        except PacketInvalid as exc:  # will be: InvalidAddrSetError
+            raise PacketInvalid(f"Bad frame: Invalid address set: {exc}")
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
@@ -416,7 +409,7 @@ class Frame:
 
 
 # TODO: a mess - has false negatives
-def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
+def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
     """Return the payload's 2-byte context (e.g. zone_idx, domain_id or log_idx).
 
     May return a 2-byte string (usu. pkt.payload[:2]), or:
@@ -468,7 +461,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
         if CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00" and (
             pkt.payload[:2] != "00"
         ):
-            raise InvalidPayloadError(
+            raise PacketPayloadInvalid(
                 f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAA)"
             )
         return False
@@ -480,7 +473,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
     if pkt.payload[:2] in (F8, F9, FA, FC):  # TODO: F6, F7?, FB, FD
         if pkt.code not in CODE_IDX_DOMAIN:
-            raise InvalidPayloadError(
+            raise PacketPayloadInvalid(
                 f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"
             )
         return pkt.payload[:2]
@@ -498,7 +491,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     #     return pkt.payload[:2]
 
     if pkt.payload[:2] != "00":
-        raise InvalidPayloadError(
+        raise PacketPayloadInvalid(
             f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAB)"
         )  # TODO: add a test for this
 
@@ -510,9 +503,7 @@ def _pkt_idx(pkt) -> None | bool | str:  # _has_array, _has_ctl
     return None
 
 
-def pkt_header(
-    pkt, rx_header: bool = None
-) -> None | _HeaderT:  # NOTE: used in command.py
+def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | _HeaderT:
     """Return the header of a packet (all packets have a header).
 
     Used for QoS, and others.
@@ -543,15 +534,20 @@ def pkt_header(
         #     return "|".join((pkt.code, RP, pkt.dst.id))
         return None
 
-    addr = pkt.dst if pkt.src.type == DEV_TYPE_MAP.HGI else pkt.src  # DEX
-    if not rx_header:
-        header = "|".join((pkt.code, pkt.verb, addr.id))
+    # RQ and W use the dst.id rather than the src.id, as:
+    # - cmd.src could be 18:000730, and echo .src will have changed to (say) 18:123456
+    # - cmd.dst is the effector
 
-    elif pkt.verb in (I_, RP) or pkt.src == pkt.dst:  # announcements, etc.: no response
-        return None
+    if rx_header:
+        if pkt.verb in (I_, RP) or pkt.src == pkt.dst:  # say: xxxx| W|00:000000|xx
+            return None  # no response expected
+        header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, pkt.dst.id))
 
-    else:  # RQ/RP, or W/I
-        header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, addr.id))
+    elif pkt.verb in (I_, RP) or pkt.src == pkt.dst:
+        header = "|".join((pkt.code, pkt.verb, pkt.src.id))
+
+    else:
+        header = "|".join((pkt.code, pkt.verb, pkt.dst.id))
 
     try:
         return f"{header}|{pkt._ctx}" if isinstance(pkt._ctx, str) else header

@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from asyncio import Future
 from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
@@ -20,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 from .const import (
     DEV_TYPE_MAP,
     SZ_ACTUATORS,
-    SZ_DEVICE_ID,
     SZ_DOMAIN_ID,
     SZ_NAME,
     SZ_SENSOR,
@@ -28,12 +26,20 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .protocol import CorruptStateError
-from .protocol.frame import _CodeT, _DeviceIdT, _HeaderT, _VerbT
+from .exceptions import SystemSchemaInconsistent
+from .protocol import ProtocolError
+from .protocol.frame import _DeviceIdT, _HeaderT
 from .protocol.opentherm import OPENTHERM_MESSAGES
 from .protocol.ramses import CODES_SCHEMA
-from .protocol.transport import PacketProtocolPort
 from .schemas import SZ_CIRCUITS
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    F9,
+    FA,
+    FC,
+    FF,
+)
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -41,15 +47,18 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    F9,
-    FA,
-    FC,
-    FF,
     Code,
 )
 
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
 if TYPE_CHECKING:
+    from .device import Controller
+    from .gateway import Gateway
     from .protocol import Command, Message, Packet
+    from .system import System
 
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -64,13 +73,7 @@ if DEV_MODE:
 
 
 def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
-    """Return a mapping of a (unique) attr of classes in a module to that class.
-
-    For example:
-      {DEV_TYPE.OTB: OtbGateway, DEV_TYPE.CTL: Controller}
-      {ZON_ROLE.RAD: RadZone,    ZON_ROLE.UFH: UfhZone}
-      {"evohome": Evohome}
-    """
+    """Return a mapping of a (unique) attr of classes in a module to that class."""
 
     return {
         getattr(c[1], attr): c[1]
@@ -81,16 +84,103 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
     }
 
 
-class MessageDB:
+class _Entity:
+    """The ultimate base class for Devices/Zones/Systems.
+
+    This class is mainly concerned with:
+     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
+    """
+
+    _SLUG: str = None  # type: ignore[assignment]
+
+    def __init__(self, gwy: Gateway) -> None:
+        self._gwy = gwy
+        self.id: _DeviceIdT = None  # type: ignore[assignment]
+
+        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
+
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._SLUG})"
+
+    def deprecate_device(self, pkt, reset=False) -> None:
+        """If an entity is deprecated enough times, stop sending to it."""
+
+        if reset:
+            self._qos_tx_count = 0
+            return
+
+        self._qos_tx_count += 1
+        if self._qos_tx_count == _QOS_TX_LIMIT:
+            _LOGGER.warning(
+                f"{pkt} < Sending now deprecated for {self} "
+                "(consider adjusting device_id filters)"
+            )  # TODO: take whitelist into account
+
+    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
+        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
+
+        super()._handle_msg(msg)  # store the message in the database
+
+        if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
+            self.deprecate_device(msg._pkt, reset=True)
+
+    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
+        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+
+    def _send_cmd(self, cmd: Command, **kwargs) -> None | asyncio.Task:
+        """Send a Command & return the corresponding Task."""
+
+        if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
+            _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
+            return None
+
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.info(f"{cmd} < Sending now deprecated for {self}")
+            return None
+
+        cmd._source_entity = self
+        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
+        return self._gwy.send_cmd(cmd)
+
+    async def _async_send_cmd(self, cmd: Command) -> None | Packet:
+        """Send a Command & return the response Packet, or the echo Packet otherwise."""
+
+        if self._gwy._disable_sending:
+            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
+            return None
+
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.warning(f"{cmd} < Sending now deprecated for {self}")
+            return None
+
+        cmd._source_entity = self
+        return await self._gwy.async_send_cmd(cmd)
+
+    @property
+    def traits(self) -> dict:
+        """Return the codes seen by the entity."""
+
+        codes = {
+            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
+            for k in sorted(self._msgs)
+            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
+        }
+
+        return {"_sent": list(codes.keys())}
+
+
+class _MessageDB(_Entity):
     """Maintain/utilize an entity's state database."""
 
-    _gwy: Any  # HACK
-    ctl: Any  # HACK
-    tcs: Any  # HACK
+    _gwy: Gateway
+    ctl: Controller
+    tcs: System
 
-    def __init__(self, gwy) -> None:
-        self._msgs: dict[_CodeT, Message] = {}  # code, should be code/ctx? ?deprecate
-        self._msgz: dict[_CodeT, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
+    def __init__(self, gwy: Gateway) -> None:
+        super().__init__(gwy)
+
+        self._msgs: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
+        self._msgz: dict[Code, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
 
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
@@ -140,19 +230,19 @@ class MessageDB:
 
         return msg
 
-    def _msg_flag(self, code: _CodeT, key, idx) -> None | bool:
+    def _msg_flag(self, code: Code, key, idx) -> None | bool:
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: _CodeT, *args, **kwargs):
+    def _msg_value(self, code: Code, *args, **kwargs):
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
     def _msg_value_code(
-        self, code: _CodeT, verb: _VerbT = None, key=None, **kwargs
+        self, code: Code, verb: Verb = None, key=None, **kwargs
     ) -> None | dict | list:
         assert (
             not isinstance(code, tuple) or verb is None
@@ -216,12 +306,12 @@ class MessageDB:
         }
 
 
-class Discovery(MessageDB):
+class _Discovery(_MessageDB):
     MAX_CYCLE_SECS = 30
     MIN_CYCLE_SECS = 3
 
-    def __init__(self, gwy, *args, **kwargs) -> None:
-        super().__init__(gwy, *args, **kwargs)
+    def __init__(self, gwy: Gateway) -> None:
+        super().__init__(gwy)
 
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller = None
@@ -229,13 +319,10 @@ class Discovery(MessageDB):
         self._supported_cmds: dict[str, None | bool] = {}
         self._supported_cmds_ctx: dict[str, None | bool] = {}
 
-        if not gwy.config.disable_discovery and isinstance(
-            gwy.pkt_protocol, PacketProtocolPort
-        ):  # TODO: here, or in get_xxx()?
-            # gwy._loop.call_soon_threadsafe(
-            #     gwy._loop.call_later, random(0.5, 1.5), self.start_discovery_poller
-            # )
+        # BUG: FIXME: The Bug
+        if not gwy.config.disable_discovery and not gwy._disable_sending:
             gwy._loop.call_soon(self._start_discovery_poller)
+            # self._start_discovery_poller()  # Cant use: derived classes dont exist yet
 
     @property  # TODO: needs tidy up
     def discovery_cmds(self) -> dict:
@@ -315,7 +402,6 @@ class Discovery(MessageDB):
         if not self._discovery_poller or self._discovery_poller.done():
             self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
             self._discovery_poller.set_name(f"{self.id}_discovery_poller")
-            pass
 
     async def _stop_discovery_poller(self) -> None:
         if self._discovery_poller and not self._discovery_poller.done():
@@ -333,10 +419,6 @@ class Discovery(MessageDB):
         """
 
         while True:
-            if self._gwy.config.disable_discovery:  # TODO: remove?
-                await asyncio.sleep(self.MIN_CYCLE_SECS)
-                continue
-
             await self.discover()
 
             if self.discovery_cmds:
@@ -379,7 +461,7 @@ class Discovery(MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_task(hdr: _HeaderT, task: dict) -> None | Message:
+        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> None | Message:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -388,8 +470,11 @@ class Discovery(MessageDB):
                     timeout=60,  # self.MAX_CYCLE_SECS?
                 )
 
+            except ProtocolError as exc:  # InvalidStateError, SendTimeoutError
+                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
+
             except asyncio.TimeoutError as exc:  # safety valve timeout
-                _LOGGER.debug(f"{hdr}: {exc} (0x5A)")
+                _LOGGER.debug(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
 
             except TimeoutError as exc:  # TODO: deprecate non-responsive code/device
                 _LOGGER.debug(f"{hdr}: {exc} (0x5B)")
@@ -428,7 +513,7 @@ class Discovery(MessageDB):
             # we'll have to do I/O...
             task["next_due"] = dt_now + backoff(hdr, task["failures"])  # JIC
 
-            if msg := await send_disc_task(hdr, task):  # TODO: OK 4 some exceptions
+            if msg := await send_disc_cmd(hdr, task):  # TODO: OK 4 some exceptions
                 task["failures"] = 0  # only if task["last_msg"].verb == RP?
                 task["last_msg"] = msg
                 task["next_due"] = msg.dtm + task["interval"]
@@ -437,7 +522,9 @@ class Discovery(MessageDB):
                 task["last_msg"] = None
                 task["next_due"] = dt_now + backoff(hdr, task["failures"])
 
-    def deprecate_cmd(self, pkt: Packet, ctx: str = None, reset: bool = False) -> None:
+    def deprecate_code_ctx(
+        self, pkt: Packet, ctx: str = None, reset: bool = False
+    ) -> None:
         """If a code|ctx is deprecated twice, stop polling for it."""
 
         def deprecate(supported_dict, idx):
@@ -469,78 +556,8 @@ class Discovery(MessageDB):
         (reinstate if reset else deprecate)(supported_dict, idx)
 
 
-class Entity(Discovery):
-    """The ultimate base class for Devices/Zones/Systems.
-
-    This class is mainly concerned with:
-     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
-    """
-
-    _SLUG: str = None  # type: ignore[assignment]
-
-    def __init__(self, gwy) -> None:
-        super().__init__(gwy)
-
-        self._gwy = gwy
-        self.id: _DeviceIdT = None  # type: ignore[assignment]
-
-        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._SLUG})"
-
-    def deprecate(self, pkt, reset=False) -> None:
-        """If an entity is deprecated enough times, stop sending to it."""
-
-        if reset:
-            self._qos_tx_count = 0
-            return
-
-        self._qos_tx_count += 1
-        if self._qos_tx_count == _QOS_TX_LIMIT:
-            _LOGGER.warning(
-                f"{pkt} < Sending now deprecated for {self} "
-                "(consider adjusting device_id filters)"
-            )  # TODO: take whitelist into account
-
-    def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
-        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
-
-        super()._handle_msg(msg)  # store the message in the database
-
-        if (
-            self._gwy.pkt_protocol is None
-            or msg.src.id != self._gwy.pkt_protocol._hgi80.get(SZ_DEVICE_ID)
-        ):
-            self.deprecate(msg._pkt, reset=True)
-
-    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
-        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
-
-    def _send_cmd(self, cmd, **kwargs) -> None | Future:
-        if self._gwy.config.disable_sending:
-            _LOGGER.info(f"{cmd} < Sending is disabled")
-            return None
-
-        if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.info(f"{cmd} < Sending now deprecated for {self}")
-            return None
-
-        cmd._source_entity = self
-        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)  # BUG, should be: await async_send_cmd()
-
-    @property
-    def traits(self) -> dict:
-        """Return the codes seen by the entity."""
-
-        codes = {
-            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
-            for k in sorted(self._msgs)
-            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
-        }
-
-        return {"_sent": list(codes.keys())}
+class Entity(_Discovery):
+    """The base class for Devices/Zones/Systems."""
 
 
 def _delete_msg(msg: Message) -> None:
@@ -610,11 +627,8 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         super()._handle_msg(msg)
 
-        if not self._gwy.config.enable_eavesdrop:
-            return
-
-        # if True:
-        eavesdrop_ufh_circuits()
+        if self._gwy.config.enable_eavesdrop:
+            eavesdrop_ufh_circuits()
 
     @property
     def zone_idx(self) -> str:
@@ -661,7 +675,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, DhwSensor)
             if self._dhw_sensor and self._dhw_sensor is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed dhw_sensor (from {self._dhw_sensor} to {child})"
                 )
             self._dhw_sensor = child
@@ -669,7 +683,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         elif is_sensor and hasattr(self, SZ_SENSOR):  # HTG zone
             assert isinstance(self, Zone)  # TODO: remove me
             if self.sensor and self.sensor is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed zone sensor (from {self.sensor} to {child})"
                 )
             self._sensor = child
@@ -698,7 +712,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._htg_valve and self._htg_valve is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed htg_valve (from {self._htg_valve} to {child})"
                 )
             self._htg_valve = child
@@ -707,7 +721,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._dhw_valve and self._dhw_valve is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed dhw_valve (from {self._dhw_valve} to {child})"
                 )
             self._dhw_valve = child
@@ -716,7 +730,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, System)  # TODO: remove me
             assert isinstance(child, (BdrSwitch, OtbGateway))
             if self._app_cntrl and self._app_cntrl is not child:
-                raise CorruptStateError(
+                raise SystemSchemaInconsistent(
                     f"{self} changed app_cntrl (from {self._app_cntrl} to {child})"
                 )
             self._app_cntrl = child
@@ -846,7 +860,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         #     child_id = parent._child_id  # or, for zones: parent.idx
 
         if self._parent and self._parent != parent:
-            raise CorruptStateError(
+            raise SystemSchemaInconsistent(
                 f"{self} cant change parent "
                 f"({self._parent}_{self._child_id} to {parent}_{child_id})"
             )
@@ -948,7 +962,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         if self.ctl and self.ctl is not ctl:
             # NOTE: assume a device is bound to only one CTL (usu. best practice)
-            raise CorruptStateError(
+            raise SystemSchemaInconsistent(
                 f"{self} cant change controller: {self.ctl} to {ctl} "
                 "(or perhaps the device has multiple controllers?"
             )

@@ -1,122 +1,89 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - exceptions."""
+"""RAMSES RF - exceptions within the packet/protocol/transport layer."""
 from __future__ import annotations
 
-__all__ = [
-    "EvohomeError",
-    "ExpiredCallbackError",
-    "CorruptEvohomeError",
-    "InvalidPacketError",
-    "InvalidAddrSetError",
-    "InvalidPayloadError",
-    "CorruptStateError",
-    "ForeignGatewayError",
-]
 
-
-class EvohomeError(Exception):
-    """Base class for exceptions in this module."""
+class _RamsesBaseException(Exception):
+    """Base class for all ramses_rf exceptions."""
 
     pass
 
 
-class ExpiredCallbackError(EvohomeError):
-    """Raised when the callback has expired."""
+class RamsesException(_RamsesBaseException):
+    """Base class for all ramses_rf exceptions."""
+
+    HINT: None | str = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
-        err_msg = "The callback has expired"
-        err_tip = "(no hint)"
+        if self.message and self.HINT:
+            return f"{self.message} (hint: {self.HINT})"
         if self.message:
-            return f"{err_msg}: {self.message} {err_tip}"
-        return f"{err_msg} {err_tip}"
+            return self.message
+        if self.HINT:
+            return f"Hint: {self.HINT}"
+        return ""
 
 
-class CorruptEvohomeError(EvohomeError):
-    """Base class for exceptions in this module."""
-
-    pass
+class _RamsesLowerError(RamsesException):
+    """A failure in the lower layer (parser, protocol, transport, serial)."""
 
 
-class InvalidPacketError(CorruptEvohomeError):
-    """Raised when the packet is inconsistent."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message = args[0] if args else None
-
-    def __str__(self) -> str:
-        err_msg = "Corrupt packet"
-        err_tip = ""
-        if self.message:
-            return f"{err_msg}: {self.message}{err_tip}"
-        return f"{err_msg} {err_tip}"
+########################################################################################
+# Errors at/below the protocol/transport layer, incl. packet processing
 
 
-class InvalidAddrSetError(InvalidPacketError):
-    """Raised when the packet's address set is inconsistent."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message = args[0] if args else None
-
-    def __str__(self) -> str:
-        err_msg = "Corrupt addresses"
-        err_tip = ""
-        if self.message:
-            return f"{err_msg}: {self.message}{err_tip}"
-        return f"{err_msg} {err_tip}"
+class ProtocolError(_RamsesLowerError):
+    """An error occurred when sending, receiving or exchanging packets."""
 
 
-class InvalidPayloadError(InvalidPacketError):
-    """Raised when the packet's payload is inconsistent."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message = args[0] if args else None
-
-    def __str__(self) -> str:
-        err_msg = "Corrupt payload"
-        err_tip = ""
-        if self.message:
-            return f"{err_msg}: {self.message}{err_tip}"
-        return f"{err_msg} {err_tip}"
+class ProtocolFsmError(ProtocolError):
+    """The protocol FSM was/became inconsistent (this shouldn't happen)."""
 
 
-class CorruptStateError(CorruptEvohomeError):
-    """Raised when the system state (usu. schema) is inconsistent."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message = args[0] if args else None
-
-    def __str__(self) -> str:
-        err_msg = "Inconsistent schema"
-        err_tip = "(try restarting the client library)"
-        if self.message:
-            return f"{err_msg}: {self.message}{err_tip}"
-        return f"{err_msg} {err_tip}"
+class ProtocolSendFailed(ProtocolFsmError):
+    """The Command failed to elicit an echo or (if any) the expected response."""
 
 
-class ForeignGatewayError(EvohomeError):
-    """Raised when a foreign gateway is detected.
+class TransportError(ProtocolError):  # derived from ProtocolBaseError
+    """An error when sending or receiving frames (bytes)."""
 
-    These devices may not be gateways (set a class), or belong to a neighbout (exclude
-    via block_list/known_list), or should be allowed (known_list).
-    """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message = args[0] if args else None
+class TransportSerialError(TransportError):
+    """The transport's serial port has thrown an error."""
 
-    def __str__(self) -> str:
-        err_msg = "There is more than one HGI80-compatible gateway"
-        err_tip = " (consider enforcing a known_list)"
-        if self.message:
-            return f"{err_msg}: {self.message}{err_tip}"
-        return f"{err_msg} {err_tip}"
+
+class TransportSourceInvalid(TransportError):
+    """The source of packets (frames) is not a valid type (serial, dict, file)."""
+
+
+########################################################################################
+# Errors at/below the protocol/transport layer, incl. packet processing
+
+
+class ParserBaseError(_RamsesLowerError):
+    """The packet is corrupt/not internally consistent, or cannot be parsed."""
+
+
+class PacketInvalid(ParserBaseError):
+    """The packet is corrupt/not internally consistent."""
+
+
+class PacketAddrSetInvalid(PacketInvalid):
+    """The packet's address set is inconsistent."""
+
+
+class PacketPayloadInvalid(PacketInvalid):
+    """The packet's payload is inconsistent."""
+
+
+# Errors at/below the protocol/transport layer, incl. packet processing
+
+
+class ParserError(ParserBaseError):
+    """The packet cannot be parsed without error."""

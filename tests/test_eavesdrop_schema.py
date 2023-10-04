@@ -25,21 +25,23 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-async def assert_schemas_equal(gwy, expected_schema):
+async def assert_schemas_equal(gwy: Gateway, expected_schema: dict):
     """Check the gwy schema, then shuffle and test again."""
 
     schema, packets = gwy._get_state(include_expired=True)
     assert_expected(schema, expected_schema)
 
     packets = shuffle_dict(packets)
-    await gwy._set_state(packets)
+    await gwy.set_state(packets, schema=schema)
     assert_expected(gwy.schema, expected_schema)
 
 
+# duplicate in test_eavesdrop_dev_class
 async def test_eavesdrop_off(dir_name):
+    """Check discovery of schema and known_list *without* eavesdropping."""
+
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": False})
-        # gwy._loop.set_debug(True)
         await gwy.start()
 
     with open(f"{dir_name}/schema_eavesdrop_off.json") as f:
@@ -54,10 +56,12 @@ async def test_eavesdrop_off(dir_name):
     await gwy.stop()
 
 
-async def test_eavesdrop_onn(dir_name):
+# duplicate in test_eavesdrop_dev_class
+async def test_eavesdrop_on_(dir_name):
+    """Check discovery of schema and known_list *with* eavesdropping."""
+
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
-        # gwy._loop.set_debug(True)
         await gwy.start()
 
     with open(f"{dir_name}/schema_eavesdrop_on.json") as f:

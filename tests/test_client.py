@@ -76,7 +76,11 @@ BASIC_TESTS = (  # can't use "-z"
 )
 
 
-@pytest.mark.parametrize("index", range(len(BASIC_TESTS)))
+def id_fnc(param: int):
+    return f"{BASIC_TESTS[param][0][1]:7}"
+
+
+@pytest.mark.parametrize("index", range(len(BASIC_TESTS)), ids=id_fnc)
 def test_client_basic(monkeypatch, index, tests=BASIC_TESTS):
     monkeypatch.setattr("sys.argv", tests[index][0])
     if tests[index][0][1] == PARSE:

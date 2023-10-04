@@ -26,7 +26,6 @@ WORK_DIR = f"{TEST_DIR}/schemas"
 async def test_schema_discover_from_log(f_name):
     with open(f"{WORK_DIR}/log_files/{f_name}.log") as f:
         gwy = Gateway(None, input_file=f, config={})  # noqa: F811
-        gwy.config.disable_sending = True
         await gwy.start()
 
     with open(f"{WORK_DIR}/log_files/{f_name}.json") as f:
@@ -37,17 +36,15 @@ async def test_schema_discover_from_log(f_name):
         gwy.ser_name = "/dev/null"  # HACK: needed to pause engine
         schema, packets = gwy._get_state(include_expired=True)
         packets = shuffle_dict(packets)
-        await gwy._set_state(packets)
+        await gwy.set_state(packets)
 
         assert shrink(gwy.schema) == shrink(schema)
-
-    await gwy.stop()
 
 
 @pytest.mark.parametrize(
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/jsn_files").glob("*.json")]
 )
-async def test_schema_load_from_json(gwy, f_name):  # noqa: F811
+async def test_schema_load_from_json(gwy: Gateway, f_name):  # noqa: F811
     with open(f"{WORK_DIR}/jsn_files/{f_name}.json") as f:
         schema = json.load(f)
 
@@ -57,8 +54,3 @@ async def test_schema_load_from_json(gwy, f_name):  # noqa: F811
     # print(json.dumps(self.gwy.schema, indent=4))
 
     assert shrink(gwy.schema) == shrink(schema)
-
-    # # HACK: await self.gwy._set_state({})
-    # gwy._tcs = None
-    # gwy.devices = []
-    # gwy.device_by_id = {}

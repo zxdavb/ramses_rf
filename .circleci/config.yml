@@ -53,9 +53,10 @@ jobs:
             sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/protocol/const.py
 
       - run: &clear_dev_hack
-          name: Clear any DEV_HACK_* flags, if set
+          name: Clear any test/dev, debug flags, if set
           command: |
-            sed -i -e '/DEV_HACK_REGEX =/ s/= .*/= False/' ramses_rf/protocol/transport.py
+            sed -i -e '/_DEBUG.* =/ s/= .*/= False/' ramses_rf/protocol/*.py
+            sed -i -e '/DEV_MODE =/ s/= .*/= False/' ramses_rf/protocol/*.py
 
       - run:
           command: |

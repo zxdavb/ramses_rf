@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: a real mess - needs refactor a la protocol_new/transport_new
+
+
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 A pseudo-mocked serial port used for testing.
@@ -13,20 +17,21 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime as dt
+from io import TextIOWrapper
 from queue import Empty, Full, PriorityQueue
-from typing import Callable, TextIO
+from typing import Callable
 
 from ramses_rf import Gateway
 from ramses_rf.const import Code
-from ramses_rf.protocol import Command, InvalidPacketError, Packet
-from ramses_rf.protocol.protocol import create_protocol_factory
-from ramses_rf.protocol.transport import (
+from ramses_rf.protocol import Command, Packet, PacketInvalid
+from ramses_rf.protocol.transport_old import (
     PacketProtocolFile,
     PacketProtocolPort,
     SerTransportPoll,
     SerTransportRead,
     _PacketProtocolT,
     _PacketTransportT,
+    create_protocol_factory,
 )
 
 from .const import GWY_ID, __dev_mode__
@@ -134,7 +139,7 @@ class MockSerial:  # most of the RF 'mocking' is done in here
                 except (AttributeError, TypeError, ValueError) as exc:
                     _LOGGER.exception(exc)
 
-                except InvalidPacketError as exc:
+                except PacketInvalid as exc:
                     _LOGGER.exception(exc)
 
             cmd = None
@@ -154,7 +159,7 @@ class MockSerial:  # most of the RF 'mocking' is done in here
             data = data[:7] + bytes(GWY_ID, "ascii") + data[16:]
         try:
             self._tx_bytes_to_ether(data)  # good place for a breakpoint
-        except InvalidPacketError:
+        except PacketInvalid:
             pass
         return 0
 
@@ -194,7 +199,7 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
     def _pkt_received(self, pkt: Packet) -> None:
         super()._pkt_received(pkt)  # good place for a breakpoint
 
-    async def _alert_is_impersonating(self, cmd: Command) -> None:
+    async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Stifle impersonation alerts when mocking."""
         pass
 
@@ -202,13 +207,13 @@ class PacketProtocolMock(PacketProtocolPort):  # can breakpoint in _pkt_received
 def create_pkt_stack_new(  # to use a mocked Serial port (and a sympathetic Transport)
     gwy: Gateway, *args, **kwargs
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
-    from ramses_rf.protocol.transport import create_pkt_stack
+    from protocol.protocol import create_stack
 
     # with patch(
     #     "ramses_rf.protocol.transport.serial_for_url",
     #     return_value=MockSerial(gwy.ser_name, loop=gwy._loop),
     # ):
-    return create_pkt_stack(gwy, *args, **kwargs)
+    return create_stack(gwy, *args, **kwargs)
 
 
 def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transport)
@@ -219,7 +224,7 @@ def create_pkt_stack(  # to use a mocked Serial port (and a sympathetic Transpor
     protocol_factory: Callable[[], _PacketProtocolT] = None,
     port_name: str = None,
     port_config: dict = None,
-    packet_log: TextIO = None,
+    packet_log: TextIOWrapper = None,
     packet_dict: dict = None,
 ) -> tuple[_PacketProtocolT, _PacketTransportT]:
     """Return a mocked packet stack.

@@ -6,7 +6,7 @@
     "known_list": {
         "18:000730": {"class": "HGI"},
 
-        "30:098165": {"class": "FAN", "_note": "Nuaire DRI-ECO-HEAT-HC"},
-        "32:208628": {"class": "REM", "_note": "Nuaire DRI-ECO-4S"}
+        "30:098165": {"class": "FAN", "scheme": "nuaire", "_note": "Nuaire DRI-ECO-HEAT-HC"},
+        "32:208628": {"class": "REM", "scheme": "nuaire", "_note": "Nuaire DRI-ECO-4S"}
     }
 }

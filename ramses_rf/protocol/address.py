@@ -7,11 +7,10 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Dict
 
-from .const import DEV_TYPE
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP
-from .const import DEVICE_ID_REGEX, __dev_mode__
-from .exceptions import InvalidAddrSetError
-from .helpers import typechecked
+from .const import DEVICE_ID_REGEX, DevType, __dev_mode__
+from .exceptions import PacketAddrSetInvalid
+from .helpers import typechecked  # type: ignore[import-error]
 
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
@@ -19,7 +18,7 @@ DEV_HVAC = True
 DEVICE_LOOKUP: Dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
     for k in _DEV_TYPE_MAP.SLUGS
-    if k not in (DEV_TYPE.JIM, DEV_TYPE.JST)
+    if k not in (DevType.JIM, DevType.JST)
 }
 DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
 DEV_TYPE_MAP: Dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
@@ -29,11 +28,14 @@ HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
 NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
+# All debug flags should be False for end-users
+_DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
+
 
 class Address:
     """The device Address class."""
 
-    def __init__(self, device_id) -> None:
+    def __init__(self, device_id: str) -> None:
         """Create an address from a valid device id."""
 
         # if device_id is None:
@@ -127,9 +129,9 @@ def id_to_address(device_id) -> Address:
     return Address(device_id=device_id)
 
 
-HGI_DEV_ADDR = Address(HGI_DEVICE_ID)
-NON_DEV_ADDR = Address(NON_DEVICE_ID)
-NUL_DEV_ADDR = Address(NUL_DEVICE_ID)
+HGI_DEV_ADDR = Address(HGI_DEVICE_ID)  # 18:000730
+NON_DEV_ADDR = Address(NON_DEVICE_ID)  # --:------
+NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
 
 
 @typechecked
@@ -168,7 +170,7 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
 
 @lru_cache(maxsize=128)
 @typechecked
-def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
+def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
     """Return True if a device_id is valid."""
 
     if not isinstance(value, str) or not DEVICE_ID_REGEX.ANY.match(value):
@@ -197,9 +199,9 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     try:
         addrs = [id_to_address(addr_fragment[i : i + 9]) for i in range(0, 30, 10)]
     except ValueError as exc:
-        raise InvalidAddrSetError(f"Invalid addr set: {addr_fragment}: {exc}")
+        raise PacketAddrSetInvalid(f"Invalid address set: {addr_fragment}: {exc}")
 
-    if (
+    if not _DEBUG_DISABLE_STRICT_CHECKING and (
         not (
             # .I --- 01:145038 --:------ 01:145038 1F09 003 FF073F # valid
             # .I --- 04:108173 --:------ 01:155341 2309 003 0001F4 # valid
@@ -208,7 +210,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             and addrs[2] != NON_DEV_ADDR
         )
         and not (
-            # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A # valid
+            # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A         # valid
             # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid
             addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
             and addrs[1] not in (NON_DEV_ADDR, addrs[0])
@@ -221,7 +223,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             and addrs[1] == NON_DEV_ADDR
         )
     ):
-        raise InvalidAddrSetError(f"Invalid addr set: {addr_fragment}")
+        raise PacketAddrSetInvalid(f"Invalid address set: {addr_fragment}")
 
     device_addrs = list(filter(lambda a: a.type != "--", addrs))  # dex
     src_addr = device_addrs[0]

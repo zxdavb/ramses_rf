@@ -14,16 +14,14 @@ from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.helpers import gwy  # noqa: F401
 
 
-def _test_api_good(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
-        pkt = _create_pkt_from_frame(gwy, pkt_line.split("#")[0].rstrip())
-
-        msg = Message(gwy, pkt)
+        pkt = _create_pkt_from_frame(pkt_line.split("#")[0].rstrip())
+        msg = Message(pkt)
 
         cmd = _test_api_from_msg(api, msg)
         assert cmd.payload == msg._pkt.payload  # aka pkt.payload
@@ -32,17 +30,16 @@ def _test_api_good(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set che
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _test_api_fail(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+def _test_api_fail(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
-        pkt = _create_pkt_from_frame(gwy, pkt_line.split("#")[0].rstrip())
-
-        msg = Message(gwy, pkt)
+        pkt = _create_pkt_from_frame(pkt_line.split("#")[0].rstrip())
+        msg = Message(pkt)
 
         try:
             cmd = _test_api_from_msg(api, msg)
-        except (AssertionError, TypeError):
+        except (AssertionError, TypeError, ValueError):
             cmd = None
         else:
             assert cmd.payload == msg._pkt.payload  # aka pkt.payload
@@ -51,10 +48,10 @@ def _test_api_fail(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set che
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _create_pkt_from_frame(gwy, pkt_line) -> Packet:  # noqa: F811
+def _create_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
     """Create a pkt from a pkt_line and assert their frames match."""
 
-    pkt = Packet.from_port(gwy, dt.now(), pkt_line)
+    pkt = Packet.from_port(dt.now(), pkt_line)
     assert str(pkt) == pkt_line[4:]
     return pkt
 
@@ -74,34 +71,34 @@ def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
     return cmd
 
 
-def test_set_0004(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_zone_name, SET_0004_GOOD)
-    _test_api_fail(gwy, Command.set_zone_name, SET_0004_FAIL)
+def test_set_0004():  # noqa: F811
+    _test_api_good(Command.set_zone_name, SET_0004_GOOD)
+    _test_api_fail(Command.set_zone_name, SET_0004_FAIL)
 
 
-def test_set_000a(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_zone_config, SET_000A_GOOD)
+def test_set_000a():  # noqa: F811
+    _test_api_good(Command.set_zone_config, SET_000A_GOOD)
 
 
-def test_get_0404(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.get_schedule_fragment, GET_0404_GOOD)
+def test_get_0404():  # noqa: F811
+    _test_api_good(Command.get_schedule_fragment, GET_0404_GOOD)
 
 
-def test_set_1030(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_mix_valve_params, SET_1030_GOOD)
+def test_set_1030():  # noqa: F811
+    _test_api_good(Command.set_mix_valve_params, SET_1030_GOOD)
 
 
-def test_set_10a0(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_dhw_params, SET_10A0_GOOD)
+def test_set_10a0():  # noqa: F811
+    _test_api_good(Command.set_dhw_params, SET_10A0_GOOD)
 
 
-def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
+def test_set_1100():  # noqa: F811  # NOTE: bespoke: params
     packets = SET_1100_GOOD
 
     for pkt_line in packets:
-        pkt = _create_pkt_from_frame(gwy, pkt_line)
+        pkt = _create_pkt_from_frame(pkt_line)
+        msg = Message(pkt)
 
-        msg = Message(gwy, pkt)
         msg.payload[SZ_DOMAIN_ID] = msg.payload.get(SZ_DOMAIN_ID, "00")
 
         cmd = _test_api_from_msg(Command.set_tpi_params, msg)
@@ -111,39 +108,39 @@ def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke: params
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def test_set_1260(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.put_dhw_temp, PUT_1260_GOOD)
+def test_set_1260():  # noqa: F811
+    _test_api_good(Command.put_dhw_temp, PUT_1260_GOOD)
 
 
-def test_set_1f41(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_dhw_mode, SET_1F41_GOOD)
+def test_set_1f41():  # noqa: F811
+    _test_api_good(Command.set_dhw_mode, SET_1F41_GOOD)
 
 
-def test_set_2309(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_zone_setpoint, SET_2309_GOOD)
+def test_set_2309():  # noqa: F811
+    _test_api_good(Command.set_zone_setpoint, SET_2309_GOOD)
 
 
-def test_set_2349(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_zone_mode, SET_2349_GOOD)
+def test_set_2349():  # noqa: F811
+    _test_api_good(Command.set_zone_mode, SET_2349_GOOD)
 
 
-def test_set_2e04(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.set_system_mode, SET_2E04_GOOD)
+def test_set_2e04():  # noqa: F811
+    _test_api_good(Command.set_system_mode, SET_2E04_GOOD)
 
 
-def test_put_30c9(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.put_sensor_temp, PUT_30C9_GOOD)
+def test_put_30c9():  # noqa: F811
+    _test_api_good(Command.put_sensor_temp, PUT_30C9_GOOD)
 
 
-def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
+def test_set_313f():  # noqa: F811  # NOTE: bespoke: payload
     packets = SET_313F_GOOD
 
     for pkt_line in packets:
-        pkt = Packet.from_port(gwy, dt.now(), pkt_line)
+        pkt = Packet.from_port(dt.now(), pkt_line)
         assert str(pkt)[:4] == pkt_line[4:8]
         assert str(pkt)[6:] == pkt_line[10:]
 
-        msg = Message(gwy, pkt)
+        msg = Message(pkt)
 
         cmd = _test_api_from_msg(Command.set_system_time, msg)
         assert cmd.payload[:4] == msg._pkt.payload[:4]
@@ -153,17 +150,17 @@ def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke: payload
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def test_put_3ef0(gwy):  # noqa: F811
-    _test_api_good(gwy, Command.put_actuator_state, PUT_3EF0_GOOD)
+def test_put_3ef0():  # noqa: F811
+    _test_api_good(Command.put_actuator_state, PUT_3EF0_GOOD)
 
 
-def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke: params, ?payload
+def test_put_3ef1():  # noqa: F811  # NOTE: bespoke: params, ?payload
     packets = PUT_3EF1_GOOD
 
     for pkt_line in packets:
-        pkt = _create_pkt_from_frame(gwy, pkt_line)
+        pkt = _create_pkt_from_frame(pkt_line)
+        msg = Message(pkt)
 
-        msg = Message(gwy, pkt)
         kwargs = msg.payload
         modulation_level = kwargs.pop("modulation_level")
         actuator_countdown = kwargs.pop("actuator_countdown")

@@ -10,9 +10,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
+from typing import TYPE_CHECKING
 
 from .const import __dev_mode__
-from .exceptions import InvalidPacketError
+from .exceptions import PacketInvalid
 from .frame import Frame
 from .logger import getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
@@ -26,6 +27,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 # these trade memory for speed
@@ -45,13 +50,8 @@ if DEV_MODE:
 _PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
-def fraction_expired(age: td, age_limit: td) -> float:
-    """Return the packet's age as fraction of its 'normal' lifetime."""
-    return (age - _TD_SECONDS_003) / age_limit
-
-
 class Packet(Frame):
-    """The Packet class (packets that were received).
+    """The Packet class (pkts that were received); will trap/log invalid pkts.
 
     They have a datetime (when received) an RSSI, and other meta-fields.
     """
@@ -59,7 +59,7 @@ class Packet(Frame):
     _dtm: dt
     _rssi: str
 
-    def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
+    def __init__(self, dtm: dt, frame: str, **kwargs) -> None:
         """Create a packet from a string (actually from f"{RSSI} {frame}").
 
         Will raise InvalidPacketError if it is invalid.
@@ -67,7 +67,6 @@ class Packet(Frame):
 
         super().__init__(frame[4:])  # remove RSSI
 
-        self._gwy = gwy
         self._dtm: dt = dtm
 
         self._rssi: str = frame[0:3]
@@ -76,15 +75,11 @@ class Packet(Frame):
         self.error_text: str = kwargs.get("err_msg", "")
         self.raw_frame: str = kwargs.get("raw_frame", "")
 
-        self._timeout: None | bool | td = None  # track pkt expiry
-
-        # if DEV_MODE:  # TODO: remove (is for testing only)
-        #     _ = self._has_array
-        #     _ = self._has_ctl
+        self._lifespan: bool | td = pkt_lifespan(self) or False
 
         self._validate(strict_checking=False)
 
-    def _validate(self, *, strict_checking: bool = None) -> None:
+    def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -92,25 +87,27 @@ class Packet(Frame):
 
         try:
             if self.error_text:
-                raise InvalidPacketError(self.error_text)
+                raise PacketInvalid(self.error_text)
 
             if not self._frame and self.comment:  # log null pkts only if has a comment
-                raise InvalidPacketError("Null packet")
+                raise PacketInvalid("Null packet")
 
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
+            # FIXME: this is messy
             _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
-        except InvalidPacketError as exc:  # incl. InvalidAddrSetError
+        except PacketInvalid as exc:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
                 _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
             raise exc
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
+        # e.g.: RQ --- 18:000730 01:145038 --:------ 000A 002 0800  # 000A|RQ|01:145038|08
         try:
             hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        except (InvalidPacketError, NotImplementedError):
+        except (PacketInvalid, NotImplementedError):
             hdr = ""
         try:
             dtm = self.dtm.isoformat(timespec="microseconds")
@@ -120,7 +117,8 @@ class Packet(Frame):
 
     def __str__(self) -> str:
         """Return an brief readable string representation of this object."""
-        return super().__repr__()
+        # e.g.: 000A|RQ|01:145038|08
+        return super().__repr__()  # TODO: self._hdr
 
     @property
     def dtm(self) -> dt:
@@ -143,52 +141,29 @@ class Packet(Frame):
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
 
-    @property
-    def _expired(self) -> bool | float:
-        """Return the used fraction of the packet's 'normal' lifetime.
-
-        A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
-        False if the packet does not expire (e.g. a 10E0).
-
-        NB: this is only the fact if the packet has expired, or not. Any opinion to if
-        it *matters* that the packet has expired, is up to higher layers of the stack.
-        """
-
-        if self._timeout is None:  # add 3s to account for timing drift
-            self._timeout = pkt_timeout(self) or False
-
-        if self._timeout is False:
-            return False
-
-        return fraction_expired(
-            self._gwy._dt_now() - self.dtm, self._timeout  # type: ignore[arg-type]
-        )
-
     @classmethod
-    def from_dict(cls, gwy, dtm: str, pkt_line: str):
+    def from_dict(cls, dtm: str, pkt_line: str):
         """Create a packet from a saved state (a curated dict)."""
         frame, _, comment = cls._partition(pkt_line)
-        return cls(gwy, dt.fromisoformat(dtm), frame, comment=comment)
+        return cls(dt.fromisoformat(dtm), frame, comment=comment)
 
     @classmethod
-    def from_file(cls, gwy, dtm: str, pkt_line: str):
+    def from_file(cls, dtm: str, pkt_line: str):
         """Create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
-        return cls(gwy, dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
+        return cls(dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
-    def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: bytes = None):
+    def from_port(cls, dtm: dt, pkt_line: str, raw_line: None | bytes = None):
         """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
-        return cls(
-            gwy, dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line
-        )
+        return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
 
 
-def pkt_timeout(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
-    """Return the pkt lifetime, or None if the packet does not expire (e.g. 10E0).
+def pkt_lifespan(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
+    """Return the pkt lifespan, or None if the packet does not expire (e.g. 10E0).
 
-    Some codes require a valid payload to best determine lifetime (e.g. 1F09).
+    Some codes require a valid payload to best determine lifespan (e.g. 1F09).
     """
 
     if pkt.verb in (RQ, W_):

@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-import argparse
-from time import sleep
+"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-import sys
+WIP - Utility to a configuration file from JSON to YAML & back.
+"""
+
+import argparse
+
 import json
 import yaml
+
+from ramses_rf.schemas import load_config
+from ramses_rf.helpers import shrink
+
 
 DEBUG_MODE = False
 DEBUG_ADDR = "0.0.0.0"
@@ -27,8 +34,6 @@ parser = argparse.ArgumentParser(description="Convert a file JSON <-> YAML")
 parser.add_argument("-i", "--input-file", type=argparse.FileType("r"), default="-")
 args = parser.parse_args()
 
-from ramses_rf.schemas import load_config
-from ramses_rf.helpers import shrink
 
 def convert_json_to_yaml(data: dict) -> str:
     """Convert from json (client.py -C config.json) to yaml (HA configuration.yaml)."""

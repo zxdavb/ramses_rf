@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from ..const import (
     DEV_ROLE_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
     DOMAIN_TYPE_MAP,
     SZ_DEVICES,
@@ -30,14 +29,15 @@ from ..const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     ZON_ROLE_MAP,
+    DevType,
     __dev_mode__,
 )
 from ..entity_base import Entity, Parent, class_by_attr
 from ..helpers import shrink
+from ..protocol import PacketPayloadInvalid
 from ..protocol.address import NON_DEV_ADDR
 from ..protocol.command import Command, Priority, _mk_cmd
 from ..protocol.const import SZ_BINDINGS
-from ..protocol.exceptions import InvalidPayloadError
 from ..protocol.opentherm import (
     MSG_ID,
     MSG_NAME,
@@ -54,19 +54,27 @@ from .base import BatteryState, Device, DeviceHeat, Fakeable
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
     FF,
+)
+
+# skipcq: PY-W2000
+from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
     Code,
 )
 
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
 if TYPE_CHECKING:
-    from ..protocol import Address, Message
+    from ..protocol import Address, Message, Packet
     from ..system import Zone
 
 
@@ -142,8 +150,8 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             msg.code == Code._3EF0
             and msg.verb == I_  # will be a 13:
             and not self._faked
+            and not self._gwy._disable_sending
             and not self._gwy.config.disable_discovery
-            and not self._gwy.config.disable_sending
         ):
             # self._make_cmd(Code._0008, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
             self._make_cmd(Code._3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
@@ -253,12 +261,13 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
             self._add_discovery_cmd(Command.get_relay_demand(self.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
+        super()._handle_msg(msg)
+
         if msg.src.id == self.id:
-            super()._handle_msg(msg)
             return
 
         if (
-            self._gwy.config.disable_sending
+            self._gwy._disable_sending
             or not self._faked
             or self._child_id is None
             or self._child_id
@@ -338,6 +347,9 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         super()._bind()
         self._bind_request(Code._1260, callback=callback)
 
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(Code._1260)
+
     @property
     def temperature(self) -> None | float:  # 1260
         return self._msg_value(Code._1260, key=self.TEMPERATURE)
@@ -395,13 +407,13 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
 class RfgGateway(DeviceHeat):  # RFG (30:)
     """The RFG100 base class."""
 
-    _SLUG: str = DEV_TYPE.RFG
+    _SLUG: str = DevType.RFG
 
 
 class Controller(DeviceHeat):  # CTL (01):
     """The Controller base class."""
 
-    _SLUG: str = DEV_TYPE.CTL
+    _SLUG: str = DevType.CTL
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -449,13 +461,13 @@ class Controller(DeviceHeat):  # CTL (01):
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    _SLUG: str = DEV_TYPE.PRG
+    _SLUG: str = DevType.PRG
 
 
 class UfhController(Parent, DeviceHeat):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    _SLUG: str = DEV_TYPE.UFC
+    _SLUG: str = DevType.UFC
 
     HEAT_DEMAND = SZ_HEAT_DEMAND
 
@@ -653,7 +665,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    _SLUG: str = DEV_TYPE.DHW
+    _SLUG: str = DevType.DHW
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = SZ_TEMPERATURE
@@ -669,7 +681,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
         super()._handle_msg(msg)
 
         # The following is required, as CTLs don't send such every sync_cycle
-        if msg.code == Code._1260 and self.ctl and not self._gwy.config.disable_sending:
+        if msg.code == Code._1260 and self.ctl and not self._gwy._disable_sending:
             # update the controller DHW temp
             self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 
@@ -688,7 +700,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
 class OutSensor(Weather):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
-    _SLUG: str = DEV_TYPE.OUT
+    _SLUG: str = DevType.OUT
 
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
@@ -702,7 +714,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     # see: https://www.opentherm.eu/request-details/?post_ids=2944
     # see: https://www.automatedhome.co.uk/vbulletin/showthread.php?6400-(New)-cool-mode-in-Evohome
 
-    _SLUG: str = DEV_TYPE.OTB
+    _SLUG: str = DevType.OTB
 
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
@@ -810,7 +822,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
-            self.deprecate_cmd(msg._pkt, ctx=msg_id)
+            self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
 
         else:
             # 18:50:32.524 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
@@ -822,7 +834,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 OtMsgType.UNKNOWN_DATAID,
                 # OtMsgType.RESERVED,  # some always reserved, others sometimes so
             )
-            self.deprecate_cmd(msg._pkt, ctx=msg_id, reset=reset)
+            self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
 
     def _handle_code(self, msg: Message) -> None:
         if msg.code == Code._3EF0 and msg.verb == I_:  # chasing flags
@@ -838,9 +850,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
         ):
-            self.deprecate_cmd(msg._pkt)
+            self.deprecate_code_ctx(msg._pkt)
         else:
-            self.deprecate_cmd(msg._pkt, reset=True)
+            self.deprecate_code_ctx(msg._pkt, reset=True)
 
     def _ot_msg_flag(self, msg_id, flag_idx) -> None | bool:
         if flags := self._ot_msg_value(msg_id):
@@ -1235,9 +1247,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    _SLUG: str = DEV_TYPE.THM
+    _SLUG: str = DevType.THM
 
     _STATE_ATTR = SZ_TEMPERATURE
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super().initiate_binding_process(
+            [Code._2309, Code._30C9, Code._0008]
+        )
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -1287,7 +1304,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    _SLUG: str = DEV_TYPE.BDR
+    _SLUG: str = DevType.BDR
 
     ACTIVE = "active"
     TPI_PARAMS = "tpi_params"
@@ -1380,7 +1397,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
     """The TRV class, such as a HR92."""
 
-    _SLUG: str = DEV_TYPE.TRV
+    _SLUG: str = DevType.TRV
 
     WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
 
@@ -1406,11 +1423,11 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
 
 class JimDevice(Actuator):  # BDR (08):
-    _SLUG: str = DEV_TYPE.JIM
+    _SLUG: str = DevType.JIM
 
 
 class JstDevice(RelayDemand):  # BDR (31):
-    _SLUG: str = DEV_TYPE.JST
+    _SLUG: str = DevType.JST
 
 
 class UfhCircuit(Entity):
@@ -1446,12 +1463,12 @@ class UfhCircuit(Entity):
             if not (dev_ids := msg.payload[SZ_DEVICES]):
                 return
             if len(dev_ids) != 1:
-                raise InvalidPayloadError("No devices")
+                raise PacketPayloadInvalid("No devices")
 
             # ctl = self._gwy.device_by_id.get(dev_ids[0])
             ctl = self._gwy.get_device(dev_ids[0])
             if not ctl or (self._ctl and self._ctl is not ctl):
-                raise InvalidPayloadError("No CTL")
+                raise PacketPayloadInvalid("No CTL")
             self._ctl = ctl
 
             ctl._make_tcs_controller()
@@ -1459,9 +1476,9 @@ class UfhCircuit(Entity):
 
             zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
             if not zon:
-                raise InvalidPayloadError("No Zone")
+                raise PacketPayloadInvalid("No Zone")
             if self._zone and self._zone is not zon:
-                raise InvalidPayloadError("Wrong Zone")
+                raise PacketPayloadInvalid("Wrong Zone")
             self._zone = zon
 
             if self not in self._zone.actuators:
@@ -1481,8 +1498,8 @@ class UfhCircuit(Entity):
 HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller
 
 _HEAT_VC_PAIR_BY_CLASS = {
-    DEV_TYPE.DHW: ((I_, Code._1260),),
-    DEV_TYPE.OTB: ((I_, Code._3220), (RP, Code._3220)),
+    DevType.DHW: ((I_, Code._1260),),
+    DevType.OTB: ((I_, Code._3220), (RP, Code._3220)),
 }
 
 
@@ -1495,7 +1512,7 @@ def class_dev_heat(
     """
 
     if dev_addr.type in DEV_TYPE_MAP.THM_DEVICES:
-        return HEAT_CLASS_BY_SLUG[DEV_TYPE.THM]
+        return HEAT_CLASS_BY_SLUG[DevType.THM]
 
     try:
         slug = DEV_TYPE_MAP.slug(dev_addr.type)

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Construct a command (packet that is to be sent).
+"""RAMSES RF - Expose an 0404 schedule (is a stateful process).
 """
 from __future__ import annotations
 
@@ -12,7 +10,7 @@ import logging
 import struct
 import zlib
 from datetime import timedelta as td
-from typing import Any, Iterable, Tuple
+from typing import TYPE_CHECKING, Any, Iterable
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -37,6 +35,17 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
+
+DEV_MODE = __dev_mode__ and False
+
+_LOGGER = logging.getLogger(__name__)
+if DEV_MODE:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 MSG = "msg"
@@ -102,17 +111,14 @@ SCH_SCHEDULE = vol.Schema(
     vol.Any(SCH_SCHEDULE_DHW, SCH_SCHEDULE_ZON), extra=vol.PREVENT_EXTRA
 )
 
-DEV_MODE = __dev_mode__ and False
 
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
-
-
+# TODO: make stateful (a la binding)
 class Schedule:  # 0404
     """The schedule of a zone."""
 
     def __init__(self, zone, **kwargs) -> None:
+        _LOGGER.debug("Schedule(zon=%s).__init__()", zone)
+
         self._loop = zone._gwy._loop
 
         self.id = zone.id
@@ -146,7 +152,7 @@ class Schedule:  # 0404
         if msg.payload[SZ_TOTAL_FRAGS] != 255 and self.tcs.zone_lock_idx != self.idx:
             self._rx_frags = self._incr_set(self._rx_frags, msg.payload)
 
-    async def _is_dated(self, *, force_io: bool = False) -> Tuple[bool, bool]:
+    async def _is_dated(self, *, force_io: bool = False) -> tuple[bool, bool]:
         """Indicate if it is possible that a more recent schedule is available.
 
         If required, retrieve the latest global version (change counter) from the

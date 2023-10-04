@@ -7,19 +7,11 @@ Construct a command (packet that is to be sent).
 """
 from __future__ import annotations
 
-import asyncio
 import functools
-import json
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import (  # typeguard doesn't support PEP604 on 3.9.x
-    Any,
-    Iterable,
-    Optional,
-    TypeVar,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Iterable, TypeVar
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import (
@@ -27,11 +19,9 @@ from .const import (
     DEVICE_ID_REGEX,
     SYS_MODE_MAP,
     SZ_BACKOFF,
-    SZ_DAEMON,
     SZ_DHW_IDX,
     SZ_DISABLE_BACKOFF,
     SZ_DOMAIN_ID,
-    SZ_FUNC,
     SZ_PRIORITY,
     SZ_QOS,
     SZ_RETRIES,
@@ -41,8 +31,8 @@ from .const import (
     Priority,
     __dev_mode__,
 )
-from .exceptions import ExpiredCallbackError
-from .frame import Frame, _CodeT, _DeviceIdT, _HeaderT, _PayloadT, _VerbT, pkt_header
+from .frame import Frame, _DeviceIdT, _HeaderT, _PayloadT, pkt_header
+from .helpers import typechecked  # typeguard doesn't support PEP604 on 3.9.x
 from .helpers import (
     dt_now,
     hex_from_double,
@@ -51,7 +41,6 @@ from .helpers import (
     hex_from_temp,
     hex_to_bool,
     timestamp,
-    typechecked,
 )
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ
@@ -60,22 +49,27 @@ from .version import VERSION
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
     F9,
     FA,
     FC,
     FF,
+)
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
     Code,
 )
 
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
-
-TIMER_SHORT_SLEEP = 0.05
-TIMER_LONG_TIMEOUT = td(seconds=60)
 
 
 DEV_MODE = __dev_mode__ and False
@@ -149,7 +143,7 @@ class Qos:
         )
 
 
-def validate_api_params(*, has_zone: bool = None):
+def validate_api_params(*, has_zone: bool = False):
     """Decorator to protect the engine from any invalid command constructors.
 
     Additionally, validate/normalise some command arguments (e.g. 'HW' becomes 0xFA).
@@ -199,7 +193,12 @@ def validate_api_params(*, has_zone: bool = None):
     return zone_decorator if has_zone else device_decorator
 
 
-def _normalise_mode(mode, target, until, duration) -> str:
+def _normalise_mode(
+    mode: None | int | str,
+    target: None | bool | float,
+    until: None | dt | str,
+    duration: None | int,
+) -> str:
     """Validate the zone_mode, and return a it as a normalised 2-byte code.
 
     Used by set_dhw_mode (target=active) and set_zone_mode (target=setpoint). May raise
@@ -231,7 +230,12 @@ def _normalise_mode(mode, target, until, duration) -> str:
     return mode
 
 
-def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
+def _normalise_until(
+    mode: None | int | str,
+    _: Any,
+    until: None | dt | str,
+    duration: None | int,
+) -> tuple[Any, Any]:
     """Validate until and duration, and return a normalised xxx.
 
     Used by set_dhw_mode and set_zone_mode. May raise KeyError or ValueError.
@@ -266,19 +270,20 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     return until, duration
 
 
-def _qos_params(verb: _VerbT, code: _CodeT, qos: dict) -> Qos:
+def _qos_params(verb: Verb, code: Code, qos: dict) -> Qos:
     """Class constructor wrapped to prevent cyclic reference."""
     return Qos.verb_code(verb, code, **qos)
 
 
-@functools.total_ordering
 class Command(Frame):
     """The Command class (packets to be transmitted).
 
     They have QoS and/or callbacks (but no RSSI).
     """
 
-    def __init__(self, frame: str, qos: dict = None, callback: dict = None) -> None:
+    def __init__(
+        self, frame: str, qos: None | dict = None, callback: None | dict = None
+    ) -> None:
         """Create a command from a string (and its meta-attrs).
 
         Will raise InvalidPacketError if it is invalid.
@@ -301,9 +306,9 @@ class Command(Frame):
     @classmethod  # convenience constructor
     def from_attrs(
         cls,
-        verb: _VerbT,
+        verb: Verb,
         dest_id,
-        code: _CodeT,
+        code: Code,
         payload: _PayloadT,
         *,
         from_id=None,
@@ -314,6 +319,8 @@ class Command(Frame):
 
         from_id = from_id or HGI_DEV_ADDR.id
 
+        # if dest_id == NUL_DEV_ADDR.id:
+        #     addrs = (from_id, dest_id, NON_DEV_ADDR.id)
         if dest_id == from_id:
             addrs = (from_id, NON_DEV_ADDR.id, dest_id)
         else:
@@ -333,8 +340,8 @@ class Command(Frame):
     @classmethod  # generic constructor
     def _from_attrs(
         cls,
-        verb: _VerbT,
-        code: _CodeT,
+        verb: str | Verb,
+        code: Code,
         payload: _PayloadT,
         *,
         addr0=None,
@@ -420,22 +427,14 @@ class Command(Frame):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        return f"... {self}{hdr}"
+        # e.g.: RQ --- 18:000730 01:145038 --:------ 000A 002 0800  # 000A|RQ|01:145038|08
+        comment = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
+        return f"... {self}{comment}"
 
     def __str__(self) -> str:
         """Return an brief readable string representation of this object."""
-        return super().__repr__()
-
-    def __eq__(self, other: Any) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._qos.priority, self._dtm) == (other._qos.priority, other._dtm)
-
-    def __lt__(self, other: Any) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._qos.priority, self._dtm) < (other._qos.priority, other._dtm)
+        # e.g.: 000A|RQ|01:145038|08
+        return super().__repr__()  # TODO: self._hdr
 
     @staticmethod
     def _is_valid_operand(other: Any) -> bool:
@@ -466,8 +465,8 @@ class Command(Frame):
         cls,
         fan_id: _DeviceIdT,
         *,
-        bypass_position: float = None,
-        src_id: _DeviceIdT = None,
+        bypass_position: None | float = None,
+        src_id: None | _DeviceIdT = None,
         **kwargs,
     ):
         """Constructor to set the position of the bypass valve (c.f. parser_22f7).
@@ -534,8 +533,8 @@ class Command(Frame):
         fan_id: _DeviceIdT,
         fan_mode,
         *,
-        seqn: int = None,
-        src_id: _DeviceIdT = None,
+        seqn: None | int = None,
+        src_id: None | _DeviceIdT = None,
         idx: str = "00",  # could be e.g. "63"
         **kwargs,
     ):
@@ -607,10 +606,10 @@ class Command(Frame):
         cls,
         ctl_id: _DeviceIdT,
         *,
-        mode: Union[None, int, str] = None,
-        active: bool = None,
-        until: Union[None, dt, str] = None,
-        duration: int = None,
+        mode: None | int | str = None,
+        active: None | bool = None,
+        until: None | dt | str = None,
+        duration: None | int = None,
         **kwargs,
     ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
@@ -749,7 +748,7 @@ class Command(Frame):
     @classmethod  # constructor for RQ|3220
     @typechecked
     @validate_api_params()
-    def get_opentherm_data(cls, otb_id: _DeviceIdT, msg_id: Union[int, str], **kwargs):
+    def get_opentherm_data(cls, otb_id: _DeviceIdT, msg_id: int | str, **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
 
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
@@ -759,7 +758,9 @@ class Command(Frame):
     @classmethod  # constructor for RQ|0008
     @typechecked
     @validate_api_params()  # has_zone is optional
-    def get_relay_demand(cls, dev_id: _DeviceIdT, zone_idx: _ZoneIdxT = None, **kwargs):
+    def get_relay_demand(
+        cls, dev_id: _DeviceIdT, zone_idx: None | _ZoneIdxT = None, **kwargs
+    ):
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
 
         payload = "00" if zone_idx is None else f"{zone_idx:02X}"
@@ -786,7 +787,7 @@ class Command(Frame):
         ctl_id: _DeviceIdT,
         zone_idx: _ZoneIdxT,
         frag_number: int,
-        total_frags: Optional[int],
+        total_frags: None | int,
         **kwargs,
     ):
         """Constructor to get a schedule fragment (c.f. parser_0404).
@@ -857,9 +858,7 @@ class Command(Frame):
     @classmethod  # constructor for RQ|0418
     @typechecked
     @validate_api_params()
-    def get_system_log_entry(
-        cls, ctl_id: _DeviceIdT, log_idx: Union[int, str], **kwargs
-    ):
+    def get_system_log_entry(cls, ctl_id: _DeviceIdT, log_idx: int | str, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
 
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
@@ -879,9 +878,9 @@ class Command(Frame):
     def set_system_mode(
         cls,
         ctl_id: _DeviceIdT,
-        system_mode: Union[None, int, str],
+        system_mode: None | int | str,
         *,
-        until: Union[None, dt, str] = None,
+        until: None | dt | str = None,
         **kwargs,
     ):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
@@ -902,6 +901,8 @@ class Command(Frame):
                 f"Invalid args: For system_mode={SYS_MODE_MAP[system_mode]},"
                 " until must be None"
             )
+
+        assert isinstance(system_mode, str)  # mypy hint
 
         payload = "".join(
             (
@@ -927,8 +928,8 @@ class Command(Frame):
     def set_system_time(
         cls,
         ctl_id: _DeviceIdT,
-        datetime: Union[dt, str],
-        is_dst: Optional[bool] = False,
+        datetime: dt | str,
+        is_dst: None | bool = False,
         **kwargs,
     ):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
@@ -953,12 +954,12 @@ class Command(Frame):
     def set_tpi_params(
         cls,
         ctl_id: _DeviceIdT,
-        domain_id: Optional[str],
+        domain_id: None | str,
         *,
         cycle_rate: int = 3,  # TODO: check
         min_on_time: int = 5,  # TODO: check
         min_off_time: int = 5,  # TODO: check
-        proportional_band_width: Optional[float] = None,  # TODO: check
+        proportional_band_width: None | float = None,  # TODO: check
         **kwargs,
     ):
         """Constructor to set the TPI params of a system (c.f. parser_1100)."""
@@ -1056,10 +1057,10 @@ class Command(Frame):
         ctl_id: _DeviceIdT,
         zone_idx: _ZoneIdxT,
         *,
-        mode: Union[None, int, str] = None,
-        setpoint: float = None,
-        until: Union[None, dt, str] = None,
-        duration: int = None,
+        mode: None | int | str = None,
+        setpoint: None | float = None,
+        until: None | dt | str = None,
+        duration: None | int = None,
         **kwargs,
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
@@ -1156,7 +1157,7 @@ class Command(Frame):
         modulation_level: float,
         actuator_countdown: int,
         *,
-        cycle_countdown: int = None,
+        cycle_countdown: None | int = None,
         **kwargs,
     ):
         """Constructor to announce the internal state of an actuator (3EF1).
@@ -1209,43 +1210,113 @@ class Command(Frame):
     @typechecked
     def put_bind(
         cls,
-        verb: _VerbT,
-        codes: None | _CodeT | Iterable[_CodeT],
+        verb: Verb,
         src_id: _DeviceIdT,
-        *,
-        idx="00",
+        codes: None | Code | Iterable[Code],
         dst_id: None | _DeviceIdT = None,
         **kwargs,
     ):
-        """Constructor for RF bind commands (1FC9), for use by faked devices."""
+        """Constructor for RF bind commands (1FC9), for use by faked devices.
 
-        # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
-        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
-        # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7  # or, simply: 00
+        Expected use-cases:
+          FAN bound by CO2 (1298), HUM (12A0), PER (2E10), SWI (22F1, 22F3)
+          CTL bound by DHW (1260), RND/THM (30C9)
+
+        Many other bindings are much more complicated than the above, and may require
+        bespoke constructors (e.g. TRV binding to a CTL).
+        """
+
+        if not codes:  # None, "", or []
+            codes = []  # used by confirm
+        elif len(codes[0]) == len(Code._1FC9):  # iterable: list, tuple, or dict.keys()
+            codes = list(codes)
+        elif len(codes[0]) == len(Code._1FC9[0]):  # str
+            codes = [codes]
+        else:
+            raise TypeError(f"Invalid codes for a bind command: {codes}")
+
+        qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
+
+        if verb == I_ and dst_id in (None, src_id, NUL_DEV_ADDR.id):
+            return cls._put_bind_offer(src_id, dst_id, codes, qos=qos, **kwargs)
+        elif verb == W_ and dst_id not in (None, src_id):
+            return cls._put_bind_accept(src_id, dst_id, codes, qos=qos, **kwargs)
+        elif verb == I_:
+            return cls._put_bind_confirm(src_id, dst_id, codes, qos=qos, **kwargs)
+        raise ValueError(f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}")
+
+    @classmethod  # constructor for 1FC9 (rf_bind) offer
+    @typechecked
+    def _put_bind_offer(
+        cls,
+        src_id: _DeviceIdT,
+        dst_id: _DeviceIdT,
+        codes: Code | Iterable[Code],
+        *,
+        oem_code: None | str = None,
+        qos: None | dict = None,
+    ):
+        if not codes:  # might be []
+            raise TypeError(f"Invalid codes for a bind offer: {codes}")
 
         hex_id = Address.convert_to_hex(src_id)
-        codes = [] if codes is None else codes  # TODO: untidy
-        codes = ([codes] if isinstance(codes, _CodeT) else list(codes)) + [Code._1FC9]
+        payload = "".join(f"00{c}{hex_id}" for c in codes)
 
-        if dst_id is None and verb == I_:
-            payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
-            addr2 = src_id
+        if oem_code:  # 01, 67, 6C
+            payload += f"{oem_code}{Code._10E0}{hex_id}"
+        payload += f"00{Code._1FC9}{hex_id}"
 
-        # elif dst_id and verb == I_:  # optional, ? must be 00 for HVAC, but not Heat
-        #     payload = "00"
-        #     addr2 = NON_DEV_ADDR.id
+        return cls.from_attrs(  # NOTE: .from_attrs, not ._from_attrs
+            I_, dst_id or src_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
+        )  # as dst_id could be NUL_DEV_ID
 
-        elif dst_id and verb in (I_, W_):
-            payload = f"00{codes[0]}{hex_id}"
-            addr2 = NON_DEV_ADDR.id
+    @classmethod  # constructor for 1FC9 (rf_bind) accept - mainly used for test suite
+    @typechecked
+    def _put_bind_accept(
+        cls,
+        src_id: _DeviceIdT,
+        dst_id: _DeviceIdT,
+        codes: Code | Iterable[Code],
+        *,
+        idx: None | str = "00",
+        qos: None | dict = None,
+    ):
+        if not codes:  # might be
+            raise TypeError(f"Invalid codes for a bind accept: {codes}")
 
-        else:
-            raise ValueError("Invalid parameters")
+        hex_id = Address.convert_to_hex(src_id)
+        payload = "".join(f"{idx or '00'}{c}{hex_id}" for c in codes)
 
-        kwargs[SZ_QOS] = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-        return cls._from_attrs(
-            verb, Code._1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
+        return cls.from_attrs(
+            W_, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
         )
+        # return cls._from_attrs(
+        #     W_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        # )
+
+    @classmethod  # constructor for 1FC9 (rf_bind) confirm
+    @typechecked
+    def _put_bind_confirm(
+        cls,
+        src_id: _DeviceIdT,
+        dst_id: _DeviceIdT,
+        codes: Code | Iterable[Code],
+        *,
+        idx: None | str = "00",
+        qos: None | dict = None,
+    ):
+        if not codes:  # if payload
+            payload = idx or "00"  # Nuaire 4-way switch uses 21!
+        else:
+            hex_id = Address.convert_to_hex(src_id)
+            payload = f"{idx or '00'}{codes[0]}{hex_id}"
+
+        return cls.from_attrs(
+            I_, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
+        )
+        # return cls._from_attrs(
+        #     I_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
+        # )
 
     @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
     @typechecked
@@ -1286,9 +1357,7 @@ class Command(Frame):
     @classmethod  # constructor for I|30C9  # TODO: trap corrupt temps?
     @typechecked
     @validate_api_params()
-    def put_sensor_temp(
-        cls, dev_id: _DeviceIdT, temperature: Union[None, float, int], **kwargs
-    ):
+    def put_sensor_temp(cls, dev_id: _DeviceIdT, temperature: None | float, **kwargs):
         """Constructor to announce the current temperature of a thermostat (3C09).
 
         This is for use by a faked DTS92(E) or similar.
@@ -1316,9 +1385,7 @@ class Command(Frame):
     @classmethod  # constructor for I|1298
     @typechecked
     @validate_api_params()
-    def put_co2_level(
-        cls, dev_id: _DeviceIdT, co2_level: Union[None, float, int], /, **kwargs
-    ):
+    def put_co2_level(cls, dev_id: _DeviceIdT, co2_level: None | float, /, **kwargs):
         """Constructor to announce the current co2 level of a sensor (1298)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
@@ -1331,7 +1398,7 @@ class Command(Frame):
     @typechecked
     @validate_api_params()
     def put_indoor_humidity(
-        cls, dev_id: _DeviceIdT, indoor_humidity: Union[None, float, int], /, **kwargs
+        cls, dev_id: _DeviceIdT, indoor_humidity: float, /, **kwargs
     ):
         """Constructor to announce the current humidity of a sensor (12A0)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
@@ -1345,7 +1412,7 @@ class Command(Frame):
     @typechecked
     @validate_api_params()
     def put_presence_detected(
-        cls, dev_id: _DeviceIdT, presence_detected: Union[None, bool], /, **kwargs
+        cls, dev_id: _DeviceIdT, presence_detected: None | bool, /, **kwargs
     ):
         """Constructor to announce the current presence state of a sensor (2E10)."""
         # .I --- ...
@@ -1392,7 +1459,9 @@ class Command(Frame):
 
         payload = f"00{msg_type}"
 
-        if msg_type != "13":
+        if int(msg_type, 16) >= int("20", 16):
+            payload += f"{int(timestamp() * 1e7):012X}"
+        elif msg_type != "13":
             payload += f"{int(timestamp() * 1000):012X}"
 
         if msg_type == "10":
@@ -1405,9 +1474,7 @@ class Command(Frame):
         return cls.from_attrs(I_, NUL_DEV_ADDR.id, Code._PUZZ, payload[:48], **kwargs)
 
 
-def _mk_cmd(
-    verb: _VerbT, code: _CodeT, payload: _PayloadT, dest_id, **kwargs
-) -> Command:
+def _mk_cmd(verb: Verb, code: Code, payload: _PayloadT, dest_id, **kwargs) -> Command:
     """A convenience function, to cope with a change to the Command class."""
     return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
 
@@ -1417,6 +1484,7 @@ CODE_API_MAP = {
     f"{I_}|{Code._0002}": Command.put_weather_temp,
     f"{RQ}|{Code._0004}": Command.get_zone_name,
     f"{W_}|{Code._0004}": Command.set_zone_name,
+    f"{RQ}|{Code._0006}": Command.get_schedule_version,
     f"{RQ}|{Code._0008}": Command.get_relay_demand,
     f"{RQ}|{Code._000A}": Command.get_zone_config,
     f"{W_}|{Code._000A}": Command.set_zone_config,
@@ -1438,8 +1506,11 @@ CODE_API_MAP = {
     f"{RQ}|{Code._12B0}": Command.get_zone_window_state,
     f"{RQ}|{Code._1F41}": Command.get_dhw_mode,
     f"{W_}|{Code._1F41}": Command.set_dhw_mode,
+    f"{I_}|{Code._1FC9}": Command.put_bind,
+    f"{W_}|{Code._1FC9}": Command.put_bind,  # NOTE: same class method as I|1FC9
     f"{I_}|{Code._22F1}": Command.set_fan_mode,
     f"{W_}|{Code._22F7}": Command.set_bypass_position,
+    f"{W_}|{Code._2309}": Command.set_zone_setpoint,
     f"{RQ}|{Code._2349}": Command.get_zone_mode,
     f"{W_}|{Code._2349}": Command.set_zone_mode,
     f"{W_}|{Code._2411}": Command.set_fan_param,
@@ -1451,118 +1522,6 @@ CODE_API_MAP = {
     f"{RQ}|{Code._313F}": Command.get_system_time,
     f"{W_}|{Code._313F}": Command.set_system_time,
     f"{RQ}|{Code._3220}": Command.get_opentherm_data,
+    f"{I_}|{Code._3EF0}": Command.put_actuator_state,
+    f"{RP}|{Code._3EF1}": Command.put_actuator_cycle,  # NOTE: seems is never as an I
 }  # TODO: RQ|0404 (Zone & DHW)
-
-
-class FaultLog:  # 0418  # TODO: used a NamedTuple
-    """The fault log of a system."""
-
-    def __init__(self, ctl, **kwargs) -> None:
-        _LOGGER.debug("FaultLog(ctl=%s).__init__()", ctl)
-
-        self._loop = ctl._gwy._loop
-
-        self.id = ctl.id
-        self.ctl = ctl
-        # self.tcs = ctl.tcs
-        self._gwy = ctl._gwy
-
-        self._faultlog: dict = {}
-        self._faultlog_done: None | bool = None
-
-        self._START = 0x00  # max 0x3E
-        self._limit = 0x06
-
-    def __repr__(self) -> str:
-        return json.dumps(self._faultlog) if self._faultlog_done else "{}"  # TODO:
-
-    def __str__(self) -> str:
-        return f"{self.ctl} (fault log)"
-
-    # @staticmethod
-    # def _is_valid_operand(other) -> bool:
-    #     return hasattr(other, "verb") and hasattr(other, "_pkt")
-
-    # def __eq__(self, other) -> bool:
-    #     if not self._is_valid_operand(other):
-    #         return NotImplemented
-    #     return (self.verb, self._pkt.payload) == (other.verb, self._pkt.payload)
-
-    async def get_faultlog(self, start=0, limit=6, force_refresh=None) -> None | dict:
-        """Get the fault log of a system."""
-        _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
-
-        if self._gwy.config.disable_sending:
-            raise RuntimeError("Sending is disabled")
-
-        self._START = 0 if start is None else start
-        self._limit = 6 if limit is None else limit
-
-        self._faultlog = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
-        self._faultlog_done = None
-
-        self._rq_log_entry(log_idx=self._START)
-
-        time_start = dt.now()
-        while not self._faultlog_done:
-            await asyncio.sleep(TIMER_SHORT_SLEEP)
-            if dt.now() > time_start + TIMER_LONG_TIMEOUT * 2:
-                raise ExpiredCallbackError("failed to obtain log entry (long)")
-
-        return self.faultlog
-
-    def _rq_log_entry(self, log_idx=0):
-        """Request the next log entry."""
-        _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
-
-        def rq_callback(msg) -> None:
-            _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
-
-            if not msg:
-                self._faultlog_done = True
-                # raise ExpiredCallbackError("failed to obtain log entry (short)")
-                return
-
-            log = dict(msg.payload)
-            log_idx = int(log.pop("log_idx", "00"), 16)
-            if not log:  # null response (no payload)
-                # TODO: delete other callbacks rather than waiting for them to expire
-                self._faultlog_done = True
-                return
-
-            self._faultlog[log_idx] = log  # TODO: make a named tuple
-            if log_idx < self._limit:
-                self._rq_log_entry(log_idx + 1)
-            else:
-                self._faultlog_done = True
-
-        # register callback for null response, which has no ctx (no frag_id),
-        # and so a different header
-        null_header = "|".join((RP, self.id, Code._0418))
-        if null_header not in self._gwy.msg_transport._callbacks:
-            self._gwy.msg_transport._callbacks[null_header] = {
-                SZ_FUNC: rq_callback,
-                SZ_DAEMON: True,
-            }
-
-        rq_callback = {SZ_FUNC: rq_callback, SZ_TIMEOUT: 10}
-        self._gwy.send_cmd(
-            Command.get_system_log_entry(self.ctl.id, log_idx, callback=rq_callback)
-        )
-
-    @property
-    def faultlog(self) -> None | dict:
-        """Return the fault log of a system."""
-        if not self._faultlog_done:
-            return None
-
-        result = {
-            x: {k: v for k, v in y.items() if k[:1] != "_"}
-            for x, y in self._faultlog.items()
-        }
-
-        return {k: list(v.values()) for k, v in result.items()}
-
-    @property
-    def _faultlog_outdated(self) -> bool:
-        return bool(self._faultlog_done and len(self._faultlog))

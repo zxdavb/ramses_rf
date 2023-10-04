@@ -12,21 +12,31 @@ Works with (amongst others):
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from .const import __dev_mode__
 from .device import Device  # noqa: F401
+from .exceptions import (  # noqa: F401
+    ExpiredCallbackError,
+    RamsesException,
+    SystemSchemaInconsistent,
+)
 from .gateway import Gateway  # noqa: F401
 from .protocol import Address, Command, Message, Packet  # noqa: F401
 from .version import VERSION  # noqa: F401
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
     Code,
 )
+
+if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    # skipcq: PY-W2000
+    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 # skipcq: PY-W2000
 DEV_MODE = __dev_mode__ and False
