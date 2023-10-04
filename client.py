@@ -298,10 +298,10 @@ def monitor(obj, discover: None | bool = None, **kwargs):
 
     if discover is None:
         if kwargs["exec_scr"] is None and kwargs["poll_devices"] is None:
-            print(" - Discovery is enabled...")
+            print(" - discovery is enabled")
             lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
         else:
-            print(" - Discovery is disabled...")
+            print(" - discovery is disabled")
             lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
 
     return MONITOR, lib_config, config
@@ -337,7 +337,7 @@ def execute(obj, **kwargs):
     """
     config, lib_config = split_kwargs(obj, kwargs)
 
-    print(" - Discovery is force-disabled...")
+    print(" - discovery is force-disabled")
     lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
 
     if kwargs[GET_FAULTS]:
@@ -350,7 +350,7 @@ def execute(obj, **kwargs):
         known_list = {}
 
     if known_list:
-        print(" - Known list is force-configured/enforced...")
+        print(" - known list is force-configured/enforced")
         lib_config[SZ_KNOWN_LIST] = known_list
         lib_config[SZ_CONFIG][SZ_ENFORCE_KNOWN_LIST] = True
 
@@ -365,7 +365,7 @@ def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
-    print(" - Sending is force-disabled...")
+    print(" - sending is force-disabled")
     lib_config[SZ_CONFIG][SZ_DISABLE_SENDING] = True
 
     return LISTEN, lib_config, config
@@ -489,7 +489,9 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
             dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
             con_cols = CONSOLE_COLS
 
-        if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
+        if msg.code == Code._PUZZ:
+            print(f"{Style.BRIGHT}{Fore.YELLOW}{dtm} {msg}"[:con_cols])
+        elif msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
         elif msg.code == Code._1F09 and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
@@ -501,7 +503,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     serial_port, lib_kwargs = normalise_config(lib_kwargs)
 
     if kwargs["restore_schema"]:
-        print(" - Restoring client schema from a HA cache...")
+        print(" - restoring client schema from a HA cache...")
         state = json.load(kwargs["restore_schema"])["data"]["client_state"]
         lib_kwargs = lib_kwargs | state["schema"]
 
@@ -518,11 +520,11 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         gwy.add_msg_handler(handle_msg)
 
     if kwargs["restore_state"]:
-        print(" - Restoring client state from a HA cache...")
+        print(" - restoring client state from a HA cache...")
         state = json.load(kwargs["restore_state"])["data"]["client_state"]
         await gwy.set_state(packets=state["packets"])
 
-    print("client.py: Starting engine...")
+    print("\r\nclient.py: Starting engine...")
 
     try:  # main code here
         await gwy.start()
@@ -546,7 +548,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
         msg = "ended via: CancelledError (e.g. SIGINT)"
     except GracefulExit:
         msg = "ended via: GracefulExit"
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # FIXME: why isn't this captured here? see main
         msg = "ended via: KeyboardInterrupt"
     except RamsesException as err:
         msg = f"ended via: RamsesException: {err}"
@@ -555,7 +557,7 @@ async def main(command: str, lib_kwargs: dict, **kwargs):
     finally:
         await gwy.stop()
 
-    print(f"client.py: Engine stopped: {msg}.")
+    print(f"\r\nclient.py: Engine stopped: {msg}")
 
     # if kwargs["save_state"]:
     #    _save_state(gwy)
@@ -576,6 +578,8 @@ cli.add_command(listen)
 
 
 if __name__ == "__main__":
+    print("\r\nclient.py: Starting ramses_rf...")
+
     try:
         result = cli(standalone_mode=False)
     except click.NoSuchOption as exc:
@@ -587,10 +591,8 @@ if __name__ == "__main__":
 
     (command, lib_kwargs, kwargs) = result
 
-    print("\r\nclient.py: Starting ramses_rf...")
-
     if sys.platform == "win32":
-        print(" - setting event_loop_policy for win32...")  # do before asyncio.run()
+        print(" - event_loop_policy set for win32")  # do before asyncio.run()
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     try:
@@ -600,10 +602,10 @@ if __name__ == "__main__":
         else:
             asyncio.run(main(command, lib_kwargs, **kwargs))
     except KeyboardInterrupt:  # , SystemExit):
-        pass
+        print("\r\nclient.py: Engine stopped: ended via: KeyboardInterrupt")
 
     if _PROFILE_LIBRARY:
         ps = pstats.Stats(profile)
         ps.sort_stats(pstats.SortKey.TIME).print_stats(20)
 
-    print("\r\nclient.py: Finished ramses_rf.")
+    print(" - finished ramses_rf.\r\n")

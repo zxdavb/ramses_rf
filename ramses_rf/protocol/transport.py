@@ -449,72 +449,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
         self._extra: dict = {} if extra is None else extra
-        self._is_hgi80 = self.is_hgi80(self.serial.name)
-
-        self._init_fut = asyncio.Future()
-
-    async def _make_connection_after_signature(self) -> None:
-        """Poll port with signatures, call make_connection when first echo is received."""
-        # signature is for pkt log, if any, also serves to discover the HGI's device_id
-
-        sig = Command._puzzle()
-        self._extra[SZ_SIGNATURE] = sig.payload
-
-        # HGI80s have difficulties sending signature packets as they have long
-        # initialisation times, so must wait they are ready to send
-
-        num_sends = 0
-        while num_sends < _SIGNATURE_MAX_TRYS:
-            num_sends += 1
-            self._send_frame(str(sig))
-            await asyncio.sleep(_SIGNATURE_GAP_SECS)
-            if self._init_fut.done():
-                # self._send_frame("!V")  # TODO: doesn't work, why?
-                self._protocol.connection_made(self, ramses=True)  # usu. call soon
-                return
-
-        self._init_fut.set_exception(
-            TransportSerialError("Never received an echo signature")
-        )
-
-    @staticmethod
-    def is_hgi80(serial_port: str) -> None | bool:
-        """Return True/False if the device attached to the port is/isn't an HGI80.
-
-        Return None if it's not possible to tell.
-        """
-        vid: int = {x.device: x.vid for x in comports()}.get(serial_port)
-
-        if vid and vid == 0x10AC:  # aka Honeywell, Inc.
-            _LOGGER.info("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
-            return True
-
-        product: None | str = {
-            x.device: getattr(x, "product", None) for x in comports()
-        }.get(serial_port)
-
-        if not product:  # is None - not member of plugdev group?
-            pass
-        # elif "TUSB3410" in product:  # ?needed
-        #     _LOGGER.info("The gateway is HGI80-compatible (by USB attrs)")
-        #     return True
-        elif "evofw3" in product or "FT232R" in product:
-            _LOGGER.info("The gateway appears evofw-compatible (by USB attrs)")
-            return False
-
-        _LOGGER.warning(
-            "The gateway type is not determinable (no rights to enumerate USB attrs?)"
-        )
-        return None  # try sending an "!V", expect "# evofw3 0.7.1"
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
         return dt_now()
-
-    def get_extra_info(self, name, default=None):
-        if name == SZ_IS_EVOFW3:
-            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
-        return self._extra.get(name, default)
 
     def _read_ready(self) -> None:
         # data to self._bytes_received() instead of self._protocol.data_received()
@@ -531,7 +469,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         """Return True if the transport is receiving."""
         return self._has_reader
 
-    def _bytes_received(self, data: bytes) -> None:  # RCVD
+    def _bytes_received(self, data: bytes) -> None:  # logs: RCVD(bytes)
         """Make a Frame from the data and process it."""
 
         def bytes_received(data: bytes) -> Iterable[tuple[dt, bytes]]:
@@ -566,13 +504,13 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 
-    def send_frame(self, frame: str) -> None:
+    def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
         self._send_frame(frame)
 
     def _send_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
-    def write(self, data: bytes) -> None:  # SENT
+    def write(self, data: bytes) -> None:  # logs: SENT(bytes)
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("SENT:     %s", data)
         elif _DEBUG_FORCE_LOG_FRAMES:
@@ -599,19 +537,100 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
 class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
     """Poll a serial port for packets, and send (without QoS)."""
 
-    def __init__(
-        self, *args, disable_qos: bool = False, disable_sending: bool = False, **kwargs
-    ) -> None:
+    _init_fut: asyncio.Future
+    _init_task: asyncio.Task
+
+    def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
         super().__init__(*args, disable_sending=disable_sending, **kwargs)
 
-        if disable_qos or not disable_sending:
-            self._init_task = self.loop.create_task(
-                self._make_connection_after_signature()
-            )
-        else:
+        self._is_hgi80 = self.is_hgi80(self.serial.name)
+        self._make_connection(disable_sending)
+
+    def _make_connection(self, sending_disabled: bool) -> None:
+        """Call connection_made() after housekeeping functions are completed."""
+
+        # HGI80s (and also VMs) take longer to send signature packets as they have long
+        # initialisation times, so we must wait until they send OK
+
+        # signature also serves to discover the HGI's device_id (& for pkt log, if any)
+
+        # Could instead have: connection_made(self, pkt=pkt) *if* pkt is sig. echo, but
+        # would require a re-write or portions of both Transport & Protocol
+
+        def call_make_connection() -> None:
+            """Invoke the Protocol.connection_made() callback."""
+            # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
+            #     self._send_frame("!V")
+
             self.loop.call_soon(
                 functools.partial(self._protocol.connection_made, self, ramses=True)
+            )  # was: self._protocol.connection_made(self, ramses=True)
+
+        async def connect_without_signature() -> None:
+            """Call connection_made() without sending/waiting for a signature."""
+            self._init_fut.set_result(None)
+            call_make_connection()
+
+        async def connect_after_signature() -> None:
+            """Poll port with signatures, call connection_made() after first echo."""
+            sig = Command._puzzle()
+            self._extra[SZ_SIGNATURE] = sig.payload
+
+            num_sends = 0
+            while num_sends < _SIGNATURE_MAX_TRYS:
+                num_sends += 1
+
+                self._send_frame(str(sig))
+                await asyncio.sleep(_SIGNATURE_GAP_SECS)
+
+                if self._init_fut.done():
+                    call_make_connection()
+                    return
+
+            self._init_fut.set_exception(
+                TransportSerialError("Never received an echo signature")
             )
+
+        self._init_fut = asyncio.Future()
+        if sending_disabled:
+            self._init_task = asyncio.create_task(connect_without_signature())
+        else:  # incl. disable_qos
+            self._init_task = asyncio.create_task(connect_after_signature())
+
+    @staticmethod
+    def is_hgi80(serial_port: str) -> None | bool:
+        """Return True/False if the device attached to the port is/isn't an HGI80.
+
+        Return None if it's not possible to tell (effectively assume is evofw3).
+        """
+        vid: int = {x.device: x.vid for x in comports()}.get(serial_port)
+
+        if vid and vid == 0x10AC:  # aka Honeywell, Inc.
+            _LOGGER.info("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
+            return True
+
+        product: None | str = {
+            x.device: getattr(x, "product", None) for x in comports()
+        }.get(serial_port)
+
+        if not product:  # is None - not member of plugdev group?
+            pass
+        # elif "TUSB3410" in product:  # ?needed
+        #     _LOGGER.info("The gateway is HGI80-compatible (by USB attrs)")
+        #     return True
+        elif "evofw3" in product or "FT232R" in product:
+            _LOGGER.info("The gateway appears evofw-compatible (by USB attrs)")
+            return False
+
+        _LOGGER.warning(
+            "The gateway type is not determinable (no rights to enumerate USB attrs?)"
+        )
+        return None  # try sending an "!V", expect "# evofw3 0.7.1"
+
+    def get_extra_info(self, name, default=None):
+        if name == SZ_IS_EVOFW3:
+            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
+        return self._extra.get(name, default)
 
 
 # ### Read-Write Transport *with QoS* for serial port #################################
@@ -639,7 +658,7 @@ async def transport_factory(
     # The kwargs must be a subset of: loop, extra, and...
     # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
 
-    async def wait_for_transport(protocol: _ProtocolT):
+    async def poll_until_connection_made(protocol: _ProtocolT):
         """Poll until the Transport is bound to the Protocol."""
         while protocol._transport is None:
             await asyncio.sleep(0.005)
@@ -703,17 +722,15 @@ async def transport_factory(
 
     # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
     try:
-        await asyncio.wait_for(transport._init_fut, timeout=3)
+        await asyncio.wait_for(transport._init_fut, timeout=3)  # signature echo
     except asyncio.TimeoutError:
-        raise TransportSerialError("Transport not initialised")
+        raise TransportSerialError("Transport did not initialise successfully")
 
     # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
     try:
-        await asyncio.wait_for(wait_for_transport(protocol), timeout=3)
+        await asyncio.wait_for(poll_until_connection_made(protocol), timeout=3)
     except asyncio.TimeoutError:
-        raise TransportSerialError("Transport not bound to Protocol")
-
-    _ = transport._init_fut.result()  # may: raise TransportSerialError
+        raise TransportSerialError("Transport did not bind to Protocol")
 
     return transport
 
