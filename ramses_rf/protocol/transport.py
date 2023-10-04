@@ -598,15 +598,16 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
             self._init_task = asyncio.create_task(connect_after_signature())
 
     @staticmethod
-    def is_hgi80(serial_port: str) -> None | bool:
+    def is_hgi80(serial_port: SerPortName) -> None | bool:
         """Return True/False if the device attached to the port is/isn't an HGI80.
 
         Return None if it's not possible to tell (effectively assume is evofw3).
         """
+
         vid: int = {x.device: x.vid for x in comports()}.get(serial_port)
 
         if vid and vid == 0x10AC:  # aka Honeywell, Inc.
-            _LOGGER.info("The gateway is HGI80-compatible (by VID)")  # TODO: .info()
+            _LOGGER.debug(f"{serial_port}: is HGI80-compatible (by VID)")
             return True
 
         product: None | str = {
@@ -619,11 +620,12 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
         #     _LOGGER.info("The gateway is HGI80-compatible (by USB attrs)")
         #     return True
         elif "evofw3" in product or "FT232R" in product:
-            _LOGGER.info("The gateway appears evofw-compatible (by USB attrs)")
+            _LOGGER.debug(f"{serial_port}: appears evofw3-compatible (by USB attrs)")
             return False
 
         _LOGGER.warning(
-            "The gateway type is not determinable (no rights to enumerate USB attrs?)"
+            f"{serial_port}: the gateway type is not determinable, will assume evofw3 "
+            "(check you have the rights to enumerate USB attrs?)"
         )
         return None  # try sending an "!V", expect "# evofw3 0.7.1"
 
@@ -641,6 +643,17 @@ class QosTransport(PortTransport):
     # the note in Protocol layer
 
     pass
+
+
+def find_gateway_device() -> None | SerPortName:
+    """Find the gateway device and return its port name (assumes exactly one)."""
+    port_names = [
+        p.device for p in comports() if PortTransport.is_hgi80(p.device) is not None
+    ]
+    try:
+        return port_names[0]
+    except IndexError:
+        return None
 
 
 async def transport_factory(
