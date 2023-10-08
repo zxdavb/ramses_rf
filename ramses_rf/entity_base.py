@@ -28,7 +28,6 @@ from .const import (
 )
 from .exceptions import SystemSchemaInconsistent
 from .protocol import ProtocolError
-from .protocol.frame import _DeviceIdT, _HeaderT
 from .protocol.opentherm import OPENTHERM_MESSAGES
 from .protocol.ramses import CODES_SCHEMA
 from .schemas import SZ_CIRCUITS
@@ -53,6 +52,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from .protocol.address import DeviceId
+    from .protocol.frame import _HeaderT
 
 if TYPE_CHECKING:
     from .device import Controller
@@ -95,7 +96,7 @@ class _Entity:
 
     def __init__(self, gwy: Gateway) -> None:
         self._gwy = gwy
-        self.id: _DeviceIdT = None  # type: ignore[assignment]
+        self.id: DeviceId = None  # type: ignore[assignment]
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
@@ -474,13 +475,7 @@ class _Discovery(_MessageDB):
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
 
             except asyncio.TimeoutError as exc:  # safety valve timeout
-                _LOGGER.debug(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
-
-            except TimeoutError as exc:  # TODO: deprecate non-responsive code/device
-                _LOGGER.debug(f"{hdr}: {exc} (0x5B)")
-
-            except Exception as exc:
-                _LOGGER.error(exc)
+                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
 
             else:
                 return result
@@ -593,7 +588,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
-    actuator_by_id: dict[_DeviceIdT, Entity]
+    actuator_by_id: dict[DeviceId, Entity]
     actuators: list[Entity]
 
     circuit_by_id: dict[str, Any]

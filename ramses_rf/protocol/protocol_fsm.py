@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
+
+# TODO: set dt_sent after self._que.get, not before self._que.put?
+
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
 
 from __future__ import annotations
@@ -54,7 +57,7 @@ class SendPriority(IntEnum):
     _MIN = 9
 
 
-DEFAULT_TIMEOUT = 3.0  # total waiting for successful send
+DEFAULT_TIMEOUT = 30.0  # total waiting for successful send
 DEFAULT_ECHO_TIMEOUT = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT = 0.20  # waiting for reply pkt after echo pkt received
 
@@ -83,10 +86,10 @@ class _ProtocolRplyFailed(exceptions.ProtocolSendFailed):
 class ProtocolContext:
     """A mixin is to add state to a Protocol."""
 
-    MAX_BUFFER_SIZE: int = 10
+    MAX_BUFFER_SIZE: int = 32
 
+    _proc_queue_task: None | asyncio.Task = None  # None when not connected to Protocol
     _state: _ProtocolStateT = None  # type: ignore[assignment]
-    _proc_queue_task: asyncio.Task = None  # type: ignore[assignment]
 
     def __init__(self, protocol: _ProtocolT) -> None:
         # super().__init__(*args, **kwargs)
@@ -136,7 +139,7 @@ class ProtocolContext:
 
     def connection_made(self, transport: _TransportT) -> None:
         self._proc_queue_task = self._loop.create_task(self._process_queued_cmds())
-        self.state.made_connection(transport)  # needs to be after prev. line
+        self.state.made_connection(transport)  # TODO: needs to be after prev. line?
 
     def connection_lost(self, exc: None | Exception) -> None:
         fut: asyncio.Future
@@ -145,6 +148,7 @@ class ProtocolContext:
 
         if self._proc_queue_task:
             self._proc_queue_task.cancel()
+            self._proc_queue_task = None
 
         # with self._que.mutex.acquire():
         while True:
@@ -237,7 +241,9 @@ class ProtocolContext:
         """Ensure the queue processor is running (called when a cmd is added)."""
 
         if self._mutex.acquire(timeout=0.005):
-            if self._proc_queue_task.done():
+            if self._proc_queue_task is None:  # pkts sent before connection_made()?
+                pass
+            elif self._proc_queue_task.done():
                 self._proc_queue_task = self._loop.create_task(
                     self._process_queued_cmds()
                 )
@@ -305,7 +311,7 @@ class ProtocolContext:
                 msg = f"{self}: Failed to Tx echo {cmd.tx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolWaitFailed(f"{msg}: {exc}")
-                _LOGGER.warning(f"{msg} (will retry): {exc}")
+                _LOGGER.info(f"{msg} (will retry): {exc}")
                 continue
 
             try:  # receive the echo pkt
@@ -337,7 +343,7 @@ class ProtocolContext:
                 msg = f"{self}: Failed to Rx echo {cmd.tx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolEchoFailed(f"{msg}: {exc}")
-                _LOGGER.warning(f"{msg} (will retry): {exc}")
+                _LOGGER.info(f"{msg} (will retry): {exc}")
                 continue
 
             try:  # receive the reply pkt (if any)
@@ -352,7 +358,7 @@ class ProtocolContext:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolRplyFailed(f"{msg}: {exc}")
-                _LOGGER.warning(f"{msg} (will retry): {exc}")
+                _LOGGER.info(f"{msg} (will retry): {exc}")
                 continue
 
             return prev_state._rply_pkt
@@ -401,21 +407,21 @@ class _ProtocolStateBase:
     ) -> None:
         self._context = context  # a Protocol
 
-        self.active_cmd = active_cmd  # #              the cmd as sent (the active cmd)
-        self.num_sends = num_sends  # #  the number of times the active cmd was sent
-        self._echo_frame = echo_frame  # the expected echo Frame for the active cmd
-        self._echo_pkt = echo_pkt  # #           the received echo Packet
+        self.active_cmd = active_cmd  # #  the cmd as sent (the active cmd)
+        self.num_sends = num_sends  # #    the number of times the active cmd was sent
+        self._echo_frame = echo_frame  # # the expected echo Frame for the active cmd
+        self._echo_pkt = echo_pkt  # #     the received echo Packet
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
 
-        if isinstance(self, WantRply):  # NOTE: WantEcho is a subclass of WantEcho
+        if isinstance(self, WantRply):
             assert self.active_cmd is not None
-            return f"{cls}(rx_header={self.active_cmd.rx_header}, num_sends={self.num_sends})"
+            return f"{cls}(rx_hdr={self.active_cmd.rx_header}, sends={self.num_sends})"
 
         if isinstance(self, (WantEcho, IsFailed)):
             assert self.active_cmd is not None
-            return f"{cls}(tx_header={self.active_cmd.tx_header}, num_sends={self.num_sends})"
+            return f"{cls}(tx_hdr={self.active_cmd.tx_header}, sends={self.num_sends})"
 
         assert self.active_cmd is None  # Inactive | IsPaused | IsInIdle
         assert self.num_sends == 0, f"{self}: num_sends != 0"
@@ -473,22 +479,25 @@ class IsInIdle(_ProtocolStateBase):
 
     _cant_send_cmd_error = None
 
+    # NOTE: unfortunately, the cmd's src / echo's src can be different:
+    # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+    # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+
     def sent_cmd(self, cmd: Command) -> None:
         """The Transport has possibly sent a Command."""
 
         assert self.active_cmd is None
         self.active_cmd = cmd
 
-        # NOTE: unfortunately, the cmd's src / echo's src can be different:
-        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
-        # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+        # FIXME: the following requires the active GWY's device_id to be known...
+        if self.active_cmd._frame[7:16] != HGI_DEV_ADDR.id:  # applies only for addr0
+            self._echo_frame = self.active_cmd._frame
 
-        # the following requires the active GWY's device_id to be known...
-        if self.active_cmd._frame[7:16] == HGI_DEV_ADDR.id:  # applies only for addr0
-            src_id = self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI)
+        elif src_id := self._context._protocol._transport.get_extra_info(SZ_ACTIVE_HGI):
             self._echo_frame = (
                 self.active_cmd._frame[:7] + src_id + self.active_cmd._frame[16:]
             )
+
         else:
             self._echo_frame = self.active_cmd._frame
 
@@ -531,18 +540,18 @@ class WantEcho(_WantPkt):
 class WantRply(_WantPkt):
     """Protocol can re-Tx this Command, wanting a Rx (has received echo)."""
 
+    # NOTE: is possible get a false rply (same rx_header), e.g.:
+    # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+    # RP --- 10:048122 01:145038 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
+    # NOTE: unfortunately, the cmd's src / rply's dst can still be different:
+    # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+    # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected response Packet."""
 
         assert isinstance(self.active_cmd, Command)  # mypy
-
-        # NOTE: is possible get a false rply (same rx_header), e.g.:
-        # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
-        # RP --- 10:048122 01:145038 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
-
-        # NOTE: unfortunately, the cmd's src / rply's dst can still be different:
-        # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
-        # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
 
         # NOTE: use: pkt.dst.id !=     self._echo_pkt.src.id
         # and not:   pkt.dst    is not self._echo_pkt.src

@@ -59,7 +59,7 @@ class TransportSerialError(TransportError):
 
 
 class TransportSourceInvalid(TransportError):
-    """The source of packets (frames) is not a valid type (serial, dict, file)."""
+    """The source of packets (frames) is not valid type/configuration."""
 
 
 ########################################################################################

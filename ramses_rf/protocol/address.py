@@ -15,6 +15,8 @@ from .helpers import typechecked  # type: ignore[import-error]
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
 
+DeviceId = str
+
 DEVICE_LOOKUP: Dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
     for k in _DEV_TYPE_MAP.SLUGS
@@ -35,7 +37,7 @@ _DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
 class Address:
     """The device Address class."""
 
-    def __init__(self, device_id: str) -> None:
+    def __init__(self, device_id: DeviceId) -> None:
         """Create an address from a valid device id."""
 
         # if device_id is None:
@@ -76,7 +78,7 @@ class Address:
         )  # type: ignore[return-value]
 
     @classmethod
-    def _friendly(cls, device_id: str) -> str:
+    def _friendly(cls, device_id: DeviceId) -> str:
         """Convert (say) '01:145038' to 'CTL:145038'."""
 
         if not cls.is_valid(device_id):
@@ -102,7 +104,7 @@ class Address:
         return cls._friendly(device_id) if friendly_id else device_id
 
     @classmethod
-    def convert_to_hex(cls, device_id: str) -> str:
+    def convert_to_hex(cls, device_id: DeviceId) -> str:
         """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
         if not cls.is_valid(device_id):
@@ -124,7 +126,7 @@ class Address:
 
 
 @lru_cache(maxsize=256)
-def id_to_address(device_id) -> Address:
+def id_to_address(device_id: DeviceId) -> Address:
     """Factory method to cache & return device Address from device ID."""
     return Address(device_id=device_id)
 
@@ -135,7 +137,7 @@ NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
 
 
 @typechecked
-def dev_id_to_hex_id(device_id: str) -> str:
+def dev_id_to_hex_id(device_id: DeviceId) -> str:
     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
     if len(device_id) == 9:  # e.g. '01:123456'

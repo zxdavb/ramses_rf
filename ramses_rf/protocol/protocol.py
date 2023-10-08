@@ -15,7 +15,13 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, NoReturn
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import MIN_GAP_BETWEEN_WRITES, SZ_IS_EVOFW3, __dev_mode__
+from .const import (
+    MIN_GAP_BETWEEN_WRITES,
+    SZ_ACTIVE_HGI,
+    SZ_IS_EVOFW3,
+    SZ_KNOWN_HGI,
+    __dev_mode__,
+)
 from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
 from .logger import set_logger_timesource
@@ -41,6 +47,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
+    from .address import DeviceId
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
@@ -55,6 +62,7 @@ if DEV_MODE:
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = False  # #   used for pytest scripts
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = False  # used for pytest scripts
 _DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
+_DEBUG_FORCE_LOG_PACKETS = False
 
 # other constants
 _MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
@@ -62,9 +70,7 @@ _MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
 _CYCLE_DURATION = 60  # seconds
 
 
-_global_sync_cycles: deque = (
-    deque()
-)  # used by @avoid_system_syncs / @track_system_syncs
+_global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
 
 
 def avoid_system_syncs(fnc: Callable[..., Awaitable]):
@@ -268,6 +274,13 @@ class _BaseProtocol(asyncio.Protocol):
         self._pause_writing = False
         self._wait_connection_lost = self._loop.create_future()
 
+    @property
+    def hgi_id(self) -> DeviceId:
+        hgi_id = self._transport.get_extra_info(SZ_ACTIVE_HGI)  # may be None
+        if hgi_id is not None:
+            return hgi_id
+        return self._transport.get_extra_info(SZ_KNOWN_HGI, HGI_DEV_ADDR.id)
+
     def add_handler(
         self,
         msg_handler: MsgHandler,
@@ -351,9 +364,13 @@ class _BaseProtocol(asyncio.Protocol):
 
     async def send_cmd(self, cmd: Command, **kwargs) -> Packet | None:
         """A wrapper for self._send_cmd(cmd)."""
+        if _DEBUG_FORCE_LOG_PACKETS:
+            _LOGGER.warning(f"Sent:     {cmd}")
+        else:
+            _LOGGER.debug(f"Sent:     {cmd}")
 
-        if not self._transport:
-            raise ProtocolSendFailed("There is no connected Transport")
+        # if not self._transport:
+        #     raise ProtocolSendFailed("There is no connected Transport")
         if self._pause_writing:
             raise ProtocolSendFailed("The Protocol is currently read-only")
 
@@ -372,6 +389,11 @@ class _BaseProtocol(asyncio.Protocol):
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
+        if _DEBUG_FORCE_LOG_PACKETS:
+            _LOGGER.warning(f"Rcvd: {pkt._rssi} {pkt}")
+        else:
+            _LOGGER.info(f"Rcvd: {pkt._rssi} {pkt}")
+
         self._pkt_received(pkt)
 
     def _pkt_received(self, pkt: Packet) -> None:
@@ -552,8 +574,8 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
             )
         # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
-        except ProtocolError as exc:  # TODO: _LOGGER.error, not .exception
-            _LOGGER.exception(f"{self}: Failed to send {cmd._hdr}: {exc}")
+        except ProtocolError as exc:
+            _LOGGER.info(f"{self}: Failed to send {cmd._hdr}: {exc}")
             raise
 
 

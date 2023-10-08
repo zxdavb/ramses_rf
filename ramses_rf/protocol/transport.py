@@ -76,7 +76,6 @@ from .schemas import (
     SZ_INBOUND,
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
-    SZ_USE_REGEX,
 )
 
 # skipcq: PY-W2000
@@ -90,16 +89,12 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
+    from .address import DeviceId
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 if TYPE_CHECKING:
-    from . import QosProtocol
-else:
-    QosProtocol = asyncio.Protocol
-
-_ProtocolT = type[QosProtocol]
-
+    from . import QosProtocol as _ProtocolT
 
 _SIGNATURE_MAX_TRYS = 24
 _SIGNATURE_GAP_SECS = 0.05
@@ -179,7 +174,7 @@ class _PktMixin:
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
 
-class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here too
+class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     _extra: dict[str, Any]  # mypy
@@ -190,7 +185,6 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here to
         enforce_include_list: bool = False,
         exclude_list: None | dict = None,
         include_list: None | dict = None,
-        disable_sending: bool = False,
         **kwargs,
     ) -> None:
         exclude_list = exclude_list or {}
@@ -210,34 +204,46 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here to
             self._extra[key] = None
 
         known_hgis = [
-            k for k, v in exclude_list.items() if v.get(SZ_CLASS) == DevType.HGI
+            k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
         ]
         if not known_hgis:
-            _LOGGER.info(f"The {SZ_KNOWN_LIST} should include the gateway (HGI)")
+            _LOGGER.warning(
+                f"The {SZ_KNOWN_LIST} should include the gateway (HGI) but doesn't{TIP}"
+            )
         else:
             self._extra[SZ_KNOWN_HGI] = known_hgis[0]
         if len(known_hgis) > 1:
-            _LOGGER.info(f"The {SZ_KNOWN_LIST} should include only one gateway (HGI)")
+            _LOGGER.warning(
+                f"The {SZ_KNOWN_LIST} should have only 1 gateway (HGI) but has more"
+                f" (the selected Known gateway is: {self._extra[SZ_KNOWN_HGI]}){TIP}"
+            )
+
+    def _set_active_hgi(self, dev_id: DeviceId, by_signature: bool = False) -> None:
+        """Set the Active Gateway device (HGI), warn if it is filtered incorrectly."""
+        msg = "Active gateway " + "(by signature)" if by_signature else "(by filter)"
+
+        if dev_id in self._exclude:
+            _LOGGER.error(f"{msg} is in {SZ_BLOCK_LIST}: {dev_id}{TIP}")
+        elif dev_id in self._include:
+            _LOGGER.info(f"{msg}: {dev_id}")
+        else:
+            _LOGGER.warning(f"{msg} not in {SZ_KNOWN_LIST}: {dev_id}{TIP}")
+        self._extra[SZ_ACTIVE_HGI] = dev_id
 
     def _is_wanted_addrs(
-        self, src_id: str, dst_id: str, payload: None | str = None
+        self, src_id: DeviceId, dst_id: DeviceId, payload: None | str = None
     ) -> bool:
         """Return True if the packet is not to be filtered out.
 
         In any one packet, an excluded device_id 'trumps' an included device_id.
         """
 
-        def deprecate_foreign_hgi(dev_id: str) -> None:
+        def deprecate_foreign_hgi(dev_id: DeviceId) -> None:
             self._unwanted.append(dev_id)
             _LOGGER.warning(
-                f"Blacklisting a Foreign gateway (or is it a HVAC?): {dev_id}"
+                f"Blacklisted a Foreign gateway (is it a HVAC device?): {dev_id}"
                 f" (Active gateway is: {self._extra[SZ_ACTIVE_HGI]}){TIP}"
             )
-
-        def establish_active_hgi(dev_id: str) -> None:
-            self._extra[SZ_ACTIVE_HGI] = dev_id
-            if dev_id not in self._include:
-                _LOGGER.warning(f"Active gateway set to: {dev_id}{TIP}")
 
         for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
             # TODO: _unwanted exists since (in future) stale entries need to be removed
@@ -262,11 +268,11 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here to
                 return False
 
             if dev_id == src_id and payload == self._extra[SZ_SIGNATURE]:
-                establish_active_hgi(dev_id)  # self._extra[SZ_ACTIVE_HGI] = dev_id
+                self._set_active_hgi(dev_id)
                 continue
 
             if dev_id == self._extra[SZ_KNOWN_HGI]:
-                establish_active_hgi(dev_id)  # self._extra[SZ_ACTIVE_HGI] = dev_id
+                self._set_active_hgi(dev_id)
 
         return True
 
@@ -277,12 +283,10 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy (signature) detection in here to
 
 
 class _RegHackMixin:
-    """"""
-
-    def __init__(self, *args, **kwargs) -> None:
-        use_regex: dict = kwargs.pop(SZ_USE_REGEX, {})
-
+    def __init__(self, *args, use_regex: None | dict = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        use_regex: dict = use_regex or {}
 
         self.__inbound_rule = use_regex.get(SZ_INBOUND, {})
         self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
@@ -306,10 +310,10 @@ class _RegHackMixin:
         return result
 
     def _frame_received(self, dtm: str, frame: str) -> None:
-        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
+        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))
 
     def _send_frame(self, frame: str) -> None:
-        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
+        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))
 
 
 class _FileTransport(_PktMixin, asyncio.ReadTransport):
@@ -352,11 +356,11 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
             return dt(1970, 1, 1, 1, 0)
 
     @property
-    def loop(self):
+    def loop(self) -> asyncio.AbstractEventLoop:
         """The asyncio event loop as used by SerialTransport."""
         return self._loop
 
-    def get_extra_info(self, name, default=None):
+    def get_extra_info(self, name, default=None) -> Any:
         if name == self.READER_TASK:
             return self._reader_task
         return super().get_extra_info(name, default)
@@ -436,7 +440,9 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
     loop: asyncio.AbstractEventLoop
     serial: Serial
 
+    _init_fut: asyncio.Future
     _init_task: None | asyncio.Task = None
+
     _recv_buffer: bytes = b""
 
     def __init__(
@@ -481,10 +487,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
                     yield self._dt_now(), line + b"\r\n"
 
         for dtm, raw_line in bytes_received(data):
-            if _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-                _LOGGER.info("RCVD: %s", raw_line)
-            elif _DEBUG_FORCE_LOG_FRAMES:
-                _LOGGER.warning("RCVD: %s", raw_line)
+            if _DEBUG_FORCE_LOG_FRAMES:
+                _LOGGER.warning("Tx: %s", raw_line)
+            elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+                _LOGGER.info("Tx: %s", raw_line)
             self._frame_received(dtm, _normalise(_str(raw_line)))
 
     def _frame_received(self, dtm: dt, frame: str) -> None:
@@ -500,6 +506,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
             and pkt.code == Code._PUZZ
             and pkt.payload == self._extra[SZ_SIGNATURE]
         ):
+            self._set_active_hgi(pkt.src.id, by_signature=True)
             self._init_fut.set_result(pkt)
 
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
@@ -511,10 +518,10 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # logs: SENT(bytes)
-        if _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-            _LOGGER.info("SENT:     %s", data)
-        elif _DEBUG_FORCE_LOG_FRAMES:
-            _LOGGER.warning("SENT:     %s", data)
+        if _DEBUG_FORCE_LOG_FRAMES:
+            _LOGGER.warning("Rx:     %s", data)
+        elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+            _LOGGER.info("Rx:     %s", data)
         super().write(data)
 
     def close(self, exc: None | Exception = None) -> None:
@@ -528,7 +535,9 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
 class FileTransport(_DeviceIdFilterMixin, _FileTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
+        if disable_sending is False:
+            raise TransportSourceInvalid("This Transport cannot send packets")
         super().__init__(*args, **kwargs)
         self.loop.call_soon(self._protocol.connection_made, self)
 
@@ -541,7 +550,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
     _init_task: asyncio.Task
 
     def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
-        super().__init__(*args, disable_sending=disable_sending, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._is_hgi80 = self.is_hgi80(self.serial.name)
         self._make_connection(disable_sending)

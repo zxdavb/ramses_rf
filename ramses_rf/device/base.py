@@ -35,6 +35,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 if TYPE_CHECKING:
     from typing import Any, Optional
 
+    from .. import Gateway
     from . import Address, Message
 
 DEFAULT_BDR_ID = "13:888888"
@@ -70,7 +71,7 @@ class DeviceBase(Entity):
 
     _STATE_ATTR: str = None  # type: ignore[assignment]
 
-    def __init__(self, gwy, dev_addr, **kwargs) -> None:
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
         super().__init__(gwy)
 
@@ -361,10 +362,10 @@ class Fakeable(DeviceBase):
     @property
     def oem_code(self) -> None | str:
         """Return the OEM code (a 2-char ascii str) for this device, if there is one."""
-        raise NotImplementedError  # self.traits is a @property
+        # raise NotImplementedError  # self.traits is a @property
         if not self.traits.get(SZ_OEM_CODE):
             self.traits[SZ_OEM_CODE] = self._msg_value(Code._10E0, key=SZ_OEM_CODE)
-        return self.traits[SZ_OEM_CODE]
+        return self.traits.get(SZ_OEM_CODE)
 
 
 class HgiGateway(DeviceInfo):  # HGI (18:)

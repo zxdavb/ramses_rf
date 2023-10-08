@@ -57,9 +57,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-_DeviceIdT = str
 _HeaderT = str
 _PayloadT = str
+_PktIdxT = str
 
 
 class Frame:

@@ -53,6 +53,17 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 if TYPE_CHECKING:
     from . import Gateway
 
+DEV_MODE = __dev_mode__  # set True for useful Tracebacks
+
+_LOGGER = logging.getLogger(__name__)
+if DEV_MODE:
+    _LOGGER.setLevel(logging.DEBUG)
+
+# all debug flags should be False for published code
+_DEBUG_FORCE_LOG_MESSAGES = False  # useful for dev/test
+
+STRICT_MODE = not DEV_MODE and False
+
 __all__ = ["detect_array_fragment", "process_msg"]
 
 CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
@@ -60,14 +71,6 @@ CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
 _TD_SECONDS_003 = td(seconds=3)
-
-DEV_MODE = __dev_mode__ and False  # or True  # set True for useful Tracebacks
-
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
-
-STRICT_MODE = not DEV_MODE and False
 
 
 class Message(MessageBase):
@@ -315,14 +318,20 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
     # All methods require msg with a valid payload, except _create_devices_from_addrs(),
     # which requires a valid payload only for 000C.
 
-    try:  # validate / dispatch the packet
-        # if gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
-        #     return
+    def logger_xxxx(msg: MessageBase):
+        if _DEBUG_FORCE_LOG_MESSAGES:
+            _LOGGER.warning(msg)
+        elif msg.src is not gwy.hgi or msg.verb != RQ:
+            _LOGGER.info(msg)
+        elif _LOGGER.getEffectiveLevel() == logging.DEBUG:
+            _LOGGER.info(msg)
 
+    try:  # validate / dispatch the packet
         _check_msg_addrs(msg)  # ?InvalidAddrSetError  TODO: ?useful at all
 
         # TODO: any use in creating a device only if the payload is valid?
         if gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
+            logger_xxxx(msg)  # return ensures try's else: clause wont be invoked
             return
 
         try:
@@ -338,6 +347,7 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
             _check_dst_slug(msg)  # ? InvalidPacketError
 
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
+            logger_xxxx(msg)  # return ensures try's else: clause wont be invoked
             return
 
         # NOTE: here, msgs are routed only to devices: routing to other entities (i.e.
@@ -348,18 +358,16 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
 
         # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
         if msg.dst is not msg.src and isinstance(msg.dst, Fakeable):
-            devices = (msg.dst,)  # dont: msg.dst._handle_msg(msg)
+            devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
 
-        elif (
-            msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER
-        ):  # send to all
-            devices = (
+        elif msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
+            devices = [
                 d
                 for d in gwy.devices
                 if d is not msg.src
                 and isinstance(d, Fakeable)
                 and d._context.is_binding
-            )
+            ]
 
         elif hasattr(msg.src, SZ_DEVICES):
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
@@ -368,7 +376,7 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
             devices = msg.src.devices  # if d._SLUG = "BDR"
 
         else:
-            return
+            devices = []
 
         for d in devices:  # FIXME: some may be Addresses?
             # if True or getattr(d, "_faked", False):
@@ -381,6 +389,9 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
 
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
         _LOGGER.exception("%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc)
+
+    else:
+        logger_xxxx(msg)
 
 
 # TODO: this needs cleaning up (e.g. handle intervening packet)
