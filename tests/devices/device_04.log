@@ -1,3 +1,7 @@
+#
+# Plan is to include at least one packet of every code that devices with this id type can Tx
+#
+
 # TODO:
 #   0016: flesh out / understand zone_idx conventions
 #   1FC9: bound with zone_idx 07 - later seen at 04 - should raise corrupt state (but don't eavesdrop 1FC9 yet)

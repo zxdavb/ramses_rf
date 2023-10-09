@@ -1,3 +1,6 @@
+#
+# Plan is to include at least one packet of every code that devices with this id type can Tx
+#
 
 # Resideo HCE-100 UFH Controller
 # 23-10-09T10:59:43.000000 ...  I --- 02:066404 --:------ 02:066404 3150 008 2100220023002400

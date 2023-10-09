@@ -1,3 +1,6 @@
+#
+# Plan is to include at least one packet of every code that devices with this id type can Tx
+#
 
 2021-10-17T00:00:36.162705 095 RQ --- 18:002563 13:109598 --:------ 0008 001 00
 2021-10-17T00:00:36.230008 045 RP --- 13:109598 18:002563 --:------ 0008 002 0000
