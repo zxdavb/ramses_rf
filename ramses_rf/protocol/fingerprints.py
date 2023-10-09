@@ -14,6 +14,7 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "0002FF0163FFFFFFFF": ("CTL", "01", "2013-08-01", "Evo Color"),  # .                    ATP928-G2-080 Evo Mk2 - Color (no WiFi)
     "0002FFFF17FFFFFFFF": ("CTL", "01", "2012-05-11", "IONA RAI Prototype"),  # .           ATC928-G1-000 Evo Mk1 - Monochrone (?prototype, 8 zones)
     "0003FF0203FFFF0001": ("UFC", "02", "2017-11-06", "HCE80 V3.10 061117"),
+    "0001C89D6E0600FEFF": ("UFC", "02", "2022-12-01", "HCE100-RADIO"),
     "0002FF0412FFFFFFFF": ("TRV", "04", "2014-03-13", "HR92 Radiator Ctrl."),
     "0002FF050BFFFFFFFF": ("TRV", "04", "2017-03-07", "HR91 Radiator Ctrl."),
     "0001C8810B0700FEFF": ("OTB", "10", "2019-08-20", "R8820"),
