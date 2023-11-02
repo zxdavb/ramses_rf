@@ -1,18 +1,200 @@
-# pyproject.toml
+#
+### project ##########################################################################
+
+#
+[project]
+  name = "ramses_rf"
+  dynamic = ["readme", "version"]
+  description = "A stateful RAMSES-II protocol decoder & analyser."
+  authors = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
+  maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
+  dependencies = [
+    "colorlog>=6.7.0",
+    "pyserial-asyncio>=0.6",
+    "voluptuous>=0.13.1",
+  ]
+  requires-python = ">=3.11"
+  license = {file = "LICENSE"}
+
+  keywords = [
+    "evohome",
+    "honeywell",
+    "resideo",
+    "round thermostat",
+    "ramses",
+    "sundial",
+    "chronotherm",
+    "hometronics",
+    "itho",
+    "nuaire",
+    "orcon",
+  ]
+  classifiers = [
+    "Topic :: Home Automation",
+  ]
+
+#
+[project.urls]
+  "Homepage" = "https://github.com/zxdavb/ramses_rf"
+  "Bug Tracker" = "https://github.com/zxdavb/ramses_rf/issues"
+  "Wiki" = "https://github.com/zxdavb/ramses_rf/wiki"
+
+
+#
+### build-system #####################################################################
+
+[build-system]
+  requires = ["hatchling"]
+  build-backend = "hatchling.build"
+
+[tool.hatch.build]
+  sources = ["src"]
+  artifacts = ["ser2net.yaml",]
+
+[tool.hatch.build.targets.wheel]
+  packages = ["src/ramses_rf"]
+
+[tool.hatch.version]
+  path = "src/ramses_rf/version.py"
+
+
+#
+###  isort & pytest ##################################################################
 
 [tool.isort]
   profile = "black"
   multi_line_output = 3
 
+
 [tool.pytest.ini_options]
   asyncio_mode = "auto"
 
-[mypy]
-  follow_imports = "skip"
-  exclude = "ramses_rf"
 
-[mypy-ramses_rf]
+#
+###  mypy ############################################################################
+
+[tool.mypy]
+  # exclude = "tests"
+  files = ["src/ramses_rf"]
+  # follow_imports = "skip"
+
+[tool.mypy-tests]
   ignore_errors = true
 
-[mypy-tests]
-  ignore_errors = true
+
+#
+### pylint ###########################################################################
+
+[tool.pylint.MASTER]
+  ignore="docs, src/misc-utils"  # "docs,tests,tests_rf"
+
+[tool.pylint.format]
+  max-line-length = 120
+
+[tool.pylint.BASIC]
+  good-names="i,j,_"
+
+[tool.pylint."MESSAGES CONTROL"]
+# Reasons disabled:
+#   missing-class-docstring        - I use this a lot
+#   missing-function-docstring     - I use this a lot
+#   protected-access               - I use this a lot
+#
+#   format                         - handled by ruff/black
+#   locally-disabled               - it spams too much
+#   duplicate-code                 - unavoidable
+#   cyclic-import                  - doesn't test if both import on load
+#   unused-argument                - generic callbacks and setup methods create a lot of warnings
+#   global-statement               - used for the on-demand requirement installation
+#   redefined-variable-type        - this is Python, we're duck typing!
+#   too-many-*                     - are not enforced for the sake of readability
+#   too-few-*                      - same as too-many-*
+#   abstract-method                - with intro of async there are always methods missing
+#   inconsistent-return-statements - doesn't handle raise
+#   not-an-iterable                - https://github.com/PyCQA/pylint/issues/2311
+#   unnecessary-pass               - readability for functions which only contain pass
+#
+  disable="""
+    missing-class-docstring,
+    missing-function-docstring,
+    protected-access,
+    format,
+    abstract-method,
+    cyclic-import,
+    duplicate-code,
+    global-statement,
+    inconsistent-return-statements,
+    locally-disabled,
+    not-an-iterable,
+    not-context-manager,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-branches,
+    too-many-instance-attributes,
+    too-many-lines,
+    too-many-locals,
+    too-many-public-methods,
+    too-many-return-statements,
+    too-many-statements,
+    unnecessary-pass,
+    unused-argument
+  """
+
+[tool.pylint.REPORTS]
+  reports = "no"
+
+[tool.pylint.FORMAT]
+  expected-line-ending-format = "LF"
+
+[tool.pylint.EXCEPTIONS]
+  overgeneral-exceptions = "builtins.Exception"
+
+
+
+#
+## ruff ##############################################################################
+
+[tool.ruff]
+  # Assume Python 3.11
+  target-version = "py311"
+
+  # # Exclude a variety of commonly ignored directories.
+  # exclude = [
+  #   ".bzr",
+  #   ".direnv",
+  #   ".eggs",
+  #   ".git",
+  #   ".git-rewrite",
+  #   ".hg",
+  #   ".mypy_cache",
+  #   ".nox",
+  #   ".pants.d",
+  #   ".pytype",
+  #   ".ruff_cache",
+  #   ".svn",
+  #   ".tox",
+  #   ".venv",
+  #   "__pypackages__",
+  #   "_build",
+  #   "buck-out",
+  #   "build",
+  #   "dist",
+  #   "node_modules",
+  #   "venv",
+  # ]
+
+[tool.ruff.lint]
+  # ZXDAVB: TODO: disable this feature
+  # Allow unused variables when underscore-prefixed.
+  dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+#   # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+#   # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+#   # McCabe complexity (`C901`) by default.
+#   select = ["E4", "E7", "E9", "F"]
+#   ignore = []  # [E203, E501, W503]
+
+#   # Allow fix for all enabled rules (when `--fix`) is provided.
+#   fixable = ["ALL"]
+#   unfixable = []
+

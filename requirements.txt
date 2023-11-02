@@ -1,7 +1,8 @@
-# last checked/updated: 2023/03/05
+# last checked/updated: 2023/11/02
+#  - to check against pyproject.toml
 #
 
 # for using the library (sans CLI)
-  colorlog>=6.6.0        # 6.7.0
+  colorlog>=6.7.0
   pyserial-asyncio>=0.6  # incl. pyserial
   voluptuous>=0.13.1

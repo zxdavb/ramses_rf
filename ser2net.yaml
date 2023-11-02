@@ -6,7 +6,7 @@ connection: &con00
   options:
     max-connections: 3
 
-# In HA:
+# In HA's configuration.yaml, add:
 # evohome_cc:
 #   serial_port:
 #     port_name: rfc2217://localhost:5001
