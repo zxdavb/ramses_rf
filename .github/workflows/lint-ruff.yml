@@ -1,0 +1,20 @@
+#
+# https://docs.astral.sh/ruff/integrations/#github-actions
+
+name: Linting with ruff
+
+on: workflow_dispatch  # [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: chartboost/ruff-action@v1
