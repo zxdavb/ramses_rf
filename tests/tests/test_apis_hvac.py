@@ -99,13 +99,15 @@ SET_22F1_KWARGS = {
 SET_22F7_KWARGS = {
     f"000  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {},  # shouldn't be OK
     #
-    f"001  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {"bypass_position": None},
+    f"001  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {
+        "bypass_position": None
+    },  # is auto?
     f"001  W --- {REM} {HRU} {NUL} 22F7 002 0000": {"bypass_position": 0.0},
     # 001  W --- {REM} {HRU} {NUL} 22F7 002 0064": {"bypass_position": 0.5},
     f"001  W --- {REM} {HRU} {NUL} 22F7 002 00C8": {"bypass_position": 1.0},
-    #
-    f"002  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {"bypass_mode": None},
-    f"002  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {"bypass_mode": "auto"},
+    f"002  W --- {REM} {HRU} {NUL} 22F7 002 00FF": {
+        "bypass_mode": "auto"
+    },  # is auto, or None?
     f"002  W --- {REM} {HRU} {NUL} 22F7 002 0000": {"bypass_mode": "off"},
     f"002  W --- {REM} {HRU} {NUL} 22F7 002 00C8": {"bypass_mode": "on"},
 }
