@@ -1,9 +1,6 @@
 # last checked/updated: 2023/11/05 (based on HA 2023.11.1)
 #
 
-# for using the library
-# -r requirements.txt
-
 # for using the the library via the CLI, client.py (includes requirements.txt)
   -r requirements_cli.txt
 
@@ -14,15 +11,16 @@
   pre-commit >= 3.5.0
   ruff >= 0.1.1
 
-# used for testing at runtime
-  debugpy >= 1.8.0
-  typeguard >= 4.1.5  # optional, is not core HA
-
 # used for testing
   pytest >= 7.4.3
   pytest-asyncio >= 0.21.0
   pytest-xdist >= 3.3.1
 
+# used for testing at runtime
+  debugpy >= 1.8.0
+  typeguard >= 4.1.5  # optional, is not core HA
+
 # used for build/deply
   hatch >= 1.7.0  # is not core HA
   hatchling >= 1.18.0  # is not core HA
+  

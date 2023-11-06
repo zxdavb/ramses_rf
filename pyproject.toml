@@ -84,31 +84,6 @@
   src = ["src", "tests"]
   target-version = "py311"  # Assume Python 3.11
 
-  # # Exclude a variety of commonly ignored directories.
-  # exclude = [
-  #   ".bzr",
-  #   ".direnv",
-  #   ".eggs",
-  #   ".git",
-  #   ".git-rewrite",
-  #   ".hg",
-  #   ".mypy_cache",
-  #   ".nox",
-  #   ".pants.d",
-  #   ".pytype",
-  #   ".ruff_cache",
-  #   ".svn",
-  #   ".tox",
-  #   ".venv",
-  #   "__pypackages__",
-  #   "_build",
-  #   "buck-out",
-  #   "build",
-  #   "dist",
-  #   "node_modules",
-  #   "venv",
-  # ]
-
 
 [tool.ruff.lint]
   select = [
@@ -120,6 +95,8 @@
     "UP",  # pyupgrade
   ]
   ignore = ["B010", "B011", "E501", "UP009"]
+  # B010  - Do not call setattr with a constant attribute value
+  # B011  - Do not call assert False since python -O removes these calls
   # E501  - Line too long
   # UP009 - UTF-8 encoding declaration is unnecessary
 
@@ -127,15 +104,11 @@
   # Allow unused variables when underscore-prefixed.
   # dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-#   # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-#   # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
-#   # McCabe complexity (`C901`) by default.
-#   select = ["E4", "E7", "E9", "F"]
-#   ignore = []  # [E203, E501, W503]
-
-#   # Allow fix for all enabled rules (when `--fix`) is provided.
-#   fixable = ["ALL"]
-#   unfixable = []
+  # # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+  # # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+  # # McCabe complexity (`C901`) by default.
+  # select = ["E4", "E7", "E9", "F"]
+  # ignore = []  # [E203, E501, W503]
 
 
 [tool.ruff.lint.isort]
