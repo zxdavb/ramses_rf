@@ -32,6 +32,7 @@ For re-flashing evofw3 via Arduino IDE on *my* atmega32u4 (YMMV):
 """
 
 # TODO:
+# - add auto-detection of evofw3/HGI80
 # - chase down gwy.config.disable_discovery
 # - chase down / check deprecation
 

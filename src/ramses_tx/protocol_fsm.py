@@ -113,7 +113,7 @@ class ProtocolContext:
 
         prev_state = self._state
 
-        assert prev_state and prev_state._next_state is None  # FSM error
+        # assert prev_state and prev_state._next_state is None  # FSM error
 
         if state in (Inactive, IsPaused, IsInIdle):
             self._state = state(self)

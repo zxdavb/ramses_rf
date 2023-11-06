@@ -4,7 +4,7 @@
 """RAMSES RF - exceptions above the packet/protocol/transport layer."""
 from __future__ import annotations
 
-from .protocol import RamsesException
+from ramses_tx import RamsesException
 
 
 class _RamsesUpperError(RamsesException):

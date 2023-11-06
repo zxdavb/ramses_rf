@@ -8,9 +8,9 @@ Test the Command.put_*, Command.set_* APIs.
 
 from datetime import datetime as dt
 
-from ramses_rf.protocol.command import CODE_API_MAP, Command
-from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.packet import Packet
+from ramses_tx.command import CODE_API_MAP, Command
+from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 
 
 def _test_api(api, packets):  # noqa: F811  # NOTE: incl. addr_set check

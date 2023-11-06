@@ -15,6 +15,15 @@ import logging
 from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
+from ramses_tx import CODES_BY_DEV_SLUG, CODES_SCHEMA
+from ramses_tx import Message as MessageBase
+from ramses_tx import PacketAddrSetInvalid, PacketInvalid, RamsesException
+from ramses_tx.ramses import (
+    CODES_OF_HEAT_DOMAIN,
+    CODES_OF_HEAT_DOMAIN_ONLY,
+    CODES_OF_HVAC_DOMAIN_ONLY,
+)
+
 from .const import (
     DEV_TYPE_MAP,
     DONT_CREATE_ENTITIES,
@@ -26,14 +35,6 @@ from .const import (
     __dev_mode__,
 )
 from .device import Device, Fakeable
-from .protocol import CODES_BY_DEV_SLUG, CODES_SCHEMA
-from .protocol import Message as MessageBase
-from .protocol import PacketAddrSetInvalid, PacketInvalid, RamsesException
-from .protocol.ramses import (
-    CODES_OF_HEAT_DOMAIN,
-    CODES_OF_HEAT_DOMAIN_ONLY,
-    CODES_OF_HVAC_DOMAIN_ONLY,
-)
 
 # from .schemas import SZ_ALIAS
 

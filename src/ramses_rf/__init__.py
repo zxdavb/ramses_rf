@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from ramses_tx import Address, Command, Message, Packet  # noqa: F401
+
 from .const import __dev_mode__
 from .device import Device  # noqa: F401
 from .exceptions import (  # noqa: F401
@@ -22,7 +24,6 @@ from .exceptions import (  # noqa: F401
     SystemSchemaInconsistent,
 )
 from .gateway import Gateway  # noqa: F401
-from .protocol import Address, Command, Message, Packet  # noqa: F401
 from .version import VERSION  # noqa: F401
 
 # skipcq: PY-W2000

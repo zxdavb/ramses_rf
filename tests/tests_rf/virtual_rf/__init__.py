@@ -14,9 +14,9 @@ from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import VirtualRf
 
 # patched constants
-# _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
-# _DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
+# _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
+# _DEBUG_DISABLE_QOS = False  # #                 ramses_tx.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_tx.protocol
 
 # other constants
 GWY_ID_0 = "18:000000"
@@ -65,7 +65,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> str:
     return hgi_id, fw_type
 
 
-# @patch("ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+# @patch("ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def rf_factory(
     schemas: list[dict], start_gwys: bool = True
 ) -> tuple[VirtualRf, list[Gateway]]:
@@ -95,7 +95,7 @@ async def rf_factory(
         rf._create_port(idx)
         rf.set_gateway(rf.ports[idx], hgi_id, fw_type=HgiFwTypes.__members__[fw_type])
 
-        with patch("ramses_rf.protocol.transport.comports", rf.comports):
+        with patch("ramses_tx.transport.comports", rf.comports):
             gwy = Gateway(rf.ports[idx], **schema)
         gwys.append(gwy)
 

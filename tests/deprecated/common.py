@@ -91,7 +91,7 @@ async def load_test_gwy(
     await gwy.start(start_discovery=False)  # may: SerialException
 
     # with patch(
-    #     "ramses_rf.protocol.transport.serial_for_url",
+    #     "ramses_tx.transport.serial_for_url",
     #     return_value=MockSerial(gwy.ser_name, loop=gwy._loop),
     # ):
     #     await gwy.start(start_discovery=False)  # may: SerialException

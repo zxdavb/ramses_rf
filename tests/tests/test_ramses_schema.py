@@ -9,8 +9,8 @@ Test the RAMSES II schema.
 from ramses_rf import RQ
 from ramses_rf.device.heat import HEAT_CLASS_BY_SLUG
 from ramses_rf.device.hvac import HVAC_CLASS_BY_SLUG
-from ramses_rf.protocol.const import Code, DevType
-from ramses_rf.protocol.ramses import (
+from ramses_tx.const import Code, DevType
+from ramses_tx.ramses import (
     _DEV_KLASSES_HEAT,
     _DEV_KLASSES_HVAC,
     _HVAC_VC_PAIR_BY_CLASS,

@@ -11,8 +11,8 @@ from datetime import datetime as dt
 from tests_deprecated.mocked_rf.command import MockCommand as Command
 
 from ramses_rf.helpers import shrink
-from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.packet import Packet
+from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 
 
 def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check

@@ -16,8 +16,8 @@ from tests_deprecated.common import (
 )
 
 from ramses_rf.const import Code
-from ramses_rf.protocol import Command, Message
 from ramses_rf.system import System, Zone
+from ramses_tx import Command, Message
 
 WORK_DIR = f"{TEST_DIR}/configs"
 CONFIG_FILE = "config_heat.json"

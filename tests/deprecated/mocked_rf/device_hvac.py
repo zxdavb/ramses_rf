@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 
-from ramses_rf.protocol.command import Command
-from ramses_rf.protocol.const import I_, Code
+from ramses_tx.command import Command
+from ramses_tx.const import I_, Code
 
 from .const import __dev_mode__
 from .device_heat import MockDeviceBase

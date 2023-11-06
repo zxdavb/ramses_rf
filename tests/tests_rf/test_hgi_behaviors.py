@@ -20,13 +20,13 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
-from ramses_rf.protocol.exceptions import ProtocolSendFailed
+from ramses_tx.exceptions import ProtocolSendFailed
 
 # patched constants
-_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_rf.protocol.protocol
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
-_DEBUG_DISABLE_STRICT_CHECKING = True  # #    ramses_rf.protocol.address
-MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.transport
+_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DEBUG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
+MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_tx.transport
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -70,15 +70,15 @@ _global_failed_ports: list[str] = []
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
+        "ramses_tx.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
         _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,
     )
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
         _DEBUG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
     )
 
 
@@ -103,7 +103,7 @@ async def fake_evofw3():
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.EVOFW3)
 
-    with patch("ramses_rf.protocol.transport.comports", rf.comports):
+    with patch("ramses_tx.transport.comports", rf.comports):
         gwy = Gateway(rf.ports[0], **CONFIG)
         assert gwy.hgi is None and gwy.devices == []
 
@@ -125,7 +125,7 @@ async def fake_ti3410():
     rf = VirtualRf(1)
     rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.HGI_80)
 
-    with patch("ramses_rf.protocol.transport.comports", rf.comports):
+    with patch("ramses_tx.transport.comports", rf.comports):
         gwy = Gateway(rf.ports[0], **CONFIG)
         assert gwy.hgi is None and gwy.devices == []
 
@@ -185,7 +185,7 @@ async def real_ti3410():
 
 
 @patch(  # DISABLE_STRICT_CHECKING
-    "ramses_rf.protocol.address._DEBUG_DISABLE_STRICT_CHECKING",
+    "ramses_tx.address._DEBUG_DISABLE_STRICT_CHECKING",
     _DEBUG_DISABLE_STRICT_CHECKING,
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):

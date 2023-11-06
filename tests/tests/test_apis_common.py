@@ -6,7 +6,7 @@
 Test the Command.put_*, Command.set_* APIs.
 """
 
-from ramses_rf.protocol.command import CODE_API_MAP, Command
+from ramses_tx.command import CODE_API_MAP, Command
 
 EXCLUDED_APIS = ("from_attrs", "_from_attrs", "from_cli")
 EXCLUDED_APIS += ()  # APIs not added to the CODE_API_MAP, should be an empty tuple

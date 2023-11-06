@@ -16,14 +16,14 @@ import serial
 from tests_rf.virtual_rf import VirtualRf
 
 from ramses_rf import Command, Gateway, Packet
-from ramses_rf.protocol.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
-from ramses_rf.protocol.transport import _str
+from ramses_tx.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
+from ramses_tx.transport import _str
 
 # patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
-_DEBUG_DISABLE_QOS = True  # #                ramses_rf.protocol.protocol
-DEFAULT_TIMEOUT = 0.005  # #                  ramses_rf.protocol.protocol_fsm
-MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DEBUG_DISABLE_QOS = True  # #                ramses_tx.protocol
+DEFAULT_TIMEOUT = 0.005  # #                  ramses_tx.protocol_fsm
+MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -76,15 +76,13 @@ GWY_CONFIG = {
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
         _DEBUG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
     )
-    monkeypatch.setattr(
-        "ramses_rf.protocol.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT
-    )
+    monkeypatch.setattr("ramses_tx.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 
 
 async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
@@ -128,7 +126,7 @@ async def test_regex_inbound_():
 
 # TODO: get tests working with QoS enabled
 @pytest.mark.xdist_group(name="virt_serial")
-@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
+@patch("ramses_tx.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 async def test_regex_outbound():
     """Check the regex filters work as expected."""
 

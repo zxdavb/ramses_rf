@@ -14,8 +14,8 @@ import voluptuous as vol
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
-from ramses_rf.protocol.schemas import SCH_GLOBAL_TRAITS_DICT
 from ramses_rf.schemas import SCH_GLOBAL_CONFIG, SCH_GLOBAL_SCHEMAS
+from ramses_tx.schemas import SCH_GLOBAL_TRAITS_DICT
 
 SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 

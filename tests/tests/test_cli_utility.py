@@ -12,7 +12,7 @@ import pytest
 
 sys.path.append(".")  # HACK: to access client.py
 
-from client import EXECUTE, LISTEN, MONITOR, PARSE, cli  # noqa: E402, F401
+from ramses_cli.client import EXECUTE, LISTEN, MONITOR, PARSE, cli  # noqa: E402, F401
 
 STDIN = io.StringIO("053  I --- 01:123456 --:------ 01:123456 3150 002 FC00\r\n")
 

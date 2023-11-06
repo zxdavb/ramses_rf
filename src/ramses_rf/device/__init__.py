@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from ramses_tx import Address, Command, Message, Packet  # noqa: F401
+
 from ..const import DEV_TYPE_MAP, __dev_mode__
-from ..protocol import Address, Command, Message, Packet  # noqa: F401
 from ..schemas import SZ_CLASS, SZ_FAKED
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)

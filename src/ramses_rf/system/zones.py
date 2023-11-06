@@ -11,6 +11,10 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from ramses_tx import Address, Command, Message
+from ramses_tx.command import _mk_cmd
+from ramses_tx.const import SZ_PAYLOAD
+
 from ..const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
@@ -41,9 +45,6 @@ from ..device import (
 from ..entity_base import Child, Entity, Parent, class_by_attr
 from ..exceptions import SystemSchemaInconsistent
 from ..helpers import shrink
-from ..protocol import Address, Command, Message
-from ..protocol.command import _mk_cmd
-from ..protocol.const import SZ_PAYLOAD
 from ..schemas import (
     SCH_TCS_DHW,
     SCH_TCS_ZONES_ZON,

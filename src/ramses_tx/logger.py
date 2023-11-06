@@ -311,6 +311,6 @@ def set_pkt_logging(logger, dt_now=None, cc_console: bool = False, **kwargs) -> 
     extras = {
         "_frame": "",
         "error_text": "",
-        "comment": f"ramses_rf {VERSION}",
+        "comment": f"ramses_tx {VERSION}",
     }
     logger.warning("", extra=extras)

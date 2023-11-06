@@ -1,22 +1,14 @@
 ### local .gitignore used by this repo
+/*.json
+/*.log
+/*.log.*
+/*.old
+/*.out
+/*.txt
+/*.yaml
+
+
 ### generic .gitignore used by https://github.com/zxdavb
-
-.secrets*/*
-
-*.bkp
-*.db
-*.exe
-*.json
-*.log
-*.log.*
-*.old
-*.out
-*.txt
-*.yaml
-
-!tests*/**/*.json
-!tests*/**/*.log
-!tests*/**/*.py
 
 !.flake8
 !.gitignore
@@ -24,11 +16,13 @@
 !pyproject.toml
 !requirements*.txt
 
-.vscode/*
+.secrets*/
+.ruff_cache/
+.vscode/
 
 
-### github's default .gitignore for Python - Latest commit 14f8a8b on Apr 11, 2020
-# https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
+### github's default .gitignore for Python - copied 2023/11/02
+# https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -88,7 +82,7 @@ cover/
 *.pot
 
 # Django stuff:
-# *.log
+*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -126,7 +120,22 @@ ipython_config.py
 #   install all needed dependencies.
 #Pipfile.lock
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
+#   in version control.
+#   https://pdm.fming.dev/#use-with-ide
+.pdm.toml
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
 __pypackages__/
 
 # Celery stuff

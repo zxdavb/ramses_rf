@@ -8,9 +8,10 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from ramses_tx import Address, Message
+
 from ..const import __dev_mode__
 from ..entity_base import class_by_attr
-from ..protocol import Address, Message
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

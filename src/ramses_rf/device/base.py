@@ -10,12 +10,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Iterable
 
+from ramses_tx.command import _mk_cmd
+from ramses_tx.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
+
 from ..binding_fsm import BindContext
 from ..const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, DevType, __dev_mode__
 from ..entity_base import Child, Entity, class_by_attr
 from ..helpers import shrink
-from ..protocol.command import _mk_cmd
-from ..protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST, SZ_SCHEME
 from . import Command, Packet
 

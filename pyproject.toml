@@ -40,8 +40,8 @@
   "Wiki" = "https://github.com/zxdavb/ramses_rf/wiki"
 
 
-# [project.scripts]
-#   client = "ramses_rf.client:main"
+[project.scripts]
+  client = "ramses_rf.client:main"
 
 #
 ### build-system #####################################################################
@@ -55,7 +55,7 @@
   artifacts = ["ser2net.yaml",]
 
 [tool.hatch.build.targets.wheel]
-  packages = ["src/ramses_rf"]
+  packages = ["src/ramses_rf", "src/ramses_tx", "src/ramses_cli"]
 
 [tool.hatch.version]
   path = "src/ramses_rf/version.py"

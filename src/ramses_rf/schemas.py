@@ -13,21 +13,7 @@ from typing import Any, Callable
 
 import voluptuous as vol  # type: ignore[import]
 
-from .const import (
-    DEFAULT_MAX_ZONES,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    DEVICE_ID_REGEX,
-    DONT_CREATE_MESSAGES,
-    SZ_ZONE_IDX,
-    ZON_ROLE_MAP,
-    DevRole,
-    DevType,
-    SystemType,
-    __dev_mode__,
-)
-from .helpers import shrink
-from .protocol.const import (
+from ramses_tx.const import (
     SZ_ACTUATORS,
     SZ_DEVICES,
     SZ_NAME,
@@ -35,7 +21,7 @@ from .protocol.const import (
     SZ_ZONE_TYPE,
     SZ_ZONES,
 )
-from .protocol.schemas import (  # noqa: F401
+from ramses_tx.schemas import (  # noqa: F401
     SCH_DEVICE_ID_ANY,
     SCH_DEVICE_ID_APP,
     SCH_DEVICE_ID_BDR,
@@ -59,6 +45,21 @@ from .protocol.schemas import (  # noqa: F401
     sch_packet_log_dict_factory,
     select_device_filter_mode,
 )
+
+from .const import (
+    DEFAULT_MAX_ZONES,
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
+    DEVICE_ID_REGEX,
+    DONT_CREATE_MESSAGES,
+    SZ_ZONE_IDX,
+    ZON_ROLE_MAP,
+    DevRole,
+    DevType,
+    SystemType,
+    __dev_mode__,
+)
+from .helpers import shrink
 
 # from .system import _SystemT  # circular import
 

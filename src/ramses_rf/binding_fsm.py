@@ -12,8 +12,9 @@ import logging
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
+
 from .exceptions import BindingError, BindingFlowFailed, BindingFsmError
-from .protocol import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

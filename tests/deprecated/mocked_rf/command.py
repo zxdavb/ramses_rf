@@ -8,10 +8,10 @@ Mocked devices used for testing.Will provide an appropriate Tx for a given Rx.
 
 from __future__ import annotations
 
-from ramses_rf.protocol.address import NON_DEV_ADDR
-from ramses_rf.protocol.command import Command, validate_api_params
-from ramses_rf.protocol.const import I_, RP, Code
-from ramses_rf.protocol.helpers import hex_from_flag8
+from ramses_tx.address import NON_DEV_ADDR
+from ramses_tx.command import Command, validate_api_params
+from ramses_tx.const import I_, RP, Code
+from ramses_tx.helpers import hex_from_flag8
 
 # from .const import __dev_mode__
 

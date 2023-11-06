@@ -22,11 +22,7 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Callable
 
-from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
-from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
-from .dispatcher import Message, detect_array_fragment, process_msg
-from .helpers import schedule_task, shrink
-from .protocol import (
+from ramses_tx import (
     SZ_ACTIVE_HGI,
     Address,
     Command,
@@ -38,9 +34,9 @@ from .protocol import (
     set_pkt_logging_config,
     transport_factory,
 )
-from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from .protocol.protocol_fsm import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
-from .protocol.schemas import (
+from ramses_tx.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from ramses_tx.protocol_fsm import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ramses_tx.schemas import (
     SCH_ENGINE_CONFIG,
     SZ_BLOCK_LIST,
     SZ_DISABLE_SENDING,
@@ -51,6 +47,11 @@ from .protocol.schemas import (
     SZ_PORT_NAME,
     select_device_filter_mode,
 )
+
+from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
+from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
+from .dispatcher import Message, detect_array_fragment, process_msg
+from .helpers import schedule_task, shrink
 from .schemas import (
     SCH_GATEWAY_CONFIG,
     SCH_GLOBAL_SCHEMAS,
@@ -81,9 +82,10 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
+    from ramses_tx.frame import _DeviceIdT, _PayloadT
+    from ramses_tx.protocol import RamsesProtocolT, RamsesTransportT
+
     from .device import Device
-    from .protocol.frame import _DeviceIdT, _PayloadT
-    from .protocol.protocol import RamsesProtocolT, RamsesTransportT
 
 _MsgHandlerT = Callable[[Message], None]
 

@@ -10,6 +10,22 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Callable
 
+from ramses_tx import PacketPayloadInvalid
+from ramses_tx.address import NON_DEV_ADDR
+from ramses_tx.command import Command, Priority, _mk_cmd
+from ramses_tx.const import SZ_BINDINGS
+from ramses_tx.opentherm import (
+    MSG_ID,
+    MSG_NAME,
+    MSG_TYPE,
+    PARAMS_MSG_IDS,
+    SCHEMA_MSG_IDS,
+    STATUS_MSG_IDS,
+    VALUE,
+    OtMsgType,
+)
+from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
+
 from ..const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
@@ -34,21 +50,6 @@ from ..const import (
 )
 from ..entity_base import Entity, Parent, class_by_attr
 from ..helpers import shrink
-from ..protocol import PacketPayloadInvalid
-from ..protocol.address import NON_DEV_ADDR
-from ..protocol.command import Command, Priority, _mk_cmd
-from ..protocol.const import SZ_BINDINGS
-from ..protocol.opentherm import (
-    MSG_ID,
-    MSG_NAME,
-    MSG_TYPE,
-    PARAMS_MSG_IDS,
-    SCHEMA_MSG_IDS,
-    STATUS_MSG_IDS,
-    VALUE,
-    OtMsgType,
-)
-from ..protocol.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
 from ..schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from .base import BatteryState, Device, DeviceHeat, Fakeable
 
@@ -74,7 +75,8 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from ..protocol import Address, Message, Packet
+    from ramses_tx import Address, Message, Packet
+
     from ..system import Zone
 
 

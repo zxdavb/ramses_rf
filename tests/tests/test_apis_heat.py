@@ -10,10 +10,10 @@ from datetime import datetime as dt
 
 from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.helpers import shrink
-from ramses_rf.protocol.address import HGI_DEV_ADDR
-from ramses_rf.protocol.command import Command
-from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.packet import Packet
+from ramses_tx.address import HGI_DEV_ADDR
+from ramses_tx.command import Command
+from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 
 
 def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check

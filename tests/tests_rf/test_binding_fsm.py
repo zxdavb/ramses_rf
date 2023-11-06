@@ -30,12 +30,12 @@ from ramses_rf.device import Fakeable
 from .virtual_rf import rf_factory
 
 # patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_rf.protocol.protocol
-_DEBUG_DISABLE_QOS = False  # #                 ramses_rf.protocol.protocol
-DEFAULT_MAX_RETRIES = 0  # #                    ramses_rf.protocol.protocol
-DEFAULT_TIMEOUT = 0.005  # #                    ramses_rf.protocol.protocol_fsm
-MAINTAIN_STATE_CHAIN = False  # #               ramses_rf.protocol.protocol_fsm
-MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_rf.protocol.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
+_DEBUG_DISABLE_QOS = False  # #                 ramses_tx.protocol
+DEFAULT_MAX_RETRIES = 0  # #                    ramses_tx.protocol
+DEFAULT_TIMEOUT = 0.005  # #                    ramses_tx.protocol_fsm
+MAINTAIN_STATE_CHAIN = False  # #               ramses_tx.protocol_fsm
+MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -167,11 +167,11 @@ TEST_SUITE_300 = [
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
         _DEBUG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
     )
 
 
@@ -334,7 +334,7 @@ async def _test_flow_10x(
 
 # TODO: get test working without QoS
 @pytest.mark.xdist_group(name="virt_serial")
-@patch("ramses_rf.protocol.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
+@patch("ramses_tx.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
 async def test_flow_100(test_set: dict[str:dict]) -> None:
     """Check packet flow / state change of a binding at device layer."""
 

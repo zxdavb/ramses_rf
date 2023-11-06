@@ -23,8 +23,8 @@ from typing import Callable
 
 from ramses_rf import Gateway
 from ramses_rf.const import Code
-from ramses_rf.protocol import Command, Packet, PacketInvalid
-from ramses_rf.protocol.transport_old import (
+from ramses_tx import Command, Packet, PacketInvalid
+from ramses_tx.transport_old import (
     PacketProtocolFile,
     PacketProtocolPort,
     SerTransportPoll,
@@ -210,7 +210,7 @@ def create_pkt_stack_new(  # to use a mocked Serial port (and a sympathetic Tran
     from protocol.protocol import create_stack
 
     # with patch(
-    #     "ramses_rf.protocol.transport.serial_for_url",
+    #     "ramses_tx.transport.serial_for_url",
     #     return_value=MockSerial(gwy.ser_name, loop=gwy._loop),
     # ):
     return create_stack(gwy, *args, **kwargs)

@@ -21,14 +21,9 @@ from ramses_rf.binding_fsm import _BindStates
 from ramses_rf.const import Code, DevType
 from ramses_rf.device import HvacRemote, HvacVentilator
 from ramses_rf.device.base import Fakeable
-from ramses_rf.protocol import Message
-from ramses_rf.protocol.schemas import (
-    SZ_CLASS,
-    SZ_ENFORCE_KNOWN_LIST,
-    SZ_FAKED,
-    SZ_KNOWN_LIST,
-)
 from ramses_rf.schemas import SZ_CONFIG, SZ_DISABLE_DISCOVERY, SZ_ORPHANS_HVAC
+from ramses_tx import Message
+from ramses_tx.schemas import SZ_CLASS, SZ_ENFORCE_KNOWN_LIST, SZ_FAKED, SZ_KNOWN_LIST
 
 FAN_ID = "21:111111"
 REM_ID = "33:333333"

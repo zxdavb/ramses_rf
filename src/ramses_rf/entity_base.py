@@ -16,6 +16,10 @@ from inspect import getmembers, isclass
 from sys import modules
 from typing import TYPE_CHECKING, Any
 
+from ramses_tx import ProtocolError
+from ramses_tx.opentherm import OPENTHERM_MESSAGES
+from ramses_tx.ramses import CODES_SCHEMA
+
 from .const import (
     DEV_TYPE_MAP,
     SZ_ACTUATORS,
@@ -27,9 +31,6 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import SystemSchemaInconsistent
-from .protocol import ProtocolError
-from .protocol.opentherm import OPENTHERM_MESSAGES
-from .protocol.ramses import CODES_SCHEMA
 from .schemas import SZ_CIRCUITS
 
 # skipcq: PY-W2000
@@ -51,14 +52,16 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
+    from ramses_tx.address import DeviceId
+    from ramses_tx.frame import _HeaderT
+
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-    from .protocol.address import DeviceId
-    from .protocol.frame import _HeaderT
 
 if TYPE_CHECKING:
+    from ramses_tx import Command, Message, Packet
+
     from .device import Controller
     from .gateway import Gateway
-    from .protocol import Command, Message, Packet
     from .system import System
 
 

@@ -11,7 +11,7 @@ import sys
 import time
 from datetime import datetime as dt
 
-from ramses_rf.protocol.helpers import dt_now, timestamp
+from ramses_tx.helpers import dt_now, timestamp
 
 
 def _precision_v_cost():

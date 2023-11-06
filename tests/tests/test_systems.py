@@ -19,8 +19,8 @@ from tests.helpers import (
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
-from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.packet import Packet
+from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 
 WORK_DIR = f"{TEST_DIR}/systems"
 

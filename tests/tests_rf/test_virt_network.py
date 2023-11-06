@@ -18,9 +18,9 @@ from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf, rf_factory
 from ramses_rf import Code, Command, Device, Gateway
 
 # patched constants
-_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_rf.protocol.protocol
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_rf.protocol.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_rf.protocol.protocol
+_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
+_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -44,15 +44,15 @@ SCHEMA_1 = {
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
+        "ramses_tx.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
         _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,
     )
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
+        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
         _DEBUG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_rf.protocol.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
     )
 
 

@@ -10,6 +10,11 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from ramses_tx import CODES_SCHEMA, Command, Priority
+from ramses_tx.command import _mk_cmd
+from ramses_tx.opentherm import OTB_MSG_IDS
+from ramses_tx.protocol import MIN_GAP_BETWEEN_WRITES
+
 from .const import (
     SZ_DISABLE_BACKOFF,
     SZ_PRIORITY,
@@ -19,10 +24,6 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
-from .protocol import CODES_SCHEMA, Command, Priority
-from .protocol.command import _mk_cmd
-from .protocol.opentherm import OTB_MSG_IDS
-from .protocol.protocol import MIN_GAP_BETWEEN_WRITES
 
 # Beware, none of this is reliable - it is all subject to random change
 # However, these serve as examples how to us eteh other modules
@@ -289,7 +290,7 @@ async def script_scan_fan(gwy: Gateway, dev_id: str):
     _LOGGER.warning("scan_fan() invoked - expect a lot of nonsense")
     qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 3}
 
-    from ramses_rf.protocol.ramses import _DEV_KLASSES_HVAC
+    from ramses_tx.ramses import _DEV_KLASSES_HVAC
 
     OUT_CODES = (
         Code._0016,

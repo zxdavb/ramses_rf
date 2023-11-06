@@ -16,17 +16,17 @@ from queue import Full
 from typing import TYPE_CHECKING, Callable
 
 from ramses_rf.const import I_, RP, RQ, SZ_ACTUATORS, SZ_ZONES, W_, ZON_ROLE_MAP, Code
-from ramses_rf.protocol import PacketInvalid
-from ramses_rf.protocol.command import Command as CommandBase
-from ramses_rf.protocol.command import validate_api_params
 from ramses_rf.schemas import SZ_CLASS
+from ramses_tx import PacketInvalid
+from ramses_tx.command import Command as CommandBase
+from ramses_tx.command import validate_api_params
 
 from .const import GWY_ID, __dev_mode__
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
-    from ramses_rf.protocol.address import DeviceId
-    from ramses_rf.protocol.frame import _PktIdxT
+    from ramses_tx.address import DeviceId
+    from ramses_tx.frame import _PktIdxT
 
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 

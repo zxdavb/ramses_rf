@@ -10,6 +10,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
+from ramses_tx import Address, Command, Message, Packet
+from ramses_tx.const import SZ_BINDINGS
+from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
+
 from ..const import (
     FAN_MODE,
     SZ_AIR_QUALITY,
@@ -39,9 +43,6 @@ from ..const import (
 )
 from ..entity_base import class_by_attr
 from ..helpers import shrink
-from ..protocol import Address, Command, Message, Packet
-from ..protocol.const import SZ_BINDINGS
-from ..protocol.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
 from .base import BatteryState, Device, DeviceHvac, Fakeable
 

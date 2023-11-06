@@ -6,13 +6,13 @@
 Test the various helper APIs.
 """
 
-# TODO: add test for ramses_rf.protocol.frame.pkt_header()
+# TODO: add test for ramses_tx.frame.pkt_header()
 
 from tests.helpers import assert_raises
 
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.helpers import merge
-from ramses_rf.protocol.const import attr_dict_factory
+from ramses_tx.const import attr_dict_factory
 
 
 def test_merge_dicts() -> None:

@@ -10,9 +10,9 @@ from pathlib import Path, PurePath
 
 from tests.helpers import TEST_DIR
 
-from ramses_rf.protocol import exceptions
-from ramses_rf.protocol.message import Message
-from ramses_rf.protocol.packet import Packet
+from ramses_tx import exceptions
+from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 
 WORK_DIR = f"{TEST_DIR}/devices"
 

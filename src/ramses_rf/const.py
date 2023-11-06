@@ -7,7 +7,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-from .protocol.const import (  # noqa: F401
+from ramses_tx.const import (  # noqa: F401
     DEFAULT_MAX_ZONES,
     DEVICE_ID_REGEX,
     DOMAIN_TYPE_MAP,
@@ -84,7 +84,7 @@ from .protocol.const import (  # noqa: F401
 )
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
@@ -98,7 +98,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 )
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -108,7 +108,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
-    from .protocol import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_tx import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 __dev_mode__ = False

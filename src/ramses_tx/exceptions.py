@@ -6,13 +6,13 @@ from __future__ import annotations
 
 
 class _RamsesBaseException(Exception):
-    """Base class for all ramses_rf exceptions."""
+    """Base class for all ramses_tx exceptions."""
 
     pass
 
 
 class RamsesException(_RamsesBaseException):
-    """Base class for all ramses_rf exceptions."""
+    """Base class for all ramses_tx exceptions."""
 
     HINT: None | str = None
 

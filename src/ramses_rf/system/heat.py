@@ -13,6 +13,18 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from ramses_tx import (
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
+    ZON_ROLE_MAP,
+    Address,
+    Command,
+    Message,
+    Priority,
+)
+from ramses_tx.command import _mk_cmd
+from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
+
 from ..const import (
     SYS_MODE_MAP,
     SZ_ACTUATORS,
@@ -44,17 +56,6 @@ from ..device import (
 from ..entity_base import Entity, Parent, class_by_attr
 from ..exceptions import ExpiredCallbackError
 from ..helpers import shrink
-from ..protocol import (
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_ROLE_MAP,
-    Address,
-    Command,
-    Message,
-    Priority,
-)
-from ..protocol.command import _mk_cmd
-from ..protocol.const import SZ_PRIORITY, SZ_RETRIES
 from ..schemas import (
     DEFAULT_MAX_ZONES,
     SCH_TCS,

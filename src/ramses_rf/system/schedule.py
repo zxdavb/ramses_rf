@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING, Any, Iterable
 
 import voluptuous as vol  # type: ignore[import]
 
-from ramses_rf.protocol.const import SZ_CHANGE_COUNTER
+from ramses_tx.command import Command
+from ramses_tx.const import SZ_CHANGE_COUNTER
+from ramses_tx.message import Message
 
 from ..const import (
     SZ_FRAG_NUMBER,
@@ -24,8 +26,6 @@ from ..const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from ..protocol.command import Command
-from ..protocol.message import Message
 
 # skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import

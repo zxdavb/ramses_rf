@@ -19,7 +19,6 @@ from tests_deprecated.common import (
 from tests_deprecated.mocked_rf import MOCKED_PORT
 
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Code
-from ramses_rf.protocol import Message
 from ramses_rf.system import DhwZone, System, Zone
 from ramses_rf.system.schedule import (
     DAY_OF_WEEK,
@@ -30,6 +29,7 @@ from ramses_rf.system.schedule import (
     SWITCHPOINTS,
     TIME_OF_DAY,
 )
+from ramses_tx import Message
 
 WORK_DIR = f"{TEST_DIR}/configs"
 CONFIG_FILE = "config_heat.json"
@@ -43,7 +43,7 @@ def pytest_generate_tests(metafunc):
 _global_flow_marker: int = None  # type: ignore[assignment]
 
 
-MIN_GAP_BETWEEN_WRITES = 0  # patch ramses_rf.protocol.transport
+MIN_GAP_BETWEEN_WRITES = 0  # patch ramses_tx.transport
 WAITING_TIMEOUT_SECS = 0  # # patch ramses_rf.binding_fsm
 
 
@@ -284,7 +284,7 @@ async def write_schedule(zone: DhwZone | Zone) -> None:  # uses: flow_marker
     #    sch_end = await zone.set_schedule(sch_old)  # put things back
 
 
-@abort_if_rf_test_fails  # TODO: should be ramses_rf.protocol.protocol.???
+@abort_if_rf_test_fails  # TODO: should be ramses_tx.protocol.???
 @patch("ramses_rf.binding_fsm.WAITING_TIMEOUT_SECS", WAITING_TIMEOUT_SECS)
 async def test_rq_0006_ver(test_port):
     """Test the TCS._schedule_version() method."""
@@ -304,7 +304,7 @@ async def test_rq_0006_ver(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_rq_0404_dhw(test_port):
     """Test the dhw.get_schedule() method."""
 
@@ -325,7 +325,7 @@ async def test_rq_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_rq_0404_zon(test_port):
     """Test the zone.get_schedule() method."""
 
@@ -346,7 +346,7 @@ async def test_rq_0404_zon(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_ww_0404_dhw(test_port):
     """Test the dhw.set_schedule() method (uses get_schedule)."""
 
@@ -367,7 +367,7 @@ async def test_ww_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_rf.protocol.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
 async def test_ww_0404_zon(test_port):
     """Test the zone.set_schedule() method (uses get_schedule)."""
 
