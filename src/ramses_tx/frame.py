@@ -96,7 +96,7 @@ class Frame:
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
         except PacketInvalid as exc:  # will be: InvalidAddrSetError
-            raise PacketInvalid(f"Bad frame: invalid address set {exc}")
+            raise PacketInvalid("Bad frame: invalid address set") from exc
 
         if len(self.payload) != int(self.len_) * 2:
             raise PacketInvalid(
@@ -126,7 +126,7 @@ class Frame:
         try:
             return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
         except TypeError as exc:
-            raise PacketInvalid(f"Bad frame: Invalid attrs: {exc}")
+            raise PacketInvalid("Bad frame: Invalid attrs") from exc
 
     def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
@@ -146,7 +146,7 @@ class Frame:
         try:
             self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore[assignment]
         except PacketInvalid as exc:  # will be: InvalidAddrSetError
-            raise PacketInvalid(f"Bad frame: Invalid address set: {exc}")
+            raise PacketInvalid("Bad frame: Invalid address set") from exc
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""

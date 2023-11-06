@@ -229,14 +229,14 @@ class ProtocolContext:
 
         try:
             pkt: Packet = await asyncio.wait_for(fut, timeout)
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
             self.set_state(IsFailed)
             raise exceptions.ProtocolSendFailed(
                 f"{cmd._hdr}: Timeout (outer) has expired"
-            )
+            ) from exc
         except exceptions.ProtocolError as exc:
             self.set_state(IsFailed)
-            raise exceptions.ProtocolSendFailed(str(exc))
+            raise exceptions.ProtocolSendFailed(f"{cmd._hdr}: Other error") from exc
 
         self._ensure_queue_processor()  # because just completed job
         return pkt
@@ -314,7 +314,7 @@ class ProtocolContext:
             except (AssertionError, exceptions.ProtocolFsmError) as exc:  # FIXME
                 msg = f"{self}: Failed to Tx echo {cmd.tx_header}"
                 if num_retries == max_retries:
-                    raise _ProtocolWaitFailed(f"{msg}: {exc}")
+                    raise _ProtocolWaitFailed(f"{msg}: {exc}") from exc
                 _LOGGER.debug(f"{msg} (will retry): {exc}")
                 continue
 
@@ -346,7 +346,7 @@ class ProtocolContext:
             except (AssertionError, exceptions.ProtocolFsmError) as exc:
                 msg = f"{self}: Failed to Rx echo {cmd.tx_header}"
                 if num_retries == max_retries:
-                    raise _ProtocolEchoFailed(f"{msg}: {exc}")
+                    raise _ProtocolEchoFailed(f"{msg}: {exc}") from exc
                 _LOGGER.debug(f"{msg} (will retry): {exc}")
                 continue
 
@@ -361,7 +361,7 @@ class ProtocolContext:
             except (AssertionError, exceptions.ProtocolFsmError) as exc:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
                 if num_retries == max_retries:
-                    raise _ProtocolRplyFailed(f"{msg}: {exc}")
+                    raise _ProtocolRplyFailed(f"{msg}: {exc}") from exc
                 _LOGGER.debug(f"{msg} (will retry): {exc}")
                 continue
 

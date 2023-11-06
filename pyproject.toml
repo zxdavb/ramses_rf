@@ -119,7 +119,7 @@
     # "SIM",  # flake8-simplify
     "UP",  # pyupgrade
   ]
-  ignore = ["B010", "B011", "B904", "E501", "UP009"]
+  ignore = ["B010", "B011", "E501", "UP009"]
   # E501  - Line too long
   # UP009 - UTF-8 encoding declaration is unnecessary
 

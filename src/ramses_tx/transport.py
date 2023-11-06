@@ -700,7 +700,9 @@ async def transport_factory(
             _LOGGER.error(
                 "Failed to open %s (config: %s): %s", ser_name, ser_config, exc
             )
-            raise TransportSerialError(f"Unable to open the serial port: {ser_name}")
+            raise TransportSerialError(
+                f"Unable to open the serial port: {ser_name}"
+            ) from exc
 
         # FTDI on Posix/Linux would be a common environment for this library...
         try:
@@ -747,14 +749,14 @@ async def transport_factory(
     # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
     try:
         await asyncio.wait_for(transport._init_fut, timeout=3)  # signature echo
-    except asyncio.TimeoutError:
-        raise TransportSerialError("Transport did not initialise successfully")
+    except asyncio.TimeoutError as exc:
+        raise TransportSerialError("Transport did not initialise successfully") from exc
 
     # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
     try:
         await asyncio.wait_for(poll_until_connection_made(protocol), timeout=3)
-    except asyncio.TimeoutError:
-        raise TransportSerialError("Transport did not bind to Protocol")
+    except asyncio.TimeoutError as exc:
+        raise TransportSerialError("Transport did not bind to Protocol") from exc
 
     return transport
 

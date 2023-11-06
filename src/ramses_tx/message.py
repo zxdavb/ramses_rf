@@ -284,7 +284,7 @@ class Message:
                 if DEV_MODE and self.src.type != DEV_TYPE_MAP.HGI  # DEX
                 else _LOGGER.exception
             )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
-            raise PacketInvalid(exc)
+            raise PacketInvalid("Bad packet") from exc
 
         except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
             _LOGGER.exception(
@@ -320,7 +320,7 @@ def _check_msg_payload(msg: Message, payload: str) -> None:
     try:
         regex = CODES_SCHEMA[msg.code][msg.verb]
     except KeyError:
-        raise PacketInvalid(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
+        raise PacketInvalid(f"Unknown verb/code pair: {msg.verb}/{msg.code}") from None
 
     if not re_compile_re_match(regex, payload):
         raise PacketPayloadInvalid(f"Payload doesn't match '{regex}': {payload}")

@@ -1033,10 +1033,10 @@ def msg_value(val_seqx: str, val_type: str) -> None | float | int | list | str:
 def _decode_flags(frame: str, data_id: int) -> dict:
     try:
         flag_schema = OPENTHERM_SCHEMA[OPENTHERM_MESSAGES[data_id][FLAGS]]
-    except KeyError:
+    except KeyError as exc:
         raise KeyError(
             f"Invalid data-id: 0x{data_id:02X} ({data_id}): data-id has no flags"
-        )
+        ) from exc
 
     return flag_schema
 

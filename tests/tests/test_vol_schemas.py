@@ -104,7 +104,7 @@ def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
         _test_schema(validator, schema)
     except (vol.MultipleInvalid, yaml.YAMLError) as exc:
         test_schemas_good_failed = True
-        raise TypeError(f"should be valid YAML, but didn't parse OK ({exc}): {schema}")
+        raise TypeError(f"should be valid YAML, but didn't parse OK: {schema}") from exc
 
 
 GATEWAY_BAD = (
