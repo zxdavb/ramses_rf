@@ -12,9 +12,9 @@ import os
 import re
 import shutil
 import sys
+from collections.abc import Callable
 from datetime import datetime as dt
 from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
-from typing import Callable
 
 from .const import __dev_mode__
 from .schemas import SZ_FILE_NAME, SZ_ROTATE_BACKUPS, SZ_ROTATE_BYTES

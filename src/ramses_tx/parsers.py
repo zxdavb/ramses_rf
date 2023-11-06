@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, hex_id_to_dev_id
 from .const import (

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Dict
 
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
 from .exceptions import PacketAddrSetInvalid
@@ -16,13 +15,13 @@ DEV_HVAC = True
 
 DeviceId = str
 
-DEVICE_LOOKUP: Dict[str, str] = {
+DEVICE_LOOKUP: dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
     for k in _DEV_TYPE_MAP.SLUGS
     if k not in (DevType.JIM, DevType.JST)
 }
 DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
-DEV_TYPE_MAP: Dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
+DEV_TYPE_MAP: dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
 
 
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393

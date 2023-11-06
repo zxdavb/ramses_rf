@@ -10,9 +10,10 @@ Helper functions.
 import ctypes
 import sys
 import time
+from collections.abc import Iterable  # typeguard doesn't support PEP604 on 3.9.x
 from datetime import datetime as dt
 from functools import wraps
-from typing import Iterable, Literal  # typeguard doesn't support PEP604 on 3.9.x
+from typing import Literal
 
 from .const import (
     SZ_AIR_QUALITY,

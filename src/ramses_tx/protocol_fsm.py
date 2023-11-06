@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime as dt, timedelta as td
 from enum import IntEnum
 from queue import Empty, Full, PriorityQueue
 from threading import Lock
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from . import Command, exceptions
 from .address import HGI_DEV_ADDR

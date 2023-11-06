@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import functools
 import logging
+from collections.abc import Iterable
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING, Any, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import (

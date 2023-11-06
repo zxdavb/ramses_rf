@@ -5,12 +5,11 @@ exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
-    rev: v0.1.4
+    rev: v0.1.4  # Ruff version
     hooks:
       - id: ruff
-      # - id: ruff-format
-      #   args: [--check]
+      - id: ruff-format
+        args: [--check]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0

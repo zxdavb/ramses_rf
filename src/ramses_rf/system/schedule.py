@@ -9,8 +9,9 @@ import asyncio
 import logging
 import struct
 import zlib
+from collections.abc import Iterable
 from datetime import timedelta as td
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -253,7 +254,7 @@ class Schedule:  # 0404
             self._schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: None}
             return self._schedule
         try:
-            schedule = fragments_to_schedule((frag[SZ_FRAGMENT] for frag in frag_set))
+            schedule = fragments_to_schedule(frag[SZ_FRAGMENT] for frag in frag_set)
         except zlib.error:
             return None
         if self.idx == "HW":

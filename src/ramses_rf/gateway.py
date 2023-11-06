@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from ramses_tx import (
     SZ_ACTIVE_HGI,

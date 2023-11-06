@@ -30,7 +30,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from collections.abc import Iterable
 
     from .device import Message
     from .device.base import Fakeable

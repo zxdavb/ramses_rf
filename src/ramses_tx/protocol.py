@@ -8,10 +8,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
+from collections.abc import Awaitable, Callable
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command

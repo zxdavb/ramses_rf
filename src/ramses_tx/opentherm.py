@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import logging
 import struct
+from collections.abc import Callable
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Callable, Dict
 
 from .const import __dev_mode__
 
@@ -1013,7 +1013,7 @@ def msg_value(val_seqx: str, val_type: str) -> None | float | int | list | str:
         buf = struct.pack(">bB", s8(high_byte), u8(low_byte))
         return int(struct.unpack(">h", buf)[0])
 
-    DATA_TYPES: Dict[str, Callable] = {
+    DATA_TYPES: dict[str, Callable] = {
         FLAG8: flag8,
         U8: u8,
         S8: s8,

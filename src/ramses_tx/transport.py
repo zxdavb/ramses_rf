@@ -44,10 +44,11 @@ import functools
 import logging
 import os
 import re
+from collections.abc import Callable, Iterable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
-from typing import TYPE_CHECKING, Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any
 
 import serial_asyncio
 from serial import Serial, SerialException, serial_for_url  # type: ignore[import]

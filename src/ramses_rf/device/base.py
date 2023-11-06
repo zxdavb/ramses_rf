@@ -8,7 +8,8 @@ Base for all devices.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from ramses_tx.command import _mk_cmd
 from ramses_tx.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
