@@ -7,8 +7,7 @@ from __future__ import annotations
 import logging
 import math
 from asyncio import Future
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from ramses_tx import Address, Command, Message
@@ -500,7 +499,7 @@ class Zone(ZoneSchedule, ZoneBase):
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
-            self._setup_discovery_cmds
+            self._setup_discovery_cmds()
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)

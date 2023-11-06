@@ -10,8 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
 from typing import TYPE_CHECKING, Any

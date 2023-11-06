@@ -16,11 +16,11 @@ from unittest.mock import patch
 import pytest
 from serial import SerialException
 from serial.tools.list_ports import comports
-from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx.exceptions import ProtocolSendFailed
+from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol

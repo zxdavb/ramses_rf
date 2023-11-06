@@ -126,7 +126,7 @@ class AttrDict(dict):
             {
                 k: table.get(self._SZ_AKA_SLUG, slug)
                 for slug, table in main_table.items()
-                for k in table.keys()
+                for k in table
                 if isinstance(k, str) and len(k) == 2
             }  # e.g. {'00': 'TRV', '01': 'CTL', '04': 'TRV', ...}
         )

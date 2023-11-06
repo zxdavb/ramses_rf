@@ -8,6 +8,10 @@ Test the payload parsers and corresponding output (schema, traits, params, statu
 
 from pathlib import Path, PurePath
 
+from ramses_rf import Gateway
+from ramses_rf.helpers import shrink
+from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 from tests.helpers import (
     TEST_DIR,
     assert_expected,
@@ -16,11 +20,6 @@ from tests.helpers import (
     load_test_gwy,
     shuffle_dict,
 )
-
-from ramses_rf import Gateway
-from ramses_rf.helpers import shrink
-from ramses_tx.message import Message
-from ramses_tx.packet import Packet
 
 WORK_DIR = f"{TEST_DIR}/systems"
 

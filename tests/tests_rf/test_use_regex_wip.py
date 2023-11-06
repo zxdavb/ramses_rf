@@ -13,11 +13,11 @@ from unittest.mock import patch
 
 import pytest
 import serial
-from tests_rf.virtual_rf import VirtualRf
 
 from ramses_rf import Command, Gateway, Packet
 from ramses_tx.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_tx.transport import _str
+from tests_rf.virtual_rf import VirtualRf
 
 # patched constants
 _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol

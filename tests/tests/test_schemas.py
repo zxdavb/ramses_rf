@@ -10,12 +10,15 @@ import json
 from pathlib import Path
 
 import pytest
-from tests.helpers import gwy  # noqa: F401
-from tests.helpers import TEST_DIR, shuffle_dict
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import load_schema
+from tests.helpers import (
+    TEST_DIR,
+    gwy,  # noqa: F401
+    shuffle_dict,
+)
 
 WORK_DIR = f"{TEST_DIR}/schemas"
 

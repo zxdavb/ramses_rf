@@ -7,8 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from asyncio import Future
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -1036,7 +1035,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 Code._1100,
                 Code._3B00,
             ):
-                assert False, f"Unexpected code with a domain_id: {msg.code}"
+                assert False, f"Unexpected code with a domain_id: {msg.code}"  # noqa: B011
 
     @property
     def heat_demands(self) -> None | dict:  # 3150

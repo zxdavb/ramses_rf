@@ -13,9 +13,9 @@ import asyncio
 
 import pytest
 import serial
-from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf, rf_factory
 
 from ramses_rf import Code, Command, Device, Gateway
+from tests_rf.virtual_rf import DEFAULT_GWY_CONFIG, VirtualRf, rf_factory
 
 # patched constants
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol

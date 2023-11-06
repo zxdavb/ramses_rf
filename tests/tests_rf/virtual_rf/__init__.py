@@ -10,8 +10,10 @@ from ramses_rf.const import DEV_TYPE_MAP, DevType
 from ramses_rf.schemas import SZ_CLASS, SZ_KNOWN_LIST
 
 from .helpers import ensure_fakeable  # noqa: F401, pylint: disable=unused-import
-from .virtual_rf import HgiFwTypes  # noqa: F401, pylint: disable=unused-import
-from .virtual_rf import VirtualRf
+from .virtual_rf import (
+    HgiFwTypes,  # noqa: F401, pylint: disable=unused-import
+    VirtualRf,
+)
 
 # patched constants
 # _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol

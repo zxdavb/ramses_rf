@@ -8,8 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
 from ramses_tx import Command

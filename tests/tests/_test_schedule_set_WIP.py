@@ -10,10 +10,9 @@ import asyncio
 import json
 import unittest
 
-from tests.helpers import TEST_DIR
-
 from ramses_rf import Gateway
 from ramses_rf.discovery import SET_SCHED, spawn_scripts
+from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 

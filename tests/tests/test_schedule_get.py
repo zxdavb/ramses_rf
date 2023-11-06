@@ -10,8 +10,6 @@ import json
 from copy import deepcopy
 from pathlib import Path, PurePath
 
-from tests.helpers import TEST_DIR, load_test_gwy
-
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.system.schedule import (
@@ -23,6 +21,7 @@ from ramses_rf.system.schedule import (
     fragments_to_schedule,
     schedule_to_fragments,
 )
+from tests.helpers import TEST_DIR, load_test_gwy
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 

@@ -140,7 +140,7 @@ class BindContextBase:
             self._is_respondent = False
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            setattr(self._state, "_prev_state", prev_state)
+            setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
     @property
     def state(self) -> BindStateBase:

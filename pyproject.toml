@@ -39,7 +39,7 @@
   "Bug Tracker" = "https://github.com/zxdavb/ramses_rf/issues"
   "Wiki" = "https://github.com/zxdavb/ramses_rf/wiki"
 
-
+#
 [project.scripts]
   client = "ramses_rf.client:main"
 
@@ -52,7 +52,7 @@
 
 [tool.hatch.build]
   sources = ["src"]
-  artifacts = ["ser2net.yaml",]
+  artifacts = ["misc/ser2net.yaml",]
 
 [tool.hatch.build.targets.wheel]
   packages = ["src/ramses_rf", "src/ramses_tx", "src/ramses_cli"]
@@ -62,27 +62,84 @@
 
 
 #
-###  isort & pytest ##################################################################
+### mypy & pytest ####################################################################
 
-[tool.isort]
-  profile = "black"
-  multi_line_output = 3
+[tool.mypy]
+  # exclude = "tests"
+  files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
+  follow_imports = "skip"  # TODO: don't use this feature
 
+[tool.mypy-tests]
+  ignore_errors = true
 
 [tool.pytest.ini_options]
   asyncio_mode = "auto"
 
 
 #
-###  mypy ############################################################################
+## ruff ##############################################################################
 
-[tool.mypy]
-  # exclude = "tests"
-  files = ["src/ramses_rf"]
-  # follow_imports = "skip"
+[tool.ruff]
+  exclude = ["tests/deprecated/*.py"]
+  src = ["src", "tests"]
+  target-version = "py311"  # Assume Python 3.11
 
-[tool.mypy-tests]
-  ignore_errors = true
+  # # Exclude a variety of commonly ignored directories.
+  # exclude = [
+  #   ".bzr",
+  #   ".direnv",
+  #   ".eggs",
+  #   ".git",
+  #   ".git-rewrite",
+  #   ".hg",
+  #   ".mypy_cache",
+  #   ".nox",
+  #   ".pants.d",
+  #   ".pytype",
+  #   ".ruff_cache",
+  #   ".svn",
+  #   ".tox",
+  #   ".venv",
+  #   "__pypackages__",
+  #   "_build",
+  #   "buck-out",
+  #   "build",
+  #   "dist",
+  #   "node_modules",
+  #   "venv",
+  # ]
+
+
+[tool.ruff.lint]
+  select = [
+    "B",  # flake8-bugbear
+    "E",  # pycodestyle
+    "F",  # Pyflakes
+    "I",  # isort
+    # "SIM",  # flake8-simplify
+    # "UP",  # pyupgrade
+  ]
+  ignore = ["B010", "B011", "B904", "E501", "UP009"]
+  # E501  - Line too long
+  # UP009 - UTF-8 encoding declaration is unnecessary
+
+  # ZXDAVB: TODO: disable this feature
+  # Allow unused variables when underscore-prefixed.
+  # dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+#   # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+#   # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+#   # McCabe complexity (`C901`) by default.
+#   select = ["E4", "E7", "E9", "F"]
+#   ignore = []  # [E203, E501, W503]
+
+#   # Allow fix for all enabled rules (when `--fix`) is provided.
+#   fixable = ["ALL"]
+#   unfixable = []
+
+
+[tool.ruff.lint.isort]
+  combine-as-imports = true  # default is false
 
 
 #
@@ -151,53 +208,3 @@
 
 [tool.pylint.EXCEPTIONS]
   overgeneral-exceptions = "builtins.Exception"
-
-
-
-#
-## ruff ##############################################################################
-
-[tool.ruff]
-  # Assume Python 3.11
-  target-version = "py311"
-
-  # # Exclude a variety of commonly ignored directories.
-  # exclude = [
-  #   ".bzr",
-  #   ".direnv",
-  #   ".eggs",
-  #   ".git",
-  #   ".git-rewrite",
-  #   ".hg",
-  #   ".mypy_cache",
-  #   ".nox",
-  #   ".pants.d",
-  #   ".pytype",
-  #   ".ruff_cache",
-  #   ".svn",
-  #   ".tox",
-  #   ".venv",
-  #   "__pypackages__",
-  #   "_build",
-  #   "buck-out",
-  #   "build",
-  #   "dist",
-  #   "node_modules",
-  #   "venv",
-  # ]
-
-[tool.ruff.lint]
-  # ZXDAVB: TODO: disable this feature
-  # Allow unused variables when underscore-prefixed.
-  dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-#   # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-#   # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
-#   # McCabe complexity (`C901`) by default.
-#   select = ["E4", "E7", "E9", "F"]
-#   ignore = []  # [E203, E501, W503]
-
-#   # Allow fix for all enabled rules (when `--fix`) is provided.
-#   fixable = ["ALL"]
-#   unfixable = []
-

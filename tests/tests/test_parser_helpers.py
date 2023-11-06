@@ -8,8 +8,6 @@ Test the various helper APIs.
 
 # TODO: add test for ramses_tx.frame.pkt_header()
 
-from tests.helpers import TEST_DIR
-
 from ramses_rf.system.zones import _transform
 from ramses_tx.helpers import (
     hex_from_bool,
@@ -26,6 +24,7 @@ from ramses_tx.helpers import (
     hex_to_temp,
 )
 from ramses_tx.packet import Packet
+from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/parser_helpers"
 

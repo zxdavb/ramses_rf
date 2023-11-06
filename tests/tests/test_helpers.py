@@ -8,11 +8,10 @@ Test the various helper APIs.
 
 # TODO: add test for ramses_tx.frame.pkt_header()
 
-from tests.helpers import assert_raises
-
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.helpers import merge
 from ramses_tx.const import attr_dict_factory
+from tests.helpers import assert_raises
 
 
 def test_merge_dicts() -> None:
@@ -87,9 +86,9 @@ def test_attrdict_class() -> None:
     assert_raises(KeyError, DEV_ROLE_MAP.slug, None)
 
     assert (
-        "HTG" not in DEV_ROLE_MAP.keys()
-        and "0E" in DEV_ROLE_MAP.keys()
-        and "heating_relay" not in DEV_ROLE_MAP.keys()
+        "HTG" not in DEV_ROLE_MAP
+        and "0E" in DEV_ROLE_MAP
+        and "heating_relay" not in DEV_ROLE_MAP
     )
     assert (
         "DHW" not in DEV_ROLE_MAP.values()

@@ -59,7 +59,6 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
-from .helpers import shrink
 
 # from .system import _SystemT  # circular import
 
@@ -377,19 +376,19 @@ def load_tcs(gwy, ctl_id: str, schema: dict) -> Any:  # System
     ctl = _get_device(gwy, ctl_id)
     ctl.tcs._update_schema(**schema)  # TODO
 
-    for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
+    for dev_id in schema.get(SZ_UFH_SYSTEM, {}):  # UFH controllers
         _get_device(gwy, dev_id, parent=ctl.tcs)  # , **_schema)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, parent=ctl)
 
-    if False and DEV_MODE:
-        import json
+    # if DEV_MODE:
+    #     import json
 
-        src = json.dumps(shrink(schema), sort_keys=True)
-        dst = json.dumps(shrink(gwy.system_by_id[ctl.id].schema), sort_keys=True)
-        # assert dst == src, "They don't match!"
-        print(src)
-        print(dst)
+    #     src = json.dumps(shrink(schema), sort_keys=True)
+    #     dst = json.dumps(shrink(gwy.system_by_id[ctl.id].schema), sort_keys=True)
+    #     # assert dst == src, "They don't match!"
+    #     print(src)
+    #     print(dst)
 
     return ctl.tcs

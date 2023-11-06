@@ -8,8 +8,7 @@ Decode/process a packet (packet that was received).
 from __future__ import annotations
 
 import logging
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
 from .const import __dev_mode__

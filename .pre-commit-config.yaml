@@ -9,14 +9,8 @@ repos:
     rev: v0.1.4
     hooks:
       - id: ruff
-      - id: ruff-format
-        args: [--check]
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        args: ["--profile", "black", "--filter-files"]
+      # - id: ruff-format
+      #   args: [--check]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0

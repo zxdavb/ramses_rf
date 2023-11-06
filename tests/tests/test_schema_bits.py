@@ -7,7 +7,6 @@ Test the Schema processor.
 """
 
 import voluptuous as vol  # type: ignore[import]
-from tests.helpers import assert_raises
 
 from ramses_rf.schemas import (
     SCH_TCS_DHW,
@@ -18,6 +17,7 @@ from ramses_rf.schemas import (
     SZ_HTG_VALVE,
     SZ_SENSOR,
 )
+from tests.helpers import assert_raises
 
 
 def test_dhw_schema():

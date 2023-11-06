@@ -354,10 +354,10 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
         schema = shrink(SCH_VCS(schema))
 
-        for dev_id in schema.get(SZ_REMOTES, {}).keys():
+        for dev_id in schema.get(SZ_REMOTES, {}):
             self._gwy.get_device(self._gwy, dev_id)
 
-        for dev_id in schema.get(SZ_SENSORS, {}).keys():
+        for dev_id in schema.get(SZ_SENSORS, {}):
             self._gwy.get_device(self._gwy, dev_id)
 
     def _setup_discovery_cmds(self) -> None:

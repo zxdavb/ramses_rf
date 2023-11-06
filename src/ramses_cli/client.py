@@ -10,8 +10,7 @@ import logging
 import sys
 
 import click
-from colorama import Fore, Style
-from colorama import init as colorama_init
+from colorama import Fore, Style, init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit, Message, RamsesException
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
@@ -490,7 +489,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
             print(f"{Style.BRIGHT}{Fore.YELLOW}{dtm} {msg}"[:con_cols])
         elif msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
-        elif msg.code == Code._1F09 and msg.verb == I_:
+        elif msg.code == Code._1F09 and msg.verb == I_:  # noqa: SIM114
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
         elif msg.code in (Code._000A, Code._2309, Code._30C9) and msg._has_array:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])

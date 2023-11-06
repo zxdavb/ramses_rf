@@ -8,10 +8,9 @@ Test the Schema processor.
 
 from pathlib import Path, PurePath
 
-from tests.helpers import TEST_DIR  # noqa: F401
-
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
+from tests.helpers import TEST_DIR  # noqa: F401
 
 WORK_DIR = f"{TEST_DIR}/logs"
 

@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import functools
 import logging
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, Iterable, TypeVar
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
@@ -32,7 +31,6 @@ from .const import (
     __dev_mode__,
 )
 from .frame import Frame, pkt_header
-from .helpers import typechecked  # typeguard doesn't support PEP604 on 3.9.x
 from .helpers import (
     dt_now,
     hex_from_double,
@@ -41,6 +39,7 @@ from .helpers import (
     hex_from_temp,
     hex_to_bool,
     timestamp,
+    typechecked,  # typeguard doesn't support PEP604 on 3.9.x
 )
 from .opentherm import parity
 from .parsers import LOOKUP_PUZZ

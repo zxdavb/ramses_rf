@@ -8,11 +8,10 @@ Test the payload parsers on a per-device basis.
 
 from pathlib import Path, PurePath
 
-from tests.helpers import TEST_DIR
-
 from ramses_tx import exceptions
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
+from tests.helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/devices"
 

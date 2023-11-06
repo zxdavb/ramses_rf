@@ -9,9 +9,8 @@ Test eavesdropping of a device class.
 import json
 from pathlib import Path, PurePath
 
-from tests.helpers import TEST_DIR, assert_expected, shuffle_dict
-
 from ramses_rf import Gateway
+from tests.helpers import TEST_DIR, assert_expected, shuffle_dict
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_schema"
 

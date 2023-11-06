@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import datetime as dt, timedelta as td
 from enum import IntEnum
 from queue import Empty, Full, PriorityQueue
 from threading import Lock
@@ -131,7 +130,7 @@ class ProtocolContext:
         if prev_state:
             prev_state._next_state = self._state  # used to detect transitions
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
-            setattr(self._state, "_prev_state", prev_state)
+            setattr(self._state, "_prev_state", prev_state)  # noqa: B010
         # TODO: release lock
 
         if isinstance(self._state, (IsInIdle, IsFailed)):

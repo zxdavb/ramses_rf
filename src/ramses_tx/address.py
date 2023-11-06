@@ -7,8 +7,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Dict
 
-from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP
-from .const import DEVICE_ID_REGEX, DevType, __dev_mode__
+from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
 from .exceptions import PacketAddrSetInvalid
 from .helpers import typechecked  # type: ignore[import-error]
 
