@@ -271,8 +271,7 @@ SCH_GLOBAL_CONFIG = (
     vol.Schema(
         {
             # Gateway/engine Configuraton, incl. packet_log, serial_port params...
-            vol.Optional(SZ_CONFIG, default={}): SCH_GATEWAY_DICT
-            | SCH_ENGINE_DICT
+            vol.Optional(SZ_CONFIG, default={}): SCH_GATEWAY_DICT | SCH_ENGINE_DICT
         },
         extra=vol.PREVENT_EXTRA,
     )

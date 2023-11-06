@@ -474,9 +474,7 @@ def parse_air_quality(value: HexStr4) -> dict[str, None | float | str]:
         "10": "voc",  # volatile compounds
         "20": "co2",  # carbdon dioxide
         "40": "rel_humidity",  # relative humidity
-    }.get(
-        value[2:], f"unknown_{value[2:]}"
-    )  # TODO: remove get/unknown
+    }.get(value[2:], f"unknown_{value[2:]}")  # TODO: remove get/unknown
 
     return {SZ_AIR_QUALITY: level, SZ_AIR_QUALITY_BASIS: basis}
 

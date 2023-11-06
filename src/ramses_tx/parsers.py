@@ -1603,25 +1603,19 @@ def parser_22f3(payload: str, msg: Message) -> dict:
         0x00: "fan_boost",  # #    set fan off, or 'boost' mode?
         0x01: "per_request",  # #  set fan as per payload[6:10]?
         0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(
-        int(payload[2:4], 0x10) & 0x07
-    )  # 0b0000-0111
+    }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
     fallback_speed = {  # after timer expiry
         0x08: "fan_off",  # #      set fan off?
         0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
         0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(
-        int(payload[2:4], 0x10) & 0x38
-    )  # 0b0011-1000
+    }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
 
     units = {
         0x00: "minutes",
         0x40: "hours",
         0x80: "index",  # TODO: days, day-of-week, day-of-month?
-    }.get(
-        int(payload[2:4], 0x10) & 0xC0
-    )  # 0b1100-0000
+    }.get(int(payload[2:4], 0x10) & 0xC0)  # 0b1100-0000
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
 
@@ -2402,9 +2396,7 @@ def parser_3b00(payload: str, msg: Message) -> dict:
         DEV_TYPE_MAP.CTL: FC,
         DEV_TYPE_MAP.BDR: "00",
         DEV_TYPE_MAP.PRG: FC,
-    }.get(
-        msg.src.type, "00"
-    )  # DEX
+    }.get(msg.src.type, "00")  # DEX
     assert payload[2:] == "C8", payload[2:]  # Could it be a percentage?
 
     return {
@@ -2619,7 +2611,9 @@ def parser_4e01(payload: str, msg: Message) -> dict:
     num_groups = int((msg.len - 2) / 2)  # e.g. (18 - 2) / 2
     assert (
         num_groups * 2 == msg.len - 2
-    ), _INFORM_DEV_MSG  # num_groups: len 018 (8-group, 2+8*4), or 026 (12-group, 2+12*4)
+    ), (
+        _INFORM_DEV_MSG
+    )  # num_groups: len 018 (8-group, 2+8*4), or 026 (12-group, 2+12*4)
 
     x, y = 0, 2 + num_groups * 4
 
@@ -2639,7 +2633,9 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
     num_groups = int((msg.len - 2) / 4)  # e.g. (34 - 2) / 4
     assert (
         num_groups * 4 == msg.len - 2
-    ), _INFORM_DEV_MSG  # num_groups: len 034 (8-group, 2+8*4), or 050 (12-group, 2+12*4)
+    ), (
+        _INFORM_DEV_MSG
+    )  # num_groups: len 034 (8-group, 2+8*4), or 050 (12-group, 2+12*4)
 
     x, y = 0, 2 + num_groups * 4
 

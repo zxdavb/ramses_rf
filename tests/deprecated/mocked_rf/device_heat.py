@@ -597,8 +597,8 @@ class MockDeviceCtl(MockDeviceBase):
 
     def _make_0005(self, context: str) -> None | Command:
         def is_type(idx, zone_type):
-            return zones.get(f"{idx:02X}", {}).get(SZ_CLASS) == (
-                ZON_ROLE_MAP[zone_type]
+            return (
+                zones.get(f"{idx:02X}", {}).get(SZ_CLASS) == (ZON_ROLE_MAP[zone_type])
             )
 
         zone_type = context[2:]

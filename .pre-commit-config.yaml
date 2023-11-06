@@ -4,27 +4,13 @@
 exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
 
 repos:
-  - repo: https://github.com/psf/black
-    rev: 23.1.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.1.4
     hooks:
-      - id: black
-        args: ["--safe", "--quiet"]
-        # files: ^(ramses.*/.+)?[^/]+\.py$
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-        additional_dependencies:
-          - pycodestyle==2.10.0
-          - pyflakes==3.0.1
-          - flake8-docstrings==1.6.0
-          - pydocstyle==6.2.3
-          # - flake8-comprehensions==3.10.1
-          - flake8-noqa==1.3.0
-          - mccabe==0.7.0
-        # files: ^ramses.*/.+\.py$
-        # exclude: ^ramses.*/tests\.py$
+      - id: ruff
+      - id: ruff-format
+        args: [--check]
 
   - repo: https://github.com/pycqa/isort
     rev: 5.12.0
@@ -37,17 +23,3 @@ repos:
     hooks:
     - id: python-check-blanket-noqa
     - id: python-check-blanket-type-ignore
-
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v0.961
-  #   hooks:
-  #   - id: mypy
-  #     files: ramses_rf/const.py
-
-  # - repo: local
-  #   hooks:
-  #     - id: pylint
-  #       name: pylint
-  #       entry: pylint
-  #       language: python
-  #       types: [python]

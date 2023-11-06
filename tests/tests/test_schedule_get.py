@@ -79,6 +79,6 @@ async def test_schedule_helpers(dir_name):
 
     # the schedule code relies upon the following inequality...
     # i.e. if the schedule has changed, then the first fragment will be different
-    assert schedule_to_fragments(new_schedule)[0] != (
-        schedule_to_fragments(schedule)[0]
+    assert (
+        schedule_to_fragments(new_schedule)[0] != (schedule_to_fragments(schedule)[0])
     )

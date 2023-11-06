@@ -556,8 +556,9 @@ class Zone(ZoneSchedule, ZoneBase):
         ):
             _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
-        if self._discovery_cmds.get(f"{self.idx}{ZON_ROLE_MAP.VAL}") and (
-            self._discovery_cmds[f"{self.idx}{ZON_ROLE_MAP.ELE}"]
+        if (
+            self._discovery_cmds.get(f"{self.idx}{ZON_ROLE_MAP.VAL}")
+            and (self._discovery_cmds[f"{self.idx}{ZON_ROLE_MAP.ELE}"])
         ):
             _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
