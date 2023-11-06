@@ -387,7 +387,7 @@ def hex_from_temp(value: float) -> HexStr4:
         return "7FFF"  # or: "31FF"?
     if value is False:
         return "7EFF"
-    if not isinstance(value, (float, int)):
+    if not isinstance(value, float | int):
         raise TypeError(f"Invalid temp: {value} is not a float")
     # if not -(2**7) <= value < 2**7:  # TODO: tighten range
     #     raise ValueError(f"Invalid temp: {value} is out of range")

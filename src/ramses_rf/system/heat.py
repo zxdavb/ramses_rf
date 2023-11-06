@@ -224,7 +224,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
             elif this.code == Code._3EF0 and this.verb == RQ:
                 if this.src is self.ctl and isinstance(
-                    this.dst, (BdrSwitch, OtbGateway)
+                    this.dst, BdrSwitch | OtbGateway
                 ):
                     app_cntrl = this.dst
 

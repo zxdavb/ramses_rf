@@ -622,7 +622,7 @@ class Command(Frame):
 
         if mode == ZON_MODE_MAP.FOLLOW:
             active = None
-        if active is not None and not isinstance(active, (bool, int)):
+        if active is not None and not isinstance(active, bool | int):
             raise TypeError(f"Invalid args: active={active}, but must be an bool")
 
         until, duration = _normalise_until(mode, active, until, duration)
@@ -1083,7 +1083,7 @@ class Command(Frame):
 
         mode = _normalise_mode(mode, setpoint, until, duration)
 
-        if setpoint is not None and not isinstance(setpoint, (float, int)):
+        if setpoint is not None and not isinstance(setpoint, float | int):
             raise TypeError(f"Invalid args: setpoint={setpoint}, but must be a float")
 
         until, duration = _normalise_until(mode, setpoint, until, duration)

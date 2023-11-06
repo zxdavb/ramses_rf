@@ -239,7 +239,7 @@ class _MessageDB(_Entity):
         return None
 
     def _msg_value(self, code: Code, *args, **kwargs):
-        if isinstance(code, (str, tuple)):  # a code or a tuple of codes
+        if isinstance(code, str | tuple):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
@@ -665,7 +665,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         if hasattr(self, "childs") and child not in self.childs:  # Any parent
             assert isinstance(
-                self, (System, Zone, DhwZone, UfhController)
+                self, System | Zone | DhwZone | UfhController
             )  # TODO: remove me
 
         if is_sensor and child_id == FA:  # DHW zone (sensor)
@@ -698,7 +698,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif hasattr(self, SZ_ACTUATORS):  # HTG zone
             assert isinstance(self, Zone)  # TODO: remove me
-            assert isinstance(child, (BdrSwitch, UfhCircuit, TrvActuator)), (
+            assert isinstance(child, BdrSwitch | UfhCircuit | TrvActuator), (
                 "what" if True else "why"
             )
             if child not in self.actuators:
@@ -725,7 +725,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif child_id == FC:  # Appliance Controller
             assert isinstance(self, System)  # TODO: remove me
-            assert isinstance(child, (BdrSwitch, OtbGateway))
+            assert isinstance(child, BdrSwitch | OtbGateway)
             if self._app_cntrl and self._app_cntrl is not child:
                 raise SystemSchemaInconsistent(
                     f"{self} changed app_cntrl (from {self._app_cntrl} to {child})"
@@ -734,7 +734,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif child_id == FF:  # System
             assert isinstance(self, System)  # TODO: remove me?
-            assert isinstance(child, (UfhController, OutSensor))
+            assert isinstance(child, UfhController | OutSensor)
             pass
 
         else:
@@ -800,8 +800,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         super()._handle_msg(msg)
 
         if not self._gwy.config.enable_eavesdrop or (
-            msg.src is msg.dst
-            or not isinstance(msg.dst, (Controller,))  # UfhController))
+            msg.src is msg.dst or not isinstance(msg.dst, Controller)  # UfhController))
         ):
             return
 

@@ -134,7 +134,7 @@ class ProtocolContext:
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
         # TODO: release lock
 
-        if isinstance(self._state, (IsInIdle, IsFailed)):
+        if isinstance(self._state, IsInIdle | IsFailed):
             self._ensure_queue_processor()  # because just became Idle
 
     @property
@@ -423,7 +423,7 @@ class _ProtocolStateBase:
             assert self.active_cmd is not None
             return f"{cls}(rx_hdr={self.active_cmd.rx_header}, sends={self.num_sends})"
 
-        if isinstance(self, (WantEcho, IsFailed)):
+        if isinstance(self, WantEcho | IsFailed):
             assert self.active_cmd is not None
             return f"{cls}(tx_hdr={self.active_cmd.tx_header}, sends={self.num_sends})"
 

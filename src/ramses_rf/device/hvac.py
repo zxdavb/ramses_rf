@@ -8,7 +8,7 @@ HVAC devices.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ramses_tx import Address, Command, Message, Packet
 from ramses_tx.const import SZ_BINDINGS
@@ -214,7 +214,7 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
         )
 
     @property
-    def filter_remaining(self) -> Optional[int]:
+    def filter_remaining(self) -> int | None:
         return self._msg_value(Code._10D0, key="days_remaining")
 
 
@@ -310,7 +310,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         return self._msg_value(Code._22F1, key=FAN_MODE)
 
     @property
-    def boost_timer(self) -> Optional[int]:
+    def boost_timer(self) -> int | None:
         return self._msg_value(Code._22F3, key=SZ_BOOST_TIMER)
 
     @property
@@ -395,11 +395,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(Code._31DA, key=SZ_AIR_QUALITY_BASIS)
 
     @property
-    def bypass_position(self) -> Optional[int]:
+    def bypass_position(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_BYPASS_POSITION)
 
     @property
-    def co2_level(self) -> Optional[int]:
+    def co2_level(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_CO2_LEVEL)
 
     @property
@@ -435,19 +435,19 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(Code._31DA, key=SZ_OUTDOOR_TEMP)
 
     @property
-    def post_heat(self) -> Optional[int]:
+    def post_heat(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_POST_HEAT)
 
     @property
-    def pre_heat(self) -> Optional[int]:
+    def pre_heat(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_PRE_HEAT)
 
     @property
-    def remaining_time(self) -> Optional[int]:
+    def remaining_time(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_REMAINING_MINS)
 
     @property
-    def speed_cap(self) -> Optional[int]:
+    def speed_cap(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_SPEED_CAP)
 
     @property

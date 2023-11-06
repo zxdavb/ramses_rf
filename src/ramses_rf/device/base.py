@@ -35,7 +35,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from typing import Any, Optional
+    from typing import Any
 
     from .. import Gateway
     from . import Address, Message
@@ -248,7 +248,7 @@ class BatteryState(DeviceBase):  # 1060
         return self._msg_value(Code._1060, key=self.BATTERY_LOW)
 
     @property
-    def battery_state(self) -> Optional[dict]:  # 1060
+    def battery_state(self) -> dict | None:  # 1060
         if self._faked:
             return None
         return self._msg_value(Code._1060)
@@ -274,7 +274,7 @@ class DeviceInfo(DeviceBase):  # 10E0
             )
 
     @property
-    def device_info(self) -> Optional[dict]:  # 10E0
+    def device_info(self) -> dict | None:  # 10E0
         return self._msg_value(Code._10E0)
 
     @property
@@ -552,7 +552,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
         return False
 
     @property
-    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+    def zone(self) -> Entity | None:  # should be: Optional[Zone]
         """Return the device's parent zone, if known."""
 
         return self._parent

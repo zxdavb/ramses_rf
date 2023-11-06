@@ -117,7 +117,7 @@
     "F",  # Pyflakes
     "I",  # isort
     # "SIM",  # flake8-simplify
-    # "UP",  # pyupgrade
+    "UP",  # pyupgrade
   ]
   ignore = ["B010", "B011", "B904", "E501", "UP009"]
   # E501  - Line too long

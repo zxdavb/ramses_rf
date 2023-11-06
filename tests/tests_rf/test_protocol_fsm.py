@@ -153,7 +153,7 @@ def assert_protocol_state_detail(
 ) -> None:
     assert protocol._context.state.is_active_cmd(cmd)
     assert protocol._context.state.num_sends == num_sends
-    assert bool(cmd) is isinstance(protocol._context.state, (WantEcho, WantRply))
+    assert bool(cmd) is isinstance(protocol._context.state, WantEcho | WantRply)
 
 
 async def async_pkt_received(

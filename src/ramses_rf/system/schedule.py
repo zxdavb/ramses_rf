@@ -391,7 +391,7 @@ def fragments_to_schedule(fragments: Iterable) -> dict:
             old_day, switchpoints = day, []
         switchpoints.append(
             {
-                TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
+                TIME_OF_DAY: "{:02d}:{:02d}".format(*divmod(time, 60)),
                 **(
                     {ENABLED: bool(temp)}
                     if temp in (0, 1)
