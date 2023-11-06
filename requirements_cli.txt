@@ -1,9 +1,8 @@
-# last checked/updated: 2023/03/05
+# last checked/updated: 2023/11/06 (based on HA 2023.11.1)
 #
 
 # for using the library
   -r requirements.txt
 
 # for using the the library via the CLI, client.py
-  click>=8.1.3
-  colorama>=0.4.6  # if Windows
+  click>=8.1.7

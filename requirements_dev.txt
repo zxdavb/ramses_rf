@@ -1,29 +1,28 @@
-# last checked/updated: 2023/04/23 (based on HA 2023.8.3)
+# last checked/updated: 2023/11/05 (based on HA 2023.11.1)
 #
 
 # for using the library
-  -r requirements.txt
+# -r requirements.txt
 
-# for using the the library via the CLI, client.py
+# for using the the library via the CLI, client.py (includes requirements.txt)
   -r requirements_cli.txt
 
 # used for development
-  black >= 23.7.0
-  flake8 >= 6.1.0  # pyflakes, pycodestyle
+  black >= 23.10.0
   isort >= 5.12.0
-  mypy >= 1.5.1
-  pre-commit >= 3.3.0
+  mypy >= 1.6.1
+  pre-commit >= 3.5.0
+  ruff >= 0.1.1
 
 # used for testing at runtime
-  debugpy >= 1.6.7
-  typeguard >= 4.1.2  # is optional
+  debugpy >= 1.8.0
+  typeguard >= 4.1.5  # optional, is not core HA
 
 # used for testing
-  pytest >= 7.4.0
-  pytest-asyncio >= 0.21.1
+  pytest >= 7.4.3
+  pytest-asyncio >= 0.21.0
   pytest-xdist >= 3.3.1
 
-# used for build/publish
-# setuptools >= 67.4.0
-# twine >= 4.0.2
-# wheel >= 0.38.4
+# used for build/deply
+  hatch >= 1.7.0  # is not core HA
+  hatchling >= 1.18.0  # is not core HA

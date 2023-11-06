@@ -40,6 +40,9 @@
   "Wiki" = "https://github.com/zxdavb/ramses_rf/wiki"
 
 
+# [project.scripts]
+#   client = "ramses_rf.client:main"
+
 #
 ### build-system #####################################################################
 
