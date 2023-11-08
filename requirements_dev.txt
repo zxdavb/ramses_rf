@@ -20,7 +20,6 @@
   debugpy >= 1.8.0
   typeguard >= 4.1.5  # optional, is not core HA
 
-# used for build/deply
+# used for build/deploy
   hatch >= 1.7.0  # is not core HA
   hatchling >= 1.18.0  # is not core HA
-  
