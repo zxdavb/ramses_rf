@@ -1,11 +1,11 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb
+# last updated 2023-11-10
 
-# files: ^(ramses.*/.+)?[^/]+\.py$
 exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.4  # Ruff version
+    rev: v0.1.4
     hooks:
       - id: ruff
       - id: ruff-format
