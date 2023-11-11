@@ -129,7 +129,9 @@ def timestamp() -> float:
     """Return the number of seconds since the Unix epoch.
 
     Return an accurate value, even for Windows-based systems.
-    """  # see: https://www.python.org/dev/peps/pep-0564/
+    """
+
+    # see: https://www.python.org/dev/peps/pep-0564/
     if sys.platform != "win32":  # since 1970-01-01T00:00:00Z, time.gmtime(0)
         return time.time_ns() / 1e9  # type: ignore[unreachable]
 
