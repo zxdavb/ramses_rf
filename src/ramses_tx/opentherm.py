@@ -4,19 +4,10 @@
 """RAMSES RF - Opentherm processor."""
 from __future__ import annotations
 
-import logging
 import struct
 from collections.abc import Callable
 from datetime import timedelta as td
 from types import SimpleNamespace
-
-from .const import __dev_mode__
-
-DEV_MODE = __dev_mode__ and False
-
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 # R8810A/R8820A-specific msg_ids, as used by Packet (pkt_timeout) & OtbGateway classes
 SCHEMA_MSG_IDS: tuple = (

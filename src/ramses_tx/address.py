@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
 from .exceptions import PacketAddrSetInvalid
-from .helpers import typechecked  # type: ignore[import-error]
+from .helpers import typechecked
 
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
@@ -73,7 +73,7 @@ class Address:
 
         return isinstance(value, str) and (
             value == NON_DEVICE_ID or DEVICE_ID_REGEX.ANY.match(value)
-        )  # type: ignore[return-value]
+        )
 
     @classmethod
     def _friendly(cls, device_id: DeviceId) -> str:

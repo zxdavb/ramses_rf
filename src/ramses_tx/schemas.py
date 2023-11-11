@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from io import TextIOWrapper
 
-import voluptuous as vol  # type: ignore[import]
+import voluptuous as vol  # type: ignore[import-untyped]
 
 from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
 
@@ -66,13 +66,6 @@ def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
             ),
         )
     }
-
-
-def OUT_extract_packet_source(pkt_source_dict: dict) -> tuple[str, dict]:
-    """Extract a pkt source, source_config_dict tuple from a sch_packet_source_dict."""
-    source_name = pkt_source_dict.get(SZ_INPUT_FILE)
-    source_config = {k: v for k, v in pkt_source_dict.items() if k != SZ_INPUT_FILE}
-    return source_name, source_config
 
 
 #

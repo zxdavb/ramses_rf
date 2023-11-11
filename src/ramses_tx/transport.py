@@ -50,9 +50,13 @@ from io import TextIOWrapper
 from string import printable
 from typing import TYPE_CHECKING, Any
 
-import serial_asyncio
-from serial import Serial, SerialException, serial_for_url  # type: ignore[import]
-from serial.tools.list_ports import comports  # type: ignore[import]
+import serial_asyncio  # type: ignore[import-untyped]
+from serial import (  # type: ignore[import-untyped]
+    Serial,
+    SerialException,
+    serial_for_url,
+)
+from serial.tools.list_ports import comports  # type: ignore[import-untyped]
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
@@ -171,7 +175,7 @@ class _PktMixin:
         # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
         # NOTE: Thus, excepts need checking
         try:  # below could be a call_soon?
-            self._protocol.pkt_received(pkt)  # type: ignore[attr-defined]
+            self._protocol.pkt_received(pkt)
         except AssertionError as exc:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
@@ -288,7 +292,7 @@ class _RegHackMixin:
     def __init__(self, *args, use_regex: None | dict = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        use_regex: dict = use_regex or {}
+        use_regex = use_regex or {}
 
         self.__inbound_rule = use_regex.get(SZ_INBOUND, {})
         self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
@@ -312,10 +316,10 @@ class _RegHackMixin:
         return result
 
     def _frame_received(self, dtm: str, frame: str) -> None:
-        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))
+        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
 
     def _send_frame(self, frame: str) -> None:
-        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))
+        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
 class _FileTransport(_PktMixin, asyncio.ReadTransport):
@@ -353,7 +357,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
             pass
 
         try:
-            return self._this_pkt.dtm
+            return self._this_pkt.dtm  # type: ignore[union-attr]
         except AttributeError:
             return dt(1970, 1, 1, 1, 0)
 
@@ -615,7 +619,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
         Return None if it's not possible to tell (effectively assume is evofw3).
         """
 
-        vid: int = {x.device: x.vid for x in comports()}.get(serial_port)
+        vid = {x.device: x.vid for x in comports()}.get(serial_port)
 
         if vid and vid == 0x10AC:  # aka Honeywell, Inc.
             _LOGGER.debug(f"{serial_port}: is HGI80-compatible (by VID)")

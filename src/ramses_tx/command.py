@@ -343,7 +343,7 @@ class Command(Frame):
     def _from_attrs(
         cls,
         verb: str | Verb,
-        code: Code,
+        code: str | Code,
         payload: _PayloadT,
         *,
         addr0=None,

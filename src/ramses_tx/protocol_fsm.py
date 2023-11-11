@@ -433,7 +433,7 @@ class _ProtocolStateBase:
 
     def is_active_cmd(self, cmd: Command) -> bool:
         """Return True if this cmd is the active cmd."""
-        return cmd and cmd is self.active_cmd
+        return bool(cmd and cmd is self.active_cmd)
 
     def made_connection(self, transport: _TransportT) -> None:
         """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""

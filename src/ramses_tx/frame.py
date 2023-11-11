@@ -86,13 +86,13 @@ class Frame:
 
         self.verb: Verb = frame[:2]  # type: ignore[assignment]
         self.seqn: str = fields[1]  # frame[3:6]
-        self.code: Code = fields[5]  # frame[37:41]
+        self.code: Code | str = fields[5]  # frame[37:41]  FIXME: use Code, not str
         self.len_: str = fields[6]  # frame[42:45]  FIXME: len_, _len & len(payload)/2
         self.payload: _PayloadT = fields[7]  # frame[46:].split(" ")[0]
         self._len: int = int(len(self.payload) / 2)
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
+            self.src, self.dst, *self._addrs = pkt_addrs(
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
         except PacketInvalid as exc:  # will be: InvalidAddrSetError
@@ -144,7 +144,7 @@ class Frame:
             return
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])  # type: ignore[assignment]
+            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
         except PacketInvalid as exc:  # will be: InvalidAddrSetError
             raise PacketInvalid("Bad frame: Invalid address set") from exc
 

@@ -203,7 +203,7 @@ def pkt_lifespan(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
     # if pkt.code in (Code._3B00, Code._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
 
-    if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:
-        return CODES_SCHEMA[pkt.code][EXPIRES]
+    if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:  # type: ignore[call-overload]
+        return CODES_SCHEMA[pkt.code][EXPIRES]  # type: ignore[index]
 
     return _TD_MINUTES_060

@@ -4,11 +4,10 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 from __future__ import annotations
 
-import logging
 from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
-from .const import SZ_NAME, DevType, __dev_mode__
+from .const import SZ_NAME, DevType
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -23,11 +22,8 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = False
 
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 RQ_NULL = "rq_null"
 EXPIRES = "expires"
@@ -752,7 +748,7 @@ CODE_IDX_DOMAIN: dict[Code, str] = {
     Code._3B00: "^FC",
 }
 
-if DEV_MODE:
+if DEV_MODE:  # type: ignore[unreachable]
     CODE_IDX_COMPLEX.sort()
     CODE_IDX_SIMPLE.sort()
     CODE_IDX_NONE.sort()

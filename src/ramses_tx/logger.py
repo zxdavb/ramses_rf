@@ -102,11 +102,11 @@ class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
         if rv.msg:
             rv.msg = f" < {rv.msg}"
 
-        if getattr(rv, "error_text", None):
-            rv.error_text = f" * {rv.error_text}"
+        if value := getattr(rv, "error_text", None):  # HACK
+            setattr(rv, "error_text", f" * {value}")
 
-        if getattr(rv, "comment", None):
-            rv.comment = f" # {rv.comment}"
+        if value := getattr(rv, "comment", None):  # HACK
+            setattr(rv, "comment", f" # {value}")
 
         return rv
 
@@ -132,7 +132,7 @@ class _Formatter:  # format asctime with configurable precision
         return result[: precision - 6] if -1 <= precision < 6 else result
 
 
-class ColoredFormatter(_Formatter, colorlog.ColoredFormatter):  # type: ignore[misc]
+class ColoredFormatter(_Formatter, colorlog.ColoredFormatter):
     pass
 
 
@@ -208,14 +208,15 @@ def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
     if name is None or not pkt_log:
         return logging.getLogger(name)
 
-    logging._acquireLock()  # So no-one else uses our Logger class
+    # Acquire lock, so no-one else uses our Logger class
+    logging._acquireLock()  # type: ignore[attr-defined]
     klass = logging.getLoggerClass()
     logging.setLoggerClass(_Logger)
 
     logger = logging.getLogger(name)
 
     logging.setLoggerClass(klass)
-    logging._releaseLock()
+    logging._releaseLock()  # type: ignore[attr-defined]
 
     return logger
 

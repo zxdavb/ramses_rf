@@ -82,14 +82,14 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
-def _alt_slugify_string(key: str) -> str:
-    """Convert a string to snake_case."""
-    string = re.sub(r"[\-\.\s]", "_", str(key))
-    return (string[0]).lower() + re.sub(
-        r"[A-Z]",
-        lambda matched: f"_{matched.group(0).lower()}",
-        string[1:],  # type: ignore[str-bytes-safe]
-    )
+# def OUT_alt_slugify_string(key: str) -> str:
+#     """Convert a string to snake_case."""
+#     string = re.sub(r"[\-\.\s]", "_", str(key))
+#     return (string[0]).lower() + re.sub(
+#         r"[A-Z]",
+#         lambda matched: f"_{matched.group(0).lower()}",
+#         string[1:],
+#     )
 
 
 class AttrDict(dict):
@@ -101,13 +101,13 @@ class AttrDict(dict):
     def __readonly(cls, *args, **kwargs):
         raise TypeError(f"'{cls.__class__.__name__}' object is read only")
 
-    __delitem__ = __readonly  # type:ignore[assignment]
-    __setitem__ = __readonly  # type:ignore[assignment]
-    clear = __readonly  # type:ignore[assignment]
-    pop = __readonly  # type:ignore[assignment]
-    popitem = __readonly  # type:ignore[assignment]
-    setdefault = __readonly  # type:ignore[assignment]
-    update = __readonly  # type:ignore[assignment]
+    __delitem__ = __readonly
+    __setitem__ = __readonly
+    clear = __readonly
+    pop = __readonly  # type: ignore[assignment]
+    popitem = __readonly
+    setdefault = __readonly  # type: ignore[assignment]
+    update = __readonly  # type: ignore[assignment]
 
     del __readonly
 

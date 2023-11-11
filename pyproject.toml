@@ -1,7 +1,8 @@
 #
 ### project ##########################################################################
-
+# updated: 2023-11-11
 #
+
 [project]
   name = "ramses_rf"
   dynamic = ["readme", "version"]
@@ -62,18 +63,99 @@
 
 
 #
-### mypy & pytest ####################################################################
-
-[tool.mypy]
-  # exclude = "tests"
-  files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
-  follow_imports = "skip"  # TODO: don't use this feature
-
-[tool.mypy-tests]
-  ignore_errors = true
+### pytest ###########################################################################
 
 [tool.pytest.ini_options]
   asyncio_mode = "auto"
+
+
+#
+### mypy #############################################################################
+
+[tool.mypy]
+  # files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
+  files = [
+    "src/ramses_tx/__init__.py",
+    "src/ramses_tx/address.py",
+    "src/ramses_tx/const.py",
+    "src/ramses_tx/exceptions.py",
+    "src/ramses_tx/fingerprints.py",
+    "src/ramses_tx/helpers.py",
+    "src/ramses_tx/logger.py",
+    "src/ramses_tx/opentherm.py",
+    "src/ramses_tx/packet.py",
+    "src/ramses_tx/ramses.py",
+    "src/ramses_tx/version.py",
+    # WIP...
+    # "src/ramses_tx/command.py",
+    # "src/ramses_tx/frame.py",
+    # "src/ramses_tx/message.py",
+    # "src/ramses_tx/protocol_fsm.py",
+    # "src/ramses_tx/schemas.py",
+    # "src/ramses_tx/transport.py",
+  ]
+
+  exclude = [
+    "src/ramses_tx/protocol.py",
+  ]
+
+
+  follow_imports = "skip"  # TODO: don't use this feature
+  no_implicit_optional = false  # TODO: don't use this feature
+
+  # see: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
+
+  # Start off with these
+  warn_unused_configs = true
+  warn_redundant_casts = true  # this is not per-module
+  # warn_unused_ignores = true
+
+  # # Getting these passing should be easy
+  extra_checks = true  # was: strict_equality, strict_concatenate = true
+
+  # # Strongly recommend enabling this one as soon as you can
+  check_untyped_defs = true
+
+  # # These shouldn't be too much additional work, but may be tricky to
+  # # get passing if you use a lot of untyped libraries
+  disallow_subclassing_any = true
+  # disallow_untyped_decorators = true
+  # disallow_any_generics = true
+
+  # # These next few are various gradations of forcing use of type annotations
+  # disallow_untyped_calls = true
+  # disallow_incomplete_defs = true
+  # disallow_untyped_defs = true
+
+  # # This one isn't too hard to get passing, but return on investment is lower
+  # # no_implicit_reexport = true
+
+  # # This one can be tricky to get passing if you use a lot of untyped libraries
+  # warn_return_any = true
+
+  # # disallow_any_unimported = true
+  # warn_no_return = true
+  # warn_unreachable = true
+
+
+
+[[tool.mypy.overrides]]
+  module = "ramses_tx.helpers"
+  warn_return_any = false
+
+[[tool.mypy.overrides]]
+  module = "ramses_tx.logger"
+  disallow_incomplete_defs = false
+  disallow_subclassing_any = false
+  disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+  module = "ramses_tx.packet"
+  disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+  module = "ramses_rf.*"
+  ignore_missing_imports = true
 
 
 #
@@ -100,84 +182,6 @@
   # E501  - Line too long
   # UP009 - UTF-8 encoding declaration is unnecessary
 
-  # ZXDAVB: TODO: disable this feature
-  # Allow unused variables when underscore-prefixed.
-  # dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-  # # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-  # # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
-  # # McCabe complexity (`C901`) by default.
-  # select = ["E4", "E7", "E9", "F"]
-  # ignore = []  # [E203, E501, W503]
-
 
 [tool.ruff.lint.isort]
   combine-as-imports = true  # default is false
-
-
-#
-### pylint ###########################################################################
-
-[tool.pylint.MASTER]
-  ignore="docs, src/misc-utils"  # "docs,tests,tests_rf"
-
-[tool.pylint.format]
-  max-line-length = 120
-
-[tool.pylint.BASIC]
-  good-names="i,j,_"
-
-[tool.pylint."MESSAGES CONTROL"]
-# Reasons disabled:
-#   missing-class-docstring        - I use this a lot
-#   missing-function-docstring     - I use this a lot
-#   protected-access               - I use this a lot
-#
-#   format                         - handled by ruff/black
-#   locally-disabled               - it spams too much
-#   duplicate-code                 - unavoidable
-#   cyclic-import                  - doesn't test if both import on load
-#   unused-argument                - generic callbacks and setup methods create a lot of warnings
-#   global-statement               - used for the on-demand requirement installation
-#   redefined-variable-type        - this is Python, we're duck typing!
-#   too-many-*                     - are not enforced for the sake of readability
-#   too-few-*                      - same as too-many-*
-#   abstract-method                - with intro of async there are always methods missing
-#   inconsistent-return-statements - doesn't handle raise
-#   not-an-iterable                - https://github.com/PyCQA/pylint/issues/2311
-#   unnecessary-pass               - readability for functions which only contain pass
-#
-  disable="""
-    missing-class-docstring,
-    missing-function-docstring,
-    protected-access,
-    format,
-    abstract-method,
-    cyclic-import,
-    duplicate-code,
-    global-statement,
-    inconsistent-return-statements,
-    locally-disabled,
-    not-an-iterable,
-    not-context-manager,
-    too-few-public-methods,
-    too-many-arguments,
-    too-many-branches,
-    too-many-instance-attributes,
-    too-many-lines,
-    too-many-locals,
-    too-many-public-methods,
-    too-many-return-statements,
-    too-many-statements,
-    unnecessary-pass,
-    unused-argument
-  """
-
-[tool.pylint.REPORTS]
-  reports = "no"
-
-[tool.pylint.FORMAT]
-  expected-line-ending-format = "LF"
-
-[tool.pylint.EXCEPTIONS]
-  overgeneral-exceptions = "builtins.Exception"
