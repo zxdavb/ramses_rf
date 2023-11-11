@@ -224,7 +224,7 @@ class Engine:
             include_list=self._include,
             loop=self._loop,
             **pkt_source,
-            **self._kwargs,  # HACK: only accept extra & use_regex
+            **self._kwargs,  # HACK: only accept disable_qos, extra & use_regex
         )
 
         self._kwargs = None  # HACK

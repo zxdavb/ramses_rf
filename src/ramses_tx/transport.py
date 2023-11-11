@@ -734,8 +734,8 @@ async def transport_factory(
     if (pkt_source := packet_log or packet_dict) is not None:
         return FileTransport(protocol, pkt_source, **kwargs)
 
-    assert port_name is not None  # mypy
-    assert port_config is not None  # mypy
+    assert port_name is not None  # mypy check
+    assert port_config is not None  # mypy check
 
     # may: raise TransportSerialError("Unable to open serial port...")
     ser_instance = get_serial_instance(port_name, port_config)
@@ -745,7 +745,9 @@ async def transport_factory(
         issue_warning()
         # return PortTransport(protocol, ser_instance, **kwargs)
 
-    if kwargs.get(SZ_DISABLE_SENDING) or kwargs.get(SZ_DISABLE_QOS):  # no need for QoS
+    if kwargs.get(SZ_DISABLE_SENDING) or kwargs.pop(
+        SZ_DISABLE_QOS, None
+    ):  # no need for QoS
         transport = PortTransport(protocol, ser_instance, **kwargs)
     else:
         transport = QosTransport(protocol, ser_instance, **kwargs)
