@@ -29,31 +29,11 @@ from tests.helpers import TEST_DIR
 WORK_DIR = f"{TEST_DIR}/parser_helpers"
 
 
-def test_pkt_addr_parser():  # noqa: F811
-    def proc_log_line(pkt_line):
-        if "#" not in pkt_line:
-            return
-
-        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
-
-        if not pkt_line[27:].strip():
-            return
-
-        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
-
-        assert (pkt.src.id, pkt.dst.id) == eval(pkt_dict)
-
-    with open(f"{WORK_DIR}/pkt_addrs.log") as f:
-        while line := (f.readline()):
-            if line.strip():
-                proc_log_line(line)
-
-
-def test_demand_transform() -> None:
+def test_helper_demand_transform() -> None:
     assert [x[1] for x in TRANSFORMS] == [_transform(x[0]) for x in TRANSFORMS]
 
 
-def test_field_parsers() -> None:
+def test_helper_field_parsers() -> None:
     for val in ("FF", "00", "C8"):
         assert val == hex_from_bool(hex_to_bool(val))
 
@@ -82,6 +62,54 @@ def test_field_parsers() -> None:
 
     for val in (None, False, -127.99, -100, -22.5, -1.53, 0, 1.53, 22.5, 100, 127.98):
         assert val == hex_to_temp(hex_from_temp(val))
+
+
+def _test_pkt_dev_class() -> None:  # noqa: F811
+    """Check that the device class is correctly inferred from the packet.
+
+    Some packets (not all) can be used to determine the domain (Heat vs HVAC) and
+    class (e.g. BDR, CTL, FAN, etc)of the source device.
+    """
+
+    def proc_log_line(pkt_line):
+        if "#" not in pkt_line:
+            return
+
+        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+
+        if not pkt_line[27:].strip():
+            return
+
+        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+
+        assert pkt.src.type == eval(pkt_dict)  # TODO: finish this test
+
+    with open(f"{WORK_DIR}/pkt_dev_class.log") as f:
+        while line := (f.readline()):
+            if line.strip():
+                proc_log_line(line)
+
+
+def test_pkt_addr_sets() -> None:  # noqa: F811
+    """Check that the address set is correctly inferred from the packet."""
+
+    def proc_log_line(pkt_line):
+        if "#" not in pkt_line:
+            return
+
+        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+
+        if not pkt_line[27:].strip():
+            return
+
+        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+
+        assert (pkt.src.id, pkt.dst.id) == eval(pkt_dict)
+
+    with open(f"{WORK_DIR}/pkt_addr_set.log") as f:
+        while line := (f.readline()):
+            if line.strip():
+                proc_log_line(line)
 
 
 TRANSFORMS = [
