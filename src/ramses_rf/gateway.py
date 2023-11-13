@@ -179,7 +179,9 @@ class Engine:
         """
 
         self._protocol = protocol_factory(
-            msg_handler, disable_sending=self._disable_sending
+            msg_handler,
+            disable_sending=self._disable_sending,
+            disable_qos=self._kwargs.get("disable_qos", False),
         )
 
     def add_msg_handler(

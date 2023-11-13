@@ -631,8 +631,10 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
 
     async def send_cmd(self, cmd: Command, /, **kwargs) -> None:
         """Send a Command without any QoS features."""
-        if kwargs:
-            _LOGGER.warning(f"{self}: The Protocol has no Qos")
+        if [
+            x for x in kwargs if x != "priority"
+        ]:  # TODO: QoS vs other (e.g. priority is not Qos)
+            _LOGGER.debug(f"{self}: The Protocol has no Qos")
         await super().send_cmd(cmd)
 
 
@@ -692,15 +694,16 @@ def protocol_factory(
     msg_handler: MsgHandler,
     /,
     *,
-    disable_sending: None | bool = False,
-    disable_qos: None | bool = False,
+    disable_qos: bool | None = False,
+    disable_sending: bool | None = False,
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
     if disable_sending:
+        _LOGGER.warning("ReadProtocol: sending has been disabled")
         return ReadProtocol(msg_handler)
     if disable_qos or _DEBUG_DISABLE_QOS:
-        _LOGGER.warning("QOS has been disabled")
+        _LOGGER.warning("PortProtocol: QoS has been disabled")
         return PortProtocol(msg_handler)
     return QosProtocol(msg_handler)
 
@@ -711,9 +714,9 @@ async def create_stack(
     *,
     protocol_factory_: None | Callable = None,
     transport_factory_: None | Callable = None,
-    disable_sending: bool = False,
-    disable_qos: bool = False,
-    **kwargs,
+    disable_qos: bool | None = False,
+    disable_sending: bool | None = False,
+    **kwargs,  # TODO: these are for the transport_factory
 ) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.
 
@@ -722,20 +725,21 @@ async def create_stack(
     - receive Messages via Gateway._handle_msg(msg) callback
     """
 
+    read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
+    disable_sending = disable_sending or read_only
+
     if protocol_factory_:
-        protocol = protocol_factory_(msg_handler, **kwargs)
+        protocol = protocol_factory_(
+            msg_handler, disable_qos=disable_qos, disable_sending=disable_sending
+        )
 
     else:
-        read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
-
         protocol = protocol_factory(
-            msg_handler,
-            disable_sending=disable_sending or read_only,
-            disable_qos=disable_qos,
+            msg_handler, disable_qos=disable_qos, disable_sending=disable_sending
         )
 
     transport = await (transport_factory_ or transport_factory)(
-        protocol, disable_sending=disable_sending, **kwargs
+        protocol, disable_qos=disable_qos, disable_sending=disable_sending, **kwargs
     )
 
     if not kwargs.get(SZ_PORT_NAME):

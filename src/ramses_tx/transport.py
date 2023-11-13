@@ -76,8 +76,6 @@ from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
     SZ_CLASS,
-    SZ_DISABLE_QOS,
-    SZ_DISABLE_SENDING,
     SZ_EVOFW_FLAG,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
@@ -675,16 +673,20 @@ async def transport_factory(
     protocol: Callable[[], _ProtocolT],
     /,
     *,
-    port_name: None | SerPortName = None,
-    port_config: None | dict = None,
-    packet_log: None | TextIOWrapper = None,
-    packet_dict: None | dict = None,
+    port_name: SerPortName | None = None,
+    port_config: dict | None = None,
+    packet_log: TextIOWrapper | None = None,
+    packet_dict: dict | None = None,
+    disable_qos: bool | None = False,
+    disable_sending: bool | None = False,
+    extra: dict | None = None,
+    loop: asyncio.AbstractEventLoop | None = None,
     **kwargs,
 ) -> RamsesTransportT:
     """Create and return a Ramses-specific async packet Transport."""
 
-    # The kwargs must be a subset of: loop, extra, and...
-    # disable_sending, enforce_include_list, exclude_list, include_list, use_regex
+    # kwargs are specific to a transport. The above transports have:
+    # enforce_include_list, exclude_list, include_list, use_regex
 
     async def poll_until_connection_made(protocol: _ProtocolT):
         """Poll until the Transport is bound to the Protocol."""
@@ -732,7 +734,7 @@ async def transport_factory(
         )
 
     if (pkt_source := packet_log or packet_dict) is not None:
-        return FileTransport(protocol, pkt_source, **kwargs)
+        return FileTransport(protocol, pkt_source, extra=extra, loop=loop, **kwargs)
 
     assert port_name is not None  # mypy check
     assert port_config is not None  # mypy check
@@ -745,12 +747,19 @@ async def transport_factory(
         issue_warning()
         # return PortTransport(protocol, ser_instance, **kwargs)
 
-    if kwargs.get(SZ_DISABLE_SENDING) or kwargs.pop(
-        SZ_DISABLE_QOS, None
-    ):  # no need for QoS
-        transport = PortTransport(protocol, ser_instance, **kwargs)
+    if disable_sending or disable_qos:
+        transport = PortTransport(
+            protocol,
+            ser_instance,
+            disable_sending=disable_sending,
+            extra=extra,
+            loop=loop,
+            **kwargs,
+        )
     else:
-        transport = QosTransport(protocol, ser_instance, **kwargs)
+        transport = QosTransport(
+            protocol, ser_instance, extra=extra, loop=loop, **kwargs
+        )
 
     # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
     try:
