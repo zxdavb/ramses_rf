@@ -187,8 +187,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         self,
         *args,
         enforce_include_list: bool = False,
-        exclude_list: None | dict = None,
-        include_list: None | dict = None,
+        exclude_list: None | dict[DeviceId, str] = None,
+        include_list: None | dict[DeviceId, str] = None,
         **kwargs,
     ) -> None:
         exclude_list = exclude_list or {}
@@ -202,37 +202,84 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
+        self._unwanted: list[DeviceId] = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
             self._extra[key] = None
 
+        # TODO: maybe this shouldn't be called for read-only transports?
+        self._extra[SZ_KNOWN_HGI] = self._get_known_hgi(include_list)
+
+    def _get_known_hgi(self, include_list: dict[DeviceId, Any]) -> DeviceId | None:
+        """Return the device_id of the gateway specified in the include_list, if any.
+
+        The 'Known' gateway is the predicted Active gateway, given the known_list.
+        The 'Active' gateway is the USB device that is Tx/Rx frames.
+
+        The Known gateway ID should be the Active gateway ID, but does not have to
+        match.
+
+        Send a warning if the include_list is configured incorrectly.
+        """
+
         known_hgis = [
             k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
         ]
+        known_hgis = known_hgis or [
+            k for k, v in include_list.items() if k[:2] == "18" and not v.get(SZ_CLASS)
+        ]
+
         if not known_hgis:
-            _LOGGER.warning(
-                f"The {SZ_KNOWN_LIST} should include the gateway (HGI) but doesn't{TIP}"
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
+                f"but does not (make sure you specify class: HGI)"
             )
+            return None
+
+        known_hgi = known_hgis[0]
+
+        if include_list[known_hgi].get(SZ_CLASS) != DevType.HGI:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include a well-configured gateway (HGI), "
+                f"{known_hgi} should specify class: HGI (18: is also used for HVAC)"
+            )
+
+        elif len(known_hgis) > 1:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
+                f"{known_hgi} is the assumed device id (is it/are the others HVAC?)"
+            )
+
         else:
-            self._extra[SZ_KNOWN_HGI] = known_hgis[0]
-        if len(known_hgis) > 1:
-            _LOGGER.warning(
-                f"The {SZ_KNOWN_LIST} should have only 1 gateway (HGI) but has more"
-                f" (the selected Known gateway is: {self._extra[SZ_KNOWN_HGI]}){TIP}"
+            _LOGGER.debug(
+                f"The {SZ_KNOWN_LIST} specifies {known_hgi} as the gateway (HGI)"
             )
+
+        return known_hgis[0]
 
     def _set_active_hgi(self, dev_id: DeviceId, by_signature: bool = False) -> None:
-        """Set the Active Gateway device (HGI), warn if it is filtered incorrectly."""
-        msg = "Active gateway " + "(by signature)" if by_signature else "(by filter)"
+        """Set the Active Gateway (HGI) device_if.
+
+        Send a warning if the include list is configured incorrectly.
+        """
+
+        assert self._extra[SZ_ACTIVE_HGI] is None  # should only be called once
+
+        msg = f"The active gateway {dev_id}: {{ class: HGI }} "
+        msg += "(by signature)" if by_signature else "(by filter)"
+
+        if dev_id not in self._exclude:
+            self._extra[SZ_ACTIVE_HGI] = dev_id
+            # else: setting self._extra[SZ_ACTIVE_HGI] will not help
 
         if dev_id in self._exclude:
-            _LOGGER.error(f"{msg} is in {SZ_BLOCK_LIST}: {dev_id}{TIP}")
+            _LOGGER.error(f"{msg} MUST NOT be in the {SZ_BLOCK_LIST}{TIP}")
         elif dev_id in self._include:
-            _LOGGER.info(f"{msg}: {dev_id}")
+            pass
+        elif self.enforce_include:
+            _LOGGER.error(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
         else:
-            _LOGGER.warning(f"{msg} not in {SZ_KNOWN_LIST}: {dev_id}{TIP}")
-        self._extra[SZ_ACTIVE_HGI] = dev_id
+            _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
     def _is_wanted_addrs(
         self, src_id: DeviceId, dst_id: DeviceId, payload: None | str = None
@@ -240,52 +287,50 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         """Return True if the packet is not to be filtered out.
 
         In any one packet, an excluded device_id 'trumps' an included device_id.
+
+        There are two ways to set the Active Gateway (HGI80/evofw3):
+        - by signature (evofw3 only), when frame -> packet
+        - by known_list (HGI80/evofw3), when filtering packets
         """
 
         def deprecate_foreign_hgi(dev_id: DeviceId) -> None:
             self._unwanted.append(dev_id)
             _LOGGER.warning(
-                f"Blacklisted a Foreign gateway (is it a HVAC device?): {dev_id}"
-                f" (Active gateway is: {self._extra[SZ_ACTIVE_HGI]}){TIP}"
+                f"Blacklisting: {dev_id} (is potentially a Foreign gateway), "
+                f"the Active gateway is: {self._extra[SZ_ACTIVE_HGI]}, "
+                f"alternatively, is it a HVAC device?{TIP}"
             )
 
         for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
             # TODO: _unwanted exists since (in future) stale entries need to be removed
 
+            # this will cause problems if the active gateway is in the exclude list
             if dev_id in self._exclude or dev_id in self._unwanted:
                 return False
 
             if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
-                continue
+                continue  # consider: return True
 
             if dev_id in self._include:  # incl. 63:262142 & --:------
-                continue
-
-            if self.enforce_include and self._extra[SZ_ACTIVE_HGI]:
-                return False
-
-            if not self._extra[SZ_ACTIVE_HGI] and payload == self._extra[SZ_SIGNATURE]:
-                assert src_id is dst_id
-                self._set_active_hgi(dev_id)
                 continue
 
             if self.enforce_include:
                 return False
 
-            if dev_id[:2] != DEV_TYPE_MAP.HGI:
+            if dev_id[:2] != DEV_TYPE_MAP.HGI:  # this 18: is not in known_list
                 continue
 
-            if self._extra[SZ_ACTIVE_HGI]:
+            if self._extra[
+                SZ_ACTIVE_HGI
+            ]:  # TODO: warn to exclude, rather than deprecate
                 deprecate_foreign_hgi(dev_id)  # self._unwanted.append(dev_id)
                 return False
-
-            if dev_id == self._extra[SZ_KNOWN_HGI]:
-                self._set_active_hgi(dev_id)
 
         return True
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Validate a Packet and dispatch it to the protocol's callback."""
+
         if self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
             super()._pkt_received(pkt)  # type: ignore[misc]
 
@@ -509,6 +554,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         except (PacketInvalid, ValueError):  # VE from dt.fromisoformat()
             return
 
+        # NOTE: a signature can override an existing active gateway
         if (
             not self._init_fut.done()
             and pkt.code == Code._PUZZ
@@ -516,6 +562,9 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
         ):
             self._set_active_hgi(pkt.src.id, by_signature=True)
             self._init_fut.set_result(pkt)
+
+        elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
+            self._set_active_hgi(pkt.src.id)
 
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 
