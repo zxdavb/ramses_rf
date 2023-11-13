@@ -261,6 +261,14 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
             if dev_id in self._include:  # incl. 63:262142 & --:------
                 continue
 
+            if self.enforce_include and self._extra[SZ_ACTIVE_HGI]:
+                return False
+
+            if not self._extra[SZ_ACTIVE_HGI] and payload == self._extra[SZ_SIGNATURE]:
+                assert src_id is dst_id
+                self._set_active_hgi(dev_id)
+                continue
+
             if self.enforce_include:
                 return False
 
@@ -270,10 +278,6 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
             if self._extra[SZ_ACTIVE_HGI]:
                 deprecate_foreign_hgi(dev_id)  # self._unwanted.append(dev_id)
                 return False
-
-            if dev_id == src_id and payload == self._extra[SZ_SIGNATURE]:
-                self._set_active_hgi(dev_id)
-                continue
 
             if dev_id == self._extra[SZ_KNOWN_HGI]:
                 self._set_active_hgi(dev_id)
