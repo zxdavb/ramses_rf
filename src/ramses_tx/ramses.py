@@ -699,15 +699,19 @@ RQ_NO_PAYLOAD: list[Code] = [
 ]
 RQ_NO_PAYLOAD.extend((Code._0418,))
 
+
+########################################################################################
 # IDX:_xxxxxx: index (and context)
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 CODE_IDX_COMPLEX: list[Code] = [
     Code._0005,
-    Code._000C,
+    Code._000C,  # idx = fx(payload[0:4])
+    # Code._0404,  # use "HW" for idx if payload[4:6] == "23"
+    # Code._0418,  # log_idx (payload[4:6])
     Code._1100,
-    Code._3220,
+    Code._3220,  # data_id (payload[4:6])
 ]  # TODO: 0005 to ..._NONE?
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
@@ -722,7 +726,16 @@ CODE_IDX_SIMPLE: list[Code] = [
     )
 ]
 CODE_IDX_SIMPLE.extend(
-    (Code._10A0, Code._1260, Code._1F41, Code._22D0, Code._31D9, Code._3B00, Code._4E0D)
+    (
+        Code._10A0,
+        Code._1260,
+        Code._1F41,
+        Code._22D0,
+        Code._31D9,
+        Code._31DA,
+        Code._3B00,
+        Code._4E0D,
+    )
 )
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
@@ -734,8 +747,8 @@ CODE_IDX_NONE: list[Code] = [
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
 CODE_IDX_NONE.extend(
-    (Code._0002, Code._22F1, Code._22F3, Code._2389, Code._2E04, Code._31DA, Code._4401)
-)  # 31DA does appear to have an idx?
+    (Code._0002, Code._22F1, Code._22F3, Code._2389, Code._2E04, Code._4401)
+)
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
 CODE_IDX_DOMAIN: dict[Code, str] = {
@@ -752,6 +765,7 @@ if DEV_MODE:  # type: ignore[unreachable]
     CODE_IDX_COMPLEX.sort()
     CODE_IDX_SIMPLE.sort()
     CODE_IDX_NONE.sort()
+
 
 #
 ########################################################################################

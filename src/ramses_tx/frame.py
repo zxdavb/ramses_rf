@@ -250,6 +250,11 @@ class Frame:
     def _has_ctl(self) -> None | bool:
         """Return True if the packet is to/from a controller."""
 
+        # NB: the difference between these (_has_ctl, src, dst, -:-) and above (_has_ctl, src, -:-, src)
+        # 2000-01-01T03:00:00.000000 ...  I --- 37:123456 --:------ 37:123456 31DA 030 00C8400518646427102AF82EE031FFFFFFC800C8C83FFF64640AFF0AFF00
+        # 2022-11-20T08:32:06.904058 063 RP --- 32:134446 37:171685 --:------ 31DA 030 00EF007FFF2F1B0226069A07EEFFE4F8000038988F0000EFEF1F2420FC00
+        # Maybe only use this for CH/DHW, and not HVAC?
+
         if self._has_ctl_ is not None:
             return self._has_ctl_
 
@@ -453,7 +458,7 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
     if pkt.code == Code._3220:  # msg_id/data_id (payload[4:6])
         return pkt.payload[4:6]
 
-    if pkt.code in CODE_IDX_COMPLEX:
+    if pkt.code in CODE_IDX_COMPLEX:  # these should be handled above
         raise NotImplementedError(f"{pkt} # CODE_IDX_COMPLEX")  # a coding error
 
     # mutex 1/4, CODE_IDX_NONE: always returns False
@@ -479,7 +484,7 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
         return pkt.payload[:2]
 
     if (
-        pkt._has_ctl
+        pkt._has_ctl  # TODO: exclude HVAC?
     ):  # risk of false -ves, TODO: pkt.src.type == DEV_TYPE_MAP.HGI too?  # DEX
         # 02:    22C9: would be picked up as an array, if len==1 counted
         # 03:    # .I 028 03:094242 --:------ 03:094242 30C9 003 010B22  # ctl
@@ -487,8 +492,8 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
         # 23:    0009|10A0
         return pkt.payload[:2]  # tcs._max_zones checked elsewhere
 
-    # if pkt.code in (Code._31D9,):
-    #     return pkt.payload[:2]
+    if pkt.code in (Code._31D9, Code._31DA):
+        return pkt.payload[:2]
 
     if pkt.payload[:2] != "00":
         raise PacketPayloadInvalid(
