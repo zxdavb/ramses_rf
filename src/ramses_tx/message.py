@@ -175,6 +175,9 @@ class Message:
             Code._3220: "msg_id",
         }  # ALSO: SZ_DOMAIN_ID, SZ_ZONE_IDX
 
+        if self.code in (Code._31D9, Code._31DA):  # shouldn't be needed?
+            return {"hvac_id": self._pkt._idx}
+
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
             return {}  # above was: CODE_IDX_COMPLEX + (Code._3150):
 
@@ -184,7 +187,7 @@ class Message:
         # .I 068 03:201498 --:------ 03:201498 30C9 003 0106D6 # rare
 
         # .I --- 00:034798 --:------ 12:126457 2309 003 0201F4
-        if True and not {self.src.type, self.dst.type} & {
+        if not {self.src.type, self.dst.type} & {
             DEV_TYPE_MAP.CTL,
             DEV_TYPE_MAP.UFC,
             DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
@@ -197,17 +200,12 @@ class Message:
             return {}
 
         # .I 035 --:------ --:------ 12:126457 30C9 003 017FFF
-        if (
-            True
-            and self.src.type == self.dst.type
-            and self.src.type
-            not in (
-                DEV_TYPE_MAP.CTL,
-                DEV_TYPE_MAP.UFC,
-                DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
-                DEV_TYPE_MAP.HGI,
-                DEV_TYPE_MAP.PRG,
-            )
+        if self.src.type == self.dst.type and self.src.type not in (
+            DEV_TYPE_MAP.CTL,
+            DEV_TYPE_MAP.UFC,
+            DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
+            DEV_TYPE_MAP.HGI,
+            DEV_TYPE_MAP.PRG,
         ):  # DEX
             assert self._pkt._idx == "00", "What!! (AB)"
             return {}
