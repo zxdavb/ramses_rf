@@ -10,11 +10,14 @@
 
 ### generic .gitignore used by https://github.com/zxdavb
 
-!.flake8
 !.gitignore
 !.pre-commit-config.yaml
 !pyproject.toml
 !requirements*.txt
+
+!tests/**/*.json
+!tests/**/*.log
+!tests/**/*.yaml
 
 .secrets*/
 .ruff_cache/
