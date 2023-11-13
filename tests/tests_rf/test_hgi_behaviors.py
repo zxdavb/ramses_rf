@@ -20,6 +20,7 @@ from serial.tools.list_ports import comports
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx.exceptions import ProtocolSendFailed
+from ramses_tx.protocol import QosProtocol
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
@@ -190,6 +191,9 @@ async def real_ti3410():
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check the virtual RF network behaves as expected (device discovery)."""
+
+    if not isinstance(gwy._protocol, QosProtocol):
+        assert False, "QoS protocol not enabled"  # use assert, not skip
 
     # for testing, we replace the sentinel value with the gateway's actual device_id
     cmd_str = TEST_CMDS[test_idx].replace(TST_ID_, gwy.hgi.id)

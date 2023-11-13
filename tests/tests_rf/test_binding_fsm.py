@@ -26,6 +26,7 @@ from ramses_rf.binding_fsm import (
     _BindStates,
 )
 from ramses_rf.device import Fakeable
+from ramses_tx.protocol import QosProtocol
 
 from .virtual_rf import rf_factory
 
@@ -261,6 +262,9 @@ async def _test_flow_10x(
 
     await resp_task
     await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
+
+    if not isinstance(gwy_r._protocol, QosProtocol):
+        assert False, "QoS protocol not enabled"  # use assert, not skip
 
     tender = resp_task.result()
     assert tender._pkt == pkt, "Resp's Msg doesn't match Supp's Offer cmd"
