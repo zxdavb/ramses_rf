@@ -293,11 +293,10 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         - by known_list (HGI80/evofw3), when filtering packets
         """
 
-        def deprecate_foreign_hgi(dev_id: DeviceId) -> None:
-            self._unwanted.append(dev_id)
+        def warn_foreign_hgi(dev_id: DeviceId) -> None:
             _LOGGER.warning(
-                f"Blacklisting: {dev_id} (is potentially a Foreign gateway), "
-                f"the Active gateway is: {self._extra[SZ_ACTIVE_HGI]}, "
+                f"Device {dev_id} is potentially a Foreign gateway, "
+                f"the Active gateway is {self._extra[SZ_ACTIVE_HGI]}, "
                 f"alternatively, is it a HVAC device?{TIP}"
             )
 
@@ -320,11 +319,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
             if dev_id[:2] != DEV_TYPE_MAP.HGI:  # this 18: is not in known_list
                 continue
 
-            if self._extra[
-                SZ_ACTIVE_HGI
-            ]:  # TODO: warn to exclude, rather than deprecate
-                deprecate_foreign_hgi(dev_id)  # self._unwanted.append(dev_id)
-                return False
+            if self._extra[SZ_ACTIVE_HGI]:
+                warn_foreign_hgi(dev_id)
 
         return True
 
