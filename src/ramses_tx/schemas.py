@@ -388,7 +388,7 @@ SZ_USE_REGEX = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-    vol.Optional(SZ_DISABLE_QOS, default=False): bool,
+    vol.Optional(SZ_DISABLE_QOS, default=True): bool,  # TODO: shoudl be False
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
