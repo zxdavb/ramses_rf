@@ -708,8 +708,8 @@ RQ_NO_PAYLOAD.extend((Code._0418,))
 CODE_IDX_COMPLEX: list[Code] = [
     Code._0005,
     Code._000C,  # idx = fx(payload[0:4])
-    # Code._0404,  # use "HW" for idx if payload[4:6] == "23"
-    # Code._0418,  # log_idx (payload[4:6])
+    # Code._0404,  # use "HW" for idx if payload[4:6] == "23"  # TODO: should be used
+    # Code._0418,  # log_idx (payload[4:6])  # TODO: should be used
     Code._1100,
     Code._3220,  # data_id (payload[4:6])
 ]  # TODO: 0005 to ..._NONE?
