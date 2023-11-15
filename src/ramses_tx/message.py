@@ -18,7 +18,6 @@ from .const import (
     SZ_LOG_IDX,
     SZ_UFH_IDX,
     SZ_ZONE_IDX,
-    __dev_mode__,
 )
 from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .packet import Packet
@@ -49,11 +48,7 @@ CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = __dev_mode__  # and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 class Message:
@@ -270,18 +265,12 @@ class Message:
             raise TypeError(f"Invalid payload type: {type(result)}")
 
         except PacketInvalid as exc:
-            (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
-                "%s < %s", self._pkt, exc
-            )
+            _LOGGER.warning("%s < %s", self._pkt, exc)
             raise exc
 
         except AssertionError as exc:
             # beware: HGI80 can send 'odd' but parseable packets +/- get invalid reply
-            (
-                _LOGGER.exception
-                if DEV_MODE and self.src.type != DEV_TYPE_MAP.HGI  # DEX
-                else _LOGGER.exception
-            )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
+            _LOGGER.exception("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
             raise PacketInvalid("Bad packet") from exc
 
         except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev

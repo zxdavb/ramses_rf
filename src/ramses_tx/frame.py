@@ -462,7 +462,7 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
     # mutex 1/4, CODE_IDX_NONE: always returns False
     if pkt.code in CODE_IDX_NONE:  # returns False
         if (
-            CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00"
+            CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00"  # type: ignore[index]
             and (  # type: ignore[index]
                 pkt.payload[:2] != "00"
             )
