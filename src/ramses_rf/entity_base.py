@@ -951,7 +951,10 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         controller, or an UFH controller.
         """
 
-        from .device import UfhController  # NOTE: here to prevent circular references
+        from .device import (  # NOTE: here to prevent circular references
+            Controller,
+            UfhController,
+        )
 
         parent, child_id = self._get_parent(
             parent, child_id=child_id, is_sensor=is_sensor
