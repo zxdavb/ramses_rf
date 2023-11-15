@@ -8,8 +8,8 @@ repos:
     rev: v0.1.5
     hooks:
       - id: ruff         # linter
+        args: [--fix]
       - id: ruff-format  # formatter
-        # args: [--fix]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
