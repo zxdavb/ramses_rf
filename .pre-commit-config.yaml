@@ -1,5 +1,5 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb
-# last updated 2023-11-10
+# last updated 2023-11-15
 
 exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
 
@@ -8,7 +8,6 @@ repos:
     rev: v0.1.5
     hooks:
       - id: ruff         # linter
-        args: [--fix]
       - id: ruff-format  # formatter
 
   - repo: https://github.com/pre-commit/pygrep-hooks
