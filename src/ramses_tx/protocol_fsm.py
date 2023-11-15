@@ -555,7 +555,8 @@ class WantRply(_WantPkt):
     def rcvd_pkt(self, pkt: Packet) -> None:
         """The Transport has possibly received the expected response Packet."""
 
-        assert isinstance(self.active_cmd, Command)  # mypy
+        assert isinstance(self.active_cmd, Command)  # mypy hint
+        assert isinstance(self._echo_pkt, Packet)  # mypy hint
 
         # NOTE: use: pkt.dst.id !=     self._echo_pkt.src.id
         # and not:   pkt.dst    is not self._echo_pkt.src

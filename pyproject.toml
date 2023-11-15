@@ -90,6 +90,7 @@
     "src/ramses_tx/logger.py",
     "src/ramses_tx/opentherm.py",
     "src/ramses_tx/packet.py",
+    "src/ramses_tx/protocol_fsm.py",
     "src/ramses_tx/ramses.py",
     "src/ramses_tx/schemas.py",
     "src/ramses_tx/transport.py",
@@ -97,7 +98,6 @@
     # WIP...
     # "src/ramses_tx/command.py",
     # "src/ramses_tx/message.py",
-    # "src/ramses_tx/protocol_fsm.py",
   ]
 
   exclude = [

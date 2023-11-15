@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import timedelta as td
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .const import SZ_NAME, DevType
 
@@ -37,7 +37,7 @@ EXPIRY = "expiry"
 ########################################################################################
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
-CODES_SCHEMA: dict[Code, dict] = {  # rf_unknown
+CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._0001: {
         SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
