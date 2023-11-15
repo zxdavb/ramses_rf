@@ -297,7 +297,8 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
                 raise PacketInvalid(err_msg)
             (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
-        if msg.verb == RP:
+        if msg.src._SLUG == DevType.HGI or msg.verb == RP:
+            # HGI can do what it like
             return
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
             f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}"
@@ -327,6 +328,8 @@ def process_msg(gwy: Gateway, msg: MessageBase) -> None:
     def logger_xxxx(msg: MessageBase):
         if _DEBUG_FORCE_LOG_MESSAGES:
             _LOGGER.warning(msg)
+        elif msg.src is not gwy.hgi or (msg.code != Code._PUZZ and msg.verb != RQ):
+            _LOGGER.info(msg)
         elif msg.src is not gwy.hgi or msg.verb != RQ:
             _LOGGER.info(msg)
         elif _LOGGER.getEffectiveLevel() == logging.DEBUG:
