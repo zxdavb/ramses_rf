@@ -483,7 +483,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         self._loop.call_soon(self._protocol.connection_lost, exc)
 
 
-class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):
+class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore[misc]
     """Poll a serial port for packets, and send (without QoS)."""
 
     loop: asyncio.AbstractEventLoop
@@ -596,7 +596,7 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
 
 
 # ### Read-Write Transport for serial port ############################################
-class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
+class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # type: ignore[misc]
     """Poll a serial port for packets, and send (without QoS)."""
 
     _init_fut: asyncio.Future
@@ -811,7 +811,7 @@ async def transport_factory(
         transport = PortTransport(
             protocol,
             ser_instance,
-            disable_sending=disable_sending,
+            disable_sending=bool(disable_sending),
             extra=extra,
             loop=loop,
             **kwargs,
