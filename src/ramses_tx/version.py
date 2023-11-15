@@ -6,5 +6,5 @@
 The RAMSES-II protocol (messages, packets/commands).
 """
 
-__version__ = "0.30.1"
+__version__ = "0.30.2"
 VERSION = __version__
