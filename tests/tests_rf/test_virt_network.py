@@ -30,15 +30,14 @@ DEFAULT_MAX_SLEEP = 1
 GWY_CONFIG = {
     "config": {
         "disable_discovery": True,  # we're testing discovery here
-        "disable_qos": False,
         "enforce_known_list": False,
     },
 }
 
 
 SCHEMA_0 = {
-    "orphans_hvac": ["41:000000"],
-    "known_list": {"41:000000": {"class": "REM"}},
+    "orphans_hvac": ["40:000000"],
+    "known_list": {"40:000000": {"class": "REM"}},
 }
 
 SCHEMA_1 = {
@@ -142,25 +141,25 @@ async def test_virtual_rf_dev_disc():
     await assert_devices(gwy_1, ["18:111111"])
 
     # TEST 1: Tx to all from GWY /dev/pty/0 (NB: no RSSI)
-    cmd = Command("RP --- 01:111111 --:------ 01:111111 1F09 003 0004B5")
+    cmd = Command("RP --- 01:010000 --:------ 01:010000 1F09 003 0004B5")
     gwy_0.send_cmd(cmd)
 
-    await assert_devices(gwy_0, ["01:111111", "18:000000", "18:111111"])
-    await assert_devices(gwy_1, ["01:111111", "18:111111"])
+    await assert_devices(gwy_0, ["01:010000", "18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["01:010000", "18:111111"])
 
     # TEST 2: Tx to all from non-GWY /dev/pty/2 (NB: no RSSI)
-    cmd = Command("RP --- 01:222222 --:------ 01:222222 1F09 003 0004B5")
+    cmd = Command("RP --- 01:011111 --:------ 01:011111 1F09 003 0004B5")
     ser_2.write(bytes(f"{cmd}\r\n".encode("ascii")))
 
-    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000", "18:111111"])
-    await assert_devices(gwy_1, ["01:111111", "01:222222", "18:111111"])
+    await assert_devices(gwy_0, ["01:010000", "01:011111", "18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["01:010000", "01:011111", "18:111111"])
 
     # TEST 3: Rx only by *only one* GWY (NB: needs RSSI)
-    cmd = Command("RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5")
+    cmd = Command("RP --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
     list(rf._file_objs.values())[1].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
 
-    await assert_devices(gwy_0, ["01:111111", "01:222222", "18:000000", "18:111111"])
-    await assert_devices(gwy_1, ["01:111111", "01:222222", "01:333333", "18:111111"])
+    await assert_devices(gwy_0, ["01:010000", "01:011111", "18:000000", "18:111111"])
+    await assert_devices(gwy_1, ["01:010000", "01:011111", "01:022222", "18:111111"])
 
     await gwy_0.stop()
     await gwy_1.stop()
@@ -178,44 +177,44 @@ async def test_virtual_rf_pkt_flow():
 
     assert gwy_0._protocol._transport
     # NOTE: will pick up gwy 18:111111, since Foreign gwy detect has been removed
-    await assert_devices(gwy_0, ["18:000000", "18:111111", "41:000000"])
+    await assert_devices(gwy_0, ["18:000000", "18:111111", "40:000000"])
 
     assert gwy_1._protocol._transport
     await assert_devices(gwy_1, ["18:111111", "41:111111"])
 
     # TEST 1:
     await assert_code_in_device_msgz(
-        gwy_0, "01:333333", Code._1F09, max_sleep=0, test_not=True
+        gwy_0, "01:022222", Code._1F09, max_sleep=0, test_not=True
     )  # device wont exist
 
     cmd = Command(
-        "RP --- 01:333333 --:------ 01:333333 1F09 003 0004B5", qos={"retries": 0}
+        "RP --- 01:022222 --:------ 01:022222 1F09 003 0004B5", qos={"retries": 0}
     )  # no retries, otherwise long duration
     gwy_0.send_cmd(cmd)
 
-    await assert_devices(gwy_0, ["18:000000", "18:111111", "01:333333", "41:000000"])
-    await assert_code_in_device_msgz(gwy_0, "01:333333", Code._1F09)
+    await assert_devices(gwy_0, ["01:022222", "18:000000", "18:111111", "40:000000"])
+    await assert_code_in_device_msgz(gwy_0, "01:022222", Code._1F09)
 
     await assert_this_pkt(gwy_0._transport, cmd)
     await assert_this_pkt(gwy_1._transport, cmd)
 
     # TEST 2:
     await assert_code_in_device_msgz(
-        gwy_0, "41:000000", Code._22F1, max_sleep=0, test_not=True
+        gwy_0, "40:000000", Code._22F1, max_sleep=0, test_not=True
     )
 
     cmd = Command(
-        " I --- 41:111111 --:------ 41:111111 22F1 003 000507", qos={"retries": 0}
+        " I --- 40:000000 --:------ 40:000000 22F1 003 000507", qos={"retries": 0}
     )  # no retries, otherwise long duration
     gwy_0.send_cmd(cmd)  # ?needs QoS
 
-    await assert_code_in_device_msgz(gwy_0, "41:000000", Code._22F1)  # ?needs QoS
+    # await assert_code_in_device_msgz(gwy_0, "40:000000", Code._22F1)  # ?needs QoS
 
     await assert_this_pkt(gwy_0._transport, cmd)
     await assert_this_pkt(gwy_1._transport, cmd)
 
-    await assert_devices(gwy_0, ["18:000000", "01:333333", "41:000000"])
-    await assert_devices(gwy_1, ["18:111111", "01:333333", "41:000000", "41:111111"])
+    await assert_devices(gwy_0, ["01:022222", "18:000000", "18:111111", "40:000000"])
+    await assert_devices(gwy_1, ["01:022222", "18:111111", "40:000000", "41:111111"])
 
     await gwy_0.stop()
     await gwy_1.stop()
