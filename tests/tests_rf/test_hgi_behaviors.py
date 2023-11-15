@@ -36,10 +36,10 @@ DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 HGI_ID_ = "18:000730"  # the sentinel value
 TST_ID_ = "18:222222"  # .a specific ID
 
-DEFAULT_GWY_CONFIG = {
+GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
-        "disable_qos": False,
+        "disable_qos": False,  # this is required for this test
         "enforce_known_list": False,
     },
     "known_list": {"18:000730": {}},  # required to thwart foreign HGI blacklisting
@@ -106,7 +106,7 @@ async def fake_evofw3():
     rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.EVOFW3)
 
     with patch("ramses_tx.transport.comports", rf.comports):
-        gwy = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG)
+        gwy = Gateway(rf.ports[0], **GWY_CONFIG)
         assert gwy.hgi is None and gwy.devices == []
 
         await gwy.start()
@@ -128,7 +128,7 @@ async def fake_ti3410():
     rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.HGI_80)
 
     with patch("ramses_tx.transport.comports", rf.comports):
-        gwy = Gateway(rf.ports[0], **DEFAULT_GWY_CONFIG)
+        gwy = Gateway(rf.ports[0], **GWY_CONFIG)
         assert gwy.hgi is None and gwy.devices == []
 
         await gwy.start()
@@ -149,7 +149,7 @@ async def real_evofw3():
     port_names = [p.device for p in comports() if p.product and "evofw3" in p.product]
     port_names = port_names or ["/dev/ttyUSB1"]  # HACK: FIXME (should not be needed)
 
-    gwy = Gateway(port_names[0], **DEFAULT_GWY_CONFIG)
+    gwy = Gateway(port_names[0], **GWY_CONFIG)
     assert gwy.hgi is None and gwy.devices == []
 
     await gwy.start()
@@ -169,7 +169,7 @@ async def real_ti3410():
     port_names = [p.device for p in comports() if p.product and "TUSB3410" in p.product]
     port_names = port_names or ["/dev/ttyUSB0"]  # HACK: FIXME (should not be needed)
 
-    gwy = Gateway(port_names[0], **DEFAULT_GWY_CONFIG)
+    gwy = Gateway(port_names[0], **GWY_CONFIG)
     assert gwy.hgi is None and gwy.devices == []
 
     await gwy.start()

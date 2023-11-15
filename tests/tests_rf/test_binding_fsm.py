@@ -45,10 +45,10 @@ DEFAULT_MAX_SLEEP = 0.1
 PKT_FLOW = "packets"
 
 
-DEFAULT_GWY_CONFIG = {
+GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
-        "disable_qos": False,
+        "disable_qos": False,  # this is required for this test
         "enforce_known_list": True,
     }
 }
@@ -346,7 +346,7 @@ async def test_flow_100(test_set: dict[str:dict]) -> None:
     config = {}
     for role in (SZ_RESPONDENT, SZ_SUPPLICANT):
         devices = [d for d in test_set.values() if isinstance(d, dict)]
-        config[role] = DEFAULT_GWY_CONFIG | {
+        config[role] = GWY_CONFIG | {
             "known_list": {k: v for d in devices for k, v in d.items()},
             "orphans_hvac": list(test_set[role]),  # TODO: used by Heat domain too!
         }
