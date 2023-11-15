@@ -700,11 +700,12 @@ def protocol_factory(
     """Create and return a Ramses-specific async packet Protocol."""
 
     if disable_sending:
-        _LOGGER.warning("ReadProtocol: sending has been disabled")
+        _LOGGER.debug("ReadProtocol: sending has been disabled")
         return ReadProtocol(msg_handler)
     if disable_qos or _DEBUG_DISABLE_QOS:
-        _LOGGER.warning("PortProtocol: QoS has been disabled")
+        _LOGGER.debug("PortProtocol: QoS has been disabled")
         return PortProtocol(msg_handler)
+    _LOGGER.debug("QosProtocol: QoS has been enabled")
     return QosProtocol(msg_handler)
 
 
