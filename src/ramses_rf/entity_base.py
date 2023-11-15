@@ -972,6 +972,8 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         self._child_id = child_id
         self._parent = parent
 
+        assert isinstance(ctl, Controller)  # mypy hint
+
         self.ctl = ctl
         self.tcs = ctl.tcs
 

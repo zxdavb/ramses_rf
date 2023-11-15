@@ -93,7 +93,7 @@ class HvacSensorBase(DeviceHvac):
 class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
     """The CO2 sensor (cardinal code is 1298)."""
 
-    def _bind(self):
+    def _bind(self) -> None:
         # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
         # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
         # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
@@ -112,7 +112,7 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
         )
 
     @property
-    def co2_level(self) -> None | float:
+    def co2_level(self) -> float | None:
         return self._msg_value(Code._1298, key=SZ_CO2_LEVEL)
 
     # @check_faking_enabled
@@ -134,7 +134,7 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
 class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
     """The relative humidity sensor (12A0)."""
 
-    def _bind(self):
+    def _bind(self) -> None:
         # .I ---
         # .W ---
         # .I ---
@@ -148,7 +148,7 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
         self._bind_request((Code._12A0, Code._31E0), callback=callback)
 
     @property
-    def indoor_humidity(self) -> None | float:
+    def indoor_humidity(self) -> float | None:
         return self._msg_value(Code._12A0, key=SZ_INDOOR_HUMIDITY)
 
     # @check_faking_enabled
@@ -184,7 +184,7 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
         self._bind_request((Code._2E10, Code._31E0), callback=callback)
 
     @property
-    def presence_detected(self) -> None | float:
+    def presence_detected(self) -> float | None:
         return self._msg_value(Code._2E10, key=SZ_PRESENCE_DETECTED)
 
     # @check_faking_enabled
@@ -240,11 +240,11 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
     _SLUG: str = DevType.HUM
 
     @property
-    def temperature(self) -> None | float:  # Celsius
+    def temperature(self) -> float | None:  # Celsius
         return self._msg_value(Code._12A0, key=SZ_TEMPERATURE)
 
     @property
-    def dewpoint_temp(self) -> None | float:  # Celsius
+    def dewpoint_temp(self) -> float | None:  # Celsius
         return self._msg_value(Code._12A0, key="dewpoint_temp")
 
     @property
@@ -273,7 +273,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 
     _SLUG: str = DevType.REM
 
-    def _bind(self):
+    def _bind(self) -> None:
         # .I --- 37:155617 --:------ 37:155617 1FC9 024 0022F1965FE10022F3965FE16710E0965FE1001FC9965FE1
         # .W --- 32:155617 37:155617 --:------ 1FC9 012 0031D9825FE10031DA825FE1
         # .I --- 37:155617 32:155617 --:------ 1FC9 001 00
@@ -292,7 +292,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         )
 
     @property
-    def fan_rate(self) -> None | str:
+    def fan_rate(self) -> str | None:
         return self._msg_value(Code._22F1, key="rate")
 
     # @check_faking_enabled
@@ -306,7 +306,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
             )  # TODO: needs checking
 
     @property
-    def fan_mode(self) -> None | str:
+    def fan_mode(self) -> str | None:
         return self._msg_value(Code._22F1, key=FAN_MODE)
 
     @property
@@ -346,7 +346,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     _SLUG: str = DevType.FAN
 
-    def _update_schema(self, **schema):
+    def _update_schema(self, **schema) -> None:
         """Update a FAN with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -387,11 +387,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             )
 
     @property
-    def air_quality(self) -> None | float:
+    def air_quality(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_AIR_QUALITY)
 
     @property
-    def air_quality_base(self) -> None | float:
+    def air_quality_base(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_AIR_QUALITY_BASIS)
 
     @property
@@ -403,35 +403,35 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(Code._31DA, key=SZ_CO2_LEVEL)
 
     @property
-    def exhaust_fan_speed(self) -> None | float:  # was from: (Code._31D9, Code._31DA)
+    def exhaust_fan_speed(self) -> float | None:  # was from: (Code._31D9, Code._31DA)
         return self._msg_value(Code._31DA, key=SZ_EXHAUST_FAN_SPEED)
 
     @property
-    def exhaust_flow(self) -> None | float:
+    def exhaust_flow(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_EXHAUST_FLOW)
 
     @property
-    def exhaust_temperature(self) -> None | float:
+    def exhaust_temp(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_EXHAUST_TEMP)
 
     @property
-    def fan_info(self) -> None | str:
+    def fan_info(self) -> str | None:
         return self._msg_value(Code._31DA, key=SZ_FAN_INFO)
 
     @property
-    def indoor_humidity(self) -> None | float:
+    def indoor_humidity(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_INDOOR_HUMIDITY)
 
     @property
-    def indoor_temperature(self) -> None | float:
+    def indoor_temp(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_INDOOR_TEMP)
 
     @property
-    def outdoor_humidity(self) -> None | float:
+    def outdoor_humidity(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_OUTDOOR_HUMIDITY)
 
     @property
-    def outdoor_temperature(self) -> None | float:
+    def outdoor_temp(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_OUTDOOR_TEMP)
 
     @property
@@ -443,7 +443,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(Code._31DA, key=SZ_PRE_HEAT)
 
     @property
-    def remaining_time(self) -> int | None:
+    def remaining_mins(self) -> int | None:
         return self._msg_value(Code._31DA, key=SZ_REMAINING_MINS)
 
     @property
@@ -451,15 +451,15 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         return self._msg_value(Code._31DA, key=SZ_SPEED_CAP)
 
     @property
-    def supply_fan_speed(self) -> None | float:
+    def supply_fan_speed(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_SUPPLY_FAN_SPEED)
 
     @property
-    def supply_flow(self) -> None | float:
+    def supply_flow(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_SUPPLY_FLOW)
 
     @property
-    def supply_temperature(self) -> None | float:
+    def supply_temp(self) -> float | None:
         return self._msg_value(Code._31DA, key=SZ_SUPPLY_TEMP)
 
     @property

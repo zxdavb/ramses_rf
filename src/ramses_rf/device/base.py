@@ -96,7 +96,7 @@ class DeviceBase(Entity):
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
         self._faked: bool = False
-        self._scheme: str = None
+        self._scheme: str | None = None
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
@@ -329,7 +329,7 @@ class Fakeable(DeviceBase):
             self._bind()
         return self
 
-    async def _async_send_cmd(self, cmd: Command) -> Packet:
+    async def _async_send_cmd(self, cmd: Command) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
         if self._context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
             self._context.sent_cmd(cmd)  # other codes needed for edge cases
@@ -378,7 +378,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.ctl = None
+        self.ctl = None  # type: ignore[assignment]  # FIXME: a mess
         self._child_id = "gw"  # TODO
         self.tcs = None
 
@@ -508,7 +508,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
     def __init__(self, gwy, dev_addr, **kwargs):
         super().__init__(gwy, dev_addr, **kwargs)
 
-        self.ctl = None
+        self.ctl = None  # type: ignore[assignment]
         self.tcs = None
         self._child_id = None  # domain_id, or zone_idx
 
