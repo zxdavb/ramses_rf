@@ -601,6 +601,8 @@ def _parse_fan_temp(param_name: str, value: HexStr4) -> dict[str, float | str | 
 
     if value == "7FFF":  # Not implemented
         return {param_name: None}
+    if value == "31FF":  # Other
+        return {param_name: None}
 
     if int(value[:2], 16) & 0xF0 == 0x80:  # or temperature < -273.15:
         return _faulted_sensor(param_name, value)
@@ -742,7 +744,7 @@ def _parse_fan_speed(param_name: str, value: HexStr2) -> dict[str, float | str |
 
 
 @typechecked  # 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
-def parse_remaining_time(value: HexStr4) -> dict[str, float | str | None]:
+def parse_remaining_mins(value: HexStr4) -> dict[str, float | str | None]:
     """Return the remaining time for temporary modes (whole minutes).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -754,6 +756,8 @@ def parse_remaining_time(value: HexStr4) -> dict[str, float | str | None]:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
     if value == "0000":
+        return {SZ_REMAINING_MINS: 0}
+    if value == "3FFF":
         return {SZ_REMAINING_MINS: None}
 
     minutes = int(value, 16)  # was: hex_to_double(value)
