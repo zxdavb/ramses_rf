@@ -8,64 +8,23 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from io import TextIOWrapper
+from typing import TYPE_CHECKING
 
 import voluptuous as vol  # type: ignore[import-untyped]
 
-from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
+from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 
-DEV_MODE = __dev_mode__ and False
+if TYPE_CHECKING:
+    from ramses_tx.frame import _DeviceIdT
+
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 #
 # 0/5: Packet source configuration
 SZ_INPUT_FILE = "input_file"
 SZ_PACKET_SOURCE = "packet_source"
-
-
-def WIP_sch_packet_source_dict_factory() -> dict[vol.Required, vol.Any]:
-    """Return a packet source dict.
-
-    usage:
-
-    SCH_PACKET_SOURCE = vol.Schema(
-        sch_packet_source_dict_factory(), extra=vol.PREVENT_EXTRA
-    )
-    """
-
-    SCH_PACKET_SOURCE_CONFIG = vol.Schema(
-        {},
-        extra=vol.PREVENT_EXTRA,
-    )
-
-    SCH_PACKET_SOURCE_FILE = TextIOWrapper
-
-    def NormalisePacketSource():
-        def normalise_packet_source(node_value: str | dict) -> dict:
-            if isinstance(node_value, str):
-                return {
-                    SZ_INPUT_FILE: node_value,
-                }
-            return node_value
-
-        return normalise_packet_source
-
-    return {  # SCH_PACKET_LOG_DICT
-        vol.Required(SZ_PACKET_LOG, default=None): vol.Any(
-            None,
-            vol.All(
-                SCH_PACKET_SOURCE_FILE,
-                NormalisePacketSource(),
-            ),
-            SCH_PACKET_SOURCE_CONFIG.extend(
-                {vol.Required(SZ_INPUT_FILE): SCH_PACKET_SOURCE_FILE}
-            ),
-        )
-    }
 
 
 #
@@ -184,9 +143,9 @@ def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     }
 
 
-def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict]:
+def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict[str, bool | int]]:
     """Extract a serial port, port_config_dict tuple from a sch_serial_port_dict."""
-    port_name = ser_port_dict.get(SZ_PORT_NAME)
+    port_name: str = ser_port_dict.get(SZ_PORT_NAME)  # type: ignore[assignment]
     port_config = {k: v for k, v in ser_port_dict.items() if k != SZ_PORT_NAME}
     return port_name, port_config
 
@@ -224,8 +183,8 @@ _SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
 
 
 def sch_global_traits_dict_factory(
-    heat_traits: None | dict[vol.Optional, vol.Any] = None,
-    hvac_traits: None | dict[vol.Optional, vol.Any] = None,
+    heat_traits: dict[vol.Optional, vol.Any] | None = None,
+    hvac_traits: dict[vol.Optional, vol.Any] | None = None,
 ) -> tuple[dict[vol.Optional, vol.Any], vol.Schema]:
     """Return a global traits dict with a configurable extra traits.
 
@@ -315,7 +274,9 @@ SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 
 
 def select_device_filter_mode(
-    enforce_known_list: bool, known_list: list, block_list: list
+    enforce_known_list: bool,
+    known_list: dict[_DeviceIdT, dict],
+    block_list: dict[_DeviceIdT, dict],
 ) -> bool:
     """Determine which device filter to use, if any.
 
