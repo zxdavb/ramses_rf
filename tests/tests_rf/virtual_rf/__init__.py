@@ -24,7 +24,7 @@ MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_tx.protocol
 GWY_ID_0 = "18:000000"
 GWY_ID_1 = "18:111111"
 
-DEFAULT_GWY_CONFIG = {
+_DEFAULT_GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
         "enforce_known_list": False,
