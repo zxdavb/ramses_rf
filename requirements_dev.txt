@@ -1,4 +1,4 @@
-# last checked/updated: 2023/11/05 (based on HA 2023.11.1)
+# last checked/updated: 2023/11/15 (based on HA 2023.11.1)
 #
 
 # for using the the library via the CLI, client.py (includes requirements.txt)
@@ -9,7 +9,7 @@
   isort >= 5.12.0
   mypy >= 1.6.1
   pre-commit >= 3.5.0
-  ruff >= 0.1.1
+  ruff >= 0.1.5
 
 # used for testing
   pytest >= 7.4.3

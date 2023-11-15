@@ -25,7 +25,6 @@ from .const import (
     SZ_DOMAIN_ID,
     SZ_NAME,
     SZ_SENSOR,
-    SZ_UFH_IDX,
     SZ_ZONE_IDX,
     __dev_mode__,
 )
@@ -122,10 +121,12 @@ class _Entity:
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
 
-        super()._handle_msg(msg)  # store the message in the database
+        raise NotImplementedError
 
-        if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
-            self.deprecate_device(msg._pkt, reset=True)
+        # super()._handle_msg(msg)  # store the message in the database
+
+        # if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
+        #     self.deprecate_device(msg._pkt, reset=True)
 
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
@@ -158,18 +159,6 @@ class _Entity:
 
         cmd._source_entity = self
         return await self._gwy.async_send_cmd(cmd)
-
-    @property
-    def traits(self) -> dict:
-        """Return the codes seen by the entity."""
-
-        codes = {
-            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
-            for k in sorted(self._msgs)
-            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
-        }
-
-        return {"_sent": list(codes.keys())}
 
 
 class _MessageDB(_Entity):
@@ -308,6 +297,18 @@ class _MessageDB(_Entity):
             if k not in ("dhw_idx", SZ_DOMAIN_ID, SZ_ZONE_IDX) and k[:1] != "_"
         }
 
+    @property
+    def traits(self) -> dict:
+        """Return the codes seen by the entity."""
+
+        codes = {
+            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
+            for k in sorted(self._msgs)
+            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
+        }
+
+        return {"_sent": list(codes.keys())}
+
 
 class _Discovery(_MessageDB):
     MAX_CYCLE_SECS = 30
@@ -317,7 +318,7 @@ class _Discovery(_MessageDB):
         super().__init__(gwy)
 
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
-        self._discovery_poller = None
+        self._discovery_poller: asyncio.Task | None = None
 
         self._supported_cmds: dict[str, None | bool] = {}
         self._supported_cmds_ctx: dict[str, None | bool] = {}
@@ -404,7 +405,7 @@ class _Discovery(_MessageDB):
     def _start_discovery_poller(self) -> None:
         if not self._discovery_poller or self._discovery_poller.done():
             self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
-            self._discovery_poller.set_name(f"{self.id}_discovery_poller")
+            self._discovery_poller.set_name(f"{self.id}_discovery_poller")  # type: ignore[union-attr]
 
     async def _stop_discovery_poller(self) -> None:
         if self._discovery_poller and not self._discovery_poller.done():
@@ -608,24 +609,24 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         self.child_by_id: dict[str, Child] = {}
         self.childs: list[Child] = []
 
-    def _handle_msg(self, msg: Message) -> None:
-        def eavesdrop_ufh_circuits():
-            if msg.code == Code._22C9:
-                # .I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
-                # .I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
-                circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
+    # def _handle_msg(self, msg: Message) -> None:
+    #     def eavesdrop_ufh_circuits():
+    #         if msg.code == Code._22C9:
+    #             # .I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
+    #             # .I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
+    #             circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
 
-                for cct_idx in circuit_idxs:
-                    self.get_circuit(cct_idx, msg=msg)
+    #             for cct_idx in circuit_idxs:
+    #                 self.get_circuit(cct_idx, msg=msg)
 
-                # BUG: this will fail with > 4 circuits, as uses two pkts for this msg
-                # if [c for c in self.child_by_id if c not in circuit_idxs]:
-                #     raise CorruptStateError
+    #             # BUG: this will fail with > 4 circuits, as uses two pkts for this msg
+    #             # if [c for c in self.child_by_id if c not in circuit_idxs]:
+    #             #     raise CorruptStateError
 
-        super()._handle_msg(msg)
+    #     super()._handle_msg(msg)
 
-        if self._gwy.config.enable_eavesdrop:
-            eavesdrop_ufh_circuits()
+    #     if self._gwy.config.enable_eavesdrop:
+    #         eavesdrop_ufh_circuits()
 
     @property
     def zone_idx(self) -> str:
@@ -788,11 +789,12 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             if SZ_ZONE_IDX not in msg.payload:
                 return
 
+            # FIXME: to remove attr-defined
             # the follwing is a mess - may just be better off deprecating it
-            if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:
+            if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:  # type: ignore[attr-defined]
                 self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
 
-            elif self.type in DEV_TYPE_MAP.THM_DEVICES:
+            elif self.type in DEV_TYPE_MAP.THM_DEVICES:  # type: ignore[attr-defined]
                 self.set_parent(
                     msg.dst, child_id=msg.payload[SZ_ZONE_IDX], is_sensor=True
                 )
