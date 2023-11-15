@@ -668,26 +668,37 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):
 
         vid = {x.device: x.vid for x in comports()}.get(serial_port)
 
-        if vid and vid == 0x10AC:  # aka Honeywell, Inc.
-            _LOGGER.debug(f"{serial_port}: is HGI80-compatible (by VID)")
+        # this works on HASS OS on a Pi
+        if not vid:
+            pass
+        elif vid == 0x10AC:  # aka Honeywell, Inc.
             return True
+        elif vid in (0x1B4F, 0x0403):
+            return False
 
         product: None | str = {
             x.device: getattr(x, "product", None) for x in comports()
         }.get(serial_port)
 
+        # this works on HASS OS on a Pi
         if not product:  # is None - not member of plugdev group?
             pass
-        # elif "TUSB3410" in product:  # ?needed
-        #     _LOGGER.info("The gateway is HGI80-compatible (by USB attrs)")
-        #     return True
+        elif "TUSB3410" in product:  # ?needed
+            return True
         elif "evofw3" in product or "FT232R" in product:
-            _LOGGER.debug(f"{serial_port}: appears evofw3-compatible (by USB attrs)")
+            return False
+
+        # now we're getting desperate...
+        if "by-id" not in serial_port:
+            pass
+        elif "TUSB3410" in serial_port:
+            return True
+        elif "evofw3" in serial_port or "FT232R" in serial_port:
             return False
 
         _LOGGER.warning(
-            f"{serial_port}: the gateway type is not determinable, will assume evofw3 "
-            "(check you have the rights to enumerate USB attrs?)"
+            f"{serial_port}: the gateway type is not determinable, will assume evofw3, "
+            "TIP: specify by-id (e.g. /dev/serial/by-id/usb-...)"
         )
         return None  # try sending an "!V", expect "# evofw3 0.7.1"
 
