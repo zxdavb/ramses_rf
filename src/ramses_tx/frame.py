@@ -11,7 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
-from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
+from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP
 from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .ramses import (
     CODE_IDX_COMPLEX,
@@ -50,13 +50,10 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
-DEV_MODE = __dev_mode__ and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
+_DeviceIdT = str
 _HeaderT = str
 _PayloadT = str
 _PktIdxT = str
@@ -313,12 +310,13 @@ class Frame:
 
         # .I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
         # .I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
+
         if self._has_ctl_ is None:
-            if DEV_MODE and DEV_TYPE_MAP.HGI not in (
-                self.src.type,
-                self.dst.type,
-            ):  # DEX
-                _LOGGER.warning(f"{self} # has_ctl - undetermined (99)")
+            # if DEV_MODE and DEV_TYPE_MAP.HGI not in (
+            #     self.src.type,
+            #     self.dst.type,
+            # ):  # DEX
+            #     _LOGGER.warning(f"{self} # has_ctl - undetermined (99)")
             self._has_ctl_ = False
 
         return self._has_ctl_
@@ -463,8 +461,11 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
 
     # mutex 1/4, CODE_IDX_NONE: always returns False
     if pkt.code in CODE_IDX_NONE:  # returns False
-        if CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00" and (
-            pkt.payload[:2] != "00"
+        if (
+            CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00"
+            and (  # type: ignore[index]
+                pkt.payload[:2] != "00"
+            )
         ):
             raise PacketPayloadInvalid(
                 f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAA)"
