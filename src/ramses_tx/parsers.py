@@ -101,7 +101,7 @@ from .helpers import (
     parse_outdoor_temp,
     parse_post_heater,
     parse_pre_heater,
-    parse_remaining_time,
+    parse_remaining_mins,
     parse_supply_fan_speed,
     parse_supply_flow,
     parse_supply_temp,
@@ -2144,7 +2144,7 @@ def parser_31da(payload: str, msg: Message) -> dict:
         **parse_bypass_position(payload[34:36]),  # 22F7-ish
         **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_supply_fan_speed(payload[40:42]),
-        **parse_remaining_time(payload[42:46]),  # mins, ~22F3[2:6]
+        **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
         **parse_post_heater(payload[46:48]),
         **parse_pre_heater(payload[48:50]),
         **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
