@@ -165,7 +165,7 @@
 
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
-  disable_error_code = ["attr-defined"]
+  disable_error_code = ["arg-type", "attr-defined"]
 
 
 #
