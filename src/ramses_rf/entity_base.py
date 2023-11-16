@@ -65,6 +65,14 @@ if TYPE_CHECKING:
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
 
+_SZ_LAST_PKT = "last_msg"
+_SZ_NEXT_DUE = "next_due"
+_SZ_TIMEOUT = "timeout"
+_SZ_FAILURES = "failures"
+_SZ_INTERVAL = "interval"
+_SZ_COMMAND = "command"
+
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -397,12 +405,12 @@ class _Discovery(_MessageDB):
         )
 
         self.discovery_cmds[cmd.rx_header] = {
-            "command": cmd,
-            "interval": td(seconds=max(interval, self.MAX_CYCLE_SECS)),
-            "last_msg": None,
-            "next_due": dt.now() + td(seconds=delay),
-            "timeout": timeout,
-            "failures": 0,
+            _SZ_COMMAND: cmd,
+            _SZ_INTERVAL: td(seconds=max(interval, self.MAX_CYCLE_SECS)),
+            _SZ_LAST_PKT: None,
+            _SZ_NEXT_DUE: dt.now() + td(seconds=delay),
+            _SZ_TIMEOUT: timeout,
+            _SZ_FAILURES: 0,
         }
 
     def _start_discovery_poller(self) -> None:
@@ -429,7 +437,7 @@ class _Discovery(_MessageDB):
             await self.discover()
 
             if self.discovery_cmds:
-                next_due = min(t["next_due"] for t in self.discovery_cmds.values())
+                next_due = min(t[_SZ_NEXT_DUE] for t in self.discovery_cmds.values())
                 delay = max((next_due - dt.now()).total_seconds(), self.MIN_CYCLE_SECS)
             else:
                 delay = self.MAX_CYCLE_SECS
@@ -446,12 +454,12 @@ class _Discovery(_MessageDB):
             ]
 
             try:
-                if task["command"].code in (Code._000A, Code._30C9):
-                    msgs += [self.tcs._msgz[task["command"].code][I_][True]]
+                if task[_SZ_COMMAND].code in (Code._000A, Code._30C9):
+                    msgs += [self.tcs._msgz[task[_SZ_COMMAND].code][I_][True]]
             except KeyError:
                 pass
 
-            return (msgs and max(msgs)) or None
+            return max(msgs) if msgs else None
 
         def backoff(hdr: _HeaderT, failures: int) -> td:
             """Backoff the interval if there are/were any failures."""
@@ -468,14 +476,16 @@ class _Discovery(_MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> Message | None:
+        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> Packet | None:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
-                result = await asyncio.wait_for(
-                    self._gwy.async_send_cmd(task["command"]),
+                pkt: Packet | None = await asyncio.wait_for(
+                    self._gwy.async_send_cmd(task[_SZ_COMMAND]),
                     timeout=60,  # self.MAX_CYCLE_SECS?
                 )
+
+            # TODO: except: handle no QoS
 
             except ProtocolError as exc:  # InvalidStateError, SendTimeoutError
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
@@ -484,7 +494,7 @@ class _Discovery(_MessageDB):
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
 
             else:
-                return result
+                return pkt
 
             return None
 
@@ -492,36 +502,36 @@ class _Discovery(_MessageDB):
             dt_now = dt.now()
 
             if (msg := find_latest_msg(hdr, task)) and (
-                task["next_due"] < msg.dtm + task["interval"]
+                task[_SZ_NEXT_DUE] < msg.dtm + task[_SZ_INTERVAL]
             ):  # if a newer message is available, take it
-                task["failures"] = 0  # only if task["last_msg"].verb == RP?
-                task["last_msg"] = msg
-                task["next_due"] = msg.dtm + task["interval"]
+                task[_SZ_FAILURES] = 0  # only if task[_SZ_LAST_PKT].verb == RP?
+                task[_SZ_LAST_PKT] = msg._pkt
+                task[_SZ_NEXT_DUE] = msg.dtm + task[_SZ_INTERVAL]
 
-            if task["next_due"] > dt_now:
+            if task[_SZ_NEXT_DUE] > dt_now:
                 continue  # if (most recent) last_msg is is not yet due...
 
             # since we may do I/O, check if the code|msg_id is deprecated
-            task["next_due"] = dt_now + task["interval"]  # might undeprecate later
+            task[_SZ_NEXT_DUE] = dt_now + task[_SZ_INTERVAL]  # might undeprecate later
 
-            if not self.is_pollable_cmd(task["command"].code):
+            if not self.is_pollable_cmd(task[_SZ_COMMAND].code):
                 continue
             if not self.is_pollable_cmd(
-                task["command"].code, ctx=task["command"].payload[4:6]
+                task[_SZ_COMMAND].code, ctx=task[_SZ_COMMAND].payload[4:6]
             ):  # only for Code._3220
                 continue
 
             # we'll have to do I/O...
-            task["next_due"] = dt_now + backoff(hdr, task["failures"])  # JIC
+            task[_SZ_NEXT_DUE] = dt_now + backoff(hdr, task[_SZ_FAILURES])  # JIC
 
-            if msg := await send_disc_cmd(hdr, task):  # TODO: OK 4 some exceptions
-                task["failures"] = 0  # only if task["last_msg"].verb == RP?
-                task["last_msg"] = msg
-                task["next_due"] = msg.dtm + task["interval"]
+            if pkt := await send_disc_cmd(hdr, task):  # TODO: OK 4 some exceptions
+                task[_SZ_FAILURES] = 0  # only if task[_SZ_LAST_PKT].verb == RP?
+                task[_SZ_LAST_PKT] = pkt
+                task[_SZ_NEXT_DUE] = pkt.dtm + task[_SZ_INTERVAL]
             else:
-                task["failures"] += 1
-                task["last_msg"] = None
-                task["next_due"] = dt_now + backoff(hdr, task["failures"])
+                task[_SZ_FAILURES] += 1
+                task[_SZ_LAST_PKT] = None
+                task[_SZ_NEXT_DUE] = dt_now + backoff(hdr, task[_SZ_FAILURES])
 
     def deprecate_code_ctx(
         self, pkt: Packet, ctx: str = None, reset: bool = False
