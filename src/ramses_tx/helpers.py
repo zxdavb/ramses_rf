@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - Protocol/Transport layer.
-
-Helper functions.
-"""
-# from __future__ import annotations  # incompatible with @typechecked
+"""RAMSES RF - Protocol/Transport layer - Helper functions."""
+from __future__ import annotations
 
 import ctypes
 import sys
 import time
-from collections.abc import Iterable  # typeguard doesn't support PEP604 on 3.9.x
+from collections.abc import Iterable
 from datetime import datetime as dt
-from functools import wraps
 from typing import Literal
 
 from .const import (
@@ -40,19 +36,6 @@ from .const import (
     SZ_TEMPERATURE,
 )
 from .ramses import _31DA_FAN_INFO
-
-try:
-    from typeguard import typechecked  # type: ignore[import-untyped]
-
-except ImportError:
-
-    def typechecked(fnc):
-        @wraps(fnc)
-        def wrapper(*args, **kwargs):
-            return fnc(*args, **kwargs)
-
-        return wrapper
-
 
 # Sensor faults
 SZ_UNRELIABLE = "unreliable"
@@ -124,7 +107,6 @@ class _FILE_TIME(ctypes.Structure):
 file_time = _FILE_TIME()
 
 
-@typechecked
 def timestamp() -> float:
     """Return the number of seconds since the Unix epoch.
 
@@ -141,7 +123,6 @@ def timestamp() -> float:
     return _time - 134774 * 24 * 60 * 60
 
 
-@typechecked
 def dt_now() -> dt:
     """Return the current datetime as a local/naive datetime object.
 
@@ -153,7 +134,6 @@ def dt_now() -> dt:
     return dt.now()
 
 
-@typechecked
 def dt_str() -> str:
     """Return the current datetime as a isoformat string."""
     return dt_now().isoformat(timespec="microseconds")
@@ -162,8 +142,7 @@ def dt_str() -> str:
 ####################################################################################################
 
 
-@typechecked
-def hex_to_bool(value: HexStr2) -> None | bool:  # either False, True or None
+def hex_to_bool(value: HexStr2) -> bool | None:  # either False, True or None
     """Convert a 2-char hex string into a boolean."""
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
@@ -172,8 +151,7 @@ def hex_to_bool(value: HexStr2) -> None | bool:  # either False, True or None
     return {"00": False, "C8": True}[value]
 
 
-@typechecked
-def hex_from_bool(value: None | bool) -> HexStr2:  # either 00, C8 or FF
+def hex_from_bool(value: bool | None) -> HexStr2:  # either 00, C8 or FF
     """Convert a boolean into a 2-char hex string."""
     if value is None:
         return "FF"
@@ -182,8 +160,7 @@ def hex_from_bool(value: None | bool) -> HexStr2:  # either 00, C8 or FF
     return {False: "00", True: "C8"}[value]
 
 
-@typechecked
-def hex_to_date(value: HexStr8) -> None | str:  # YY-MM-DD
+def hex_to_date(value: HexStr8) -> str | None:  # YY-MM-DD
     """Convert am 8-char hex string into a date, format YY-MM-DD."""
     if not isinstance(value, str) or len(value) != 8:
         raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
@@ -196,8 +173,8 @@ def hex_to_date(value: HexStr8) -> None | str:  # YY-MM-DD
     ).strftime("%Y-%m-%d")
 
 
-@typechecked  # FIXME: factor=1 should return an int
-def hex_to_double(value: HexStr4, factor: int = 1) -> None | float:
+# FIXME: factor=1 should return an int
+def hex_to_double(value: HexStr4, factor: int = 1) -> float | None:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -206,8 +183,7 @@ def hex_to_double(value: HexStr4, factor: int = 1) -> None | float:
     return int(value, 16) / factor
 
 
-@typechecked
-def hex_from_double(value: None | float, factor: int = 1) -> HexStr4:
+def hex_from_double(value: float | None, factor: int = 1) -> HexStr4:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
@@ -216,8 +192,7 @@ def hex_from_double(value: None | float, factor: int = 1) -> HexStr4:
     return f"{int(value * factor):04X}"
 
 
-@typechecked
-def hex_to_dtm(value: HexStr12 | HexStr14) -> None | str:  # from parsers
+def hex_to_dtm(value: HexStr12 | HexStr14) -> str | None:  # from parsers
     """Convert a 12/14-char hex string to an isoformat datetime (naive, local)."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
@@ -238,9 +213,8 @@ def hex_to_dtm(value: HexStr12 | HexStr14) -> None | str:  # from parsers
     ).isoformat(timespec="seconds")
 
 
-@typechecked
 def hex_from_dtm(
-    dtm: None | dt | str, is_dst: bool = False, incl_seconds: bool = False
+    dtm: dt | str | None, is_dst: bool = False, incl_seconds: bool = False
 ) -> HexStr12 | HexStr14:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
@@ -260,8 +234,7 @@ def hex_from_dtm(
     return dtm_str if incl_seconds else dtm_str[2:]
 
 
-@typechecked
-def hex_to_dts(value: HexStr12) -> None | str:
+def hex_to_dts(value: HexStr12) -> str | None:
     """YY-MM-DD HH:MM:SS."""
     if not isinstance(value, str) or len(value) != 12:
         raise ValueError(f"Invalid value: {value}, is not a 12-char hex string")
@@ -278,8 +251,7 @@ def hex_to_dts(value: HexStr12) -> None | str:
     ).strftime("%y-%m-%dT%H:%M:%S")
 
 
-@typechecked
-def hex_from_dts(dtm: None | dt | str) -> HexStr12:  # TODO: WIP
+def hex_from_dts(dtm: dt | str | None) -> HexStr12:  # TODO: WIP
     """Convert a datetime (isoformat str, or dtm) to a packed 12-char hex str."""
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
@@ -300,7 +272,6 @@ def hex_from_dts(dtm: None | dt | str) -> HexStr12:  # TODO: WIP
     return f"{result:012X}"
 
 
-@typechecked
 def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tuple
     """Split a hex str (a byte) into a list of 8 bits, MSB as first bit by default.
 
@@ -314,7 +285,6 @@ def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tu
     return list((int(byte, 16) & (1 << x)) >> x for x in reversed(range(8)))
 
 
-@typechecked
 def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
     """Convert a list of 8 bits, MSB as first bit by default, into an ASCII hex string.
 
@@ -328,10 +298,9 @@ def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
 
 
 # TODO: add a wrapper for EF, & 0xF0
-@typechecked
 def hex_to_percent(
     value: HexStr2, high_res: bool = True
-) -> None | float:  # c.f. valve_demand
+) -> float | None:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res, 00-C8) or 1% (00-64).
@@ -348,8 +317,7 @@ def hex_to_percent(
     return result
 
 
-@typechecked
-def hex_to_str(value: str) -> None | str:  # printable ASCII characters
+def hex_to_str(value: str) -> str | None:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
     if not isinstance(value, str):
@@ -358,7 +326,6 @@ def hex_to_str(value: str) -> None | str:  # printable ASCII characters
     return result.decode("ascii").strip() if result else None
 
 
-@typechecked
 def hex_from_str(value: str) -> str:
     """Convert a string to a variable-length ASCII hex string."""
     if not isinstance(value, str):
@@ -366,8 +333,7 @@ def hex_from_str(value: str) -> str:
     return "".join(f"{ord(x):02X}" for x in value)  # or: value.encode().hex()
 
 
-@typechecked
-def hex_to_temp(value: HexStr4) -> None | bool | float:
+def hex_to_temp(value: HexStr4) -> bool | float | None:
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -384,7 +350,6 @@ def hex_to_temp(value: HexStr4) -> None | bool | float:
     return temp
 
 
-@typechecked
 def hex_from_temp(value: float) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
@@ -402,12 +367,10 @@ def hex_from_temp(value: float) -> HexStr4:
 ########################################################################################
 
 
-@typechecked
 def _faulted_common(param_name: str, value: str) -> dict[str, str]:
     return {f"{param_name}_fault": f"invalid_{value}"}
 
 
-@typechecked
 def _faulted_sensor(param_name: str, value: str) -> dict[str, str]:
     # assert value[:1] in ("8", "F"), value
     code = int(value[:2], 16) & 0xF
@@ -415,15 +378,14 @@ def _faulted_sensor(param_name: str, value: str) -> dict[str, str]:
     return {f"{param_name}_fault": fault}
 
 
-@typechecked
 def _faulted_device(param_name: str, value: str) -> dict[str, str]:
     assert value[:1] in ("8", "F"), value
     code = int(value[:2], 16) & 0xF
-    fault = DEVICE_FAULT_CODES.get(code, f"invalid_{value}")
+    fault: str = DEVICE_FAULT_CODES.get(code, f"invalid_{value}")
     return {f"{param_name}_fault": fault}
 
 
-@typechecked  # TODO: refactor as per 31DA parsers
+# TODO: refactor as per 31DA parsers
 def parser_valve_demand(value: HexStr2) -> dict[str, float | str | None]:
     """Convert a 2-char hex string into a percentage.
 
@@ -449,7 +411,7 @@ def parser_valve_demand(value: HexStr2) -> dict[str, float | str | None]:
     return {SZ_HEAT_DEMAND: result}
 
 
-@typechecked  # 31DA[2:6] and 12C8[2:6]
+# 31DA[2:6] and 12C8[2:6]
 def parse_air_quality(value: HexStr4) -> dict[str, float | str | None]:
     """Return the air quality (%): poor (0.0) to excellent (1.0).
 
@@ -484,7 +446,7 @@ def parse_air_quality(value: HexStr4) -> dict[str, float | str | None]:
     return {SZ_AIR_QUALITY: level, SZ_AIR_QUALITY_BASIS: basis}
 
 
-@typechecked  # 31DA[6:10] and 1298[2:6]
+# 31DA[6:10] and 1298[2:6]
 def parse_co2_level(value: HexStr4) -> dict[str, int | str | None]:
     """Return the co2 level (ppm).
 
@@ -508,7 +470,7 @@ def parse_co2_level(value: HexStr4) -> dict[str, int | str | None]:
     return {SZ_CO2_LEVEL: level}
 
 
-@typechecked  # 31DA[10:12] and 12A0[2:12]
+# 31DA[10:12] and 12A0[2:12]
 def parse_indoor_humidity(value: str) -> dict[str, float | str | None]:
     """Return the relative indoor humidity (%).
 
@@ -517,7 +479,7 @@ def parse_indoor_humidity(value: str) -> dict[str, float | str | None]:
     return _parse_fan_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
-@typechecked  # 31DA[12:14] and 1280[2:12]
+# 31DA[12:14] and 1280[2:12]
 def parse_outdoor_humidity(value: str) -> dict[str, float | str | None]:
     """Return the relative outdoor humidity (%).
 
@@ -526,7 +488,6 @@ def parse_outdoor_humidity(value: str) -> dict[str, float | str | None]:
     return _parse_fan_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
-@typechecked
 def _parse_fan_humidity(
     param_name: str, value: HexStr2, temp: str, dewpoint: str
 ) -> dict[str, float | str | None]:
@@ -563,31 +524,30 @@ def _parse_fan_humidity(
     return result
 
 
-@typechecked  # 31DA[14:18]
+# 31DA[14:18]
 def parse_exhaust_temp(value: HexStr4) -> dict[str, float | str | None]:
     """Return the exhaust temperature ('C)."""
     return _parse_fan_temp(SZ_EXHAUST_TEMP, value)
 
 
-@typechecked  # 31DA[18:22]
+# 31DA[18:22]
 def parse_supply_temp(value: HexStr4) -> dict[str, float | str | None]:
     """Return the supply temperature ('C)."""
     return _parse_fan_temp(SZ_SUPPLY_TEMP, value)
 
 
-@typechecked  # 31DA[22:26]
+# 31DA[22:26]
 def parse_indoor_temp(value: HexStr4) -> dict[str, float | str | None]:
     """Return the indoor temperature ('C)."""
     return _parse_fan_temp(SZ_INDOOR_TEMP, value)
 
 
-@typechecked  # 31DA[26:30] & 1290[2:6]?
+# 31DA[26:30] & 1290[2:6]?
 def parse_outdoor_temp(value: HexStr4) -> dict[str, float | str | None]:
     """Return the outdoor temperature ('C)."""
     return _parse_fan_temp(SZ_OUTDOOR_TEMP, value)
 
 
-@typechecked
 def _parse_fan_temp(param_name: str, value: HexStr4) -> dict[str, float | str | None]:
     """Return the temperature ('C) (called by sensor parsers).
 
@@ -615,7 +575,7 @@ def _parse_fan_temp(param_name: str, value: HexStr4) -> dict[str, float | str | 
     return {param_name: temp}
 
 
-@typechecked  # 31DA[30:34]
+# 31DA[30:34]
 def parse_bypass_position(value: HexStr2) -> dict[str, float | str | None]:
     """Return the bypass position (%), usually fully open or closed (0%, no bypass).
 
@@ -639,7 +599,7 @@ def parse_bypass_position(value: HexStr2) -> dict[str, float | str | None]:
     return {SZ_BYPASS_POSITION: bypass_pos}
 
 
-@typechecked  # 31DA[34:36]
+# 31DA[34:36]
 def parse_capabilities(value: HexStr4) -> dict[str, list | str | None]:
     """Return the speed capabilities (a bitmask).
 
@@ -678,7 +638,7 @@ def parse_capabilities(value: HexStr4) -> dict[str, list | str | None]:
     return {SZ_SPEED_CAP: [v for k, v in ABILITIES.items() if int(value, 16) & 2**k]}
 
 
-@typechecked  # 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
+# 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
 def parse_fan_info(value: HexStr2) -> dict[str, list | str | None]:
     """Return the fan info (current speed, and...).
 
@@ -709,19 +669,18 @@ def parse_fan_info(value: HexStr2) -> dict[str, list | str | None]:
     }
 
 
-@typechecked  # 31DA[38:40]
+# 31DA[38:40]
 def parse_exhaust_fan_speed(value: HexStr2) -> dict[str, float | str | None]:
     """Return the exhaust fan speed (% of max speed)."""
     return _parse_fan_speed(SZ_EXHAUST_FAN_SPEED, value)
 
 
-@typechecked  # 31DA[40:42]
+# 31DA[40:42]
 def parse_supply_fan_speed(value: HexStr2) -> dict[str, float | str | None]:
     """Return the supply fan speed (% of max speed)."""
     return _parse_fan_speed(SZ_SUPPLY_FAN_SPEED, value)
 
 
-@typechecked
 def _parse_fan_speed(param_name: str, value: HexStr2) -> dict[str, float | str | None]:
     """Return the fan speed (called by sensor parsers).
 
@@ -743,7 +702,7 @@ def _parse_fan_speed(param_name: str, value: HexStr2) -> dict[str, float | str |
     return {param_name: percentage}
 
 
-@typechecked  # 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
+# 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
 def parse_remaining_mins(value: HexStr4) -> dict[str, float | str | None]:
     """Return the remaining time for temporary modes (whole minutes).
 
@@ -766,19 +725,18 @@ def parse_remaining_mins(value: HexStr4) -> dict[str, float | str | None]:
     return {SZ_REMAINING_MINS: minutes}  # usu. 0-60 mins
 
 
-@typechecked  # 31DA[46:48]
+# 31DA[46:48]
 def parse_post_heater(value: HexStr2) -> dict[str, float | str | None]:
     """Return the post-heater state (% of max heat)."""
     return _parse_fan_heater(SZ_POST_HEAT, value)
 
 
-@typechecked  # 31DA[48:50]
+# 31DA[48:50]
 def parse_pre_heater(value: HexStr2) -> dict[str, float | str | None]:
     """Return the pre-heater state (% of max heat)."""
     return _parse_fan_heater(SZ_PRE_HEAT, value)
 
 
-@typechecked
 def _parse_fan_heater(param_name: str, value: HexStr2) -> dict[str, float | str | None]:
     """Return the heater state (called by sensor parsers).
 
@@ -802,19 +760,18 @@ def _parse_fan_heater(param_name: str, value: HexStr2) -> dict[str, float | str 
     return {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
 
 
-@typechecked  # 31DA[50:54]
+# 31DA[50:54]
 def parse_supply_flow(value: HexStr4) -> dict[str, float | str | None]:
     """Return the supply flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)."""
     return _parse_fan_flow(SZ_SUPPLY_FLOW, value)
 
 
-@typechecked  # 31DA[54:58]
+# 31DA[54:58]
 def parse_exhaust_flow(value: HexStr4) -> dict[str, float | str | None]:
     """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
     return _parse_fan_flow(SZ_EXHAUST_FLOW, value)
 
 
-@typechecked
 def _parse_fan_flow(param_name: str, value: HexStr4) -> dict[str, float | str | None]:
     """Return the air flow rate (called by sensor parsers).
 
