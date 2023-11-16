@@ -106,7 +106,7 @@ class DeviceBase(Entity):
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):
             return NotImplemented
-        return self.id < other.id
+        return self.id < other.id  # type: ignore[no-any-return]
 
     def _update_traits(self, **traits):
         """Update a device with new schema attrs.

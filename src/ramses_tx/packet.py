@@ -126,7 +126,7 @@ class Packet(Frame):
     def __eq__(self, other) -> bool:
         if not hasattr(other, "_frame"):
             return NotImplemented
-        return self._frame[4:] == other._frame[4:]
+        return self._frame[4:] == other._frame[4:]  # type: ignore[no-any-return]
 
     @staticmethod
     def _partition(pkt_line: str) -> tuple[str, str, str]:  # map[str]

@@ -133,7 +133,7 @@ class ZoneBase(Child, Parent, Entity):
     def __lt__(self, other) -> bool:
         if not isinstance(other, ZoneBase):
             return NotImplemented
-        return self.idx < other.idx
+        return self.idx < other.idx  # type: ignore[no-any-return]
 
     def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
         payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")

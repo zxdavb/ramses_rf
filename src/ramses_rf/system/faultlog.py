@@ -74,7 +74,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
     # def __eq__(self, other) -> bool:
     #     if not self._is_valid_operand(other):
     #         return NotImplemented
-    #     return (self.verb, self._pkt.payload) == (other.verb, self._pkt.payload)
+    #     return (self.verb, self._pkt.payload) == (other.verb, self._pkt.payload)  # type: ignore[no-any-return]
 
     async def get_faultlog(self, start=0, limit=6, force_refresh=None) -> None | dict:
         """Get the fault log of a system."""

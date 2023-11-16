@@ -115,12 +115,12 @@ class Message:
             other.verb,
             other.code,
             other._pkt.payload,
-        )
+        )  # type: ignore[no-any-return]
 
     def __lt__(self, other) -> bool:
         if not isinstance(other, Message):
             return NotImplemented
-        return self.dtm < other.dtm
+        return self.dtm < other.dtm  # type: ignore[no-any-return]
 
     def _name(self, addr: Address) -> str:
         """Return a friendly name for an Address, or a Device."""
