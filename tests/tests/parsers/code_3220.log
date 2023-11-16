@@ -8,7 +8,7 @@
 
 # These are all Read-Data / Read-Ack (or similar)
 2021-10-26T21:57:26.863570 000 RQ --- 18:198151 10:052644 --:------ 3220 005 0000000000  # {'msg_id':   0, 'msg_type': 'Read-Data',      'msg_name': 'status_flags', 'description': 'Status'}
-2021-10-26T21:57:27.681105 070 RP --- 10:052644 18:198151 --:------ 3220 005 00C0000000  # {'msg_id':   0, 'msg_type': 'Read-Ack',       'msg_name': None, 'value': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'description': 'Status'}
+2021-10-26T21:57:27.681105 070 RP --- 10:052644 18:198151 --:------ 3220 005 00C0000000  # {'msg_id':   0, 'msg_type': 'Read-Ack',       'msg_name': 'status_flags', 'value': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'description': 'Status'}
 
 2022-01-11T03:15:25.787504 095 RQ --- 18:123456 10:123456 --:------ 3220 005 0080010000  # {'msg_id':   1, 'msg_type': 'Read-Data',      'msg_name': 'ControlSetpoint', 'description': 'Control setpoint'}
 2021-11-10T08:18:47.953829 050 RP --- 10:123456 18:123456 --:------ 3220 005 0040014B00  # {'msg_id':   1, 'msg_type': 'Read-Ack',       'msg_name': 'ControlSetpoint', 'value': 75.0, 'description': 'Control setpoint'}
