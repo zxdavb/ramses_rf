@@ -143,10 +143,6 @@
 
 
 [[tool.mypy.overrides]]
-  module = "ramses_tx.helpers"
-  warn_return_any = false
-
-[[tool.mypy.overrides]]
   module = "ramses_tx.logger"
   disallow_incomplete_defs = false
   disallow_subclassing_any = false
