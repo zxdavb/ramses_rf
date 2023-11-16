@@ -112,7 +112,7 @@
   # Start off with these
   warn_unused_configs = true
   warn_redundant_casts = true  # this is not per-module
-  # warn_unused_ignores = true
+  warn_unused_ignores = true
 
   # # Getting these passing should be easy
   extra_checks = true  # was: strict_equality, strict_concatenate = true
@@ -141,6 +141,10 @@
   # warn_no_return = true
   # warn_unreachable = true
 
+
+# [[tool.mypy.overrides]]
+#   module = "ramses_tx.helpers"
+#   warn_return_any = false
 
 [[tool.mypy.overrides]]
   module = "ramses_tx.logger"
