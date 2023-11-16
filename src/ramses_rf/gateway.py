@@ -748,11 +748,21 @@ class Gateway(Engine):
             return dev._make_fake(bind=start_binding)
         raise TypeError(f"The device is not fakable: {device_id}")
 
-    def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
+    def add_task(
+        self,
+        fnc: Callable,
+        *args,
+        delay: float | None = None,
+        period: float | None = None,
+        **kwargs,
+    ) -> asyncio.Task:
         """Start a task after delay seconds and then repeat it every period seconds."""
-        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
+
         # keep a track of tasks, so we can tidy-up
         self._tasks = [t for t in self._tasks if not t.done()]
+
+        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
+
         self._tasks.append(task)
         return task
 
@@ -779,7 +789,7 @@ class Gateway(Engine):
         process_msg(self, msg)
 
     def send_cmd(
-        self, cmd: Command, callback: Callable = None, **kwargs
+        self, cmd: Command, callback: Callable | None = None, **kwargs
     ) -> asyncio.Task:
         """Wrapper to schedule an async_send_cmd() and return the Task."""
 
@@ -787,9 +797,11 @@ class Gateway(Engine):
 
         # keep a track of tasks, so we can tidy-up
         self._tasks = [t for t in self._tasks if not t.done()]
-        self._tasks.append(
-            self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
-        )
+
+        task = self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
+
+        self._tasks.append(task)
+        return task
 
     async def async_send_cmd(
         self,
@@ -797,15 +809,15 @@ class Gateway(Engine):
         max_retries: int = DEFAULT_MAX_RETRIES,
         priority: SendPriority = SendPriority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
-        wait_for_reply: None | bool = None,
+        wait_for_reply: bool | None = None,
         **kwargs,
-    ) -> None | Packet:
+    ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
         callback = kwargs.pop("callback", None)
         assert kwargs == {}, kwargs
 
-        try:
+        try:  # TODO: remove this try/except
             pkt = await super().async_send_cmd(
                 cmd,
                 max_retries=max_retries,
@@ -815,10 +827,11 @@ class Gateway(Engine):
             )
         except exceptions.ProtocolSendFailed as exc:
             _LOGGER.error(f"Failed to send {cmd._hdr}: {exc}")
-            return
+            return None
 
         if callback:
             # keep a track of tasks, so we can tidy-up
             self._tasks = [t for t in self._tasks if not t.done()]
             self._tasks.append(self._loop.create_task(callback(pkt)))
+
         return pkt

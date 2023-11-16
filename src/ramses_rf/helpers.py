@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from copy import deepcopy
 from inspect import iscoroutinefunction
 
@@ -68,15 +69,23 @@ def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> 
     return walk(value)
 
 
-def schedule_task(fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
+def schedule_task(
+    fnc: Callable,
+    *args,
+    delay: float | None = None,
+    period: float | None = None,
+    **kwargs,
+) -> asyncio.Task:
     """Start a coro after delay seconds."""
 
-    async def execute_fnc(fnc, *args, **kwargs):
+    async def execute_fnc(fnc: Callable, *args, **kwargs):
         if iscoroutinefunction(fnc):
             return await fnc(*args, **kwargs)
         return fnc(*args, **kwargs)
 
-    async def schedule_fnc(delay, period, fnc, *args, **kwargs):
+    async def schedule_fnc(
+        fnc: Callable, delay: float | None, period: float | None, *args, **kwargs
+    ):
         if delay:
             await asyncio.sleep(delay)
 
@@ -89,7 +98,7 @@ def schedule_task(fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task
             await asyncio.sleep(period)
 
     return asyncio.create_task(
-        schedule_fnc(delay, period, fnc, *args, **kwargs), name=str(fnc)
+        schedule_fnc(fnc, delay, period, *args, **kwargs), name=str(fnc)
     )
 
 

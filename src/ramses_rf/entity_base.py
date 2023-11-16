@@ -26,7 +26,6 @@ from .const import (
     SZ_NAME,
     SZ_SENSOR,
     SZ_ZONE_IDX,
-    __dev_mode__,
 )
 from .exceptions import SystemSchemaInconsistent
 from .schemas import SZ_CIRCUITS
@@ -65,13 +64,7 @@ if TYPE_CHECKING:
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
 
-DEV_MODE = __dev_mode__ and False
-
-# USE_JMESPATH = False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
@@ -131,34 +124,36 @@ class _Entity:
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
-    def _send_cmd(self, cmd: Command, **kwargs) -> None | asyncio.Task:
+    # FIXME: this is a mess - to deprecate for async version?
+    def _send_cmd(self, cmd: Command, **kwargs) -> asyncio.Task | None:
         """Send a Command & return the corresponding Task."""
 
         if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
             _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
-            return None
+            return None  # TODO: raise Exception
 
         if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.info(f"{cmd} < Sending now deprecated for {self}")
-            return None
+            _LOGGER.info(f"{cmd} < Sending was deprecated for {self}")
+            return None  # TODO: raise Exception
 
-        cmd._source_entity = self
+        # cmd._source_entity = self  # TODO: is needed?
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)
+        return self._gwy.send_cmd(cmd)  # type: ignore[no-any-return]
 
-    async def _async_send_cmd(self, cmd: Command) -> None | Packet:
+    # FIXME: this is a mess
+    async def _async_send_cmd(self, cmd: Command) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
 
         if self._gwy._disable_sending:
             _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
-            return None
+            return None  # TODO: raise Exception
 
         if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.warning(f"{cmd} < Sending now deprecated for {self}")
-            return None
+            _LOGGER.warning(f"{cmd} < Sending was deprecated for {self}")
+            return None  # TODO: raise Exception
 
-        cmd._source_entity = self
-        return await self._gwy.async_send_cmd(cmd)
+        # cmd._source_entity = self  # TODO: is needed?
+        return await self._gwy.async_send_cmd(cmd)  # type: ignore[no-any-return]
 
 
 class _MessageDB(_Entity):
@@ -200,7 +195,7 @@ class _MessageDB(_Entity):
         """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    def _get_msg_by_hdr(self, hdr: _HeaderT) -> None | Message:
+    def _get_msg_by_hdr(self, hdr: _HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
 
         code, verb, _, *args = hdr.split("|")  # _ is device_id
@@ -222,7 +217,7 @@ class _MessageDB(_Entity):
 
         return msg
 
-    def _msg_flag(self, code: Code, key, idx) -> None | bool:
+    def _msg_flag(self, code: Code, key, idx) -> bool | None:
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
         return None
@@ -235,7 +230,7 @@ class _MessageDB(_Entity):
 
     def _msg_value_code(
         self, code: Code, verb: Verb = None, key=None, **kwargs
-    ) -> None | dict | list:
+    ) -> dict | list | None:
         assert (
             not isinstance(code, tuple) or verb is None
         ), f"Unsupported: using a tuple ({code}) with a verb ({verb})"
@@ -256,8 +251,8 @@ class _MessageDB(_Entity):
         return self._msg_value_msg(msg, key=key, **kwargs)
 
     def _msg_value_msg(
-        self, msg: None | Message, key=None, zone_idx: str = None, domain_id: str = None
-    ) -> None | dict | list:
+        self, msg: Message | None, key=None, zone_idx: str = None, domain_id: str = None
+    ) -> dict | list | None:
         if msg is None:
             return None
         elif msg._expired:
@@ -266,8 +261,8 @@ class _MessageDB(_Entity):
         if msg.code == Code._1FC9:  # NOTE: list of lists/tuples
             return [x[1] for x in msg.payload]
 
-        idx: None | str = None
-        val: None | str = None
+        idx: str | None = None
+        val: str | None = None
         if domain_id:
             idx, val = SZ_DOMAIN_ID, domain_id
         elif zone_idx:
@@ -320,8 +315,8 @@ class _Discovery(_MessageDB):
         self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller: asyncio.Task | None = None
 
-        self._supported_cmds: dict[str, None | bool] = {}
-        self._supported_cmds_ctx: dict[str, None | bool] = {}
+        self._supported_cmds: dict[str, bool | None] = {}
+        self._supported_cmds_ctx: dict[str, bool | None] = {}
 
         # BUG: FIXME: The Bug
         if not gwy.config.disable_discovery and not gwy._disable_sending:
@@ -434,7 +429,7 @@ class _Discovery(_MessageDB):
             await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
 
     async def discover(self) -> None:
-        def find_latest_msg(hdr: _HeaderT, task: dict) -> None | Message:
+        def find_latest_msg(hdr: _HeaderT, task: dict) -> Message | None:
             """Return the latest message for a header from any source (not just RPs)."""
             msgs: list[Message] = [
                 m
@@ -465,7 +460,7 @@ class _Discovery(_MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> None | Message:
+        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> Message | None:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -747,15 +742,6 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         self.childs.append(child)
         self.child_by_id[child.id] = child
 
-        if DEV_MODE:
-            _LOGGER.warning(
-                "parent.set_child(), Parent: %s_%s, %s: %s",
-                self.id,
-                child_id,
-                "Sensor" if is_sensor else "Device",
-                child,
-            )
-
 
 class Child(Entity):  # A Zone, Device or a UfhCircuit
     """A Device can be the Child of a Parent (a System, a heating Zone, or a DHW Zone).
@@ -777,7 +763,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         self._parent = parent  # type: ignore[assignment]
         self._is_sensor = is_sensor  # type: ignore[assignment]
 
-        self._child_id: None | str = None  # TODO: should be: str?
+        self._child_id: str | None = None  # TODO: should be: str?
 
     def _handle_msg(self, msg: Message) -> None:
         from .device import Controller, UfhController
@@ -811,7 +797,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
     def _get_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
-    ) -> tuple[Parent, None | str]:
+    ) -> tuple[Parent, str | None]:
         """Get the device's parent, after validating it."""
 
         # NOTE: here to prevent circular references
@@ -979,14 +965,5 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         self.ctl = ctl
         self.tcs = ctl.tcs
-
-        if DEV_MODE:
-            _LOGGER.warning(
-                "child.set_parent(), Parent: %s_%s, %s: %s",
-                parent.id,
-                child_id,
-                "Sensor" if is_sensor else "Device",
-                self,
-            )
 
         return parent

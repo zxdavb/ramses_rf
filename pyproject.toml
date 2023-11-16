@@ -95,12 +95,11 @@
     "src/ramses_tx/schemas.py",
     "src/ramses_tx/transport.py",
     "src/ramses_tx/version.py",
-    # WIP...
-    # "src/ramses_tx/command.py",
-    # "src/ramses_tx/message.py",
   ]
 
   exclude = [
+    "src/ramses_tx/command.py",
+    "src/ramses_tx/message.py",
     "src/ramses_tx/protocol.py",
   ]
 
@@ -136,12 +135,11 @@
   # # no_implicit_reexport = true
 
   # # This one can be tricky to get passing if you use a lot of untyped libraries
-  # warn_return_any = true
+  warn_return_any = true
 
   # # disallow_any_unimported = true
   # warn_no_return = true
   # warn_unreachable = true
-
 
 
 [[tool.mypy.overrides]]

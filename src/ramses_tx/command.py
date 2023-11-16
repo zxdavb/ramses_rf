@@ -304,7 +304,7 @@ class Command(Frame):
         self._qos = _qos_params(self.verb, self.code, qos or {})
 
         self._rx_header: str | None = None
-        self._source_entity = None
+        # self._source_entity: Entity | None = None  # TODO: is needed?
 
         self._validate(strict_checking=False)
 
