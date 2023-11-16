@@ -16,13 +16,13 @@ from ramses_tx.address import NON_DEV_ADDR
 from ramses_tx.command import Command, Priority, _mk_cmd
 from ramses_tx.const import SZ_BINDINGS
 from ramses_tx.opentherm import (
-    MSG_ID,
-    MSG_NAME,
-    MSG_TYPE,
     PARAMS_MSG_IDS,
     SCHEMA_MSG_IDS,
     STATUS_MSG_IDS,
-    VALUE,
+    SZ_MSG_ID,
+    SZ_MSG_NAME,
+    SZ_MSG_TYPE,
+    SZ_VALUE,
     OtMsgType,
 )
 from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
@@ -807,10 +807,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         (self._handle_3220 if msg.code == Code._3220 else self._handle_code)(msg)
 
     def _handle_3220(self, msg: Message) -> None:
-        if msg.payload[MSG_TYPE] == OtMsgType.RESERVED:  # workaround
+        if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:  # workaround
             return
 
-        msg_id = f"{msg.payload[MSG_ID]:02X}"
+        msg_id = f"{msg.payload[SZ_MSG_ID]:02X}"
         self._msgs_ot[msg_id] = msg
 
         if DEV_MODE:  # here to follow state changes
@@ -832,7 +832,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             # 18:50:32.547 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # -reserved-
             # 18:55:32.601 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
             # 18:55:32.630 ... RP --- 10:048122 18:013393 --:------ 3220 005 00C07300CB  # Read-Ack, 'value': 203
-            reset = msg.payload[MSG_TYPE] not in (
+            reset = msg.payload[SZ_MSG_TYPE] not in (
                 OtMsgType.DATA_INVALID,
                 OtMsgType.UNKNOWN_DATAID,
                 # OtMsgType.RESERVED,  # some always reserved, others sometimes so
@@ -865,9 +865,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     @staticmethod
     def _ot_msg_name(msg) -> str:
         return (
-            msg.payload[MSG_NAME]
-            if isinstance(msg.payload[MSG_NAME], str)
-            else f"{msg.payload[MSG_ID]:02X}"
+            msg.payload[SZ_MSG_NAME]
+            if isinstance(msg.payload[SZ_MSG_NAME], str)
+            else f"{msg.payload[SZ_MSG_ID]:02X}"
         )
 
     def _ot_msg_value(self, msg_id) -> None | int | float | list:
@@ -876,7 +876,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             and self._msgs_ot.get(msg_id)
             and not self._msgs_ot[msg_id]._expired
         ):
-            return self._msgs_ot[msg_id].payload.get(VALUE)  # TODO: value_hb/_lb
+            return self._msgs_ot[msg_id].payload.get(SZ_VALUE)  # TODO: value_hb/_lb
 
     def _result_by_callback(
         self, cbk_ot: None | Callable, cbk_ramses: None | Callable
@@ -1095,7 +1095,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
         }
         return {
-            m: {k: v for k, v in p.items() if k.startswith(VALUE)}
+            m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
             for m, p in result.items()
         }
 
@@ -1123,7 +1123,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
         }
         return {
-            m: {k: v for k, v in p.items() if k.startswith(VALUE)}
+            m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
             for m, p in result.items()
         }
 

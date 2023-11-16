@@ -107,7 +107,15 @@ from .helpers import (
     parse_supply_temp,
     parser_valve_demand,
 )
-from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
+from .opentherm import (
+    EN,
+    SZ_DESCRIPTION,
+    SZ_MSG_ID,
+    SZ_MSG_NAME,
+    SZ_MSG_TYPE,
+    OtMsgType,
+    decode_frame,
+)
 from .ramses import _2411_PARAMS_SCHEMA
 from .version import VERSION
 
@@ -2261,9 +2269,9 @@ def parser_3220(payload: str, msg: Message) -> dict:
         raise PacketPayloadInvalid(f"OpenTherm: Unknown data-id: {ot_id}")
 
     result = {
-        MSG_ID: ot_id,
-        MSG_TYPE: ot_type,
-        MSG_NAME: ot_value.pop(MSG_NAME, None),
+        SZ_MSG_ID: ot_id,
+        SZ_MSG_TYPE: ot_type,
+        SZ_MSG_NAME: ot_value.pop(SZ_MSG_NAME, None),
     }
 
     if msg.verb == RQ:  # RQs have a context: msg_id (and a payload)
@@ -2308,7 +2316,7 @@ def parser_3220(payload: str, msg: Message) -> dict:
                 f"{msg!r} < {_INFORM_DEV_MSG}, with a description of your system"
             )
 
-    result[MSG_DESC] = ot_schema.get(EN)
+    result[SZ_DESCRIPTION] = ot_schema.get(EN)
     return result
 
 
