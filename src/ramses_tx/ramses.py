@@ -767,7 +767,7 @@ CODE_IDX_DOMAIN: dict[Code, str] = {
     Code._3B00: "^FC",
 }
 
-if DEV_MODE:  # type: ignore[unreachable]
+if DEV_MODE:
     CODE_IDX_COMPLEX.sort()
     CODE_IDX_SIMPLE.sort()
     CODE_IDX_NONE.sort()
@@ -1161,7 +1161,7 @@ _CODES_OF_NO_DOMAIN: tuple[Code, ...] = tuple(
     c for c in CODES_SCHEMA if c not in _CODES_OF_EITHER_DOMAIN
 )
 
-_CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
+_CODE_FROM_NON_CTL: tuple[Code] = tuple(
     dict.fromkeys(
         c
         for k, v1 in CODES_BY_DEV_SLUG.items()
@@ -1171,7 +1171,7 @@ _CODE_FROM_NON_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
 )
 _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DevType.CTL].keys()
 
-_CODE_ONLY_FROM_CTL: tuple[Code] = tuple(  # type: ignore[assignment]
+_CODE_ONLY_FROM_CTL: tuple[Code] = tuple(
     c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL
 )
 CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
