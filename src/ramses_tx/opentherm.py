@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - Opentherm processor."""
+
+# TODO: change all Msg IDs to int (0x13) or str "13"
+# TODO: a fnc to translate OT flags into a list of strs
+
 from __future__ import annotations
 
 import struct
@@ -10,7 +14,10 @@ from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Final, TypeAlias
 
-_MsgIdT: TypeAlias = str
+_MsgIdT: TypeAlias = str  # #  TODO: use only int or str
+_MsgIdIntT: TypeAlias = int  # TODO: use only int or str
+_FlagsSchemaT: TypeAlias = dict[int, dict[str, str]]
+
 
 # R8810A/R8820A-specific msg_ids, as used by Packet (pkt_timeout) & OtbGateway classes
 SCHEMA_MSG_IDS: tuple[_MsgIdT, ...] = (
@@ -70,6 +77,88 @@ _WRITE_MSG_IDS: tuple[_MsgIdT, ...] = (  # Write-Data, NB: some are also Read-Da
 )
 WRITE_MSG_IDS: dict[_MsgIdT, td] = {k: td(seconds=3) for k in _WRITE_MSG_IDS}
 
+# TODO: difference between (below) OTB_MSG_IDS and (above) *_MSG_IDS?
+# TODO: OTB_MSG_IDS = SCHEMA_MSG_IDS | PARAMS_MSG_IDS | STATUS_MSG_IDS???
+
+# These are the message IDs that are used by OTBs (by ramses_rf)...
+# NOTE: this is used in discovery.py
+OTB_MSG_IDS: dict[_MsgIdIntT, str] = {
+    # These are in the R8810A specification...
+    0x00: "Master/Slave status flags",
+    # 000:HB0: Master status: CH enable
+    # 000:HB1: Master status: DHW enable
+    # 000:HB2: Master status: Cooling enable
+    # 000:HB3: Master status: OTC active
+    # 000:HB5: Master status: Summer/winter mode
+    # 000:HB6: Master status: DHW blocking
+    # 000:LB0: Slave Status: Fault indication
+    # 000:LB1: Slave Status: CH mode
+    # 000:LB2: Slave Status: DHW mode
+    # 000:LB3: Slave Status: Flame status
+    0x01: "CH water temperature Setpoint (°C)",
+    # 001: Control Setpoint i.e. CH water temperature Setpoint (°C)
+    0x02: "Master configuration",
+    # 002:HB0: Master configuration: Smart power
+    # 002:LB:  Master MemberID code
+    0x03: "Slave configuration",
+    # 003:HB0: Slave configuration: DHW present
+    # 003:HB1: Slave configuration: Control type
+    # 003:HB4: Slave configuration: Master low-off & pump control
+    0x05: "Fault flags & OEM codes",
+    # 005:HB0: Service request
+    # 005:HB1: Lockout-reset
+    # 005:HB2: Low water pressure
+    # 005:HB3: Gas/flame fault
+    # 005:HB4: Air pressure fault
+    # 005:HB5: Water over-temperature
+    # 005:LB:  OEM fault code
+    0x06: "Remote boiler parameter flags",
+    # 006:HB0: Remote boiler parameter transfer-enable: DHW setpoint
+    # 006:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
+    # 006:LB0: Remote boiler parameter read/write: DHW setpoint
+    # 006:LB1: Remote boiler parameter read/write: max. CH setpoint
+    0x09: "Remote override room Setpoint",  # 009: # c.f. 0x64, 100               # TODO
+    0x0A: "Number of TSPs supported by slave",  # 010:                            # TODO
+    0x0C: "Size of FHB supported by slave",  # 012:                               # TODO
+    0x0E: "Maximum relative modulation level setting (%)",  # 014:
+    0x10: "Room Setpoint (°C)",  # 016:
+    0x11: "Relative Modulation Level (%)",  # 017:
+    0x12: "Water pressure in CH circuit (bar)",  # 018:
+    0x13: "Water flow rate in DHW circuit. (L/min)",  # 019:
+    0x18: "Room temperature (°C)",  # 024:
+    0x19: "Boiler flow water temperature (°C)",  # 025:
+    0x1A: "DHW temperature (°C)",  # 026:
+    0x1B: "Outside temperature (°C)",  # 027:
+    0x1C: "Return water temperature (°C)",  # 028:
+    0x30: "DHW Setpoint upper & lower bounds for adjustment (°C)",  # 048:
+    0x31: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # 049:
+    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # 056:
+    0x39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # 057:
+    0x7E: "Master product version number and type",  # 126:
+    0x7F: "Slave product version number and type",  # 127:
+    #
+    # These are not in the R8810A spec, but are natively RQ'd by 01:/30:...
+    # (0[35F]|1[1239AC]|3[89]|7[123456789ABF])
+    0x0D: "FHB Entry",  # 013:                                                    # TODO
+    0x73: "OEM diagnostic code",  # 115:
+    0x7C: "Opentherm version Master",  # 124:
+    0x7D: "Opentherm version Slave",  # 125:
+    #
+    # These also have been seen natively RQ'd by 01:/30...
+    0x0F: "Max. boiler capacity (kW) and modulation level setting (%)",  # 15
+    0x71: "Number of un-successful burner starts",  # 113
+    0x72: "Number of times flame signal was too low",  # 114
+    0x74: "Number of starts burner",  # 116
+    0x75: "Number of starts central heating pump",  # 117
+    0x76: "Number of starts DHW pump/valve",  # 118
+    0x77: "Number of starts burner during DHW mode",  # 119
+    0x78: "Number of hours burner is in operation (i.e. flame on)",  # 120
+    0x79: "Number of hours central heating pump has been running",  # 121
+    0x7A: "Number of hours DHW pump has been running/valve has been opened",  # 122
+    0x7B: "Number of hours DHW burner is in operation during DHW mode",  # 123
+}
+
+
 # Data structure shamelessy copied, with thanks to @nlrb, from:
 # github.com/nlrb/com.tclcode.otgw (node_modules/otg-api/lib/ot_msg.js),
 
@@ -104,13 +193,13 @@ HB: str = "hb"
 LB: str = "lb"
 
 SZ_MESSAGES: str = "messages"
-MSG_DESC: str = "description"
-MSG_ID: str = "msg_id"
-MSG_NAME: str = "msg_name"
-MSG_TYPE: str = "msg_type"
-VALUE: str = "value"
-VALUE_HB: str = f"{VALUE}_{HB}"
-VALUE_LB: str = f"{VALUE}_{LB}"
+SZ_DESCRIPTION: str = "description"
+SZ_MSG_ID: str = "msg_id"
+SZ_MSG_NAME: str = "msg_name"
+SZ_MSG_TYPE: str = "msg_type"
+SZ_VALUE: str = "value"
+SZ_VALUE_HB: str = f"{SZ_VALUE}_{HB}"
+SZ_VALUE_LB: str = f"{SZ_VALUE}_{LB}"
 
 Sensor = SimpleNamespace(
     COUNTER="counter",
@@ -136,7 +225,7 @@ OtMsgType = SimpleNamespace(
     UNKNOWN_DATAID="Unknown-DataId",
 )  # all are F8_8, except COUNTER, CO2_LEVEL
 
-OPENTHERM_MSG_TYPE: dict = {
+OPENTHERM_MSG_TYPE: dict[int, str] = {
     0b000: OtMsgType.READ_DATA,
     0b001: OtMsgType.WRITE_DATA,
     0b010: OtMsgType.INVALID_DATA,
@@ -152,11 +241,10 @@ SZ_MASTER_CONFIG_FLAGS = "master_config_flags"
 SZ_SLAVE_CONFIG_FLAGS = "slave_config_flags"
 SZ_FAULT_FLAGS = "fault_flags"
 SZ_REMOTE_FLAGS = "remote_flags"
-SZ_MESSAGES = "messages"
 
 
 # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
-_STATUS_FLAGS: Final[dict] = {
+_STATUS_FLAGS: Final[_FlagsSchemaT] = {
     0x0100: {
         EN: "Central heating enable",
         NL: "Centrale verwarming aan",
@@ -229,14 +317,14 @@ _STATUS_FLAGS: Final[dict] = {
     },  # diagnostics mode
 }
 # OpenTherm Master configuration flags [ID 2: master config flags (HB)]
-_MASTER_CONFIG_FLAGS: Final[dict] = {
+_MASTER_CONFIG_FLAGS: Final[_FlagsSchemaT] = {
     0x0100: {
         EN: "Smart Power",
         VAR: "ConfigSmartPower",
     },
 }
 # OpenTherm Slave configuration flags [ID 3: slave config flags (HB)]
-_SLAVE_CONFIG_FLAGS: Final[dict] = {
+_SLAVE_CONFIG_FLAGS: Final[_FlagsSchemaT] = {
     0x0100: {
         EN: "DHW present",
         VAR: "ConfigDHWpresent",
@@ -263,7 +351,7 @@ _SLAVE_CONFIG_FLAGS: Final[dict] = {
     },
 }
 # OpenTherm fault flags [ID 5: Application-specific fault flags (HB)]
-_FAULT_FLAGS: Final[dict] = {
+_FAULT_FLAGS: Final[_FlagsSchemaT] = {
     0x0100: {
         EN: "Service request",
         NL: "Onderhoudsvraag",
@@ -296,7 +384,7 @@ _FAULT_FLAGS: Final[dict] = {
     },
 }
 # OpenTherm remote flags [ID 6: Remote parameter flags (HB)]
-_REMOTE_FLAGS: Final[dict] = {
+_REMOTE_FLAGS: Final[_FlagsSchemaT] = {
     0x0100: {
         EN: "DHW setpoint enable",
         VAR: "RemoteDHWEnabled",
@@ -314,8 +402,8 @@ _REMOTE_FLAGS: Final[dict] = {
         VAR: "RemoteMaxCHReadWrite",
     },
 }
-# OpenTherm messages
-OPENTHERM_MESSAGES: Final[dict] = {
+# OpenTherm messages  # NOTE: this is used in entity_base.py (traits)
+OPENTHERM_MESSAGES: Final[dict[int, dict]] = {
     0x00: {  # 0, Status
         EN: "Status",
         DIR: READ_ONLY,
@@ -873,13 +961,13 @@ OPENTHERM_MESSAGES: Final[dict] = {
 }
 
 # These must have either a FLAGS (preferred) or a VAR for their message name
-_OPENTHERM_SCHEMA: Final[dict[str, dict]] = {
+_OT_FLAG_LOOKUP: Final[dict[str, _FlagsSchemaT]] = {
     SZ_STATUS_FLAGS: _STATUS_FLAGS,
     SZ_MASTER_CONFIG_FLAGS: _MASTER_CONFIG_FLAGS,
     SZ_SLAVE_CONFIG_FLAGS: _SLAVE_CONFIG_FLAGS,
     SZ_FAULT_FLAGS: _FAULT_FLAGS,
     SZ_REMOTE_FLAGS: _REMOTE_FLAGS,
-    SZ_MESSAGES: OPENTHERM_MESSAGES,
+    # SZ_MESSAGES: OPENTHERM_MESSAGES,
 }
 
 # R8810A 1018 v4: https://www.opentherm.eu/request-details/?post_ids=2944
@@ -892,82 +980,6 @@ _OPENTHERM_SCHEMA: Final[dict[str, dict]] = {
 # personal testing:
 # 0,       1,    3,    5,    6,   12-14,   17-18,   25-26,   28,            56
 # 0x00,       0x03, 0x05, 0x06, 0x0C-0D, 0x11-12, 0x19-1A, 0x1C, 0x30-31, 0x38, 0x7D
-
-OTB_MSG_IDS: dict[_MsgIdT, str] = {
-    # These are in the R8810A specification...
-    0x00: "Master/Slave status flags",
-    # 000:HB0: Master status: CH enable
-    # 000:HB1: Master status: DHW enable
-    # 000:HB2: Master status: Cooling enable
-    # 000:HB3: Master status: OTC active
-    # 000:HB5: Master status: Summer/winter mode
-    # 000:HB6: Master status: DHW blocking
-    # 000:LB0: Slave Status: Fault indication
-    # 000:LB1: Slave Status: CH mode
-    # 000:LB2: Slave Status: DHW mode
-    # 000:LB3: Slave Status: Flame status
-    0x01: "CH water temperature Setpoint (°C)",
-    # 001: Control Setpoint i.e. CH water temperature Setpoint (°C)
-    0x02: "Master configuration",
-    # 002:HB0: Master configuration: Smart power
-    # 002:LB:  Master MemberID code
-    0x03: "Slave configuration",
-    # 003:HB0: Slave configuration: DHW present
-    # 003:HB1: Slave configuration: Control type
-    # 003:HB4: Slave configuration: Master low-off & pump control
-    0x05: "Fault flags & OEM codes",
-    # 005:HB0: Service request
-    # 005:HB1: Lockout-reset
-    # 005:HB2: Low water pressure
-    # 005:HB3: Gas/flame fault
-    # 005:HB4: Air pressure fault
-    # 005:HB5: Water over-temperature
-    # 005:LB:  OEM fault code
-    0x06: "Remote boiler parameter flags",
-    # 006:HB0: Remote boiler parameter transfer-enable: DHW setpoint
-    # 006:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
-    # 006:LB0: Remote boiler parameter read/write: DHW setpoint
-    # 006:LB1: Remote boiler parameter read/write: max. CH setpoint
-    0x09: "Remote override room Setpoint",  # 009: # c.f. 0x64, 100               # TODO
-    0x0A: "Number of TSPs supported by slave",  # 010:                            # TODO
-    0x0C: "Size of FHB supported by slave",  # 012:                               # TODO
-    0x0E: "Maximum relative modulation level setting (%)",  # 014:
-    0x10: "Room Setpoint (°C)",  # 016:
-    0x11: "Relative Modulation Level (%)",  # 017:
-    0x12: "Water pressure in CH circuit (bar)",  # 018:
-    0x13: "Water flow rate in DHW circuit. (L/min)",  # 019:
-    0x18: "Room temperature (°C)",  # 024:
-    0x19: "Boiler flow water temperature (°C)",  # 025:
-    0x1A: "DHW temperature (°C)",  # 026:
-    0x1B: "Outside temperature (°C)",  # 027:
-    0x1C: "Return water temperature (°C)",  # 028:
-    0x30: "DHW Setpoint upper & lower bounds for adjustment (°C)",  # 048:
-    0x31: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # 049:
-    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # 056:
-    0x39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # 057:
-    0x7E: "Master product version number and type",  # 126:
-    0x7F: "Slave product version number and type",  # 127:
-    #
-    # These are not in the R8810A spec, but are natively RQ'd by 01:/30:...
-    # (0[35F]|1[1239AC]|3[89]|7[123456789ABF])
-    0x0D: "FHB Entry",  # 013:                                                    # TODO
-    0x73: "OEM diagnostic code",  # 115:
-    0x7C: "Opentherm version Master",  # 124:
-    0x7D: "Opentherm version Slave",  # 125:
-    #
-    # These also have been seen natively RQ'd by 01:/30...
-    0x0F: "Max. boiler capacity (kW) and modulation level setting (%)",  # 15
-    0x71: "Number of un-successful burner starts",  # 113
-    0x72: "Number of times flame signal was too low",  # 114
-    0x74: "Number of starts burner",  # 116
-    0x75: "Number of starts central heating pump",  # 117
-    0x76: "Number of starts DHW pump/valve",  # 118
-    0x77: "Number of starts burner during DHW mode",  # 119
-    0x78: "Number of hours burner is in operation (i.e. flame on)",  # 120
-    0x79: "Number of hours central heating pump has been running",  # 121
-    0x7A: "Number of hours DHW pump has been running/valve has been opened",  # 122
-    0x7B: "Number of hours DHW burner is in operation during DHW mode",  # 123
-}
 
 
 def parity(x: int) -> int:
@@ -1034,27 +1046,42 @@ def msg_value(val_seqx: str, val_type: str) -> float | int | list | str | None:
         S16: s16,
     }
 
-    if val_type in DATA_TYPES:
-        try:
-            return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
-        except ValueError:
-            return None
-    return val_seqx
+    # assert not [
+    #     k
+    #     for k, v in OPENTHERM_MESSAGES.items()
+    #     if not isinstance(v[VAL], dict)
+    #     and not isinstance(v.get(VAR), dict)
+    #     and v[VAL] not in DATA_TYPES
+    # ], "Corrupt OPENTHERM_MESSAGES schema"
+
+    try:
+        fnc = DATA_TYPES[val_type]
+    except KeyError:
+        return val_seqx
+
+    try:
+        result: float | int | list = fnc(val_seqx[:2], val_seqx[2:])
+        return result
+    except ValueError:
+        return None
 
 
-def _decode_flags(frame: str, data_id: int) -> dict[str, int]:
-    try:  # FIXME: don't use _OPENTHERM_SCHEMA
-        flag_schema = _OPENTHERM_SCHEMA[OPENTHERM_MESSAGES[data_id][FLAGS]]
+# FIXME: this is not finished...
+def _decode_flags(data_id: int, flags: str) -> _FlagsSchemaT:  # TBA: list[str]:
+    try:  # FIXME: don't use _OT_FLAG_LOOKUP
+        flag_schema: _FlagsSchemaT = _OT_FLAG_LOOKUP[OPENTHERM_MESSAGES[data_id][FLAGS]]
+
     except KeyError as exc:
         raise KeyError(
             f"Invalid data-id: 0x{data_id:02X} ({data_id}): data-id has no flags"
         ) from exc
 
-    assert isinstance(flag_schema, dict)  # mypy hint
     return flag_schema
 
 
 def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
+    """Decode a 3220 payload."""
+
     if not isinstance(frame, str) or len(frame) != 8:
         raise TypeError(f"Invalid frame (type or length): {frame}")
 
@@ -1073,7 +1100,7 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
     msg_schema = OPENTHERM_MESSAGES.get(data_id, {})
 
     # There are five msg_id with FLAGS - the following is not 100% correct...
-    data_value = {MSG_NAME: msg_schema.get(FLAGS, msg_schema.get(VAR))}
+    data_value = {SZ_MSG_NAME: msg_schema.get(FLAGS, msg_schema.get(VAR))}
 
     if msg_type in (0b000, 0b010, 0b011, 0b110, 0b111):
         # if frame[4:] != "0000":  # NOTE: this is not a hard rule, even for 0b000
@@ -1081,56 +1108,46 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
         return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg_schema
 
     if not msg_schema:  # may be a corrupt payload
-        data_value[VALUE] = msg_value(frame[4:8], U16)
+        data_value[SZ_VALUE] = msg_value(frame[4:8], U16)
 
     elif isinstance(msg_schema[VAL], dict):
-        data_value[VALUE_HB] = msg_value(
-            frame[4:6], msg_schema[VAL].get(HB, msg_schema[VAL])
-        )
-        data_value[VALUE_LB] = msg_value(
-            frame[6:8], msg_schema[VAL].get(LB, msg_schema[VAL])
-        )
+        value_hb = msg_value(frame[4:6], msg_schema[VAL].get(HB, msg_schema[VAL]))
+        value_lb = msg_value(frame[6:8], msg_schema[VAL].get(LB, msg_schema[VAL]))
 
-        if msg_schema[VAL].get(HB) == msg_schema[VAL].get(LB) == FLAG8:  # msg_id 0 only
-            data_value = {VALUE: data_value[VALUE_HB] + data_value[VALUE_LB]}
+        if isinstance(value_hb, list) and isinstance(value_lb, list):  # FLAG8
+            data_value[SZ_VALUE] = value_hb + value_lb  # only data_id 0x00
+        else:
+            data_value[SZ_VALUE_HB] = value_hb
+            data_value[SZ_VALUE_LB] = value_lb
 
     elif isinstance(msg_schema.get(VAR), dict):
-        data_value[VALUE_HB] = msg_value(frame[4:6], msg_schema[VAL])
-        data_value[VALUE_LB] = msg_value(frame[6:8], msg_schema[VAL])
+        data_value[SZ_VALUE_HB] = msg_value(frame[4:6], msg_schema[VAL])
+        data_value[SZ_VALUE_LB] = msg_value(frame[6:8], msg_schema[VAL])
 
     elif msg_schema[VAL] in (FLAG8, U8, S8):
-        data_value[VALUE] = msg_value(frame[4:6], msg_schema[VAL])
+        data_value[SZ_VALUE] = msg_value(frame[4:6], msg_schema[VAL])
 
     elif msg_schema[VAL] in (S16, U16):
-        data_value[VALUE] = msg_value(frame[4:8], msg_schema[VAL])
+        data_value[SZ_VALUE] = msg_value(frame[4:8], msg_schema[VAL])
 
     elif msg_schema[VAL] != F8_8:  # shouldn't reach here
-        data_value[VALUE] = msg_value(frame[4:8], U16)
+        data_value[SZ_VALUE] = msg_value(frame[4:8], U16)
 
     elif msg_schema[VAL] == F8_8:  # TODO: needs finishing
         result: float = msg_value(frame[4:8], msg_schema[VAL])  # type: ignore[assignment]
         if result is None:
-            data_value[VALUE] = result
+            data_value[SZ_VALUE] = result
         elif msg_schema.get(SENSOR) == Sensor.PERCENTAGE:
             # NOTE: OT defines % as 0.0-100.0, but (this) ramses uses 0.0-1.0 elsewhere
-            data_value[VALUE] = int(result * 2) / 200  # seems precision of 1%
+            data_value[SZ_VALUE] = int(result * 2) / 200  # seems precision of 1%
         elif msg_schema.get(SENSOR) == Sensor.FLOW_RATE:
-            data_value[VALUE] = int(result * 100) / 100
+            data_value[SZ_VALUE] = int(result * 100) / 100
         elif msg_schema.get(SENSOR) == Sensor.PRESSURE:
-            data_value[VALUE] = int(result * 10) / 10
+            data_value[SZ_VALUE] = int(result * 10) / 10
         else:  # if msg_schema.get(SENSOR) == (Sensor.TEMPERATURE, Sensor.HUMIDITY):
-            data_value[VALUE] = int(result * 100) / 100
+            data_value[SZ_VALUE] = int(result * 100) / 100
 
     return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg_schema
-
-
-# assert not [
-#     k
-#     for k, v in OPENTHERM_MESSAGES.items()
-#     if not isinstance(v[VAL], dict)
-#     and not isinstance(v.get(VAR), dict)
-#     and v[VAL] not in msg_value.DATA_TYPES
-# ], "Corrupt OPENTHERM_MESSAGES schema"
 
 
 # https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa: E501
