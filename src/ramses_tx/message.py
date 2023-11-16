@@ -38,7 +38,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
+    from ..ramses_rf import Gateway  # type: ignore[import-untyped]
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
@@ -64,7 +64,7 @@ class MessageBase:
         Will raise InvalidPacketError if it is invalid.
         """
 
-        self._pkt: Packet = pkt
+        self._pkt = pkt
 
         self.src: Address = pkt.src
         self.dst: Address = pkt.dst
@@ -89,7 +89,7 @@ class MessageBase:
         """Return a brief readable string representation of this object."""
 
         def ctx(pkt: Packet) -> str:
-            ctx = {True: "[..]", False: "", None: "??"}.get(pkt._ctx, pkt._ctx)
+            ctx = {True: "[..]", False: "", None: "??"}.get(pkt._ctx, pkt._ctx)  # type: ignore[arg-type]
             if not ctx and pkt.payload[:2] not in ("00", "FF"):
                 return f"({pkt.payload[:2]})"
             return ctx
@@ -148,7 +148,7 @@ class MessageBase:
     def _has_array(self) -> bool:
         """Return True if the message's raw payload is an array."""
 
-        return self._pkt._has_array
+        return bool(self._pkt._has_array)
 
     @property
     def _idx(self) -> dict:
@@ -235,9 +235,9 @@ class MessageBase:
         if self.code in (Code._000A, Code._2309) and self.src.type == DEV_TYPE_MAP.UFC:
             return {IDX_NAMES[Code._22C9]: self._pkt._idx}
 
-        index_name = IDX_NAMES.get(
-            self.code, SZ_DOMAIN_ID if self._pkt._idx[:1] == "F" else SZ_ZONE_IDX
-        )
+        assert isinstance(self._pkt._idx, str)  # mypy check
+        idx_name = SZ_DOMAIN_ID if self._pkt._idx[:1] == "F" else SZ_ZONE_IDX
+        index_name = IDX_NAMES.get(self.code, idx_name)  # type: ignore[call-overload]
 
         return {index_name: self._pkt._idx}
 
@@ -300,8 +300,8 @@ class Message(MessageBase):  # add _expired attr
     # .HAS_DIED = 1.0  # fraction_expired >= 1.0 (is expected lifespan)
     IS_EXPIRING = 0.8  # fraction_expired >= 0.8 (and < HAS_EXPIRED)
 
-    _gwy = None
-    _fraction_expired: float = None  # type: ignore[assignment]
+    _gwy: Gateway = None  # FIXME: where does this get set?
+    _fraction_expired: float | None = None
 
     @property
     def _expired(self) -> bool:
@@ -309,9 +309,9 @@ class Message(MessageBase):  # add _expired attr
         # fraction_expired = (dt_now - self.dtm - _TD_SECONDS_003) / self._pkt._lifespan
         # TODO: keep none >7d, even 10E0, etc.
 
-        def fraction_expired(lifespan: float) -> float:
+        def fraction_expired(lifespan: td) -> float:
             """Return the packet's age as fraction of its 'normal' life span."""
-            return (self._gwy._dt_now() - self.dtm - _TD_SECS_003) / lifespan
+            return (self._gwy._dt_now() - self.dtm - _TD_SECS_003) / lifespan  # type: ignore[no-any-return]
 
         # 1. Look for easy win...
         if self._fraction_expired is not None:
@@ -330,6 +330,9 @@ class Message(MessageBase):  # add _expired attr
         elif self._pkt._lifespan is False:  # Can't expire
             self._fraction_expired = self.CANT_EXPIRE
 
+        elif self._pkt._lifespan is True:  # Can't expire
+            raise NotImplementedError
+
         else:
             self._fraction_expired = fraction_expired(self._pkt._lifespan)
 
@@ -344,7 +347,7 @@ def re_compile_re_match(regex: str, string: str) -> bool:  # Optional[Match[Any]
     return re.compile(regex).match(string)  # type: ignore[return-value]
 
 
-def _check_msg_payload(msg: Message, payload: str) -> None:
+def _check_msg_payload(msg: MessageBase, payload: str) -> None:
     """Validate the packet's payload against its verb/code pair.
 
     Raise an InvalidPayloadError if the payload is seen as invalid. Such payloads may
@@ -357,7 +360,7 @@ def _check_msg_payload(msg: Message, payload: str) -> None:
         raise PacketInvalid(f"Unknown code: {msg.code}")
 
     try:
-        regex = CODES_SCHEMA[msg.code][msg.verb]
+        regex = CODES_SCHEMA[msg.code][msg.verb]  # type: ignore[index]
     except KeyError:
         raise PacketInvalid(f"Unknown verb/code pair: {msg.verb}/{msg.code}") from None
 

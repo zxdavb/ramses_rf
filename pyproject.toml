@@ -89,7 +89,7 @@
     "src/ramses_tx/frame.py",
     "src/ramses_tx/helpers.py",
     "src/ramses_tx/logger.py",
-    # "src/ramses_tx/message.py",
+    "src/ramses_tx/message.py",
     "src/ramses_tx/opentherm.py",
     "src/ramses_tx/packet.py",
     # "src/ramses_tx/protocol.py",
@@ -102,7 +102,6 @@
 
   exclude = [
     "src/ramses_tx/command.py",
-    "src/ramses_tx/message.py",
     "src/ramses_tx/protocol.py",
   ]
 
