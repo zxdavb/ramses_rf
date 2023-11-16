@@ -17,7 +17,7 @@ from queue import Empty, Full, PriorityQueue
 from threading import Lock
 from typing import TYPE_CHECKING
 
-from . import Command, exceptions
+from . import Command, Packet, exceptions
 from .address import HGI_DEV_ADDR
 from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
 
@@ -35,7 +35,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from . import Packet, QosProtocol, QosTransport
+    from . import QosProtocol, QosTransport
 else:
     QosProtocol = asyncio.Protocol
     QosTransport = asyncio.Transport
