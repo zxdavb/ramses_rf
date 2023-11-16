@@ -28,6 +28,7 @@ SZ_QOS = "qos"
 SZ_RETRIES = "retries"
 SZ_TIMEOUT = "timeout"
 
+# these are used by QoS
 SZ_CALLBACK = "callback"
 SZ_DAEMON = "daemon"
 SZ_EXPIRED = "expired"
