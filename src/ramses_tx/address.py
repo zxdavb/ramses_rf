@@ -57,7 +57,7 @@ class Address:
     def __eq__(self, other) -> bool:
         if not hasattr(other, "id"):  # can compare Address with Device
             return NotImplemented
-        return self.id == other.id
+        return self.id == other.id  # type: ignore[no-any-return]
 
     @property
     def hex_id(self) -> str:

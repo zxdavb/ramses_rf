@@ -125,7 +125,7 @@ def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     def NormaliseSerialPort():
         def normalise_serial_port(node_value: str | dict) -> dict:
             if isinstance(node_value, str):
-                return {SZ_PORT_NAME: node_value} | SCH_SERIAL_PORT_CONFIG({})
+                return {SZ_PORT_NAME: node_value} | SCH_SERIAL_PORT_CONFIG({})  # type: ignore[no-any-return]
             return node_value
 
         return normalise_serial_port
@@ -156,7 +156,7 @@ def ConvertNullToDict():
     def convert_null_to_dict(node_value) -> dict:
         if node_value is None:
             return {}
-        return node_value
+        return node_value  # type: ignore[no-any-return]
 
     return convert_null_to_dict
 
