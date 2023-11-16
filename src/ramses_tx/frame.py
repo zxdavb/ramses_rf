@@ -89,7 +89,7 @@ class Frame:
         self._len: int = int(len(self.payload) / 2)
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(
+            self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
         except PacketInvalid as exc:  # will be: InvalidAddrSetError
@@ -125,6 +125,7 @@ class Frame:
         except TypeError as exc:
             raise PacketInvalid("Bad frame: Invalid attrs") from exc
 
+    # FIXME: this is messy
     def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
 
@@ -141,7 +142,8 @@ class Frame:
             return
 
         try:
-            self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
+            # self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
+            _ = pkt_addrs(self._frame[7:36])
         except PacketInvalid as exc:  # will be: InvalidAddrSetError
             raise PacketInvalid("Bad frame: Invalid address set") from exc
 
