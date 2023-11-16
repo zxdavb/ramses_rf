@@ -82,16 +82,7 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
-# def OUT_alt_slugify_string(key: str) -> str:
-#     """Convert a string to snake_case."""
-#     string = re.sub(r"[\-\.\s]", "_", str(key))
-#     return (string[0]).lower() + re.sub(
-#         r"[A-Z]",
-#         lambda matched: f"_{matched.group(0).lower()}",
-#         string[1:],
-#     )
-
-
+# TODO: FIXME: This is a mess - needs converting to StrEnum
 class AttrDict(dict):
     _SZ_AKA_SLUG = "_root_slug"
     _SZ_DEFAULT = "_default"
@@ -179,7 +170,7 @@ class AttrDict(dict):
     def _hex(self, key) -> str:
         """Return the key/ID (2-byte hex string) of the two-way dict (e.g. '04')."""
         if key in self._main_table:
-            return list(self._main_table[key].keys())[0]
+            return list(self._main_table[key].keys())[0]  # type: ignore[no-any-return]
         if key in self._reverse:
             return self._reverse[key]
         raise KeyError(key)
@@ -187,9 +178,9 @@ class AttrDict(dict):
     def _str(self, key) -> str:
         """Return the value (string) of the two-way dict (e.g. 'radiator_valve')."""
         if key in self._main_table:
-            return list(self._main_table[key].values())[0]
+            return list(self._main_table[key].values())[0]  # type: ignore[no-any-return]
         if key in self:
-            return self[key]
+            return self[key]  # type: ignore[no-any-return]
         raise KeyError(key)
 
     # def values(self):
@@ -200,11 +191,11 @@ class AttrDict(dict):
         slug_ = self._slug_lookup[key]
         # if slug_ in self._attr_table["_TRANSFORMS"]:
         #     return self._attr_table["_TRANSFORMS"][slug_]
-        return slug_
+        return slug_  # type: ignore[no-any-return]
 
     def slugs(self) -> tuple:
         """Return the slugs from the main table."""
-        return self._attr_table[self._SZ_SLUGS]
+        return self._attr_table[self._SZ_SLUGS]  # type: ignore[no-any-return]
 
 
 def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAttrDict
