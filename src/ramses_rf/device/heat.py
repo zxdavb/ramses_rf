@@ -1092,7 +1092,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
+            if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in (3, 6, 127)
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1129,18 +1129,21 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def opentherm_status(self) -> dict:
-        return {
+        return {  # most these are in: STATUS_MSG_IDS
             SZ_BOILER_OUTPUT_TEMP: self._ot_msg_value("19"),
             SZ_BOILER_RETURN_TEMP: self._ot_msg_value("1C"),
             SZ_BOILER_SETPOINT: self._ot_msg_value("01"),
-            SZ_CH_MAX_SETPOINT: self._ot_msg_value("39"),
+            # SZ_CH_MAX_SETPOINT: self._ot_msg_value("39"),  # in PARAMS_MSG_IDS
             SZ_CH_WATER_PRESSURE: self._ot_msg_value("12"),
             SZ_DHW_FLOW_RATE: self._ot_msg_value("13"),
-            SZ_DHW_SETPOINT: self._ot_msg_value("38"),
+            # SZ_DHW_SETPOINT: self._ot_msg_value("38"),  # in PARAMS_MSG_IDS
             SZ_DHW_TEMP: self._ot_msg_value("1A"),
             SZ_OEM_CODE: self._ot_msg_value("73"),
             SZ_OUTSIDE_TEMP: self._ot_msg_value("1B"),
             SZ_REL_MODULATION_LEVEL: self._ot_msg_value("11"),
+            #
+            # SZ...: self._ot_msg_value("05"),  # in STATUS_MSG_IDS
+            # SZ...: self._ot_msg_value("18"),  # in STATUS_MSG_IDS
             #
             SZ_CH_ACTIVE: self._ot_msg_flag("00", 8 + 1),
             SZ_CH_ENABLED: self._ot_msg_flag("00", 0),

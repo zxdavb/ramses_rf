@@ -7,15 +7,13 @@ Decode/process a packet (packet that was received).
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
-from .const import __dev_mode__
 from .exceptions import PacketInvalid
 from .frame import Frame
-from .logger import getLogger
-from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
+from .logger import getLogger  # overridden logger.getLogger
+from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS, WRITE_MSG_IDS
 from .ramses import CODES_SCHEMA, EXPIRES
 
 # skipcq: PY-W2000
@@ -33,18 +31,14 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 
 
 # these trade memory for speed
-_TD_SECONDS_000 = td(seconds=0)
-_TD_SECONDS_003 = td(seconds=3)
-_TD_SECONDS_360 = td(seconds=360)
-_TD_MINUTES_005 = td(minutes=5)
-_TD_MINUTES_060 = td(minutes=60)
+_TD_SECS_000 = td(seconds=0)
+_TD_SECS_003 = td(seconds=3)
+_TD_SECS_360 = td(seconds=360)
+_TD_MINS_005 = td(minutes=5)
+_TD_MINS_060 = td(minutes=60)
+_TD_MINS_360 = td(minutes=360)
+_TD_DAYS_001 = td(minutes=60 * 24)
 
-
-DEV_MODE = __dev_mode__ and False
-
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 _PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
@@ -153,52 +147,57 @@ class Packet(Frame):
         return cls(dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
-    def from_port(cls, dtm: dt, pkt_line: str, raw_line: None | bytes = None):
+    def from_port(cls, dtm: dt, pkt_line: str, raw_line: bytes | None = None):
         """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
 
 
-def pkt_lifespan(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
-    """Return the pkt lifespan, or None if the packet does not expire (e.g. 10E0).
+# TODO: remove None as a possible return value
+def pkt_lifespan(pkt: Packet) -> td:  # import OtbGateway??
+    """Return the pkt lifespan, or dt.max() if the packet does not expire.
 
     Some codes require a valid payload to best determine lifespan (e.g. 1F09).
     """
 
     if pkt.verb in (RQ, W_):
-        return _TD_SECONDS_000
+        return _TD_SECS_000
 
-    if pkt.code in (
-        Code._0005,
-        Code._000C,
-        Code._0404,
-        Code._10E0,
-    ):  # 0404 expired by 0006
-        return None  # TODO: exclude/remove devices caused by corrupt ADDRs?
+    if pkt.code in (Code._0005, Code._000C):
+        return _TD_DAYS_001
 
-    if pkt.code == Code._1FC9 and pkt.verb == RP:
-        return None  # TODO: check other verbs, they seem variable
+    if pkt.code == Code._0006:
+        return _TD_MINS_060
+
+    if pkt.code == Code._0404:  # 0404 tombstoned by incremented 0006
+        return _TD_DAYS_001
+
+    if pkt.code == Code._000A and pkt._has_array:
+        return _TD_MINS_060  # sends I /1h
+
+    if pkt.code == Code._10E0:  # but: what if valid pkt with a corrupt src_id
+        return _TD_DAYS_001
 
     if pkt.code == Code._1F09:  # sends I /sync_cycle
         # can't do better than 300s with reading the payload
-        return _TD_SECONDS_360 if pkt.verb == I_ else _TD_SECONDS_000
+        return _TD_SECS_360 if pkt.verb == I_ else _TD_SECS_000
 
-    if pkt.code == Code._000A and pkt._has_array:
-        return _TD_MINUTES_060  # sends I /1h
+    if pkt.code == Code._1FC9 and pkt.verb == RP:
+        return _TD_DAYS_001  # TODO: check other verbs, they seem variable
 
     if pkt.code in (Code._2309, Code._30C9) and pkt._has_array:  # sends I /sync_cycle
-        return _TD_SECONDS_360
+        return _TD_SECS_360
 
     if pkt.code == Code._3220:  # FIXME
-        # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Data:  # TODO
-        #     return _TD_SECONDS_003
+        if pkt.payload[4:6] in WRITE_MSG_IDS:  #  and Write-Data:  # TODO
+            return _TD_SECS_003
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
-            return None  # SCHEMA_MSG_IDS[pkt.payload[4:6]]
+            return _TD_MINS_060
         if pkt.payload[4:6] in PARAMS_MSG_IDS:
-            return PARAMS_MSG_IDS[pkt.payload[4:6]]
+            return _TD_MINS_360
         if pkt.payload[4:6] in STATUS_MSG_IDS:
-            return STATUS_MSG_IDS[pkt.payload[4:6]]
-        return _TD_MINUTES_005
+            return _TD_MINS_005
+        return _TD_MINS_005
 
     # if pkt.code in (Code._3B00, Code._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
@@ -206,4 +205,4 @@ def pkt_lifespan(pkt: Packet) -> None | td:  # NOTE: import OtbGateway ??
     if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:  # type: ignore[call-overload]
         return CODES_SCHEMA[pkt.code][EXPIRES]  # type: ignore[index]
 
-    return _TD_MINUTES_060
+    return _TD_MINS_060
