@@ -507,7 +507,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
-        return dt_now()
+        return dt_now()  # type: ignore[no-any-return]
 
     def _read_ready(self) -> None:
         # data to self._bytes_received() instead of self._protocol.data_received()
@@ -520,9 +520,9 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
         if data:
             self._bytes_received(data)  # was: self._protocol.pkt_received(data)
 
-    def is_reading(self) -> None:
+    def is_reading(self) -> bool:
         """Return True if the transport is receiving."""
-        return self._has_reader
+        return bool(self._has_reader)
 
     def _bytes_received(self, data: bytes) -> None:  # logs: RCVD(bytes)
         """Make a Frame from the data and process it."""
@@ -716,17 +716,6 @@ class QosTransport(PortTransport):
     # the note in Protocol layer
 
     pass
-
-
-def find_gateway_device() -> None | SerPortName:
-    """Find the gateway device and return its port name (assumes exactly one)."""
-    port_names = [
-        p.device for p in comports() if PortTransport.is_hgi80(p.device) is not None
-    ]
-    try:
-        return port_names[0]
-    except IndexError:
-        return None
 
 
 async def transport_factory(
