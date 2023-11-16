@@ -14,7 +14,7 @@ from .exceptions import PacketInvalid
 from .frame import Frame
 from .logger import getLogger  # overridden logger.getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS, WRITE_MSG_IDS
-from .ramses import CODES_SCHEMA, EXPIRES
+from .ramses import CODES_SCHEMA, SZ_LIFESPAN
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -202,7 +202,8 @@ def pkt_lifespan(pkt: Packet) -> td:  # import OtbGateway??
     # if pkt.code in (Code._3B00, Code._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
 
-    if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:  # type: ignore[call-overload]
-        return CODES_SCHEMA[pkt.code][EXPIRES]  # type: ignore[index]
+    if (code := CODES_SCHEMA.get(pkt.code)) and SZ_LIFESPAN in code:  # type: ignore[call-overload]
+        result: bool | td | None = CODES_SCHEMA[pkt.code][SZ_LIFESPAN]  # type: ignore[index]
+        return result if result else _TD_MINS_060
 
-    return _TD_MINS_060
+    return _TD_MINS_060  # applies to lots of HVAC packets

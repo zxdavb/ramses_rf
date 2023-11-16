@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
+
+# TODO: code a lifespan for most packets
+
 from __future__ import annotations
 
 from datetime import timedelta as td
@@ -22,20 +25,21 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     # skipcq: PY-W2000
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-DEV_MODE = False
+DEV_MODE = False  # used to sort CODE_IDX_COMPLEX, etc.
 
 
-RQ_NULL = "rq_null"
-EXPIRES = "expires"
+_OUT_EXPIRY = "expiry"
+_OUT_RQ_NULL = "rq_null"
+SZ_LIFESPAN = "lifespan"
 
-EXPIRY = "expiry"
-
-# The master list - all known codes are here, even if there's no corresponding parser
-# Anything with a zone-idx should start: ^0[0-9A-F], ^(0[0-9A-F], or ^((0[0-9A-F]
 
 #
 ########################################################################################
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
+
+# The master list - all known codes are here, even if there's no corresponding parser
+# Anything with a zone-idx should start: ^0[0-9A-F], ^(0[0-9A-F], or ^((0[0-9A-F]
+
 #
 CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._0001: {
@@ -55,7 +59,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
         W_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # contrived
-        EXPIRES: td(days=1),
+        SZ_LIFESPAN: td(days=1),
     },
     Code._0005: {  # system_zones
         SZ_NAME: "system_zones",
@@ -63,7 +67,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
         RP: r"^00[01][0-9A-F]{3,5}$",
-        EXPIRES: False,
+        SZ_LIFESPAN: False,
     },
     Code._0006: {  # schedule_version  # TODO: what for DHW schedule?
         SZ_NAME: "schedule_version",
@@ -95,7 +99,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
-        EXPIRES: td(days=1),
+        SZ_LIFESPAN: td(days=1),
     },
     Code._000C: {  # zone_devices
         SZ_NAME: "zone_devices",
@@ -103,7 +107,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # RP --- 01:145038 18:013393 --:------ 000C 016 05-08-00-109901    08-00-109902    08-00-109903
         I_: r"^0[0-9A-F][01][0-9A-F]|7F[0-9A-F]{6}([0-9A-F]{10}|[0-9A-F]{12}){1,7}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
-        EXPIRES: False,
+        SZ_LIFESPAN: False,
     },
     Code._000E: {  # unknown_000e
         SZ_NAME: "message_000e",
@@ -118,7 +122,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
         RP: r"^00[0-9A-F]{4}F{4}$",
-        EXPIRES: td(days=1),  # TODO: make longer?
+        SZ_LIFESPAN: td(days=1),  # TODO: make longer?
     },
     Code._0150: {  # unknown_0150
         SZ_NAME: "message_0150",
@@ -155,7 +159,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
         RP: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}[0-9A-F]{2,82}$",
         W_: r"^0[0-9A-F](20|23)[0-9A-F]{2}08[0-9A-F]{6}[0-9A-F]{2,82}$",  # as per RP
-        EXPIRES: None,
+        SZ_LIFESPAN: None,
     },
     Code._0418: {  # system_fault
         SZ_NAME: "system_fault",
@@ -184,7 +188,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._1060: {  # device_battery
         SZ_NAME: "device_battery",
         I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",  # HCW: r"^(FF|0[0-9A-F]...
-        EXPIRES: td(days=1),
+        SZ_LIFESPAN: td(days=1),
     },
     Code._1081: {  # max_ch_setpoint
         SZ_NAME: "max_ch_setpoint",
@@ -212,7 +216,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # NOTE: RQ/07/10A0 has a payload
         RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
         W_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # TODO: needs checking
-        EXPIRES: td(hours=4),
+        SZ_LIFESPAN: td(hours=4),
     },
     Code._10B0: {  # unknown_10b0
         SZ_NAME: "message_10b0",
@@ -230,13 +234,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^(00|FF)([0-9A-F]{30,})?$",  # r"^[0-9A-F]{32,}$" might be OK
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
-        EXPIRES: False,
+        SZ_LIFESPAN: False,
     },
     Code._10E1: {  # device_id
         SZ_NAME: "device_id",
         RP: r"^00[0-9A-F]{6}$",
         RQ: r"^00$",
-        EXPIRES: False,
+        SZ_LIFESPAN: False,
     },
     Code._10E2: {  # unknown_10e2, HVAC?
         SZ_NAME: "unknown_10e2",
@@ -253,7 +257,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}0[01])?$",
         W_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}0[01])?$",  # TODO: is there no I?
         RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}0[01])?)?$",  # RQ/13:/00, or RQ/01:/FC:
-        EXPIRES: td(days=1),
+        SZ_LIFESPAN: td(days=1),
     },
     Code._11F0: {  # unknown_11f0, from heatpump relay
         SZ_NAME: "message_11f0",
@@ -268,7 +272,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # .I --- 07:045960 --:------ 07:045960 1260 003 0007A9
         I_: r"^0[01][0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^0[01](00)?$",  # TODO: officially: r"^0[01]$"
-        EXPIRES: td(hours=1),
+        SZ_LIFESPAN: td(hours=1),
     },
     Code._1280: {  # outdoor_humidity
         SZ_NAME: "outdoor_humidity",
@@ -289,13 +293,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
         I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
-        EXPIRES: td(hours=1),
+        SZ_LIFESPAN: td(hours=1),
     },
     Code._12B0: {  # window_state  (HVAC % window open)
         SZ_NAME: "window_state",
         I_: r"^0[0-9A-F](0000|C800|FFFF)$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F](00)?$",
-        EXPIRES: td(hours=1),
+        SZ_LIFESPAN: td(hours=1),
     },
     Code._12C0: {  # displayed_temp (HVAC room temp)
         SZ_NAME: "displayed_temp",  # displayed room temp
@@ -339,7 +343,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         RQ: r"^0[01]$",  # will accept: r"^0[01](00)$"
         W_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
-        EXPIRES: td(hours=4),
+        SZ_LIFESPAN: td(hours=4),
     },
     Code._1F70: {  # programme_config, HVAC (1470, 1F70, 22B0)
         SZ_NAME: "programme_config",
@@ -453,7 +457,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^0[0-9A-F]{5}$",
         # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A # No RPs
         RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
-        EXPIRES: td(minutes=30),
+        SZ_LIFESPAN: td(minutes=30),
     },
     Code._2349: {  # zone_mode
         SZ_NAME: "zone_mode",
@@ -463,7 +467,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # .W --- 18:141846 01:050858 --:------ 2349 007 02-08FC-01-FFFFFF
         RQ: r"^0[0-9A-F](00|[0-9A-F]{12})?$",
         # RQ --- 22:070483 01:063844 --:------ 2349 007 06-0708-03-000027
-        EXPIRES: td(hours=4),
+        SZ_LIFESPAN: td(hours=4),
     },
     Code._2389: {  # unknown_2389 - CODE_IDX_COMPLEX?
         # .I 024 03:052382 --:------ 03:052382 2389 003 02001B
@@ -510,7 +514,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
-        EXPIRES: td(hours=4),
+        SZ_LIFESPAN: td(hours=4),
     },
     Code._2E10: {  # presence_detect - HVAC
         SZ_NAME: "presence_detect",
@@ -521,7 +525,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
-        EXPIRES: td(hours=1),
+        SZ_LIFESPAN: td(hours=1),
     },
     Code._3110: {  # ufc_demand - HVAC
         SZ_NAME: "ufc_demand",
@@ -543,12 +547,12 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
         W_: r"^00[0-9A-F]{16}$",
-        EXPIRES: td(seconds=3),
+        SZ_LIFESPAN: td(seconds=3),
     },
     Code._3150: {  # heat_demand
         SZ_NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
-        EXPIRES: td(minutes=20),
+        SZ_LIFESPAN: td(minutes=20),
     },
     Code._31D9: {  # fan_state
         SZ_NAME: "fan_state",
@@ -662,6 +666,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^00(([0-9A-F]){2})+$",
     },
 }
+
 for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
@@ -702,6 +707,7 @@ RQ_NO_PAYLOAD.extend((Code._0418,))
 
 ########################################################################################
 # IDX:_xxxxxx: index (and context)
+
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
@@ -1174,6 +1180,10 @@ CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
     Code._22D0,
     Code._313F,
 )  # I packets, TODO: 31Dx too?
+
+#
+########################################################################################
+# Other Stuff
 
 # ### WIP:
 # _result = {}
