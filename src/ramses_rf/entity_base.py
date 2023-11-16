@@ -13,6 +13,7 @@ import random
 from datetime import datetime as dt, timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from ramses_tx import ProtocolError
@@ -70,13 +71,10 @@ _LOGGER = logging.getLogger(__name__)
 def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
     """Return a mapping of a (unique) attr of classes in a module to that class."""
 
-    return {
-        getattr(c[1], attr): c[1]
-        for c in getmembers(
-            modules[name],
-            lambda m: isclass(m) and m.__module__ == name and getattr(m, attr, None),  # type: ignore[arg-type, return-value]
-        )
-    }
+    def predicate(m: ModuleType) -> bool:
+        return isclass(m) and m.__module__ == name and getattr(m, attr, None)  # type: ignore[return-value]
+
+    return {getattr(c[1], attr): c[1] for c in getmembers(modules[name], predicate)}
 
 
 class _Entity:
@@ -760,8 +758,8 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
     ) -> None:
         super().__init__(*args, **kwargs)
 
-        self._parent = parent  # type: ignore[assignment]
-        self._is_sensor = is_sensor  # type: ignore[assignment]
+        self._parent = parent
+        self._is_sensor = is_sensor
 
         self._child_id: str | None = None  # TODO: should be: str?
 
@@ -818,7 +816,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             child_id = FF
 
         if isinstance(parent, Controller):  # A controller cant be a Parent
-            parent: System = parent.tcs  # type: ignore[assignment, no-redef]
+            parent = parent.tcs
 
         if isinstance(parent, System) and child_id:
             if child_id in (F9, FA):
@@ -826,7 +824,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             # elif child_id == FC:
             #     pass
             elif int(child_id, 16) < parent._max_zones:
-                parent: Zone = parent.get_htg_zone(child_id)  # type: ignore[no-redef, attr-defined]
+                parent = parent.get_htg_zone(child_id)
 
         elif isinstance(parent, Zone) and not child_id:
             child_id = child_id or parent.idx

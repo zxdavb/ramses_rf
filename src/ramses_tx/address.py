@@ -6,12 +6,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType, __dev_mode__
+from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 from .exceptions import PacketAddrSetInvalid
-from .helpers import typechecked
 
-DEV_MODE = __dev_mode__ and False
-DEV_HVAC = True
+# Test/Dev & Debug flags
+DEV_HVAC = True  #
 
 DeviceId = str
 
@@ -134,7 +133,6 @@ NON_DEV_ADDR = Address(NON_DEVICE_ID)  # --:------
 NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
 
 
-@typechecked
 def dev_id_to_hex_id(device_id: DeviceId) -> str:
     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
@@ -150,7 +148,6 @@ def dev_id_to_hex_id(device_id: DeviceId) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"
 
 
-@typechecked
 def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
     if device_hex == "FFFFFE":  # aka '63:262142'
@@ -169,7 +166,6 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
 
 
 @lru_cache(maxsize=128)
-@typechecked
 def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
     """Return True if a device_id is valid."""
 
@@ -188,7 +184,6 @@ def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
 
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
-@typechecked
 def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
 

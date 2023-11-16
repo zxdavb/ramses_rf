@@ -507,7 +507,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
-        return dt_now()  # type: ignore[no-any-return]
+        return dt_now()
 
     def _read_ready(self) -> None:
         # data to self._bytes_received() instead of self._protocol.data_received()

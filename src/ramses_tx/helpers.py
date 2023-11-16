@@ -115,10 +115,10 @@ def timestamp() -> float:
 
     # see: https://www.python.org/dev/peps/pep-0564/
     if sys.platform != "win32":  # since 1970-01-01T00:00:00Z, time.gmtime(0)
-        return time.time_ns() / 1e9  # type: ignore[unreachable]
+        return time.time_ns() / 1e9
 
     # otherwise, is since 1601-01-01T00:00:00Z
-    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))  # type: ignore[unreachable]
+    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
     _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
     return _time - 134774 * 24 * 60 * 60
 
