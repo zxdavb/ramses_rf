@@ -571,6 +571,7 @@ class Entity(_Discovery):
     """The base class for Devices/Zones/Systems."""
 
 
+# FIXME: this is a mess - needs fixing
 def _delete_msg(msg: Message) -> None:
     """Remove the msg from all state databases."""
 
@@ -795,10 +796,10 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
             # FIXME: to remove attr-defined
             # the follwing is a mess - may just be better off deprecating it
-            if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:  # type: ignore[attr-defined]
+            if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:
                 self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
 
-            elif self.type in DEV_TYPE_MAP.THM_DEVICES:  # type: ignore[attr-defined]
+            elif self.type in DEV_TYPE_MAP.THM_DEVICES:
                 self.set_parent(
                     msg.dst, child_id=msg.payload[SZ_ZONE_IDX], is_sensor=True
                 )
