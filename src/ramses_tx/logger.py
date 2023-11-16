@@ -153,16 +153,16 @@ class StdErrFilter(logging.Filter):  # record.levelno >= logging.WARNING
     """For sys.stderr, process only wanted packets."""
 
     def filter(self, record) -> bool:
-        """Return True if the record is to be processed."""
-        return record.levelno >= logging.WARNING  # WARNING-30, ERROR-40
+        """Return True if the record is to be processed."""  # WARNING-30, ERROR-40
+        return record.levelno >= logging.WARNING  # type: ignore[no-any-return]
 
 
 class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
     """For sys.stdout, process only wanted packets."""
 
     def filter(self, record) -> bool:
-        """Return True if the record is to be processed."""
-        return record.levelno < logging.WARNING  # INFO-20, DEBUG-10
+        """Return True if the record is to be processed."""  # INFO-20, DEBUG-10
+        return record.levelno < logging.WARNING  # type: ignore[no-any-return]
 
 
 class TimedRotatingFileHandler(_TimedRotatingFileHandler):
