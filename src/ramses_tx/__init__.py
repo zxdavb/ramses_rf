@@ -79,4 +79,4 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 
 def set_pkt_logging_config(**config) -> Logger:
     set_pkt_logging(_PKT_LOGGER, **config)
-    return _PKT_LOGGER
+    return _PKT_LOGGER  # type: ignore[no-any-return]

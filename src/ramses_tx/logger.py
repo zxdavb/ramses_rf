@@ -241,7 +241,9 @@ def set_logger_timesource(dtm_now: Callable):
     logging.setLogRecordFactory(record_factory)
 
 
-def set_pkt_logging(logger, dt_now=None, cc_console: bool = False, **kwargs) -> None:
+def set_pkt_logging(
+    logger: logging.Logger, dt_now=None, cc_console: bool = False, **kwargs
+) -> None:
     """Create/configure handlers, formatters, etc.
 
     Parameters:
@@ -314,4 +316,4 @@ def set_pkt_logging(logger, dt_now=None, cc_console: bool = False, **kwargs) -> 
         "error_text": "",
         "comment": f"ramses_tx {VERSION}",
     }
-    logger.warning("", extra=extras)
+    logger.warning("", extra=extras)  # initial log line
