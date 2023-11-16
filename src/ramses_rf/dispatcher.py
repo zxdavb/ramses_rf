@@ -17,8 +17,7 @@ from typing import TYPE_CHECKING
 
 from ramses_tx import (
     CODES_BY_DEV_SLUG,
-    CODES_SCHEMA,
-    Message as MessageBase,
+    Message,
     PacketAddrSetInvalid,
     PacketInvalid,
     RamsesException,
@@ -37,13 +36,9 @@ from .const import (
     SZ_OFFER,
     SZ_PHASE,
     DevType,
-    __dev_mode__,
 )
 from .device import Device, Fakeable
 
-# from .schemas import SZ_ALIAS
-
-# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -59,94 +54,19 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 if TYPE_CHECKING:
     from . import Gateway
 
-DEV_MODE = __dev_mode__  # set True for useful Tracebacks
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 # all debug flags should be False for published code
+DEV_MODE = False  # set True for useful Tracebacks
 _DEBUG_FORCE_LOG_MESSAGES = False  # useful for dev/test
-
-STRICT_MODE = not DEV_MODE and False
+STRICT_MODE = False
 
 __all__ = ["detect_array_fragment", "process_msg"]
 
-CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
 _TD_SECONDS_003 = td(seconds=3)
-
-
-class Message(MessageBase):
-    """Extend the Message class, so is useful to a stateful Gateway.
-
-    Adds _expired attr to the Message class.
-    """
-
-    CANT_EXPIRE = -1  # sentinel value for fraction_expired
-
-    HAS_EXPIRED = 2.0  # fraction_expired >= HAS_EXPIRED
-    # .HAS_DIED = 1.0  # fraction_expired >= 1.0 (is expected lifespan)
-    IS_EXPIRING = 0.8  # fraction_expired >= 0.8 (and < HAS_EXPIRED)
-
-    _gwy = None
-    _fraction_expired: float = None  # type: ignore[assignment]
-
-    # def __str__(self) -> str:
-    #     """Return a brief readable string representation of this object."""
-    #     _ = super().__str__()
-    #     if not self._gwy.config.use_aliases:
-    #         return self._str
-    #     return
-    #     _format = MSG_FORMAT_18  # else MSG_FORMAT_10
-
-    # def _name(self, addr: Address) -> str:
-    #     """Return a friendly name for an Address, or a Device.
-
-    #     Use the alias, if one exists, or use a slug instead of a device type.
-    #     """
-
-    #     try:
-    #         if self._gwy.config.use_aliases:
-    #             return self._gwy._include[addr.id][SZ_ALIAS][:18]
-    #         else:
-    #             return f"{self._gwy.device_by_id[addr.id]._SLUG}:{addr.id[3:]}"
-    #     except KeyError:
-    #         return f" {addr.id}"
-
-    @property
-    def _expired(self) -> bool:
-        """Return True if the message is dated (or False otherwise)."""
-        # fraction_expired = (dt_now - self.dtm - _TD_SECONDS_003) / self._pkt._lifespan
-        # TODO: keep none >7d, even 10E0, etc.
-
-        def fraction_expired(lifespan: float) -> float:
-            """Return the packet's age as fraction of its 'normal' life span."""
-            return (self._gwy._dt_now() - self.dtm - _TD_SECONDS_003) / lifespan
-
-        # 1. Look for easy win...
-        if self._fraction_expired is not None:
-            if self._fraction_expired == self.CANT_EXPIRE:
-                return False
-            if self._fraction_expired >= self.HAS_EXPIRED:
-                return True
-
-        # 2. Need to update the fraction_expired...
-        if self.code == Code._1F09 and self.verb != RQ:  # sync_cycle is a special case
-            # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
-            self._fraction_expired = fraction_expired(
-                td(seconds=self.payload["remaining_seconds"]),
-            )
-
-        elif self._pkt._lifespan is False:  # Can't expire
-            self._fraction_expired = self.CANT_EXPIRE
-
-        else:
-            self._fraction_expired = fraction_expired(self._pkt._lifespan)
-
-        return self._fraction_expired >= self.HAS_EXPIRED
 
 
 def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
@@ -319,13 +239,13 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
-def process_msg(gwy: Gateway, msg: MessageBase) -> None:
+def process_msg(gwy: Gateway, msg: Message) -> None:
     """Decoding the packet payload and route it appropriately."""
 
     # All methods require msg with a valid payload, except _create_devices_from_addrs(),
     # which requires a valid payload only for 000C.
 
-    def logger_xxxx(msg: MessageBase):
+    def logger_xxxx(msg: Message):
         if _DEBUG_FORCE_LOG_MESSAGES:
             _LOGGER.warning(msg)
         elif msg.src is not gwy.hgi or (msg.code != Code._PUZZ and msg.verb != RQ):

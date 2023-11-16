@@ -196,6 +196,8 @@ class _MessageDB(_Entity):
     def _get_msg_by_hdr(self, hdr: _HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
 
+        msg: Message
+
         code, verb, _, *args = hdr.split("|")  # _ is device_id
 
         try:
@@ -215,19 +217,23 @@ class _MessageDB(_Entity):
 
         return msg
 
-    def _msg_flag(self, code: Code, key, idx) -> bool | None:
+    def _msg_flag(self, code: Code, key: str, idx: int) -> bool | None:
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: Code, *args, **kwargs):
+    def _msg_value(self, code: Code, *args, **kwargs) -> dict | list | None:
         if isinstance(code, str | tuple):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
     def _msg_value_code(
-        self, code: Code, verb: Verb = None, key=None, **kwargs
+        self,
+        code: Code,
+        verb: Verb | None = None,
+        key: str | None = None,
+        **kwargs,
     ) -> dict | list | None:
         assert (
             not isinstance(code, tuple) or verb is None
@@ -249,7 +255,11 @@ class _MessageDB(_Entity):
         return self._msg_value_msg(msg, key=key, **kwargs)
 
     def _msg_value_msg(
-        self, msg: Message | None, key=None, zone_idx: str = None, domain_id: str = None
+        self,
+        msg: Message | None,
+        key: str | None = None,
+        zone_idx: str | None = None,
+        domain_id: str | None = None,
     ) -> dict | list | None:
         if msg is None:
             return None

@@ -666,6 +666,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^00(([0-9A-F]){2})+$",
     },
 }
+CODE_NAME_LOOKUP = {k: v["name"] for k, v in CODES_SCHEMA.items()}
+
 
 for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
     if RQ in code and RP not in code and I_ in code:

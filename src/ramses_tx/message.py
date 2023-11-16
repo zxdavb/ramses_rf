@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta as td
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -44,14 +44,18 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 
 __all__ = ["Message"]
 
+
 CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 
+_TD_SECS_003 = td(seconds=3)
+
+
 _LOGGER = logging.getLogger(__name__)
 
 
-class Message:
+class MessageBase:
     """The Message class; will trap/log invalid msgs."""
 
     def __init__(self, pkt: Packet) -> None:
@@ -115,12 +119,12 @@ class Message:
             other.verb,
             other.code,
             other._pkt.payload,
-        )  # type: ignore[no-any-return]
+        )
 
     def __lt__(self, other) -> bool:
         if not isinstance(other, Message):
             return NotImplemented
-        return self.dtm < other.dtm  # type: ignore[no-any-return]
+        return self.dtm < other.dtm
 
     def _name(self, addr: Address) -> str:
         """Return a friendly name for an Address, or a Device."""
@@ -282,6 +286,54 @@ class Message:
         except NotImplementedError as exc:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
             raise PacketInvalid from exc
+
+
+class Message(MessageBase):  # add _expired attr
+    """Extend the Message class, so is useful to a stateful Gateway.
+
+    Adds _expired attr to the Message class.
+    """
+
+    CANT_EXPIRE = -1  # sentinel value for fraction_expired
+
+    HAS_EXPIRED = 2.0  # fraction_expired >= HAS_EXPIRED
+    # .HAS_DIED = 1.0  # fraction_expired >= 1.0 (is expected lifespan)
+    IS_EXPIRING = 0.8  # fraction_expired >= 0.8 (and < HAS_EXPIRED)
+
+    _gwy = None
+    _fraction_expired: float = None  # type: ignore[assignment]
+
+    @property
+    def _expired(self) -> bool:
+        """Return True if the message is dated (or False otherwise)."""
+        # fraction_expired = (dt_now - self.dtm - _TD_SECONDS_003) / self._pkt._lifespan
+        # TODO: keep none >7d, even 10E0, etc.
+
+        def fraction_expired(lifespan: float) -> float:
+            """Return the packet's age as fraction of its 'normal' life span."""
+            return (self._gwy._dt_now() - self.dtm - _TD_SECS_003) / lifespan
+
+        # 1. Look for easy win...
+        if self._fraction_expired is not None:
+            if self._fraction_expired == self.CANT_EXPIRE:
+                return False
+            if self._fraction_expired >= self.HAS_EXPIRED:
+                return True
+
+        # 2. Need to update the fraction_expired...
+        if self.code == Code._1F09 and self.verb != RQ:  # sync_cycle is a special case
+            # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
+            self._fraction_expired = fraction_expired(
+                td(seconds=self.payload["remaining_seconds"]),
+            )
+
+        elif self._pkt._lifespan is False:  # Can't expire
+            self._fraction_expired = self.CANT_EXPIRE
+
+        else:
+            self._fraction_expired = fraction_expired(self._pkt._lifespan)
+
+        return self._fraction_expired >= self.HAS_EXPIRED
 
 
 @lru_cache(maxsize=256)
