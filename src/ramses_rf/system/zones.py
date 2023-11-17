@@ -133,7 +133,7 @@ class ZoneBase(Child, Parent, Entity):
             return NotImplemented
         return self.idx < other.idx  # type: ignore[no-any-return]
 
-    def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
+    def _make_cmd(self, code, **kwargs) -> None:
         payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")
         super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
 

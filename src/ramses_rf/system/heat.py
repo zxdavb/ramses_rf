@@ -271,7 +271,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if self._gwy.config.enable_eavesdrop and not self.appliance_control:
             eavesdrop_appliance_control(msg)
 
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
+    def _make_cmd(self, code, payload="00", **kwargs) -> None:
         super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property

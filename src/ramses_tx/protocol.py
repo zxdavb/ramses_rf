@@ -87,7 +87,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
     times_0 = []  # FIXME: remove
 
     async def wrapper(*args, **kwargs):
-        global _global_sync_cycles  # skipcq: PYL-W0602
+        global _global_sync_cycles
 
         def is_imminent(p):
             """Return True if a sync cycle is imminent."""
