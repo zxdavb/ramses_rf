@@ -31,7 +31,6 @@ from ..const import (
     __dev_mode__,
 )
 
-# skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -41,7 +40,6 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
     from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 

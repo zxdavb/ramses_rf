@@ -83,7 +83,6 @@ from ramses_tx.const import (  # noqa: F401
     SystemType,
 )
 
-# skipcq: PY-W2000
 from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
@@ -97,7 +96,7 @@ from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     ZoneRole,
 )
 
-# skipcq: PY-W2000
+
 from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -107,7 +106,6 @@ from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
     from ramses_tx import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 

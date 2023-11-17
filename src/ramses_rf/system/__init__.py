@@ -11,21 +11,21 @@ import logging
 
 from ..const import __dev_mode__
 
-# # skipcq: PY-W2000
+#
 # from .schedule import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 # )
 
-# skipcq: PY-W2000
+
 from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     System,
     system_factory,
 )
 
-# # skipcq: PY-W2000
+#
 # from .systems_hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 # )
 
-# skipcq: PY-W2000
+
 from .zones import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DhwZone,
     Zone,

@@ -33,7 +33,6 @@ from ramses_tx.schemas import (
     SZ_SERIAL_PORT,
 )
 
-# skipcq: PY-W2000
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,

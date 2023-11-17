@@ -31,7 +31,6 @@ from .const import (
 from .exceptions import SystemSchemaInconsistent
 from .schemas import SZ_CIRCUITS
 
-# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
@@ -39,7 +38,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FF,
 )
 
-# skipcq: PY-W2000
+
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -49,7 +48,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
     from ramses_tx.address import DeviceId
     from ramses_tx.frame import _HeaderT
 

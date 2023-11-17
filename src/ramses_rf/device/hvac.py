@@ -46,7 +46,6 @@ from ..helpers import shrink
 from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
 from .base import BatteryState, Device, DeviceHvac, Fakeable
 
-# skipcq: PY-W2000
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -56,7 +55,6 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
     from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 # TODO: Switch this module to utilise the (run-time) decorator design pattern...
@@ -345,6 +343,9 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     # Orcon/Ventiline
 
     _SLUG: str = DevType.FAN
+
+    def _handle_msg(self, *args, **kwargs):
+        return super()._handle_msg(*args, **kwargs)
 
     def _update_schema(self, **schema) -> None:
         """Update a FAN with new schema attrs.
