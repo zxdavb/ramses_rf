@@ -16,10 +16,9 @@ from ..const import DEV_TYPE_MAP, __dev_mode__
 from ..schemas import SZ_CLASS, SZ_FAKED
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
     from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-# skipcq: PY-W2000
+
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     BASE_CLASS_BY_SLUG,
     Device,
@@ -29,7 +28,7 @@ from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DeviceHvac,
 )
 
-# skipcq: PY-W2000
+
 from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     HEAT_CLASS_BY_SLUG,
     BdrSwitch,
@@ -45,7 +44,7 @@ from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     class_dev_heat,
 )
 
-# skipcq: PY-W2000
+
 from .hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     HVAC_CLASS_BY_SLUG,
     HvacCarbonDioxideSensor,

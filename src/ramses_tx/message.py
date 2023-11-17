@@ -28,7 +28,6 @@ from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
 # long-format msg.__str__ - alias columns don't line up
 
 
-# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
