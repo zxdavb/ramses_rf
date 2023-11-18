@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn, TypeVar
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
@@ -21,7 +21,6 @@ from .const import (
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
-    __dev_mode__,
 )
 from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
@@ -50,12 +49,11 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
-DEV_MODE = __dev_mode__ and False
+_ExceptionT = TypeVar("_ExceptionT", bound=type[Exception])
+
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 # all debug flags should be False for published code
 _DEBUG_DISABLE_DUTY_CYCLE_LIMIT = False  # #   used for pytest scripts
@@ -121,20 +119,21 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
     return wrapper
 
 
-def track_system_syncs(fnc: Callable):
+def track_system_syncs(fnc: Callable[[_AvoidSyncCycle, Packet], None]):
     """Track/remember the any new/outstanding TCS sync cycle."""
 
     MAX_SYNCS_TRACKED = 3
 
-    def wrapper(self, pkt: Packet, *args, **kwargs) -> None:
+    def wrapper(self, pkt: Packet) -> None:
         global _global_sync_cycles
 
-        def is_pending(p):
+        def is_pending(p: Packet) -> bool:
             """Return True if a sync cycle is still pending (ignores drift)."""
-            return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
+            return bool(p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now())
 
         if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
-            return fnc(self, pkt, *args, **kwargs)
+            fnc(self, pkt)
+            return None
 
         _global_sync_cycles = deque(
             p for p in _global_sync_cycles if p.src != pkt.src and is_pending(p)
@@ -146,7 +145,8 @@ def track_system_syncs(fnc: Callable):
         ):  # safety net for corrupted payloads
             _global_sync_cycles.popleft()
 
-        fnc(self, pkt, *args, **kwargs)
+        fnc(self, pkt)
+        return None
 
     return wrapper
 
@@ -309,7 +309,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._transport = transport
 
-    def connection_lost(self, exc: None | Exception) -> None:
+    def connection_lost(self, exc: _ExceptionT | None) -> None:
         """Called when the connection to the Transport is lost or closed.
 
         The argument is an exception object or None (the latter meaning a regular EOF is
@@ -470,7 +470,7 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
         if not self._leaker_task:
             self._leaker_task = self._loop.create_task(self._leak_sem())
 
-    def connection_lost(self, exc: None | Exception) -> None:
+    def connection_lost(self, exc: _ExceptionT | None) -> None:
         """Called when the connection is lost or closed."""
         if self._leaker_task:
             self._leaker_task.cancel()
@@ -530,7 +530,7 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
         super().connection_made(transport)
         self._context.connection_made(transport)
 
-    def connection_lost(self, exc: None | Exception) -> None:
+    def connection_lost(self, exc: _ExceptionT | None) -> None:
         """Inform the FSM that the connection with the Transport has been lost."""
         super().connection_lost(exc)
         self._context.connection_lost(exc)
@@ -560,7 +560,7 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
         timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: None | bool = None,  # None, rather than False
     ) -> Packet:
-        """Wrapper to send a Command with QoS (retries, until success or Exception)."""
+        """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
         try:
             return await self._context.send_cmd(
@@ -671,7 +671,7 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
         Returns the Command's response Packet or the Command echo if a response is not
         expected (e.g. sending an RP).
 
-        If wait_for_reply is True, return the RQ's RP (or W's I), or raise an Exception
+        If wait_for_reply is True, return the RQ's RP (or W's I), or raise an exception
         if one doesn't arrive. If it is False, return the echo of the Command only. If
         it is None (the default), act as True for RQs, and False for all other Commands.
 
