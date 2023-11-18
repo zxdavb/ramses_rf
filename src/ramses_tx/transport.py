@@ -80,7 +80,7 @@ from .schemas import (
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
 )
-from .typing import RamsesProtocolT, RamsesTransportT, SerPortName
+from .typing import ExceptionT, RamsesProtocolT, RamsesTransportT, SerPortName
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -466,7 +466,10 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
             return
         self._pkt_received(pkt)
 
-    def close(self, exc: None | Exception = None) -> None:
+    def send_frame(self, frame: str) -> None:
+        raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
+
+    def close(self, exc: None | ExceptionT = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
         if self._is_closing:
             return
@@ -572,7 +575,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
             _LOGGER.info("Tx:     %s", data)
         super().write(data)
 
-    def close(self, exc: None | Exception = None) -> None:
+    def close(self, exc: None | ExceptionT = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
         super().close()
         if self._init_task:

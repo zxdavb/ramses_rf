@@ -4,6 +4,7 @@
 """RAMSES RF - Typing for RamsesProtocol & RamsesTransport."""
 
 from collections.abc import Callable
+from datetime import datetime as dt
 from enum import IntEnum
 from typing import Any, Protocol, TypeVar
 
@@ -60,7 +61,10 @@ class QosParams:
 
 
 class RamsesTransportT(Protocol):
-    """Is not a asyncio.Protocol, but is a typing.Protocol (i.e. a structural type)."""
+    """A typing.Protocol (i.e. a structural type) of asyncio.Transport."""
+
+    def _dt_now(self) -> dt:
+        ...
 
     def close(self, exc: ExceptionT | None = None) -> None:
         ...
@@ -92,7 +96,9 @@ class RamsesTransportT(Protocol):
 
 
 class RamsesProtocolT(Protocol):
-    """Is not a asyncio.Protocol, but is a typing.Protocol (i.e. a structural type)."""
+    """A typing.Protocol (i.e. a structural type) of asyncio.Protocol."""
+
+    _transport: RamsesTransportT
 
     def add_handler(
         self, /, *, msg_handler: MsgHandlerT, msg_filter: MsgFilterT | None = None

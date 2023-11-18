@@ -304,7 +304,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return del_handler
 
-    def connection_made(self, transport: RamsesTransportT) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
         """Called when the connection to the Transport is established.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -314,7 +314,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._transport = transport
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:
+    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection to the Transport is lost or closed.
 
         The argument is an exception object or None (the latter meaning a regular EOF is
@@ -491,14 +491,14 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
             except ValueError:
                 pass
 
-    def connection_made(self, transport: RamsesTransportT) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
         """Invoke the leaky bucket algorithm."""
         super().connection_made(transport)
 
         if not self._leaker_task:
             self._leaker_task = self._loop.create_task(self._leak_sem())
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:
+    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection is lost or closed."""
         if self._leaker_task:
             self._leaker_task.cancel()
@@ -517,7 +517,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
     _is_evofw3: bool | None = None
 
-    def connection_made(self, transport: RamsesTransportT) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
         """Record if the gateway device is evofw3-compatible."""
         super().connection_made(transport)
 
@@ -569,13 +569,13 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
 
-    def connection_made(self, transport: RamsesTransportT) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
         """Inform the FSM that the connection with the Transport has been made."""
         super().connection_made(transport)
 
         self._context.connection_made(transport)
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:
+    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
         """Inform the FSM that the connection with the Transport has been lost."""
         super().connection_lost(exc)
         self._context.connection_lost(exc)
@@ -646,7 +646,7 @@ class ReadProtocol(_BaseProtocol):
 
         self._pause_writing = True
 
-    def connection_made(
+    def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
     ) -> None:
         """Consume the callback if invoked by SerialTransport rather than PortTransport.
@@ -657,7 +657,7 @@ class ReadProtocol(_BaseProtocol):
         super().connection_made(transport)
 
     def resume_writing(self) -> None:
-        raise NotImplementedError
+        raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
     async def send_cmd(
         self,
@@ -676,7 +676,7 @@ class ReadProtocol(_BaseProtocol):
 class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
 
-    def connection_made(
+    def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
     ) -> None:
         """Consume the callback if invoked by SerialTransport rather than PortTransport.
@@ -717,7 +717,7 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
         cls = self._context.state.__class__.__name__
         return f"QosProtocol({cls}, len(queue)={self._context._que.unfinished_tasks})"
 
-    def connection_made(
+    def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
     ) -> None:
         """Consume the callback if invoked by SerialTransport rather than PortTransport.
@@ -726,8 +726,16 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
         to be received (c.f. FileTransport) before calling connection_made(ramses=True).
         """
 
-        if ramses:
-            super().connection_made(transport)
+        if not ramses:
+            return
+
+        super().connection_made(transport)
+
+        self._context.connection_made(transport)
+        if self._pause_writing:
+            self._context.pause_writing()
+        else:
+            self._context.resume_writing()
 
     async def send_cmd(
         self,

@@ -132,7 +132,7 @@ class _Formatter:  # format asctime with configurable precision
         return result[: precision - 6] if -1 <= precision < 6 else result
 
 
-class ColoredFormatter(_Formatter, colorlog.ColoredFormatter):
+class ColoredFormatter(_Formatter, colorlog.ColoredFormatter):  # type: ignore[misc]
     pass
 
 
