@@ -1855,19 +1855,22 @@ def parser_2411(payload: str, msg: Message) -> dict:
     length, parser = _2411_DATA_TYPES.get(payload[8:10], (8, lambda x: x))
 
     result |= {
-        "value": parser(payload[10:18][-length:]),
+        "value": parser(payload[10:18][-length:]),  # type: ignore[operator]
         f"_{SZ_VALUE}_06": payload[6:10],
     }
 
     if msg.len == 9:
         return result
 
-    return result | {
-        "min_value": parser(payload[18:26][-length:]),
-        "max_value": parser(payload[26:34][-length:]),
-        "precision": parser(payload[34:42][-length:]),
-        f"_{SZ_VALUE}_42": payload[42:],
-    }
+    return (
+        result
+        | {
+            "min_value": parser(payload[18:26][-length:]),  # type: ignore[operator]
+            "max_value": parser(payload[26:34][-length:]),  # type: ignore[operator]
+            "precision": parser(payload[34:42][-length:]),  # type: ignore[operator]
+            f"_{SZ_VALUE}_42": payload[42:],
+        }
+    )
 
 
 # unknown_2420, from OTB
@@ -1933,7 +1936,7 @@ def parser_2e10(payload: str, msg: Message) -> dict:
 
 
 # current temperature (of device, zone/s)
-def parser_30c9(payload: str, msg: Message) -> dict:
+def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:
     if msg._has_array:
         return [
             {
@@ -2051,7 +2054,7 @@ def parser_313f(payload: str, msg: Message) -> dict:  # TODO: look for TZ
 
 
 # heat_demand (of device, FC domain) - valve status (%open)
-def parser_3150(payload: str, msg: Message) -> dict | list:
+def parser_3150(payload: str, msg: Message) -> dict | list[dict]:
     # event-driven, and periodically; FC domain is maximum of all zones
     # TODO: all have a valid domain will UFC/CTL respond to an RQ, for FC, for a zone?
 
