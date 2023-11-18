@@ -69,8 +69,9 @@ SENSOR_FAULT_CODES = {
 }
 
 
+# TODO: consider returning from helpers as TypeGuard[HexByte]
 # fmt: off
-HexByte = Literal[
+HexByteAlt = Literal[
     '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
     '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
     '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
@@ -90,7 +91,7 @@ HexByte = Literal[
 ]
 # fmt: on
 
-
+HexByte: TypeAlias = str
 HexStr2: TypeAlias = str  # two characters, one byte
 HexStr4: TypeAlias = str
 HexStr8: TypeAlias = str
@@ -289,15 +290,15 @@ def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tu
 
 
 def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
-    """Convert a list of 8 bits, MSB as first bit by default, into an ASCII hex string.
+    """Convert list of 8 bits, MSB bit 1 by default, to an two-char ASCII hex string.
 
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
     """
     if not isinstance(flags, list) or len(flags) != 8:
         raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"  # type: ignore[return-value]
-    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"  # type: ignore[return-value]
+        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
+    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
 
 
 # TODO: add a wrapper for EF, & 0xF0
