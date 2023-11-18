@@ -133,19 +133,19 @@ class Packet(Frame):
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
 
     @classmethod
-    def from_dict(cls, dtm: str, pkt_line: str):
+    def from_dict(cls, dtm: str, pkt_line: str) -> Packet:
         """Create a packet from a saved state (a curated dict)."""
         frame, _, comment = cls._partition(pkt_line)
         return cls(dt.fromisoformat(dtm), frame, comment=comment)
 
     @classmethod
-    def from_file(cls, dtm: str, pkt_line: str):
+    def from_file(cls, dtm: str, pkt_line: str) -> Packet:
         """Create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
-    def from_port(cls, dtm: dt, pkt_line: str, raw_line: bytes | None = None):
+    def from_port(cls, dtm: dt, pkt_line: str, raw_line: bytes | None = None) -> Packet:
         """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)

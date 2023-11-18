@@ -353,7 +353,7 @@ def hex_to_temp(value: HexStr4) -> bool | float | None:
     return temp
 
 
-def hex_from_temp(value: float) -> HexStr4:
+def hex_from_temp(value: float | None) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?

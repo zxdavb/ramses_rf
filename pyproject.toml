@@ -82,7 +82,7 @@
     #
     "src/ramses_tx/__init__.py",
     "src/ramses_tx/address.py",
-    # "src/ramses_tx/command.py",
+    "src/ramses_tx/command.py",
     "src/ramses_tx/const.py",
     "src/ramses_tx/exceptions.py",
     "src/ramses_tx/fingerprints.py",
