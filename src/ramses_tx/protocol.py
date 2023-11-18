@@ -388,7 +388,13 @@ class _BaseProtocol(asyncio.Protocol):
         if self._pause_writing:
             raise ProtocolSendFailed("The Protocol is currently read-only")
 
-        return await self._send_cmd(cmd)
+        return await self._send_cmd(
+            cmd,
+            gap_duration=gap_duration,
+            priority=priority,
+            send_count=send_count,
+            qos=qos,
+        )
 
     async def _send_cmd(
         self,
