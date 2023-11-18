@@ -433,7 +433,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         try:
             await self._reader()
         except KeyboardInterrupt as exc:
-            self._protocol.connection_lost(exc)
+            self._protocol.connection_lost(exc)  # type: ignore[arg-type]
         else:
             self._protocol.connection_lost(None)
 
@@ -735,7 +735,7 @@ async def transport_factory(
     # kwargs are specific to a transport. The above transports have:
     # enforce_include_list, exclude_list, include_list, use_regex
 
-    async def poll_until_connection_made(protocol: _ProtocolT):
+    async def poll_until_connection_made(protocol: _ProtocolT) -> None:
         """Poll until the Transport is bound to the Protocol."""
         while protocol._transport is None:
             await asyncio.sleep(0.005)
