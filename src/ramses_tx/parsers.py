@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
@@ -185,7 +185,7 @@ def parser_decorator(fnc) -> Callable:
 
 
 @parser_decorator  # rf_unknown
-def parser_0001(payload: str, msg: Message) -> dict:
+def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
     # When in test mode, a 12: will send a W ?every 6 seconds:
     # 12:39:56.099 061  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
     # 12:40:02.098 061  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
@@ -234,6 +234,8 @@ def parser_0001(payload: str, msg: Message) -> dict:
         mode = "heat"
 
     if mode == "hvac":
+        result: dict[str, bool | str | None]
+
         assert payload[:2] == "00", payload[:2]
         # assert payload[2:4] in ("20", "80", "A0"), payload[2:4]
         # assert payload[4:6] == "00", payload[4:6]
@@ -245,13 +247,8 @@ def parser_0001(payload: str, msg: Message) -> dict:
         if msg.len >= 7:
             result.update({"next_slot_num": payload[12:14]})
         if msg.len >= 8:
-            result.update(
-                {
-                    "boolean_14": None
-                    if payload[14:16] == "FF"
-                    else bool(int(payload[14:16]))
-                }
-            )
+            _14 = None if payload[14:16] == "FF" else bool(int(payload[14:16]))
+            result.update({"boolean_14": _14})
         return result
 
     assert payload[2:6] in ("0000", "FFFF"), payload[2:6]
@@ -925,7 +922,7 @@ def parser_10b0(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # filter_change, HVAC
-def parser_10d0(payload: str, msg: Message) -> dict:
+def parser_10d0(payload: str, msg: Message) -> Mapping[str, bool | float | int | None]:
     # 2022-07-03T22:52:34.571579 045  W --- 37:171871 32:155617 --:------ 10D0 002 00FF
     # 2022-07-03T22:52:34.596526 066  I --- 32:155617 37:171871 --:------ 10D0 006 0047B44F0000
     # then...
@@ -935,6 +932,8 @@ def parser_10d0(payload: str, msg: Message) -> dict:
     # 00-FF resets the counter, 00-47-B4-4F-0000 is the value (71 180 79).
     # Default is 180 180 200. The returned value is the amount of days (180),
     # total amount of days till change (180), percentage (200)
+
+    result: dict[str, bool | float | int | None]
 
     if msg.verb == W_:
         result = {"reset_counter": payload[2:4] == "FF"}
@@ -1007,7 +1006,7 @@ def parser_10e2(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
-def parser_1100(payload: str, msg: Message) -> dict:
+def parser_1100(payload: str, msg: Message) -> Mapping[str, float | int | str | None]:
     def complex_idx(seqx) -> dict:
         return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # only FC
 
@@ -1038,16 +1037,18 @@ def parser_1100(payload: str, msg: Message) -> dict:
             f"_{SZ_UNKNOWN}_0": payload[8:10],  # always 00, FF?
         }
 
-    result = _parser(payload)
+    result: dict[str, float | int | str | None] = _parser(payload)
 
     if msg.len > 5:
+        pbw = hex_to_temp(payload[10:14])
+
         assert (
-            payload[10:14] == "7FFF" or 1.5 <= hex_to_temp(payload[10:14]) <= 3.0
+            pbw is None or 1.5 <= pbw <= 3.0
         ), f"unexpected value for PBW: {payload[10:14]}"
 
         result.update(
             {
-                "proportional_band_width": hex_to_temp(payload[10:14]),
+                "proportional_band_width": pbw,
                 f"_{SZ_UNKNOWN}_1": payload[14:],  # always 01?
             }
         )
@@ -1088,19 +1089,19 @@ def parser_1280(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # outdoor temperature
-def parser_1290(payload: str, msg: Message) -> dict:
+def parser_1290(payload: str, msg: Message) -> Mapping[str, float | str | None]:
     # evohome responds to an RQ, also from OTB
     return parse_outdoor_temp(payload[2:])
 
 
 @parser_decorator  # HVAC: co2_level, see: 31DA[6:10]
-def parser_1298(payload: str, _) -> dict:
+def parser_1298(payload: str, _) -> Mapping[str, int | str | None]:
     return parse_co2_level(payload[2:6])
 
 
 @parser_decorator  # HVAC: indoor_humidity
-def parser_12a0(payload: str, msg: Message) -> dict:
-    FAULT_CODES_RHUM = {}  # relative humidity sensor
+def parser_12a0(payload: str, msg: Message) -> Mapping[str, float | str | None]:
+    FAULT_CODES_RHUM: dict[str, str] = {}  # relative humidity sensor
 
     assert payload[2:4] in FAULT_CODES_RHUM or int(payload[2:4], 16) <= 100
     if fault := FAULT_CODES_RHUM.get(payload[2:4]):
@@ -1127,9 +1128,9 @@ def parser_12b0(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # displayed temperature (on a TR87RF bound to a RFG100)
-def parser_12c0(payload: str, msg: Message) -> dict:
+def parser_12c0(payload: str, msg: Message) -> Mapping[str, float | int | str | None]:
     if payload[2:4] == "80":
-        temp = None
+        temp: float | int | None = None
     elif payload[4:] == "00":  # units are 1.0 F
         temp = int(payload[2:4], 16)
     else:  # if payload[4:] == "01":  # units are 0.5 C
@@ -1143,17 +1144,17 @@ def parser_12c0(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # HVAC: air_quality (and air_quality_basis), see: 31DA[2:6]
-def parser_12c8(payload: str, _) -> dict:
+def parser_12c8(payload: str, _) -> Mapping[str, float | str | None]:
     return parse_air_quality(payload[2:6])
 
 
 @parser_decorator  # dhw_flow_rate
-def parser_12f0(payload: str, msg: Message) -> dict:
+def parser_12f0(payload: str, msg: Message) -> Mapping[str, float | None]:
     return {"dhw_flow_rate": hex_to_temp(payload[2:])}
 
 
 @parser_decorator  # ch_pressure
-def parser_1300(payload: str, msg: Message) -> dict:
+def parser_1300(payload: str, msg: Message) -> Mapping[str, float | None]:
     return {SZ_PRESSURE: hex_to_temp(payload[2:])}  # is 2's complement still
 
 
@@ -1273,7 +1274,7 @@ def parser_1f70(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # rf_bind
-def parser_1fc9(payload: str, msg: Message) -> list:
+def parser_1fc9(payload: str, msg: Message) -> dict[str, list | str | None]:
     def _parser(seqx) -> list:
         if seqx[:2] not in ("90",):
             assert (
@@ -1306,7 +1307,7 @@ def parser_1fc9(payload: str, msg: Message) -> list:
         bind_phase = None  # unknown
 
     if len(payload) == 2 and bind_phase == SZ_CONFIRM:
-        return {SZ_PHASE: bind_phase, SZ_BINDINGS: [[payload]]}
+        return {SZ_PHASE: bind_phase, SZ_BINDINGS: [[payload]]}  # double-bracket OK
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
@@ -1322,7 +1323,7 @@ def parser_1fc9(payload: str, msg: Message) -> list:
 
 
 @parser_decorator  # unknown_1fca, HVAC?
-def parser_1fca(payload: str, msg: Message) -> list:
+def parser_1fca(payload: str, msg: Message) -> Mapping[str, str]:
     # .W --- 30:248208 34:021943 --:------ 1FCA 009 00-01FF-7BC990-FFFFFF  # sent x2
 
     return {
@@ -1361,11 +1362,11 @@ def parser_2210(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # now_next_setpoint - Programmer/Hometronics
-def parser_2249(payload: str, msg: Message) -> dict:
+def parser_2249(payload: str, msg: Message) -> dict | list[dict]:
     # see: https://github.com/jrosser/honeymon/blob/master/decoder.cpp#L357-L370
     # .I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx) -> dict[str, bool | float | int | str | None]:
         minutes = int(seqx[10:], 16)
         next_setpoint = msg.dtm + td(minutes=minutes)
         return {
@@ -1404,7 +1405,7 @@ def parser_22b0(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # ufh_setpoint, TODO: max length = 24?
-def parser_22c9(payload: str, msg: Message) -> list:
+def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:
     # .I --- 02:001107 --:------ 02:001107 22C9 024 00-0834-0A28-01-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
     # .I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
 
@@ -1464,10 +1465,10 @@ def parser_22d9(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # WIP: unknown, HVAC
-def parser_22e0(payload: str, msg: Message) -> dict:
+def parser_22e0(payload: str, msg: Message) -> Mapping[str, float | None]:
     # RP --- 32:155617 18:005904 --:------ 22E0 004 00-34-A0-1E
     # RP --- 32:153258 18:005904 --:------ 22E0 004 00-64-A0-1E
-    def _parser(seqx) -> dict:
+    def _parser(seqx) -> float:
         assert int(seqx, 16) <= 200 or seqx == "E6"  # only for 22E0, not 22E5/22E9
         return int(seqx, 16) / 200
 
@@ -1485,19 +1486,19 @@ def parser_22e0(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # WIP: unknown, HVAC
-def parser_22e5(payload: str, msg: Message) -> dict:
+def parser_22e5(payload: str, msg: Message) -> Mapping[str, float | None]:
     # RP --- 32:153258 18:005904 --:------ 22E5 004 00-96-C8-14
     # RP --- 32:155617 18:005904 --:------ 22E5 004 00-72-C8-14
 
-    return parser_22e0(payload, msg)
+    return parser_22e0(payload, msg)  # type: ignore[no-any-return]
 
 
 @parser_decorator  # WIP: unknown, HVAC
-def parser_22e9(payload: str, msg: Message) -> dict:
+def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
     # RP --- 32:153258 18:005904 --:------ 22E9 004 00C8C814
     # RP --- 32:155617 18:005904 --:------ 22E9 004 008CC814
 
-    return parser_22e0(payload, msg)
+    return parser_22e0(payload, msg)  # type: ignore[no-any-return]
 
 
 @parser_decorator  # fan_speed (switch_mode), HVAC
@@ -1534,7 +1535,7 @@ def parser_22f1(payload: str, msg: Message) -> dict:
     if msg._addrs[0] == NON_DEV_ADDR:  # and payload[4:6] == "04":
         from .ramses import _22F1_MODE_ITHO as _22F1_FAN_MODE  # TODO: only if 04
 
-        _22f1_mode_set = ("", "04")
+        _22f1_mode_set: tuple[str, ...] = ("", "04")
         _22f1_scheme = "itho"
 
     # elif msg._addrs[0] == NON_DEV_ADDR:  # and payload[4:6] == "04":
@@ -1573,7 +1574,7 @@ def parser_22f1(payload: str, msg: Message) -> dict:
 
 
 @parser_decorator  # WIP: unknown, HVAC (flow rate?)
-def parser_22f2(payload: str, msg: Message) -> dict:
+def parser_22f2(payload: str, msg: Message) -> list:
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-019B 01-0201
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-0174 01-0208
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-01E5 01-0201
