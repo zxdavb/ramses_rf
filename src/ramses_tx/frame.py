@@ -110,9 +110,9 @@ class Frame:
         self._repr: str = None  # type: ignore[assignment]
 
     @classmethod  # for internal use only
-    def _from_attrs(
+    def _OUT_from_attrs(
         cls, verb: Verb, *addrs, code: Code, payload: _PayloadT, seqn: None | str = None
-    ):
+    ) -> Frame:
         """Create a frame from its attributes (args, kwargs)."""
 
         seqn = seqn or "---"
