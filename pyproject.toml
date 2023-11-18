@@ -80,25 +80,7 @@
     "src/ramses_rf/entity_base.py",
     # "src/ramses_rf/device",
     #
-    # "src/ramses_tx",
-    "src/ramses_tx/__init__.py",
-    "src/ramses_tx/address.py",
-    "src/ramses_tx/command.py",
-    "src/ramses_tx/const.py",
-    "src/ramses_tx/exceptions.py",
-    "src/ramses_tx/fingerprints.py",
-    "src/ramses_tx/frame.py",
-    "src/ramses_tx/helpers.py",
-    "src/ramses_tx/logger.py",
-    "src/ramses_tx/message.py",
-    "src/ramses_tx/opentherm.py",
-    "src/ramses_tx/packet.py",
-    "src/ramses_tx/protocol.py",
-    "src/ramses_tx/protocol_fsm.py",
-    "src/ramses_tx/ramses.py",
-    "src/ramses_tx/schemas.py",
-    "src/ramses_tx/transport.py",
-    "src/ramses_tx/version.py",
+    "src/ramses_tx",
   ]
 
   # exclude = []  # doesn't work?
