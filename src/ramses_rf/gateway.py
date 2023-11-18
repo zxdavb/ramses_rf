@@ -101,13 +101,13 @@ class Engine:
 
     def __init__(
         self,
-        port_name: None | str,
-        input_file: None | TextIOWrapper = None,
-        port_config: None | dict = None,
-        packet_log: dict = None,
-        block_list: dict = None,
-        known_list: dict = None,
-        loop: None | asyncio.AbstractEventLoop = None,
+        port_name: str | None,
+        input_file: TextIOWrapper | None = None,
+        port_config: dict | None = None,
+        packet_log: dict | None = None,
+        block_list: dict | None = None,
+        known_list: dict | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
         **kwargs,
     ) -> None:
         if port_name and input_file:
@@ -146,13 +146,13 @@ class Engine:
         self._kwargs = kwargs  # HACK
 
         self._engine_lock = Lock()
-        self._engine_state: None | tuple[None | Callable, tuple] = None
+        self._engine_state: tuple[Callable, tuple] | None = None
 
-        self._protocol: None | RamsesProtocolT = None
-        self._transport: None | RamsesTransportT = None
+        self._protocol: RamsesProtocolT | None = None
+        self._transport: RamsesTransportT | None = None
 
-        self._prev_msg: None | Message = None
-        self._this_msg: None | Message = None
+        self._prev_msg: Message | None = None
+        self._this_msg: Message | None = None
 
         self._set_msg_handler(self._msg_handler)
 
@@ -186,7 +186,7 @@ class Engine:
         self,
         msg_handler: Callable[[Message], None],
         /,
-        msg_filter: None | Callable[[Message], bool] = None,
+        msg_filter: Callable[[Message], bool] | None = None,
     ) -> None:
         """Create a client protocol for the RAMSES-II message transport.
 
@@ -305,8 +305,8 @@ class Engine:
         max_retries: int = DEFAULT_MAX_RETRIES,
         priority: SendPriority = SendPriority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
-        wait_for_reply: None | bool = None,
-    ) -> None | Packet:
+        wait_for_reply: bool | None = None,
+    ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
         return await self._protocol.send_cmd(
@@ -330,13 +330,13 @@ class Gateway(Engine):
 
     def __init__(
         self,
-        port_name: None | str,
-        input_file: None | TextIOWrapper = None,
-        port_config: None | dict = None,
-        packet_log: dict = None,
-        block_list: dict = None,
-        known_list: dict = None,
-        loop: None | asyncio.AbstractEventLoop = None,
+        port_name: str | None,
+        input_file: TextIOWrapper | None = None,
+        port_config: dict | None = None,
+        packet_log: dict | None = None,
+        block_list: dict | None = None,
+        known_list: dict | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
         **kwargs,
     ) -> None:
         if kwargs.pop("debug_mode", None):
@@ -375,7 +375,7 @@ class Gateway(Engine):
 
         # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
         # if self.config.reduce_processing > 0:
-        self._tcs: None | System = None  # type: ignore[assignment]
+        self._tcs: System | None = None  # type: ignore[assignment]
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
@@ -385,7 +385,7 @@ class Gateway(Engine):
         return f"Gateway(port_name={self.ser_name}, port_config={self._port_config})"
 
     @property
-    def hgi(self) -> None | Device:
+    def hgi(self) -> Device | None:
         """Return the active HGI80-compatible gateway device, if known."""
         if self._transport and (
             device_id := self._transport.get_extra_info(SZ_ACTIVE_HGI)
@@ -553,10 +553,10 @@ class Gateway(Engine):
         self,
         dev_id: _DeviceIdT,
         *,
-        msg: None | Message = None,
+        msg: Message | None = None,
         parent=None,
         child_id=None,
-        is_sensor: None | bool = None,
+        is_sensor: bool | None = None,
     ) -> Device:  # TODO: **schema) -> Device:  # may: LookupError
         """Return a device, create it if required.
 
@@ -617,7 +617,7 @@ class Gateway(Engine):
         return dev
 
     @property
-    def tcs(self) -> None | System:
+    def tcs(self) -> System | None:
         """Return the primary TCS, if any."""
 
         if self._tcs is None and self.systems:
