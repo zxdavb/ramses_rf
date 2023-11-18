@@ -309,12 +309,16 @@ class Engine:
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
-        return await self._protocol.send_cmd(
-            cmd,
+        from ramses_tx.protocol import QosParams
+
+        qos = QosParams(
             max_retries=max_retries,
-            priority=priority,
             timeout=timeout,
             wait_for_reply=wait_for_reply,
+        )
+
+        return await self._protocol.send_cmd(
+            cmd, priority=priority, send_count=1, gap_duration=0.02, qos=qos
         )
 
     def _msg_handler(self, msg: Message) -> None:

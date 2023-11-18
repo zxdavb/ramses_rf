@@ -80,6 +80,7 @@
     "src/ramses_rf/entity_base.py",
     # "src/ramses_rf/device",
     #
+    # "src/ramses_tx",
     "src/ramses_tx/__init__.py",
     "src/ramses_tx/address.py",
     "src/ramses_tx/command.py",
@@ -92,7 +93,7 @@
     "src/ramses_tx/message.py",
     "src/ramses_tx/opentherm.py",
     "src/ramses_tx/packet.py",
-    # "src/ramses_tx/protocol.py",
+    "src/ramses_tx/protocol.py",
     "src/ramses_tx/protocol_fsm.py",
     "src/ramses_tx/ramses.py",
     "src/ramses_tx/schemas.py",
@@ -100,10 +101,7 @@
     "src/ramses_tx/version.py",
   ]
 
-  exclude = [
-    "src/ramses_tx/command.py",
-    "src/ramses_tx/protocol.py",
-  ]
+  # exclude = []  # doesn't work?
 
 
   follow_imports = "skip"  # TODO: don't use this feature

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the various helper APIs.
+"""RAMSES RF - Test the various helper APIs.
 """
 
 # TODO: add test for ramses_tx.frame.pkt_header()
@@ -15,12 +13,16 @@ from ramses_tx.helpers import (
     hex_from_dtm,
     hex_from_dts,
     hex_from_flag8,
+    # hex_from_str,
     hex_from_temp,
     hex_to_bool,
+    # hex_to_date,
     hex_to_double,
     hex_to_dtm,
     hex_to_dts,
     hex_to_flag8,
+    # hex_to_percent,
+    # hex_to_str,
     hex_to_temp,
 )
 from ramses_tx.packet import Packet

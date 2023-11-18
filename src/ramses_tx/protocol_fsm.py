@@ -10,16 +10,22 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from datetime import datetime as dt, timedelta as td
-from enum import IntEnum
 from queue import Empty, Full, PriorityQueue
 from threading import Lock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import Command, Packet, exceptions
 from .address import HGI_DEV_ADDR
 from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
+from .typing import (
+    ExceptionT,
+    QosParams,
+    RamsesProtocolT,
+    RamsesTransportT,
+    SendPriority,
+)
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -38,21 +44,10 @@ else:
     QosProtocol = asyncio.Protocol
     QosTransport = asyncio.Transport
 
-_ProtocolT = type[QosProtocol]
-_TransportT = type[QosTransport]
-
 _LOGGER = logging.getLogger(__name__)
 
 # All debug flags should be False for end-users
 _DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
-
-
-class SendPriority(IntEnum):
-    _MAX = -9
-    HIGH = -2
-    DEFAULT = 0
-    LOW = 2
-    _MIN = 9
 
 
 DEFAULT_TIMEOUT = 30.0  # total waiting for successful send: FIXME
@@ -89,7 +84,7 @@ class ProtocolContext:
     _proc_queue_task: None | asyncio.Task = None  # None when not connected to Protocol
     _state: _ProtocolStateT = None  # type: ignore[assignment]
 
-    def __init__(self, protocol: _ProtocolT) -> None:
+    def __init__(self, protocol: RamsesProtocolT) -> None:
         # super().__init__(*args, **kwargs)
         self._protocol = protocol
 
@@ -139,11 +134,11 @@ class ProtocolContext:
     def state(self) -> _ProtocolStateT:
         return self._state
 
-    def connection_made(self, transport: _TransportT) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:
         self._proc_queue_task = self._loop.create_task(self._process_queued_cmds())
         self.state.made_connection(transport)  # TODO: needs to be after prev. line?
 
-    def connection_lost(self, exc: None | Exception) -> None:
+    def connection_lost(self, exc: ExceptionT | None) -> None:
         fut: asyncio.Future
 
         self.state.lost_connection(exc)
@@ -172,14 +167,10 @@ class ProtocolContext:
 
     async def send_cmd(
         self,
-        send_fnc: Awaitable,
+        send_fnc: Callable[[Command], Coroutine[Any, Any, None]],
         cmd: Command,
-        /,
-        *,
-        max_retries: int = DEFAULT_MAX_RETRIES,
-        priority: SendPriority = SendPriority.DEFAULT,
-        timeout: float = DEFAULT_TIMEOUT,
-        wait_for_reply: None | bool = None,
+        priority: SendPriority,
+        qos: QosParams,
     ) -> Packet:
         """Send the Command (with retries) and wait for the expected Packet.
 
@@ -205,6 +196,10 @@ class ProtocolContext:
                     if condition(entry):
                         queue.queue.remove(entry)
                 queue.mutex.release()
+
+        max_retries = qos.max_retries
+        timeout = qos.timeout
+        wait_for_reply = qos.wait_for_reply
 
         # if self.state.is_active_cmd(cmd):  # no need to queue?
 
@@ -286,9 +281,9 @@ class ProtocolContext:
         send_fnc: Callable,
         cmd: Command,
         max_retries: int,
-        wait_for_reply: None | bool,
+        wait_for_reply: bool | None,
     ) -> Packet:
-        """Wrapper to send a command with retries, until success or Exception.
+        """Wrapper to send a command with retries, until success or exception.
 
         Supported Exceptions are limited to:
          - _ProtocolWaitFailed - issue sending Command
@@ -433,14 +428,14 @@ class _ProtocolStateBase:
         """Return True if this cmd is the active cmd."""
         return bool(cmd and cmd is self.active_cmd)
 
-    def made_connection(self, transport: _TransportT) -> None:
+    def made_connection(self, transport: RamsesTransportT) -> None:
         """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""
         if self._context._protocol._pause_writing:
             self._context.set_state(IsPaused)
         else:
             self._context.set_state(IsInIdle)
 
-    def lost_connection(self, exc: None | Exception) -> None:
+    def lost_connection(self, exc: ExceptionT | None) -> None:
         """Set the Context to Inactive (can't Tx, will not Rx)."""
         self._context.set_state(Inactive)
 

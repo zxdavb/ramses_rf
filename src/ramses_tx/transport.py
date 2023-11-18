@@ -67,7 +67,6 @@ from .const import (
     SZ_KNOWN_HGI,
     SZ_SIGNATURE,
     DevType,
-    __dev_mode__,
 )
 from .exceptions import PacketInvalid, TransportSerialError, TransportSourceInvalid
 from .helpers import dt_now
@@ -81,6 +80,7 @@ from .schemas import (
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
 )
+from .typing import RamsesProtocolT, RamsesTransportT, SerPortName
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -95,16 +95,13 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
-if TYPE_CHECKING:
-    from . import QosProtocol as _ProtocolT
-
 _SIGNATURE_MAX_TRYS = 24
 _SIGNATURE_GAP_SECS = 0.05
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
@@ -149,7 +146,7 @@ class _PktMixin:
 
     _this_pkt: None | Packet
     _prev_pkt: None | Packet
-    _protocol: _ProtocolT
+    _protocol: RamsesProtocolT
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -367,13 +364,13 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
     READER_TASK = "reader_task"
-    _protocol: _ProtocolT
+    _protocol: RamsesProtocolT
 
     _dtm_str: str = None  # type: ignore[assignment]  # FIXME: remove this somehow
 
     def __init__(
         self,
-        protocol: _ProtocolT,
+        protocol: RamsesProtocolT,
         pkt_source: dict | TextIOWrapper,
         loop: None | asyncio.AbstractEventLoop = None,
         extra: None | dict = None,
@@ -416,7 +413,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         """Return True if the transport is closing or closed."""
         return self._is_closing
 
-    def is_reading(self):
+    def is_reading(self) -> bool:
         """Return True if the transport is receiving."""
         return self._is_reading
 
@@ -433,7 +430,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         try:
             await self._reader()
         except KeyboardInterrupt as exc:
-            self._protocol.connection_lost(exc)  # type: ignore[arg-type]
+            self._protocol.connection_lost(exc)
         else:
             self._protocol.connection_lost(None)
 
@@ -494,7 +491,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
 
     def __init__(
         self,
-        protocol: _ProtocolT,
+        protocol: RamsesProtocolT,
         pkt_source: Serial,
         loop: None | asyncio.AbstractEventLoop = None,
         extra: None | dict = None,
@@ -717,7 +714,7 @@ class QosTransport(PortTransport):
 
 
 async def transport_factory(
-    protocol: Callable[[], _ProtocolT],
+    protocol: Callable[[], RamsesProtocolT],
     /,
     *,
     port_name: SerPortName | None = None,
@@ -735,7 +732,7 @@ async def transport_factory(
     # kwargs are specific to a transport. The above transports have:
     # enforce_include_list, exclude_list, include_list, use_regex
 
-    async def poll_until_connection_made(protocol: _ProtocolT) -> None:
+    async def poll_until_connection_made(protocol: RamsesProtocolT) -> None:
         """Poll until the Transport is bound to the Protocol."""
         while protocol._transport is None:
             await asyncio.sleep(0.005)
@@ -821,7 +818,3 @@ async def transport_factory(
         raise TransportSerialError("Transport did not bind to Protocol") from exc
 
     return transport
-
-
-RamsesTransportT = FileTransport | PortTransport | QosTransport
-SerPortName = str

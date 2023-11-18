@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
@@ -28,13 +28,21 @@ from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_TIMEOUT,
     ProtocolContext,
     SendPriority,
 )
 from .schemas import SZ_PORT_NAME
-from .transport import RamsesTransportT, transport_factory
+from .transport import transport_factory
+from .typing import (
+    _DEFAULT_TX_COUNT,
+    _DEFAULT_TX_DELAY,
+    ExceptionT,
+    MsgFilterT,
+    MsgHandlerT,
+    QosParams,
+    RamsesProtocolT,
+    RamsesTransportT,
+)
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -47,9 +55,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .address import DeviceId
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
-
-_ExceptionT = TypeVar("_ExceptionT", bound=type[Exception])
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -263,11 +268,11 @@ class _BaseProtocol(asyncio.Protocol):
     _this_msg: None | Message = None
     _prev_msg: None | Message = None
 
-    def __init__(self, msg_handler: MsgHandler):  # , **kwargs) -> None:
+    def __init__(self, msg_handler: MsgHandlerT):  # , **kwargs) -> None:
         self._msg_handler = msg_handler
-        self._msg_handlers: list[MsgHandler] = []
+        self._msg_handlers: list[MsgHandlerT] = []
 
-        self._transport: RamsesTransportT = None  # type: ignore[assignment]
+        self._transport: RamsesTransportT = None
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False
@@ -275,15 +280,15 @@ class _BaseProtocol(asyncio.Protocol):
 
     @property
     def hgi_id(self) -> DeviceId:
-        hgi_id = self._transport.get_extra_info(SZ_ACTIVE_HGI)  # may be None
+        hgi_id: DeviceId | None = self._transport.get_extra_info(SZ_ACTIVE_HGI)
         if hgi_id is not None:
             return hgi_id
-        return self._transport.get_extra_info(SZ_KNOWN_HGI, HGI_DEV_ADDR.id)
+        return self._transport.get_extra_info(SZ_KNOWN_HGI, HGI_DEV_ADDR.id)  # type: ignore[no-any-return]
 
     def add_handler(
         self,
-        msg_handler: MsgHandler,
-        msg_filter: None | MsgFilter = None,
+        msg_handler: MsgHandlerT,
+        msg_filter: None | MsgFilterT = None,
     ) -> Callable[[], None]:
         """Add a Message handler to the list of such callbacks.
 
@@ -299,7 +304,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return del_handler
 
-    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
+    def connection_made(self, transport: RamsesTransportT) -> None:
         """Called when the connection to the Transport is established.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -309,7 +314,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._transport = transport
 
-    def connection_lost(self, exc: _ExceptionT | None) -> None:  # type: ignore[override]
+    def connection_lost(self, exc: ExceptionT | None) -> None:
         """Called when the connection to the Transport is lost or closed.
 
         The argument is an exception object or None (the latter meaning a regular EOF is
@@ -361,8 +366,18 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(self, cmd: Command, /, **kwargs) -> Packet | None:
-        """A wrapper for self._send_cmd(cmd)."""
+    async def send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        gap_duration: float = _DEFAULT_TX_DELAY,
+        priority: SendPriority = SendPriority.DEFAULT,
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
+        """This is the wrapper for self._send_cmd(cmd)."""
+
         if _DEBUG_FORCE_LOG_PACKETS:
             _LOGGER.warning(f"Sent:     {cmd}")
         else:
@@ -373,14 +388,27 @@ class _BaseProtocol(asyncio.Protocol):
         if self._pause_writing:
             raise ProtocolSendFailed("The Protocol is currently read-only")
 
-        return await self._send_cmd(cmd, **kwargs)  # type: ignore[func-returns-value]
+        return await self._send_cmd(cmd)
 
-    async def _send_cmd(self, cmd: Command) -> None:  # only cmd, no args, kwargs
-        """Called when a Command is to be sent to the Transport.
+    async def _send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        gap_duration: float = _DEFAULT_TX_DELAY,
+        priority: SendPriority = SendPriority.DEFAULT,
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:  # only cmd, no args, kwargs
+        """Wrapper to send a Command without QoS (with x re-transmits)."""
 
-        The Protocol must be given a Command (not bytes).
-        """
         await self._send_frame(str(cmd))
+
+        for _ in range(send_count - 1):
+            await asyncio.sleep(gap_duration)
+            await self._send_frame(str(cmd))
+
+        return None
 
     async def _send_frame(self, frame: str) -> None:
         """Write some bytes to the transport."""
@@ -448,7 +476,7 @@ class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
 class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
     """Enforce a minimum gap between writes using the leaky bucket algorithm."""
 
-    def __init__(self, msg_handler: MsgHandler) -> None:
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
         super().__init__(msg_handler)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
@@ -470,7 +498,7 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
         if not self._leaker_task:
             self._leaker_task = self._loop.create_task(self._leak_sem())
 
-    def connection_lost(self, exc: _ExceptionT | None) -> None:
+    def connection_lost(self, exc: ExceptionT | None) -> None:
         """Called when the connection is lost or closed."""
         if self._leaker_task:
             self._leaker_task.cancel()
@@ -509,18 +537,34 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_cmd(self, cmd: Command, /, **kwargs) -> Packet | None:
+    async def send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        gap_duration: float = _DEFAULT_TX_DELAY,
+        priority: SendPriority = SendPriority.DEFAULT,
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         """Send a Command to the transport."""
+
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
 
-        return await super().send_cmd(cmd, **kwargs)
+        return await super().send_cmd(
+            cmd,
+            gap_duration=gap_duration,
+            priority=priority,
+            send_count=send_count,
+            qos=qos,
+        )
 
 
 class _ProtQosTimers(_BaseProtocol):  # inserts context/state
     """A mixin for providing QoS by maintaining the state of the Protocol."""
 
-    def __init__(self, msg_handler: MsgHandler) -> None:
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler)
         self._context = ProtocolContext(self)
@@ -528,9 +572,10 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
     def connection_made(self, transport: RamsesTransportT) -> None:
         """Inform the FSM that the connection with the Transport has been made."""
         super().connection_made(transport)
+
         self._context.connection_made(transport)
 
-    def connection_lost(self, exc: _ExceptionT | None) -> None:
+    def connection_lost(self, exc: ExceptionT | None) -> None:
         """Inform the FSM that the connection with the Transport has been lost."""
         super().connection_lost(exc)
         self._context.connection_lost(exc)
@@ -555,22 +600,30 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
         cmd: Command,
         /,
         *,
-        max_retries: int = DEFAULT_MAX_RETRIES,
+        gap_duration: float = _DEFAULT_TX_DELAY,
         priority: SendPriority = SendPriority.DEFAULT,
-        timeout: float = DEFAULT_TIMEOUT,
-        wait_for_reply: None | bool = None,  # None, rather than False
-    ) -> Packet:
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
+        # Should do the same as super()._send_cmd()
+        async def send_cmd(kmd: Command) -> None:
+            """Wrapper to send a Command without QoS (with x re-transmits)."""
+
+            assert kmd is cmd
+
+            await self._send_frame(str(kmd))
+
+            for _ in range(send_count - 1):
+                await asyncio.sleep(gap_duration)
+                await self._send_frame(str(kmd))
+
+        if qos is None:
+            qos = QosParams()
+
         try:
-            return await self._context.send_cmd(
-                super()._send_cmd,
-                cmd,
-                max_retries=max_retries,
-                priority=priority,
-                timeout=timeout,
-                wait_for_reply=wait_for_reply,
-            )
+            return await self._context.send_cmd(send_cmd, cmd, priority, qos)
         # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
         except ProtocolError as exc:
@@ -588,7 +641,7 @@ class _ProtQosTimers(_BaseProtocol):  # inserts context/state
 class ReadProtocol(_BaseProtocol):
     """A protocol that can only receive Packets."""
 
-    def __init__(self, msg_handler: MsgHandler) -> None:
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
         super().__init__(msg_handler)
 
         self._pause_writing = True
@@ -601,13 +654,21 @@ class ReadProtocol(_BaseProtocol):
         Our PortTransport wraps SerialTransport and will wait for the signature echo
         to be received (c.f. FileTransport) before calling connection_made(ramses=True).
         """
-
         super().connection_made(transport)
 
     def resume_writing(self) -> None:
         raise NotImplementedError
 
-    async def send_cmd(self, cmd: Command, /, **kwargs) -> NoReturn:
+    async def send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        gap_duration: float = _DEFAULT_TX_DELAY,
+        priority: SendPriority = SendPriority.DEFAULT,
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
 
@@ -627,13 +688,25 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
         if ramses:
             super().connection_made(transport)
 
-    async def send_cmd(self, cmd: Command, /, **kwargs) -> None:
+    async def send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        gap_duration: float = _DEFAULT_TX_DELAY,
+        priority: SendPriority = SendPriority.DEFAULT,
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         """Send a Command without any QoS features."""
-        if [
-            x for x in kwargs if x != "priority"
-        ]:  # TODO: QoS vs other (e.g. priority is not Qos)
-            _LOGGER.debug(f"{self}: The Protocol has no Qos")
-        await super().send_cmd(cmd)
+
+        return await super().send_cmd(
+            cmd,
+            gap_duration=gap_duration,
+            priority=priority,
+            send_count=send_count,
+            qos=qos,
+        )
 
 
 # ### Read-Write Protocol for QosTransport ############################################
@@ -661,11 +734,11 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
         cmd: Command,
         /,
         *,
-        max_retries: int = DEFAULT_MAX_RETRIES,
+        gap_duration: float = _DEFAULT_TX_DELAY,
         priority: SendPriority = SendPriority.DEFAULT,
-        timeout: float = DEFAULT_TIMEOUT,
-        wait_for_reply: None | bool = None,
-    ) -> Packet:
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,  # max_retries, timeout, wait_for_reply
+    ) -> Packet | None:
         """Send a Command with Qos (with retries, until success or ProtocolError).
 
         Returns the Command's response Packet or the Command echo if a response is not
@@ -675,21 +748,24 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
         if one doesn't arrive. If it is False, return the echo of the Command only. If
         it is None (the default), act as True for RQs, and False for all other Commands.
 
-        Commands are queued and sent in order, but higher-priority Commands are always
+        Commands are queued and sent FIFO, except higher-priority Commands are always
         sent first.
         """
 
+        assert gap_duration == 0.02
+        assert send_count == 1
+
         return await super().send_cmd(
             cmd,
-            max_retries=max_retries,
+            gap_duration=gap_duration,
             priority=priority,
-            timeout=timeout,
-            wait_for_reply=wait_for_reply,
+            send_count=send_count,
+            qos=qos,
         )
 
 
 def protocol_factory(
-    msg_handler: MsgHandler,
+    msg_handler: MsgHandlerT,
     /,
     *,
     disable_qos: bool | None = False,
@@ -708,7 +784,7 @@ def protocol_factory(
 
 
 async def create_stack(
-    msg_handler: MsgHandler,
+    msg_handler: MsgHandlerT,
     /,
     *,
     protocol_factory_: None | Callable = None,
@@ -746,8 +822,3 @@ async def create_stack(
         _LOGGER.warning("Logger datetimes maintained as most recent packet timestamp")
 
     return protocol, transport
-
-
-MsgHandler = Callable[[Message], None]
-MsgFilter = Callable[[Message], bool]
-RamsesProtocolT = ReadProtocol | PortProtocol | QosProtocol

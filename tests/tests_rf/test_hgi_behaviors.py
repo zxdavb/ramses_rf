@@ -5,10 +5,7 @@
 # TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
 # TODO: Test with strict address checking
 
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the gwy Addr detection and the Gateway.send_cmd API from '18:000730'.
-"""
+"""RAMSES RF - Test the gwy Addr detection and the gwy.send_cmd API from '18:000730'."""
 
 import asyncio
 from unittest.mock import patch
@@ -21,6 +18,7 @@ from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx.exceptions import ProtocolSendFailed
 from ramses_tx.protocol import QosProtocol
+from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
@@ -207,7 +205,9 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     try:
         # NOTE: using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
         # latter may swallow the exception we wish to capture (ProtocolSendFailed)
-        pkt = await gwy._protocol.send_cmd(cmd, max_retries=0, wait_for_reply=False)
+        pkt = await gwy._protocol.send_cmd(
+            cmd, qos=QosParams(max_retries=0, wait_for_reply=False)
+        )
     except ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
             return  # should have failed, and has

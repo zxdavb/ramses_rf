@@ -4,7 +4,7 @@
 
 # TODO: replace protocol_decorator with a factory or fixture
 
-"""Test the binding protocol with a virtual RF
+"""RAMSES RF - Test the binding protocol with a virtual RF
 
     NB: This test will likely fail with pytest -n x, because of the protocol's throttle
     limits.
@@ -30,6 +30,7 @@ from ramses_tx.protocol_fsm import (
     _ProtocolStateT,
 )
 from ramses_tx.transport import transport_factory
+from ramses_tx.typing import QosParams
 
 from .virtual_rf import VirtualRf
 
@@ -327,11 +328,11 @@ async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
     # Simple test for an I (does not expect any rx)...
     cmd = Command.put_sensor_temp("03:333333", 19.5)  # 3C09| I|03:333333
 
-    pkt = await protocol._send_cmd(cmd)  # , wait_for_reply=None)
+    pkt = await protocol._send_cmd(cmd)  # , qos=QosParams())
     assert pkt == cmd
 
     for x in (None, False, True):
-        pkt = await protocol._send_cmd(cmd, wait_for_reply=x)
+        pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=x))
         assert pkt == cmd
 
 
@@ -342,7 +343,7 @@ async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> No
     tasks = []
     for idx in range(num_cmds):
         cmd = Command.get_zone_temp("01:123456", f"{idx:02X}")
-        coro = protocol._send_cmd(cmd, wait_for_reply=False)
+        coro = protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
         tasks.append(protocol._loop.create_task(coro, name=f"cmd_{idx:02X}"))
 
     assert await asyncio.gather(*tasks)
