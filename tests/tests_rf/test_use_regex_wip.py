@@ -173,6 +173,7 @@ async def test_regex_with_qos():
     ser_1 = serial.Serial(rf.ports[1])
 
     if not isinstance(gwy_0._protocol, QosProtocol):
+        await rf.stop()
         pytest.skip("QoS protocol not enabled")
 
     await gwy_0.start()
