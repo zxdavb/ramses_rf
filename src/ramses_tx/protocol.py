@@ -272,7 +272,7 @@ class _BaseProtocol(asyncio.Protocol):
         self._msg_handler = msg_handler
         self._msg_handlers: list[MsgHandlerT] = []
 
-        self._transport: RamsesTransportT = None
+        self._transport: RamsesTransportT = None  # type: ignore[assignment]
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False
@@ -693,6 +693,7 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
 
         if ramses:
             super().connection_made(transport)
+            # TODO: needed? self.resume_writing()
 
     async def send_cmd(
         self,

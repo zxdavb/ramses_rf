@@ -63,6 +63,8 @@ class QosParams:
 class RamsesTransportT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Transport."""
 
+    # _is_reading: bool
+
     def _dt_now(self) -> dt:
         ...
 
@@ -98,6 +100,7 @@ class RamsesTransportT(Protocol):
 class RamsesProtocolT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Protocol."""
 
+    _pause_writing: bool
     _transport: RamsesTransportT
 
     def add_handler(

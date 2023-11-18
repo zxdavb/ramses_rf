@@ -44,7 +44,7 @@ import functools
 import logging
 import os
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
@@ -430,7 +430,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         try:
             await self._reader()
         except KeyboardInterrupt as exc:
-            self._protocol.connection_lost(exc)
+            self._protocol.connection_lost(exc)  # type: ignore[arg-type]
         else:
             self._protocol.connection_lost(None)
 
@@ -717,7 +717,7 @@ class QosTransport(PortTransport):
 
 
 async def transport_factory(
-    protocol: Callable[[], RamsesProtocolT],
+    protocol: RamsesProtocolT,
     /,
     *,
     port_name: SerPortName | None = None,

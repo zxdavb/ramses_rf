@@ -240,7 +240,7 @@ class MessageBase:
 
         return {index_name: self._pkt._idx}
 
-    def _validate(self, raw_payload) -> dict | list:  # TODO: needs work
+    def _validate(self, raw_payload: str) -> dict | list[dict]:  # TODO: needs work
         """Validate the message, and parse the payload if so.
 
         Raise an exception (InvalidPacketError) if it is not valid.

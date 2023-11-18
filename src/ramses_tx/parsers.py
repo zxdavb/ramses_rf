@@ -150,7 +150,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
-    from . import Message
+    from .message import MessageBase as Message  # HACK: merge MsgBase into Msg
 
 _2411_TABLE = {k: v["description"] for k, v in _2411_PARAMS_SCHEMA.items()}
 

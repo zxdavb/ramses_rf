@@ -299,7 +299,7 @@ class ProtocolContext:
             num_retries += 1
 
             try:  # send the cmd
-                # the order of these two calls appears irrevelent, but dev/tested as is
+                # the order of these two calls appears irrelevent, but dev/tested as is
                 self.state.sent_cmd(cmd)
                 await send_fnc(cmd)  # the wrapped function (actual Tx.write)
                 assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
@@ -330,7 +330,7 @@ class ProtocolContext:
                     or cmd.code == Code._1FC9  # otherwise issues with binding FSM
                 ):
                     # binding FSM is implemented at higher layer
-                    self.set_state(IsInIdle)  # some will be WantRply
+                    self.set_state(IsInIdle)  # some will have been set to WantRply
                     assert isinstance(self.state, IsInIdle), f"{self}: Expects IsInIdle"
                     return prev_state._echo_pkt
 
@@ -430,6 +430,7 @@ class _ProtocolStateBase:
 
     def made_connection(self, transport: RamsesTransportT) -> None:
         """Set the Context to IsInIdle (can Tx/Rx) or IsPaused."""
+
         if self._context._protocol._pause_writing:
             self._context.set_state(IsPaused)
         else:
@@ -528,7 +529,7 @@ class WantEcho(_WantPkt):
             return
 
         self._echo_pkt = pkt
-        if self.active_cmd.rx_header:
+        if self.active_cmd.rx_header:  # and wait_for_reply is True:
             self._context.set_state(WantRply)
         else:
             self._context.set_state(IsInIdle)
