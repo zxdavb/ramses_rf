@@ -55,7 +55,7 @@ class QosParams:
         return self._timeout
 
     @property
-    def wait_for_reply(self) -> bool:
+    def wait_for_reply(self) -> bool | None:
         return self._wait_for_reply
 
 
