@@ -74,7 +74,6 @@ from .const import (
     ZON_MODE_MAP,
     ZON_ROLE_MAP,
     DevRole,
-    __dev_mode__,
 )
 from .exceptions import PacketPayloadInvalid
 from .fingerprints import check_signature
@@ -105,7 +104,7 @@ from .helpers import (
     parse_supply_fan_speed,
     parse_supply_flow,
     parse_supply_temp,
-    parser_valve_demand,
+    parse_valve_demand,
 )
 from .opentherm import (
     EN,
@@ -139,7 +138,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FF,
 )
 
-
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -167,11 +165,7 @@ LOOKUP_PUZZ = {
     "7F": "null",  # .      # packet is null / was nullified: payload to be ignored
 }  # "00" is reserved
 
-DEV_MODE = __dev_mode__ and False
-
 _LOGGER = _PKT_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 # rf_unknown
@@ -277,7 +271,7 @@ def parser_0004(payload: str, msg: Message) -> dict:
 
 
 # system_zones (add/del a zone?)  # TODO: needs a cleanup
-def parser_0005(payload: str, msg: Message) -> dict | list[dict]:
+def parser_0005(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     # .I --- 01:145038 --:------ 01:145038 0005 004 00000100
     # RP --- 02:017205 18:073736 --:------ 0005 004 0009001F
     # .I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000
@@ -355,7 +349,7 @@ def parser_0008(payload: str, msg: Message) -> dict:
 
 
 # relay_failsafe
-def parser_0009(payload: str, msg: Message) -> dict | list:
+def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     """The relay failsafe mode.
 
     The failsafe mode defines the relay behaviour if the RF communication is lost (e.g.
@@ -387,7 +381,7 @@ def parser_0009(payload: str, msg: Message) -> dict | list:
 
 
 # zone_params (zone_config)
-def parser_000a(payload: str, msg: Message) -> dict | list:
+def parser_000a(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     # RQ --- 34:044203 01:158182 --:------ 000A 001 08
     # RP --- 01:158182 34:044203 --:------ 000A 006 081001F409C4
     # RQ --- 22:017139 01:140959 --:------ 000A 006 080001F40DAC
@@ -1352,7 +1346,7 @@ def parser_2210(payload: str, msg: Message) -> dict:
 
 
 # now_next_setpoint - Programmer/Hometronics
-def parser_2249(payload: str, msg: Message) -> dict | list[dict]:
+def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     # see: https://github.com/jrosser/honeymon/blob/master/decoder.cpp#L357-L370
     # .I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
 
@@ -1395,7 +1389,7 @@ def parser_22b0(payload: str, msg: Message) -> dict:
 
 
 # ufh_setpoint, TODO: max length = 24?
-def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:
+def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     # .I --- 02:001107 --:------ 02:001107 22C9 024 00-0834-0A28-01-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
     # .I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
 
@@ -1564,7 +1558,7 @@ def parser_22f1(payload: str, msg: Message) -> dict:
 
 
 # WIP: unknown, HVAC (flow rate?)
-def parser_22f2(payload: str, msg: Message) -> list:
+def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-019B 01-0201
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-0174 01-0208
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-01E5 01-0201
@@ -1688,7 +1682,7 @@ def parser_22f8(payload: str, msg: Message) -> dict:
 
 
 # setpoint (of device/zones)
-def parser_2309(payload: str, msg: Message) -> dict | list:
+def parser_2309(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     if msg._has_array:
         return [
             {
@@ -1936,7 +1930,7 @@ def parser_2e10(payload: str, msg: Message) -> dict:
 
 
 # current temperature (of device, zone/s)
-def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:
+def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     if msg._has_array:
         return [
             {
@@ -2054,13 +2048,13 @@ def parser_313f(payload: str, msg: Message) -> dict:  # TODO: look for TZ
 
 
 # heat_demand (of device, FC domain) - valve status (%open)
-def parser_3150(payload: str, msg: Message) -> dict | list[dict]:
+def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     # event-driven, and periodically; FC domain is maximum of all zones
     # TODO: all have a valid domain will UFC/CTL respond to an RQ, for FC, for a zone?
 
     # .I --- 04:136513 --:------ 01:158182 3150 002 01CA < often seen CA, artefact?
 
-    def complex_idx(seqx, msg) -> dict:
+    def complex_idx(seqx, msg) -> dict[str, str]:
         # assert seqx[:2] == FC or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         idx_name = "ufx_idx" if msg.src.type == DEV_TYPE_MAP.UFC else SZ_ZONE_IDX  # DEX
         return {SZ_DOMAIN_ID if seqx[:1] == "F" else idx_name: seqx[:2]}
@@ -2069,12 +2063,12 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:
         return [
             {
                 **complex_idx(payload[i : i + 2], msg),
-                **parser_valve_demand(payload[i + 2 : i + 4]),
+                **parse_valve_demand(payload[i + 2 : i + 4]),
             }
             for i in range(0, len(payload), 4)
         ]
 
-    return parser_valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
+    return parse_valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
 
 
 # fan state (ventilation status), HVAC
@@ -2169,7 +2163,7 @@ def parser_31da(payload: str, msg: Message) -> dict:
 
 
 # vent_demand, HVAC
-def parser_31e0(payload: str, msg: Message) -> dict:
+def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     """Notes are.
 
     van means “of”.
@@ -2406,7 +2400,11 @@ def parser_3b00(payload: str, msg: Message) -> dict:
 
 
 # actuator_state
-def parser_3ef0(payload: str, msg: Message) -> dict:
+def parser_3ef0(
+    payload: str, msg: Message
+) -> dict[str, bool | float | str | list[int] | None]:
+    result: dict[str, bool | float | str | list[int] | None]
+
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
         return {
@@ -2521,6 +2519,8 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
             "blob": payload[8:],
         }
 
+    percent = hex_to_percent(payload[10:12])
+
     if payload[12:] == "FF":  # is BDR
         # assert (
         #     re.compile(r"^00[0-9A-F]{10}FF").match(payload)
@@ -2529,7 +2529,7 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
         # assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
         #     int(payload[6:10], 16) <= 7200
         # ), f"byte 3: {payload[6:10]}"
-        assert hex_to_percent(payload[10:12]) in (0, 1), f"byte 5: {payload[10:12]}"
+        assert percent is None or percent in (0, 1), f"byte 5: {payload[10:12]}"
 
     else:  # is OTB
         # assert (
@@ -2537,12 +2537,12 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
         # ), "doesn't match: " + r"^00[0-9A-F]{10}10"
         assert payload[2:6] == "7FFF", f"byte 1: {payload[2:6]}"
         assert payload[6:10] == "003C", f"byte 3: {payload[6:10]}"  # 60 seconds
-        assert hex_to_percent(payload[10:12]) <= 1, f"byte 5: {payload[10:12]}"
+        assert percent is None or percent <= 1, f"byte 5: {payload[10:12]}"
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
-        "modulation_level": hex_to_percent(payload[10:12]),  # 0008[2:4], 3EF0[2:4]
+        "modulation_level": percent,  # 0008[2:4], 3EF0[2:4]
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,
         f"_{SZ_UNKNOWN}_0": payload[12:],
@@ -2563,7 +2563,7 @@ def parser_4401(payload: str, msg: Message) -> dict:
     # 2022-07-28T14:22:20.571640 085  I --- 20:255251 20:229597 --:------ 4401 020 10  39-E99E90F1  00-E99E90F1-5CFF  40-00000000-000A
     # 2022-07-28T14:22:20.648696 058  I --- 20:257400 20:255710 --:------ 4401 020 10  0B-E99E90F2  00-E99E90F1-D4FF  DA-00000000-000B
 
-    def hex_to_epoch(seqx: str) -> None | dt:  # seconds since 1-1-1970
+    def hex_to_epoch(seqx: str) -> None | str:  # seconds since 1-1-1970
         if seqx == "00" * 4:
             return None
         return str(
@@ -2760,7 +2760,7 @@ def parser_4e21(payload: str, msg: Message) -> dict:
 
 
 #   # faked puzzle pkt shouldn't be decorated
-def parser_7fff(payload: str, msg: Message) -> dict:
+def parser_7fff(payload: str, _: Message) -> dict:
     if payload[:2] != "00":
         _LOGGER.debug("Invalid/deprecated Puzzle packet")
         return {
@@ -2786,8 +2786,8 @@ def parser_7fff(payload: str, msg: Message) -> dict:
     msg_type = LOOKUP_PUZZ.get(payload[2:4], SZ_PAYLOAD)
 
     if payload[2:4] == "11":
-        msg = hex_to_str(payload[16:])
-        result[msg_type] = f"{msg[:4]}|{msg[4:6]}|{msg[6:]}"
+        mesg = hex_to_str(payload[16:])
+        result[msg_type] = f"{mesg[:4]}|{mesg[4:6]}|{mesg[6:]}"
 
     elif payload[2:4] == "13":
         result[msg_type] = hex_to_str(payload[4:])
@@ -2829,7 +2829,9 @@ _PAYLOAD_PARSERS = {
 }
 
 
-def parse_payload(msg: Message) -> Mapping:
+def parse_payload(msg: Message) -> dict | list[dict]:
+    result: dict | list[dict]
+
     result = _PAYLOAD_PARSERS.get(msg.code, parser_unknown)(msg._pkt.payload, msg)
     if isinstance(result, dict) and msg.seqn.isnumeric():  # e.g. 22F1/3
         result["seqx_num"] = msg.seqn

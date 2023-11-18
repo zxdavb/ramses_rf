@@ -321,13 +321,13 @@ def hex_to_percent(
     return result
 
 
-def hex_to_str(value: str) -> str | None:  # printable ASCII characters
+def hex_to_str(value: str) -> str:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
     if not isinstance(value, str):
         raise ValueError(f"Invalid value: {value}, is not a string")
     result = bytearray([x for x in bytearray.fromhex(value) if 31 < x < 127])
-    return result.decode("ascii").strip() if result else None
+    return result.decode("ascii").strip() if result else ""
 
 
 def hex_from_str(value: str) -> str:
@@ -371,18 +371,18 @@ def hex_from_temp(value: float | None) -> HexStr4:
 ########################################################################################
 
 
-def _faulted_common(param_name: str, value: str) -> Mapping[str, str]:
+def _faulted_common(param_name: str, value: str) -> dict[str, str]:
     return {f"{param_name}_fault": f"invalid_{value}"}
 
 
-def _faulted_sensor(param_name: str, value: str) -> Mapping[str, str]:
+def _faulted_sensor(param_name: str, value: str) -> dict[str, str]:
     # assert value[:1] in ("8", "F"), value
     code = int(value[:2], 16) & 0xF
     fault = SENSOR_FAULT_CODES.get(code, f"invalid_{value}")
     return {f"{param_name}_fault": fault}
 
 
-def _faulted_device(param_name: str, value: str) -> Mapping[str, str]:
+def _faulted_device(param_name: str, value: str) -> dict[str, str]:
     assert value[:1] in ("8", "F"), value
     code = int(value[:2], 16) & 0xF
     fault: str = DEVICE_FAULT_CODES.get(code, f"invalid_{value}")
@@ -390,7 +390,9 @@ def _faulted_device(param_name: str, value: str) -> Mapping[str, str]:
 
 
 # TODO: refactor as per 31DA parsers
-def parser_valve_demand(value: HexStr2) -> ReturnValueDictT:
+def parse_valve_demand(
+    value: HexStr2
+) -> dict[str, float] | dict[str, str] | dict[str, None]:
     """Convert a 2-char hex string into a percentage.
 
     The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
@@ -407,7 +409,7 @@ def parser_valve_demand(value: HexStr2) -> ReturnValueDictT:
         return _faulted_device(SZ_HEAT_DEMAND, value)
 
     result = int(value, 16) / 200  # c.f. hex_to_percentage
-    if result == 1.01:  # HACK
+    if result == 1.01:  # HACK - does it mean maximum?
         result = 1.0
     elif result > 1.0:
         raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
