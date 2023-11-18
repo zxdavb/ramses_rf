@@ -21,7 +21,7 @@ from .const import (
 )
 from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .packet import Packet
-from .parsers import PAYLOAD_PARSERS, parser_unknown
+from .parsers import parse_payload
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
 
 # TODO:
@@ -256,9 +256,7 @@ class MessageBase:
                 # _LOGGER.error("%s", msg)
                 return {}
 
-            result = PAYLOAD_PARSERS.get(self.code, parser_unknown)(
-                self._pkt.payload, self
-            )
+            result = parse_payload(self)
 
             if isinstance(result, list):
                 return result
