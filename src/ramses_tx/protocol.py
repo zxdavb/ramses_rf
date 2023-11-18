@@ -299,7 +299,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return del_handler
 
-    def connection_made(self, transport: RamsesTransportT) -> None:
+    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
         """Called when the connection to the Transport is established.
 
         The argument is the transport representing the pipe connection. To receive data,
@@ -309,7 +309,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._transport = transport
 
-    def connection_lost(self, exc: _ExceptionT | None) -> None:
+    def connection_lost(self, exc: _ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection to the Transport is lost or closed.
 
         The argument is an exception object or None (the latter meaning a regular EOF is
@@ -361,7 +361,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> Packet | None:
+    async def send_cmd(self, cmd: Command, /, **kwargs) -> Packet | None:
         """A wrapper for self._send_cmd(cmd)."""
         if _DEBUG_FORCE_LOG_PACKETS:
             _LOGGER.warning(f"Sent:     {cmd}")
@@ -487,7 +487,7 @@ class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
 class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
     """A mixin for warning that impersonation is being performed."""
 
-    _is_evofw3: None | bool = None
+    _is_evofw3: bool | None = None
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         """Record if the gateway device is evofw3-compatible."""
@@ -509,7 +509,7 @@ class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_cmd(self, cmd: Command, **kwargs) -> None | Packet:
+    async def send_cmd(self, cmd: Command, /, **kwargs) -> Packet | None:
         """Send a Command to the transport."""
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
