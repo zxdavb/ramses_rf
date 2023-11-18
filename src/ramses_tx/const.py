@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import re
-from enum import EnumCheck, StrEnum, verify
+from enum import EnumCheck, IntEnum, StrEnum, verify
 from types import SimpleNamespace
 from typing import Literal
 
@@ -45,8 +45,6 @@ SZ_TOTAL_FRAGS = "total_frags"
 SZ_SCHEDULE = "schedule"
 SZ_CHANGE_COUNTER = "change_counter"
 
-Priority = SimpleNamespace(LOWEST=4, LOW=2, DEFAULT=0, HIGH=-2, HIGHEST=-4)
-
 
 # used by 31DA
 SZ_AIR_QUALITY = "air_quality"
@@ -76,6 +74,15 @@ SZ_SUPPLY_TEMP = "supply_temp"
 SZ_SPEED_CAP = "speed_capabilities"
 
 SZ_PRESENCE_DETECTED = "presence_detected"
+
+
+@verify(EnumCheck.UNIQUE)
+class Priority(IntEnum):
+    LOWEST = 4
+    LOW = 2
+    DEFAULT = 0
+    HIGH = -2
+    HIGHEST = -4
 
 
 def slug(string: str) -> str:
