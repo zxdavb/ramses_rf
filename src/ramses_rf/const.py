@@ -4,8 +4,8 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 from __future__ import annotations
 
-from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from enum import IntEnum
+from typing import TYPE_CHECKING, Final
 
 from ramses_tx.const import (  # noqa: F401
     DEFAULT_MAX_ZONES,
@@ -110,27 +110,27 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 
 
 __dev_mode__ = False
-# DEV_MODE = __dev_mode__
 
-Discover = SimpleNamespace(
-    NOTHING=0,
-    SCHEMA=1,
-    PARAMS=2,
-    STATUS=4,
-    FAULTS=8,
-    SCHEDS=16,
-    TRAITS=32,
-    DEFAULT=(1 + 2 + 4),
-)
 
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
+class Discover(IntEnum):
+    NOTHING = 0
+    SCHEMA = 1
+    PARAMS = 2
+    STATUS = 4
+    FAULTS = 8
+    SCHEDS = 16
+    TRAITS = 32
+    DEFAULT = 1 + 2 + 4
 
-SCHED_REFRESH_INTERVAL = 3  # minutes
+
+DONT_CREATE_MESSAGES: Final[int] = 3
+DONT_CREATE_ENTITIES: Final[int] = 2
+DONT_UPDATE_ENTITIES: Final[int] = 1
+
+SCHED_REFRESH_INTERVAL: Final[int] = 3  # minutes
 
 # Status codes for Worcester Bosch boilers - OT|OEM diagnostic code
-WB_STATUS_CODES = {
+WB_STATUS_CODES: Final[dict[str, str]] = {
     "200": "CH system is being heated.",
     "201": "DHW system is being heated.",
     "202": "Anti rapid cycle mode. The boiler has commenced anti-cycle period for CH.",

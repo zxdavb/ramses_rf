@@ -7,73 +7,73 @@ from __future__ import annotations
 import re
 from enum import EnumCheck, IntEnum, StrEnum, verify
 from types import SimpleNamespace
-from typing import Literal
+from typing import Final, Literal
 
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
 # used by transport...
-SZ_ACTIVE_HGI = "active_gwy"
-SZ_SIGNATURE = "signature"
-SZ_KNOWN_HGI = "known_hgi"
-SZ_IS_EVOFW3 = "is_evofw3"
+SZ_ACTIVE_HGI: Final[str] = "active_gwy"
+SZ_SIGNATURE: Final[str] = "signature"
+SZ_KNOWN_HGI: Final[str] = "known_hgi"
+SZ_IS_EVOFW3: Final[str] = "is_evofw3"
 
 # used by protocol QoS...
 MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
 
-SZ_BACKOFF = "backoff"
-SZ_DISABLE_BACKOFF = "disable_backoff"
-SZ_PRIORITY = "priority"
-SZ_QOS = "qos"
-SZ_RETRIES = "retries"
-SZ_TIMEOUT = "timeout"
+SZ_BACKOFF: Final[str] = "backoff"
+SZ_DISABLE_BACKOFF: Final[str] = "disable_backoff"
+SZ_PRIORITY: Final[str] = "priority"
+SZ_QOS: Final[str] = "qos"
+SZ_RETRIES: Final[str] = "retries"
+SZ_TIMEOUT: Final[str] = "timeout"
 
 # these are used by QoS
-SZ_CALLBACK = "callback"
-SZ_DAEMON = "daemon"
-SZ_EXPIRED = "expired"
-SZ_EXPIRES = "expires"
-SZ_FUNC = "func"
-SZ_ARGS = "args"
+SZ_CALLBACK: Final[str] = "callback"
+SZ_DAEMON: Final[str] = "daemon"
+SZ_EXPIRED: Final[str] = "expired"
+SZ_EXPIRES: Final[str] = "expires"
+SZ_FUNC: Final[str] = "func"
+SZ_ARGS: Final[str] = "args"
 
 # used by schedule.py...
-SZ_FRAGMENT = "fragment"
-SZ_FRAG_NUMBER = "frag_number"
-SZ_FRAG_LENGTH = "frag_length"
-SZ_TOTAL_FRAGS = "total_frags"
+SZ_FRAGMENT: Final[str] = "fragment"
+SZ_FRAG_NUMBER: Final[str] = "frag_number"
+SZ_FRAG_LENGTH: Final[str] = "frag_length"
+SZ_TOTAL_FRAGS: Final[str] = "total_frags"
 
-SZ_SCHEDULE = "schedule"
-SZ_CHANGE_COUNTER = "change_counter"
+SZ_SCHEDULE: Final[str] = "schedule"
+SZ_CHANGE_COUNTER: Final[str] = "change_counter"
 
 
 # used by 31DA
-SZ_AIR_QUALITY = "air_quality"
-SZ_AIR_QUALITY_BASIS = "air_quality_basis"
-SZ_BOOST_TIMER = "boost_timer"
-SZ_BYPASS_POSITION = "bypass_position"
-SZ_CO2_LEVEL = "co2_level"
-SZ_DEWPOINT_TEMP = "dewpoint_temp"
-SZ_EXHAUST_FAN_SPEED = "exhaust_fan_speed"
-SZ_EXHAUST_FLOW = "exhaust_flow"
-SZ_EXHAUST_TEMP = "exhaust_temp"
-SZ_FAN_INFO = "fan_info"
-SZ_FAN_MODE = "fan_mode"
-SZ_FAN_RATE = "fan_rate"
-SZ_FILTER_REMAINING = "filter_remaining"
-SZ_INDOOR_HUMIDITY = "indoor_humidity"
-SZ_INDOOR_TEMP = "indoor_temp"
-SZ_OUTDOOR_HUMIDITY = "outdoor_humidity"
-SZ_OUTDOOR_TEMP = "outdoor_temp"
-SZ_POST_HEAT = "post_heat"
-SZ_PRE_HEAT = "pre_heat"
-SZ_REL_HUMIDITY = "rel_humidity"
-SZ_REMAINING_MINS = "remaining_mins"
-SZ_SUPPLY_FAN_SPEED = "supply_fan_speed"
-SZ_SUPPLY_FLOW = "supply_flow"
-SZ_SUPPLY_TEMP = "supply_temp"
-SZ_SPEED_CAP = "speed_capabilities"
+SZ_AIR_QUALITY: Final[str] = "air_quality"
+SZ_AIR_QUALITY_BASIS: Final[str] = "air_quality_basis"
+SZ_BOOST_TIMER: Final[str] = "boost_timer"
+SZ_BYPASS_POSITION: Final[str] = "bypass_position"
+SZ_CO2_LEVEL: Final[str] = "co2_level"
+SZ_DEWPOINT_TEMP: Final[str] = "dewpoint_temp"
+SZ_EXHAUST_FAN_SPEED: Final[str] = "exhaust_fan_speed"
+SZ_EXHAUST_FLOW: Final[str] = "exhaust_flow"
+SZ_EXHAUST_TEMP: Final[str] = "exhaust_temp"
+SZ_FAN_INFO: Final[str] = "fan_info"
+SZ_FAN_MODE: Final[str] = "fan_mode"
+SZ_FAN_RATE: Final[str] = "fan_rate"
+SZ_FILTER_REMAINING: Final[str] = "filter_remaining"
+SZ_INDOOR_HUMIDITY: Final[str] = "indoor_humidity"
+SZ_INDOOR_TEMP: Final[str] = "indoor_temp"
+SZ_OUTDOOR_HUMIDITY: Final[str] = "outdoor_humidity"
+SZ_OUTDOOR_TEMP: Final[str] = "outdoor_temp"
+SZ_POST_HEAT: Final[str] = "post_heat"
+SZ_PRE_HEAT: Final[str] = "pre_heat"
+SZ_REL_HUMIDITY: Final[str] = "rel_humidity"
+SZ_REMAINING_MINS: Final[str] = "remaining_mins"
+SZ_SUPPLY_FAN_SPEED: Final[str] = "supply_fan_speed"
+SZ_SUPPLY_FLOW: Final[str] = "supply_flow"
+SZ_SUPPLY_TEMP: Final[str] = "supply_temp"
+SZ_SPEED_CAP: Final[str] = "speed_capabilities"
 
-SZ_PRESENCE_DETECTED = "presence_detected"
+SZ_PRESENCE_DETECTED: Final[str] = "presence_detected"
 
 
 @verify(EnumCheck.UNIQUE)
@@ -92,9 +92,9 @@ def slug(string: str) -> str:
 
 # TODO: FIXME: This is a mess - needs converting to StrEnum
 class AttrDict(dict):
-    _SZ_AKA_SLUG = "_root_slug"
-    _SZ_DEFAULT = "_default"
-    _SZ_SLUGS = "SLUGS"
+    _SZ_AKA_SLUG: Final[str] = "_root_slug"
+    _SZ_DEFAULT: Final[str] = "_default"
+    _SZ_SLUGS: Final[str] = "SLUGS"
 
     @classmethod
     def __readonly(cls, *args, **kwargs):
@@ -451,49 +451,49 @@ SYS_MODE_MAP = attr_dict_factory(
 )
 
 
-SZ_ACTUATOR = "actuator"
-SZ_ACTUATORS = "actuators"
-SZ_BINDINGS = "bindings"
-SZ_DATETIME = "datetime"
-SZ_DEVICE_CLASS = "device_class"  # used in 0418 only?
-SZ_DEVICE_ID = "device_id"
-SZ_DEVICE_ROLE = "device_role"
-SZ_DEVICES = "devices"
-SZ_DHW_IDX = "dhw_idx"
-SZ_DOMAIN_ID = "domain_id"
-SZ_DURATION = "duration"
-SZ_HEAT_DEMAND = "heat_demand"
-SZ_IS_DST = "is_dst"
-SZ_LANGUAGE = "language"
-SZ_LOG_IDX = "log_idx"
-SZ_MODE = "mode"
-SZ_NAME = "name"
-SZ_OEM_CODE = "oem_code"
-SZ_PAYLOAD = "payload"
-SZ_PRESSURE = "pressure"
-SZ_RELAY_DEMAND = "relay_demand"
-SZ_RELAY_FAILSAFE = "relay_failsafe"
-SZ_SENSOR = "sensor"
-SZ_SETPOINT = "setpoint"
-SZ_SLUG = "_SLUG"
-SZ_SYSTEM_MODE = "system_mode"
-SZ_TEMPERATURE = "temperature"
-SZ_UFH_IDX = "ufh_idx"
-SZ_UNKNOWN = "unknown"
-SZ_UNTIL = "until"
-SZ_VALUE = "value"
-SZ_WINDOW_OPEN = "window_open"
-SZ_ZONE_CLASS = "zone_class"
-SZ_ZONE_IDX = "zone_idx"
-SZ_ZONE_MASK = "zone_mask"
-SZ_ZONE_TYPE = "zone_type"
-SZ_ZONES = "zones"
+SZ_ACTUATOR: Final[str] = "actuator"
+SZ_ACTUATORS: Final[str] = "actuators"
+SZ_BINDINGS: Final[str] = "bindings"
+SZ_DATETIME: Final[str] = "datetime"
+SZ_DEVICE_CLASS: Final[str] = "device_class"  # used in 0418 only?
+SZ_DEVICE_ID: Final[str] = "device_id"
+SZ_DEVICE_ROLE: Final[str] = "device_role"
+SZ_DEVICES: Final[str] = "devices"
+SZ_DHW_IDX: Final[str] = "dhw_idx"
+SZ_DOMAIN_ID: Final[str] = "domain_id"
+SZ_DURATION: Final[str] = "duration"
+SZ_HEAT_DEMAND: Final[str] = "heat_demand"
+SZ_IS_DST: Final[str] = "is_dst"
+SZ_LANGUAGE: Final[str] = "language"
+SZ_LOG_IDX: Final[str] = "log_idx"
+SZ_MODE: Final[str] = "mode"
+SZ_NAME: Final[str] = "name"
+SZ_OEM_CODE: Final[str] = "oem_code"
+SZ_PAYLOAD: Final[str] = "payload"
+SZ_PRESSURE: Final[str] = "pressure"
+SZ_RELAY_DEMAND: Final[str] = "relay_demand"
+SZ_RELAY_FAILSAFE: Final[str] = "relay_failsafe"
+SZ_SENSOR: Final[str] = "sensor"
+SZ_SETPOINT: Final[str] = "setpoint"
+SZ_SLUG: Final[str] = "_SLUG"
+SZ_SYSTEM_MODE: Final[str] = "system_mode"
+SZ_TEMPERATURE: Final[str] = "temperature"
+SZ_UFH_IDX: Final[str] = "ufh_idx"
+SZ_UNKNOWN: Final[str] = "unknown"
+SZ_UNTIL: Final[str] = "until"
+SZ_VALUE: Final[str] = "value"
+SZ_WINDOW_OPEN: Final[str] = "window_open"
+SZ_ZONE_CLASS: Final[str] = "zone_class"
+SZ_ZONE_IDX: Final[str] = "zone_idx"
+SZ_ZONE_MASK: Final[str] = "zone_mask"
+SZ_ZONE_TYPE: Final[str] = "zone_type"
+SZ_ZONES: Final[str] = "zones"
 
 # used in 1FC9
-SZ_OFFER = "offer"
-SZ_ACCEPT = "accept"
-SZ_CONFIRM = "confirm"
-SZ_PHASE = "phase"
+SZ_OFFER: Final[str] = "offer"
+SZ_ACCEPT: Final[str] = "accept"
+SZ_CONFIRM: Final[str] = "confirm"
+SZ_PHASE: Final[str] = "phase"
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
@@ -516,7 +516,7 @@ DEVICE_ID_REGEX = SimpleNamespace(
 # Domains
 F6, F7, F8, F9, FA, FB, FC, FD, FE, FF = (f"{x:02X}" for x in range(0xF6, 0x100))
 
-DOMAIN_TYPE_MAP = {
+DOMAIN_TYPE_MAP: dict[str, str] = {
     F6: "cooling_valve",  # cooling
     F7: "domain_f7",
     F8: "domain_f8",
@@ -530,7 +530,7 @@ DOMAIN_TYPE_MAP = {
 }  # "21": "Ventilation", "88": ???
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != FF}
 
-DHW_STATE_MAP = {"00": "off", "01": "on"}
+DHW_STATE_MAP: dict[str, str] = {"00": "off", "01": "on"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
 DTM_LONG_REGEX = re.compile(
@@ -552,7 +552,7 @@ MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
 
 # Used by 0418/system_fault parser
-FAULT_DEVICE_CLASS = {
+FAULT_DEVICE_CLASS: Final[dict[str, str]] = {
     "00": "controller",
     "01": "sensor",
     "02": "setpoint",
@@ -560,12 +560,12 @@ FAULT_DEVICE_CLASS = {
     "05": "dhw_sensor",
     "06": "rf_gateway",
 }
-FAULT_STATE = {
+FAULT_STATE: Final[dict[str, str]] = {
     "00": "fault",
     "40": "restore",
     "C0": "unknown_c0",  # C0s do not appear in the evohome UI
 }
-FAULT_TYPE = {
+FAULT_TYPE: Final[dict[str, str]] = {
     "01": "system_fault",
     "03": "mains_low",
     "04": "battery_low",
@@ -587,10 +587,10 @@ class SystemType(StrEnum):
 
 
 # used by 22Fx parser, and FanSwitch devices
-# SZ_BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
-HEATER_MODE = "heater_mode"  # e.g. auto, off
-FAN_MODE = "fan_mode"  # e.g. low. high
-FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
+# SZ_BOOST_TIMER: Final[str] = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
+HEATER_MODE: Final[str] = "heater_mode"  # e.g. auto, off
+FAN_MODE: Final[str] = "fan_mode"  # e.g. low. high
+FAN_RATE: Final[str] = "fan_rate"  # percentage, 0.0 - 1.0
 
 
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # before adding RFG100
@@ -617,10 +617,10 @@ FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 # Below, verbs & codes - can use Verb/Code/Index for mypy type checking
 Verb = Literal[" I", "RQ", "RP", " W"]
 
-I_: Verb = " I"
-RQ: Verb = "RQ"
-RP: Verb = "RP"
-W_: Verb = " W"
+I_: Final[Verb] = " I"
+RQ: Final[Verb] = "RQ"
+RP: Final[Verb] = "RP"
+W_: Final[Verb] = " W"
 
 
 # StrEnum is intended include all known codes, see: test suite, code schema in ramses.py
