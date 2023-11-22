@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the payload parsers.
-"""
+"""RAMSES RF - Test the payload parsers."""
 
 from pathlib import Path, PurePath
 
@@ -50,8 +47,8 @@ def _proc_log_line(pkt_line):  # noqa: F811
     try:
         pkt_dict = eval(pkt_dict)
     except SyntaxError:
-        if "{" in pkt_dict:
-            raise
+        if "{" in pkt_dict:  # if so, there is an issue with the log line
+            raise  # that should be addressed
         return
 
     if isinstance(pkt_dict, list) or not any(k for k in pkt_dict if k in META_KEYS):
