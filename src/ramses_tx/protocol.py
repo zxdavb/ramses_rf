@@ -275,6 +275,7 @@ class _BaseProtocol(asyncio.Protocol):
         self._transport: RamsesTransportT = None  # type: ignore[assignment]
         self._loop = asyncio.get_running_loop()
 
+        # FIXME: Should start in read-only mode as no connection yet
         self._pause_writing = False
         self._wait_connection_lost = self._loop.create_future()
 
