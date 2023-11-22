@@ -144,8 +144,8 @@ def _str(value: bytes) -> str:
 class _PktMixin:
     """Base class for RAMSES II transports."""
 
-    _this_pkt: None | Packet
-    _prev_pkt: None | Packet
+    _this_pkt: Packet | None
+    _prev_pkt: Packet | None
     _protocol: RamsesProtocolT
 
     def __init__(self, *args, **kwargs) -> None:
@@ -182,8 +182,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         self,
         *args,
         enforce_include_list: bool = False,
-        exclude_list: None | dict[DeviceId, str] = None,
-        include_list: None | dict[DeviceId, str] = None,
+        exclude_list: dict[DeviceId, str] | None = None,
+        include_list: dict[DeviceId, str] | None = None,
         **kwargs,
     ) -> None:
         exclude_list = exclude_list or {}
@@ -277,7 +277,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
             _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
     def _is_wanted_addrs(
-        self, src_id: DeviceId, dst_id: DeviceId, payload: None | str = None
+        self, src_id: DeviceId, dst_id: DeviceId, payload: str | None = None
     ) -> bool:
         """Return True if the packet is not to be filtered out.
 
@@ -327,7 +327,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
 
 
 class _RegHackMixin:
-    def __init__(self, *args, use_regex: None | dict = None, **kwargs) -> None:
+    def __init__(self, *args, use_regex: dict | None = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         use_regex = use_regex or {}
@@ -372,8 +372,8 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         self,
         protocol: RamsesProtocolT,
         pkt_source: dict | TextIOWrapper,
-        loop: None | asyncio.AbstractEventLoop = None,
-        extra: None | dict = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+        extra: dict | None = None,
     ) -> None:
         super().__init__(extra=extra)
 
@@ -469,7 +469,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
     def send_frame(self, frame: str) -> None:
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
-    def close(self, exc: None | ExceptionT = None) -> None:
+    def close(self, exc: ExceptionT | None = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
         if self._is_closing:
             return
@@ -488,7 +488,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
     serial: Serial
 
     _init_fut: asyncio.Future
-    _init_task: None | asyncio.Task = None
+    _init_task: asyncio.Task | None = None
 
     _recv_buffer: bytes = b""
 
@@ -496,8 +496,8 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
         self,
         protocol: RamsesProtocolT,
         pkt_source: Serial,
-        loop: None | asyncio.AbstractEventLoop = None,
-        extra: None | dict = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+        extra: dict | None = None,
     ) -> None:
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
@@ -575,7 +575,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
             _LOGGER.info("Tx:     %s", data)
         super().write(data)
 
-    def close(self, exc: None | ExceptionT = None) -> None:
+    def close(self, exc: ExceptionT | None = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
         super().close()
         if self._init_task:
@@ -658,7 +658,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             self._init_task = asyncio.create_task(connect_after_signature())
 
     @staticmethod
-    def is_hgi80(serial_port: SerPortName) -> None | bool:
+    def is_hgi80(serial_port: SerPortName) -> bool | None:
         """Return True/False if the device attached to the port is/isn't an HGI80.
 
         Return None if it's not possible to tell (effectively assume is evofw3).
@@ -674,7 +674,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
         elif vid in (0x1B4F, 0x0403):
             return False
 
-        product: None | str = {
+        product: str | None = {
             x.device: getattr(x, "product", None) for x in comports()
         }.get(serial_port)
 
@@ -700,7 +700,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
         )
         return None  # try sending an "!V", expect "# evofw3 0.7.1"
 
-    def get_extra_info(self, name, default=None):
+    def get_extra_info(self, name: str, default: Any = None):
         if name == SZ_IS_EVOFW3:
             return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
         return self._extra.get(name, default)

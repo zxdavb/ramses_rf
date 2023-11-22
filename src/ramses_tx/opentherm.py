@@ -3,7 +3,6 @@
 #
 """RAMSES RF - Opentherm processor."""
 
-# TODO: change all Msg IDs to int (0x13) or str "13"
 # TODO: a fnc to translate OT flags into a list of strs
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from collections.abc import Callable
 from enum import EnumCheck, StrEnum, verify
 from typing import Final, TypeAlias
 
-_MsgIdIntT: TypeAlias = int  # TODO: use only int
+_MsgIdStrT: TypeAlias = str  # TODO: use only int
 _FlagsSchemaT: TypeAlias = dict[int, dict[str, str]]
 
 
@@ -61,42 +60,42 @@ class MsgId(StrEnum):
 
 
 # These are R8810A/R8820A-supported msg_ids
-SCHEMA_MSG_IDS: dict[_MsgIdIntT, str] = {
-    0x03: "Slave configuration",  # .                                             #   3
+SCHEMA_MSG_IDS: Final[dict[_MsgIdStrT, str]] = {
+    "03": "Slave configuration",  # .                                             #   3
     # 003:HB0: Slave configuration: DHW present
     # 003:HB1: Slave configuration: Control type
     # 003:HB4: Slave configuration: Master low-off & pump control
     #
-    0x06: "Remote boiler parameter flags",  # .                                    #   6
+    "06": "Remote boiler parameter flags",  # .                                    #   6
     # 006:HB0: Remote boiler parameter transfer-enable: DHW setpoint
     # 006:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
     # 006:LB0: Remote boiler parameter read/write: DHW setpoint
     # 006:LB1: Remote boiler parameter read/write: max. CH setpoint,
     #
-    0x7F: "Slave product version number and type",  # .                           # 127
+    "7F": "Slave product version number and type",  # .                           # 127
     #
     # These are STATUS seen RQ'd by 01:/30:, but here to retrieve less frequently
-    0x71: "Number of un-successful burner starts",  # .                           # 113
-    0x72: "Number of times flame signal was too low",  # .                        # 114
-    0x74: "Number of starts burner",  # .                                         # 116
-    0x75: "Number of starts central heating pump",  # .                           # 117
-    0x76: "Number of starts DHW pump/valve",  # .                                 # 118
-    0x77: "Number of starts burner during DHW mode",  # .                         # 119
-    0x78: "Number of hours burner is in operation (i.e. flame on)",  # .          # 120
-    0x79: "Number of hours central heating pump has been running",  # .           # 121
-    0x7A: "Number of hours DHW pump has been running/valve has been opened",  # . # 122
-    0x7B: "Number of hours DHW burner is in operation during DHW mode",  # .      # 123
+    "71": "Number of un-successful burner starts",  # .                           # 113
+    "72": "Number of times flame signal was too low",  # .                        # 114
+    "74": "Number of starts burner",  # .                                         # 116
+    "75": "Number of starts central heating pump",  # .                           # 117
+    "76": "Number of starts DHW pump/valve",  # .                                 # 118
+    "77": "Number of starts burner during DHW mode",  # .                         # 119
+    "78": "Number of hours burner is in operation (i.e. flame on)",  # .          # 120
+    "79": "Number of hours central heating pump has been running",  # .           # 121
+    "7A": "Number of hours DHW pump has been running/valve has been opened",  # . # 122
+    "7B": "Number of hours DHW burner is in operation during DHW mode",  # .      # 123
 }
-PARAMS_MSG_IDS: dict[_MsgIdIntT, str] = {
-    0x0E: "Maximum relative modulation level setting (%)",  # .                   #  14
-    0x0F: "Max. boiler capacity (kW) and modulation level setting (%)",  # .      #  15
-    0x30: "DHW Setpoint upper & lower bounds for adjustment (°C)",  # .           #  48
-    0x31: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # .  #  49
-    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # see: 0x06, is R/W          #  56
-    0x39: "Max CH water Setpoint (°C) (Remote parameter 2)",  # see: 0x06, is R/W #  57
+PARAMS_MSG_IDS: Final[dict[_MsgIdStrT, str]] = {
+    "0E": "Maximum relative modulation level setting (%)",  # .                   #  14
+    "0F": "Max. boiler capacity (kW) and modulation level setting (%)",  # .      #  15
+    "30": "DHW Setpoint upper & lower bounds for adjustment (°C)",  # .           #  48
+    "31": "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # .  #  49
+    "38": "DHW Setpoint (°C) (Remote parameter 1)",  # see: 0x06, is R/W          #  56
+    "39": "Max CH water Setpoint (°C) (Remote parameter 2)",  # see: 0x06, is R/W #  57
 }
-STATUS_MSG_IDS: dict[_MsgIdIntT, str] = {
-    0x00: "Master/Slave status flags",  # .                                       #   0
+STATUS_MSG_IDS: Final[dict[_MsgIdStrT, str]] = {
+    "00": "Master/Slave status flags",  # .                                       #   0
     # 000:HB0: Master status: CH enable
     # 000:HB1: Master status: DHW enable
     # 000:HB2: Master status: Cooling enable
@@ -108,18 +107,18 @@ STATUS_MSG_IDS: dict[_MsgIdIntT, str] = {
     # 000:LB2: Slave Status: DHW mode
     # 000:LB3: Slave Status: Flame status
     #
-    0x01: "CH water temperature Setpoint (°C)",  # NOTE: is W only!               #   1
-    0x11: "Relative Modulation Level (%)",  # .                                   #  17
-    0x12: "Water pressure in CH circuit (bar)",  # .                              #  18
-    0x13: "Water flow rate in DHW circuit. (L/min)",  # .                         #  19
-    0x18: "Room temperature (°C)",  # .                                           #  24
-    0x19: "Boiler flow water temperature (°C)",  # .                              #  25
-    0x1A: "DHW temperature (°C)",  # .                                            #  26
-    0x1B: "Outside temperature (°C)",  # TODO: any value here?  # is R/W          #  27
-    0x1C: "Return water temperature (°C)",  # .                                   #  28
+    "01": "CH water temperature Setpoint (°C)",  # NOTE: is W only!               #   1
+    "11": "Relative Modulation Level (%)",  # .                                   #  17
+    "12": "Water pressure in CH circuit (bar)",  # .                              #  18
+    "13": "Water flow rate in DHW circuit. (L/min)",  # .                         #  19
+    "18": "Room temperature (°C)",  # .                                           #  24
+    "19": "Boiler flow water temperature (°C)",  # .                              #  25
+    "1A": "DHW temperature (°C)",  # .                                            #  26
+    "1B": "Outside temperature (°C)",  # TODO: any value here?  # is R/W          #  27
+    "1C": "Return water temperature (°C)",  # .                                   #  28
     #
     # These are error/state codes...
-    0x05: "Fault flags & OEM codes",  # .                                         #   5
+    "05": "Fault flags & OEM codes",  # .                                         #   5
     # 005:HB0: Service request
     # 005:HB1: Lockout-reset
     # 005:HB2: Low water pressure
@@ -128,37 +127,39 @@ STATUS_MSG_IDS: dict[_MsgIdIntT, str] = {
     # 005:HB5: Water over-temperature
     # 005:LB:  OEM fault code
     #
-    0x73: "OEM diagnostic code",  # .                                             # 115
+    "73": "OEM diagnostic code",  # .                                             # 115
 }
-WRITE_MSG_IDS: dict[_MsgIdIntT, str] = {  # Write-Data, NB: some are also Read-Data
-    0x01: "CH water temperature Setpoint (°C)",
+WRITE_MSG_IDS: Final[
+    dict[_MsgIdStrT, str]
+] = {  # Write-Data, NB: some are also Read-Data
+    "01": "CH water temperature Setpoint (°C)",
     # 001: Control Setpoint i.e. CH water temperature Setpoint (°C)
     #
-    0x02: "Master configuration",
+    "02": "Master configuration",
     # 002:HB0: Master configuration: Smart power
     # 002:LB:  Master MemberID code
     #
-    0x09: "Remote override room Setpoint",  # c.f. 0x64, 100                      #   9
-    0x0E: "Maximum relative modulation level setting (%)",  # c.f. 0x11           #  14
-    0x10: "Room Setpoint (°C)",  # .                                              #  16
-    0x18: "Room temperature (°C)",  # .                                           #  24
-    0x1B: "Outside temperature (°C)",  # .                                        #  27
-    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # .       # is R/W           #  56
-    0x39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # is R/W           #  57
-    0x7C: "Opentherm version Master",  # .                     # is R/W           # 124
-    0x7E: "Master product version number and type",  # .                          # 126
+    "09": "Remote override room Setpoint",  # c.f. 0x64, 100                      #   9
+    "0E": "Maximum relative modulation level setting (%)",  # c.f. 0x11           #  14
+    "10": "Room Setpoint (°C)",  # .                                              #  16
+    "18": "Room temperature (°C)",  # .                                           #  24
+    "1B": "Outside temperature (°C)",  # .                                        #  27
+    "38": "DHW Setpoint (°C) (Remote parameter 1)",  # .       # is R/W           #  56
+    "39": "Max CH water Setpoint (°C) (Remote parameters 2)",  # is R/W           #  57
+    "7C": "Opentherm version Master",  # .                     # is R/W           # 124
+    "7E": "Master product version number and type",  # .                          # 126
 }
 
-OTB_MSG_IDS = (
+OTB_MSG_IDS: Final[dict[_MsgIdStrT, str]] = (
     SCHEMA_MSG_IDS
     | PARAMS_MSG_IDS
     | STATUS_MSG_IDS
     | WRITE_MSG_IDS
     | {
-        0x0A: "Number of TSPs supported by slave",  # TODO                        #  10
-        0x0C: "Size of FHB supported by slave",  # .  TODO                        #  12
-        0x0D: "FHB Entry",  # .                       TODO                        #  13
-        0x7D: "Opentherm version Slave",  # .         TODO                        # 125
+        "0A": "Number of TSPs supported by slave",  # TODO                        #  10
+        "0C": "Size of FHB supported by slave",  # .  TODO                        #  12
+        "0D": "FHB Entry",  # .                       TODO                        #  13
+        "7D": "Opentherm version Slave",  # .         TODO                        # 125
     }
 )
 
@@ -170,45 +171,42 @@ OTB_MSG_IDS = (
 
 # Also see:
 # github.com/rvdbreemen/OTGW-firmware
+READ_WRITE: Final[str] = "RW"
+READ_ONLY: Final[str] = "R-"
+WRITE_ONLY: Final[str] = "-W"
 
-READ_WRITE: str = "RW"
-READ_ONLY: str = "R-"
-WRITE_ONLY: str = "-W"
+EN: Final[str] = "en"
+FLAGS: Final[str] = "flags"
+DIR: Final[str] = "dir"
+NL: Final[str] = "nl"
+SENSOR: Final[str] = "sensor"
+VAL: Final[str] = "val"
+VAR: Final[str] = "var"
 
-EN: str = "en"
-FLAGS: str = "flags"
-DIR: str = "dir"
-NL: str = "nl"
-SENSOR: str = "sensor"
-VAL: str = "val"
-VAR: str = "var"
+FLAG8: Final[str] = "flag8"
+FLAG: Final[str] = "flag"
+U8: Final[str] = "u8"
+S8: Final[str] = "s8"
+F8_8: Final[str] = "f8.8"
+U16: Final[str] = "u16"
+S16: Final[str] = "s16"
+SPECIAL: Final[str] = U8  # used for ID 0x14 (20)
 
-FLAG8: str = "flag8"
-FLAG: str = "flag"
-U8: str = "u8"
-S8: str = "s8"
-F8_8: str = "f8.8"
-U16: str = "u16"
-S16: str = "s16"
-SPECIAL: str = U8  # used for ID 0x14 (20)
+HB: Final[str] = "hb"
+LB: Final[str] = "lb"
 
-HB: str = "hb"
-LB: str = "lb"
-
-SZ_MESSAGES: str = "messages"
-SZ_DESCRIPTION: str = "description"
-SZ_MSG_ID: str = "msg_id"
-SZ_MSG_NAME: str = "msg_name"
-SZ_MSG_TYPE: str = "msg_type"
-SZ_VALUE: str = "value"
-SZ_VALUE_HB: str = f"{SZ_VALUE}_{HB}"
-SZ_VALUE_LB: str = f"{SZ_VALUE}_{LB}"
+SZ_MESSAGES: Final[str] = "messages"
+SZ_DESCRIPTION: Final[str] = "description"
+SZ_MSG_ID: Final[str] = "msg_id"
+SZ_MSG_NAME: Final[str] = "msg_name"
+SZ_MSG_TYPE: Final[str] = "msg_type"
+SZ_VALUE: Final[str] = "value"
+SZ_VALUE_HB: Final[str] = f"{SZ_VALUE}_{HB}"
+SZ_VALUE_LB: Final[str] = f"{SZ_VALUE}_{LB}"
 
 
 @verify(EnumCheck.UNIQUE)
-class Sensor(
-    StrEnum
-):  # all are F8_8, except COUNTER, CO2_LEVEL, was: # SimpleNamespace(
+class Sensor(StrEnum):  # all are F8_8, except COUNTER, CO2_LEVEL
     COUNTER = "counter"
     RATIO = "ratio"
     HUMIDITY = "relative humidity (%)"
@@ -221,7 +219,7 @@ class Sensor(
 
 
 @verify(EnumCheck.UNIQUE)
-class OtMsgType(StrEnum):  # was: = SimpleNamespace(
+class OtMsgType(StrEnum):
     READ_DATA = "Read-Data"
     WRITE_DATA = "Write-Data"
     INVALID_DATA = "Invalid-Data"
@@ -243,11 +241,11 @@ OPENTHERM_MSG_TYPE: dict[int, str] = {
     0b111: OtMsgType.UNKNOWN_DATAID,
 }
 
-SZ_STATUS_FLAGS = "status_flags"
-SZ_MASTER_CONFIG_FLAGS = "master_config_flags"
-SZ_SLAVE_CONFIG_FLAGS = "slave_config_flags"
-SZ_FAULT_FLAGS = "fault_flags"
-SZ_REMOTE_FLAGS = "remote_flags"
+SZ_STATUS_FLAGS: Final[str] = "status_flags"
+SZ_MASTER_CONFIG_FLAGS: Final[str] = "master_config_flags"
+SZ_SLAVE_CONFIG_FLAGS: Final[str] = "slave_config_flags"
+SZ_FAULT_FLAGS: Final[str] = "fault_flags"
+SZ_REMOTE_FLAGS: Final[str] = "remote_flags"
 
 
 # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]

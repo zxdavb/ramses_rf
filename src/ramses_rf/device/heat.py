@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from ramses_tx import PacketPayloadInvalid
 from ramses_tx.address import NON_DEV_ADDR
@@ -47,7 +47,6 @@ from ..const import (
     SZ_ZONE_TYPE,
     ZON_ROLE_MAP,
     DevType,
-    __dev_mode__,
 )
 from ..entity_base import Entity, Parent, class_by_attr
 from ..helpers import shrink
@@ -79,49 +78,47 @@ if TYPE_CHECKING:
     from ..system import Zone
 
 
-SZ_BURNER_HOURS = "burner_hours"
-SZ_BURNER_STARTS = "burner_starts"
-SZ_BURNER_FAILED_STARTS = "burner_failed_starts"
-SZ_CH_PUMP_HOURS = "ch_pump_hours"
-SZ_CH_PUMP_STARTS = "ch_pump_starts"
-SZ_DHW_BURNER_HOURS = "dhw_burner_hours"
-SZ_DHW_BURNER_STARTS = "dhw_burner_starts"
-SZ_DHW_PUMP_HOURS = "dhw_pump_hours"
-SZ_DHW_PUMP_STARTS = "dhw_pump_starts"
-SZ_FLAME_SIGNAL_LOW = "flame_signal_low"
+SZ_BURNER_HOURS: Final[str] = "burner_hours"
+SZ_BURNER_STARTS: Final[str] = "burner_starts"
+SZ_BURNER_FAILED_STARTS: Final[str] = "burner_failed_starts"
+SZ_CH_PUMP_HOURS: Final[str] = "ch_pump_hours"
+SZ_CH_PUMP_STARTS: Final[str] = "ch_pump_starts"
+SZ_DHW_BURNER_HOURS: Final[str] = "dhw_burner_hours"
+SZ_DHW_BURNER_STARTS: Final[str] = "dhw_burner_starts"
+SZ_DHW_PUMP_HOURS: Final[str] = "dhw_pump_hours"
+SZ_DHW_PUMP_STARTS: Final[str] = "dhw_pump_starts"
+SZ_FLAME_SIGNAL_LOW: Final[str] = "flame_signal_low"
 
-SZ_BOILER_OUTPUT_TEMP = "boiler_output_temp"
-SZ_BOILER_RETURN_TEMP = "boiler_return_temp"
-SZ_BOILER_SETPOINT = "boiler_setpoint"
-SZ_CH_MAX_SETPOINT = "ch_max_setpoint"
-SZ_CH_SETPOINT = "ch_setpoint"
-SZ_CH_WATER_PRESSURE = "ch_water_pressure"
-SZ_DHW_FLOW_RATE = "dhw_flow_rate"
-SZ_DHW_SETPOINT = "dhw_setpoint"
-SZ_DHW_TEMP = "dhw_temp"
-SZ_MAX_REL_MODULATION = "max_rel_modularion"
-SZ_OEM_CODE = "oem_code"
-SZ_OUTSIDE_TEMP = "outside_temp"
-SZ_REL_MODULATION_LEVEL = "rel_modulation_level"
+SZ_BOILER_OUTPUT_TEMP: Final[str] = "boiler_output_temp"
+SZ_BOILER_RETURN_TEMP: Final[str] = "boiler_return_temp"
+SZ_BOILER_SETPOINT: Final[str] = "boiler_setpoint"
+SZ_CH_MAX_SETPOINT: Final[str] = "ch_max_setpoint"
+SZ_CH_SETPOINT: Final[str] = "ch_setpoint"
+SZ_CH_WATER_PRESSURE: Final[str] = "ch_water_pressure"
+SZ_DHW_FLOW_RATE: Final[str] = "dhw_flow_rate"
+SZ_DHW_SETPOINT: Final[str] = "dhw_setpoint"
+SZ_DHW_TEMP: Final[str] = "dhw_temp"
+SZ_MAX_REL_MODULATION: Final[str] = "max_rel_modularion"
+SZ_OEM_CODE: Final[str] = "oem_code"
+SZ_OUTSIDE_TEMP: Final[str] = "outside_temp"
+SZ_REL_MODULATION_LEVEL: Final[str] = "rel_modulation_level"
 
-SZ_CH_ACTIVE = "ch_active"
-SZ_CH_ENABLED = "ch_enabled"
-SZ_COOLING_ACTIVE = "cooling_active"
-SZ_COOLING_ENABLED = "cooling_enabled"
-SZ_DHW_ACTIVE = "dhw_active"
-SZ_DHW_BLOCKING = "dhw_blocking"
-SZ_DHW_ENABLED = "dhw_enabled"
-SZ_FAULT_PRESENT = "fault_present"
-SZ_FLAME_ACTIVE = "flame_active"
-SZ_SUMMER_MODE = "summer_mode"
-SZ_OTC_ACTIVE = "otc_active"
+SZ_CH_ACTIVE: Final[str] = "ch_active"
+SZ_CH_ENABLED: Final[str] = "ch_enabled"
+SZ_COOLING_ACTIVE: Final[str] = "cooling_active"
+SZ_COOLING_ENABLED: Final[str] = "cooling_enabled"
+SZ_DHW_ACTIVE: Final[str] = "dhw_active"
+SZ_DHW_BLOCKING: Final[str] = "dhw_blocking"
+SZ_DHW_ENABLED: Final[str] = "dhw_enabled"
+SZ_FAULT_PRESENT: Final[str] = "fault_present"
+SZ_FLAME_ACTIVE: Final[str] = "flame_active"
+SZ_SUMMER_MODE: Final[str] = "summer_mode"
+SZ_OTC_ACTIVE: Final[str] = "otc_active"
 
 
-DEV_MODE = __dev_mode__  # and False
+DEV_MODE = True
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
@@ -298,14 +295,14 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
             cmd = Command.put_actuator_state(self.id, mod_level)
             qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]  # type: ignore[func-returns-value]
+            [self._send_cmd(cmd, **qos) for _ in range(1)]
 
         elif msg.code == Code._3EF1 and msg.verb == RQ:  # NOTE: WIP for FAKING
             mod_level = 1.0
 
             cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
             qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]  # type: ignore[func-returns-value]
+            [self._send_cmd(cmd, **qos) for _ in range(1)]
 
     def _bind(self):
         # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
@@ -719,7 +716,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
-    OT_TO_RAMSES = {
+    OT_TO_RAMSES = {  # TODO: move to opentherm.py
         "00": Code._3EF0,  # master/slave status (actuator_state)
         "01": Code._22D9,  # boiler_setpoint
         "0E": Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
@@ -760,9 +757,11 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         super()._setup_discovery_cmds()
 
-        # always send RQ|3EF0 and RQ|3220|00 (status), regardless of use_native_ot
-        self._add_discovery_cmd(Command.get_opentherm_data(self.id, "00"), 60)
-        self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60)
+        # TODO: # always send RQ|3EF0 and RQ|3220|00 (status), regardless of use_native_ot
+        if self._gwy.config.use_native_ot != "never":
+            self._add_discovery_cmd(Command.get_opentherm_data(self.id, "00"), 60)
+        if self._gwy.config.use_native_ot != "always":
+            self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60)
 
         for msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
             if cmd := which_cmd(self._gwy.config.use_native_ot, msg_id):
