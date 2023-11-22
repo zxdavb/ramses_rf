@@ -24,7 +24,6 @@ from ramses_tx.command import validate_api_params
 from .const import GWY_ID, __dev_mode__
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    # skipcq: PY-W2000
     from ramses_tx.address import DeviceId
     from ramses_tx.frame import _PktIdxT
 

@@ -76,11 +76,10 @@
   # files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
   files = [
     "client.py",
-    #
-    "src/ramses_rf/entity_base.py",
-    # "src/ramses_rf/device",
-    #
     "src/ramses_tx",
+    "src/ramses_rf/entity_base.py",
+    #
+    # "src/ramses_rf/device",
   ]
 
   # exclude = []  # doesn't work?
@@ -105,7 +104,7 @@
   # # These shouldn't be too much additional work, but may be tricky to
   # # get passing if you use a lot of untyped libraries
   disallow_subclassing_any = true
-  # disallow_untyped_decorators = true
+  # disallow_untyped_decorators = true  # TODO: set to True
   # disallow_any_generics = true
 
   # # These next few are various gradations of forcing use of type annotations
@@ -120,7 +119,7 @@
   warn_return_any = true
 
   # # disallow_any_unimported = true
-  # warn_no_return = true
+  warn_no_return = true
   # warn_unreachable = true
 
 # [[tool.mypy.overrides]]
