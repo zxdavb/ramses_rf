@@ -46,6 +46,7 @@ from .transport import (  # noqa: F401, pylint: disable=unused-import
     FileTransport,
     PortTransport,
     QosTransport,
+    is_hgi80,
     transport_factory,
 )
 

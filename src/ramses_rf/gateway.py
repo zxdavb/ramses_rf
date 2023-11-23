@@ -30,6 +30,7 @@ from ramses_tx import (
     Packet,
     SendPriority,
     exceptions,
+    is_hgi80,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -121,7 +122,9 @@ class Engine:
         self._disable_sending = kwargs.pop(SZ_DISABLE_SENDING, None)
         if input_file:
             self._disable_sending = True
-        elif not port_name:
+        elif port_name:
+            is_hgi80(port_name)  # raise an exception if the port is not found
+        else:
             raise TypeError("Either a port_name or a input_file must be specified")
 
         self.ser_name = port_name

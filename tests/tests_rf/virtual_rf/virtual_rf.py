@@ -38,50 +38,86 @@ FW_VERSION = "fw_version"
 MAX_NUM_PORTS = 6
 
 
+_GWY_ATTRS: dict[str, int | str | None] = {
+    HgiFwTypes.HGI_80: {
+        "manufacturer": "Texas Instruments",
+        "product": "TUSB3410 Boot Device",
+        "vid": 0x10AC,  # Honeywell, Inc.
+        "pid": 0x0102,  # HGI80
+        "description": "TUSB3410 Boot Device",
+        "interface": None,
+        "serial_number": "TUSB3410",
+        "subsystem": "usb",
+        #
+        "_dev_path": "/dev/ttyUSB0",
+        "_dev_by-id": "/dev/serial/by-id/usb-Texas_Instruments_TUSB3410_Boot_Device_TUSB3410-if00-port0",
+    },
+    HgiFwTypes.EVOFW3: {
+        "manufacturer": "SparkFun",
+        "product": "evofw3 atmega32u4",
+        "vid": 0x1B4F,  # SparkFun Electronics
+        "pid": 0x9206,  #
+        "description": "evofw3 atmega32u4",
+        "interface": None,
+        "serial_number": None,
+        "subsystem": "usb-serial",
+        #
+        "_dev_path": "/dev/ttyACM0",
+        "_dev_by-id": "/dev/serial/by-id/usb-SparkFun_evofw3_atmega32u4-if00",
+    },
+    f"{HgiFwTypes.EVOFW3}_alt": {
+        "manufacturer": "FTDI",
+        "product": "FT232R USB UART",
+        "vid": 0x0403,  # FTDI
+        "pid": 0x6001,  # SSM-D2
+        "description": "FT232R USB UART - FT232R USB UART",
+        "interface": "FT232R USB UART",
+        "serial_number": "A50285BI",
+        "subsystem": "usb-serial",
+        #
+        "_dev_path": "/dev/ttyUSB0",
+        "_dev_by-id": "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A50285BI-if00-port0",
+    },
+    # .                /dev/serial/by-id/usb-SHK_NANO_CUL_868-if00-port0
+    # .                /dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0
+}
+
+
 class VirtualComPortInfo:
     """A container for emulating pyserial's PortInfo (SysFS) objects."""
 
     manufacturer: str
     product: str
+
     vid: int
     pid: int
+
     description: str
     interface: None | str
     serial_number: None | str
     subsystem: str
 
-    def __init__(self, port_name: _PN, dev_type: HgiFwTypes) -> None:
+    def __init__(self, port_name: _PN, dev_type: HgiFwTypes | None) -> None:
         """Supplies a useful subset of PortInfo attrs according to gateway type."""
 
         self.device = port_name  # # e.g. /dev/pts/2 (a la /dev/ttyUSB0)
         self.name = port_name[5:]  # e.g.      pts/2 (a la      ttyUSB0)
 
-        self._set_attrs(dev_type)
+        self._set_attrs(_GWY_ATTRS[dev_type or HgiFwTypes.EVOFW3])
 
-    def _set_attrs(self, dev_type: HgiFwTypes) -> None:
-        if dev_type == HgiFwTypes.HGI_80:
-            self.manufacturer = "Texas Instruments"
-            self.product = "TUSB3410 Boot Device"
+    def _set_attrs(self, gwy_attrs: dict[str, int | str | None]) -> None:
+        """Set the USB attributes according to the gateway type."""
 
-            self.vid = 0x10AC  # aka Honeywell, Inc.
-            self.pid = 0x0102  # aka HGI80
+        self.manufacturer = gwy_attrs["manufacturer"]
+        self.product = gwy_attrs["product"]
 
-            self.description = "TUSB3410 Boot Device"
-            self.interface = None
-            self.serial_number = "TUSB3410"
-            self.subsystem = "usb"
+        self.vid = gwy_attrs["vid"]
+        self.pid = gwy_attrs["pid"]
 
-        else:  # if dev_type == HgiFwTypes.EVOFW3:
-            self.manufacturer = "SparkFun"
-            self.product = "evofw3 atmega32u4"
-
-            self.vid = 0x1B4F  # aka SparkFun Electronics
-            self.pid = 0x9206
-
-            self.description = "evofw3 atmega32u4"
-            self.interface = None
-            self.serial_number = None
-            self.subsystem = "usb-serial"
+        self.description = gwy_attrs["description"]
+        self.interface = gwy_attrs["interface"]
+        self.serial_number = gwy_attrs["serial_number"]
+        self.subsystem = gwy_attrs["subsystem"]
 
 
 class VirtualRfBase:
