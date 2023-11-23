@@ -143,8 +143,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._01FF: {  # unknown_01ff, TODO: definitely a real code, Itho Spider
         SZ_NAME: "message_01ff",
-        I_: r"^00[0-9A-F]{50}$",
-        RQ: r"^00[0-9A-F]{50}$",
+        I_: r"^0[01][0-9A-F]{50}$",
+        RQ: r"^0[01][0-9A-F]{50}$",
         W_: r"^00[0-9A-F]{50}$",
         # 08:00:49.204  W --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000
         # 08:00:49.244  I --- 21:033244 18:010629 --:------ 01FF 026 008025262A90008000143C28400000010480800280FF80070000
@@ -733,6 +733,7 @@ CODE_IDX_SIMPLE: list[Code] = [
 ]
 CODE_IDX_SIMPLE.extend(
     (
+        Code._01FF,
         Code._10A0,
         Code._1260,
         Code._1F41,

@@ -580,9 +580,12 @@ def parser_01e9(payload: str, msg: Message) -> dict:
 def parser_01ff(payload: str, msg: Message) -> dict:
     # see: https://github.com/zxdavb/ramses_rf/issues/73
 
-    assert payload[:4] == "0080", f"{_INFORM_DEV_MSG} ({payload[:4]})"
+    assert payload[:4] in ("0080", "0180"), f"{_INFORM_DEV_MSG} ({payload[:4]})"
     assert payload[12:14] == "00", f"{_INFORM_DEV_MSG} ({payload[12:14]})"
-    assert payload[16:22] == "00143C", f"{_INFORM_DEV_MSG} ({payload[16:22]})"
+    assert payload[16:22] in (
+        "00143C",
+        "7F8080",
+    ), f"{_INFORM_DEV_MSG} ({payload[16:22]})"  # idx|25.9C?
     assert payload[26:30] == "0000", f"{_INFORM_DEV_MSG} ({payload[26:30]})"
     assert payload[34:46] == "80800280FF80", f"{_INFORM_DEV_MSG} ({payload[34:46]})"
     assert payload[48:] == "0000", f"{_INFORM_DEV_MSG} ({payload[48:]})"
@@ -591,15 +594,15 @@ def parser_01ff(payload: str, msg: Message) -> dict:
         assert payload[14:16] == "80", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
         assert payload[22:26] == "2840", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
         assert payload[30:34] == "0104", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
-        assert payload[46:48] == "07", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+        assert payload[46:48] in ("04", "07"), f"{_INFORM_DEV_MSG} ({payload[46:48]})"
 
     if msg.verb in (RP, W_):  # from Spider gateway to thermostat
         assert payload[4:6] == "80", f"{_INFORM_DEV_MSG} ({payload[4:6]})"
-        assert payload[6:8] == payload[8:10], f"{_INFORM_DEV_MSG} ({payload[8:10]})"
-        assert payload[14:16] == "00", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
+        # assert payload[6:8] == payload[8:10], f"{_INFORM_DEV_MSG} ({payload[8:10]})"
+        assert payload[14:16] in ("00", "7F"), f"{_INFORM_DEV_MSG} ({payload[14:16]})"
         assert payload[22:26] == "8080", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
         assert payload[30:34] == "3100", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
-        assert payload[46:48] == "04", f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+        assert payload[46:48] in ("00", "04"), f"{_INFORM_DEV_MSG} ({payload[46:48]})"
 
     setpoint_bounds = (
         int(payload[6:8], 16) / 2,  # as: 22C9[2:6] and [6:10] ???
