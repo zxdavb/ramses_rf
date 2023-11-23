@@ -113,6 +113,61 @@ _DEBUG_DISABLE_REGEX_WARNINGS = True  # useful for dev/test
 _DEBUG_FORCE_LOG_FRAMES = False  # useful for dev/test
 
 
+def is_hgi80(serial_port: SerPortName) -> bool | None:
+    """Return True/False if the device attached to the port has the attrs of an HGI80.
+
+    Return None if it's not possible to tell (falsy should assume is evofw3).
+    Raise TransportSerialError if the port is not found at all.
+    """
+    # TODO: add tests for different serial ports, incl./excl/ by-id
+
+    if not os.path.exists(serial_port):
+        raise TransportSerialError(f"Unable to find {serial_port}")
+
+    # first, try the easy win (comports() wont take by-id)...
+    if "by-id" not in serial_port:
+        pass
+    elif "TUSB3410" in serial_port:
+        return True
+    elif "evofw3" in serial_port or "FT232R" in serial_port or "NANO" in serial_port:
+        return False
+
+    # otherwise, we can use comports()...
+    komports = comports(include_links=True)  # doesn't include by-id links!
+
+    # TODO: shouldn't need get() - not monkeypatching comports() correctly
+    try:
+        vid = {x.device: x.vid for x in komports}[serial_port]
+    except KeyError:
+        vid = None
+
+    # this works, but we may not have all valid VIDs
+    if not vid:
+        pass
+    elif vid == 0x10AC:  # Honeywell
+        return True
+    elif vid in (0x0403, 0x1B4F):  # FTDI, SparkFun
+        return False
+
+    # TODO: shouldn't need get()
+    product = {x.device: getattr(x, "product", None) for x in komports}.get(serial_port)
+
+    if not product:  # is None - VM, or not member of plugdev group?
+        pass
+    elif "TUSB3410" in product:  # ?needed
+        return True
+    elif "evofw3" in product or "FT232R" in product or "NANO" in product:
+        return False
+
+    # could try sending an "!V", expect "# evofw3 0.7.1", but that needs I/O
+
+    _LOGGER.warning(
+        f"{serial_port}: the gateway type is not determinable, will assume evofw3, "
+        "TIP: specify the serial port by-id (i.e. /dev/serial/by-id/usb-...)"
+    )
+    return None
+
+
 def _normalise(pkt_line: str) -> str:
     """Perform any (transparent) frame-level hacks, as required at (near-)RF layer.
 
@@ -603,7 +658,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
     def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._is_hgi80 = self.is_hgi80(self.serial.name)
+        self._is_hgi80 = is_hgi80(self.serial.name)
         self._make_connection(disable_sending)
 
     def _make_connection(self, sending_disabled: bool) -> None:
@@ -656,49 +711,6 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             self._init_task = asyncio.create_task(connect_without_signature())
         else:  # incl. disable_qos
             self._init_task = asyncio.create_task(connect_after_signature())
-
-    @staticmethod
-    def is_hgi80(serial_port: SerPortName) -> bool | None:
-        """Return True/False if the device attached to the port is/isn't an HGI80.
-
-        Return None if it's not possible to tell (effectively assume is evofw3).
-        """
-
-        vid = {x.device: x.vid for x in comports()}.get(serial_port)
-
-        # this works on HASS OS on a Pi
-        if not vid:
-            pass
-        elif vid == 0x10AC:  # aka Honeywell, Inc.
-            return True
-        elif vid in (0x1B4F, 0x0403):
-            return False
-
-        product: str | None = {
-            x.device: getattr(x, "product", None) for x in comports()
-        }.get(serial_port)
-
-        # this works on HASS OS on a Pi
-        if not product:  # is None - not member of plugdev group?
-            pass
-        elif "TUSB3410" in product:  # ?needed
-            return True
-        elif "evofw3" in product or "FT232R" in product:
-            return False
-
-        # now we're getting desperate...
-        if "by-id" not in serial_port:
-            pass
-        elif "TUSB3410" in serial_port:
-            return True
-        elif "evofw3" in serial_port or "FT232R" in serial_port:
-            return False
-
-        _LOGGER.warning(
-            f"{serial_port}: the gateway type is not determinable, will assume evofw3, "
-            "TIP: specify by-id (e.g. /dev/serial/by-id/usb-...)"
-        )
-        return None  # try sending an "!V", expect "# evofw3 0.7.1"
 
     def get_extra_info(self, name: str, default: Any = None):
         if name == SZ_IS_EVOFW3:
