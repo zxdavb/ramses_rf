@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 
+# TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
 # TODO: get tests working with QoS enabled (swap monkeypatch for unittest patch)
 # TODO: why is ser_1.read(ser_1.in_waiting) needed?
 

@@ -5,7 +5,7 @@
 # TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
 # TODO: Test with strict address checking
 
-"""RAMSES RF - Test the gwy Addr detection and the gwy.send_cmd API from '18:000730'."""
+"""RAMSES RF - Check GWY address/type detection and its treatment of addr0."""
 
 import asyncio
 from unittest.mock import patch
@@ -32,7 +32,7 @@ ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TI
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
 HGI_ID_ = "18:000730"  # the sentinel value
-TST_ID_ = "18:222222"  # .a specific ID
+TST_ID_ = "18:222222"  # a specific ID
 
 GWY_CONFIG = {
     "config": {
@@ -189,34 +189,38 @@ async def real_ti3410():
     _DEBUG_DISABLE_STRICT_CHECKING,
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
-    """Check the virtual RF network behaves as expected (device discovery)."""
+    """Check GWY address/type detection, and behaviour of its treatment of addr0."""
 
     if not isinstance(gwy._protocol, QosProtocol):
         assert False, "QoS protocol not enabled"  # use assert, not skip
 
-    # for testing, we replace the sentinel value with the gateway's actual device_id
+    # we replace the (non-sentinel) gwy_id with the real gwy's actual dev_id
     cmd_str = TEST_CMDS[test_idx].replace(TST_ID_, gwy.hgi.id)
+    # this is irrevelent for fake (virtual) gwys, as they been assigned this id
 
     cmd = Command(cmd_str, qos={"retries": 0})
-    assert str(cmd) == cmd_str
+    assert str(cmd) == cmd_str  # sanity check
 
     is_hgi80 = not gwy._protocol._is_evofw3  # TODO: is_hgi80?
 
+    # NOTE: HGI80 will silently discard all frames that have addr0 != 18:000730
+
     try:
-        # NOTE: using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
+        # using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
         # latter may swallow the exception we wish to capture (ProtocolSendFailed)
         pkt = await gwy._protocol.send_cmd(
             cmd, qos=QosParams(max_retries=0, wait_for_reply=False)
-        )
+        )  # for this test, we only need the cmd echo
     except ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
             return  # should have failed, and has
-        raise
+        raise  # should not have failed, but has!
 
     if is_hgi80 and cmd_str[7:16] != HGI_ID_:
-        assert False, pkt  # should have failed, but did not!
+        assert False, pkt  # should have failed, but has not!
 
-    # NOTE: HGI80/evofw3 will both swap out addr0 (only) for its own device_id
+    # NOTE: both HGI80/evofw3 will swap out addr0 (only) for its own device_id
+
     if cmd_str[7:16] == HGI_ID_:
         pkt_str = cmd_str[:7] + gwy.hgi.id + cmd_str[16:]
     else:
@@ -231,7 +235,7 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     reason="No evofw3 devices found",
 )
 async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
-    """Check the virtual RF network behaves as expected (device discovery)."""
+    """Validate the GWY test against a real (physical) evofw3."""
 
     global _global_failed_ports
 
@@ -253,7 +257,7 @@ async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
     reason="No ti3410 devices found",
 )
 async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
-    """Check the virtual RF network behaves as expected (device discovery)."""
+    """Validate the GWY test against a real (physical) HGI80."""
 
     global _global_failed_ports
 
@@ -271,13 +275,13 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
 
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: str):
-    """Check the virtual RF network behaves as expected (device discovery)."""
+    """Check the behaviour of the fake (virtual) evofw3 against the GWY test."""
 
     await _test_gwy_device(fake_evofw3, test_idx)
 
 
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: str):
-    """Check the virtual RF network behaves as expected (device discovery)."""
+    """Check the behaviour of the fake (virtual) HGI80 against the GWY test."""
 
     await _test_gwy_device(fake_ti3410, test_idx)
