@@ -777,7 +777,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if cmd := which_cmd(self._gwy.config.use_native_ot, msg_id):
                 self._add_discovery_cmd(cmd, 300, delay=15)
 
-        if DEV_MODE:  # TODO: these are WIP, but do vary in payload
+        if False and DEV_MODE:  # TODO: these are WIP, but do vary in payload
             for code in (
                 Code._2401,  # WIP - modulation_level + flags?
                 Code._3221,  # R8810A/20A
