@@ -252,7 +252,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        self._unwanted: list[DeviceId] = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
+        self._foreign_gwys_lst: list[DeviceId] = []
+        self._foreign_last_run = dt.now().date()
 
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
             self._extra[key] = None
@@ -344,17 +345,24 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         """
 
         def warn_foreign_hgi(dev_id: DeviceId) -> None:
+            current_date = dt.now().date()
+
+            if self._foreign_last_run != current_date:
+                self._foreign_last_run = current_date
+                self._foreign_gwys_lst = []  # reset the list every 24h
+
+            if dev_id in self._foreign_gwys_lst:
+                return
+
             _LOGGER.warning(
                 f"Device {dev_id} is potentially a Foreign gateway, "
                 f"the Active gateway is {self._extra[SZ_ACTIVE_HGI]}, "
                 f"alternatively, is it a HVAC device?{TIP}"
             )
+            self._foreign_gwys_lst.append(dev_id)
 
         for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
-            # TODO: _unwanted exists since (in future) stale entries need to be removed
-
-            # this will cause problems if the active gateway is in the exclude list
-            if dev_id in self._exclude or dev_id in self._unwanted:
+            if dev_id in self._exclude:  # problems if incl. active gateway
                 return False
 
             if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
@@ -366,10 +374,10 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
             if self.enforce_include:
                 return False
 
-            if dev_id[:2] != DEV_TYPE_MAP.HGI:  # this 18: is not in known_list
+            if dev_id[:2] != DEV_TYPE_MAP.HGI:
                 continue
 
-            if self._extra[SZ_ACTIVE_HGI]:
+            if self._extra[SZ_ACTIVE_HGI]:  # this 18: is not in known_list
                 warn_foreign_hgi(dev_id)
 
         return True
