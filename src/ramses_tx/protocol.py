@@ -368,7 +368,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(
+    async def send_cmd(  # send_cmd() -> _send_cmd()
         self,
         cmd: Command,
         /,
@@ -398,7 +398,7 @@ class _BaseProtocol(asyncio.Protocol):
             qos=qos,
         )
 
-    async def _send_cmd(
+    async def _send_cmd(  # _send_cmd() *-> _send_frame()
         self,
         cmd: Command,
         /,
@@ -408,7 +408,10 @@ class _BaseProtocol(asyncio.Protocol):
         send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:  # only cmd, no args, kwargs
-        """Wrapper to send a Command without QoS (with x re-transmits)."""
+        """This is the wrapper for self._send_frame(cmd), with retransmits.
+
+        Retransmits are disctinct from retries (a QoS feature).
+        """
 
         await self._send_frame(str(cmd))
 
@@ -418,7 +421,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         return None
 
-    async def _send_frame(self, frame: str) -> None:
+    async def _send_frame(self, frame: str) -> None:  # _send_frame() -> transport
         """Write some bytes to the transport."""
         self._transport.send_frame(frame)
 
@@ -495,6 +498,7 @@ class ReadProtocol(_BaseProtocol):
         send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
+        """Raise an exception as the Protocol cannot send Commands."""
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
 
@@ -583,7 +587,7 @@ class PortProtocol(_BaseProtocol):
         send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
-        """Send a Command without any QoS features."""
+        """Send a Command without QoS (send an impersonation alert if required)."""
 
         assert gap_duration == 0.02
         assert 1 <= send_count <= 3
@@ -602,12 +606,12 @@ class PortProtocol(_BaseProtocol):
 
 # ### Read-Write Protocol for QosTransport ############################################
 class QosProtocol(PortProtocol):
-    """A protocol that can receive Packets and send Commands with QoS."""
+    """A protocol that can receive Packets and send Commands with QoS (using a FSM)."""
 
     def __init__(self, msg_handler: MsgHandlerT) -> None:
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler)
-        self._context = ProtocolContext(self)
+        self._context = ProtocolContext(self)  # the FSM
 
     def __repr__(self) -> str:
         cls = self._context.state.__class__.__name__
@@ -639,7 +643,6 @@ class QosProtocol(PortProtocol):
         super().connection_lost(exc)
         self._context.connection_lost(exc)
 
-    #
     def pkt_received(self, pkt: Packet) -> None:
         """Inform the FSM that a Packet has been received."""
 
