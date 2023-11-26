@@ -174,8 +174,8 @@ class RamsesProtocolT(Protocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         ...

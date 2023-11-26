@@ -374,8 +374,8 @@ class _BaseProtocol(asyncio.Protocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """This is the wrapper for self._send_cmd(cmd)."""
@@ -393,8 +393,8 @@ class _BaseProtocol(asyncio.Protocol):
         return await self._send_cmd(
             cmd,
             gap_duration=gap_duration,
+            num_repeats=num_repeats,
             priority=priority,
-            send_count=send_count,
             qos=qos,
         )
 
@@ -404,18 +404,18 @@ class _BaseProtocol(asyncio.Protocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:  # only cmd, no args, kwargs
-        """This is the wrapper for self._send_frame(cmd), with retransmits.
+        """This is the wrapper for self._send_frame(cmd), with repeats.
 
-        Retransmits are disctinct from retries (a QoS feature).
+        Repeats are distinct from retries (a QoS feature): you wouldn't have both.
         """
 
         await self._send_frame(str(cmd))
 
-        for _ in range(send_count - 1):
+        for _ in range(num_repeats - 1):
             await asyncio.sleep(gap_duration)
             await self._send_frame(str(cmd))
 
@@ -494,8 +494,8 @@ class ReadProtocol(_BaseProtocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Raise an exception as the Protocol cannot send Commands."""
@@ -583,14 +583,14 @@ class PortProtocol(_BaseProtocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Send a Command without QoS (send an impersonation alert if required)."""
 
         assert gap_duration == 0.02
-        assert 1 <= send_count <= 3
+        assert 1 <= num_repeats <= 3
 
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
@@ -598,8 +598,8 @@ class PortProtocol(_BaseProtocol):
         return await super().send_cmd(
             cmd,
             gap_duration=gap_duration,
+            num_repeats=num_repeats,
             priority=priority,
-            send_count=send_count,
             qos=qos,
         )
 
@@ -667,8 +667,8 @@ class QosProtocol(PortProtocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
@@ -681,7 +681,7 @@ class QosProtocol(PortProtocol):
 
             await self._send_frame(str(kmd))
 
-            for _ in range(send_count - 1):
+            for _ in range(num_repeats - 1):
                 await asyncio.sleep(gap_duration)
                 await self._send_frame(str(kmd))
 
@@ -702,8 +702,8 @@ class QosProtocol(PortProtocol):
         /,
         *,
         gap_duration: float = _DEFAULT_TX_DELAY,
+        num_repeats: int = _DEFAULT_TX_COUNT,
         priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
         qos: QosParams | None = None,  # max_retries, timeout, wait_for_reply
     ) -> Packet | None:
         """Send a Command with Qos (with retries, until success or ProtocolError).
@@ -720,13 +720,13 @@ class QosProtocol(PortProtocol):
         """
 
         assert gap_duration == 0.02
-        assert send_count == 1
+        assert num_repeats == 1
 
         return await super().send_cmd(
             cmd,
             gap_duration=gap_duration,
+            num_repeats=num_repeats,
             priority=priority,
-            send_count=send_count,
             qos=qos,
         )
 

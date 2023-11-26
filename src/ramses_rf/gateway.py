@@ -321,7 +321,7 @@ class Engine:
         )
 
         return await self._protocol.send_cmd(
-            cmd, priority=priority, send_count=1, gap_duration=0.02, qos=qos
+            cmd, priority=priority, num_repeats=1, gap_duration=0.02, qos=qos
         )
 
     def _msg_handler(self, msg: Message) -> None:
