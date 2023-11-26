@@ -124,7 +124,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
     return wrapper
 
 
-def track_system_syncs(fnc: Callable[[_AvoidSyncCycle, Packet], None]):
+def track_system_syncs(fnc: Callable[[Any, Packet], None]):
     """Track/remember the any new/outstanding TCS sync cycle."""
 
     MAX_SYNCS_TRACKED = 3
@@ -260,6 +260,7 @@ def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
     return decorator
 
 
+# send_cmd(), _send_cmd(), _send_frame()
 class _BaseProtocol(asyncio.Protocol):
     """Base class for RAMSES II protocols."""
 
@@ -452,196 +453,14 @@ class _BaseProtocol(asyncio.Protocol):
             self._loop.call_soon(callback, msg)
 
 
-class _AvoidSyncCycle(_BaseProtocol):  # avoid sync cycles
-    """A mixin for avoiding sync cycles."""
-
-    @track_system_syncs
-    def pkt_received(self, pkt: Packet) -> None:
-        """Pass any valid/wanted packets to the callback."""
-        super().pkt_received(pkt)
-
-    @avoid_system_syncs
-    async def _send_frame(self, frame: str) -> None:
-        """Write some data bytes to the transport."""
-        await super()._send_frame(frame)
-
-
-# NOTE: The duty cycle limts & minimum gaps between write are in this layer, and not
-# in the Transport layer (as you might expect), because the best are enforced *before*
-# the code that avoids the controller sync cycles
-
-
-class _MaxDutyCycle(_AvoidSyncCycle):  # stay within duty cycle limits
-    """A mixin for staying within duty cycle limits."""
-
-    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # @limit_transmit_rate(_MAX_TOKENS)
-    async def _send_frame(self, frame: str) -> None:
-        """Write some data bytes to the transport."""
-        await super()._send_frame(frame)
-
-
-class _MinGapBetween(_MaxDutyCycle):  # minimum gap between writes
-    """Enforce a minimum gap between writes using the leaky bucket algorithm."""
-
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
-        super().__init__(msg_handler)
-
-        self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task: None | asyncio.Task = None
-
-    async def _leak_sem(self) -> None:
-        """Used to enforce a minimum time between calls to self._transport.write()."""
-        while True:
-            await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
-            try:
-                self._leaker_sem.release()
-            except ValueError:
-                pass
-
-    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
-        """Invoke the leaky bucket algorithm."""
-        super().connection_made(transport)
-
-        if not self._leaker_task:
-            self._leaker_task = self._loop.create_task(self._leak_sem())
-
-    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
-        """Called when the connection is lost or closed."""
-        if self._leaker_task:
-            self._leaker_task.cancel()
-
-        super().connection_lost(exc)
-
-    async def _send_frame(self, frame: str) -> None:
-        """Write some data bytes to the transport."""
-        await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
-
-        await super()._send_frame(frame)
-
-
-class _ProtImpersonate(_BaseProtocol):  # warn of impersonation
-    """A mixin for warning that impersonation is being performed."""
-
-    _is_evofw3: bool | None = None
-
-    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
-        """Record if the gateway device is evofw3-compatible."""
-        super().connection_made(transport)
-
-        self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
-
-    async def _send_impersonation_alert(self, cmd: Command) -> None:
-        """Send an puzzle packet warning that impersonation is occurring."""
-
-        if _DEBUG_DISABLE_IMPERSONATION_ALERTS:
-            return
-
-        msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
-        if self._is_evofw3 is False:
-            _LOGGER.error(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
-        else:
-            _LOGGER.info(msg)
-
-        await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
-
-    async def send_cmd(
-        self,
-        cmd: Command,
-        /,
-        *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
-        qos: QosParams | None = None,
-    ) -> Packet | None:
-        """Send a Command to the transport."""
-
-        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
-            await self._send_impersonation_alert(cmd)
-
-        return await super().send_cmd(
-            cmd,
-            gap_duration=gap_duration,
-            priority=priority,
-            send_count=send_count,
-            qos=qos,
-        )
-
-
-class _ProtQosTimers(_BaseProtocol):  # inserts context/state
-    """A mixin for providing QoS by maintaining the state of the Protocol."""
-
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
-        """Add a FSM to the Protocol, to provide QoS."""
-        super().__init__(msg_handler)
-        self._context = ProtocolContext(self)
-
-    def connection_made(self, transport: RamsesTransportT) -> None:  # type: ignore[override]
-        """Inform the FSM that the connection with the Transport has been made."""
-        super().connection_made(transport)
-
-        self._context.connection_made(transport)
-
-    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
-        """Inform the FSM that the connection with the Transport has been lost."""
-        super().connection_lost(exc)
-        self._context.connection_lost(exc)
-
-    def pause_writing(self) -> None:
-        """Inform the FSM that the Protocol has been paused."""
-        super().pause_writing()
-        self._context.pause_writing()
-
-    def resume_writing(self) -> None:
-        """Inform the FSM that the Protocol has been paused."""
-        super().resume_writing()
-        self._context.resume_writing()
-
-    def pkt_received(self, pkt: Packet) -> None:
-        """Inform the FSM that a Packet has been received."""
-        super().pkt_received(pkt)
-        self._context.pkt_received(pkt)
-
-    async def _send_cmd(
-        self,
-        cmd: Command,
-        /,
-        *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        priority: SendPriority = SendPriority.DEFAULT,
-        send_count: int = _DEFAULT_TX_COUNT,
-        qos: QosParams | None = None,
-    ) -> Packet | None:
-        """Wrapper to send a Command with QoS (retries, until success or exception)."""
-
-        # Should do the same as super()._send_cmd()
-        async def send_cmd(kmd: Command) -> None:
-            """Wrapper to send a Command without QoS (with x re-transmits)."""
-
-            assert kmd is cmd
-
-            await self._send_frame(str(kmd))
-
-            for _ in range(send_count - 1):
-                await asyncio.sleep(gap_duration)
-                await self._send_frame(str(kmd))
-
-        if qos is None:
-            qos = QosParams()
-
-        try:
-            return await self._context.send_cmd(send_cmd, cmd, priority, qos)
-        # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
-        #     # reset protocol stack
-        except ProtocolError as exc:
-            _LOGGER.info(f"AAA {self}: Failed to send {cmd._hdr}: {exc}")
-            raise
-
-
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
 # Impersonate first, as the Puzzle Packet needs to be sent before the Command
 # Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
 # QosTimers last, to start any timers immediately after Tx of Command
+
+# NOTE: The duty cycle limts & minimum gaps between write are in this layer, and not
+# in the Transport layer (as you might expect), because they are best enforced *before*
+# the code that avoids the controller sync cycles
 
 
 # ### Read-Only Protocol for FileTransport, PortTransport #############################
@@ -680,8 +499,25 @@ class ReadProtocol(_BaseProtocol):
 
 
 # ### Read-Write (sans QoS) Protocol for PortTransport ################################
-class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
+class PortProtocol(_BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
+
+    _is_evofw3: bool | None = None
+
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
+        super().__init__(msg_handler)
+
+        self._leaker_sem = asyncio.BoundedSemaphore()
+        self._leaker_task: None | asyncio.Task = None
+
+    async def _leak_sem(self) -> None:
+        """Used to enforce a minimum time between calls to self._transport.write()."""
+        while True:
+            await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
+            try:
+                self._leaker_sem.release()
+            except ValueError:
+                pass
 
     def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
@@ -692,9 +528,50 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
         to be received (c.f. FileTransport) before calling connection_made(ramses=True).
         """
 
-        if ramses:
-            super().connection_made(transport)
-            # TODO: needed? self.resume_writing()
+        if not ramses:
+            return None
+
+        super().connection_made(transport)
+        # TODO: needed? self.resume_writing()
+
+        self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
+
+        if not self._leaker_task:  # Invoke the leaky bucket algorithm
+            self._leaker_task = self._loop.create_task(self._leak_sem())
+
+    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
+        """Called when the connection is lost or closed."""
+        if self._leaker_task:
+            self._leaker_task.cancel()
+
+        super().connection_lost(exc)
+
+    @track_system_syncs
+    def pkt_received(self, pkt: Packet) -> None:
+        """Pass any valid/wanted packets to the callback."""
+        super().pkt_received(pkt)
+
+    @avoid_system_syncs
+    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # @limit_transmit_rate(_MAX_TOKENS)
+    async def _send_frame(self, frame: str) -> None:
+        """Write some data bytes to the transport."""
+        await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
+
+        await super()._send_frame(frame)
+
+    async def _send_impersonation_alert(self, cmd: Command) -> None:
+        """Send an puzzle packet warning that impersonation is occurring."""
+
+        if _DEBUG_DISABLE_IMPERSONATION_ALERTS:
+            return
+
+        msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
+        if self._is_evofw3 is False:
+            _LOGGER.error(f"{msg}, NB: non-evofw3 gateways can't impersonate!")
+        else:
+            _LOGGER.info(msg)
+
+        await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
     async def send_cmd(
         self,
@@ -708,6 +585,12 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
     ) -> Packet | None:
         """Send a Command without any QoS features."""
 
+        assert gap_duration == 0.02
+        assert 1 <= send_count <= 3
+
+        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
+            await self._send_impersonation_alert(cmd)
+
         return await super().send_cmd(
             cmd,
             gap_duration=gap_duration,
@@ -718,8 +601,13 @@ class PortProtocol(_ProtImpersonate, _MinGapBetween, _BaseProtocol):
 
 
 # ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtocol):
+class QosProtocol(PortProtocol):
     """A protocol that can receive Packets and send Commands with QoS."""
+
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
+        """Add a FSM to the Protocol, to provide QoS."""
+        super().__init__(msg_handler)
+        self._context = ProtocolContext(self)
 
     def __repr__(self) -> str:
         cls = self._context.state.__class__.__name__
@@ -737,13 +625,73 @@ class QosProtocol(_ProtImpersonate, _MinGapBetween, _ProtQosTimers, _BaseProtoco
         if not ramses:
             return
 
-        super().connection_made(transport)
-
+        super().connection_made(transport, ramses=ramses)
         self._context.connection_made(transport)
+
         if self._pause_writing:
             self._context.pause_writing()
         else:
             self._context.resume_writing()
+
+    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
+        """Inform the FSM that the connection with the Transport has been lost."""
+
+        super().connection_lost(exc)
+        self._context.connection_lost(exc)
+
+    #
+    def pkt_received(self, pkt: Packet) -> None:
+        """Inform the FSM that a Packet has been received."""
+
+        super().pkt_received(pkt)
+        self._context.pkt_received(pkt)
+
+    def pause_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+
+        super().pause_writing()
+        self._context.pause_writing()
+
+    def resume_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+
+        super().resume_writing()
+        self._context.resume_writing()
+
+    async def _send_cmd(
+        self,
+        cmd: Command,
+        /,
+        *,
+        gap_duration: float = _DEFAULT_TX_DELAY,
+        priority: SendPriority = SendPriority.DEFAULT,
+        send_count: int = _DEFAULT_TX_COUNT,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
+        """Wrapper to send a Command with QoS (retries, until success or exception)."""
+
+        # Should do the same as super()._send_cmd()
+        async def send_cmd(kmd: Command) -> None:
+            """Wrapper to send a Command without QoS (with x re-transmits)."""
+
+            assert kmd is cmd
+
+            await self._send_frame(str(kmd))
+
+            for _ in range(send_count - 1):
+                await asyncio.sleep(gap_duration)
+                await self._send_frame(str(kmd))
+
+        if qos is None:
+            qos = QosParams()
+
+        try:
+            return await self._context.send_cmd(send_cmd, cmd, priority, qos)
+        # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
+        #     # reset protocol stack
+        except ProtocolError as exc:
+            _LOGGER.info(f"AAA {self}: Failed to send {cmd._hdr}: {exc}")
+            raise
 
     async def send_cmd(
         self,
