@@ -34,18 +34,29 @@ class SendPriority(IntEnum):
 
 
 class QosParams:
-    """A container for QoS parameters."""
+    """A container for QoS attributes and state."""
 
     def __init__(
         self,
         *,
-        max_retries: int = DEFAULT_MAX_RETRIES,
-        timeout: float = DEFAULT_TIMEOUT,
-        wait_for_reply: bool = None,  # None has a special meaning, distinct from False
+        max_retries: int | None = DEFAULT_MAX_RETRIES,
+        timeout: float | None = DEFAULT_TIMEOUT,
+        wait_for_reply: bool | None = None,
     ) -> None:
-        self._max_retries = max_retries
-        self._timeout = timeout
-        self._wait_for_reply = wait_for_reply
+        """Create a QosParams instance."""
+
+        self._max_retries = (
+            max_retries  # or DEFAULT_MAX_RETRIES - pytest tests/tests_rf
+        )
+        self._timeout = timeout or DEFAULT_TIMEOUT
+        self._wait_for_reply = wait_for_reply  # False / None have different meanings
+
+        self._echo_pkt: Packet | None = None
+        self._rply_pkt: Packet | None = None
+
+        self._dt_cmd_sent: dt | None = None
+        self._dt_echo_rcvd: dt | None = None
+        self._dt_rply_rcvd: dt | None = None
 
     @property
     def max_retries(self) -> int:
@@ -57,7 +68,41 @@ class QosParams:
 
     @property
     def wait_for_reply(self) -> bool | None:
+        # None has a special meaning, distinct from False
         return self._wait_for_reply
+
+
+class SendParam:
+    """A container for Send attributes and state."""
+
+    def __init__(
+        self,
+        *,
+        gap_duration: float | None = _DEFAULT_TX_DELAY,
+        num_repeats: int | None = _DEFAULT_TX_COUNT,
+        priority: SendPriority | None = SendPriority.DEFAULT,
+    ) -> None:
+        """Create a SendParams instance."""
+
+        self._gap_duration = gap_duration or _DEFAULT_TX_DELAY
+        self._num_repeats = num_repeats or _DEFAULT_TX_COUNT
+        self._priority = priority or SendPriority.DEFAULT
+
+        self._dt_cmd_arrived: dt | None = None
+        self._dt_cmd_queued: dt | None = None
+        self._dt_cmd_sent: dt | None = None
+
+    @property
+    def gap_duration(self) -> float:
+        return self._gap_duration
+
+    @property
+    def num_repeats(self) -> int:
+        return self._num_repeats
+
+    @property
+    def priority(self) -> SendPriority:
+        return self._priority
 
 
 class RamsesTransportT(Protocol):
