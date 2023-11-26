@@ -45,9 +45,7 @@ class QosParams:
     ) -> None:
         """Create a QosParams instance."""
 
-        self._max_retries = (
-            max_retries  # or DEFAULT_MAX_RETRIES - pytest tests/tests_rf
-        )
+        self._max_retries = DEFAULT_MAX_RETRIES if max_retries is None else max_retries
         self._timeout = timeout or DEFAULT_TIMEOUT
         self._wait_for_reply = wait_for_reply  # False / None have different meanings
 
