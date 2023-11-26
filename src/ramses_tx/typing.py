@@ -72,7 +72,7 @@ class QosParams:
         return self._wait_for_reply
 
 
-class SendParam:
+class SendParams:
     """A container for Send attributes and state."""
 
     def __init__(
