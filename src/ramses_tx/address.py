@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from . import exceptions as exc
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
-from .exceptions import PacketAddrSetInvalid
 
 # Test/Dev & Debug flags
 DEV_HVAC = True  #
@@ -194,7 +194,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     try:
         addrs = tuple(id_to_address(addr_fragment[i : i + 9]) for i in range(0, 30, 10))
     except ValueError as err:
-        raise PacketAddrSetInvalid(
+        raise exc.PacketAddrSetInvalid(
             f"Invalid address set: {addr_fragment}: {err}"
         ) from None
 
@@ -220,7 +220,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             and addrs[1] == NON_DEV_ADDR
         )
     ):
-        raise PacketAddrSetInvalid(f"Invalid address set: {addr_fragment}")
+        raise exc.PacketAddrSetInvalid(f"Invalid address set: {addr_fragment}")
 
     device_addrs = list(filter(lambda a: a.type != "--", addrs))  # dex
     src_addr = device_addrs[0]

@@ -16,7 +16,7 @@ from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
-from ramses_tx.exceptions import ProtocolSendFailed
+from ramses_tx import exceptions as exc
 from ramses_tx.protocol import QosProtocol
 from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
@@ -211,7 +211,7 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         pkt = await gwy._protocol.send_cmd(
             cmd, qos=QosParams(max_retries=0, wait_for_reply=False)
         )  # for this test, we only need the cmd echo
-    except ProtocolSendFailed:
+    except exc.ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
             return  # should have failed, and has
         raise  # should not have failed, but has!

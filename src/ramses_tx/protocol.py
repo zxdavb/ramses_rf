@@ -14,6 +14,7 @@ from functools import wraps
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
+from . import exceptions as exc
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import (
@@ -22,7 +23,6 @@ from .const import (
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
 )
-from .exceptions import PacketInvalid, ProtocolError, ProtocolSendFailed
 from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
@@ -386,9 +386,9 @@ class _BaseProtocol(asyncio.Protocol):
             _LOGGER.debug(f"Sent:     {cmd}")
 
         # if not self._transport:
-        #     raise ProtocolSendFailed("There is no connected Transport")
+        #     raise exc.ProtocolSendFailed("There is no connected Transport")
         if self._pause_writing:
-            raise ProtocolSendFailed("The Protocol is currently read-only")
+            raise exc.ProtocolSendFailed("The Protocol is currently read-only")
 
         return await self._send_cmd(
             cmd,
@@ -438,7 +438,7 @@ class _BaseProtocol(asyncio.Protocol):
         """Called by the Transport when a Packet is received."""
         try:
             msg = Message(pkt)  # should log all invalid msgs appropriately
-        except PacketInvalid:  # TODO: InvalidMessageError (packet is valid)
+        except exc.PacketInvalid:  # TODO: InvalidMessageError (packet is valid)
             return
 
         self._this_msg, self._prev_msg = msg, self._this_msg
@@ -692,7 +692,7 @@ class QosProtocol(PortProtocol):
             return await self._context.send_cmd(send_cmd, cmd, priority, qos)
         # except InvalidStateError as err:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
-        except ProtocolError as err:
+        except exc.ProtocolError as err:
             _LOGGER.info(f"AAA {self}: Failed to send {cmd._hdr}: {err}")
             raise
 

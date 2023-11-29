@@ -24,6 +24,7 @@ from ramses_tx import (
 from ramses_tx.command import _mk_cmd
 from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
 
+from .. import exceptions as exc
 from ..const import (
     SYS_MODE_MAP,
     SZ_ACTUATORS,
@@ -53,7 +54,6 @@ from ..device import (
     UfhController,
 )
 from ..entity_base import Entity, Parent, class_by_attr
-from ..exceptions import ExpiredCallbackError
 from ..helpers import shrink
 from ..schemas import (
     DEFAULT_MAX_ZONES,
@@ -772,7 +772,7 @@ class Logbook(SystemBase):  # 0418
             return await self._faultlog.get_faultlog(
                 start=start, limit=limit, force_io=force_io
             )
-        except (ExpiredCallbackError, RuntimeError):
+        except (exc.ExpiredCallbackError, RuntimeError):
             return None
 
     # @property

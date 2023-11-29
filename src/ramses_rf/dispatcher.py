@@ -18,9 +18,6 @@ from typing import TYPE_CHECKING
 from ramses_tx import (
     CODES_BY_DEV_SLUG,
     Message,
-    PacketAddrSetInvalid,
-    PacketInvalid,
-    RamsesException,
 )
 from ramses_tx.ramses import (
     CODES_OF_HEAT_DOMAIN,
@@ -28,6 +25,7 @@ from ramses_tx.ramses import (
     CODES_OF_HVAC_DOMAIN_ONLY,
 )
 
+from . import exceptions as exc
 from .const import (
     DEV_TYPE_MAP,
     DONT_CREATE_ENTITIES,
@@ -122,7 +120,9 @@ def _check_msg_addrs(msg: Message) -> None:  # TODO
         # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
         # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
         if msg.code in CODES_OF_HEAT_DOMAIN_ONLY:
-            raise PacketAddrSetInvalid(f"Invalid addr pair: {msg.src!r}/{msg.dst!r}")
+            raise exc.PacketAddrSetInvalid(
+                f"Invalid addr pair: {msg.src!r}/{msg.dst!r}"
+            )
         elif msg.code in CODES_OF_HEAT_DOMAIN:
             _LOGGER.warning(
                 f"{msg!r} < Invalid addr pair: {msg.src!r}/{msg.dst!r}, is it HVAC?"
@@ -148,7 +148,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
         if msg.code != Code._10E0 and msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
             err_msg = f"Unknown src type: {msg.dst}"
             if STRICT_MODE:
-                raise PacketInvalid(err_msg)
+                raise exc.PacketInvalid(err_msg)
             (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
@@ -161,7 +161,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
         if slug != DevType.DEV:
             err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
             if STRICT_MODE:
-                raise PacketInvalid(err_msg)
+                raise exc.PacketInvalid(err_msg)
             (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         if msg.verb in (RQ, W_):
@@ -179,7 +179,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # type: ignore[index]
         err_msg = f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
-            raise PacketInvalid(err_msg)
+            raise exc.PacketInvalid(err_msg)
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
@@ -198,7 +198,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         if msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
             err_msg = f"Unknown dst type: {msg.dst}"
             if STRICT_MODE:
-                raise PacketInvalid(err_msg)
+                raise exc.PacketInvalid(err_msg)
             (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
@@ -213,7 +213,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         if False and slug != DevType.HGI:  # NOTE: not yet needed because of 1st if
             err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
             if STRICT_MODE:
-                raise PacketInvalid(err_msg)
+                raise exc.PacketInvalid(err_msg)
             (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
             return
         if msg.src._SLUG == DevType.HGI or msg.verb == RP:
@@ -234,7 +234,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
     if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # type: ignore[index]
         err_msg = f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
-            raise PacketInvalid(err_msg)
+            raise exc.PacketInvalid(err_msg)
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
 
 
@@ -310,7 +310,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             # if True or getattr(d, "_faked", False):
             gwy._loop.call_soon(d._handle_msg, msg)
 
-    except (AssertionError, RamsesException, NotImplementedError) as err:
+    except (AssertionError, exc.RamsesException, NotImplementedError) as err:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "%s < %s(%s)", msg._pkt, err.__class__.__name__, err
         )

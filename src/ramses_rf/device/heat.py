@@ -11,7 +11,6 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final
 
-from ramses_tx import PacketPayloadInvalid
 from ramses_tx.address import NON_DEV_ADDR
 from ramses_tx.command import Command, Priority, _mk_cmd
 from ramses_tx.const import SZ_BINDINGS
@@ -27,6 +26,7 @@ from ramses_tx.opentherm import (
 )
 from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
 
+from .. import exceptions as exc
 from ..const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
@@ -1466,12 +1466,12 @@ class UfhCircuit(Entity):
             if not (dev_ids := msg.payload[SZ_DEVICES]):
                 return
             if len(dev_ids) != 1:
-                raise PacketPayloadInvalid("No devices")
+                raise exc.PacketPayloadInvalid("No devices")
 
             # ctl = self._gwy.device_by_id.get(dev_ids[0])
             ctl = self._gwy.get_device(dev_ids[0])
             if not ctl or (self._ctl and self._ctl is not ctl):
-                raise PacketPayloadInvalid("No CTL")
+                raise exc.PacketPayloadInvalid("No CTL")
             self._ctl = ctl
 
             ctl._make_tcs_controller()
@@ -1479,9 +1479,9 @@ class UfhCircuit(Entity):
 
             zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
             if not zon:
-                raise PacketPayloadInvalid("No Zone")
+                raise exc.PacketPayloadInvalid("No Zone")
             if self._zone and self._zone is not zon:
-                raise PacketPayloadInvalid("Wrong Zone")
+                raise exc.PacketPayloadInvalid("Wrong Zone")
             self._zone = zon
 
             if self not in self._zone.actuators:

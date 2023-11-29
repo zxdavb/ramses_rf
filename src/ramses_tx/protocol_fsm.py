@@ -16,7 +16,7 @@ from queue import Empty, Full, PriorityQueue
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from . import Command, Packet, exceptions
+from . import Command, Packet, exceptions as exc
 from .address import HGI_DEV_ADDR
 from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
 from .typing import (
@@ -64,15 +64,15 @@ DEFAULT_MAX_RETRIES = 3
 POLLING_INTERVAL = 0.0005
 
 
-class _ProtocolWaitFailed(exceptions.ProtocolSendFailed):
+class _ProtocolWaitFailed(exc.ProtocolSendFailed):
     """The Command timed out when waiting for its turn to send."""
 
 
-class _ProtocolEchoFailed(exceptions.ProtocolSendFailed):
+class _ProtocolEchoFailed(exc.ProtocolSendFailed):
     """The Command was sent OK, but failed to elicit its echo."""
 
 
-class _ProtocolRplyFailed(exceptions.ProtocolSendFailed):
+class _ProtocolRplyFailed(exc.ProtocolSendFailed):
     """The Command received an echo OK, but failed to elicit the expected reply."""
 
 
@@ -214,9 +214,7 @@ class ProtocolContext:
                 (priority, dt_sent, dt_expires, params, fut)
             )
         except Full:
-            fut.set_exception(
-                exceptions.ProtocolFsmError("Send queue full, cmd discarded")
-            )
+            fut.set_exception(exc.ProtocolFsmError("Send queue full, cmd discarded"))
 
         self._ensure_queue_processor()  # because just added job to send queue
 
@@ -224,12 +222,12 @@ class ProtocolContext:
             pkt: Packet = await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError as err:
             self.set_state(IsFailed)
-            raise exceptions.ProtocolSendFailed(
+            raise exc.ProtocolSendFailed(
                 f"{cmd._hdr}: Timeout (outer) has expired"
             ) from err
-        except exceptions.ProtocolError as err:
+        except exc.ProtocolError as err:
             self.set_state(IsFailed)
-            raise exceptions.ProtocolSendFailed(f"{cmd._hdr}: Other error") from err
+            raise exc.ProtocolSendFailed(f"{cmd._hdr}: Other error") from err
 
         self._ensure_queue_processor()  # because just completed job
         return pkt
@@ -268,7 +266,7 @@ class ProtocolContext:
 
             try:
                 result = await self._send_cmd(*params)
-            except exceptions.ProtocolSendFailed as err:
+            except exc.ProtocolSendFailed as err:
                 fut.set_exception(err)
             else:
                 fut.set_result(result)
@@ -304,7 +302,7 @@ class ProtocolContext:
                 await send_fnc(cmd)  # the wrapped function (actual Tx.write)
                 assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
 
-            except (AssertionError, exceptions.ProtocolFsmError) as err:  # FIXME
+            except (AssertionError, exc.ProtocolFsmError) as err:  # FIXME
                 msg = f"{self}: Failed to Tx echo {cmd.tx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolWaitFailed(f"{msg}: {err}") from err
@@ -336,7 +334,7 @@ class ProtocolContext:
 
                 assert isinstance(next_state, WantRply), f"{self}: Expects WantRply"
 
-            except (AssertionError, exceptions.ProtocolFsmError) as err:
+            except (AssertionError, exc.ProtocolFsmError) as err:
                 msg = f"{self}: Failed to Rx echo {cmd.tx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolEchoFailed(f"{msg}: {err}") from err
@@ -351,7 +349,7 @@ class ProtocolContext:
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                 assert prev_state._rply_pkt, f"{self}: Missing rply packet"
 
-            except (AssertionError, exceptions.ProtocolFsmError) as err:
+            except (AssertionError, exc.ProtocolFsmError) as err:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
                 if num_retries == max_retries:
                     raise _ProtocolRplyFailed(f"{msg}: {err}") from err
@@ -361,7 +359,7 @@ class ProtocolContext:
             return prev_state._rply_pkt
 
         # It would never be expected to reach this code, so a safety-net
-        raise exceptions.ProtocolFsmError(f"{self}: Unexpected error {cmd.tx_header}")
+        raise exc.ProtocolFsmError(f"{self}: Unexpected error {cmd.tx_header}")
 
     async def _wait_for_transition(
         self, this_state: _ProtocolStateT, timeout: td
@@ -372,7 +370,7 @@ class ProtocolContext:
                 break
             await asyncio.sleep(POLLING_INTERVAL)
         else:
-            raise exceptions.ProtocolFsmError(f"Failed to leave {this_state} in time")
+            raise exc.ProtocolFsmError(f"Failed to leave {this_state} in time")
 
         return this_state, this_state._next_state
 
@@ -455,7 +453,7 @@ class _ProtocolStateBase:
     def sent_cmd(self, cmd: Command) -> None:  # raises exception
         """Send a packet if in the correct state."""
         # if self._cant_send_cmd_error:
-        raise exceptions.ProtocolFsmError(
+        raise exc.ProtocolFsmError(
             f"{self}: Can't send {cmd._hdr}: {self._cant_send_cmd_error}"
         )
 
@@ -510,7 +508,7 @@ class _WantPkt(_ProtocolStateBase):
         """The Transport has likely re-sent a Command."""
 
         if not self.is_active_cmd(cmd):
-            raise exceptions.ProtocolFsmError(
+            raise exc.ProtocolFsmError(
                 f"{self}: Can't send {cmd._hdr}: not active Command"
             )
 

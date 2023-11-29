@@ -15,6 +15,7 @@ from ramses_tx.command import _mk_cmd
 from ramses_tx.opentherm import OTB_MSG_IDS
 from ramses_tx.protocol import MIN_GAP_BETWEEN_WRITES
 
+from . import exceptions as exc
 from .const import (
     SZ_DISABLE_BACKOFF,
     SZ_PRIORITY,
@@ -23,7 +24,6 @@ from .const import (
     SZ_ZONE_IDX,
     __dev_mode__,
 )
-from .exceptions import ExpiredCallbackError
 
 # Beware, none of this is reliable - it is all subject to random change
 # However, these serve as examples how to us eteh other modules
@@ -155,7 +155,7 @@ async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3
 
     try:
         await ctl.tcs.get_faultlog(start=start, limit=limit)  # 0418
-    except ExpiredCallbackError as err:
+    except exc.ExpiredCallbackError as err:
         _LOGGER.error("get_faults(): Function timed out: %s", err)
 
 
@@ -164,7 +164,7 @@ async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
 
     try:
         await zone.get_schedule()
-    except ExpiredCallbackError as err:
+    except exc.ExpiredCallbackError as err:
         _LOGGER.error("get_schedule(): Function timed out: %s", err)
 
 
@@ -176,7 +176,7 @@ async def set_schedule(gwy: Gateway, ctl_id: str, schedule: dict) -> None:
 
     try:
         await zone.set_schedule(schedule[SZ_SCHEDULE])  # 0404
-    except ExpiredCallbackError as err:
+    except exc.ExpiredCallbackError as err:
         _LOGGER.error("set_schedule(): Function timed out: %s", err)
 
 

@@ -16,10 +16,10 @@ from sys import modules
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from ramses_tx import ProtocolError
 from ramses_tx.opentherm import OPENTHERM_MESSAGES
 from ramses_tx.ramses import CODES_SCHEMA
 
+from . import exceptions as exc
 from .const import (
     DEV_TYPE_MAP,
     SZ_ACTUATORS,
@@ -28,7 +28,6 @@ from .const import (
     SZ_SENSOR,
     SZ_ZONE_IDX,
 )
-from .exceptions import SystemSchemaInconsistent
 from .schemas import SZ_CIRCUITS
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -485,7 +484,7 @@ class _Discovery(_MessageDB):
 
             # TODO: except: handle no QoS
 
-            except ProtocolError as err:  # InvalidStateError, SendTimeoutError
+            except exc.ProtocolError as err:  # InvalidStateError, SendTimeoutError
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
 
             except asyncio.TimeoutError as err:  # safety valve timeout
@@ -685,7 +684,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, DhwSensor)
             if self._dhw_sensor and self._dhw_sensor is not child:
-                raise SystemSchemaInconsistent(
+                raise exc.SystemSchemaInconsistent(
                     f"{self} changed dhw_sensor (from {self._dhw_sensor} to {child})"
                 )
             self._dhw_sensor = child
@@ -693,7 +692,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         elif is_sensor and hasattr(self, SZ_SENSOR):  # HTG zone
             assert isinstance(self, Zone)  # TODO: remove me
             if self.sensor and self.sensor is not child:
-                raise SystemSchemaInconsistent(
+                raise exc.SystemSchemaInconsistent(
                     f"{self} changed zone sensor (from {self.sensor} to {child})"
                 )
             self._sensor = child
@@ -722,7 +721,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._htg_valve and self._htg_valve is not child:
-                raise SystemSchemaInconsistent(
+                raise exc.SystemSchemaInconsistent(
                     f"{self} changed htg_valve (from {self._htg_valve} to {child})"
                 )
             self._htg_valve = child
@@ -731,7 +730,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._dhw_valve and self._dhw_valve is not child:
-                raise SystemSchemaInconsistent(
+                raise exc.SystemSchemaInconsistent(
                     f"{self} changed dhw_valve (from {self._dhw_valve} to {child})"
                 )
             self._dhw_valve = child
@@ -740,7 +739,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(self, System)  # TODO: remove me
             assert isinstance(child, BdrSwitch | OtbGateway)
             if self._app_cntrl and self._app_cntrl is not child:
-                raise SystemSchemaInconsistent(
+                raise exc.SystemSchemaInconsistent(
                     f"{self} changed app_cntrl (from {self._app_cntrl} to {child})"
                 )
             self._app_cntrl = child
@@ -861,7 +860,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         #     child_id = parent._child_id  # or, for zones: parent.idx
 
         if self._parent and self._parent != parent:
-            raise SystemSchemaInconsistent(
+            raise exc.SystemSchemaInconsistent(
                 f"{self} cant change parent "
                 f"({self._parent}_{self._child_id} to {parent}_{child_id})"
             )
@@ -966,7 +965,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         if self.ctl and self.ctl is not ctl:
             # NOTE: assume a device is bound to only one CTL (usu. best practice)
-            raise SystemSchemaInconsistent(
+            raise exc.SystemSchemaInconsistent(
                 f"{self} cant change controller: {self.ctl} to {ctl} "
                 "(or perhaps the device has multiple controllers?"
             )

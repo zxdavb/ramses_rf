@@ -10,6 +10,7 @@ from datetime import datetime as dt, timedelta as td
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
+from . import exceptions as exc
 from .address import Address
 from .const import (
     DEV_TYPE_MAP,
@@ -19,7 +20,6 @@ from .const import (
     SZ_UFH_IDX,
     SZ_ZONE_IDX,
 )
-from .exceptions import PacketInvalid, PacketPayloadInvalid
 from .packet import Packet
 from .parsers import parse_payload
 from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
@@ -265,24 +265,24 @@ class MessageBase:
 
             raise TypeError(f"Invalid payload type: {type(result)}")
 
-        except PacketInvalid as err:
+        except exc.PacketInvalid as err:
             _LOGGER.warning("%s < %s", self._pkt, err)
             raise err
 
         except AssertionError as err:
             # beware: HGI80 can send 'odd' but parseable packets +/- get invalid reply
             _LOGGER.exception("%s < %s", self._pkt, f"{err.__class__.__name__}({err})")
-            raise PacketInvalid("Bad packet") from err
+            raise exc.PacketInvalid("Bad packet") from err
 
         except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
             _LOGGER.exception(
                 "%s < Coding error: %s", self._pkt, f"{err.__class__.__name__}({err})"
             )
-            raise PacketInvalid from err
+            raise exc.PacketInvalid from err
 
         except NotImplementedError as err:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
-            raise PacketInvalid from err
+            raise exc.PacketInvalid from err
 
 
 class Message(MessageBase):  # add _expired attr
@@ -354,12 +354,14 @@ def _check_msg_payload(msg: MessageBase, payload: str) -> None:
     _ = repr(msg._pkt)  # HACK: ? raise InvalidPayloadError
 
     if msg.code not in CODES_SCHEMA:
-        raise PacketInvalid(f"Unknown code: {msg.code}")
+        raise exc.PacketInvalid(f"Unknown code: {msg.code}")
 
     try:
         regex = CODES_SCHEMA[msg.code][msg.verb]  # type: ignore[index]
     except KeyError:
-        raise PacketInvalid(f"Unknown verb/code pair: {msg.verb}/{msg.code}") from None
+        raise exc.PacketInvalid(
+            f"Unknown verb/code pair: {msg.verb}/{msg.code}"
+        ) from None
 
     if not re_compile_re_match(regex, payload):
-        raise PacketPayloadInvalid(f"Payload doesn't match '{regex}': {payload}")
+        raise exc.PacketPayloadInvalid(f"Payload doesn't match '{regex}': {payload}")

@@ -22,6 +22,7 @@ from collections.abc import Mapping
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
+from . import exceptions as exc
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, hex_id_to_dev_id
 from .const import (
     DEV_ROLE_MAP,
@@ -75,7 +76,6 @@ from .const import (
     ZON_ROLE_MAP,
     DevRole,
 )
-from .exceptions import PacketPayloadInvalid
 from .fingerprints import check_signature
 from .helpers import (
     hex_to_bool,
@@ -468,7 +468,9 @@ def parser_000c(payload: str, msg: Message) -> dict:
         elif all(payload[i : i + 2] == payload[2:4] for i in range(12, pkt_len, 10)):
             return True  # len(element) = 5 (10)
 
-        raise PacketPayloadInvalid("Unable to determine element length")  # return None
+        raise exc.PacketPayloadInvalid(
+            "Unable to determine element length"
+        )  # return None
 
     if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
         dev_role = DEV_ROLE_MAP[DevRole.HT1]
@@ -653,7 +655,7 @@ def parser_0404(payload: str, msg: Message) -> dict:
     if int(payload[8:10], 16) * 2 != (frag_length := len(payload[14:])) and (
         msg.verb != I_ or frag_length != 0
     ):
-        raise PacketPayloadInvalid(f"Incorrect fragment length: 0x{payload[8:10]}")
+        raise exc.PacketPayloadInvalid(f"Incorrect fragment length: 0x{payload[8:10]}")
 
     if msg.verb == RQ:  # have a ctx: idx|frag_idx
         return {
@@ -2251,11 +2253,11 @@ def parser_3220(payload: str, msg: Message) -> dict:
     except AssertionError as err:
         raise AssertionError(f"OpenTherm: {err}") from err
     except ValueError as err:
-        raise PacketPayloadInvalid(f"OpenTherm: {err}") from err
+        raise exc.PacketPayloadInvalid(f"OpenTherm: {err}") from err
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
     if ot_schema is None and ot_type != OtMsgType.UNKNOWN_DATAID:
-        raise PacketPayloadInvalid(f"OpenTherm: Unknown data-id: {ot_id}")
+        raise exc.PacketPayloadInvalid(f"OpenTherm: Unknown data-id: {ot_id}")
 
     result = {
         SZ_MSG_ID: ot_id,

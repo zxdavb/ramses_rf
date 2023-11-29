@@ -58,6 +58,7 @@ from serial import (  # type: ignore[import-untyped]
 )
 from serial.tools.list_ports import comports  # type: ignore[import-untyped]
 
+from . import exceptions as exc
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import (
@@ -68,7 +69,6 @@ from .const import (
     SZ_SIGNATURE,
     DevType,
 )
-from .exceptions import PacketInvalid, TransportSerialError, TransportSourceInvalid
 from .helpers import dt_now
 from .packet import Packet
 from .schemas import (
@@ -122,7 +122,7 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     # TODO: add tests for different serial ports, incl./excl/ by-id
 
     if not os.path.exists(serial_port):
-        raise TransportSerialError(f"Unable to find {serial_port}")
+        raise exc.TransportSerialError(f"Unable to find {serial_port}")
 
     # first, try the easy win (comports() wont take by-id)...
     if "by-id" not in serial_port:
@@ -515,7 +515,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
-            raise TransportSourceInvalid(
+            raise exc.TransportSourceInvalid(
                 f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
 
@@ -525,7 +525,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
 
         try:
             pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
-        except (PacketInvalid, ValueError):  # VE from dt.fromisoformat()
+        except (exc.PacketInvalid, ValueError):  # VE from dt.fromisoformat()
             return
         self._pkt_received(pkt)
 
@@ -608,7 +608,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
 
         try:
             pkt = Packet.from_port(dtm, frame)
-        except (PacketInvalid, ValueError):  # VE from dt.fromisoformat()
+        except (exc.PacketInvalid, ValueError):  # VE from dt.fromisoformat()
             return
 
         # NOTE: a signature can override an existing active gateway
@@ -651,7 +651,7 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
 
     def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
         if disable_sending is False:
-            raise TransportSourceInvalid("This Transport cannot send packets")
+            raise exc.TransportSourceInvalid("This Transport cannot send packets")
         super().__init__(*args, **kwargs)
         self.loop.call_soon(self._protocol.connection_made, self)
 
@@ -711,7 +711,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
                     return
 
             self._init_fut.set_exception(
-                TransportSerialError("Never received an echo signature")
+                exc.TransportSerialError("Never received an echo signature")
             )
 
         self._init_fut = asyncio.Future()
@@ -773,7 +773,7 @@ async def transport_factory(
             _LOGGER.error(
                 "Failed to open %s (config: %s): %s", ser_name, ser_config, err
             )
-            raise TransportSerialError(
+            raise exc.TransportSerialError(
                 f"Unable to open the serial port: {ser_name}"
             ) from err
 
@@ -796,7 +796,7 @@ async def transport_factory(
         )
 
     if len([x for x in (packet_dict, packet_log, port_name) if x is not None]) != 1:
-        raise TransportSourceInvalid(
+        raise exc.TransportSourceInvalid(
             "Packet source must be exactly one of: packet_dict, packet_log, port_name"
         )
 
@@ -832,12 +832,14 @@ async def transport_factory(
     try:
         await asyncio.wait_for(transport._init_fut, timeout=3)  # signature echo
     except asyncio.TimeoutError as err:
-        raise TransportSerialError("Transport did not initialise successfully") from err
+        raise exc.TransportSerialError(
+            "Transport did not initialise successfully"
+        ) from err
 
     # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
     try:
         await asyncio.wait_for(poll_until_connection_made(protocol), timeout=3)
     except asyncio.TimeoutError as err:
-        raise TransportSerialError("Transport did not bind to Protocol") from err
+        raise exc.TransportSerialError("Transport did not bind to Protocol") from err
 
     return transport

@@ -12,7 +12,7 @@ import sys
 import click
 from colorama import Fore, Style, init as colorama_init
 
-from ramses_rf import Gateway, GracefulExit, Message, RamsesException
+from ramses_rf import Gateway, GracefulExit, Message, exceptions as exc
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import merge
@@ -544,7 +544,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
         msg = "ended via: GracefulExit"
     except KeyboardInterrupt:  # FIXME: why isn't this captured here? see main
         msg = "ended via: KeyboardInterrupt"
-    except RamsesException as err:
+    except exc.RamsesException as err:
         msg = f"ended via: RamsesException: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"

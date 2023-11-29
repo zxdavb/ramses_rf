@@ -14,6 +14,7 @@ from ramses_tx import Address, Command, Message
 from ramses_tx.command import _mk_cmd
 from ramses_tx.const import SZ_PAYLOAD
 
+from .. import exceptions as exc
 from ..const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
@@ -42,7 +43,6 @@ from ..device import (
     UfhController,
 )
 from ..entity_base import Child, Entity, Parent, class_by_attr
-from ..exceptions import SystemSchemaInconsistent
 from ..helpers import shrink
 from ..schemas import (
     SCH_TCS_DHW,
@@ -490,7 +490,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 raise ValueError(f"Not a known zone class (for {self}): {zone_type}")
 
             if self._SLUG is not None:
-                raise SystemSchemaInconsistent(
+                raise exc.SystemSchemaInconsistent(
                     f"{self} changed zone class: from {self._SLUG} to {klass}"
                 )
 

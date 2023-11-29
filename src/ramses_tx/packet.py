@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
-from .exceptions import PacketInvalid
+from . import exceptions as exc
 from .frame import Frame
 from .logger import getLogger  # overridden logger.getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS, WRITE_MSG_IDS
@@ -78,17 +78,17 @@ class Packet(Frame):
 
         try:
             if self.error_text:
-                raise PacketInvalid(self.error_text)
+                raise exc.PacketInvalid(self.error_text)
 
             if not self._frame and self.comment:  # log null pkts only if has a comment
-                raise PacketInvalid("Null packet")
+                raise exc.PacketInvalid("Null packet")
 
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
             # FIXME: this is messy
             _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
-        except PacketInvalid as err:  # incl. InvalidAddrSetError
+        except exc.PacketInvalid as err:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
                 _PKT_LOGGER.warning("%s", err, extra=self.__dict__)
             raise err
@@ -98,7 +98,7 @@ class Packet(Frame):
         # e.g.: RQ --- 18:000730 01:145038 --:------ 000A 002 0800  # 000A|RQ|01:145038|08
         try:
             hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        except (PacketInvalid, NotImplementedError):
+        except (exc.PacketInvalid, NotImplementedError):
             hdr = ""
         try:
             dtm = self.dtm.isoformat(timespec="microseconds")

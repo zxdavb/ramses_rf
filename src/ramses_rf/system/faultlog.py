@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from ramses_tx import Command
 from ramses_tx.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
 
-from ..exceptions import ExpiredCallbackError
+from .. import exceptions as exc
 
 from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -93,7 +93,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         while not self._faultlog_done:
             await asyncio.sleep(TIMER_SHORT_SLEEP)
             if dt.now() > time_start + TIMER_LONG_TIMEOUT * 2:
-                raise ExpiredCallbackError("failed to obtain log entry (long)")
+                raise exc.ExpiredCallbackError("failed to obtain log entry (long)")
 
         return self.faultlog
 
@@ -106,7 +106,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
             if not msg:
                 self._faultlog_done = True
-                # raise ExpiredCallbackError("failed to obtain log entry (short)")
+                # raise exc.ExpiredCallbackError("failed to obtain log entry (short)")
                 return
 
             log = dict(msg.payload)

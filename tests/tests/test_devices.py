@@ -8,7 +8,7 @@ Test the payload parsers on a per-device basis.
 
 from pathlib import Path, PurePath
 
-from ramses_tx import exceptions
+from ramses_tx import exceptions as exc
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 from tests.helpers import TEST_DIR
@@ -33,12 +33,12 @@ def _proc_log_line(pkt_line):  # noqa: F811
 
     try:
         pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
-    except exceptions.PacketInvalid as err:
+    except exc.PacketInvalid as err:
         assert False, f"{pkt_line[27:]} < {err}"
 
     try:
         _ = Message(pkt)
-    except exceptions.PacketPayloadInvalid as err:
+    except exc.PacketPayloadInvalid as err:
         assert False, f"{pkt} < {err}"
 
     # assert bool(msg._is_fragment) == pkt._is_fragment

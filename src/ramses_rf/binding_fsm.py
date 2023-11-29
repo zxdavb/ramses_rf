@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
 
-from .exceptions import BindingError, BindingFlowFailed, BindingFsmError
+from . import exceptions as exc
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -122,7 +122,7 @@ class BindContextBase:
         if False and result:
             try:
                 self._fut.set_result(result.result())
-            except BindingError as err:
+            except exc.BindingError as err:
                 self._fut.set_result(err)
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
@@ -187,7 +187,7 @@ class BindContextRespondent(BindContextBase):
         """
 
         if self.is_binding:
-            raise BindingFsmError(f"{self}: bad State for bindings as a Respondent")
+            raise exc.BindingFsmError(f"{self}: bad State for bindings as a Respondent")
         self.set_state(RespIsWaitingForOffer)  # self._is_respondent = True
 
         # Step R1: Respondent expects an Offer
@@ -200,7 +200,7 @@ class BindContextRespondent(BindContextBase):
         # Step R3: Respondent expects an Addenda (optional)
         try:
             ratify = await self._wait_for_addenda(accept)
-        except BindingFlowFailed:
+        except exc.BindingFlowFailed:
             ratify = None
 
         # self._set_as_bound(tender, accept, affirm, ratify)
@@ -250,7 +250,7 @@ class BindContextSupplicant(BindContextBase):
         """
 
         if self.is_binding:
-            raise BindingFsmError(f"{self}: bad State for binding as a Supplicant")
+            raise exc.BindingFsmError(f"{self}: bad State for binding as a Supplicant")
         self.set_state(SuppSendOfferWaitForAccept)  # self._is_respondent = False
 
         # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
@@ -380,12 +380,12 @@ class BindStateBase:
         )
 
         _LOGGER.warning(msg)
-        self._fut.set_exception(BindingFlowFailed(msg))
+        self._fut.set_exception(exc.BindingFlowFailed(msg))
         self._set_context_state(DevHasFailedBinding)
 
     def _set_context_state(self, next_state: type[BindStateBase]) -> None:
         if not self._fut.done():  # if not BindRetryError, BindTimeoutError, msg
-            raise BindingFsmError  # or: self._fut.set_exception()
+            raise exc.BindingFsmError  # or: self._fut.set_exception()
         self._context.set_state(next_state, result=self._fut)
 
     def send_cmd(self, cmd: Command) -> None:
@@ -410,43 +410,43 @@ class BindStateBase:
 
     # Respondent State APIs...
     async def wait_for_offer(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_offer() from this State"
         )
 
     def accept_offer(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't accept_offer() from this State"
         )
 
     async def wait_for_confirm(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_confirm() from this State"
         )
 
     async def wait_for_addenda(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_addenda() from this State"
         )
 
     # Supplicant State APIs...
     def make_offer(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't make_offer() from this State"
         )
 
     async def wait_for_accept(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_accept() from this State"
         )
 
     async def confirm_accept(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't confirm_accept() from this State"
         )
 
     async def cast_addenda(self, *args, **kwargs) -> Message:
-        raise BindingFsmError(
+        raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't cast_addenda() from this State"
         )
 
@@ -508,7 +508,7 @@ class _DevIsReadyToSendCmd(BindStateBase):
         )
 
         _LOGGER.warning(msg)
-        self._fut.set_exception(BindingFlowFailed(msg))
+        self._fut.set_exception(exc.BindingFlowFailed(msg))
         self._set_context_state(DevHasFailedBinding)
 
     def send_cmd(self, cmd: Command) -> None:
