@@ -13,9 +13,9 @@
   dependencies = [
     "colorlog>=6.7.0",
     "pyserial-asyncio>=0.6",
-    "voluptuous>=0.14.1",
+    "voluptuous>=0.13.1",
   ]
-  requires-python = ">=3.11"
+  requires-python = ">=3.10"
   license = "MIT"
 
   keywords = [
