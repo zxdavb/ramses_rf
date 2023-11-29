@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import voluptuous as vol  # type: ignore[import-untyped]
+import voluptuous as vol
 
 from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 
