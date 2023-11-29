@@ -30,7 +30,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          install -r requirements.txt
+        # install -r requirements_dev.txt
 
       - name: Install mypy
         run: |
