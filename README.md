@@ -36,4 +36,3 @@ The CLI is called client.py:
 ```
 python client.py monitor /dev/ttyUSB0 -o packet.log
 ```
-

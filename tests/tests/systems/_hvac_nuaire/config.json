@@ -1,6 +1,6 @@
 {
     "config": {},
-    
+
     "known_list": {
         "30:079129": {"class": "ventilator", "alias": "DRI-ECO-LINK-HC PIV"},
         "32:166025": {"class": "co2_sensor", "alias": "DRI-ECO-CO2 sensor"},
