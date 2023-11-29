@@ -23,10 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
       - uses: chartboost/ruff-action@v1
 
       # Update output format to enable automatic inline annotations.
-      - name: ruff check
+      - name: Check via ruff
         run: ruff check --output-format=github .
 
       - run: echo "🍏 This job's status is ${{ job.status }}."
