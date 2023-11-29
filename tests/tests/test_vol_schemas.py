@@ -102,9 +102,12 @@ def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
     global test_schemas_good_failed
     try:
         _test_schema(validator, schema)
-    except (vol.MultipleInvalid, yaml.YAMLError) as err:
+    except vol.MultipleInvalid as err:
         test_schemas_good_failed = True
-        raise TypeError(f"should be valid YAML, but didn't parse OK: {schema}") from err
+        raise TypeError(f"should parse via voluptuous, but didn't: {schema}") from err
+    except yaml.YAMLError as err:
+        test_schemas_good_failed = True
+        raise TypeError(f"should be valid YAML, but isn't: {schema}") from err
 
 
 GATEWAY_BAD = (
@@ -208,6 +211,18 @@ KNOWN_LIST_BAD = (
     # known_list:
     #   05:111111: {class: REM, scheme: xxxxxx}
     # """,
+    """
+    known_list:
+      01:111111: {class: FAN}
+      02:111111: {class: RFS}
+      03:111111: {class: CO2, faked: true}
+      04:111111: {class: HUM, faked: true}
+      05:111111: {class: REM, faked: true, scheme: nuaire}
+      06:111111:
+        class: DIS
+        scheme: orcon
+        _note: this is a note
+    """,
 )
 KNOWN_LIST_GOOD = (
     """
@@ -252,7 +267,6 @@ KNOWN_LIST_GOOD = (
       05:111111: {class: REM, faked: true, scheme: nuaire}
       06:111111:
         class: DIS
-        scheme: orcon
         _note: this is a note
     """,
 )
@@ -630,18 +644,12 @@ SCHEMAS_VCS_GOOD = (
     """,
     """
     32:111111:
-      remotes: []
-      is_vcs: true
-    """,
-    """
-    32:111111:
       remotes: [29:111111]
     """,
     """
     32:111111:
       remotes: [29:111111, 29:222222]
       sensors: [29:111111, 29:333333]
-      is_vcs: true
     """,
     """
     32:111111: {remotes: [29:111111, 29:222222]}

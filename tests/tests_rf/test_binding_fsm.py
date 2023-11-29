@@ -60,10 +60,10 @@ ORCON_ = "orcon"
 TEST_SUITE_300 = [
     {
         SZ_RESPONDENT: {
-            "30:098165": {"class": "FAN", " scheme": "nuaire", "_notes": "ECO-HEAT-HC"},
+            "30:098165": {"class": "FAN", "scheme": "nuaire", "_note": "ECO-HEAT-HC"},
         },
         SZ_SUPPLICANT: {
-            "32:208628": {"class": "REM", "scheme": "nuaire", "_notes": "4-way switch"}
+            "32:208628": {"class": "REM", "scheme": "nuaire", "_note": "4-way switch"}
         },
         f"{SZ_RESPONDENT}_attr": {"codes": [Code._31DA], "idx": "21"},
         PKT_FLOW: (
@@ -76,10 +76,10 @@ TEST_SUITE_300 = [
     },
     {
         SZ_RESPONDENT: {
-            "18:126620": {"class": "FAN", "scheme": "itho", "_notes": "Spider HRU"},
+            "18:126620": {"class": "FAN", "scheme": "itho", "_note": "Spider HRU"},
         },
         SZ_SUPPLICANT: {
-            "37:154011": {"class": "CO2", "scheme": "itho", "_notes": "Spider CO2"}
+            "37:154011": {"class": "CO2", "scheme": "itho", "_note": "Spider CO2"}
         },
         f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
         PKT_FLOW: (
@@ -91,10 +91,10 @@ TEST_SUITE_300 = [
     },
     {  # FIXME: offer sent to 63:262142, so send_cmd() wont return corresponding accept
         SZ_RESPONDENT: {
-            "32:155617": {"class": "FAN", "scheme": "orcon", "_notes": "HRC-350"},
+            "32:155617": {"class": "FAN", "scheme": "orcon", "_note": "HRC-350"},
         },
         SZ_SUPPLICANT: {
-            "29:158183": {"class": "REM", "scheme": "orcon", "_notes": "VMN-15LF01"}
+            "29:158183": {"class": "REM", "scheme": "orcon", "_note": "VMN-15LF01"}
         },
         f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
         PKT_FLOW: (
@@ -107,7 +107,7 @@ TEST_SUITE_300 = [
     },
     {  # FIXME: supplicant used oem_code and 10E0
         SZ_RESPONDENT: {"32:155617": {"class": "FAN", "scheme": "orcon"}},
-        SZ_SUPPLICANT: {"37:171871": {"class": "DIS", "scheme": "orcon"}},
+        SZ_SUPPLICANT: {"37:171871": {"class": "DIS"}},  # , "scheme": "orcon"}},
         f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
         PKT_FLOW: (
             " I --- 37:171871 --:------ 37:171871 1FC9 024 00-22F1-969F5F 00-22F3-969F5F 67-10E0-969F5F 00-1FC9-969F5F",
