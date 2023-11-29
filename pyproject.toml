@@ -1,12 +1,13 @@
 #
 ### project ##########################################################################
-# updated: 2023-11-11
+# updated: 2023-11-29
 #
 
 [project]
   name = "ramses_rf"
-  dynamic = ["readme", "version"]
+  dynamic = ["version"]
   description = "A stateful RAMSES-II protocol decoder & analyser."
+  readme = "README.md"
   authors = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
@@ -15,7 +16,7 @@
     "voluptuous>=0.13.1",
   ]
   requires-python = ">=3.11"
-  license = {file = "LICENSE"}
+  license = "MIT"
 
   keywords = [
     "evohome",
