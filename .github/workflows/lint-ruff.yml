@@ -3,7 +3,12 @@
 
 name: Linting with ruff
 
-on: workflow_dispatch  # [push, pull_request]
+on:
+  push:
+    tags:
+      - '*'
+  pull_request:
+
 
 jobs:
   lint:
