@@ -221,7 +221,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{8}$",
     },
-    Code._10D0: {  # filter_change
+    Code._10D0: {  # filter_change - polling interval should be 1/day
         SZ_NAME: "filter_change",
         I_: r"^00[0-9A-F]{6}(0000)?$",
         RQ: r"^00(00)?$",
