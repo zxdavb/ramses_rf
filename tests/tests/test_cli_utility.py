@@ -12,7 +12,17 @@ import pytest
 
 sys.path.append(".")  # HACK: to access client.py
 
-from ramses_cli.client import EXECUTE, LISTEN, MONITOR, PARSE, cli  # noqa: E402, F401
+try:
+    from ramses_cli.client import (  # noqa: E402, F401
+        EXECUTE,
+        LISTEN,
+        MONITOR,
+        PARSE,
+        cli,
+    )
+except ModuleNotFoundError as err:
+    pytest.skip(f"{err}", allow_module_level=True)  # No module named 'colorama'
+
 
 STDIN = io.StringIO("053  I --- 01:123456 --:------ 01:123456 3150 002 FC00\r\n")
 
@@ -84,7 +94,7 @@ def id_fnc(param: int):
 
 
 @pytest.mark.parametrize("index", range(len(BASIC_TESTS)), ids=id_fnc)
-def test_client_basic(monkeypatch, index, tests=BASIC_TESTS):
+def test_client_basic(monkeypatch: pytest.MonkeyPatch, index: int, tests=BASIC_TESTS):
     monkeypatch.setattr("sys.argv", tests[index][0])
     if tests[index][0][1] == PARSE:
         monkeypatch.setattr("sys.stdin", STDIN)
