@@ -122,8 +122,8 @@ class BindContextBase:
         if False and result:
             try:
                 self._fut.set_result(result.result())
-            except BindingError as exc:
-                self._fut.set_result(exc)
+            except BindingError as err:
+                self._fut.set_result(err)
 
         if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             # if prev_state in (None, )

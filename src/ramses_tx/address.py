@@ -193,9 +193,9 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
 
     try:
         addrs = tuple(id_to_address(addr_fragment[i : i + 9]) for i in range(0, 30, 10))
-    except ValueError as exc:
+    except ValueError as err:
         raise PacketAddrSetInvalid(
-            f"Invalid address set: {addr_fragment}: {exc}"
+            f"Invalid address set: {addr_fragment}: {err}"
         ) from None
 
     if not _DEBUG_DISABLE_STRICT_CHECKING and (

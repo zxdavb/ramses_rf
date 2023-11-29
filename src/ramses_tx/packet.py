@@ -88,10 +88,10 @@ class Packet(Frame):
             # FIXME: this is messy
             _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
-        except PacketInvalid as exc:  # incl. InvalidAddrSetError
+        except PacketInvalid as err:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
-                _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
-            raise exc
+                _PKT_LOGGER.warning("%s", err, extra=self.__dict__)
+            raise err
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""

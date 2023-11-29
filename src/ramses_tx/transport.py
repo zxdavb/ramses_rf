@@ -108,9 +108,9 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-# All debug flags should be False for end-users
-_DEBUG_DISABLE_REGEX_WARNINGS = True  # useful for dev/test
-_DEBUG_FORCE_LOG_FRAMES = False  # useful for dev/test
+# All debug flags (used for dev/test) should be False for end-users
+_DEBUG_DISABLE_REGEX_WARNINGS = False
+_DEBUG_FORCE_LOG_FRAMES = False
 
 
 def is_hgi80(serial_port: SerPortName) -> bool | None:
@@ -224,8 +224,8 @@ class _PktMixin:
         # NOTE: Thus, excepts need checking
         try:  # below could be a call_soon?
             self._protocol.pkt_received(pkt)
-        except AssertionError as exc:  # protect from upper-layer callbacks
-            _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
+        except AssertionError as err:  # protect from upper-layer callbacks
+            _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
 
 
 class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
@@ -407,8 +407,8 @@ class _RegHackMixin:
         for k, v in regex_rules.items():
             try:
                 result = re.sub(k, v, result)
-            except re.error as exc:
-                _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
+            except re.error as err:
+                _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {err}")
 
         if result != pkt_line and not _DEBUG_DISABLE_REGEX_WARNINGS:
             (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
@@ -492,8 +492,8 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         self._is_reading = True
         try:
             await self._reader()
-        except KeyboardInterrupt as exc:
-            self._protocol.connection_lost(exc)  # type: ignore[arg-type]
+        except KeyboardInterrupt as err:
+            self._protocol.connection_lost(err)  # type: ignore[arg-type]
         else:
             self._protocol.connection_lost(None)
 
@@ -532,7 +532,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
     def send_frame(self, frame: str) -> None:
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
-    def close(self, exc: ExceptionT | None = None) -> None:
+    def close(self, err: ExceptionT | None = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
         if self._is_closing:
             return
@@ -541,7 +541,7 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         if self._reader_task:
             self._reader_task.cancel()
 
-        self._loop.call_soon(self._protocol.connection_lost, exc)
+        self._loop.call_soon(self._protocol.connection_lost, err)
 
 
 class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore[misc]
@@ -575,7 +575,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
         try:
             data: bytes = self._serial.read(self._max_read_size)
         except SerialException as e:
-            self._close(exc=e)
+            self._close(err=e)
             return
 
         if data:
@@ -638,7 +638,7 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
             _LOGGER.info("Tx:     %s", data)
         super().write(data)
 
-    def close(self, exc: ExceptionT | None = None) -> None:
+    def close(self, err: ExceptionT | None = None) -> None:
         """Close the transport (calls self._protocol.connection_lost())."""
         super().close()
         if self._init_task:
@@ -769,13 +769,13 @@ async def transport_factory(
 
         try:
             ser_obj = serial_for_url(ser_name, **ser_config)
-        except SerialException as exc:
+        except SerialException as err:
             _LOGGER.error(
-                "Failed to open %s (config: %s): %s", ser_name, ser_config, exc
+                "Failed to open %s (config: %s): %s", ser_name, ser_config, err
             )
             raise TransportSerialError(
                 f"Unable to open the serial port: {ser_name}"
-            ) from exc
+            ) from err
 
         # FTDI on Posix/Linux would be a common environment for this library...
         try:
@@ -831,13 +831,13 @@ async def transport_factory(
     # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
     try:
         await asyncio.wait_for(transport._init_fut, timeout=3)  # signature echo
-    except asyncio.TimeoutError as exc:
-        raise TransportSerialError("Transport did not initialise successfully") from exc
+    except asyncio.TimeoutError as err:
+        raise TransportSerialError("Transport did not initialise successfully") from err
 
     # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
     try:
         await asyncio.wait_for(poll_until_connection_made(protocol), timeout=3)
-    except asyncio.TimeoutError as exc:
-        raise TransportSerialError("Transport did not bind to Protocol") from exc
+    except asyncio.TimeoutError as err:
+        raise TransportSerialError("Transport did not bind to Protocol") from err
 
     return transport

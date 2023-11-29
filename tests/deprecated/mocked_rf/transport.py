@@ -73,7 +73,7 @@ class MockSerial:  # most of the RF 'mocking' is done in here
             self._rx_bytes_from_ether()
         )
 
-    def close(self, exc=None):
+    def close(self, err=None):
         """Close the port."""
         if self.is_open is False:
             return
@@ -133,14 +133,14 @@ class MockSerial:  # most of the RF 'mocking' is done in here
 
                 try:
                     device.rx_frame_as_cmd(cmd)
-                except AssertionError as exc:
-                    _LOGGER.exception(exc)
+                except AssertionError as err:
+                    _LOGGER.exception(err)
 
-                except (AttributeError, TypeError, ValueError) as exc:
-                    _LOGGER.exception(exc)
+                except (AttributeError, TypeError, ValueError) as err:
+                    _LOGGER.exception(err)
 
-                except PacketInvalid as exc:
-                    _LOGGER.exception(exc)
+                except PacketInvalid as err:
+                    _LOGGER.exception(err)
 
             cmd = None
             self._que.task_done()

@@ -118,8 +118,8 @@ def protocol_decorator(fnc):  # TODO: make a fixture
             await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
             await fnc(rf, protocol, *args, **kwargs)
             await assert_protocol_state(protocol, (IsInIdle, IsFailed))
-        except serial.SerialException as exc:
-            transport._close(exc=exc)
+        except serial.SerialException as err:
+            transport._close(err=err)
             raise
         except (AssertionError, asyncio.InvalidStateError, asyncio.TimeoutError):
             transport.close()

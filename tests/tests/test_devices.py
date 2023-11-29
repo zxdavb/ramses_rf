@@ -33,13 +33,13 @@ def _proc_log_line(pkt_line):  # noqa: F811
 
     try:
         pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
-    except exceptions.PacketInvalid as exc:
-        assert False, f"{pkt_line[27:]} < {exc}"
+    except exceptions.PacketInvalid as err:
+        assert False, f"{pkt_line[27:]} < {err}"
 
     try:
         _ = Message(pkt)
-    except exceptions.PacketPayloadInvalid as exc:
-        assert False, f"{pkt} < {exc}"
+    except exceptions.PacketPayloadInvalid as err:
+        assert False, f"{pkt} < {err}"
 
     # assert bool(msg._is_fragment) == pkt._is_fragment
     # assert bool(msg._idx): dict == pkt._idx: Optional[bool | str]  # not useful

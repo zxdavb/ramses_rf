@@ -265,24 +265,24 @@ class MessageBase:
 
             raise TypeError(f"Invalid payload type: {type(result)}")
 
-        except PacketInvalid as exc:
-            _LOGGER.warning("%s < %s", self._pkt, exc)
-            raise exc
+        except PacketInvalid as err:
+            _LOGGER.warning("%s < %s", self._pkt, err)
+            raise err
 
-        except AssertionError as exc:
+        except AssertionError as err:
             # beware: HGI80 can send 'odd' but parseable packets +/- get invalid reply
-            _LOGGER.exception("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
-            raise PacketInvalid("Bad packet") from exc
+            _LOGGER.exception("%s < %s", self._pkt, f"{err.__class__.__name__}({err})")
+            raise PacketInvalid("Bad packet") from err
 
-        except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
+        except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
             _LOGGER.exception(
-                "%s < Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
+                "%s < Coding error: %s", self._pkt, f"{err.__class__.__name__}({err})"
             )
-            raise PacketInvalid from exc
+            raise PacketInvalid from err
 
-        except NotImplementedError as exc:  # parser_unknown (unknown packet code)
+        except NotImplementedError as err:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
-            raise PacketInvalid from exc
+            raise PacketInvalid from err
 
 
 class Message(MessageBase):  # add _expired attr

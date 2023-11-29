@@ -155,8 +155,8 @@ async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3
 
     try:
         await ctl.tcs.get_faultlog(start=start, limit=limit)  # 0418
-    except ExpiredCallbackError as exc:
-        _LOGGER.error("get_faults(): Function timed out: %s", exc)
+    except ExpiredCallbackError as err:
+        _LOGGER.error("get_faults(): Function timed out: %s", err)
 
 
 async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
@@ -164,8 +164,8 @@ async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
 
     try:
         await zone.get_schedule()
-    except ExpiredCallbackError as exc:
-        _LOGGER.error("get_schedule(): Function timed out: %s", exc)
+    except ExpiredCallbackError as err:
+        _LOGGER.error("get_schedule(): Function timed out: %s", err)
 
 
 async def set_schedule(gwy: Gateway, ctl_id: str, schedule: dict) -> None:
@@ -176,8 +176,8 @@ async def set_schedule(gwy: Gateway, ctl_id: str, schedule: dict) -> None:
 
     try:
         await zone.set_schedule(schedule[SZ_SCHEDULE])  # 0404
-    except ExpiredCallbackError as exc:
-        _LOGGER.error("set_schedule(): Function timed out: %s", exc)
+    except ExpiredCallbackError as err:
+        _LOGGER.error("set_schedule(): Function timed out: %s", err)
 
 
 async def script_bind_req(gwy: Gateway, dev_id: str):

@@ -113,10 +113,10 @@ def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         """Handle exceptions on any platform."""
         _LOGGER.error("Caught an exception (%s), processing...", context["message"])
 
-        exc = context.get("exception")
-        if exc:
+        err = context.get("exception")
+        if err:
             try:
-                raise exc
+                raise err
             except KeyboardInterrupt:
                 pass
 

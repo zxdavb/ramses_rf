@@ -485,11 +485,11 @@ class _Discovery(_MessageDB):
 
             # TODO: except: handle no QoS
 
-            except ProtocolError as exc:  # InvalidStateError, SendTimeoutError
-                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
+            except ProtocolError as err:  # InvalidStateError, SendTimeoutError
+                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
 
-            except asyncio.TimeoutError as exc:  # safety valve timeout
-                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {exc}")
+            except asyncio.TimeoutError as err:  # safety valve timeout
+                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
 
             else:
                 return pkt

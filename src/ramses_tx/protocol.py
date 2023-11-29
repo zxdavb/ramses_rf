@@ -316,7 +316,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._transport = transport
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
+    def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection to the Transport is lost or closed.
 
         The argument is an exception object or None (the latter meaning a regular EOF is
@@ -326,8 +326,8 @@ class _BaseProtocol(asyncio.Protocol):
         if self._wait_connection_lost.done():  # BUG: why is callback invoked twice?
             return
 
-        if exc:
-            self._wait_connection_lost.set_exception(exc)
+        if err:
+            self._wait_connection_lost.set_exception(err)
         else:
             self._wait_connection_lost.set_result(None)
 
@@ -543,12 +543,12 @@ class PortProtocol(_BaseProtocol):
         if not self._leaker_task:  # Invoke the leaky bucket algorithm
             self._leaker_task = self._loop.create_task(self._leak_sem())
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
+    def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection is lost or closed."""
         if self._leaker_task:
             self._leaker_task.cancel()
 
-        super().connection_lost(exc)
+        super().connection_lost(err)
 
     @track_system_syncs
     def pkt_received(self, pkt: Packet) -> None:
@@ -637,11 +637,11 @@ class QosProtocol(PortProtocol):
         else:
             self._context.resume_writing()
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:  # type: ignore[override]
+    def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
         """Inform the FSM that the connection with the Transport has been lost."""
 
-        super().connection_lost(exc)
-        self._context.connection_lost(exc)
+        super().connection_lost(err)
+        self._context.connection_lost(err)
 
     def pkt_received(self, pkt: Packet) -> None:
         """Inform the FSM that a Packet has been received."""
@@ -690,10 +690,10 @@ class QosProtocol(PortProtocol):
 
         try:
             return await self._context.send_cmd(send_cmd, cmd, priority, qos)
-        # except InvalidStateError as exc:  # TODO: handle InvalidStateError separately
+        # except InvalidStateError as err:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
-        except ProtocolError as exc:
-            _LOGGER.info(f"AAA {self}: Failed to send {cmd._hdr}: {exc}")
+        except ProtocolError as err:
+            _LOGGER.info(f"AAA {self}: Failed to send {cmd._hdr}: {err}")
             raise
 
     async def send_cmd(

@@ -246,9 +246,9 @@ async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
 
     try:
         await _test_gwy_device(gwy, test_idx)
-    except SerialException as exc:
+    except SerialException as err:
         _global_failed_ports.append(gwy.ser_name)
-        pytest.xfail(str(exc))  # not skip, as we'd determined port exists, above
+        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
 
 
 @pytest.mark.xdist_group(name="real_serial")
@@ -268,9 +268,9 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
 
     try:
         await _test_gwy_device(gwy, test_idx)
-    except SerialException as exc:
+    except SerialException as err:
         _global_failed_ports.append(gwy.ser_name)
-        pytest.xfail(str(exc))  # not skip, as we'd determined port exists, above
+        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
 
 
 @pytest.mark.xdist_group(name="virt_serial")

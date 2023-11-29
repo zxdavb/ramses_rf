@@ -1076,10 +1076,10 @@ def _decode_flags(data_id: int, flags: str) -> _FlagsSchemaT:  # TBA: list[str]:
     try:  # FIXME: don't use _OT_FLAG_LOOKUP
         flag_schema: _FlagsSchemaT = _OT_FLAG_LOOKUP[OPENTHERM_MESSAGES[data_id][FLAGS]]
 
-    except KeyError as exc:
+    except KeyError as err:
         raise KeyError(
             f"Invalid data-id: 0x{data_id:02X} ({data_id}): data-id has no flags"
-        ) from exc
+        ) from err
 
     return flag_schema
 

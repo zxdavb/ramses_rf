@@ -264,9 +264,9 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
 
         try:
             _create_devices_from_addrs(gwy, msg)
-        except LookupError as exc:
+        except LookupError as err:
             (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-                "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
+                "%s < %s(%s)", msg._pkt, err.__class__.__name__, err
             )
             return
 
@@ -310,13 +310,13 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             # if True or getattr(d, "_faked", False):
             gwy._loop.call_soon(d._handle_msg, msg)
 
-    except (AssertionError, RamsesException, NotImplementedError) as exc:
+    except (AssertionError, RamsesException, NotImplementedError) as err:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc
+            "%s < %s(%s)", msg._pkt, err.__class__.__name__, err
         )
 
-    except (AttributeError, LookupError, TypeError, ValueError) as exc:
-        _LOGGER.exception("%s < %s(%s)", msg._pkt, exc.__class__.__name__, exc)
+    except (AttributeError, LookupError, TypeError, ValueError) as err:
+        _LOGGER.exception("%s < %s(%s)", msg._pkt, err.__class__.__name__, err)
 
     else:
         logger_xxxx(msg)

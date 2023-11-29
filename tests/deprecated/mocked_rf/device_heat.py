@@ -118,8 +118,8 @@ class MockDeviceBase:
 
         try:
             return Command(frame)
-        except PacketInvalid as exc:
-            raise PacketInvalid(f"Invalid entry the response table: {exc}")
+        except PacketInvalid as err:
+            raise PacketInvalid(f"Invalid entry the response table: {err}")
 
 
 _1F09_CYCLE_DURATION = td(seconds=3 * 60)  # varies between controllers, usu. 3-5 mins

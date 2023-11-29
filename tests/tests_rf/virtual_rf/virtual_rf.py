@@ -265,9 +265,9 @@ class VirtualRfBase:
             """Handle exceptions on any platform."""
             _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
             self._cleanup()
-            exc = context.get("exception")
-            if exc:
-                raise exc
+            err = context.get("exception")
+            if err:
+                raise err
 
         async def handle_sig_posix(sig) -> None:
             """Handle signals on posix platform."""

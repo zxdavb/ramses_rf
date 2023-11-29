@@ -326,8 +326,8 @@ class Schedule:  # 0404
 
             try:
                 schedule = schema_schedule(schedule)
-            except vol.MultipleInvalid as exc:
-                raise TypeError(f"failed to set schedule: {exc}") from exc
+            except vol.MultipleInvalid as err:
+                raise TypeError(f"failed to set schedule: {err}") from err
 
             if self.idx == "HW":
                 schedule[SZ_ZONE_IDX] = "00"
@@ -342,8 +342,8 @@ class Schedule:  # 0404
         try:
             for num, frag in enumerate(self._tx_frags, 1):
                 await put_fragment(num, len(self._tx_frags), frag)
-        except TimeoutError as exc:
-            raise TimeoutError(f"failed to set schedule: {exc}") from exc
+        except TimeoutError as err:
+            raise TimeoutError(f"failed to set schedule: {err}") from err
         else:
             if not force_refresh:
                 self._global_ver, _ = await self.tcs._schedule_version(force_io=True)

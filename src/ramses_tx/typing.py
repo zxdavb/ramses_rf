@@ -111,7 +111,7 @@ class RamsesTransportT(Protocol):
     def _dt_now(self) -> dt:
         ...
 
-    def close(self, exc: ExceptionT | None = None) -> None:
+    def close(self, err: ExceptionT | None = None) -> None:
         ...
 
     def get_extra_info(self, name, default: Any | None = None) -> Any:
@@ -151,7 +151,7 @@ class RamsesProtocolT(Protocol):
     ) -> Callable[[], None]:
         ...
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:
+    def connection_lost(self, err: ExceptionT | None) -> None:
         ...
 
     def connection_made(self, transport: RamsesTransportT) -> None:

@@ -830,8 +830,8 @@ class Gateway(Engine):
                 timeout=timeout,
                 wait_for_reply=wait_for_reply,
             )
-        except exceptions.ProtocolSendFailed as exc:
-            _LOGGER.error(f"Failed to send {cmd._hdr}: {exc}")
+        except exceptions.ProtocolSendFailed as err:
+            _LOGGER.error(f"Failed to send {cmd._hdr}: {err}")
             return None
 
         if callback:

@@ -81,7 +81,7 @@ def assert_expected_set(gwy, expected) -> None:
 def assert_raises(exception, fnc, *args):
     try:
         fnc(*args)
-    except exception:  # as exc:
+    except exception:  # as err:
         pass  # or: assert True
     else:
         assert False

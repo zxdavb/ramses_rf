@@ -90,8 +90,8 @@ class Frame:
             self.src, self.dst, *self._addrs = pkt_addrs(  # type: ignore[assignment]
                 " ".join(fields[i] for i in range(2, 5))  # frame[7:36]
             )
-        except PacketInvalid as exc:  # will be: InvalidAddrSetError
-            raise PacketInvalid("Bad frame: invalid address set") from exc
+        except PacketInvalid as err:  # will be: InvalidAddrSetError
+            raise PacketInvalid("Bad frame: invalid address set") from err
 
         if len(self.payload) != int(self.len_) * 2:
             raise PacketInvalid(
@@ -120,8 +120,8 @@ class Frame:
 
         try:
             return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
-        except TypeError as exc:
-            raise PacketInvalid("Bad frame: Invalid attrs") from exc
+        except TypeError as err:
+            raise PacketInvalid("Bad frame: Invalid attrs") from err
 
     # FIXME: this is messy
     def _validate(self, *, strict_checking: bool = False) -> None:
@@ -142,8 +142,8 @@ class Frame:
         try:
             # self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
             _ = pkt_addrs(self._frame[7:36])
-        except PacketInvalid as exc:  # will be: InvalidAddrSetError
-            raise PacketInvalid("Bad frame: Invalid address set") from exc
+        except PacketInvalid as err:  # will be: InvalidAddrSetError
+            raise PacketInvalid("Bad frame: Invalid address set") from err
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
@@ -168,8 +168,8 @@ class Frame:
 
         try:
             return f"{self!r} # {self._hdr}"  # code|ver|device_id|context
-        except AttributeError as exc:
-            return f"{self!r} < {exc}"
+        except AttributeError as err:
+            return f"{self!r} < {err}"
 
     @property
     def _has_array(self) -> None | bool:  # TODO: a mess - has false negatives

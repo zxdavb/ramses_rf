@@ -138,10 +138,10 @@ class ProtocolContext:
         self._proc_queue_task = self._loop.create_task(self._process_queued_cmds())
         self.state.made_connection(transport)  # TODO: needs to be after prev. line?
 
-    def connection_lost(self, exc: ExceptionT | None) -> None:
+    def connection_lost(self, err: ExceptionT | None) -> None:
         fut: asyncio.Future
 
-        self.state.lost_connection(exc)
+        self.state.lost_connection(err)
 
         if self._proc_queue_task:
             self._proc_queue_task.cancel()
@@ -222,14 +222,14 @@ class ProtocolContext:
 
         try:
             pkt: Packet = await asyncio.wait_for(fut, timeout)
-        except asyncio.TimeoutError as exc:
+        except asyncio.TimeoutError as err:
             self.set_state(IsFailed)
             raise exceptions.ProtocolSendFailed(
                 f"{cmd._hdr}: Timeout (outer) has expired"
-            ) from exc
-        except exceptions.ProtocolError as exc:
+            ) from err
+        except exceptions.ProtocolError as err:
             self.set_state(IsFailed)
-            raise exceptions.ProtocolSendFailed(f"{cmd._hdr}: Other error") from exc
+            raise exceptions.ProtocolSendFailed(f"{cmd._hdr}: Other error") from err
 
         self._ensure_queue_processor()  # because just completed job
         return pkt
@@ -268,8 +268,8 @@ class ProtocolContext:
 
             try:
                 result = await self._send_cmd(*params)
-            except exceptions.ProtocolSendFailed as exc:
-                fut.set_exception(exc)
+            except exceptions.ProtocolSendFailed as err:
+                fut.set_exception(err)
             else:
                 fut.set_result(result)
             finally:
@@ -304,11 +304,11 @@ class ProtocolContext:
                 await send_fnc(cmd)  # the wrapped function (actual Tx.write)
                 assert isinstance(self.state, WantEcho), f"{self}: Expects WantEcho"
 
-            except (AssertionError, exceptions.ProtocolFsmError) as exc:  # FIXME
+            except (AssertionError, exceptions.ProtocolFsmError) as err:  # FIXME
                 msg = f"{self}: Failed to Tx echo {cmd.tx_header}"
                 if num_retries == max_retries:
-                    raise _ProtocolWaitFailed(f"{msg}: {exc}") from exc
-                _LOGGER.debug(f"{msg} (will retry): {exc}")
+                    raise _ProtocolWaitFailed(f"{msg}: {err}") from err
+                _LOGGER.debug(f"{msg} (will retry): {err}")
                 continue
 
             try:  # receive the echo pkt
@@ -336,11 +336,11 @@ class ProtocolContext:
 
                 assert isinstance(next_state, WantRply), f"{self}: Expects WantRply"
 
-            except (AssertionError, exceptions.ProtocolFsmError) as exc:
+            except (AssertionError, exceptions.ProtocolFsmError) as err:
                 msg = f"{self}: Failed to Rx echo {cmd.tx_header}"
                 if num_retries == max_retries:
-                    raise _ProtocolEchoFailed(f"{msg}: {exc}") from exc
-                _LOGGER.debug(f"{msg} (will retry): {exc}")
+                    raise _ProtocolEchoFailed(f"{msg}: {err}") from err
+                _LOGGER.debug(f"{msg} (will retry): {err}")
                 continue
 
             try:  # receive the reply pkt (if any)
@@ -351,11 +351,11 @@ class ProtocolContext:
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                 assert prev_state._rply_pkt, f"{self}: Missing rply packet"
 
-            except (AssertionError, exceptions.ProtocolFsmError) as exc:
+            except (AssertionError, exceptions.ProtocolFsmError) as err:
                 msg = f"{self}: Failed to Rx reply {cmd.rx_header}"
                 if num_retries == max_retries:
-                    raise _ProtocolRplyFailed(f"{msg}: {exc}") from exc
-                _LOGGER.debug(f"{msg} (will retry): {exc}")
+                    raise _ProtocolRplyFailed(f"{msg}: {err}") from err
+                _LOGGER.debug(f"{msg} (will retry): {err}")
                 continue
 
             return prev_state._rply_pkt
@@ -436,7 +436,7 @@ class _ProtocolStateBase:
         else:
             self._context.set_state(IsInIdle)
 
-    def lost_connection(self, exc: ExceptionT | None) -> None:
+    def lost_connection(self, err: ExceptionT | None) -> None:
         """Set the Context to Inactive (can't Tx, will not Rx)."""
         self._context.set_state(Inactive)
 

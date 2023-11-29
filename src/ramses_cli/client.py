@@ -544,8 +544,8 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
         msg = "ended via: GracefulExit"
     except KeyboardInterrupt:  # FIXME: why isn't this captured here? see main
         msg = "ended via: KeyboardInterrupt"
-    except RamsesException as exc:
-        msg = f"ended via: RamsesException: {exc}"
+    except RamsesException as err:
+        msg = f"ended via: RamsesException: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"
     finally:
@@ -576,8 +576,8 @@ def main():
 
     try:
         result = cli(standalone_mode=False)
-    except click.NoSuchOption as exc:
-        print(f"Error: {exc}")
+    except click.NoSuchOption as err:
+        print(f"Error: {err}")
         sys.exit(-1)
 
     if isinstance(result, int):
