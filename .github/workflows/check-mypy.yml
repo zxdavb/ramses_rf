@@ -31,11 +31,12 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+    - name: Install mypy
+      run: |
+        pip install mypy
 
     - name: Check with mypy
       run: |
-        pip install mypy
         mypy --config-file pyproject.toml
-
 
     - run: echo "🍏 This job's status is ${{ job.status }}."
