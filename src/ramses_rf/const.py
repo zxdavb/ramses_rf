@@ -35,6 +35,7 @@ from ramses_tx.const import (  # noqa: F401
     SZ_EXHAUST_TEMP,
     SZ_FAN_INFO,
     SZ_FAN_MODE,
+    SZ_FILTER_REMAINING,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
