@@ -4,11 +4,12 @@
 name: Typing via mypy
 
 on:
+  # pull_request:
+  #   branches: [ "master" ]
   push:
     branches: [ "master" ]
     paths: ["src/**.py", "tests/**.py"]
-  # pull_request:
-  #   branches: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   lint:  # name of job
