@@ -1,19 +1,20 @@
 #
 # https://docs.astral.sh/ruff/integrations/#github-actions
 
-name: Linting with ruff
+name: Linting via ruff
 
 on:
-  push:
-    tags:
-      - '*'
   pull_request:
+    branches: [ "master" ]
+  push:
+    branches: [ "master" ]
+    paths: ["src/**", "tests/**"]
+  workflow_dispatch:
 
 
 jobs:
-  lint:
+  lint:  # name of job
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
@@ -23,3 +24,5 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: chartboost/ruff-action@v1
+
+      - run: echo "🍏 This job's status is ${{ job.status }}."

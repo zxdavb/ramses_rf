@@ -4,15 +4,15 @@
 name: Typing via mypy
 
 on:
-  # pull_request:
-  #   branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
   push:
     branches: [ "master" ]
     paths: ["src/**.py", "tests/**.py"]
   workflow_dispatch:
 
 jobs:
-  lint:  # name of job
+  type:  # name of job
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -21,6 +21,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
