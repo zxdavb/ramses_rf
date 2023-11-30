@@ -3,5 +3,37 @@
 2022-07-03T22:52:34.571579 045  W --- 37:171871 32:155617 --:------ 10D0 002 00FF          # {'reset_counter': True}
 2022-07-03T22:52:34.596526 066  I --- 32:155617 37:171871 --:------ 10D0 006 0047B44F0000  # {'days_remaining':  71, 'days_lifetime': 180, 'percent_remaining': 0.395}
 
-2022-07-03T23:14:23.854089 000 RQ --- 37:155617 32:155617 --:------ 10D0 002 0000          #
-2022-07-03T23:14:23.876088 084 RP --- 32:155617 37:155617 --:------ 10D0 006 00B4B4C80000  # {'days_remaining': 180, 'days_lifetime': 180, 'percent_remaining': 1.0}
+2022-07-03T23:14:23.854089 000 RQ --- 37:155617 32:155617 --:------ 10D0 002 0000          # {}
+2022-07-03T23:14:23.876088 084 RP --- 32:155617 37:155617 --:------ 10D0 006 00B4B4C80000  # {'days_remaining': 180, 'days_lifetime': 180, 'percent_remaining': 1.000}
+
+#
+2023-11-01T20:25:49.228066 ... RP --- 32:134446 18:203011 --:------ 10D0 006 008AB4990000  # {'days_remaining': 138, 'days_lifetime': 180, 'percent_remaining': 0.765}
+2023-11-02T20:25:49.927806 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0089B4980000  # {'days_remaining': 137, 'days_lifetime': 180, 'percent_remaining': 0.760}
+2023-11-03T20:25:49.979478 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0088B4970000  # {'days_remaining': 136, 'days_lifetime': 180, 'percent_remaining': 0.755}
+# 23-11-04T19:29:07.432279 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0087B4960000  # {'days_remaining': 135, 'days_lifetime': 180, 'percent_remaining': 0.750}
+# 23-11-05T19:29:07.544748 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0086B4950000  # {'days_remaining': 134, 'days_lifetime': 180, 'percent_remaining': 0.745}
+# 23-11-06T19:29:13.914545 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0085B4940000  # {'days_remaining': 133, 'days_lifetime': 180, 'percent_remaining': 0.740}
+# 23-11-07T19:29:13.977274 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0084B4920000  # {'days_remaining': 132, 'days_lifetime': 180, 'percent_remaining': 0.730}
+# 23-11-08T19:29:24.368157 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0083B4910000  # {'days_remaining': 131, 'days_lifetime': 180, 'percent_remaining': 0.725}
+# 23-11-09T19:29:24.446395 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0082B4900000  # {'days_remaining': 130, 'days_lifetime': 180, 'percent_remaining': 0.720}
+# 23-11-10T19:29:24.528672 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0081B48F0000  # {'days_remaining': 129, 'days_lifetime': 180, 'percent_remaining': 0.715}
+# 23-11-11T19:29:24.600630 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0080B48E0000  # {'days_remaining': 128, 'days_lifetime': 180, 'percent_remaining': 0.710}
+# 23-11-12T19:29:24.686249 ... RP --- 32:134446 18:203011 --:------ 10D0 006 007FB48D0000  # {'days_remaining': 127, 'days_lifetime': 180, 'percent_remaining': 0.705}
+# 23-11-13T19:29:27.080645 ... RP --- 32:134446 18:203011 --:------ 10D0 006 007EB48C0000  # {'days_remaining': 126, 'days_lifetime': 180, 'percent_remaining': 0.700}
+# 23-11-14T19:29:27.149740 ... RP --- 32:134446 18:203011 --:------ 10D0 006 007DB48B0000  # {'days_remaining': 125, 'days_lifetime': 180, 'percent_remaining': 0.695}
+# 23-11-15T19:29:27.224311 ... RP --- 32:134446 18:203011 --:------ 10D0 006 007CB48A0000  # {'days_remaining': 124, 'days_lifetime': 180, 'percent_remaining': 0.690}
+# 23-11-16T19:29:27.283847 ... RP --- 32:134446 18:203011 --:------ 10D0 006 007BB4880000  # {'days_remaining': 123, 'days_lifetime': 180, 'percent_remaining': 0.680}
+# 23-11-17T19:29:27.378398 ... RP --- 32:134446 18:203011 --:------ 10D0 006 007AB4870000  # {'days_remaining': 122, 'days_lifetime': 180, 'percent_remaining': 0.675}
+# 23-11-18T19:29:27.500781 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0079B4860000  # {'days_remaining': 121, 'days_lifetime': 180, 'percent_remaining': 0.670}
+# 23-11-20T07:31:28.228047 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0078B4850000  # {'days_remaining': 120, 'days_lifetime': 180, 'percent_remaining': 0.665}
+# 23-11-21T07:31:34.929680 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0077B4840000  # {'days_remaining': 119, 'days_lifetime': 180, 'percent_remaining': 0.660}
+# 23-11-22T07:31:35.017874 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0076B4830000  # {'days_remaining': 118, 'days_lifetime': 180, 'percent_remaining': 0.655}
+# 23-11-23T07:31:41.159647 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0075B4820000  # {'days_remaining': 117, 'days_lifetime': 180, 'percent_remaining': 0.650}
+# 23-11-24T07:31:48.841543 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0074B4810000  # {'days_remaining': 116, 'days_lifetime': 180, 'percent_remaining': 0.645}
+# 23-11-25T07:31:48.919613 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0073B4800000  # {'days_remaining': 115, 'days_lifetime': 180, 'percent_remaining': 0.640}
+# 23-11-26T07:31:48.985120 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0072B47F0000  # {'days_remaining': 114, 'days_lifetime': 180, 'percent_remaining': 0.635}
+# 23-11-27T07:31:49.063216 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0071B47D0000  # {'days_remaining': 113, 'days_lifetime': 180, 'percent_remaining': 0.625}
+# 23-11-28T17:00:58.659712 ... RP --- 32:134446 18:203011 --:------ 10D0 006 0070B47C0000  # {'days_remaining': 112, 'days_lifetime': 180, 'percent_remaining': 0.620}
+# 23-11-29T11:08:48.521825 ... RP --- 32:134446 18:203011 --:------ 10D0 006 006FB47B0000  # {'days_remaining': 111, 'days_lifetime': 180, 'percent_remaining': 0.615}
+# 23-11-29T18:24:16.933875 ... RP --- 32:134446 29:162275 --:------ 10D0 006 006EB47A0000  # {'days_remaining': 110, 'days_lifetime': 180, 'percent_remaining': 0.610}
+# 23-11-30T06:42:49.677596 ... RP --- 32:134446 18:203011 --:------ 10D0 006 006EB47A0000  # {'days_remaining': 110, 'days_lifetime': 180, 'percent_remaining': 0.610}
