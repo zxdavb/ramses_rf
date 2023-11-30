@@ -4,9 +4,10 @@
 name: Testing via pytest
 
 on:
-  pull_request:
-    branches: [ "master", "stable" ]
   push:
+    branches: [ "master", "stable" ]
+    paths: ["src/**.py", "tests/**"]
+  pull_request:
     branches: [ "master", "stable" ]
     paths: ["src/**.py", "tests/**"]
   workflow_dispatch:

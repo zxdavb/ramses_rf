@@ -4,9 +4,10 @@
 name: Linting via ruff
 
 on:
-  pull_request:
-    branches: [ "master", "stable" ]
   push:
+    branches: [ "master", "stable" ]
+    paths: ["src/**.py", "tests/**"]
+  pull_request:
     branches: [ "master", "stable" ]
     paths: ["src/**.py", "tests/**"]
   workflow_dispatch:
@@ -27,8 +28,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-
-      - uses: chartboost/ruff-action@v1
 
       - name: Install dependencies
         run: |
