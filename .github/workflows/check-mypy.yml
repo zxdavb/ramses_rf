@@ -5,11 +5,12 @@ name: Typing via mypy
 
 on:
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "stable" ]
   push:
-    branches: [ "master" ]
-    paths: ["src/**.py", "tests/**.py", "py.typed"]
+    branches: [ "master", "stable" ]
+    paths: ["src/**.py", "tests/**.py", "src/**/py.typed"]
   workflow_dispatch:
+
 
 jobs:
   type:  # name of job

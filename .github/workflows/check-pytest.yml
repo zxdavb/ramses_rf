@@ -4,12 +4,13 @@
 name: Testing via pytest
 
 on:
-  # pull_request:
-  #   branches: [ "master" ]
+  pull_request:
+    branches: [ "master", "stable" ]
   push:
-    branches: [ "master" ]
-    paths: ["src/**", "tests/**"]
+    branches: [ "master", "stable" ]
+    paths: ["src/**.py", "tests/**"]
   workflow_dispatch:
+
 
 jobs:
   test:  # name of job

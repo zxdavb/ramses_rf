@@ -5,10 +5,10 @@ name: Linting via ruff
 
 on:
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "stable" ]
   push:
-    branches: [ "master" ]
-    paths: ["src/**", "tests/**"]
+    branches: [ "master", "stable" ]
+    paths: ["src/**.py", "tests/**"]
   workflow_dispatch:
 
 
