@@ -4,7 +4,6 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 from __future__ import annotations
 
-from logging import Logger
 from typing import TYPE_CHECKING
 
 from .address import NUL_DEV_ADDR, NUL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
@@ -16,7 +15,6 @@ from .const import (  # noqa: F401
     SZ_ZONE_IDX,
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
-    __dev_mode__,
 )
 from .logger import set_logger_timesource, set_pkt_logging  # noqa: F401
 from .message import Message  # noqa: F401
@@ -62,6 +60,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+    from logging import Logger
+
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
