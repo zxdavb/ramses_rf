@@ -1,7 +1,10 @@
-2023-12-01T20:54:01.881750 049  I --- 12:010740 --:------ 12:010740 1060 003 00FF01 # {'battery_low': False, 'battery_level': None}
-2023-12-01T20:54:01.881750 049  I --- 12:010740 --:------ 12:010740 1060 003 00FF00 # {'battery_low': True, 'battery_level': None}
-2023-12-01T20:54:01.881750 049  I --- 04:056057 --:------ 04:056057 1060 003 002800 # {'battery_low': True, 'battery_level': 0.2}
-2023-12-01T20:54:01.881750 049  I --- 04:189076 --:------ 01:145038 1060 003 026401 # {'battery_low': False, 'battery_level': 0.5, 'zone_idx': '02'}
+# Note: FF == None for DTS
+2023-12-01T00:01:01.000000 ...  I --- 12:010740 --:------ 12:010740 1060 003 00FF01  # {'battery_low': False, 'battery_level': None}
+2023-12-01T00:01:02.000000 ...  I --- 12:010740 --:------ 12:010740 1060 003 00FF00  # {'battery_low': True,  'battery_level': None}
 
-# DTR4 (Battery always 0%)
-2023-12-01T20:54:01.881750 049  I --- 22:014583 --:------ 22:014583 1060 003 000001 # {'battery_low': False, 'battery_level': None}
+#
+2023-12-01T00:02:01.000000 ...  I --- 04:056057 --:------ 04:056057 1060 003 002800  # {'battery_low': True,  'battery_level': 0.2}
+2023-12-01T00:02:02.000000 ...  I --- 04:189076 --:------ 01:145038 1060 003 026401  # {'battery_low': False, 'battery_level': 0.5, 'zone_idx': '02'}
+
+# Note: 00 = None for DTR4 (battery_level is always 0%)
+2023-12-01T20:54:01.881750 049  I --- 22:014583 --:------ 22:014583 1060 003 000001  # {'battery_low': False, 'battery_level': None}
