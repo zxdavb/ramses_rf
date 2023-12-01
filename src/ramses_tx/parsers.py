@@ -810,17 +810,13 @@ def parser_1060(payload: str, msg: Message) -> dict:
 
     Some devices (04:) will also report battery level.
     """
-    # 06:48:23.948 049  I --- 12:010740 --:------ 12:010740 1060 003 00FF01
-    # 16:18:43.515 051  I --- 12:010740 --:------ 12:010740 1060 003 00FF00
-    # 16:14:44.180 054  I --- 04:056057 --:------ 04:056057 1060 003 002800
-    # 17:34:35.460 087  I --- 04:189076 --:------ 01:145038 1060 003 026401
 
     assert msg.len == 3, msg.len
     assert payload[4:6] in ("00", "01")
 
     return {
         "battery_low": payload[4:] == "00",
-        "battery_level": hex_to_percent(payload[2:4]),
+        "battery_level": None if payload[2:4] == "00" else hex_to_percent(payload[2:4]),
     }
 
 
