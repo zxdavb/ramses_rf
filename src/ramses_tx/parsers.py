@@ -956,7 +956,6 @@ def parser_10e0(payload: str, msg: Message) -> dict:
         )
 
     description, _, unknown = payload[36:].partition("00")
-    assert msg.verb == RP or not unknown, f"{unknown}"
 
     result = {
         SZ_OEM_CODE: payload[14:16],  # 00/FF is CH/DHW, 01/6x is HVAC
@@ -972,7 +971,7 @@ def parser_10e0(payload: str, msg: Message) -> dict:
         # "_signature": payload[2:20],
         "description": bytearray.fromhex(description).decode(),
     }
-    if msg.verb == RP and unknown:  # TODO: why only OTBs do this?
+    if unknown:  # TODO: why only RP|OTB, I|DT4s do this?
         result[f"_{SZ_UNKNOWN}"] = unknown
     return result
 
