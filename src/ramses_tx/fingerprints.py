@@ -19,6 +19,7 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "0002FF050BFFFFFFFF": ("TRV", "04", "2017-03-07", "HR91 Radiator Ctrl."),
     "0001C8810B0700FEFF": ("OTB", "10", "2019-08-20", "R8820"),
     "0002FF0A0CFFFFFFFF": ("OTB", "10", "2014-07-31", "R8810A Bridge"),
+    "0002FF1F00FFFFFFFF": ("DTS", "22", "0000-00-00", "DT4 22"),
     "0002FF1E01FFFFFFFF": ("RFG", "30", "2013-12-04", "Internet Gateway"),
     "0002FF1E02FFFFFFFF": ("RFG", "30", "2014-10-17", "Internet Gateway"),
     "0002FF1E03FFFFFFFF": ("RFG", "30", "2017-04-21", "Internet Gateway"),
