@@ -3,5 +3,5 @@
 2023-12-01T20:54:01.881750 049  I --- 04:056057 --:------ 04:056057 1060 003 002800 # {'battery_low': True, 'battery_level': 0.2}
 2023-12-01T20:54:01.881750 049  I --- 04:189076 --:------ 01:145038 1060 003 026401 # {'battery_low': False, 'battery_level': 0.5, 'zone_idx': '02'}
 
-# DTR4 (Battery always 0%)
+# DT4R (Battery always 0%)
 2023-12-01T20:54:01.881750 049  I --- 22:014583 --:------ 22:014583 1060 003 000001 # {'battery_low': False, 'battery_level': None}
