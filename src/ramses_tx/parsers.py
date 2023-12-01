@@ -820,7 +820,7 @@ def parser_1060(payload: str, msg: Message) -> dict:
 
     return {
         "battery_low": payload[4:] == "00",
-        "battery_level": hex_to_percent(payload[2:4]),
+        "battery_level": None if payload[2:4] == "00" else hex_to_percent(payload[2:4]),
     }
 
 
