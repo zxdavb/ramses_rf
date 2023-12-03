@@ -664,6 +664,7 @@ def parse_fan_info(value: HexStr2) -> Mapping[str, list | str | None]:
         0x00,
         0x20,
         0x40,
+        0x60,
         0x80,
     ), f"invalid fan_info: {int(value, 16) & 0xE0}"
 

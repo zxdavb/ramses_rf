@@ -230,7 +230,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._10E0: {  # device_info
         SZ_NAME: "device_info",
         I_: r"^(00|FF)([0-9A-F]{30,})?$",  # r"^[0-9A-F]{32,}$" might be OK
-        RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
+        RQ: r"^00$",  # NOTE: 63 seen (no RP), some devices will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
         SZ_LIFESPAN: False,
     },
@@ -489,9 +489,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._2411: {  # fan_params, HVAC
         SZ_NAME: "fan_params",
-        I_: r"^0000[0-9A-F]{6}([0-9A-F]{8}){4}[0-9A-F]{4}$",
-        RQ: r"^0000[0-9A-F]{2}((00){19})?$",
-        W_: r"^0000[0-9A-F]{6}[0-9A-F]{8}(([0-9A-F]{8}){3}[0-9A-F]{4})?$",
+        I_: r"^(00|01|15|16|17|21)00[0-9A-F]{6}([0-9A-F]{8}){4}[0-9A-F]{4}$",
+        RQ: r"^(00|01|15|16|17|21)00[0-9A-F]{2}((00){19})?$",
+        W_: r"^(00|01|15|16|17|21)00[0-9A-F]{6}[0-9A-F]{8}(([0-9A-F]{8}){3}[0-9A-F]{4})?$",
     },
     Code._2420: {  # unknown_2420, from OTB
         SZ_NAME: "message_2420",
@@ -556,13 +556,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_state",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
-        I_: r"^(00|01|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|01|04|08)?)?$",  # 00-0004-FE
-        RQ: r"^(00|01|21)$",
+        I_: r"^(00|01|15|16|17|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|01|04|08)?)?$",  # 00-0004-FE
+        RQ: r"^(00|01|15|16|17|21)$",
     },
     Code._31DA: {  # hvac_state (fan_state_extended)
         SZ_NAME: "hvac_state",
         I_: r"^(00|01|15|16|17|21)[0-9A-F]{56}(00|20)?$",
-        RQ: r"^(00|01|21)$",
+        RQ: r"^(00|01|15|16|17|21)$",
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
     Code._31E0: {  # fan_demand
@@ -640,7 +640,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._4E02: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e02",
-        I_: r"^00([0-9A-F]{4}){3,12}(02|04)([0-9A-F]{4}){3,12}$",
+        I_: r"^00([0-9A-F]{4}){3,12}(02|03|04|05)([0-9A-F]{4}){3,12}$",
     },
     Code._4E04: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e04",
@@ -649,7 +649,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._4E0D: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e0d",
-        I_: r"^01(00|01)$",
+        I_: r"^(01|02)(00|01)$",
     },
     Code._4E15: {  # xxx (HVAC) - Itho Spider
         SZ_NAME: "hvac_4e15",
@@ -738,6 +738,7 @@ CODE_IDX_SIMPLE.extend(
         Code._1260,
         Code._1F41,
         Code._22D0,
+        Code._2411,
         Code._31D9,
         Code._31DA,
         Code._3B00,

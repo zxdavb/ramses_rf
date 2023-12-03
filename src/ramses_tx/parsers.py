@@ -2124,6 +2124,7 @@ def parser_31d9(payload: str, msg: Message) -> dict:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> dict:
     return {
+        **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_fan_info(payload[36:38]),  # 22F3-ish
         #
         **parse_air_quality(payload[2:6]),  # 12C8[2:6]
@@ -2136,7 +2137,6 @@ def parser_31da(payload: str, msg: Message) -> dict:
         **parse_outdoor_temp(payload[26:30]),  # 1290?
         **parse_capabilities(payload[30:34]),
         **parse_bypass_position(payload[34:36]),  # 22F7-ish
-        **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_supply_fan_speed(payload[40:42]),
         **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
         **parse_post_heater(payload[46:48]),
@@ -2449,7 +2449,7 @@ def parser_3ef0(
                 "cool_active": bool(int(payload[6:8], 0x10) & 1 << 4),
                 "flame_on": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
                 "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
-                "_unknown_5": payload[10:12],  # FF, 1C, ?others
+                "_unknown_5": payload[10:12],  # FF, 13, 1C, ?others
             }
         )
 
@@ -2486,7 +2486,7 @@ def parser_3ef0(
         # only 10:040239 does 04
 
         assert "_unknown_5" not in result or (
-            payload[10:12] in ("00", "1C", "FF")
+            payload[10:12] in ("00", "13", "1C", "FF")
         ), f"byte 5: {payload[10:12]}"
 
         assert "_flags_6" not in result or (
@@ -2563,6 +2563,14 @@ def parser_4401(payload: str, msg: Message) -> dict:
     # 2022-07-28T14:22:20.571640 085  I --- 20:255251 20:229597 --:------ 4401 020 10  39-E99E90F1  00-E99E90F1-5CFF  40-00000000-000A
     # 2022-07-28T14:22:20.648696 058  I --- 20:257400 20:255710 --:------ 4401 020 10  0B-E99E90F2  00-E99E90F1-D4FF  DA-00000000-000B
 
+    # 2022-11-03T23:00:04.854479 088 RQ --- 20:256717 37:013150 --:------ 4401 020 10  00-00259261  00-00000000-0000  00-00000000-0063
+    # 2022-11-03T23:00:05.102491 045  I --- 37:013150 20:256717 --:------ 4401 020 10  00-00259261  00-000C9E4C-1800  00-00000000-0063
+    # 2022-11-03T23:00:17.820659 072  I --- 20:256112 20:255825 --:------ 4401 020 10  00-00F1EB91  00-00E8871B-B700  00-00000000-0063
+    # 2022-11-03T23:01:25.495391 065  I --- 20:257732 20:257680 --:------ 4401 020 10  00-002E9C98  00-00107923-9E00  00-00000000-0063
+    # 2022-11-03T23:01:33.753467 066 RQ --- 20:257732 20:256112 --:------ 4401 020 10  00-0010792C  00-00000000-0000  00-00000000-0063
+    # 2022-11-03T23:01:33.997485 072  I --- 20:256112 20:257732 --:------ 4401 020 10  00-0010792C  00-00E88767-AD00  00-00000000-0063
+    # 2022-11-03T23:01:52.391989 090  I --- 20:256717 20:255301 --:------ 4401 020 10  00-009870E1  00-002592CC-6300  00-00000000-0063
+
     def hex_to_epoch(seqx: str) -> None | str:  # seconds since 1-1-1970
         if seqx == "00" * 4:
             return None
@@ -2574,18 +2582,18 @@ def parser_4401(payload: str, msg: Message) -> dict:
     # hex(int(dt.fromisoformat("2022-07-28T14:21:38.895354").timestamp())).upper()
     # '0x62E20ED2'
 
-    assert payload[:2] == "10"
-    assert payload[12:14] == "00"
-    assert payload[36:38] == "00"
+    assert payload[:2] == "10", payload[:2]
+    assert payload[12:14] == "00", payload[12:14]
+    assert payload[36:38] == "00", payload[36:38]
 
-    assert msg.verb != I_ or payload[24:26] in ("7C", "FF"), payload[24:26]
+    assert msg.verb != I_ or payload[24:26] in ("00", "7C", "FF"), payload[24:26]
     assert msg.verb != W_ or payload[24:26] in ("7C", "FF"), payload[24:26]
     assert msg.verb != RQ or payload[24:26] == "00", payload[24:26]
 
     assert msg.verb != RQ or payload[14:22] == "00" * 4, payload[14:22]
     assert msg.verb != W_ or payload[28:36] != "00" * 4, payload[28:36]
 
-    assert payload[38:40] in ("08", "09", "0A", "0B"), payload[38:40]
+    assert payload[38:40] in ("08", "09", "0A", "0B", "63"), payload[38:40]
 
     # assert payload[2:4] == payload[26:28], f"{payload[2:4]}, {payload[26:24]}"
 
@@ -2640,7 +2648,12 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
     x, y = 0, 2 + num_groups * 4
 
     assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # expect no context
-    assert payload[y : y + 2] in ("02", "04"), _INFORM_DEV_MSG  # mode: cool/heat?
+    assert payload[y : y + 2] in (
+        "02",
+        "03",
+        "04",
+        "05",
+    ), _INFORM_DEV_MSG  # mode: cool/heat?
 
     setpoints = [
         (hex_to_temp(payload[x + i :][:4]), hex_to_temp(payload[y + i :][:4]))
@@ -2648,7 +2661,9 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
     ]  # lower, upper setpoints
 
     return {
-        "mode": {"02": "cool", "04": "heat"}[payload[y : y + 2]],
+        "mode": {"02": "cool", "03": "cool+", "04": "heat", "05": "cool+"}[
+            payload[y : y + 2]
+        ],
         "setpoint_bounds": [s if s != (None, None) else None for s in setpoints],
     }
 
@@ -2656,7 +2671,7 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
 # hvac_4e04
 def parser_4e04(payload: str, msg: Message) -> dict:
     assert payload[2:4] in ("00", "01", "02")  # off/heat/cool?
-    assert int(payload[4:], 16) < 0x3C or payload[4:] in (
+    assert int(payload[4:], 16) < 0x40 or payload[4:] in (
         "FB",  # error code?
         "FC",  # error code?
         "FD",  # error code?
@@ -2674,8 +2689,6 @@ def parser_4e04(payload: str, msg: Message) -> dict:
 def parser_4e0d(payload: str, msg: Message) -> dict:
     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0100  # Itho Autotemp: only(?) master -> slave
     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0101  # why does it have a context?
-
-    assert payload in ("0100", "0101"), _INFORM_DEV_MSG
 
     return {
         "_payload": payload,

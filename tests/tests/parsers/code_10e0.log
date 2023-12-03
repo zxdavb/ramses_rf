@@ -75,20 +75,28 @@
 
 
 #
+# oem_code '00' - unknown
+2023-11-04T12:34:14.007611 062  I --- 30:068457 63:262142 --:------ 10E0 038 000001C9001B0000FEFEFFFFFFFF0E0507E2425244472D30324A415330310000000000000000  # {'description': 'BRDG-02JAS01',        'manufacturer_sub_id': 'C9', 'product_id': '00', 'date_2': '0000-00-00', 'date_1': '2018-05-14', 'oem_code': '00'}
+
+#
 # oem_code '01' - Itho Spider HVAC (also Buva?)
-2023-02-17T17:25:15.843652 ...  I --- 21:033244 63:262142 --:------ 10E0 038 00000100220B0001FEFFFFFFFFFF140107DF4343552D31325432300000000000000000000000  # {'description': 'CCU-12T20',           'date_2': '0000-00-00', 'date_1': '2015-01-20', 'manufacturer_sub_id': '00', 'product_id': '22', 'oem_code': '01'}  # , '_signature': '000100220B0001FEFF'}
-2023-02-17T14:09:33.394018 ...  I --- 37:108640 --:------ 37:108640 10E0 038 000001001B381B01FEFFFFFFFFFF0E0207E44356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'date_2': '0000-00-00', 'date_1': '2020-02-14', 'manufacturer_sub_id': '00', 'product_id': '1B', 'oem_code': '01'}
-2023-02-18T12:14:03.120035 ...  I --- 37:062388 --:------ 37:062388 10E0 038 000001001B371B01FEFFFFFFFFFF1D0807E34356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'date_2': '0000-00-00', 'date_1': '2019-08-29', 'manufacturer_sub_id': '00', 'product_id': '1B', 'oem_code': '01'}
-2023-10-26T00:00:00.000000 ...  I --- 37:211856 --:------ 37:211856 10E0 038 000001001B391B01FEFFFFFFFFFF040B07E54356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'date_2': '0000-00-00', 'date_1': '2021-11-04', 'manufacturer_sub_id': '00', 'product_id': '1B', 'oem_code': '01'}  # Manufacturer is Buva?
+2022-11-03T22:50:34.060486 ...  I --- 37:255297 63:262142 --:------ 10E0 038 00000100290A0201FFFFFFFFFFFF140407E5564D532D31324842313600000000000000000000  # {'description': 'VMS-12HB16',          'manufacturer_sub_id': '00', 'product_id': '29', 'date_2': '0000-00-00', 'date_1': '2021-04-20', 'oem_code': '01'}  # sig: 000100290A0201FFFF
+2023-02-17T17:25:15.843652 ...  I --- 21:033244 63:262142 --:------ 10E0 038 00000100220B0001FEFFFFFFFFFF140107DF4343552D31325432300000000000000000000000  # {'description': 'CCU-12T20',           'manufacturer_sub_id': '00', 'product_id': '22', 'date_2': '0000-00-00', 'date_1': '2015-01-20', 'oem_code': '01'}  # , '_signature': '000100220B0001FEFF'}
+2023-02-17T14:09:33.394018 ...  I --- 37:108640 --:------ 37:108640 10E0 038 000001001B381B01FEFFFFFFFFFF0E0207E44356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'manufacturer_sub_id': '00', 'product_id': '1B', 'date_2': '0000-00-00', 'date_1': '2020-02-14', 'oem_code': '01'}
+2023-02-18T12:14:03.120035 ...  I --- 37:062388 --:------ 37:062388 10E0 038 000001001B371B01FEFFFFFFFFFF1D0807E34356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'manufacturer_sub_id': '00', 'product_id': '1B', 'date_2': '0000-00-00', 'date_1': '2019-08-29', 'oem_code': '01'}
+2023-10-26T00:00:00.000000 ...  I --- 37:211856 --:------ 37:211856 10E0 038 000001001B391B01FEFFFFFFFFFF040B07E54356452D52460000000000000000000000000000  # {'description': 'CVE-RF',              'manufacturer_sub_id': '00', 'product_id': '1B', 'date_2': '0000-00-00', 'date_1': '2021-11-04', 'oem_code': '01'}  # Manufacturer is Buva?
+
+# 22-11-03T13:38:29.603029 090 RQ --- 18:125558 29:060584 --:------ 10E0 001 63  # no RPs seen
+2022-11-03T09:12:17.801459 095  I --- 18:125558 63:262142 --:------ 10E0 038 000001FA100B0001FEFEFFFFFFFF160707E3425244472D303241353500000000000000000000  # {'oem_code': '01', 'manufacturer_sub_id': 'FA', 'product_id': '10', 'date_1': '2019-07-22', 'date_2': '0000-00-00', 'description': 'BRDG-02A55'}
 
 # oem_code '66'  - Vasco CH/DHW & HVAC
-2023-02-18T19:56:43.537735 059  I --- 29:136571 63:262142 --:------ 10E0 038 000001C822030166FEFFFFFFFFFF070507DF564D532D31374330310000000000000000000000  # {'description': 'VMS-17C01',           'manufacturer_sub_id': 'C8', 'product_id': '22', 'oem_code': '66', 'date_2': '0000-00-00', 'date_1': '2015-05-07'}  # CO2 sensor
-2023-02-19T11:37:53.826773 032  I --- 30:006056 63:262142 --:------ 10E0 038 000001C848260066FEFEFFFFFFFF1C0B07E3425244472D3032454D3233000000000000000000  # {'description': 'BRDG-02EM23',         'manufacturer_sub_id': 'C8', 'product_id': '48', 'oem_code': '66', 'date_2': '0000-00-00', 'date_1': '2019-11-28'}  # Vasco gateway (more like a CTL, but also RFG)
-2023-02-19T11:37:59.549235 072 RP --- 29:079817 30:006056 --:------ 10E0 029 000001C81C090466FEFFFFFFFFFFFFFFFFFF564D432D31375250303100                    # {'description': 'VMC-17RP01',          'manufacturer_sub_id': 'C8', 'product_id': '1C', 'oem_code': '66', 'date_2': '0000-00-00', 'date_1': '0000-00-00'}  # Vasco C400RF extraction unit (EXT, not HRU/PIV)
+2023-02-18T19:56:43.537735 059  I --- 29:136571 63:262142 --:------ 10E0 038 000001C822030166FEFFFFFFFFFF070507DF564D532D31374330310000000000000000000000  # {'description': 'VMS-17C01',           'manufacturer_sub_id': 'C8', 'product_id': '22', 'date_2': '0000-00-00', 'date_1': '2015-05-07', 'oem_code': '66'}  # CO2 sensor
+2023-02-19T11:37:53.826773 032  I --- 30:006056 63:262142 --:------ 10E0 038 000001C848260066FEFEFFFFFFFF1C0B07E3425244472D3032454D3233000000000000000000  # {'description': 'BRDG-02EM23',         'manufacturer_sub_id': 'C8', 'product_id': '48', 'date_2': '0000-00-00', 'date_1': '2019-11-28', 'oem_code': '66'}  # Vasco gateway (more like a CTL, but also RFG)
+2023-02-19T11:37:59.549235 072 RP --- 29:079817 30:006056 --:------ 10E0 029 000001C81C090466FEFFFFFFFFFFFFFFFFFF564D432D31375250303100                    # {'description': 'VMC-17RP01',          'manufacturer_sub_id': 'C8', 'product_id': '1C', 'date_2': '0000-00-00', 'date_1': '0000-00-00', 'oem_code': '66'}  # Vasco C400RF extraction unit (EXT, not HRU/PIV)
 
 # oem_code '67' - Orcon HVAC
-2022-11-10T20:43:45.452809 060  I --- 32:236773 63:262142 --:------ 10E0 030 000001C85F0E0267FFFFFFFFFFFFFFFFFFFF564D432D3135525053333400                  # {'description': 'VMC-15RPS34',         'date_2': '0000-00-00', 'date_1': '0000-00-00', 'manufacturer_sub_id': 'C8', 'product_id': '5F', 'oem_code': '67'}                                      # Orcon MVS-15?
-2023-09-20 20:12:43.056000 ...  I --- 32:161205 63:262142 --:------ 10E0 038 000001C87D130D67FEFFFFFFFFFF1C0207E3564D442D3135524D533634000000000000000000  # {'description': 'VMD-15RMS64',         'date_2': '0000-00-00', 'date_1': '2019-02-28', 'manufacturer_sub_id': 'C8', 'product_id': '7D', 'oem_code': '67'}  # , '_signature': '0001C87D130D67FEFF'}  # Orcon HRC-300-EcoMax
+2022-11-10T20:43:45.452809 060  I --- 32:236773 63:262142 --:------ 10E0 030 000001C85F0E0267FFFFFFFFFFFFFFFFFFFF564D432D3135525053333400                  # {'description': 'VMC-15RPS34',         'manufacturer_sub_id': 'C8', 'product_id': '5F', 'date_2': '0000-00-00', 'date_1': '0000-00-00', 'oem_code': '67'}                                      # Orcon MVS-15?
+2023-09-20 20:12:43.056000 ...  I --- 32:161205 63:262142 --:------ 10E0 038 000001C87D130D67FEFFFFFFFFFF1C0207E3564D442D3135524D533634000000000000000000  # {'description': 'VMD-15RMS64',         'manufacturer_sub_id': 'C8', 'product_id': '7D', 'date_2': '0000-00-00', 'date_1': '2019-02-28', 'oem_code': '67'}  # , '_signature': '0001C87D130D67FEFF'}  # Orcon HRC-300-EcoMax
 
 2019-11-27T22:39:00.000000 ...  I --- 32:097277 63:262142 --:------ 10E0 038 000001C8510D0167FEFFFFFFFFFF0B0207E3564D532D3135434D313700000000000000000000  # {'description': 'VMS-15CM17',          'manufacturer_sub_id': 'C8', 'product_id': '51', 'oem_code': '67', 'date_1': '2019-02-11', 'date_2': '0000-00-00'} # Orcon CO2 sensor type 32 not known to have sig: 0001C8510D0167FEFF)
 2019-11-27T22:39:00.000000 ...  I --- 32:097710 63:262142 --:------ 10E0 038 000001C8510D0167FEFFFFFFFFFF0B0207E3564D532D3135434D313700000000000000000000  # {'description': 'VMS-15CM17',          'manufacturer_sub_id': 'C8', 'product_id': '51', 'oem_code': '67', 'date_1': '2019-02-11', 'date_2': '0000-00-00'} # Orcon CO2 sensor type 32 not known to have sig: 0001C8510D0167FEFF)
@@ -103,3 +111,4 @@
 
 #
 # WIP
+2023-11-04T12:34:14.007611 062  I --- 30:068457 63:262142 --:------ 10E0 038 000001C9001B0000FEFEFFFFFFFF0E0507E2425244472D30324A415330310000000000000000  # {'oem_code': '00', 'manufacturer_sub_id': 'C9', 'product_id': '00', 'date_1': '2018-05-14', 'date_2': '0000-00-00', 'description': 'BRDG-02JAS01'}
