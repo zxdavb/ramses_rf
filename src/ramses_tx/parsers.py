@@ -2670,7 +2670,13 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
 
 # hvac_4e04
 def parser_4e04(payload: str, msg: Message) -> dict:
-    assert payload[2:4] in ("00", "01", "02")  # off/heat/cool?
+    MODE = {
+        "00": "off",
+        "01": "heat",
+        "02": "cool",
+    }
+
+    assert payload[2:4] in MODE, _INFORM_DEV_MSG
     assert int(payload[4:], 16) < 0x40 or payload[4:] in (
         "FB",  # error code?
         "FC",  # error code?
@@ -2680,7 +2686,7 @@ def parser_4e04(payload: str, msg: Message) -> dict:
     )
 
     return {
-        "mode": payload[2:4],
+        "mode": MODE.get(payload[2:4], "Unknown"),
         "_unknown_2": payload[4:],
     }
 
