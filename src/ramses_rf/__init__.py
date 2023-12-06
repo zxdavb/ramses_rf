@@ -19,6 +19,7 @@ from ramses_tx import Address, Command, Message, Packet  # noqa: F401
 
 from .device import Device  # noqa: F401
 from .gateway import Gateway  # noqa: F401
+from .version import VERSION  # noqa: F401
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,

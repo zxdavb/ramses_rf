@@ -36,6 +36,7 @@ from .transport import (  # noqa: F401, pylint: disable=unused-import
     is_hgi80,
     transport_factory,
 )
+from .version import VERSION  # noqa: F401
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
