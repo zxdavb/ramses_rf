@@ -3,10 +3,14 @@
 #
 """RAMSES RF - Typing for RamsesProtocol & RamsesTransport."""
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime as dt
 from enum import IntEnum
+from io import TextIOWrapper
 from typing import Any, Protocol, TypeVar
+
+from serial import Serial  # type: ignore[import-untyped]
 
 from .command import Command
 from .message import Message
@@ -106,12 +110,29 @@ class SendParams:
 class RamsesTransportT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Transport."""
 
+    _is_closing: bool
     # _is_reading: bool
+
+    def __init__(
+        self,
+        protocol: asyncio.Protocol,
+        pkt_source: Serial | dict | TextIOWrapper,
+        loop: asyncio.AbstractEventLoop | None = None,
+        extra: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> None:
+        ...
 
     def _dt_now(self) -> dt:
         ...
 
-    def close(self, err: ExceptionT | None = None) -> None:
+    def _abort(self, exc: ExceptionT | None = None) -> None:  # only in serial transport
+        ...
+
+    def _close(self, exc: ExceptionT | None = None) -> None:
+        ...
+
+    def close(self) -> None:
         ...
 
     def get_extra_info(self, name, default: Any | None = None) -> Any:
@@ -136,8 +157,9 @@ class RamsesTransportT(Protocol):
     def send_frame(self, frame: str) -> None:
         ...
 
-    # NOTE this should not be included - a RamsesProtocol will not invoke it
-    # def write(self, data: bytes) -> None: ...
+    # NOTE RamsesProtocol will not invoke write() directly
+    def write(self, data: bytes) -> None:
+        ...
 
 
 class RamsesProtocolT(Protocol):
@@ -145,6 +167,9 @@ class RamsesProtocolT(Protocol):
 
     _pause_writing: bool
     _transport: RamsesTransportT
+
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
+        ...
 
     def add_handler(
         self, /, *, msg_handler: MsgHandlerT, msg_filter: MsgFilterT | None = None

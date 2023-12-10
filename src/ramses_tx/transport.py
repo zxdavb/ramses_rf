@@ -135,11 +135,8 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     # otherwise, we can use comports()...
     komports = comports(include_links=True)  # doesn't include by-id links!
 
-    # TODO: shouldn't need get() - not monkeypatching comports() correctly
-    try:
-        vid = {x.device: x.vid for x in komports}[serial_port]
-    except KeyError:
-        vid = None
+    # TODO: remove get(): not monkeypatching comports() correctly for /dev/pts/...
+    vid = {x.device: x.vid for x in komports}.get(serial_port)
 
     # this works, but we may not have all valid VIDs
     if not vid:
@@ -149,7 +146,7 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     elif vid in (0x0403, 0x1B4F):  # FTDI, SparkFun
         return False
 
-    # TODO: shouldn't need get()
+    # TODO: remove get(): not monkeypatching comports() correctly for /dev/pts/...
     product = {x.device: getattr(x, "product", None) for x in komports}.get(serial_port)
 
     if not product:  # is None - VM, or not member of plugdev group?
@@ -196,41 +193,10 @@ def _str(value: bytes) -> str:
     return result
 
 
-class _PktMixin:
-    """Base class for RAMSES II transports."""
-
-    _this_pkt: Packet | None
-    _prev_pkt: Packet | None
-    _protocol: RamsesProtocolT
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        self._this_pkt: Packet = None
-        self._prev_pkt: Packet = None
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._protocol})"
-
-    def _pkt_received(self, pkt: Packet) -> None:
-        """Pass any valid/wanted Packets to the protocol's callback.
-
-        Also maintain _prev_pkt, _this_pkt attrs.
-        """
-
-        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
-
-        # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
-        # NOTE: Thus, excepts need checking
-        try:  # below could be a call_soon?
-            self._protocol.pkt_received(pkt)
-        except AssertionError as err:  # protect from upper-layer callbacks
-            _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
-
-
-class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
+class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
+    _protocol: RamsesProtocolT
     _extra: dict[str, Any]  # mypy
 
     def __init__(
@@ -248,6 +214,9 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
 
         super().__init__(*args, **kwargs)
 
+        self._this_pkt: Packet | None = None
+        self._prev_pkt: Packet | None = None
+
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
@@ -260,6 +229,9 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
 
         # TODO: maybe this shouldn't be called for read-only transports?
         self._extra[SZ_KNOWN_HGI] = self._get_known_hgi(include_list)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._protocol})"
 
     def _get_known_hgi(self, include_list: dict[DeviceId, Any]) -> DeviceId | None:
         """Return the device_id of the gateway specified in the include_list, if any.
@@ -383,10 +355,22 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here too
         return True
 
     def _pkt_received(self, pkt: Packet) -> None:
-        """Validate a Packet and dispatch it to the protocol's callback."""
+        """Pass any valid/wanted Packets to the protocol's callback.
 
-        if self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
-            super()._pkt_received(pkt)  # type: ignore[misc]
+        Also maintain _prev_pkt, _this_pkt attrs.
+        """
+
+        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
+            return
+
+        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
+
+        # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
+        # NOTE: Thus, excepts need checking
+        try:  # below could be a call_soon?
+            self._protocol.pkt_received(pkt)
+        except AssertionError as err:  # protect from upper-layer callbacks
+            _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
 
 
 class _RegHackMixin:
@@ -423,7 +407,7 @@ class _RegHackMixin:
         super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
-class _FileTransport(_PktMixin, asyncio.ReadTransport):
+class _FileTransport(asyncio.ReadTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
     READER_TASK = "reader_task"
@@ -448,19 +432,6 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         self._is_reading: bool = False
 
         self._reader_task = self._loop.create_task(self._start_reader())
-
-    def _dt_now(self) -> dt:
-        """Return a precise datetime, using a packet's dtm field."""
-
-        try:
-            return dt.fromisoformat(self._dtm_str)  # always current pkt's dtm
-        except (TypeError, ValueError):
-            pass
-
-        try:
-            return self._this_pkt.dtm  # type: ignore[union-attr]
-        except AttributeError:
-            return dt(1970, 1, 1, 1, 0)
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -529,11 +500,19 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
             return
         self._pkt_received(pkt)
 
-    def send_frame(self, frame: str) -> None:
-        raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
+    def _pkt_received(self, pkt: Packet) -> None:
+        raise NotImplementedError
 
-    def close(self, err: ExceptionT | None = None) -> None:
-        """Close the transport (calls self._protocol.connection_lost())."""
+    def send_frame(self, frame: str) -> None:  # NotImplementedError
+        raise NotImplementedError(f"{self}: This Protocol is Read-Only")
+
+    def write(self, data: bytes) -> None:  # NotImplementedError
+        raise NotImplementedError(f"{self}: This Protocol is Read-Only")
+
+    def _abort(self, exc: ExceptionT | None = None) -> None:  # NotImplementedError
+        raise NotImplementedError(f"{self}: Not implemented")
+
+    def _close(self, exc: ExceptionT | None = None) -> None:
         if self._is_closing:
             return
         self._is_closing = True
@@ -541,18 +520,20 @@ class _FileTransport(_PktMixin, asyncio.ReadTransport):
         if self._reader_task:
             self._reader_task.cancel()
 
-        self._loop.call_soon(self._protocol.connection_lost, err)
+        self._loop.call_soon(self._protocol.connection_lost, exc)
+
+    def close(self) -> None:
+        """Close the transport (calls self._protocol.connection_lost())."""
+        self._close()
 
 
-class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore[misc]
+class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     """Poll a serial port for packets, and send (without QoS)."""
 
     loop: asyncio.AbstractEventLoop
     serial: Serial
 
     _init_fut: asyncio.Future
-    _init_task: asyncio.Task | None = None
-
     _recv_buffer: bytes = b""
 
     def __init__(
@@ -575,7 +556,8 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
         try:
             data: bytes = self._serial.read(self._max_read_size)
         except SerialException as e:
-            self._close(err=e)
+            if not self._closing:
+                self._close(exc=e)
             return
 
         if data:
@@ -632,17 +614,36 @@ class _PortTransport(_PktMixin, serial_asyncio.SerialTransport):  # type: ignore
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # logs: SENT(bytes)
+        if self._closing:
+            return
+
         if _DEBUG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Tx:     %s", data)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Tx:     %s", data)
-        super().write(data)
 
-    def close(self, err: ExceptionT | None = None) -> None:
-        """Close the transport (calls self._protocol.connection_lost())."""
-        super().close()
+        try:
+            super().write(data)
+        except SerialException as e:
+            self._abort(exc=e)
+            return
+
+    def _abort(self, exc: ExceptionT | None = None) -> None:
+        super()._abort(exc=exc)
+
         if self._init_task:
             self._init_task.cancel()
+
+    def _close(self, exc: ExceptionT | None = None) -> None:
+        super()._close(exc=exc)
+
+        if self._init_task:
+            self._init_task.cancel()
+
+    def close(self) -> None:
+        """Close the transport gracefully (calls self._protocol.connection_lost())."""
+        if not self._closing:
+            self._close()
 
 
 # ### Read-Only Transports for dict / log file ########################################
@@ -654,6 +655,19 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
             raise exc.TransportSourceInvalid("This Transport cannot send packets")
         super().__init__(*args, **kwargs)
         self.loop.call_soon(self._protocol.connection_made, self)
+
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using a packet's dtm field."""
+
+        try:
+            return dt.fromisoformat(self._dtm_str)  # always current pkt's dtm
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            return self._this_pkt.dtm  # type: ignore[union-attr]
+        except AttributeError:
+            return dt(1970, 1, 1, 1, 0)
 
 
 # ### Read-Write Transport for serial port ############################################
