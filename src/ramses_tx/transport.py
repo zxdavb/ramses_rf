@@ -534,6 +534,8 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     serial: Serial
 
     _init_fut: asyncio.Future
+    _init_task: asyncio.Task
+
     _recv_buffer: bytes = b""
 
     def __init__(
@@ -628,8 +630,8 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             self._abort(exc=e)
             return
 
-    def _abort(self, exc: ExceptionT | None = None) -> None:
-        super()._abort(exc=exc)
+    def _abort(self, exc: ExceptionT) -> None:
+        super()._abort(exc)
 
         if self._init_task:
             self._init_task.cancel()

@@ -126,7 +126,7 @@ class RamsesTransportT(Protocol):
     def _dt_now(self) -> dt:
         ...
 
-    def _abort(self, exc: ExceptionT | None = None) -> None:  # only in serial transport
+    def _abort(self, exc: ExceptionT) -> None:  # only in serial transport
         ...
 
     def _close(self, exc: ExceptionT | None = None) -> None:
