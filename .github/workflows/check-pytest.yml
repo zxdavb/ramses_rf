@@ -42,7 +42,8 @@ jobs:
 
       - name: Test via pytest
         run: |
-          pytest -v
+          pytest -v tests/tests     # --log-cli-level=WARNING
+          # pytest -v tests/tests_rf  # --log-cli-level=WARNING
 
       # - name: Test with without voluptuous
       #   run: |
