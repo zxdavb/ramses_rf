@@ -333,8 +333,8 @@ class _Discovery(_MessageDB):
 
         # BUG: FIXME: The Bug
         if not gwy.config.disable_discovery and not gwy._disable_sending:
-            gwy._loop.call_soon(self._start_discovery_poller)
             # self._start_discovery_poller()  # Cant use: derived classes dont exist yet
+            gwy._loop.call_soon(self._start_discovery_poller)
 
     @property  # TODO: needs tidy up
     def discovery_cmds(self) -> dict:

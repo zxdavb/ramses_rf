@@ -9,7 +9,7 @@ Test the various helper APIs.
 # TODO: add test for ramses_tx.frame.pkt_header()
 
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
-from ramses_rf.helpers import merge
+from ramses_rf.helpers import deep_merge
 from ramses_tx.const import attr_dict_factory
 from tests.helpers import assert_raises
 
@@ -20,26 +20,26 @@ def test_merge_dicts() -> None:
     src = {"top": {"deep": {"in_both": "1", "in_src": "dog"}}}
     dst = {"top": {"deep": {"in_both": "9", "in_dst": "cat"}}}
     out = {"top": {"deep": {"in_both": "1", "in_src": "dog", "in_dst": "cat"}}}
-    assert out == merge(src, dst)
+    assert out == deep_merge(src, dst)
 
     assert out != dst
-    assert out == merge(src, dst, _dc=True)
+    assert out == deep_merge(src, dst, _dc=True)
     assert out == dst
 
     src = {"top": {"deep": {"in_both": [0, 1]}}}
     dst = {"top": {"deep": {"in_both": [0, 9]}}}
     out = {"top": {"deep": {"in_both": [0, 1, 9]}}}
-    assert out == merge(src, dst)
+    assert out == deep_merge(src, dst)
 
     src = {"top": {"deep": {"in_both": "non-list"}}}
     dst = {"top": {"deep": {"in_both": [0, 9]}}}
     out = {"top": {"deep": {"in_both": "non-list"}}}
-    assert out == merge(src, dst)
+    assert out == deep_merge(src, dst)
 
     src = {"top": {"deep": {"in_both": [0, 1]}}}
     dst = {"top": {"deep": {"in_both": "non-list"}}}
     out = {"top": {"deep": {"in_both": [0, 1]}}}
-    assert out == merge(src, dst)
+    assert out == deep_merge(src, dst)
 
 
 def test_attrdict_class() -> None:

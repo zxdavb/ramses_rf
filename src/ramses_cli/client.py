@@ -15,7 +15,7 @@ from colorama import Fore, Style, init as colorama_init
 from ramses_rf import Gateway, GracefulExit, Message, exceptions as exc
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
-from ramses_rf.helpers import merge
+from ramses_rf.helpers import deep_merge
 from ramses_rf.schemas import (
     SCH_GLOBAL_CONFIG,
     SZ_CONFIG,
@@ -200,7 +200,9 @@ def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
         lib_kwargs[SZ_CONFIG][SZ_ENABLE_EAVESDROP] = eavesdrop
 
     if config_file:  # TODO: validate with voluptuous, use YAML
-        lib_kwargs = merge(lib_kwargs, json.load(config_file))  # CLI takes precidence
+        lib_kwargs = deep_merge(
+            lib_kwargs, json.load(config_file)
+        )  # CLI takes precidence
 
     ctx.obj = kwargs, lib_kwargs
 

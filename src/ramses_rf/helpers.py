@@ -10,7 +10,7 @@ from copy import deepcopy
 from inspect import iscoroutinefunction
 
 
-def merge(src: dict, dst: dict, _dc: bool = None) -> dict:
+def deep_merge(src: dict, dst: dict, _dc: bool = None) -> dict:
     """Deep merge a src dict (precedent) into a dst dict and return the result.
 
     run me with nosetests --with-doctest file.py
@@ -25,7 +25,7 @@ def merge(src: dict, dst: dict, _dc: bool = None) -> dict:
     for key, value in src.items():  # values are only: dict, list, value or None
         if isinstance(value, dict):  # is dict
             node = new_dst.setdefault(key, {})  # get node or create one
-            merge(value, node, _dc=True)
+            deep_merge(value, node, _dc=True)
 
         elif not isinstance(value, list):  # is value
             new_dst[key] = value  # src takes precidence, assert will fail
