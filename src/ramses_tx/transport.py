@@ -626,8 +626,8 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         try:
             super().write(data)
-        except SerialException as e:
-            self._abort(exc=e)
+        except SerialException as exc:
+            self._abort(exc)
             return
 
     def _abort(self, exc: ExceptionT) -> None:
