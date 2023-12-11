@@ -399,7 +399,9 @@ class Gateway(Engine):
         ):
             return self.device_by_id.get(device_id)
 
-    async def start(self, /, *, start_discovery: bool = True) -> None:
+    async def start(
+        self, /, *, start_discovery: bool = True, cached_packets: dict | None = None
+    ) -> None:
         """Start the Gateway and Initiate discovery as required."""
 
         def initiate_discovery(dev_list, sys_list) -> None:
@@ -416,9 +418,18 @@ class Gateway(Engine):
                 if system.dhw:
                     system.dhw._start_discovery_poller()
 
+        self.config.disable_discovery, disable_discovery = (
+            True,
+            self.config.disable_discovery,
+        )
+
         load_schema(self, **self._schema)
 
         await super().start()
+        if cached_packets:
+            await self.set_state(cached_packets, clear_state=True)
+
+        self.config.disable_discovery = disable_discovery
 
         if (
             not self._disable_sending
@@ -467,7 +478,7 @@ class Gateway(Engine):
         return args  # type: ignore[return-value]
 
     def _clear_state(self) -> None:
-        _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
+        _LOGGER.warning("ENGINE: Clearing existing schema/state...")
 
         self._tcs = None
         self.devices = []
@@ -522,7 +533,7 @@ class Gateway(Engine):
         is schema is None (rather than {}), use the existing schema.
         """
 
-        _LOGGER.warning("ENGINE: Restoring a schema/state...")
+        _LOGGER.warning("ENGINE: Restoring a state...")
 
         self._pause()
 
