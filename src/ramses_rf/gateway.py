@@ -478,7 +478,7 @@ class Gateway(Engine):
         return args  # type: ignore[return-value]
 
     def _clear_state(self) -> None:
-        _LOGGER.warning("ENGINE: Clearing existing schema/state...")
+        _LOGGER.info("ENGINE: Clearing existing schema/state...")
 
         self._tcs = None
         self.devices = []
@@ -547,6 +547,7 @@ class Gateway(Engine):
 
         await self._set_state(packets, schema=schema)
 
+        _LOGGER.warning("ENGINE: Restored, resuming")
         self._resume()
 
     async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
