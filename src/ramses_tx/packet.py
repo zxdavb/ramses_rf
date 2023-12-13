@@ -202,6 +202,6 @@ def pkt_lifespan(pkt: Packet) -> td:  # import OtbGateway??
 
     if (code := CODES_SCHEMA.get(pkt.code)) and SZ_LIFESPAN in code:  # type: ignore[call-overload]
         result: bool | td | None = CODES_SCHEMA[pkt.code][SZ_LIFESPAN]  # type: ignore[index]
-        return result if isinstance(result, dt) else _TD_MINS_060
+        return result if isinstance(result, td) else _TD_MINS_060
 
     return _TD_MINS_060  # applies to lots of HVAC packets
