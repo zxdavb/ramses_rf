@@ -1,2 +1,17 @@
+# Spaco
+2023-12-11T19:58:49.052180 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00012C012CC8FF  # {'modulation_level': 1.0, 'actuator_countdown':  300, 'cycle_countdown':  300, '_unknown_0': 'FF'}
+2023-12-11T19:59:22.051988 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00010B010B00FF  # {'modulation_level': 0.0, 'actuator_countdown':  267, 'cycle_countdown':  267, '_unknown_0': 'FF'}
+2023-12-11T19:59:23.120092 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 000022FEF600FF  # {'modulation_level': 0.0, 'actuator_countdown':   34, 'cycle_countdown':   34, '_unknown_0': 'FF'}
+2023-12-11T19:59:25.052002 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 000020FEF400FF  # {'modulation_level': 0.0, 'actuator_countdown':   32, 'cycle_countdown':   32, '_unknown_0': 'FF'}
+2023-12-11T20:00:25.097451 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00FFE4FEB800FF  # {'modulation_level': 0.0, 'actuator_countdown':  -28, 'cycle_countdown':  -28, '_unknown_0': 'FF'}
+2023-12-11T20:00:28.100551 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00FFE1FEB500FF  # {'modulation_level': 0.0, 'actuator_countdown':  -31, 'cycle_countdown':  -31, '_unknown_0': 'FF'}
+2023-12-11T20:00:31.101474 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00FFDEFEB200FF  # {'modulation_level': 0.0, 'actuator_countdown':  -34, 'cycle_countdown':  -34, '_unknown_0': 'FF'}
+2023-12-11T20:01:01.102224 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00FFC0FE9400FF  # {'modulation_level': 0.0, 'actuator_countdown':  -64, 'cycle_countdown':  -64, '_unknown_0': 'FF'}
+2023-12-11T20:01:31.104146 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00FFA2FE7600FF  # {'modulation_level': 0.0, 'actuator_countdown':  -94, 'cycle_countdown':  -94, '_unknown_0': 'FF'}
+2023-12-11T20:02:01.103768 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00FF84FE5800FF  # {'modulation_level': 0.0, 'actuator_countdown': -124, 'cycle_countdown': -124, '_unknown_0': 'FF'}
+2023-12-11T20:03:49.053949 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00012C012CC8FF  # {'modulation_level': 1.0, 'actuator_countdown':  300, 'cycle_countdown':  300, '_unknown_0': 'FF'}
+2023-12-11T20:08:49.057789 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00012C012CC8FF  # {'modulation_level': 1.0, 'actuator_countdown':  300, 'cycle_countdown':  300, '_unknown_0': 'FF'}
+2023-12-11T20:13:49.057656 ... RP --- 13:259021 18:071950 --:------ 3EF1 007 00012C012CC8FF  # {'modulation_level': 1.0, 'actuator_countdown':  300, 'cycle_countdown':  300, '_unknown_0': 'FF'}
+
 # issue #74
 # 21-01-01T00:00:00.000000 055 RP --- 13:107116 18:201230 --:------ 3EF1 007 0000AA00A63FF9  # issue #74

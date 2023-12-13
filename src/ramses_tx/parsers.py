@@ -2522,13 +2522,6 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
     percent = hex_to_percent(payload[10:12])
 
     if payload[12:] == "FF":  # is BDR
-        # assert (
-        #     re.compile(r"^00[0-9A-F]{10}FF").match(payload)
-        # ), "doesn't match: " + r"^00[0-9A-F]{10}FF"
-        assert int(payload[2:6], 16) <= 7200, f"byte 1: {payload[2:6]}"
-        # assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
-        #     int(payload[6:10], 16) <= 7200
-        # ), f"byte 3: {payload[6:10]}"
         assert percent is None or percent in (0, 1), f"byte 5: {payload[10:12]}"
 
     else:  # is OTB
@@ -2540,10 +2533,21 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
         assert percent is None or percent <= 1, f"byte 5: {payload[10:12]}"
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
+    if cycle_countdown is not None:
+        if cycle_countdown > 0x7FFF:
+            cycle_countdown -= 0x10000
+        assert cycle_countdown < 7200, f"byte 1: {payload[2:6]}"  # 7200 seconds
+
+    actuator_countdown = None if payload[6:10] == "7FFF" else int(payload[6:10], 16)
+    if actuator_countdown is not None:
+        if actuator_countdown > 0x7FFF:  # "87B3", "9DFA", "DCE1", "E638", "F8F7"
+            # actuator_countdown = 0x10000 - actuator_countdown  + cycle_countdown
+            actuator_countdown = cycle_countdown  # Needs work
+        # assert actuator_countdown <= cycle_countdown, f"byte 3: {payload[6:10]}"
 
     return {
         "modulation_level": percent,  # 0008[2:4], 3EF0[2:4]
-        "actuator_countdown": int(payload[6:10], 16),
+        "actuator_countdown": actuator_countdown,
         "cycle_countdown": cycle_countdown,
         f"_{SZ_UNKNOWN}_0": payload[12:],
     }
