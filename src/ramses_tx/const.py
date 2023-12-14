@@ -451,6 +451,7 @@ SYS_MODE_MAP = attr_dict_factory(
 )
 
 
+SZ_ACTIVE: Final[str] = "active"
 SZ_ACTUATOR: Final[str] = "actuator"
 SZ_ACTUATORS: Final[str] = "actuators"
 SZ_BINDINGS: Final[str] = "bindings"

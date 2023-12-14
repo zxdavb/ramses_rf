@@ -32,6 +32,7 @@ from .const import (
     FAULT_TYPE,
     SYS_MODE_MAP,
     SZ_ACCEPT,
+    SZ_ACTIVE,
     SZ_ACTUATOR,
     SZ_BINDINGS,
     SZ_CHANGE_COUNTER,
@@ -1212,7 +1213,7 @@ def parser_1f41(payload: str, msg: Message) -> dict:
 
     result = {SZ_MODE: ZON_MODE_MAP.get(payload[4:6])}
     if payload[2:4] != "FF":
-        result["active"] = {"00": False, "01": True, "FF": None}[payload[2:4]]
+        result[SZ_ACTIVE] = {"00": False, "01": True, "FF": None}[payload[2:4]]
     # if payload[4:6] == ZON_MODE_MAP.COUNTDOWN:
     #     result[SZ_UNTIL] = dtm_from_hex(payload[6:12])
     if payload[4:6] == ZON_MODE_MAP.TEMPORARY:
