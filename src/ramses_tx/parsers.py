@@ -38,6 +38,7 @@ from .const import (
     SZ_CHANGE_COUNTER,
     SZ_CONFIRM,
     SZ_DATETIME,
+    SZ_DEMAND,
     SZ_DEVICE_CLASS,
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
@@ -51,16 +52,23 @@ from .const import (
     SZ_INDOOR_HUMIDITY,
     SZ_IS_DST,
     SZ_LANGUAGE,
+    SZ_LOCAL_OVERRIDE,
+    SZ_MAX_TEMP,
+    SZ_MIN_TEMP,
     SZ_MODE,
+    SZ_MULTIROOM_MODE,
     SZ_NAME,
     SZ_OEM_CODE,
     SZ_OFFER,
+    SZ_OPENWINDOW_FUNCTION,
     SZ_OUTDOOR_HUMIDITY,
     SZ_PAYLOAD,
+    SZ_PERCENTAGE,
     SZ_PHASE,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
     SZ_SETPOINT,
+    SZ_SETPOINT_BOUNDS,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_TOTAL_FRAGS,
@@ -383,19 +391,14 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # zone_params (zone_config)
 def parser_000a(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
-    # RQ --- 34:044203 01:158182 --:------ 000A 001 08
-    # RP --- 01:158182 34:044203 --:------ 000A 006 081001F409C4
-    # RQ --- 22:017139 01:140959 --:------ 000A 006 080001F40DAC
-    # RP --- 01:140959 22:017139 --:------ 000A 006 081001F40DAC
-
     def _parser(seqx) -> dict:  # null_rp: "007FFF7FFF"
         bitmap = int(seqx[2:4], 16)
         return {
-            "min_temp": hex_to_temp(seqx[4:8]),
-            "max_temp": hex_to_temp(seqx[8:]),
-            "local_override": not bool(bitmap & 1),
-            "openwindow_function": not bool(bitmap & 2),
-            "multiroom_mode": not bool(bitmap & 16),
+            SZ_MIN_TEMP: hex_to_temp(seqx[4:8]),
+            SZ_MAX_TEMP: hex_to_temp(seqx[8:]),
+            SZ_LOCAL_OVERRIDE: not bool(bitmap & 1),
+            SZ_OPENWINDOW_FUNCTION: not bool(bitmap & 2),
+            SZ_MULTIROOM_MODE: not bool(bitmap & 16),
             f"_{SZ_UNKNOWN}_bitmap": f"0b{bitmap:08b}",  # TODO: try W with this
         }  # cannot determine zone_type from this information
 
@@ -613,8 +616,8 @@ def parser_01ff(payload: str, msg: Message) -> dict:
     )
 
     return {
-        "temperature": None if msg.verb in (RP, W_) else int(payload[4:6], 16) / 2,
-        "setpoint_bounds": setpoint_bounds,
+        SZ_TEMPERATURE: None if msg.verb in (RP, W_) else int(payload[4:6], 16) / 2,
+        SZ_SETPOINT_BOUNDS: setpoint_bounds,
         "time_planning": not bool(int(payload[10:12], 16) & 1 << 6),
         "temp_adjusted": bool(int(payload[10:12], 16) & 1 << 5),
         "_flags_10": payload[10:12],  #
@@ -1404,8 +1407,8 @@ def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01 or 02"
 
         return {
-            "mode": {"01": "heat", "02": "cool"}[seqx[10:]],  # TODO: or action?
-            "setpoint_bounds": (hex_to_temp(seqx[2:6]), hex_to_temp(seqx[6:10])),
+            SZ_MODE: {"01": "heat", "02": "cool"}[seqx[10:]],  # TODO: or action?
+            SZ_SETPOINT_BOUNDS: (hex_to_temp(seqx[2:6]), hex_to_temp(seqx[6:10])),
         }  # lower, upper setpoints
 
     if msg._has_array:
@@ -1792,10 +1795,13 @@ def parser_2410(payload: str, msg: Message) -> dict:
         )
         return signed, length, d_type
 
-    assert payload[:6] == "00" * 3, _INFORM_DEV_MSG
-    assert payload[10:18] == "00" * 4, _INFORM_DEV_MSG
-    assert payload[18:26] in ("00000001", "FFFFFFFF"), _INFORM_DEV_MSG
-    assert payload[26:34] in ("00000001", "00000000"), _INFORM_DEV_MSG
+    try:
+        assert payload[:6] == "00" * 3, _INFORM_DEV_MSG
+        assert payload[10:18] == "00" * 4, _INFORM_DEV_MSG
+        assert payload[18:26] in ("00000001", "FFFFFFFF"), _INFORM_DEV_MSG
+        assert payload[26:34] in ("00000001", "00000000"), _INFORM_DEV_MSG
+    except AssertionError as err:
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
     return {
         "tail": payload[34:],
@@ -1971,9 +1977,9 @@ def parser_3110(payload: str, msg: Message) -> dict:
     }.get(int(payload[6:8], 16) & 0x30, SZ_UNKNOWN)
 
     if mode not in (SZ_COOLING, SZ_HEATING):
-        return {"mode": mode}
+        return {SZ_MODE: mode}
 
-    return {"mode": mode, "demand": hex_to_percent(payload[4:6])}
+    return {SZ_MODE: mode, SZ_DEMAND: hex_to_percent(payload[4:6])}
 
 
 # unknown_3120, from STA, FAN
@@ -2334,7 +2340,7 @@ def parser_3222(payload: str, msg: Message) -> dict:
 
     if msg.len == 3:
         assert payload[4:] == "00"
-        return {"percentage": hex_to_percent(payload[2:4])}
+        return {SZ_PERCENTAGE: hex_to_percent(payload[2:4])}
 
     return {
         "start": payload[2:4],
@@ -2666,10 +2672,10 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
     ]  # lower, upper setpoints
 
     return {
-        "mode": {"02": "cool", "03": "cool+", "04": "heat", "05": "cool+"}[
+        SZ_MODE: {"02": "cool", "03": "cool+", "04": "heat", "05": "cool+"}[
             payload[y : y + 2]
         ],
-        "setpoint_bounds": [s if s != (None, None) else None for s in setpoints],
+        SZ_SETPOINT_BOUNDS: [s if s != (None, None) else None for s in setpoints],
     }
 
 
@@ -2691,7 +2697,7 @@ def parser_4e04(payload: str, msg: Message) -> dict:
     )
 
     return {
-        "mode": MODE.get(payload[2:4], "Unknown"),
+        SZ_MODE: MODE.get(payload[2:4], "Unknown"),
         "_unknown_2": payload[4:],
     }
 
