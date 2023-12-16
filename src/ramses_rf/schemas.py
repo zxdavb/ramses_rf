@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-import voluptuous as vol  # type: ignore[import]
+import voluptuous as vol
 
 from ramses_tx.const import (
     SZ_ACTUATORS,
@@ -283,9 +283,16 @@ SCH_GLOBAL_CONFIG = (
 
 #
 # 6/5: External Schemas, to be used by clients of this library
-def NormaliseRestoreCache():
-    def normalise_restore_cache(node_value) -> None:
-        if not isinstance(node_value, bool):
+def NormaliseRestoreCache() -> Callable:
+    """Convert a short-hand restore_cache bool to a dict.
+
+    restore_cache: bool ->  restore_cache:
+                              restore_schema: bool
+                              restore_state: bool
+    """
+
+    def normalise_restore_cache(node_value) -> dict[str, bool]:
+        if isinstance(node_value, dict):
             return node_value
         return {SZ_RESTORE_SCHEMA: node_value, SZ_RESTORE_STATE: node_value}
 
