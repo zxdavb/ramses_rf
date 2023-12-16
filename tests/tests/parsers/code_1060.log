@@ -1,3 +1,6 @@
+# Spaco - "When the packet doesnt end with 01, its always 08"
+# 23-12-01T00:01:01.000000 ...  I --- 04:177718 --:------ 01:201047 1060 003 00FF08  < Payload doesn't match '^0[0-9A-F](FF|[0-9A-F]{2})0[01]$': 00FF08
+
 # Note: FF == None for DTS
 2023-12-01T00:01:01.000000 ...  I --- 12:010740 --:------ 12:010740 1060 003 00FF01  # {'battery_low': False, 'battery_level': None}
 2023-12-01T00:01:02.000000 ...  I --- 12:010740 --:------ 12:010740 1060 003 00FF00  # {'battery_low': True,  'battery_level': None}
