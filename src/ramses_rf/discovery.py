@@ -87,10 +87,10 @@ def script_decorator(fnc):
 
 
 async def periodic(
-    gwy: Gateway, cmd: Command, count: int = 1, interval: None | int = None
+    gwy: Gateway, cmd: Command, count: int = 1, interval: None | float = None
 ):
-    async def _periodic():
-        await asyncio.sleep(interval)
+    async def periodic_(interval_: float) -> None:
+        await asyncio.sleep(interval_)
         gwy.send_cmd(cmd)
 
     if interval is None:
@@ -98,10 +98,10 @@ async def periodic(
 
     if count <= 0:
         while True:
-            await _periodic()
+            await periodic_(interval)
     else:
         for _ in range(count):
-            await _periodic()
+            await periodic_(interval)
 
 
 def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task]:
@@ -168,7 +168,7 @@ async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
         _LOGGER.error("get_schedule(): Function timed out: %s", err)
 
 
-async def set_schedule(gwy: Gateway, ctl_id: str, schedule: dict) -> None:
+async def set_schedule(gwy: Gateway, ctl_id: str, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule[SZ_ZONE_IDX]
 
@@ -279,7 +279,7 @@ async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int 
     start_code = start_code or 0
 
     for code in range(start_code, 0x5000):
-        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))
+        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))  # type:ignore[arg-type]
         await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
 
 
