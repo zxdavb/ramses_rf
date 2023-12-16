@@ -943,11 +943,11 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property  # TODO
     def bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
-        return self._msg_flag(Code._3EF0, "_flags_3", 6)
+        return self._msg_flag(Code._3EF0, "_flags_6", 6)
 
     @property  # TODO
-    def percent(self) -> None | float:  # 2401 - WIP
-        return self._msg_value(Code._2401, key="_percent_3")
+    def percent(self) -> None | float:  # 2401 - WIP (~3150|FC)
+        return self._msg_value(Code._2401, key=SZ_HEAT_DEMAND)
 
     @property  # TODO
     def value(self) -> None | int:  # 2401 - WIP

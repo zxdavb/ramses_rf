@@ -1772,10 +1772,10 @@ def parser_2401(payload: str, msg: Message) -> dict:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
     return {
+        "_flags_2": hex_to_flag8(payload[4:6]),
         SZ_PAYLOAD: payload,
         "_value_2": int(payload[4:6], 0x10),
-        "_flags_2": hex_to_flag8(payload[4:6]),
-        "_percent_3": hex_to_percent(payload[6:]),
+        **parse_valve_demand(payload[6:8]),  # 3150|FC
     }
 
 
