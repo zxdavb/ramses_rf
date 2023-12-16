@@ -208,9 +208,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # super()._setup_discovery_cmds()
 
         for payload in (
-            f"00{DEV_ROLE_MAP.DHW}",
-            f"00{DEV_ROLE_MAP.HTG}",
-            f"01{DEV_ROLE_MAP.HTG}",
+            f"00{DEV_ROLE_MAP.DHW}",  # sensor
+            f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
+            f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
             self._add_discovery_cmd(
                 _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24

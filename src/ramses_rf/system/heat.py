@@ -344,6 +344,12 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if zones:
             result[SZ_ZONES] = zones
 
+        result |= {
+            k: v
+            for k, v in schema.items()
+            if k in ("orphans",) and v  # add UFH?
+        }
+
         return result  # TODO: check against vol schema
 
     @property
