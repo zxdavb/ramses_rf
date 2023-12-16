@@ -82,6 +82,7 @@
     # "src/ramses_rf/binding_fsm.py",
     "src/ramses_rf/const.py",
     "src/ramses_rf/discovery.py",
+    "src/ramses_rf/dispatcher.py",
     "src/ramses_rf/entity_base.py",
     "src/ramses_rf/exceptions.py",
     "src/ramses_rf/helpers.py",

@@ -157,7 +157,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     #
     #
 
-    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
+    if msg.code not in CODES_BY_DEV_SLUG[slug]:
         if slug != DevType.DEV:
             err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
             if STRICT_MODE:
@@ -176,7 +176,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
 
     #
     # (code := CODES_BY_DEV_SLUG[slug][msg.code]) and msg.verb not in code:
-    if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # type: ignore[index]
+    if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:
         err_msg = f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
             raise exc.PacketInvalid(err_msg)
@@ -188,6 +188,8 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
+
+    assert isinstance(msg.src, Device)  # mypy hint
 
     if slug is None:
         slug = getattr(msg.dst, "_SLUG", None)
@@ -209,7 +211,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
     if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Code._3EF1}",):
         return  # HACK: an exception-to-the-rule that need sorting
 
-    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # type: ignore[index]
+    if msg.code not in CODES_BY_DEV_SLUG[slug]:
         if False and slug != DevType.HGI:  # NOTE: not yet needed because of 1st if
             err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
             if STRICT_MODE:
@@ -231,7 +233,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
     # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and verb not in code:
-    if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # type: ignore[index]
+    if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:
         err_msg = f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         if STRICT_MODE:
             raise exc.PacketInvalid(err_msg)
@@ -297,11 +299,12 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
                 and d._context.is_binding
             ]
 
-        elif hasattr(msg.src, SZ_DEVICES):
+        elif hasattr(msg.src, SZ_DEVICES):  # FIXME: use isinstance()
+            # elif isinstance(msg.src, Controller):
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
             # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
             # needed for (e.g.) faked relays: each device decides if the pkt is useful
-            devices = msg.src.devices  # if d._SLUG = "BDR"
+            devices = msg.src.devices  # type: ignore[attr-defined]
 
         else:
             devices = []
@@ -323,13 +326,13 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
 
 
 # TODO: this needs cleaning up (e.g. handle intervening packet)
-def detect_array_fragment(this: Message, prev: Message) -> dict:  # _PayloadT
+def detect_array_fragment(this: Message, prev: Message) -> bool:  # _PayloadT
     """Return a merged array if this pkt is the latter half of an array."""
     # This will work, even if the 2nd pkt._is_array == False as 1st == True
     # .I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
     # .I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
 
-    return (
+    return bool(
         prev
         and prev._has_array
         and this.code in (Code._000A, Code._22C9)  # TODO: not a complete list
