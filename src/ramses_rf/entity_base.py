@@ -202,8 +202,11 @@ class _MessageDB(_Entity):
         """Return a msg, if any, that matches a header."""
 
         msg: Message
+        code: Code
+        verb: Verb
 
-        code, verb, _, *args = hdr.split("|")  # _ is device_id
+        # _ is device_id
+        code, verb, _, *args = hdr.split("|")  # type: ignore[assignment]
 
         try:
             if args and (ctx := args[0]):  # ctx may == True
@@ -535,7 +538,7 @@ class _Discovery(_MessageDB):
     ) -> None:
         """If a code|ctx is deprecated twice, stop polling for it."""
 
-        def deprecate(supported_dict, idx):
+        def deprecate(supported_dict: dict, idx: str):
             if idx not in supported_dict:
                 supported_dict[idx] = None
             elif supported_dict[idx] is None:
@@ -545,7 +548,7 @@ class _Discovery(_MessageDB):
                 )
                 supported_dict[idx] = False
 
-        def reinstate(supported_dict, idx):
+        def reinstate(supported_dict: dict, idx: str):
             if self.is_pollable_cmd(idx, None) is False:
                 _LOGGER.warning(
                     f"{pkt} < Polling now reinstated for code|ctx={idx}: "
@@ -559,7 +562,7 @@ class _Discovery(_MessageDB):
             idx = pkt.code
         else:
             supported_dict = self._supported_cmds_ctx
-            idx = f"{pkt.code}|{ctx}"  # msg._pkt._ctx
+            idx = f"{pkt.code}|{ctx}"  # type: ignore[assignment]
 
         (reinstate if reset else deprecate)(supported_dict, idx)
 

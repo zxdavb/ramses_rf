@@ -78,6 +78,7 @@
   files = [
     "client.py",
     "src/ramses_tx",
+    "src/ramses_rf/const.py",
     "src/ramses_rf/entity_base.py",
     #
     # "src/ramses_rf/device",
@@ -122,7 +123,7 @@
   # # disallow_any_unimported = true
   warn_no_return = true
   # warn_unreachable = true
-
+#
 # [[tool.mypy.overrides]]
 #   module = "ramses_tx.helpers"
 #   warn_return_any = false

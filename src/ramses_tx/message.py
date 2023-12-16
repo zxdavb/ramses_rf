@@ -71,9 +71,9 @@ class MessageBase:
 
         self.dtm: dt = pkt.dtm
 
-        self.verb: str = pkt.verb
+        self.verb: Verb = pkt.verb
         self.seqn: str = pkt.seqn
-        self.code: str = pkt.code
+        self.code: Code = pkt.code
         self.len: int = pkt._len
 
         self._payload = self._validate(self._pkt.payload)  # ? raise InvalidPacketError
@@ -236,7 +236,7 @@ class MessageBase:
 
         assert isinstance(self._pkt._idx, str)  # mypy check
         idx_name = SZ_DOMAIN_ID if self._pkt._idx[:1] == "F" else SZ_ZONE_IDX
-        index_name = IDX_NAMES.get(self.code, idx_name)  # type: ignore[call-overload]
+        index_name = IDX_NAMES.get(self.code, idx_name)
 
         return {index_name: self._pkt._idx}
 
@@ -357,7 +357,7 @@ def _check_msg_payload(msg: MessageBase, payload: str) -> None:
         raise exc.PacketInvalid(f"Unknown code: {msg.code}")
 
     try:
-        regex = CODES_SCHEMA[msg.code][msg.verb]  # type: ignore[index]
+        regex = CODES_SCHEMA[msg.code][msg.verb]
     except KeyError:
         raise exc.PacketInvalid(
             f"Unknown verb/code pair: {msg.verb}/{msg.code}"
