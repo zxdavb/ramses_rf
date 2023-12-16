@@ -77,9 +77,12 @@
   # files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
   files = [
     "client.py",
+    # "src/ramses_cli",
     "src/ramses_tx",
+    #
     # "src/ramses_rf/device",
     # "src/ramses_rf/system",
+    #
     "src/ramses_rf/__init__.py",
     # "src/ramses_rf/binding_fsm.py",
     "src/ramses_rf/const.py",
@@ -91,14 +94,12 @@
     "src/ramses_rf/helpers.py",
     "src/ramses_rf/schemas.py",
     "src/ramses_rf/version.py",
-    #
-    # "src/ramses_rf/device",
   ]
 
   # exclude = []  # doesn't work?
 
 
-  follow_imports = "skip"  # TODO: don't use this feature
+  # follow_imports = "skip"  # TODO: don't use this feature
   no_implicit_optional = false  # TODO: don't use this feature
 
   # see: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
