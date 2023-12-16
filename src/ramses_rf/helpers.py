@@ -8,6 +8,7 @@ import asyncio
 from collections.abc import Callable
 from copy import deepcopy
 from inspect import iscoroutinefunction
+from typing import Any
 
 
 def deep_merge(src: dict, dst: dict, _dc: bool = None) -> dict:
@@ -40,7 +41,9 @@ def deep_merge(src: dict, dst: dict, _dc: bool = None) -> dict:
     return new_dst
 
 
-def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> dict:
+def shrink(
+    value: dict, keep_falsys: bool = False, keep_hints: bool = False
+) -> dict[str, Any]:
     """Return a minimized dict, after removing all the meaningless items.
 
     Specifically, removes items with:
@@ -48,7 +51,7 @@ def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> 
     - falsey values
     """
 
-    def walk(node):
+    def walk(node: Any) -> Any:
         if isinstance(node, dict):
             return {
                 k: walk(v)
@@ -66,7 +69,8 @@ def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> 
     if not isinstance(value, dict):
         raise TypeError("value is not a dict")
 
-    return walk(value)
+    result: dict = walk(value)
+    return result
 
 
 def schedule_task(
