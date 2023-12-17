@@ -173,7 +173,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
         last_time_bit_added = perf_counter()
 
         @wraps(fnc)
-        async def wrapper(self, frame: str, *args, **kwargs):
+        async def wrapper(self, frame: str, *args, **kwargs) -> None:
             nonlocal bits_in_bucket
             nonlocal last_time_bit_added
 
@@ -200,8 +200,8 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
                 bits_in_bucket -= rf_frame_size
 
         @wraps(fnc)
-        async def null_wrapper(*args, **kwargs) -> Any:
-            return await fnc(*args, **kwargs)
+        async def null_wrapper(self, frame: str, *args, **kwargs) -> None:
+            await fnc(self, frame, *args, **kwargs)
 
         if 0 < max_duty_cycle <= 1:
             return wrapper
@@ -556,7 +556,7 @@ class PortProtocol(_BaseProtocol):
         super().pkt_received(pkt)
 
     @avoid_system_syncs
-    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # @limit_transmit_rate(_MAX_TOKENS)
+    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
         await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
