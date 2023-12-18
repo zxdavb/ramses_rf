@@ -2263,7 +2263,7 @@ def parser_3220(payload: str, msg: Message) -> dict:
 
     result = {
         SZ_MSG_ID: ot_id,
-        SZ_MSG_TYPE: ot_type,
+        SZ_MSG_TYPE: str(ot_type),
         SZ_MSG_NAME: ot_value.pop(SZ_MSG_NAME, None),
     }
 
