@@ -34,7 +34,7 @@ _DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
 class Address:
     """The device Address class."""
 
-    # _SLUG = None
+    _SLUG = None
 
     def __init__(self, device_id: DeviceId) -> None:
         """Create an address from a valid device id."""
