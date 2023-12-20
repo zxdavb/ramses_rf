@@ -117,7 +117,6 @@ SCH_TCS_SYS = vol.Schema(
             None, SCH_DEVICE_ID_APP
         ),
         vol.Optional("heating_control"): ErrorRenamedKey(SZ_APPLIANCE_CONTROL),
-        # vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SCH_TCS_SYS_CLASS),
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -134,8 +133,8 @@ SCH_TCS_DHW = vol.Schema(
 
 _CH_TCS_UFH_CIRCUIT = vol.Schema(
     {
-        vol.Required(SCH_UFH_IDX): vol.Any(
-            {vol.Optional(SZ_ZONE_IDX): vol.Any(SCH_ZON_IDX)},
+        vol.Required(SCH_UFH_IDX): vol.Schema(
+            {vol.Optional(SZ_ZONE_IDX): SCH_ZON_IDX},
         ),
     },
     extra=vol.PREVENT_EXTRA,
@@ -163,7 +162,7 @@ SCH_TCS_ZONES_ZON = vol.Schema(
         vol.Optional(SZ_ZONE_TYPE): ErrorRenamedKey(SZ_CLASS),
         vol.Optional("zone_sensor"): ErrorRenamedKey(SZ_SENSOR),
         # vol.Optional(SZ_SENSOR_FAKED): bool,
-        vol.Optional(f"_{SZ_NAME}"): vol.Any(str, None),
+        vol.Optional(f"_{SZ_NAME}"): vol.Any(None, str),
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -178,8 +177,8 @@ SCH_TCS = vol.Schema(
         vol.Optional(SZ_SYSTEM, default={}): vol.Any({}, SCH_TCS_SYS),
         vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCH_TCS_DHW),
         vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCH_TCS_UFH),
-        vol.Optional(SZ_ORPHANS, default=[]): vol.Any(
-            [SCH_DEVICE_ID_ANY], vol.Unique(), vol.Length(min=1)
+        vol.Optional(SZ_ORPHANS, default=[]): vol.All(
+            [SCH_DEVICE_ID_ANY], vol.Unique()
         ),
         vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCH_TCS_ZONES),
         vol.Optional(vol.Remove("is_tcs")): vol.Coerce(bool),
@@ -195,11 +194,13 @@ SZ_SENSORS = "sensors"
 
 SCH_VCS_DATA = vol.Schema(
     {
-        vol.Optional(SZ_REMOTES, default=[]): vol.Any(
-            [SCH_DEVICE_ID_ANY], vol.Unique(), vol.Length(min=1)
+        vol.Optional(SZ_REMOTES, default=[]): vol.All(
+            [SCH_DEVICE_ID_ANY],
+            vol.Unique(),  # vol.Length(min=1)
         ),
-        vol.Optional(SZ_SENSORS, default=[]): vol.Any(
-            [SCH_DEVICE_ID_ANY], vol.Unique(), vol.Length(min=1)
+        vol.Optional(SZ_SENSORS, default=[]): vol.All(
+            [SCH_DEVICE_ID_ANY],
+            vol.Unique(),  # vol.Length(min=1)
         ),
         vol.Optional(vol.Remove("is_vcs")): vol.Coerce(bool),
     },
@@ -228,12 +229,8 @@ SCH_GLOBAL_SCHEMAS_DICT = {  # System schemas - can be 0-many Heat/HVAC schemas
     vol.Optional(vol.Remove("main_controller")): vol.Any(None, SCH_DEVICE_ID_CTL),
     vol.Optional(SCH_DEVICE_ID_CTL): vol.Any(SCH_TCS, SCH_VCS),
     vol.Optional(SCH_DEVICE_ID_ANY): SCH_VCS,  # must be after SCH_DEVICE_ID_CTL
-    vol.Optional(SZ_ORPHANS_HEAT): vol.All(
-        [SCH_DEVICE_ID_ANY], vol.Unique(), vol.Length(min=1)
-    ),
-    vol.Optional(SZ_ORPHANS_HVAC): vol.All(
-        [SCH_DEVICE_ID_ANY], vol.Unique(), vol.Length(min=1)
-    ),
+    vol.Optional(SZ_ORPHANS_HEAT): vol.All([SCH_DEVICE_ID_ANY], vol.Unique()),
+    vol.Optional(SZ_ORPHANS_HVAC): vol.All([SCH_DEVICE_ID_ANY], vol.Unique()),
 }
 SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA)
 

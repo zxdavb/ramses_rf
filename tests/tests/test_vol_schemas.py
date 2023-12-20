@@ -104,10 +104,12 @@ def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
         _test_schema(validator, schema)
     except vol.MultipleInvalid as err:
         test_schemas_good_failed = True
-        raise TypeError(f"should parse via voluptuous, but didn't: {schema}") from err
+        raise TypeError(
+            f"should parse via voluptuous, but didn't: {schema} ({err})"
+        ) from err
     except yaml.YAMLError as err:
         test_schemas_good_failed = True
-        raise TypeError(f"should be valid YAML, but isn't: {schema}") from err
+        raise TypeError(f"should be valid YAML, but isn't: {schema} ({err})") from err
 
 
 GATEWAY_BAD = (
