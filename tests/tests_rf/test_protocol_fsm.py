@@ -289,27 +289,39 @@ async def _test_flow_30x(
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
 
+    qos = QosParams()
+
     # STEP 1: Send an I cmd (no reply)...
-    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0), name="send_1")
+    task = protocol._loop.create_task(
+        protocol._send_cmd(II_CMD_0, qos=qos), name="send_1"
+    )
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
-    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_0), name="send_2")
+    task = protocol._loop.create_task(
+        protocol._send_cmd(RQ_CMD_0, qos=qos), name="send_2"
+    )
     protocol._loop.call_later(
         CALL_LATER_DELAY, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
     assert await task == RP_PKT_0
 
     # STEP 3: Send an I cmd (no reply) *twice*...
-    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0), name="send_3A")
+    task = protocol._loop.create_task(
+        protocol._send_cmd(II_CMD_0, qos=qos), name="send_3A"
+    )
     assert await task == II_CMD_0  # no reply pkt expected
 
-    task = protocol._loop.create_task(protocol._send_cmd(II_CMD_0), name="send_3B")
+    task = protocol._loop.create_task(
+        protocol._send_cmd(II_CMD_0, qos=qos), name="send_3B"
+    )
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
-    task = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1), name="send_4A")
-    # sk = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1), name="send_4B")
+    task = protocol._loop.create_task(
+        protocol._send_cmd(RQ_CMD_1, qos=qos), name="send_4A"
+    )
+    # sk = protocol._loop.create_task(protocol._send_cmd(RQ_CMD_1, qos=qos), name="send_4B")
 
     # TODO: make these deterministic so ser replies *only after* it receives cmd
     protocol._loop.call_later(
@@ -323,17 +335,50 @@ async def _test_flow_30x(
 
 
 @protocol_decorator
-async def _test_flow_50x(rf: VirtualRf, protocol: QosProtocol) -> None:
+async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
     # Simple test for an I (does not expect any rx)...
     cmd = Command.put_sensor_temp("03:333333", 19.5)  # 3C09| I|03:333333
 
-    pkt = await protocol._send_cmd(cmd)  # , qos=QosParams())
+    pkt = await protocol._send_cmd(cmd)
+    assert pkt is None
+
+    pkt = await protocol._send_cmd(cmd, qos=None)
+    assert pkt is None
+
+    pkt = await protocol._send_cmd(cmd, qos=QosParams())
     assert pkt == cmd
 
     for x in (None, False, True):
         pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=x))
         assert pkt == cmd
+
+    # Simple test for an RQ (expects an RP)...
+    cmd = Command.get_system_time("01:333333")  # 1F09|RQ|01:333333
+
+    pkt = await protocol._send_cmd(cmd)
+    assert pkt is None
+
+    pkt = await protocol._send_cmd(cmd, qos=None)
+    assert pkt is None
+
+    # try:
+    #     pkt = await protocol._send_cmd(cmd, qos=QosParams())
+    # except exc.ProtocolSendFailed:
+    #     pass
+    # else:
+    #     assert False, "Expected ProtocolSendFailed"
+
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
+    assert pkt == cmd
+
+    # for x in (None, True):
+    #     try:
+    #         pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=x))
+    #     except exc.ProtocolSendFailed:
+    #         pass
+    #     else:
+    #         assert False, "Expected ProtocolSendFailed"
 
 
 @protocol_decorator
@@ -367,9 +412,9 @@ async def test_flow_300() -> None:
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_500() -> None:
+async def test_flow_qos() -> None:
     """Check the wait_for_reply kwarg."""
-    await _test_flow_50x()
+    await _test_flow_qos()
 
 
 @pytest.mark.xdist_group(name="virt_serial")
