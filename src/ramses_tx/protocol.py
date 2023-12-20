@@ -740,12 +740,20 @@ def protocol_factory(
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
+    # The intention is, that once we are read-only, we're always read-only, but
+    # until the QoS state machine is stable:
+    #   disable_qos is True,  means QoS is always disabled
+    #               is False, means QoS is never disabled
+    #               is None,  means QoS is disabled, but auto-enabled for (say) bindings
+
     if disable_sending:
         _LOGGER.debug("ReadProtocol: sending has been disabled")
         return ReadProtocol(msg_handler)
+
     if disable_qos or _DEBUG_DISABLE_QOS:
         _LOGGER.debug("PortProtocol: QoS has been disabled")
         return PortProtocol(msg_handler)
+
     _LOGGER.debug("QosProtocol: QoS has been enabled")
     return QosProtocol(msg_handler)
 
