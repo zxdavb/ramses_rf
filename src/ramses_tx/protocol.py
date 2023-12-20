@@ -608,10 +608,12 @@ class PortProtocol(_BaseProtocol):
 class QosProtocol(PortProtocol):
     """A protocol that can receive Packets and send Commands with QoS (using a FSM)."""
 
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
+    def __init__(self, msg_handler: MsgHandlerT, selective_qos: bool = False) -> None:
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler)
+
         self._context = ProtocolContext(self)  # the FSM
+        self._selective_qos = selective_qos
 
     def __repr__(self) -> str:
         cls = self._context.state.__class__.__name__
@@ -677,13 +679,17 @@ class QosProtocol(PortProtocol):
         async def send_cmd(kmd: Command) -> None:
             """Wrapper to send a Command without QoS (with x re-transmits)."""
 
-            assert kmd is cmd
+            assert kmd is cmd  # maybe the FSM is confused
 
             await self._send_frame(str(kmd))
 
             for _ in range(num_repeats - 1):
                 await asyncio.sleep(gap_duration)
                 await self._send_frame(str(kmd))
+
+        # selective QoS (HACK) or the cmd does not want QoS
+        if (self._selective_qos and cmd.verb != Code._1FC9) or qos is None:
+            return await send_cmd(cmd)
 
         if qos is None:
             qos = QosParams()
@@ -744,7 +750,7 @@ def protocol_factory(
     # until the QoS state machine is stable:
     #   disable_qos is True,  means QoS is always disabled
     #               is False, means QoS is never disabled
-    #               is None,  means QoS is disabled, but auto-enabled for (say) bindings
+    #               is None,  means QoS is disabled, but enabled by the command
 
     if disable_sending:
         _LOGGER.debug("ReadProtocol: sending has been disabled")
@@ -755,7 +761,7 @@ def protocol_factory(
         return PortProtocol(msg_handler)
 
     _LOGGER.debug("QosProtocol: QoS has been enabled")
-    return QosProtocol(msg_handler)
+    return QosProtocol(msg_handler, selective_qos=disable_qos is None)
 
 
 async def create_stack(
