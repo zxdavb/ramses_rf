@@ -36,6 +36,7 @@ from .const import (
     DevType,
 )
 from .device import Device, Fakeable
+from .device.base import DeviceBase
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -186,7 +187,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    assert isinstance(msg.src, Device)  # mypy hint
+    assert isinstance(msg.src, DeviceBase)  # mypy check
 
     if slug is None:
         slug = getattr(msg.dst, "_SLUG", None)
@@ -270,7 +271,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             return
 
         _check_src_slug(msg)  # ? raise exc.PacketInvalid
-        if msg.dst is not msg.src or msg.verb != I_:
+        if msg.dst is not msg.src and msg.verb != I_ and msg.src.id != gwy.hgi.id:
             # receiving an I isn't currently in the schema & so cant yet be tested
             _check_dst_slug(msg)  # ? raise exc.PacketInvalid
 
