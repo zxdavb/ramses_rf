@@ -689,7 +689,7 @@ class QosProtocol(PortProtocol):
 
         # selective QoS (HACK) or the cmd does not want QoS
         if (self._selective_qos and cmd.verb != Code._1FC9) or qos is None:
-            return await send_cmd(cmd)
+            return await send_cmd(cmd)  # type: ignore[func-returns-value]
 
         if qos is None:
             qos = QosParams()
