@@ -216,7 +216,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
 
         _check_src_slug(msg)  # ? raise exc.PacketInvalid
         if (
-            msg.src.id != gwy.hgi.id  # or msg.src._SLUG == DevType.HGI
+            msg.src._SLUG != DevType.HGI  # avoid: msg.src.id != gwy.hgi.id
             and msg.verb != I_
             and msg.dst is not msg.src
         ):
