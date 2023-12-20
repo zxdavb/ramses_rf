@@ -349,7 +349,10 @@ SZ_USE_REGEX = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-    vol.Optional(SZ_DISABLE_QOS, default=None): bool,  # selective QoS (e.g. 4 bindings)
+    vol.Optional(SZ_DISABLE_QOS, default=None): vol.Any(
+        None,  # None is selective QoS (e.g. QoS only for bindings)
+        bool,
+    ),  # in long term, this default to be True (and no None)
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,

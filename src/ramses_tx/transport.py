@@ -830,6 +830,11 @@ async def transport_factory(
         issue_warning()
         # return PortTransport(protocol, ser_instance, **kwargs)
 
+    # The intention is, that once we are read-only, we're always read-only, but
+    # until teh QoS state machine is stable:
+    #   disable_qos is True,  means always disabled
+    #               is False, means never disabled
+    #               is None,  means disabled, but auto-enabled for (say) bindings
     if disable_sending or disable_qos:
         transport = PortTransport(
             protocol,
@@ -839,7 +844,7 @@ async def transport_factory(
             loop=loop,
             **kwargs,
         )
-    else:
+    else:  # disable_qos could  be False, None
         transport = QosTransport(
             protocol, ser_instance, extra=extra, loop=loop, **kwargs
         )
