@@ -271,7 +271,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             return
 
         _check_src_slug(msg)  # ? raise exc.PacketInvalid
-        if msg.dst is not msg.src and msg.verb != I_ and msg.src.id != gwy.hgi.id:
+        if msg.dst is not msg.src and msg.verb != I_ and msg.src._SLUG != DevType.HGI:
             # receiving an I isn't currently in the schema & so cant yet be tested
             _check_dst_slug(msg)  # ? raise exc.PacketInvalid
 
