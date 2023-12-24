@@ -127,7 +127,8 @@ elif sys.platform.lower()[:5] != "linux":  # e.g. osx
     from serial.tools.list_ports_posix import comports  # type: ignore[import-untyped]
 
 else:  # is linux
-    #  - see: https://github.com/pyserial/pyserial/pull/709
+    # - see: https://github.com/pyserial/pyserial/pull/700
+    # - see: https://github.com/pyserial/pyserial/pull/709
 
     from serial.tools.list_ports_linux import SysFS  # type: ignore[import-untyped]
 
@@ -135,10 +136,9 @@ else:  # is linux
         """Search for symlinks to ports already listed in devices."""
 
         links = []
-        for path in ("/dev/*", "/dev/serial/by-id/*"):
-            for device in glob.glob(path):
-                if os.path.islink(device) and os.path.realpath(device) in devices:
-                    links.append(device)
+        for device in glob.glob("/dev/*") + glob.glob("/dev/serial/by-id/*"):
+            if os.path.islink(device) and os.path.realpath(device) in devices:
+                links.append(device)
         return links
 
     def comports(
