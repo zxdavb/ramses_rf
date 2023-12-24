@@ -114,18 +114,19 @@ _DEBUG_DISABLE_REGEX_WARNINGS = False
 _DEBUG_FORCE_LOG_FRAMES = False
 
 
+# For linux, use a modified version of comports() to include /dev/serial/by-id/* links
 if os.name == "nt":  # sys.platform == 'win32':
     from serial.tools.list_ports_windows import comports  # type: ignore[import-untyped]
 
-elif os.name != "posix":
+elif os.name != "posix":  # is unsupported
     raise ImportError(
         f"Sorry: no implementation for your platform ('{os.name}') available"
     )
 
-elif sys.platform.lower()[:5] != "linux":
+elif sys.platform.lower()[:5] != "linux":  # e.g. osx
     from serial.tools.list_ports_posix import comports  # type: ignore[import-untyped]
 
-else:  # Use a modified version of comports to expose by-id links
+else:  # is linux
     #  - see: https://github.com/pyserial/pyserial/pull/709
 
     from serial.tools.list_ports_linux import SysFS  # type: ignore[import-untyped]
