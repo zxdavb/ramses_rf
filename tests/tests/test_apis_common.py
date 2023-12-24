@@ -6,6 +6,7 @@
 Test the Command.put_*, Command.set_* APIs.
 """
 
+from ramses_tx import exceptions as exc
 from ramses_tx.command import CODE_API_MAP, Command
 
 EXCLUDED_APIS = ("from_attrs", "_from_attrs", "from_cli")
@@ -31,7 +32,7 @@ def test_1fc9_constructors_fail():
 
     try:
         _ = Command.put_bind(" I", "29:156898", None)  # should have codes, or dst_id
-    except TypeError:
+    except exc.CommandInvalid:
         pass
     else:
         assert False

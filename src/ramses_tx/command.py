@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from . import exceptions as exc
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import (
     DEV_TYPE_MAP,
@@ -142,12 +143,12 @@ def _check_idx(zone_idx: int | str) -> str:
     # if zone_idx is None:
     #     return "00"
     if not isinstance(zone_idx, int | str):
-        raise TypeError(f"Invalid value for zone_idx: {zone_idx}")
+        raise exc.CommandInvalid(f"Invalid value for zone_idx: {zone_idx}")
     if isinstance(zone_idx, str):
         zone_idx = FA if zone_idx == "HW" else zone_idx
     result: int = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
     if 0 > result > 15 and result != 0xFA:
-        raise ValueError(f"Invalid value for zone_idx: {result}")
+        raise exc.CommandInvalid(f"Invalid value for zone_idx: {result}")
     return f"{result:02X}"
 
 
@@ -159,14 +160,17 @@ def _normalise_mode(
 ) -> str:
     """Validate the zone_mode, and return a it as a normalised 2-byte code.
 
-    Used by set_dhw_mode (target=active) and set_zone_mode (target=setpoint). May raise
-    KeyError or ValueError.
+    Used by set_dhw_mode (target=active) and set_zone_mode (target=setpoint).
     """
 
     if mode is None and target is None:
-        raise ValueError("Invalid args: One of mode or setpoint/active cant be None")
+        raise exc.CommandInvalid(
+            "Invalid args: One of mode or setpoint/active cant be None"
+        )
     if until and duration:
-        raise ValueError("Invalid args: At least one of until or duration must be None")
+        raise exc.CommandInvalid(
+            "Invalid args: At least one of until or duration must be None"
+        )
 
     if mode is None:
         if until:
@@ -181,7 +185,7 @@ def _normalise_mode(
         mode = ZON_MODE_MAP._hex(mode)  # may raise KeyError
 
     if mode != ZON_MODE_MAP.FOLLOW and target is None:
-        raise ValueError(
+        raise exc.CommandInvalid(
             f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
         )
 
@@ -197,14 +201,16 @@ def _normalise_until(
 ) -> tuple[Any, Any]:
     """Validate until and duration, and return a normalised xxx.
 
-    Used by set_dhw_mode and set_zone_mode. May raise KeyError or ValueError.
+    Used by set_dhw_mode and set_zone_mode.
     """
     # if until and duration:
-    #     raise ValueError("Invalid args: Only one of until or duration can be set")
+    #     raise exc.CommandInvalid(
+    #         "Invalid args: Only one of until or duration can be set"
+    #     )
 
     if mode == ZON_MODE_MAP.TEMPORARY:
         if duration is not None:
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"Invalid args: For {ZON_MODE_MAP[mode]}, duration must be None"
             )
         if until is None:
@@ -212,16 +218,16 @@ def _normalise_until(
 
     elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"Invalid args: For {ZON_MODE_MAP[mode]}, duration cant be None"
             )
         if until is not None:
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"Invalid args: For {ZON_MODE_MAP[mode]}, until must be None"
             )
 
     elif until is not None or duration is not None:
-        raise ValueError(
+        raise exc.CommandInvalid(
             f"Invalid args: For {ZON_MODE_MAP[mode]},"
             " until and duration must both be None"
         )
@@ -243,12 +249,12 @@ class Command(Frame):
     def __init__(
         self, frame: str, qos: dict | None = None, callback: dict | None = None
     ) -> None:
-        """Create a command from a string (and its meta-attrs).
+        """Create a command from a string (and its meta-attrs)."""
 
-        Will raise InvalidPacketError if it is invalid.
-        """
-
-        super().__init__(frame)  # may raise InvalidPacketError if it is invalid
+        try:
+            super().__init__(frame)
+        except exc.PacketInvalid as err:
+            raise exc.CommandInvalid from err
 
         # used by app layer: callback (protocol.py: func, args, daemon, timeout)
         self._cbk = callback or {}
@@ -351,7 +357,7 @@ class Command(Frame):
 
         cmd = cmd_str.upper().split()
         if len(cmd) < 4:
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"Command string is not parseable: '{cmd_str}'"
                 ", format is: verb [seqn] addr0 [addr1 [addr2]] code payload"
             )
@@ -362,7 +368,7 @@ class Command(Frame):
         code = cmd.pop()
 
         if not 0 < len(cmd) < 4:
-            raise ValueError(f"Command is invalid: '{cmd_str}'")
+            raise exc.CommandInvalid(f"Command is invalid: '{cmd_str}'")
         elif len(cmd) == 1 and verb == I_:
             # drs = (cmd[0],          NON_DEV_ADDR.id, cmd[0])
             addrs = (NON_DEV_ADDR.id, NON_DEV_ADDR.id, cmd[0])
@@ -427,7 +433,7 @@ class Command(Frame):
         """
 
         if dev_id[:2] != DEV_TYPE_MAP.OUT:
-            raise TypeError(
+            raise exc.CommandInvalid(
                 f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
             )
@@ -508,15 +514,17 @@ class Command(Frame):
         zon_idx = _check_idx(zone_idx)
 
         if not (5 <= min_temp <= 21):
-            raise ValueError(f"Out of range, min_temp: {min_temp}")
+            raise exc.CommandInvalid(f"Out of range, min_temp: {min_temp}")
         if not (21 <= max_temp <= 35):
-            raise ValueError(f"Out of range, max_temp: {max_temp}")
+            raise exc.CommandInvalid(f"Out of range, max_temp: {max_temp}")
         if not isinstance(local_override, bool):
-            raise ValueError(f"Invalid arg, local_override: {local_override}")
+            raise exc.CommandInvalid(f"Invalid arg, local_override: {local_override}")
         if not isinstance(openwindow_function, bool):
-            raise ValueError(f"Invalid arg, openwindow_function: {openwindow_function}")
+            raise exc.CommandInvalid(
+                f"Invalid arg, openwindow_function: {openwindow_function}"
+            )
         if not isinstance(multiroom_mode, bool):
-            raise ValueError(f"Invalid arg, multiroom_mode: {multiroom_mode}")
+            raise exc.CommandInvalid(f"Invalid arg, multiroom_mode: {multiroom_mode}")
 
         bitmap = 0 if local_override else 1
         bitmap |= 0 if openwindow_function else 2
@@ -558,13 +566,13 @@ class Command(Frame):
 
         # TODO: check the following rules
         if frag_number == 0:
-            raise ValueError(f"frag_number={frag_number}, but it is 1-indexed")
+            raise exc.CommandInvalid(f"frag_number={frag_number}, but it is 1-indexed")
         elif frag_number == 1 and total_frags != 0:
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"total_frags={total_frags}, but must be 0 when frag_number=1"
             )
         elif frag_number > total_frags and total_frags != 0:
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"frag_number={frag_number}, but must be <= total_frags={total_frags}"
             )
 
@@ -592,9 +600,11 @@ class Command(Frame):
 
         # TODO: check the following rules
         if frag_num == 0:
-            raise ValueError(f"frag_num={frag_num}, but it is 1-indexed")
+            raise exc.CommandInvalid(f"frag_num={frag_num}, but it is 1-indexed")
         elif frag_num > frag_cnt:
-            raise ValueError(f"frag_num={frag_num}, but must be <= frag_cnt={frag_cnt}")
+            raise exc.CommandInvalid(
+                f"frag_num={frag_num}, but must be <= frag_cnt={frag_cnt}"
+            )
 
         header = "00230008" if zon_idx == FA else f"{zon_idx}200008"
         frag_length = int(len(fragment) / 2)
@@ -644,13 +654,17 @@ class Command(Frame):
         kwargs.get("unknown_21", None)  # HVAC
 
         if not (0 <= max_flow_setpoint <= 99):
-            raise ValueError(f"Out of range, max_flow_setpoint: {max_flow_setpoint}")
+            raise exc.CommandInvalid(
+                f"Out of range, max_flow_setpoint: {max_flow_setpoint}"
+            )
         if not (0 <= min_flow_setpoint <= 50):
-            raise ValueError(f"Out of range, min_flow_setpoint: {min_flow_setpoint}")
+            raise exc.CommandInvalid(
+                f"Out of range, min_flow_setpoint: {min_flow_setpoint}"
+            )
         if not (0 <= valve_run_time <= 240):
-            raise ValueError(f"Out of range, valve_run_time: {valve_run_time}")
+            raise exc.CommandInvalid(f"Out of range, valve_run_time: {valve_run_time}")
         if not (0 <= pump_run_time <= 99):
-            raise ValueError(f"Out of range, pump_run_time: {pump_run_time}")
+            raise exc.CommandInvalid(f"Out of range, pump_run_time: {pump_run_time}")
 
         payload = "".join(
             (
@@ -698,11 +712,11 @@ class Command(Frame):
         differential = 1.0 if differential is None else differential
 
         if not (30.0 <= setpoint <= 85.0):
-            raise ValueError(f"Out of range, setpoint: {setpoint}")
+            raise exc.CommandInvalid(f"Out of range, setpoint: {setpoint}")
         if not (0 <= overrun <= 10):
-            raise ValueError(f"Out of range, overrun: {overrun}")
+            raise exc.CommandInvalid(f"Out of range, overrun: {overrun}")
         if not (1 <= differential <= 10):
-            raise ValueError(f"Out of range, differential: {differential}")
+            raise exc.CommandInvalid(f"Out of range, differential: {differential}")
 
         payload = f"{dhw_idx}{hex_from_temp(setpoint)}{overrun:02X}{hex_from_temp(differential)}"
 
@@ -773,7 +787,7 @@ class Command(Frame):
         dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
 
         if dev_id[:2] != DEV_TYPE_MAP.DHW:
-            raise TypeError(
+            raise exc.CommandInvalid(
                 f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
             )
@@ -857,7 +871,9 @@ class Command(Frame):
         if mode == ZON_MODE_MAP.FOLLOW:
             active = None
         if active is not None and not isinstance(active, bool | int):
-            raise TypeError(f"Invalid args: active={active}, but must be an bool")
+            raise exc.CommandInvalid(
+                f"Invalid args: active={active}, but must be an bool"
+            )
 
         until, duration = _normalise_until(mode, active, until, duration)
 
@@ -901,7 +917,7 @@ class Command(Frame):
         elif len(codes[0]) == len(Code._1FC9[0]):  # type: ignore[index]
             kodes = [codes]  # type: ignore[list-item]
         else:
-            raise TypeError(f"Invalid codes for a bind command: {codes}")
+            raise exc.CommandInvalid(f"Invalid codes for a bind command: {codes}")
 
         qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
 
@@ -911,7 +927,9 @@ class Command(Frame):
             return cls._put_bind_accept(src_id, dst_id, kodes, qos=qos, **kwargs)  # type: ignore[arg-type]
         elif verb == I_:
             return cls._put_bind_confirm(src_id, dst_id, kodes, qos=qos, **kwargs)  # type: ignore[arg-type]
-        raise ValueError(f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}")
+        raise exc.CommandInvalid(
+            f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}"
+        )
 
     @classmethod  # constructor for 1FC9 (rf_bind) offer
     def _put_bind_offer(
@@ -924,7 +942,7 @@ class Command(Frame):
         qos: dict | None = None,
     ) -> Command:
         if not codes:  # might be []
-            raise TypeError(f"Invalid codes for a bind offer: {codes}")
+            raise exc.CommandInvalid(f"Invalid codes for a bind offer: {codes}")
 
         hex_id = Address.convert_to_hex(src_id)
         payload = "".join(f"00{c}{hex_id}" for c in codes)
@@ -948,7 +966,7 @@ class Command(Frame):
         qos: dict | None = None,
     ) -> Command:
         if not codes:  # might be
-            raise TypeError(f"Invalid codes for a bind accept: {codes}")
+            raise exc.CommandInvalid(f"Invalid codes for a bind accept: {codes}")
 
         hex_id = Address.convert_to_hex(src_id)
         payload = "".join(f"{idx or '00'}{c}{hex_id}" for c in codes)
@@ -1031,10 +1049,10 @@ class Command(Frame):
         elif mode in _22F1_MODE_ORCON_MAP:
             payload = f"{idx}{_22F1_MODE_ORCON_MAP[mode]}"
         else:
-            raise TypeError(f"fan_mode is not valid: {fan_mode}")
+            raise exc.CommandInvalid(f"fan_mode is not valid: {fan_mode}")
 
         if src_id and seqn:
-            raise TypeError(
+            raise exc.CommandInvalid(
                 "seqn and src_id are mutally exclusive (you can have neither)"
             )
 
@@ -1071,7 +1089,7 @@ class Command(Frame):
         if (bypass_mode := kwargs.pop("bypass_mode", None)) and (
             bypass_position is not None
         ):
-            raise ValueError(
+            raise exc.CommandInvalid(
                 "bypass_mode and bypass_position are mutally exclusive, "
                 "both cannot be provided, and neither is OK"
             )
@@ -1141,7 +1159,9 @@ class Command(Frame):
         mode = _normalise_mode(mode, setpoint, until, duration)
 
         if setpoint is not None and not isinstance(setpoint, float | int):
-            raise TypeError(f"Invalid args: setpoint={setpoint}, but must be a float")
+            raise exc.CommandInvalid(
+                f"Invalid args: setpoint={setpoint}, but must be a float"
+            )
 
         until, duration = _normalise_until(mode, setpoint, until, duration)
 
@@ -1172,7 +1192,7 @@ class Command(Frame):
         src_id = src_id or fan_id  # TODO: src_id should be an arg?
 
         if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
-            raise ValueError(f"Unknown parameter: {param_id}")
+            raise exc.CommandInvalid(f"Unknown parameter: {param_id}")
 
         payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work
 
@@ -1209,7 +1229,7 @@ class Command(Frame):
             SYS_MODE_MAP.AUTO_WITH_RESET,
             SYS_MODE_MAP.HEAT_OFF,
         ):
-            raise ValueError(
+            raise exc.CommandInvalid(
                 f"Invalid args: For system_mode={SYS_MODE_MAP[system_mode]},"
                 " until must be None"
             )
@@ -1263,7 +1283,7 @@ class Command(Frame):
             DEV_TYPE_MAP.DT2,  # 22
             DEV_TYPE_MAP.RND,  # 34
         ):
-            raise TypeError(
+            raise exc.CommandInvalid(
                 f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
             )
@@ -1315,7 +1335,7 @@ class Command(Frame):
         # .I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
         if dev_id[:2] != DEV_TYPE_MAP.BDR:
-            raise TypeError(
+            raise exc.CommandInvalid(
                 f"Faked device {dev_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
             )
@@ -1347,7 +1367,7 @@ class Command(Frame):
         # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
 
         if src_id[:2] != DEV_TYPE_MAP.BDR:
-            raise TypeError(
+            raise exc.CommandInvalid(
                 f"Faked device {src_id} has an unsupported device type: "
                 f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
             )
