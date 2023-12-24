@@ -41,9 +41,11 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import glob
 import logging
 import os
 import re
+import sys
 from collections.abc import Iterable
 from datetime import datetime as dt
 from io import TextIOWrapper
@@ -56,7 +58,6 @@ from serial import (  # type: ignore[import-untyped]
     SerialException,
     serial_for_url,
 )
-from serial.tools.list_ports import comports  # type: ignore[import-untyped]
 
 from . import exceptions as exc
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR
@@ -113,6 +114,53 @@ _DEBUG_DISABLE_REGEX_WARNINGS = False
 _DEBUG_FORCE_LOG_FRAMES = False
 
 
+if os.name == "nt":  # sys.platform == 'win32':
+    from serial.tools.list_ports_windows import comports  # type: ignore[import-untyped]
+
+elif os.name != "posix":
+    raise ImportError(
+        f"Sorry: no implementation for your platform ('{os.name}') available"
+    )
+
+elif sys.platform.lower()[:5] != "linux":
+    from serial.tools.list_ports_posix import comports  # type: ignore[import-untyped]
+
+else:  # Use a modified version of comports to expose by-id links
+    #  - see: https://github.com/pyserial/pyserial/pull/709
+
+    from serial.tools.list_ports_linux import SysFS  # type: ignore[import-untyped]
+
+    def list_links(devices):
+        """Search for symlinks to ports already listed in devices."""
+
+        links = []
+        for path in ("/dev/*", "/dev/serial/by-id/*"):
+            for device in glob.glob(path):
+                if os.path.islink(device) and os.path.realpath(device) in devices:
+                    links.append(device)
+        return links
+
+    def comports(
+        include_links: bool = False, _hide_subsystems: list[str] | None = None
+    ) -> list[SysFS]:
+        """Return a list of Serial objects for all known serial ports."""
+
+        if _hide_subsystems is None:
+            _hide_subsystems = ["platform"]
+
+        devices = set()
+        drivers = open("/proc/tty/drivers").readlines()
+        for driver in drivers:
+            items = driver.strip().split()
+            if items[4] == "serial":
+                devices.update(glob.glob(items[1] + "*"))
+
+        if include_links:
+            devices.update(list_links(devices))
+
+        return [d for d in map(SysFS, devices) if d.subsystem not in _hide_subsystems]
+
+
 def is_hgi80(serial_port: SerPortName) -> bool | None:
     """Return True/False if the device attached to the port has the attrs of an HGI80.
 
@@ -124,7 +172,7 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     if not os.path.exists(serial_port):
         raise exc.TransportSerialError(f"Unable to find {serial_port}")
 
-    # first, try the easy win (comports() wont take by-id)...
+    # first, try the easy win...
     if "by-id" not in serial_port:
         pass
     elif "TUSB3410" in serial_port:
@@ -132,8 +180,11 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     elif "evofw3" in serial_port or "FT232R" in serial_port or "NANO" in serial_port:
         return False
 
-    # otherwise, we can use comports()...
-    komports = comports(include_links=True)  # doesn't include by-id links!
+    # otherwise, we can look at device attrs via comports()...
+    try:
+        komports = comports(include_links=True)
+    except ImportError as err:
+        raise exc.TransportSerialError(f"Unable to find {serial_port}: {err}") from err
 
     # TODO: remove get(): not monkeypatching comports() correctly for /dev/pts/...
     vid = {x.device: x.vid for x in komports}.get(serial_port)
