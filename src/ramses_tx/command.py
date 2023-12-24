@@ -417,297 +417,46 @@ class Command(Frame):
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
-    @classmethod  # constructor for I|22F7
-    def set_bypass_position(
-        cls,
-        fan_id: DeviceId,
-        *,
-        bypass_position: float | None = None,
-        src_id: DeviceId | None = None,
-        **kwargs,
+    @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
+    def put_weather_temp(
+        cls, dev_id: DeviceId, temperature: float, **kwargs
     ) -> Command:
-        """Constructor to set the position of the bypass valve (c.f. parser_22f7).
+        """Constructor to announce the current temperature of a weather sensor (0002).
 
-        bypass_position: a % from fully open (1.0) to fully closed (0.0).
-        None is a sentinel value for auto.
-
-        bypass_mode: is a proxy for bypass_position (they should be mutex)
+        This is for use by a faked HB85 or similar.
         """
 
-        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # offically: 00C8EF
-        # RP --- 32:155617 37:155617 --:------ 22F7 003 00C8C8
-
-        src_id = src_id or fan_id  # TODO: src_id should be an arg?
-
-        if (bypass_mode := kwargs.pop("bypass_mode", None)) and (
-            bypass_position is not None
-        ):
-            raise ValueError(
-                "bypass_mode and bypass_position are mutally exclusive, "
-                "both cannot be provided, and neither is OK"
-            )
-        elif bypass_position is not None:
-            pos = f"{int(bypass_position * 200):02X}"
-        elif bypass_mode:
-            pos = {"auto": "FF", "off": "00", "on": "C8"}[bypass_mode]
-        else:
-            pos = "FF"  # auto
-
-        return cls._from_attrs(
-            W_, Code._22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs
-        )  # trailing EF not required
-
-    @classmethod  # constructor for W|2411
-    def set_fan_param(
-        cls,
-        fan_id: DeviceId,
-        param_id: str,
-        value: str,
-        *,
-        src_id: DeviceId = None,
-        **kwargs,
-    ) -> Command:
-        """Constructor to set a configurable fan parameter (c.f. parser_2411)."""
-
-        src_id = src_id or fan_id  # TODO: src_id should be an arg?
-
-        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
-            raise ValueError(f"Unknown parameter: {param_id}")
-
-        payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work
-
-        return cls._from_attrs(
-            W_, Code._2411, payload, addr0=src_id, addr1=fan_id, **kwargs
-        )
-
-    @classmethod  # constructor for I|22F1
-    def set_fan_mode(
-        cls,
-        fan_id: DeviceId,
-        fan_mode,
-        *,
-        seqn: int | None = None,
-        src_id: DeviceId | None = None,
-        idx: str = "00",  # could be e.g. "63"
-        **kwargs,
-    ) -> Command:
-        """Constructor to get the fan speed (and heater?) (c.f. parser_22f1).
-
-        There are two types of this packet seen (with seqn, or with src_id):
-         - I 018 --:------ --:------ 39:159057 22F1 003 000204
-         - I --- 21:039407 28:126495 --:------ 22F1 003 000407
-        """
-
-        # Scheme 1: I 218 --:------ --:------ 39:159057
-        #  - are cast as a triplet, 0.1s apart?, with a seqn (000-255) and no src_id
-        #  - triplet has same seqn, increased monotonically mod 256 after every triplet
-        #  - only payloads seen: '(00|63)0[234]04', may accept '000.'
-        # .I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
-
-        # Scheme 1a: I --- --:------ --:------ 21:038634 (less common)
-        #  - some systems that accept scheme 2 will accept this scheme
-
-        # Scheme 2: I --- 21:038634 18:126620 --:------ (less common)
-        #  - are cast as a triplet, 0.085s apart, without a seqn (i.e. is ---)
-        #  - only payloads seen: '000.0[47A]', may accept '000.'
-        # .I --- 21:038634 18:126620 --:------ 22F1 003 000507
-
-        from .ramses import _22F1_MODE_ORCON
-
-        _22F1_MODE_ORCON_MAP = {v: k for k, v in _22F1_MODE_ORCON.items()}
-
-        if fan_mode is None:
-            mode = "00"
-        elif isinstance(fan_mode, int):
-            mode = f"{fan_mode:02X}"
-        else:
-            mode = fan_mode
-
-        if mode in _22F1_MODE_ORCON:
-            payload = f"{idx}{mode}"
-        elif mode in _22F1_MODE_ORCON_MAP:
-            payload = f"{idx}{_22F1_MODE_ORCON_MAP[mode]}"
-        else:
-            raise TypeError(f"fan_mode is not valid: {fan_mode}")
-
-        if src_id and seqn:
+        if dev_id[:2] != DEV_TYPE_MAP.OUT:
             raise TypeError(
-                "seqn and src_id are mutally exclusive (you can have neither)"
+                f"Faked device {dev_id} has an unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
             )
 
-        if seqn:
-            return cls._from_attrs(
-                I_, Code._22F1, payload, addr2=fan_id, seqn=seqn, **kwargs
-            )
+        payload = f"00{hex_from_temp(temperature)}01"
         return cls._from_attrs(
-            I_, Code._22F1, payload, addr0=src_id, addr1=fan_id, **kwargs
+            I_, Code._0002, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
-    @classmethod  # constructor for RQ|1F41
-    def get_dhw_mode(cls, ctl_id: DeviceId, **kwargs) -> Command:
-        """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
-
-        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
-        return cls.from_attrs(RQ, ctl_id, Code._1F41, dhw_idx, **kwargs)
-
-    @classmethod  # constructor for W|1F41
-    def set_dhw_mode(
-        cls,
-        ctl_id: DeviceId,
-        *,
-        mode: int | str | None = None,
-        active: bool | None = None,
-        until: dt | str | None = None,
-        duration: int | None = None,
-        **kwargs,
-    ) -> Command:
-        """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
-
-        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
-
-        mode = _normalise_mode(mode, active, until, duration)
-
-        if mode == ZON_MODE_MAP.FOLLOW:
-            active = None
-        if active is not None and not isinstance(active, bool | int):
-            raise TypeError(f"Invalid args: active={active}, but must be an bool")
-
-        until, duration = _normalise_until(mode, active, until, duration)
-
-        payload = "".join(
-            (
-                dhw_idx,
-                "FF" if active is None else "01" if bool(active) else "00",
-                mode,
-                "FFFFFF" if duration is None else f"{duration:06X}",
-                "" if until is None else hex_from_dtm(until),
-            )
-        )
-
-        return cls.from_attrs(W_, ctl_id, Code._1F41, payload, **kwargs)
-
-    @classmethod  # constructor for RQ|10A0
-    def get_dhw_params(cls, ctl_id: DeviceId, **kwargs) -> Command:
-        """Constructor to get the params of the DHW (c.f. parser_10a0)."""
-
-        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
-        return cls.from_attrs(RQ, ctl_id, Code._10A0, dhw_idx, **kwargs)
-
-    @classmethod  # constructor for W|10A0
-    def set_dhw_params(
-        cls,
-        ctl_id: DeviceId,
-        *,
-        setpoint: float = 50.0,
-        overrun: int = 5,
-        differential: float = 1,
-        **kwargs,
-    ) -> Command:
-        """Constructor to set the params of the DHW (c.f. parser_10a0)."""
-        # Defaults for newer evohome colour:
-        # Defaults for older evohome colour: ?? (30-85) C, ? (0-10) min, ? (1-10) C
-        # Defaults for evohome monochrome:
-
-        # 14:34:26.734 022  W --- 18:013393 01:145038 --:------ 10A0 006 000F6E050064
-        # 14:34:26.751 073  I --- 01:145038 --:------ 01:145038 10A0 006 000F6E0003E8
-        # 14:34:26.764 074  I --- 01:145038 18:013393 --:------ 10A0 006 000F6E0003E8
-
-        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
-
-        setpoint = 50.0 if setpoint is None else setpoint
-        overrun = 5 if overrun is None else overrun
-        differential = 1.0 if differential is None else differential
-
-        if not (30.0 <= setpoint <= 85.0):
-            raise ValueError(f"Out of range, setpoint: {setpoint}")
-        if not (0 <= overrun <= 10):
-            raise ValueError(f"Out of range, overrun: {overrun}")
-        if not (1 <= differential <= 10):
-            raise ValueError(f"Out of range, differential: {differential}")
-
-        payload = f"{dhw_idx}{hex_from_temp(setpoint)}{overrun:02X}{hex_from_temp(differential)}"
-
-        return cls.from_attrs(W_, ctl_id, Code._10A0, payload, **kwargs)
-
-    @classmethod  # constructor for RQ|1260
-    def get_dhw_temp(cls, ctl_id: DeviceId, **kwargs) -> Command:
-        """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
-
-        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
-        return cls.from_attrs(RQ, ctl_id, Code._1260, dhw_idx, **kwargs)
-
-    @classmethod  # constructor for RQ|1030
-    def get_mix_valve_params(
-        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs
-    ) -> Command:
-        """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
+    @classmethod  # constructor for RQ|0004
+    def get_zone_name(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs) -> Command:
+        """Constructor to get the name of a zone (c.f. parser_0004)."""
 
         zon_idx = _check_idx(zone_idx)
 
         return cls.from_attrs(
-            RQ, ctl_id, Code._1030, zon_idx, **kwargs
+            RQ, ctl_id, Code._0004, zon_idx, **kwargs
         )  # TODO: needs 00?
 
-    @classmethod  # constructor for W|1030
-    def set_mix_valve_params(
-        cls,
-        ctl_id: DeviceId,
-        zone_idx: _ZoneIdxT,
-        *,
-        max_flow_setpoint=55,
-        min_flow_setpoint=15,
-        valve_run_time=150,
-        pump_run_time=15,
-        **kwargs,
+    @classmethod  # constructor for W|0004
+    def set_zone_name(
+        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, name: str, **kwargs
     ) -> Command:
-        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
+        """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         zon_idx = _check_idx(zone_idx)
 
-        boolean_cc = kwargs.pop("boolean_cc", 1)
-        kwargs.get("unknown_20", None)  # HVAC
-        kwargs.get("unknown_21", None)  # HVAC
-
-        if not (0 <= max_flow_setpoint <= 99):
-            raise ValueError(f"Out of range, max_flow_setpoint: {max_flow_setpoint}")
-        if not (0 <= min_flow_setpoint <= 50):
-            raise ValueError(f"Out of range, min_flow_setpoint: {min_flow_setpoint}")
-        if not (0 <= valve_run_time <= 240):
-            raise ValueError(f"Out of range, valve_run_time: {valve_run_time}")
-        if not (0 <= pump_run_time <= 99):
-            raise ValueError(f"Out of range, pump_run_time: {pump_run_time}")
-
-        payload = "".join(
-            (
-                zon_idx,
-                f"C801{max_flow_setpoint:02X}",
-                f"C901{min_flow_setpoint:02X}",
-                f"CA01{valve_run_time:02X}",
-                f"CB01{pump_run_time:02X}",
-                f"CC01{boolean_cc:02X}",
-            )
-        )
-
-        return cls.from_attrs(W_, ctl_id, Code._1030, payload, **kwargs)
-
-    @classmethod  # constructor for RQ|3220
-    def get_opentherm_data(
-        cls, otb_id: DeviceId, msg_id: int | str, **kwargs
-    ) -> Command:
-        """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
-
-        msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
-        payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
-        return cls.from_attrs(RQ, otb_id, Code._3220, payload, **kwargs)
-
-    @classmethod  # constructor for RQ|0008
-    def get_relay_demand(
-        cls, dev_id: DeviceId, zone_idx: _ZoneIdxT | None = None, **kwargs
-    ) -> Command:
-        """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
-
-        payload = "00" if zone_idx is None else _check_idx(zone_idx)
-        return cls.from_attrs(RQ, dev_id, Code._0008, payload, **kwargs)
+        payload = f"{zon_idx}00{hex_from_str(name)[:40]:0<40}"
+        return cls.from_attrs(W_, ctl_id, Code._0004, payload, **kwargs)
 
     @classmethod  # constructor for RQ|0006
     def get_schedule_version(cls, ctl_id: DeviceId, **kwargs) -> Command:
@@ -719,6 +468,71 @@ class Command(Frame):
         """
 
         return cls.from_attrs(RQ, ctl_id, Code._0006, "00", **kwargs)
+
+    @classmethod  # constructor for RQ|0008
+    def get_relay_demand(
+        cls, dev_id: DeviceId, zone_idx: _ZoneIdxT | None = None, **kwargs
+    ) -> Command:
+        """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
+
+        payload = "00" if zone_idx is None else _check_idx(zone_idx)
+        return cls.from_attrs(RQ, dev_id, Code._0008, payload, **kwargs)
+
+    @classmethod  # constructor for RQ|000A
+    def get_zone_config(
+        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs
+    ) -> Command:
+        """Constructor to get the config of a zone (c.f. parser_000a)."""
+
+        zon_idx = _check_idx(zone_idx)
+
+        return cls.from_attrs(
+            RQ, ctl_id, Code._000A, zon_idx, **kwargs
+        )  # TODO: needs 00?
+
+    @classmethod  # constructor for W|000A
+    def set_zone_config(
+        cls,
+        ctl_id: DeviceId,
+        zone_idx: _ZoneIdxT,
+        *,
+        min_temp: float = 5,
+        max_temp: float = 35,
+        local_override: bool = False,
+        openwindow_function: bool = False,
+        multiroom_mode: bool = False,
+        **kwargs,
+    ) -> Command:
+        """Constructor to set the config of a zone (c.f. parser_000a)."""
+
+        zon_idx = _check_idx(zone_idx)
+
+        if not (5 <= min_temp <= 21):
+            raise ValueError(f"Out of range, min_temp: {min_temp}")
+        if not (21 <= max_temp <= 35):
+            raise ValueError(f"Out of range, max_temp: {max_temp}")
+        if not isinstance(local_override, bool):
+            raise ValueError(f"Invalid arg, local_override: {local_override}")
+        if not isinstance(openwindow_function, bool):
+            raise ValueError(f"Invalid arg, openwindow_function: {openwindow_function}")
+        if not isinstance(multiroom_mode, bool):
+            raise ValueError(f"Invalid arg, multiroom_mode: {multiroom_mode}")
+
+        bitmap = 0 if local_override else 1
+        bitmap |= 0 if openwindow_function else 2
+        bitmap |= 0 if multiroom_mode else 16
+
+        payload = "".join(
+            (zon_idx, f"{bitmap:02X}", hex_from_temp(min_temp), hex_from_temp(max_temp))
+        )
+
+        return cls.from_attrs(W_, ctl_id, Code._000A, payload, **kwargs)
+
+    @classmethod  # constructor for RQ|0100
+    def get_system_language(cls, ctl_id: DeviceId, **kwargs) -> Command:
+        """Constructor to get the language of a system (c.f. parser_0100)."""
+
+        return cls.from_attrs(RQ, ctl_id, Code._0100, "00", **kwargs)
 
     @classmethod  # constructor for RQ|0404
     def get_schedule_fragment(
@@ -788,12 +602,6 @@ class Command(Frame):
         payload = f"{header}{frag_length:02X}{frag_num:02X}{frag_cnt:02X}{fragment}"
         return cls.from_attrs(W_, ctl_id, Code._0404, payload, **kwargs)
 
-    @classmethod  # constructor for RQ|0100
-    def get_system_language(cls, ctl_id: DeviceId, **kwargs) -> Command:
-        """Constructor to get the language of a system (c.f. parser_0100)."""
-
-        return cls.from_attrs(RQ, ctl_id, Code._0100, "00", **kwargs)
-
     @classmethod  # constructor for RQ|0418
     def get_system_log_entry(
         cls, ctl_id: DeviceId, log_idx: int | str, **kwargs
@@ -803,71 +611,102 @@ class Command(Frame):
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls.from_attrs(RQ, ctl_id, Code._0418, f"{log_idx:06X}", **kwargs)
 
-    @classmethod  # constructor for RQ|2E04
-    def get_system_mode(cls, ctl_id: DeviceId, **kwargs) -> Command:
-        """Constructor to get the mode of a system (c.f. parser_2e04)."""
+    @classmethod  # constructor for RQ|1030
+    def get_mix_valve_params(
+        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs
+    ) -> Command:
+        """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
 
-        return cls.from_attrs(RQ, ctl_id, Code._2E04, FF, **kwargs)
+        zon_idx = _check_idx(zone_idx)
 
-    @classmethod  # constructor for W|2E04
-    def set_system_mode(
+        return cls.from_attrs(
+            RQ, ctl_id, Code._1030, zon_idx, **kwargs
+        )  # TODO: needs 00?
+
+    @classmethod  # constructor for W|1030
+    def set_mix_valve_params(
         cls,
         ctl_id: DeviceId,
-        system_mode: int | str | None,
+        zone_idx: _ZoneIdxT,
         *,
-        until: dt | str | None = None,
+        max_flow_setpoint=55,
+        min_flow_setpoint=15,
+        valve_run_time=150,
+        pump_run_time=15,
         **kwargs,
     ) -> Command:
-        """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
+        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
 
-        if system_mode is None:
-            system_mode = SYS_MODE_MAP.AUTO
-        if isinstance(system_mode, int):
-            system_mode = f"{system_mode:02X}"
-        if system_mode not in SYS_MODE_MAP:
-            system_mode = SYS_MODE_MAP._hex(system_mode)  # may raise KeyError
+        zon_idx = _check_idx(zone_idx)
 
-        if until is not None and system_mode in (
-            SYS_MODE_MAP.AUTO,
-            SYS_MODE_MAP.AUTO_WITH_RESET,
-            SYS_MODE_MAP.HEAT_OFF,
-        ):
-            raise ValueError(
-                f"Invalid args: For system_mode={SYS_MODE_MAP[system_mode]},"
-                " until must be None"
-            )
+        boolean_cc = kwargs.pop("boolean_cc", 1)
+        kwargs.get("unknown_20", None)  # HVAC
+        kwargs.get("unknown_21", None)  # HVAC
 
-        assert isinstance(system_mode, str)  # mypy hint
+        if not (0 <= max_flow_setpoint <= 99):
+            raise ValueError(f"Out of range, max_flow_setpoint: {max_flow_setpoint}")
+        if not (0 <= min_flow_setpoint <= 50):
+            raise ValueError(f"Out of range, min_flow_setpoint: {min_flow_setpoint}")
+        if not (0 <= valve_run_time <= 240):
+            raise ValueError(f"Out of range, valve_run_time: {valve_run_time}")
+        if not (0 <= pump_run_time <= 99):
+            raise ValueError(f"Out of range, pump_run_time: {pump_run_time}")
 
         payload = "".join(
             (
-                system_mode,
-                hex_from_dtm(until),
-                "00" if until is None else "01",
+                zon_idx,
+                f"C801{max_flow_setpoint:02X}",
+                f"C901{min_flow_setpoint:02X}",
+                f"CA01{valve_run_time:02X}",
+                f"CB01{pump_run_time:02X}",
+                f"CC01{boolean_cc:02X}",
             )
         )
 
-        return cls.from_attrs(W_, ctl_id, Code._2E04, payload, **kwargs)
+        return cls.from_attrs(W_, ctl_id, Code._1030, payload, **kwargs)
 
-    @classmethod  # constructor for RQ|313F
-    def get_system_time(cls, ctl_id: DeviceId, **kwargs) -> Command:
-        """Constructor to get the datetime of a system (c.f. parser_313f)."""
+    @classmethod  # constructor for RQ|10A0
+    def get_dhw_params(cls, ctl_id: DeviceId, **kwargs) -> Command:
+        """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
-        return cls.from_attrs(RQ, ctl_id, Code._313F, "00", **kwargs)
+        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
+        return cls.from_attrs(RQ, ctl_id, Code._10A0, dhw_idx, **kwargs)
 
-    @classmethod  # constructor for W|313F
-    def set_system_time(
+    @classmethod  # constructor for W|10A0
+    def set_dhw_params(
         cls,
         ctl_id: DeviceId,
-        datetime: dt | str,
-        is_dst: bool = False,
+        *,
+        setpoint: float = 50.0,
+        overrun: int = 5,
+        differential: float = 1,
         **kwargs,
     ) -> Command:
-        """Constructor to set the datetime of a system (c.f. parser_313f)."""
-        # .W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
+        """Constructor to set the params of the DHW (c.f. parser_10a0)."""
+        # Defaults for newer evohome colour:
+        # Defaults for older evohome colour: ?? (30-85) C, ? (0-10) min, ? (1-10) C
+        # Defaults for evohome monochrome:
 
-        dt_str = hex_from_dtm(datetime, is_dst=is_dst, incl_seconds=True)
-        return cls.from_attrs(W_, ctl_id, Code._313F, f"0060{dt_str}", **kwargs)
+        # 14:34:26.734 022  W --- 18:013393 01:145038 --:------ 10A0 006 000F6E050064
+        # 14:34:26.751 073  I --- 01:145038 --:------ 01:145038 10A0 006 000F6E0003E8
+        # 14:34:26.764 074  I --- 01:145038 18:013393 --:------ 10A0 006 000F6E0003E8
+
+        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
+
+        setpoint = 50.0 if setpoint is None else setpoint
+        overrun = 5 if overrun is None else overrun
+        differential = 1.0 if differential is None else differential
+
+        if not (30.0 <= setpoint <= 85.0):
+            raise ValueError(f"Out of range, setpoint: {setpoint}")
+        if not (0 <= overrun <= 10):
+            raise ValueError(f"Out of range, overrun: {overrun}")
+        if not (1 <= differential <= 10):
+            raise ValueError(f"Out of range, differential: {differential}")
+
+        payload = f"{dhw_idx}{hex_from_temp(setpoint)}{overrun:02X}{hex_from_temp(differential)}"
+
+        return cls.from_attrs(W_, ctl_id, Code._10A0, payload, **kwargs)
 
     @classmethod  # constructor for RQ|1100
     def get_tpi_params(cls, dev_id: DeviceId, *, domain_id=None, **kwargs) -> Command:
@@ -917,154 +756,70 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, Code._1100, payload, **kwargs)
 
-    @classmethod  # constructor for RQ|000A
-    def get_zone_config(
-        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs
-    ) -> Command:
-        """Constructor to get the config of a zone (c.f. parser_000a)."""
+    @classmethod  # constructor for RQ|1260
+    def get_dhw_temp(cls, ctl_id: DeviceId, **kwargs) -> Command:
+        """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
-        zon_idx = _check_idx(zone_idx)
+        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
+        return cls.from_attrs(RQ, ctl_id, Code._1260, dhw_idx, **kwargs)
 
-        return cls.from_attrs(
-            RQ, ctl_id, Code._000A, zon_idx, **kwargs
-        )  # TODO: needs 00?
+    @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
+    def put_dhw_temp(cls, dev_id: DeviceId, temperature: float, **kwargs) -> Command:
+        """Constructor to announce the current temperature of an DHW sensor (1260).
 
-    @classmethod  # constructor for W|000A
-    def set_zone_config(
-        cls,
-        ctl_id: DeviceId,
-        zone_idx: _ZoneIdxT,
-        *,
-        min_temp: float = 5,
-        max_temp: float = 35,
-        local_override: bool = False,
-        openwindow_function: bool = False,
-        multiroom_mode: bool = False,
-        **kwargs,
-    ) -> Command:
-        """Constructor to set the config of a zone (c.f. parser_000a)."""
-
-        zon_idx = _check_idx(zone_idx)
-
-        if not (5 <= min_temp <= 21):
-            raise ValueError(f"Out of range, min_temp: {min_temp}")
-        if not (21 <= max_temp <= 35):
-            raise ValueError(f"Out of range, max_temp: {max_temp}")
-        if not isinstance(local_override, bool):
-            raise ValueError(f"Invalid arg, local_override: {local_override}")
-        if not isinstance(openwindow_function, bool):
-            raise ValueError(f"Invalid arg, openwindow_function: {openwindow_function}")
-        if not isinstance(multiroom_mode, bool):
-            raise ValueError(f"Invalid arg, multiroom_mode: {multiroom_mode}")
-
-        bitmap = 0 if local_override else 1
-        bitmap |= 0 if openwindow_function else 2
-        bitmap |= 0 if multiroom_mode else 16
-
-        payload = "".join(
-            (zon_idx, f"{bitmap:02X}", hex_from_temp(min_temp), hex_from_temp(max_temp))
-        )
-
-        return cls.from_attrs(W_, ctl_id, Code._000A, payload, **kwargs)
-
-    @classmethod  # constructor for RQ|2349
-    def get_zone_mode(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs) -> Command:
-        """Constructor to get the mode of a zone (c.f. parser_2349)."""
-
-        zon_idx = _check_idx(zone_idx)
-
-        return cls.from_attrs(
-            RQ, ctl_id, Code._2349, zon_idx, **kwargs
-        )  # TODO: needs 00?
-
-    @classmethod  # constructor for W|2349
-    def set_zone_mode(
-        cls,
-        ctl_id: DeviceId,
-        zone_idx: _ZoneIdxT,
-        *,
-        mode: int | str | None = None,
-        setpoint: float | None = None,
-        until: dt | str | None = None,
-        duration: int | None = None,
-        **kwargs,
-    ) -> Command:
-        """Constructor to set/reset the mode of a zone (c.f. parser_2349).
-
-        The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
-        but none is provided, evohome will use the maximum possible value.
-
-        The until has a resolution of 1 min.
-
-        Incompatible combinations:
-        - mode == Follow & setpoint not None (will silently ignore setpoint)
-        - mode == Temporary & until is None (will silently ignore ???)
-        - until and duration are mutually exclusive
+        This is for use by a faked CS92A or similar.
         """
 
-        # .W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
-        # .W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
+        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
 
-        zon_idx = _check_idx(zone_idx)
-
-        mode = _normalise_mode(mode, setpoint, until, duration)
-
-        if setpoint is not None and not isinstance(setpoint, float | int):
-            raise TypeError(f"Invalid args: setpoint={setpoint}, but must be a float")
-
-        until, duration = _normalise_until(mode, setpoint, until, duration)
-
-        payload = "".join(
-            (
-                zon_idx,
-                hex_from_temp(setpoint),  # None means max, if a temp is required
-                mode,
-                "FFFFFF" if duration is None else f"{duration:06X}",
-                "" if until is None else hex_from_dtm(until),
+        if dev_id[:2] != DEV_TYPE_MAP.DHW:
+            raise TypeError(
+                f"Faked device {dev_id} has an unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
             )
+
+        payload = f"{dhw_idx}{hex_from_temp(temperature)}"
+        return cls._from_attrs(
+            I_, Code._1260, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
-        return cls.from_attrs(W_, ctl_id, Code._2349, payload, **kwargs)
-
-    @classmethod  # constructor for RQ|0004
-    def get_zone_name(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs) -> Command:
-        """Constructor to get the name of a zone (c.f. parser_0004)."""
-
-        zon_idx = _check_idx(zone_idx)
-
-        return cls.from_attrs(
-            RQ, ctl_id, Code._0004, zon_idx, **kwargs
-        )  # TODO: needs 00?
-
-    @classmethod  # constructor for W|0004
-    def set_zone_name(
-        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, name: str, **kwargs
+    @classmethod  # constructor for I|1290  # TODO: trap corrupt temps?
+    def put_outdoor_temp(
+        cls, dev_id: DeviceId, temperature: float, **kwargs
     ) -> Command:
-        """Constructor to set the name of a zone (c.f. parser_0004)."""
+        """Constructor to announce the current outdoor temperature (1290).
 
-        zon_idx = _check_idx(zone_idx)
+        This is for use by a faked HVAC sensor or similar.
+        """
 
-        payload = f"{zon_idx}00{hex_from_str(name)[:40]:0<40}"
-        return cls.from_attrs(W_, ctl_id, Code._0004, payload, **kwargs)
+        payload = f"00{hex_from_temp(temperature)}"
+        return cls._from_attrs(
+            I_, Code._1290, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
 
-    @classmethod  # constructor for W|2309
-    def set_zone_setpoint(
-        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, setpoint: float, **kwargs
+    @classmethod  # constructor for I|1298
+    def put_co2_level(
+        cls, dev_id: DeviceId, co2_level: float | None, /, **kwargs
     ) -> Command:
-        """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
-        # .W --- 34:092243 01:145038 --:------ 2309 003 0107D0
+        """Constructor to announce the current co2 level of a sensor (1298)."""
+        # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
-        zon_idx = _check_idx(zone_idx)
+        payload = f"00{hex_from_double(co2_level)}"
+        return cls._from_attrs(
+            I_, Code._1298, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
 
-        payload = f"{zon_idx}{hex_from_temp(setpoint)}"
-        return cls.from_attrs(W_, ctl_id, Code._2309, payload, **kwargs)
+    @classmethod  # constructor for I|12A0
+    def put_indoor_humidity(
+        cls, dev_id: DeviceId, indoor_humidity: float, /, **kwargs
+    ) -> Command:
+        """Constructor to announce the current humidity of a sensor (12A0)."""
+        # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
-    @classmethod  # constructor for RQ|30C9
-    def get_zone_temp(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs) -> Command:
-        """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
-
-        zon_idx = _check_idx(zone_idx)
-        return cls.from_attrs(RQ, ctl_id, Code._30C9, zon_idx, **kwargs)
+        payload = f"00{int(indoor_humidity * 100):02X}"  # percent_to_hex
+        return cls._from_attrs(
+            I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
 
     @classmethod  # constructor for RQ|12B0
     def get_zone_window_state(
@@ -1075,62 +830,48 @@ class Command(Frame):
         zon_idx = _check_idx(zone_idx)
         return cls.from_attrs(RQ, ctl_id, Code._12B0, zon_idx, **kwargs)
 
-    @classmethod  # constructor for RP|3EF1 (I|3EF1?)  # TODO: trap corrupt values?
-    def put_actuator_cycle(
+    @classmethod  # constructor for RQ|1F41
+    def get_dhw_mode(cls, ctl_id: DeviceId, **kwargs) -> Command:
+        """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
+
+        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
+        return cls.from_attrs(RQ, ctl_id, Code._1F41, dhw_idx, **kwargs)
+
+    @classmethod  # constructor for W|1F41
+    def set_dhw_mode(
         cls,
-        src_id: DeviceId,
-        dst_id: DeviceId,
-        modulation_level: float,
-        actuator_countdown: int,
+        ctl_id: DeviceId,
         *,
-        cycle_countdown: int | None = None,
+        mode: int | str | None = None,
+        active: bool | None = None,
+        until: dt | str | None = None,
+        duration: int | None = None,
         **kwargs,
     ) -> Command:
-        """Constructor to announce the internal state of an actuator (3EF1).
+        """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
-        This is for use by a faked BDR91A or similar.
-        """
-        # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
+        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
 
-        if src_id[:2] != DEV_TYPE_MAP.BDR:
-            raise TypeError(
-                f"Faked device {src_id} has an unsupported device type: "
-                f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
+        mode = _normalise_mode(mode, active, until, duration)
+
+        if mode == ZON_MODE_MAP.FOLLOW:
+            active = None
+        if active is not None and not isinstance(active, bool | int):
+            raise TypeError(f"Invalid args: active={active}, but must be an bool")
+
+        until, duration = _normalise_until(mode, active, until, duration)
+
+        payload = "".join(
+            (
+                dhw_idx,
+                "FF" if active is None else "01" if bool(active) else "00",
+                mode,
+                "FFFFFF" if duration is None else f"{duration:06X}",
+                "" if until is None else hex_from_dtm(until),
             )
-
-        payload = "00"
-        payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
-        payload += f"{actuator_countdown:04X}"
-        payload += f"{int(modulation_level * 200):02X}FF"  # percent_to_hex
-        return cls._from_attrs(
-            RP, Code._3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs
         )
 
-    @classmethod  # constructor for I|3EF0  # TODO: trap corrupt states?
-    def put_actuator_state(
-        cls, dev_id: DeviceId, modulation_level: float, **kwargs
-    ) -> Command:
-        """Constructor to announce the modulation level of an actuator (3EF0).
-
-        This is for use by a faked BDR91A or similar.
-        """
-        # .I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
-        # .I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
-
-        if dev_id[:2] != DEV_TYPE_MAP.BDR:
-            raise TypeError(
-                f"Faked device {dev_id} has an unsupported device type: "
-                f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
-            )
-
-        payload = (
-            "007FFF"
-            if modulation_level is None
-            else f"00{int(modulation_level * 200):02X}FF"
-        )
-        return cls._from_attrs(
-            I_, Code._3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs
-        )
+        return cls.from_attrs(W_, ctl_id, Code._1F41, payload, **kwargs)
 
     @classmethod  # constructor for 1FC9 (rf_bind) 3-way handshake
     def put_bind(
@@ -1242,39 +983,267 @@ class Command(Frame):
         #     I_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
         # )
 
-    @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
-    def put_dhw_temp(cls, dev_id: DeviceId, temperature: float, **kwargs) -> Command:
-        """Constructor to announce the current temperature of an DHW sensor (1260).
+    @classmethod  # constructor for I|22F1
+    def set_fan_mode(
+        cls,
+        fan_id: DeviceId,
+        fan_mode,
+        *,
+        seqn: int | None = None,
+        src_id: DeviceId | None = None,
+        idx: str = "00",  # could be e.g. "63"
+        **kwargs,
+    ) -> Command:
+        """Constructor to get the fan speed (and heater?) (c.f. parser_22f1).
 
-        This is for use by a faked CS92A or similar.
+        There are two types of this packet seen (with seqn, or with src_id):
+         - I 018 --:------ --:------ 39:159057 22F1 003 000204
+         - I --- 21:039407 28:126495 --:------ 22F1 003 000407
         """
 
-        dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
+        # Scheme 1: I 218 --:------ --:------ 39:159057
+        #  - are cast as a triplet, 0.1s apart?, with a seqn (000-255) and no src_id
+        #  - triplet has same seqn, increased monotonically mod 256 after every triplet
+        #  - only payloads seen: '(00|63)0[234]04', may accept '000.'
+        # .I 218 --:------ --:------ 39:159057 22F1 003 000204  # low
 
-        if dev_id[:2] != DEV_TYPE_MAP.DHW:
+        # Scheme 1a: I --- --:------ --:------ 21:038634 (less common)
+        #  - some systems that accept scheme 2 will accept this scheme
+
+        # Scheme 2: I --- 21:038634 18:126620 --:------ (less common)
+        #  - are cast as a triplet, 0.085s apart, without a seqn (i.e. is ---)
+        #  - only payloads seen: '000.0[47A]', may accept '000.'
+        # .I --- 21:038634 18:126620 --:------ 22F1 003 000507
+
+        from .ramses import _22F1_MODE_ORCON
+
+        _22F1_MODE_ORCON_MAP = {v: k for k, v in _22F1_MODE_ORCON.items()}
+
+        if fan_mode is None:
+            mode = "00"
+        elif isinstance(fan_mode, int):
+            mode = f"{fan_mode:02X}"
+        else:
+            mode = fan_mode
+
+        if mode in _22F1_MODE_ORCON:
+            payload = f"{idx}{mode}"
+        elif mode in _22F1_MODE_ORCON_MAP:
+            payload = f"{idx}{_22F1_MODE_ORCON_MAP[mode]}"
+        else:
+            raise TypeError(f"fan_mode is not valid: {fan_mode}")
+
+        if src_id and seqn:
             raise TypeError(
-                f"Faked device {dev_id} has an unsupported device type: "
-                f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
+                "seqn and src_id are mutally exclusive (you can have neither)"
             )
 
-        payload = f"{dhw_idx}{hex_from_temp(temperature)}"
+        if seqn:
+            return cls._from_attrs(
+                I_, Code._22F1, payload, addr2=fan_id, seqn=seqn, **kwargs
+            )
         return cls._from_attrs(
-            I_, Code._1260, payload, addr0=dev_id, addr2=dev_id, **kwargs
+            I_, Code._22F1, payload, addr0=src_id, addr1=fan_id, **kwargs
         )
 
-    @classmethod  # constructor for I|1290  # TODO: trap corrupt temps?
-    def put_outdoor_temp(
-        cls, dev_id: DeviceId, temperature: float, **kwargs
+    @classmethod  # constructor for I|22F7
+    def set_bypass_position(
+        cls,
+        fan_id: DeviceId,
+        *,
+        bypass_position: float | None = None,
+        src_id: DeviceId | None = None,
+        **kwargs,
     ) -> Command:
-        """Constructor to announce the current outdoor temperature (1290).
+        """Constructor to set the position of the bypass valve (c.f. parser_22f7).
 
-        This is for use by a faked HVAC sensor or similar.
+        bypass_position: a % from fully open (1.0) to fully closed (0.0).
+        None is a sentinel value for auto.
+
+        bypass_mode: is a proxy for bypass_position (they should be mutex)
         """
 
-        payload = f"00{hex_from_temp(temperature)}"
+        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # offically: 00C8EF
+        # RP --- 32:155617 37:155617 --:------ 22F7 003 00C8C8
+
+        src_id = src_id or fan_id  # TODO: src_id should be an arg?
+
+        if (bypass_mode := kwargs.pop("bypass_mode", None)) and (
+            bypass_position is not None
+        ):
+            raise ValueError(
+                "bypass_mode and bypass_position are mutally exclusive, "
+                "both cannot be provided, and neither is OK"
+            )
+        elif bypass_position is not None:
+            pos = f"{int(bypass_position * 200):02X}"
+        elif bypass_mode:
+            pos = {"auto": "FF", "off": "00", "on": "C8"}[bypass_mode]
+        else:
+            pos = "FF"  # auto
+
         return cls._from_attrs(
-            I_, Code._1290, payload, addr0=dev_id, addr2=dev_id, **kwargs
+            W_, Code._22F7, f"00{pos}", addr0=src_id, addr1=fan_id, **kwargs
+        )  # trailing EF not required
+
+    @classmethod  # constructor for W|2309
+    def set_zone_setpoint(
+        cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, setpoint: float, **kwargs
+    ) -> Command:
+        """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
+        # .W --- 34:092243 01:145038 --:------ 2309 003 0107D0
+
+        zon_idx = _check_idx(zone_idx)
+
+        payload = f"{zon_idx}{hex_from_temp(setpoint)}"
+        return cls.from_attrs(W_, ctl_id, Code._2309, payload, **kwargs)
+
+    @classmethod  # constructor for RQ|2349
+    def get_zone_mode(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs) -> Command:
+        """Constructor to get the mode of a zone (c.f. parser_2349)."""
+
+        zon_idx = _check_idx(zone_idx)
+
+        return cls.from_attrs(
+            RQ, ctl_id, Code._2349, zon_idx, **kwargs
+        )  # TODO: needs 00?
+
+    @classmethod  # constructor for W|2349
+    def set_zone_mode(
+        cls,
+        ctl_id: DeviceId,
+        zone_idx: _ZoneIdxT,
+        *,
+        mode: int | str | None = None,
+        setpoint: float | None = None,
+        until: dt | str | None = None,
+        duration: int | None = None,
+        **kwargs,
+    ) -> Command:
+        """Constructor to set/reset the mode of a zone (c.f. parser_2349).
+
+        The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
+        but none is provided, evohome will use the maximum possible value.
+
+        The until has a resolution of 1 min.
+
+        Incompatible combinations:
+        - mode == Follow & setpoint not None (will silently ignore setpoint)
+        - mode == Temporary & until is None (will silently ignore ???)
+        - until and duration are mutually exclusive
+        """
+
+        # .W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
+        # .W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
+
+        zon_idx = _check_idx(zone_idx)
+
+        mode = _normalise_mode(mode, setpoint, until, duration)
+
+        if setpoint is not None and not isinstance(setpoint, float | int):
+            raise TypeError(f"Invalid args: setpoint={setpoint}, but must be a float")
+
+        until, duration = _normalise_until(mode, setpoint, until, duration)
+
+        payload = "".join(
+            (
+                zon_idx,
+                hex_from_temp(setpoint),  # None means max, if a temp is required
+                mode,
+                "FFFFFF" if duration is None else f"{duration:06X}",
+                "" if until is None else hex_from_dtm(until),
+            )
         )
+
+        return cls.from_attrs(W_, ctl_id, Code._2349, payload, **kwargs)
+
+    @classmethod  # constructor for W|2411
+    def set_fan_param(
+        cls,
+        fan_id: DeviceId,
+        param_id: str,
+        value: str,
+        *,
+        src_id: DeviceId = None,
+        **kwargs,
+    ) -> Command:
+        """Constructor to set a configurable fan parameter (c.f. parser_2411)."""
+
+        src_id = src_id or fan_id  # TODO: src_id should be an arg?
+
+        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
+            raise ValueError(f"Unknown parameter: {param_id}")
+
+        payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work
+
+        return cls._from_attrs(
+            W_, Code._2411, payload, addr0=src_id, addr1=fan_id, **kwargs
+        )
+
+    @classmethod  # constructor for RQ|2E04
+    def get_system_mode(cls, ctl_id: DeviceId, **kwargs) -> Command:
+        """Constructor to get the mode of a system (c.f. parser_2e04)."""
+
+        return cls.from_attrs(RQ, ctl_id, Code._2E04, FF, **kwargs)
+
+    @classmethod  # constructor for W|2E04
+    def set_system_mode(
+        cls,
+        ctl_id: DeviceId,
+        system_mode: int | str | None,
+        *,
+        until: dt | str | None = None,
+        **kwargs,
+    ) -> Command:
+        """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
+
+        if system_mode is None:
+            system_mode = SYS_MODE_MAP.AUTO
+        if isinstance(system_mode, int):
+            system_mode = f"{system_mode:02X}"
+        if system_mode not in SYS_MODE_MAP:
+            system_mode = SYS_MODE_MAP._hex(system_mode)  # may raise KeyError
+
+        if until is not None and system_mode in (
+            SYS_MODE_MAP.AUTO,
+            SYS_MODE_MAP.AUTO_WITH_RESET,
+            SYS_MODE_MAP.HEAT_OFF,
+        ):
+            raise ValueError(
+                f"Invalid args: For system_mode={SYS_MODE_MAP[system_mode]},"
+                " until must be None"
+            )
+
+        assert isinstance(system_mode, str)  # mypy hint
+
+        payload = "".join(
+            (
+                system_mode,
+                hex_from_dtm(until),
+                "00" if until is None else "01",
+            )
+        )
+
+        return cls.from_attrs(W_, ctl_id, Code._2E04, payload, **kwargs)
+
+    @classmethod  # constructor for I|2E10
+    def put_presence_detected(
+        cls, dev_id: DeviceId, presence_detected: bool | None, /, **kwargs
+    ) -> Command:
+        """Constructor to announce the current presence state of a sensor (2E10)."""
+        # .I --- ...
+
+        payload = f"00{hex_from_bool(presence_detected)}"
+        return cls._from_attrs(
+            I_, Code._2E10, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
+
+    @classmethod  # constructor for RQ|30C9
+    def get_zone_temp(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, **kwargs) -> Command:
+        """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
+
+        zon_idx = _check_idx(zone_idx)
+        return cls.from_attrs(RQ, ctl_id, Code._30C9, zon_idx, **kwargs)
 
     @classmethod  # constructor for I|30C9  # TODO: trap corrupt temps?
     def put_sensor_temp(
@@ -1304,60 +1273,91 @@ class Command(Frame):
             I_, Code._30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs
         )
 
-    @classmethod  # constructor for I|1298
-    def put_co2_level(
-        cls, dev_id: DeviceId, co2_level: float | None, /, **kwargs
+    @classmethod  # constructor for RQ|313F
+    def get_system_time(cls, ctl_id: DeviceId, **kwargs) -> Command:
+        """Constructor to get the datetime of a system (c.f. parser_313f)."""
+
+        return cls.from_attrs(RQ, ctl_id, Code._313F, "00", **kwargs)
+
+    @classmethod  # constructor for W|313F
+    def set_system_time(
+        cls,
+        ctl_id: DeviceId,
+        datetime: dt | str,
+        is_dst: bool = False,
+        **kwargs,
     ) -> Command:
-        """Constructor to announce the current co2 level of a sensor (1298)."""
-        # .I --- 37:039266 --:------ 37:039266 1298 003 000316
+        """Constructor to set the datetime of a system (c.f. parser_313f)."""
+        # .W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        payload = f"00{hex_from_double(co2_level)}"
-        return cls._from_attrs(
-            I_, Code._1298, payload, addr0=dev_id, addr2=dev_id, **kwargs
-        )
+        dt_str = hex_from_dtm(datetime, is_dst=is_dst, incl_seconds=True)
+        return cls.from_attrs(W_, ctl_id, Code._313F, f"0060{dt_str}", **kwargs)
 
-    @classmethod  # constructor for I|12A0
-    def put_indoor_humidity(
-        cls, dev_id: DeviceId, indoor_humidity: float, /, **kwargs
+    @classmethod  # constructor for RQ|3220
+    def get_opentherm_data(
+        cls, otb_id: DeviceId, msg_id: int | str, **kwargs
     ) -> Command:
-        """Constructor to announce the current humidity of a sensor (12A0)."""
-        # .I --- 37:039266 --:------ 37:039266 1298 003 000316
+        """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
 
-        payload = f"00{int(indoor_humidity * 100):02X}"  # percent_to_hex
-        return cls._from_attrs(
-            I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id, **kwargs
-        )
+        msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
+        payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
+        return cls.from_attrs(RQ, otb_id, Code._3220, payload, **kwargs)
 
-    @classmethod  # constructor for I|2E10
-    def put_presence_detected(
-        cls, dev_id: DeviceId, presence_detected: bool | None, /, **kwargs
+    @classmethod  # constructor for I|3EF0  # TODO: trap corrupt states?
+    def put_actuator_state(
+        cls, dev_id: DeviceId, modulation_level: float, **kwargs
     ) -> Command:
-        """Constructor to announce the current presence state of a sensor (2E10)."""
-        # .I --- ...
+        """Constructor to announce the modulation level of an actuator (3EF0).
 
-        payload = f"00{hex_from_bool(presence_detected)}"
-        return cls._from_attrs(
-            I_, Code._2E10, payload, addr0=dev_id, addr2=dev_id, **kwargs
-        )
-
-    @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
-    def put_weather_temp(
-        cls, dev_id: DeviceId, temperature: float, **kwargs
-    ) -> Command:
-        """Constructor to announce the current temperature of a weather sensor (0002).
-
-        This is for use by a faked HB85 or similar.
+        This is for use by a faked BDR91A or similar.
         """
+        # .I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
+        # .I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
-        if dev_id[:2] != DEV_TYPE_MAP.OUT:
+        if dev_id[:2] != DEV_TYPE_MAP.BDR:
             raise TypeError(
                 f"Faked device {dev_id} has an unsupported device type: "
-                f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
+                f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
             )
 
-        payload = f"00{hex_from_temp(temperature)}01"
+        payload = (
+            "007FFF"
+            if modulation_level is None
+            else f"00{int(modulation_level * 200):02X}FF"
+        )
         return cls._from_attrs(
-            I_, Code._0002, payload, addr0=dev_id, addr2=dev_id, **kwargs
+            I_, Code._3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs
+        )
+
+    @classmethod  # constructor for RP|3EF1 (I|3EF1?)  # TODO: trap corrupt values?
+    def put_actuator_cycle(
+        cls,
+        src_id: DeviceId,
+        dst_id: DeviceId,
+        modulation_level: float,
+        actuator_countdown: int,
+        *,
+        cycle_countdown: int | None = None,
+        **kwargs,
+    ) -> Command:
+        """Constructor to announce the internal state of an actuator (3EF1).
+
+        This is for use by a faked BDR91A or similar.
+        """
+        # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
+
+        if src_id[:2] != DEV_TYPE_MAP.BDR:
+            raise TypeError(
+                f"Faked device {src_id} has an unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
+            )
+
+        payload = "00"
+        payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
+        payload += f"{actuator_countdown:04X}"
+        payload += f"{int(modulation_level * 200):02X}FF"  # percent_to_hex
+        return cls._from_attrs(
+            RP, Code._3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs
         )
 
     @classmethod  # constructor for internal use only
