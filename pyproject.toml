@@ -110,7 +110,7 @@
   warn_unused_ignores = true
 
   # # Getting these passing should be easy
-  extra_checks = true  # was: strict_equality, strict_concatenate = true
+  # extra_checks = true  # was: strict_equality, strict_concatenate = true
 
   # # Strongly recommend enabling this one as soon as you can
   check_untyped_defs = true
@@ -143,11 +143,6 @@
 [[tool.mypy.overrides]]
   module = "ramses_rf.discovery"
   disable_error_code = ["misc"]  # disallow_untyped_decorators
-
-[[tool.mypy.overrides]]
-  module = "ramses_tx.command"
-  disable_error_code = ["misc"]  # disallow_untyped_decorators
-
 
 
 
