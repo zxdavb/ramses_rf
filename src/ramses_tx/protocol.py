@@ -40,7 +40,6 @@ from .typing import (
     MsgFilterT,
     MsgHandlerT,
     QosParams,
-    RamsesProtocolT,
     RamsesTransportT,
 )
 
@@ -290,6 +289,8 @@ class _BaseProtocol(asyncio.Protocol):
     def add_handler(
         self,
         msg_handler: MsgHandlerT,
+        /,
+        *,
         msg_filter: None | MsgFilterT = None,
     ) -> Callable[[], None]:
         """Add a Message handler to the list of such callbacks.
@@ -612,7 +613,7 @@ class QosProtocol(PortProtocol):
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler)
 
-        self._context = ProtocolContext(self)  # the FSM
+        self._context = ProtocolContext(self)  # type: ignore[arg-type]
         self._selective_qos = selective_qos
 
     def __repr__(self) -> str:
@@ -735,6 +736,9 @@ class QosProtocol(PortProtocol):
             priority=priority,
             qos=qos,
         )
+
+
+RamsesProtocolT = QosProtocol | PortProtocol | ReadProtocol
 
 
 def protocol_factory(
