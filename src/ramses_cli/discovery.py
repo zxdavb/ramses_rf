@@ -20,7 +20,6 @@ from ramses_rf.const import (
     __dev_mode__,
 )
 from ramses_tx import CODES_SCHEMA, Command, Priority
-from ramses_tx.command import _mk_cmd
 from ramses_tx.opentherm import OTB_MSG_IDS
 from ramses_tx.protocol import MIN_GAP_BETWEEN_WRITES
 
@@ -64,6 +63,11 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+def _mk_cmd(verb: Verb, code: Code, payload: str, dest_id, **kwargs) -> Command:
+    """A convenience function, to cope with a change to the Command class."""
+    return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
 
 
 def script_decorator(fnc):
