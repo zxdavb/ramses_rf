@@ -57,7 +57,7 @@ from ramses_tx.schemas import (
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
-from .helpers import schedule_task, shrink
+from .helpers import shrink
 from .schemas import (
     SCH_GATEWAY_CONFIG,
     SCH_GLOBAL_SCHEMAS,
@@ -310,7 +310,7 @@ class Engine:
 
         return args
 
-    def _add_task(self, task: asyncio.Task) -> None:  # TODO: needs a lock?
+    def add_task(self, task: asyncio.Task) -> None:  # TODO: needs a lock?
         # keep a track of tasks, so we can tidy-up
         self._tasks = [t for t in self._tasks if not t.done()]
         self._tasks.append(task)
@@ -789,20 +789,6 @@ class Gateway(Engine):
 
         process_msg(self, msg)
 
-    def add_task(
-        self,
-        fnc: Callable,
-        *args,
-        delay: float | None = None,
-        period: float | None = None,
-        **kwargs,
-    ) -> asyncio.Task:
-        """Start a task after delay seconds and then repeat it every period seconds."""
-
-        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
-        self._add_task(task)
-        return task
-
     def send_cmd(
         self,
         cmd: Command,
@@ -815,7 +801,7 @@ class Gateway(Engine):
 
         task = self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
 
-        self._add_task(task)
+        self.add_task(task)
         return task
 
     async def async_send_cmd(
@@ -845,6 +831,6 @@ class Gateway(Engine):
             return None
 
         if callback:
-            self._add_task(self._loop.create_task(callback(pkt)))
+            self.add_task(self._loop.create_task(callback(pkt)))
 
         return pkt

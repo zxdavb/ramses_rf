@@ -16,6 +16,7 @@ from sys import modules
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
+from ramses_rf.helpers import schedule_task
 from ramses_tx.opentherm import OPENTHERM_MESSAGES
 from ramses_tx.ramses import CODES_SCHEMA
 
@@ -414,17 +415,25 @@ class _Discovery(_MessageDB):
         }
 
     def _start_discovery_poller(self) -> None:
-        if not self._discovery_poller or self._discovery_poller.done():
-            self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
-            self._discovery_poller.set_name(f"{self.id}_discovery_poller")  # type: ignore[union-attr]
+        """Start the discovery poller (if it is not already running)."""
+
+        if self._discovery_poller and not self._discovery_poller.done():
+            return
+
+        self._discovery_poller = schedule_task(self._poll_discovery_cmds)
+        self._discovery_poller.set_name(f"{self.id}_discovery_poller")
+        self._gwy.add_task(self._discovery_poller)
 
     async def _stop_discovery_poller(self) -> None:
-        if self._discovery_poller and not self._discovery_poller.done():
-            self._discovery_poller.cancel()
-            try:
-                await self._discovery_poller
-            except asyncio.CancelledError:
-                pass
+        """Stop the discovery poller (only if it is running)."""
+        if not self._discovery_poller or self._discovery_poller.done():
+            return
+
+        self._discovery_poller.cancel()
+        try:
+            await self._discovery_poller
+        except asyncio.CancelledError:
+            pass
 
     async def _poll_discovery_cmds(self) -> None:
         """Send any outstanding commands that are past due.
