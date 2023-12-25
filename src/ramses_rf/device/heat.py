@@ -11,23 +11,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final
 
-from ramses_tx.address import NON_DEV_ADDR
-from ramses_tx.command import Command, Priority, _mk_cmd
-from ramses_tx.const import SZ_BINDINGS
-from ramses_tx.opentherm import (
-    PARAMS_MSG_IDS,
-    SCHEMA_MSG_IDS,
-    STATUS_MSG_IDS,
-    SZ_MSG_ID,
-    SZ_MSG_NAME,
-    SZ_MSG_TYPE,
-    SZ_VALUE,
-    OtMsgType,
-)
-from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
-
-from .. import exceptions as exc
-from ..const import (
+from ramses_rf import exceptions as exc
+from ramses_rf.const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     DOMAIN_TYPE_MAP,
@@ -48,20 +33,34 @@ from ..const import (
     ZON_ROLE_MAP,
     DevType,
 )
-from ..entity_base import Entity, Parent, class_by_attr
-from ..helpers import shrink
-from ..schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
+from ramses_rf.entity_base import Entity, Parent, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
+from ramses_tx.address import NON_DEV_ADDR
+from ramses_tx.command import Command, Priority
+from ramses_tx.const import SZ_BINDINGS
+from ramses_tx.opentherm import (
+    PARAMS_MSG_IDS,
+    SCHEMA_MSG_IDS,
+    STATUS_MSG_IDS,
+    SZ_MSG_ID,
+    SZ_MSG_NAME,
+    SZ_MSG_TYPE,
+    SZ_VALUE,
+    OtMsgType,
+)
+from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
+
 from .base import BatteryState, Device, DeviceHeat, Fakeable
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -70,12 +69,11 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
+    from ramses_rf.system import Zone
     from ramses_tx import Address, Message, Packet
-
-    from ..system import Zone
 
 
 SZ_BURNER_HOURS: Final[str] = "burner_hours"
@@ -437,7 +435,7 @@ class Controller(DeviceHeat):  # CTL (01):
             If a TCS is created, attach it to this device (which should be a CTL).
             """
 
-            from ..system import system_factory
+            from ramses_rf.system import system_factory
 
             schema = shrink(SCH_TCS(schema))
 
@@ -497,24 +495,22 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
-        self._add_discovery_cmd(
-            _mk_cmd(RQ, Code._0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
-        )
+        cmd = Command.from_attrs(RQ, self.id, Code._0005, f"00{DEV_ROLE_MAP.UFH}")
+        self._add_discovery_cmd(cmd, 60 * 60 * 24)
+
         # TODO: this needs work
         # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
         for ufc_idx in self.circuit_by_id:
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000A, ufc_idx, self.id), 60 * 60 * 6
-            )
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._2309, ufc_idx, self.id), 60 * 60 * 6
-            )
+            cmd = Command.get_zone_config(self.id, ufc_idx)
+            self._add_discovery_cmd(cmd, 60 * 60 * 6)
+
+            cmd = Command.get_zone_setpoint(self.id, ufc_idx)
+            self._add_discovery_cmd(cmd, 60 * 60 * 6)
 
         for ufc_idx in range(8):  # type: ignore[assignment]
             payload = f"{ufc_idx:02X}{DEV_ROLE_MAP.UFH}"
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24
-            )
+            cmd = Command.from_attrs(RQ, self.id, Code._000C, payload)
+            self._add_discovery_cmd(cmd, 60 * 60 * 24)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -750,7 +746,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if use_native_ot in ("always", "prefer"):
                 return Command.get_opentherm_data(self.id, msg_id)
             if msg_id in self.OT_TO_RAMSES:  # is: in ("avoid", "never")
-                return _mk_cmd(RQ, self.OT_TO_RAMSES[msg_id], "00", self.id)
+                return Command.from_attrs(RQ, self.id, self.OT_TO_RAMSES[msg_id], "00")
             if use_native_ot == "avoid":
                 return Command.get_opentherm_data(self.id, msg_id)
             return None  # use_native_ot == "never"
@@ -761,7 +757,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if self._gwy.config.use_native_ot != "never":
             self._add_discovery_cmd(Command.get_opentherm_data(self.id, "00"), 60)
         if self._gwy.config.use_native_ot != "always":
-            self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60)
+            self._add_discovery_cmd(
+                Command.from_attrs(RQ, self.id, Code._3EF0, "00"), 60
+            )
 
         for msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
             if cmd := which_cmd(self._gwy.config.use_native_ot, msg_id):
@@ -783,7 +781,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._3221,  # R8810A/20A
                 Code._3223,  # R8810A/20A
             ):
-                self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60)
+                self._add_discovery_cmd(Command.from_attrs(RQ, self.id, code, "00"), 60)
 
         if False and DEV_MODE:  # TODO: these are WIP, appear FIXED in payload
             for code in (
@@ -795,8 +793,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._2410,  # payload always "000000000000000000000000010000000100000C"
                 Code._2420,  # payload always "0000001000000...
             ):  # TODO: to test against BDR91T
-                cmd = _mk_cmd(RQ, code, "00", self.id)
-                self._add_discovery_cmd(cmd, 300, delay=300)
+                self._add_discovery_cmd(
+                    Command.from_attrs(RQ, self.id, code, "00"), 300
+                )
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -811,7 +810,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         self._msgs_ot[msg_id] = msg
 
         if DEV_MODE:  # here to follow state changes
-            self._send_cmd(_mk_cmd(RQ, Code._2401, "00", self.id))  # oem code
+            self._send_cmd(
+                Command.from_attrs(RQ, self.id, Code._2401, "00")
+            )  # oem code
             if msg_id != "73":
                 self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
@@ -819,7 +820,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if self._gwy.config.use_native_ot and (
                 code := self.OT_TO_RAMSES.get(msg_id)
             ):
-                self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
+                self._send_cmd(Command.from_attrs(RQ, self.id, code, "00"))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
             self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
@@ -1345,7 +1346,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 
         self._add_discovery_cmd(Command.get_tpi_params(self.id), 6 * 3600)  # params
         self._add_discovery_cmd(
-            _mk_cmd(RQ, Code._3EF1, "00", self.id),
+            Command.from_attrs(RQ, self.id, Code._3EF1, "00"),
             60 if self._child_id in (F9, FA, FC) else 300,
         )  # status
 

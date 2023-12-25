@@ -11,12 +11,11 @@ import logging
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
+from ramses_rf import exceptions as exc
 from ramses_tx import Command
-from ramses_tx.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT, __dev_mode__
+from ramses_tx.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT
 
-from .. import exceptions as exc
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -25,14 +24,10 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-
-DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 TIMER_SHORT_SLEEP = 0.05

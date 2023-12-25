@@ -1078,6 +1078,12 @@ class Command(Frame):
             W_, Code._22F7, f"00{pos}", addr0=src_id, addr1=fan_id
         )  # trailing EF not required
 
+    @classmethod  # constructor for RQ|2309
+    def get_zone_setpoint(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT) -> Command:
+        """Constructor to get the setpoint of a zone (c.f. parser_2309)."""
+
+        return cls.from_attrs(W_, ctl_id, Code._2309, _check_idx(zone_idx))
+
     @classmethod  # constructor for W|2309
     def set_zone_setpoint(
         cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, setpoint: float
@@ -1354,11 +1360,6 @@ class Command(Frame):
         return cls.from_attrs(I_, NUL_DEV_ADDR.id, Code._PUZZ, payload[:48], qos=qos)
 
 
-def _mk_cmd(verb: Verb, code: Code, payload: _PayloadT, dest_id, **kwargs) -> Command:
-    """A convenience function, to cope with a change to the Command class."""
-    return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
-
-
 # A convenience dict
 CODE_API_MAP = {
     f"{RP}|{Code._3EF1}": Command.put_actuator_cycle,  # .   has a test (RP, not I)
@@ -1401,6 +1402,7 @@ CODE_API_MAP = {
     f"{W_}|{Code._2349}": Command.set_zone_mode,  # .         has a test
     f"{RQ}|{Code._0004}": Command.get_zone_name,
     f"{W_}|{Code._0004}": Command.set_zone_name,  # .         has a test
+    f"{RQ}|{Code._2309}": Command.get_zone_setpoint,
     f"{W_}|{Code._2309}": Command.set_zone_setpoint,  # .     has a test
     f"{RQ}|{Code._30C9}": Command.get_zone_temp,
     f"{RQ}|{Code._12B0}": Command.get_zone_window_state,

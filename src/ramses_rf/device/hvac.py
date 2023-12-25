@@ -10,11 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from ramses_tx import Address, Command, Message, Packet
-from ramses_tx.const import SZ_BINDINGS
-from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
-
-from ..const import (
+from ramses_rf.const import (
     FAN_MODE,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
@@ -39,14 +35,17 @@ from ..const import (
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
     DevType,
-    __dev_mode__,
 )
-from ..entity_base import class_by_attr
-from ..helpers import shrink
-from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
+from ramses_rf.entity_base import class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
+from ramses_tx import Address, Command, Message, Packet
+from ramses_tx.const import SZ_BINDINGS
+from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
+
 from .base import BatteryState, Device, DeviceHvac, Fakeable
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -55,7 +54,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 # TODO: Switch this module to utilise the (run-time) decorator design pattern...
 # - https://refactoring.guru/design-patterns/decorator/python/example
@@ -69,11 +68,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 # - thus, Composite design pattern may be more appropriate
 
 
-DEV_MODE = __dev_mode__  # and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _HvacRemoteBaseT = TypeVar("_HvacRemoteBaseT", bound="HvacRemoteBase")

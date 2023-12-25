@@ -12,20 +12,8 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from ramses_tx import (
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_ROLE_MAP,
-    Address,
-    Command,
-    Message,
-    Priority,
-)
-from ramses_tx.command import _mk_cmd
-from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
-
-from .. import exceptions as exc
-from ..const import (
+from ramses_rf import exceptions as exc
+from ramses_rf.const import (
     SYS_MODE_MAP,
     SZ_ACTUATORS,
     SZ_CHANGE_COUNTER,
@@ -42,9 +30,8 @@ from ..const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     SZ_ZONES,
-    __dev_mode__,
 )
-from ..device import (
+from ramses_rf.device import (
     BdrSwitch,
     Controller,
     Device,
@@ -53,9 +40,9 @@ from ..device import (
     Temperature,
     UfhController,
 )
-from ..entity_base import Entity, Parent, class_by_attr
-from ..helpers import shrink
-from ..schemas import (
+from ramses_rf.entity_base import Entity, Parent, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import (
     DEFAULT_MAX_ZONES,
     SCH_TCS,
     SCH_TCS_DHW,
@@ -68,21 +55,31 @@ from ..schemas import (
     SZ_SYSTEM,
     SZ_UFH_SYSTEM,
 )
+from ramses_tx import (
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
+    ZON_ROLE_MAP,
+    Address,
+    Command,
+    Message,
+    Priority,
+)
+from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
+
 from .faultlog import FaultLog
 from .zones import DhwZone, Zone
 
 # TODO: refactor packet routing (filter *before* routing)
 
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -91,14 +88,10 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-
-DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _SystemT = TypeVar("_SystemT", bound="System")
@@ -177,9 +170,8 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
             f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24, delay=0
-            )
+            cmd = Command.from_attrs(RQ, self.ctl.id, Code._000C, payload)
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0)
 
         self._add_discovery_cmd(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
 
@@ -386,8 +378,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super()._setup_discovery_cmds()
 
         for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
+            cmd = Command.from_attrs(RQ, self.id, Code._0005, f"00{zone_type}")
             self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._0005, f"00{zone_type}", self.id),
+                cmd,
                 60 * 60 * 24,
                 delay=0,
             )
@@ -615,7 +608,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(_mk_cmd(RQ, Code._0006, "00", self.id), 60 * 5, delay=5)
+        self._add_discovery_cmd(Command.get_schedule_version(self.id), 60 * 5, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retrieve the latest global change counter."""
@@ -835,9 +828,8 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             # f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
             # f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24, delay=0
-            )
+            cmd = Command.from_attrs(RQ, self.id, Code._000C, payload)
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)

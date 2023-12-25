@@ -11,17 +11,28 @@ import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from ramses_tx.command import _mk_cmd
+from ramses_rf.binding_fsm import BindContext
+from ramses_rf.const import (
+    DEV_TYPE_MAP,
+    SZ_DEVICE_ID,
+    SZ_OEM_CODE,
+    DevType,
+)
+from ramses_rf.entity_base import Child, Entity, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import (
+    SCH_TRAITS,
+    SZ_ALIAS,
+    SZ_CLASS,
+    SZ_FAKED,
+    SZ_KNOWN_LIST,
+    SZ_SCHEME,
+)
 from ramses_tx.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 
-from ..binding_fsm import BindContext
-from ..const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, DevType, __dev_mode__
-from ..entity_base import Child, Entity, class_by_attr
-from ..helpers import shrink
-from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST, SZ_SCHEME
 from . import Command, Packet
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -30,12 +41,13 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from typing import Any
 
-    from .. import Gateway
+    from ramses_rf import Gateway
+
     from . import Address, Message
 
 DEFAULT_BDR_ID = "13:888888"
@@ -48,11 +60,7 @@ BIND_REQUEST_TIMEOUT = 5  # how long to wait for an accept after sending an offe
 BIND_CONFIRM_TIMEOUT = 5  # how long to wait for a confirm after sending an accept
 
 
-DEV_MODE = __dev_mode__  # and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 def check_faking_enabled(fnc):
@@ -140,8 +148,8 @@ class DeviceBase(Entity):
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         # if discover_flag & Discover.TRAITS:
-        # self._add_discovery_cmd(_mk_cmd(RQ, Code._1FC9, "00", self.id), 60 * 60 * 24)
-        # self._add_discovery_cmd(_mk_cmd(RQ, Code._0016, "00", self.id), 60 * 60)
+        # self._add_discovery_cmd(cmd(RQ, Code._1FC9, "00", self.id), 60 * 60 * 24)
+        # self._add_discovery_cmd(cmd(RQ, Code._0016, "00", self.id), 60 * 60)
 
         pass
 
@@ -267,9 +275,8 @@ class DeviceInfo(DeviceBase):  # 10E0
         if self._SLUG not in CODES_BY_DEV_SLUG or RP in CODES_BY_DEV_SLUG[
             self._SLUG
         ].get(Code._10E0, {}):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._10E0, "00", self.id), 60 * 60 * 24
-            )
+            cmd = Command.from_attrs(RQ, self.id, Code._10E0, "00")
+            self._add_discovery_cmd(cmd, 60 * 60 * 24)
 
     @property
     def device_info(self) -> dict | None:  # 10E0

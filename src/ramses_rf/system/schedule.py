@@ -18,20 +18,18 @@ from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol  # type: ignore[import]
 
-from ramses_tx.command import Command
-from ramses_tx.const import SZ_CHANGE_COUNTER
-from ramses_tx.message import Message
-
-from ..const import (
+from ramses_rf.const import (
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
     SZ_SCHEDULE,
     SZ_TOTAL_FRAGS,
     SZ_ZONE_IDX,
-    __dev_mode__,
 )
+from ramses_tx.command import Command
+from ramses_tx.const import SZ_CHANGE_COUNTER
+from ramses_tx.message import Message
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -40,14 +38,10 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-
-DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 MSG = "msg"

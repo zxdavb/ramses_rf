@@ -10,12 +10,8 @@ from asyncio import Future
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from ramses_tx import Address, Command, Message
-from ramses_tx.command import _mk_cmd
-from ramses_tx.const import SZ_PAYLOAD
-
-from .. import exceptions as exc
-from ..const import (
+from ramses_rf import exceptions as exc
+from ramses_rf.const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     SZ_DOMAIN_ID,
@@ -32,9 +28,8 @@ from ..const import (
     ZON_ROLE_MAP,
     DevRole,
     ZoneRole,
-    __dev_mode__,
 )
-from ..device import (
+from ramses_rf.device import (
     BdrSwitch,
     Controller,
     Device,
@@ -42,9 +37,9 @@ from ..device import (
     TrvActuator,
     UfhController,
 )
-from ..entity_base import Child, Entity, Parent, class_by_attr
-from ..helpers import shrink
-from ..schemas import (
+from ramses_rf.entity_base import Child, Entity, Parent, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import (
     SCH_TCS_DHW,
     SCH_TCS_ZONES_ZON,
     SZ_ACTUATORS,
@@ -54,23 +49,23 @@ from ..schemas import (
     SZ_HTG_VALVE,
     SZ_SENSOR,
 )
+from ramses_tx import Address, Command, Message
+from ramses_tx.const import SZ_PAYLOAD
+
 from .schedule import Schedule
 
 # Kudos & many thanks to:
 # - @dbmandrake: valve_position -> heat_demand transform
 
-# TODO: add optional eavesdrop of zone_type
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -79,14 +74,10 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
-
-DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _ZoneT = TypeVar("_ZoneT", bound="ZoneBase")
@@ -213,7 +204,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
             self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24
+                Command.from_attrs(RQ, self.ctl.id, Code._000C, payload), 60 * 60 * 24
             )
 
         self._add_discovery_cmd(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
@@ -516,11 +507,10 @@ class Zone(ZoneSchedule, ZoneBase):
         # super()._setup_discovery_cmds()
 
         for dev_role in (self._ROLE_ACTUATORS, DEV_ROLE_MAP.SEN):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, f"{self.idx}{dev_role}", self.ctl.id),
-                60 * 60 * 24,
-                delay=0.5,
+            cmd = Command.from_attrs(
+                RQ, self.ctl.id, Code._000C, f"{self.idx}{dev_role}"
             )
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0.5)
 
         self._add_discovery_cmd(
             Command.get_zone_config(self.ctl.id, self.idx), 60 * 60 * 6, delay=30

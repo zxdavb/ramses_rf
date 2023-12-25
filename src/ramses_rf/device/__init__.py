@@ -10,13 +10,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from ramses_rf.const import DEV_TYPE_MAP
+from ramses_rf.schemas import SZ_CLASS, SZ_FAKED
 from ramses_tx import Address, Command, Message, Packet  # noqa: F401
 
-from ..const import DEV_TYPE_MAP, __dev_mode__
-from ..schemas import SZ_CLASS, SZ_FAKED
-
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -55,11 +54,8 @@ from .hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     class_dev_hvac,
 )
 
-DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
