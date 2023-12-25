@@ -575,7 +575,7 @@ class _FileTransport(asyncio.ReadTransport):
         self._loop.call_soon(self._protocol.connection_lost, exc)
 
     def close(self) -> None:
-        """Close the transport (calls self._protocol.connection_lost())."""
+        """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
         self._close()
 
 
@@ -695,7 +695,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             self._init_task.cancel()
 
     def close(self) -> None:
-        """Close the transport gracefully (calls self._protocol.connection_lost())."""
+        """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
         if not self._closing:
             self._close()
 
