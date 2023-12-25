@@ -65,9 +65,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _mk_cmd(verb: Verb, code: Code, payload: str, dest_id, **kwargs) -> Command:
+def _mk_cmd(verb: Verb, code: Code, payload: str, dest_id) -> Command:
     """A convenience function, to cope with a change to the Command class."""
-    return Command.from_attrs(verb, dest_id, code, payload, **kwargs)
+    return Command.from_attrs(verb, dest_id, code, payload)
 
 
 def script_decorator(fnc):
@@ -89,12 +89,16 @@ def script_decorator(fnc):
     return wrapper
 
 
-async def periodic(
-    gwy: Gateway, cmd: Command, count: int = 1, interval: None | float = None
+async def periodic_send(
+    gwy: Gateway,
+    cmd: Command,
+    count: int = 1,
+    interval: float | None = None,
+    qos=None,
 ):
     async def periodic_(interval_: float) -> None:
         await asyncio.sleep(interval_)
-        gwy.send_cmd(cmd)
+        gwy.send_cmd(cmd, qos=qos)
 
     if interval is None:
         interval = 0 if count == 1 else 60
@@ -149,8 +153,9 @@ async def exec_cmd(gwy: Gateway, **kwargs):
 # @script_decorator
 # async def script_scan_004(gwy: Gateway, dev_id: str):
 #     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
-#     cmd = Command.get_dhw_mode(dev_id, **QOS_SCAN)
-#     return gwy._loop.create_task(periodic(gwy: Gateway, cmd: Command, count=0, interval=5))
+#     cmd = Command.get_dhw_mode(dev_id)
+#     return gwy._loop.create_task(
+#         periodic_send(gwy: Gateway, cmd: Command, count=0, interval=5, qos=QOS_SCAN)))
 
 
 async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3F):
@@ -199,8 +204,10 @@ def script_poll_device(gwy: Gateway, dev_id: str) -> list:
     tasks = []
 
     for code in (Code._0016, Code._1FC9):
-        cmd = _mk_cmd(RQ, code, "00", dev_id, qos=QOS_SCAN)
-        tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
+        cmd = _mk_cmd(RQ, code, "00", dev_id)
+        tasks.append(
+            gwy._loop.create_task(periodic_send(gwy, cmd, count=0, qos=QOS_SCAN))
+        )
 
     gwy._tasks.extend(tasks)
     return tasks
@@ -282,7 +289,7 @@ async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int 
     start_code = start_code or 0
 
     for code in range(start_code, 0x5000):
-        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id, qos=QOS_SCAN))  # type:ignore[arg-type]
+        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id), qos=QOS_SCAN)  # type:ignore[arg-type]
         await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
 
 
@@ -411,7 +418,7 @@ async def script_scan_otb_ramses(
     #  - ch setpoint          /
     #  - max. rel. modulation /
 
-    [gwy.send_cmd(_mk_cmd(RQ, c, "00", dev_id, qos=QOS_SCAN)) for c in CODES]
+    [gwy.send_cmd(_mk_cmd(RQ, c, "00", dev_id), qos=QOS_SCAN) for c in CODES]
 
 
 SCRIPTS = {
