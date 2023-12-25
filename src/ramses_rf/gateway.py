@@ -310,23 +310,10 @@ class Engine:
 
         return args
 
-    def add_task(
-        self,
-        fnc: Callable,
-        *args,
-        delay: float | None = None,
-        period: float | None = None,
-        **kwargs,
-    ) -> asyncio.Task:
-        """Start a task after delay seconds and then repeat it every period seconds."""
-
+    def _add_task(self, task: asyncio.Task) -> None:  # TODO: needs a lock?
         # keep a track of tasks, so we can tidy-up
         self._tasks = [t for t in self._tasks if not t.done()]
-
-        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
-
         self._tasks.append(task)
-        return task
 
     @staticmethod
     def create_cmd(
@@ -802,6 +789,20 @@ class Gateway(Engine):
 
         process_msg(self, msg)
 
+    def add_task(
+        self,
+        fnc: Callable,
+        *args,
+        delay: float | None = None,
+        period: float | None = None,
+        **kwargs,
+    ) -> asyncio.Task:
+        """Start a task after delay seconds and then repeat it every period seconds."""
+
+        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
+        self._add_task(task)
+        return task
+
     def send_cmd(
         self,
         cmd: Command,
@@ -812,12 +813,9 @@ class Gateway(Engine):
 
         assert not kwargs, kwargs
 
-        # keep a track of tasks, so we can tidy-up
-        self._tasks = [t for t in self._tasks if not t.done()]
-
         task = self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
 
-        self._tasks.append(task)
+        self._add_task(task)
         return task
 
     async def async_send_cmd(
@@ -847,8 +845,6 @@ class Gateway(Engine):
             return None
 
         if callback:
-            # keep a track of tasks, so we can tidy-up
-            self._tasks = [t for t in self._tasks if not t.done()]
-            self._tasks.append(self._loop.create_task(callback(pkt)))
+            self._add_task(self._loop.create_task(callback(pkt)))
 
         return pkt
