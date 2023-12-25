@@ -133,6 +133,9 @@ class RamsesTransportT(Protocol):
         ...
 
     def close(self) -> None:
+        """Close the transport gracefully.
+
+        Schedules a call to `transport._protocol.connection_lost(None)`."""
         ...
 
     def get_extra_info(self, name, default: Any | None = None) -> Any:
@@ -165,6 +168,7 @@ class RamsesTransportT(Protocol):
 class RamsesProtocolT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Protocol."""
 
+    _msg_handler: MsgHandlerT
     _pause_writing: bool
     _transport: RamsesTransportT
 
@@ -172,11 +176,15 @@ class RamsesProtocolT(Protocol):
         ...
 
     def add_handler(
-        self, /, *, msg_handler: MsgHandlerT, msg_filter: MsgFilterT | None = None
+        self, msg_handler: MsgHandlerT, /, *, msg_filter: MsgFilterT | None = None
     ) -> Callable[[], None]:
         ...
 
     def connection_lost(self, err: ExceptionT | None) -> None:
+        ...
+
+    @property
+    def wait_connection_lost(self) -> asyncio.Future:
         ...
 
     def connection_made(self, transport: RamsesTransportT) -> None:
