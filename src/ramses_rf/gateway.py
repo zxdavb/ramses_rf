@@ -21,7 +21,7 @@ from datetime import datetime as dt
 from io import TextIOWrapper
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ramses_tx import (
     SZ_ACTIVE_HGI,
@@ -37,7 +37,10 @@ from ramses_tx import (
     transport_factory,
 )
 from ramses_tx.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
-from ramses_tx.protocol_fsm import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ramses_tx.protocol_fsm import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_TIMEOUT,
+)
 from ramses_tx.schemas import (
     SCH_ENGINE_CONFIG,
     SZ_BLOCK_LIST,
@@ -806,11 +809,14 @@ class Gateway(Engine):
         process_msg(self, msg)
 
     def send_cmd(
-        self, cmd: Command, callback: Callable | None = None, **kwargs
+        self,
+        cmd: Command,
+        callback: Callable | None = None,
+        **kwargs: Any,
     ) -> asyncio.Task:
         """Wrapper to schedule an async_send_cmd() and return the Task."""
 
-        assert kwargs == {}
+        assert not kwargs, kwargs
 
         # keep a track of tasks, so we can tidy-up
         self._tasks = [t for t in self._tasks if not t.done()]
@@ -827,12 +833,12 @@ class Gateway(Engine):
         priority: SendPriority = SendPriority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: bool | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
-        callback = kwargs.pop("callback", None)
-        assert kwargs == {}, kwargs
+        callback = kwargs.pop("callback", None)  # warn if no Qos
+        assert not kwargs, kwargs
 
         try:  # TODO: remove this try/except
             pkt = await super().async_send_cmd(
