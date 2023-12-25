@@ -571,8 +571,7 @@ class Entity(_Discovery):
     """The base class for Devices/Zones/Systems."""
 
 
-# FIXME: this is a mess - needs fixing
-def _delete_msg(msg: Message) -> None:
+def _delete_msg(msg: Message) -> None:  # FIXME: this is a mess
     """Remove the msg from all state databases."""
 
     entities = [msg.src]
