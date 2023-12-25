@@ -37,6 +37,7 @@ from ramses_tx import (
     transport_factory,
 )
 from ramses_tx.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from ramses_tx.protocol import QosParams
 from ramses_tx.protocol_fsm import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_TIMEOUT,
@@ -160,6 +161,8 @@ class Engine:
         self._prev_msg: Message | None = None
         self._this_msg: Message | None = None
 
+        self._tasks: list[asyncio.Task] = []
+
         self._set_msg_handler(self._msg_handler)
 
     def __str__(self) -> str:
@@ -246,7 +249,16 @@ class Engine:
         elif not self._protocol.wait_connection_lost.done():
             # the transport was never started
             self._protocol.connection_lost(None)
-        return await self._wait_for_protocol_to_stop()
+        await self._wait_for_protocol_to_stop()
+
+        _ = [t.cancel() for t in self._tasks if not t.done()]
+        try:  # FIXME: this is broken
+            if tasks := (t for t in self._tasks if not t.done()):
+                await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            pass
+
+        return None
 
     async def _wait_for_protocol_to_stop(self) -> None:
         await self._protocol.wait_connection_lost
@@ -298,6 +310,24 @@ class Engine:
 
         return args
 
+    def add_task(
+        self,
+        fnc: Callable,
+        *args,
+        delay: float | None = None,
+        period: float | None = None,
+        **kwargs,
+    ) -> asyncio.Task:
+        """Start a task after delay seconds and then repeat it every period seconds."""
+
+        # keep a track of tasks, so we can tidy-up
+        self._tasks = [t for t in self._tasks if not t.done()]
+
+        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
+
+        self._tasks.append(task)
+        return task
+
     @staticmethod
     def create_cmd(
         verb: Verb, device_id: _DeviceIdT, code: Code, payload: _PayloadT, **kwargs
@@ -314,8 +344,6 @@ class Engine:
         wait_for_reply: bool | None = None,
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
-
-        from ramses_tx.protocol import QosParams
 
         qos = QosParams(
             max_retries=max_retries,
@@ -376,7 +404,6 @@ class Gateway(Engine):
 
         self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
         self._schema: dict = SCH_GLOBAL_SCHEMAS(kwargs)
-        self._tasks: list[asyncio.Task] = []  # TODO: used by discovery, move lower?
 
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
@@ -440,21 +467,6 @@ class Gateway(Engine):
             and start_discovery
         ):
             initiate_discovery(self.devices, self.systems)
-
-    async def stop(self) -> None:  # FIXME: a mess
-        """Cancel all outstanding high-level tasks."""
-
-        # if self._engine_state is None:
-        #     self._pause()
-
-        await super().stop()
-
-        _ = [t.cancel() for t in self._tasks if not t.done()]
-        try:  # FIXME: this is broken
-            if tasks := (t for t in self._tasks if not t.done()):
-                await asyncio.gather(*tasks)
-        except asyncio.CancelledError:
-            pass
 
     def _pause(self, *args) -> None:
         """Pause the (unpaused) gateway (disables sending/discovery).
@@ -767,24 +779,6 @@ class Gateway(Engine):
         if (dev := self.get_device(device_id)) and isinstance(dev, Fakeable):
             return dev._make_fake(bind=start_binding)
         raise TypeError(f"The device is not fakable: {device_id}")
-
-    def add_task(
-        self,
-        fnc: Callable,
-        *args,
-        delay: float | None = None,
-        period: float | None = None,
-        **kwargs,
-    ) -> asyncio.Task:
-        """Start a task after delay seconds and then repeat it every period seconds."""
-
-        # keep a track of tasks, so we can tidy-up
-        self._tasks = [t for t in self._tasks if not t.done()]
-
-        task = schedule_task(fnc, *args, delay=delay, period=period, **kwargs)
-
-        self._tasks.append(task)
-        return task
 
     def _msg_handler(self, msg: Message) -> None:
         """A callback to handle messages from the protocol stack."""
