@@ -14,7 +14,6 @@ from colorama import Fore, Style, init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit, Message, exceptions as exc
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
-from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import deep_merge
 from ramses_rf.schemas import (
     SCH_GLOBAL_CONFIG,
@@ -32,6 +31,8 @@ from ramses_tx.schemas import (
     SZ_KNOWN_LIST,
     SZ_SERIAL_PORT,
 )
+
+from .discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
