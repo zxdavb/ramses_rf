@@ -9,7 +9,6 @@ import asyncio
 import json
 import logging
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING
 
 from ramses_rf import exceptions as exc
 from ramses_tx import Command
@@ -22,9 +21,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     W_,
     Code,
 )
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 _LOGGER = logging.getLogger(__name__)

@@ -61,10 +61,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+if TYPE_CHECKING:
     from logging import Logger
-
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 def set_pkt_logging_config(**config) -> Logger:

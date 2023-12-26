@@ -47,14 +47,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_tx.address import DeviceId
-    from ramses_tx.frame import _HeaderT
-
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from ramses_tx import Command, Message, Packet
+    from ramses_tx.address import DeviceIdT
+    from ramses_tx.const import VerbT
+    from ramses_tx.frame import HeaderT
 
     from .device import Controller
     from .gateway import Gateway
@@ -94,7 +91,7 @@ class _Entity:
 
     def __init__(self, gwy: Gateway) -> None:
         self._gwy = gwy
-        self.id: DeviceId = None  # type: ignore[assignment]
+        self.id: DeviceIdT = None  # type: ignore[assignment]
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
@@ -142,7 +139,7 @@ class _Entity:
 
         # cmd._source_entity = self  # TODO: is needed?
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)  # type: ignore[no-any-return]
+        return self._gwy.send_cmd(cmd)
 
     # FIXME: this is a mess
     async def _async_send_cmd(self, cmd: Command) -> Packet | None:
@@ -157,7 +154,7 @@ class _Entity:
             return None  # TODO: raise Exception
 
         # cmd._source_entity = self  # TODO: is needed?
-        return await self._gwy.async_send_cmd(cmd)  # type: ignore[no-any-return]
+        return await self._gwy.async_send_cmd(cmd)
 
 
 class _MessageDB(_Entity):
@@ -199,12 +196,12 @@ class _MessageDB(_Entity):
         """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    def _get_msg_by_hdr(self, hdr: _HeaderT) -> Message | None:
+    def _get_msg_by_hdr(self, hdr: HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
 
         msg: Message
         code: Code
-        verb: Verb
+        verb: VerbT
 
         # _ is device_id
         code, verb, _, *args = hdr.split("|")  # type: ignore[assignment]
@@ -240,7 +237,7 @@ class _MessageDB(_Entity):
     def _msg_value_code(
         self,
         code: Code,
-        verb: Verb | None = None,
+        verb: VerbT | None = None,
         key: str | None = None,
         **kwargs,
     ) -> dict | list | None:
@@ -329,7 +326,7 @@ class _Discovery(_MessageDB):
     def __init__(self, gwy: Gateway) -> None:
         super().__init__(gwy)
 
-        self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
+        self._discovery_cmds: dict[HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller: asyncio.Task | None = None
 
         self._supported_cmds: dict[str, bool | None] = {}
@@ -454,7 +451,7 @@ class _Discovery(_MessageDB):
             await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
 
     async def discover(self) -> None:
-        def find_latest_msg(hdr: _HeaderT, task: dict) -> Message | None:
+        def find_latest_msg(hdr: HeaderT, task: dict) -> Message | None:
             """Return the latest message for a header from any source (not just RPs)."""
             msgs: list[Message] = [
                 m
@@ -470,7 +467,7 @@ class _Discovery(_MessageDB):
 
             return max(msgs) if msgs else None
 
-        def backoff(hdr: _HeaderT, failures: int) -> td:
+        def backoff(hdr: HeaderT, failures: int) -> td:
             """Backoff the interval if there are/were any failures."""
 
             if failures > 5:
@@ -485,7 +482,7 @@ class _Discovery(_MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> Packet | None:
+        async def send_disc_cmd(hdr: HeaderT, task: dict) -> Packet | None:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -613,7 +610,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
-    actuator_by_id: dict[DeviceId, Entity]
+    actuator_by_id: dict[DeviceIdT, Entity]
     actuators: list[Entity]
 
     circuit_by_id: dict[str, Any]

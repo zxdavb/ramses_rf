@@ -8,7 +8,6 @@ Decode/process a packet (packet that was received).
 from __future__ import annotations
 
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING
 
 from . import exceptions as exc
 from .frame import Frame
@@ -23,9 +22,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 # these trade memory for speed

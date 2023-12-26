@@ -68,9 +68,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from ramses_rf.system import Zone
     from ramses_tx import Address, Message, Packet

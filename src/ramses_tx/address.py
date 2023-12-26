@@ -12,7 +12,7 @@ from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 # Test/Dev & Debug flags
 DEV_HVAC = True  #
 
-DeviceId = str
+DeviceIdT = str
 
 DEVICE_LOOKUP: dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
@@ -36,7 +36,7 @@ class Address:
 
     _SLUG = None
 
-    def __init__(self, device_id: DeviceId) -> None:
+    def __init__(self, device_id: DeviceIdT) -> None:
         """Create an address from a valid device id."""
 
         # if device_id is None:
@@ -77,7 +77,7 @@ class Address:
         )
 
     @classmethod
-    def _friendly(cls, device_id: DeviceId) -> str:
+    def _friendly(cls, device_id: DeviceIdT) -> str:
         """Convert (say) '01:145038' to 'CTL:145038'."""
 
         if not cls.is_valid(device_id):
@@ -103,7 +103,7 @@ class Address:
         return cls._friendly(device_id) if friendly_id else device_id
 
     @classmethod
-    def convert_to_hex(cls, device_id: DeviceId) -> str:
+    def convert_to_hex(cls, device_id: DeviceIdT) -> str:
         """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
         if not cls.is_valid(device_id):
@@ -125,7 +125,7 @@ class Address:
 
 
 @lru_cache(maxsize=256)
-def id_to_address(device_id: DeviceId) -> Address:
+def id_to_address(device_id: DeviceIdT) -> Address:
     """Factory method to cache & return device Address from device ID."""
     return Address(device_id=device_id)
 
@@ -135,7 +135,7 @@ NON_DEV_ADDR = Address(NON_DEVICE_ID)  # --:------
 NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
 
 
-def dev_id_to_hex_id(device_id: DeviceId) -> str:
+def dev_id_to_hex_id(device_id: DeviceIdT) -> str:
     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
     if len(device_id) == 9:  # e.g. '01:123456'

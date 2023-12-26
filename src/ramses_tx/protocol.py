@@ -50,9 +50,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .address import DeviceId
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from .address import DeviceIdT
     from .transport import RamsesTransportT
 
 
@@ -280,8 +279,8 @@ class _BaseProtocol(asyncio.Protocol):
         self._wait_connection_lost = self._loop.create_future()
 
     @property
-    def hgi_id(self) -> DeviceId:
-        hgi_id: DeviceId | None = self._transport.get_extra_info(SZ_ACTIVE_HGI)
+    def hgi_id(self) -> DeviceIdT:
+        hgi_id: DeviceIdT | None = self._transport.get_extra_info(SZ_ACTIVE_HGI)
         if hgi_id is not None:
             return hgi_id
         return self._transport.get_extra_info(SZ_KNOWN_HGI, HGI_DEV_ADDR.id)  # type: ignore[no-any-return]

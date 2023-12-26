@@ -17,7 +17,6 @@ from ramses_rf.const import (
     SZ_RETRIES,
     SZ_SCHEDULE,
     SZ_ZONE_IDX,
-    __dev_mode__,
 )
 from ramses_tx import CODES_SCHEMA, Command, Priority
 from ramses_tx.opentherm import OTB_MSG_IDS
@@ -35,11 +34,8 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
-    from ramses_rf import Gateway
+    from ramses_rf import Gateway, IndexT, VerbT
 
 
 EXEC_CMD = "exec_cmd"
@@ -58,14 +54,11 @@ SCAN_XXXX = "scan_xxxx"
 QOS_SCAN = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 0}
 QOS_HIGH = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
 
-DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
-def _mk_cmd(verb: Verb, code: Code, payload: str, dest_id) -> Command:
+def _mk_cmd(verb: VerbT, code: Code, payload: str, dest_id) -> Command:
     """A convenience function, to cope with a change to the Command class."""
     return Command.from_attrs(verb, dest_id, code, payload)
 
@@ -193,7 +186,7 @@ async def script_bind_req(gwy: Gateway, dev_id: str):
 
 
 async def script_bind_wait(
-    gwy: Gateway, dev_id: str, code: Code = Code._2309, idx: Index = "00"
+    gwy: Gateway, dev_id: str, code: Code = Code._2309, idx: IndexT = "00"
 ):
     gwy.get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 

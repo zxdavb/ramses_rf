@@ -91,9 +91,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .address import DeviceId
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from .address import DeviceIdT
     from .protocol import RamsesProtocolT
 
 
@@ -256,8 +255,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         self,
         *args,
         enforce_include_list: bool = False,
-        exclude_list: dict[DeviceId, str] | None = None,
-        include_list: dict[DeviceId, str] | None = None,
+        exclude_list: dict[DeviceIdT, str] | None = None,
+        include_list: dict[DeviceIdT, str] | None = None,
         **kwargs,
     ) -> None:
         exclude_list = exclude_list or {}
@@ -274,7 +273,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
-        self._foreign_gwys_lst: list[DeviceId] = []
+        self._foreign_gwys_lst: list[DeviceIdT] = []
         self._foreign_last_run = dt.now().date()
 
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
@@ -286,7 +285,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
 
-    def _get_known_hgi(self, include_list: dict[DeviceId, Any]) -> DeviceId | None:
+    def _get_known_hgi(self, include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:
         """Return the device_id of the gateway specified in the include_list, if any.
 
         The 'Known' gateway is the predicted Active gateway, given the known_list.
@@ -333,7 +332,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         return known_hgis[0]
 
-    def _set_active_hgi(self, dev_id: DeviceId, by_signature: bool = False) -> None:
+    def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
         """Set the Active Gateway (HGI) device_if.
 
         Send a warning if the include list is configured incorrectly.
@@ -358,7 +357,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
     def _is_wanted_addrs(
-        self, src_id: DeviceId, dst_id: DeviceId, payload: str | None = None
+        self, src_id: DeviceIdT, dst_id: DeviceIdT, payload: str | None = None
     ) -> bool:
         """Return True if the packet is not to be filtered out.
 
@@ -369,7 +368,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         - by known_list (HGI80/evofw3), when filtering packets
         """
 
-        def warn_foreign_hgi(dev_id: DeviceId) -> None:
+        def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
             current_date = dt.now().date()
 
             if self._foreign_last_run != current_date:

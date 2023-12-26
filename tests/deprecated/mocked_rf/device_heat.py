@@ -24,7 +24,7 @@ from ramses_tx.command import validate_api_params
 from .const import GWY_ID, __dev_mode__
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_tx.address import DeviceId
+    from ramses_tx.address import DeviceIdT
     from ramses_tx.frame import _PktIdxT
 
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
@@ -85,7 +85,7 @@ class MockDeviceBase:
         self._loop = gwy._loop
         self._ether = gwy.pkt_transport.serial._que
 
-        self.id: DeviceId = device_id
+        self.id: DeviceIdT = device_id
 
         self._is_running: bool = None  # type: ignore[assignment]
         self._tasks: list[asyncio.Task] = []
@@ -617,7 +617,7 @@ class MockDeviceCtl(MockDeviceBase):
             RP, Code._0006, payload, addr0=self.id, addr1=dest_id
         )
 
-    def _make_000a(self, dest_id: None | DeviceId = None) -> Command:  # TODO:
+    def _make_000a(self, dest_id: None | DeviceIdT = None) -> Command:  # TODO:
         return None  # type: ignore[return-value]
 
     def _make_000c(self, context: str) -> Command:  # TODO: no return None
@@ -653,7 +653,7 @@ class MockDeviceCtl(MockDeviceBase):
                 self._change_counter += 2
             return self.make_response_pkt(response)
 
-    def _make_1100(self, dest_id: None | DeviceId = None) -> Command:  # TODO
+    def _make_1100(self, dest_id: None | DeviceIdT = None) -> Command:  # TODO
         """Craft a stateful 1100 array pkt (is WIP)."""
 
         payload = "0007D00106400201F4"  # HACK
@@ -661,7 +661,7 @@ class MockDeviceCtl(MockDeviceBase):
             I_, Code._1100, payload, addr0=self.id, addr2=self.id
         )
 
-    def _make_1f09(self, dest_id: None | DeviceId = None) -> Command:
+    def _make_1f09(self, dest_id: None | DeviceIdT = None) -> Command:
         """Craft a stateful 1F09 pkt."""
 
         if dest_id:
@@ -677,7 +677,7 @@ class MockDeviceCtl(MockDeviceBase):
         return Command._from_attrs(verb, Code._1F09, payload, **addrs)
 
     def _make_2309(
-        self, dest_id: None | DeviceId = None, idx: None | _PktIdxT = None
+        self, dest_id: None | DeviceIdT = None, idx: None | _PktIdxT = None
     ) -> Command:  # WIP
         """Craft a stateful 2309 array pkt (is WIP)."""
 
@@ -689,7 +689,7 @@ class MockDeviceCtl(MockDeviceBase):
         )
 
     def _make_30c9(
-        self, dest_id: None | DeviceId = None, idx: None | _PktIdxT = None
+        self, dest_id: None | DeviceIdT = None, idx: None | _PktIdxT = None
     ) -> Command:  # WIP
         """Craft a stateful 3C09 array pkt (is WIP)."""
 
@@ -705,7 +705,7 @@ class MockDeviceCtl(MockDeviceBase):
         pass
 
     def _make_3150(  # WIP
-        self, dest_id: None | DeviceId = None, idx: None | _PktIdxT = None
+        self, dest_id: None | DeviceIdT = None, idx: None | _PktIdxT = None
     ) -> Command:
         """Craft a stateful 3150 cmd (is WIP)."""
 

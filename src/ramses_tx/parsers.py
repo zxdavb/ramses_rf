@@ -138,6 +138,13 @@ from .version import VERSION
 
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F6,
     F8,
     F9,
@@ -146,17 +153,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FC,
     FF,
 )
-
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
-    Code,
-)
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from .message import MessageBase as Message  # HACK: merge MsgBase into Msg

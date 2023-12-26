@@ -26,7 +26,13 @@ from .ramses import (
 
 # TODO: add _has_idx (as func return only one type, or raise)
 
-
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F8,
     F9,
@@ -35,25 +41,16 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     FF,
 )
 
-
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
-    Code,
-)
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from .const import VerbT
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
-_DeviceIdT = str
-_HeaderT = str
-_PayloadT = str
+DeviceIdT = str
+HeaderT = str
+PayloadT = str
 _PktIdxT = str
 
 
@@ -79,11 +76,11 @@ class Frame:
 
         fields = frame.lstrip().split(" ")
 
-        self.verb: Verb = frame[:2]  # type: ignore[assignment]
+        self.verb: VerbT = frame[:2]  # type: ignore[assignment]
         self.seqn: str = fields[1]  # . frame[3:6]
         self.code: Code = fields[5]  # type: ignore[assignment]
         self.len_: str = fields[6]  # . frame[42:45]  FIXME: len_, _len & len(payload)/2
-        self.payload: _PayloadT = fields[7]  # frame[46:].split(" ")[0]
+        self.payload: PayloadT = fields[7]  # frame[46:].split(" ")[0]
         self._len: int = int(len(self.payload) / 2)
 
         try:
@@ -111,7 +108,7 @@ class Frame:
 
     @classmethod  # for internal use only
     def _OUT_from_attrs(
-        cls, verb: Verb, *addrs, code: Code, payload: _PayloadT, seqn: None | str = None
+        cls, verb: VerbT, *addrs, code: Code, payload: PayloadT, seqn: None | str = None
     ) -> Frame:
         """Create a frame from its attributes (args, kwargs)."""
 
@@ -388,7 +385,7 @@ class Frame:
         return self._ctx_
 
     @property
-    def _hdr(self) -> _HeaderT:  # incl. self._ctx
+    def _hdr(self) -> HeaderT:  # incl. self._ctx
         """Return the QoS header (fingerprint) of this packet (i.e. device_id/code/hdr).
 
         Used for QoS (timeouts, retries), callbacks, etc.
@@ -507,7 +504,7 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
     return None
 
 
-def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | _HeaderT:
+def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | HeaderT:
     """Return the header of a packet (all packets have a header).
 
     Used for QoS, and others.

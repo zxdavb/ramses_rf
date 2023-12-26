@@ -84,7 +84,15 @@ from ramses_tx.const import (  # noqa: F401
     SystemType,
 )
 
-from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
@@ -97,20 +105,14 @@ from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     ZoneRole,
 )
 
-
-from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
-    Code,
-)
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_tx import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from ramses_tx.const import (  # noqa: F401, pylint: disable=unused-import
+        IndexT,
+        VerbT,
+    )
 
 
-__dev_mode__ = False
+__dev_mode__ = False  # NOTE: this is const.py
 
 
 class Discover(IntEnum):

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from datetime import timedelta as td
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .const import SZ_NAME, DevType
 
@@ -20,14 +20,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 DEV_MODE = False  # used to sort CODE_IDX_COMPLEX, etc.
 
 
-_OUT_EXPIRY = "expiry"
-_OUT_RQ_NULL = "rq_null"
 SZ_LIFESPAN = "lifespan"
 
 

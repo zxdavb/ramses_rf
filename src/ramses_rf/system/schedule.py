@@ -14,7 +14,7 @@ import struct
 import zlib
 from collections.abc import Iterable
 from datetime import timedelta as td
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import voluptuous as vol  # type: ignore[import]
 
@@ -36,9 +36,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     W_,
     Code,
 )
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 _LOGGER = logging.getLogger(__name__)

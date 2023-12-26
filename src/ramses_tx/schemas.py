@@ -15,7 +15,7 @@ import voluptuous as vol
 from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 
 if TYPE_CHECKING:
-    from ramses_tx.frame import _DeviceIdT
+    from .frame import DeviceIdT
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -275,8 +275,8 @@ SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 
 def select_device_filter_mode(
     enforce_known_list: bool,
-    known_list: dict[_DeviceIdT, dict],
-    block_list: dict[_DeviceIdT, dict],
+    known_list: dict[DeviceIdT, dict],
+    block_list: dict[DeviceIdT, dict],
 ) -> bool:
     """Determine which device filter to use, if any.
 

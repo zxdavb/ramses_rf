@@ -49,9 +49,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Verb  # noqa: F401, pylint: disable=unused-import
-    from .frame import _DeviceIdT, _PayloadT
+if TYPE_CHECKING:
+    from .const import VerbT
+    from .frame import DeviceIdT, PayloadT
     from .protocol import RamsesProtocolT, RamsesTransportT
 
 _MsgHandlerT = Callable[[Message], None]
@@ -99,9 +99,9 @@ class Engine:
         self._packet_log = packet_log or {}
         self._loop = loop or asyncio.get_running_loop()
 
-        self._exclude: dict[_DeviceIdT, dict] = block_list or {}
-        self._include: dict[_DeviceIdT, dict] = known_list or {}
-        self._unwanted: list[_DeviceIdT] = [
+        self._exclude: dict[DeviceIdT, dict] = block_list or {}
+        self._include: dict[DeviceIdT, dict] = known_list or {}
+        self._unwanted: list[DeviceIdT] = [
             NON_DEV_ADDR.id,
             NUL_DEV_ADDR.id,
             "01:000001",  # why this one?
@@ -114,7 +114,7 @@ class Engine:
         self._kwargs: dict[str, Any] = kwargs  # HACK
 
         self._engine_lock = Lock()
-        self._engine_state: tuple[Callable, tuple] | None = None
+        self._engine_state: tuple[Callable | None, tuple] | None = None
 
         self._protocol: RamsesProtocolT = None  # type: ignore[assignment]
         self._transport: RamsesTransportT | None = None  # None until self.start()
@@ -248,10 +248,10 @@ class Engine:
         if self._transport:
             self._transport.pause_reading()  # TODO: call_soon()?
 
-        self._protocol._msg_handler, handler = None, self._protocol._msg_handler
+        self._protocol._msg_handler, handler = None, self._protocol._msg_handler  # type: ignore[assignment]
         self._disable_sending, read_only = True, self._disable_sending
 
-        self._engine_state = (handler, read_only, args)
+        self._engine_state = (handler, read_only, *args)
 
     def _resume(self) -> tuple:  # FIXME: not atomic
         """Resume the (paused) engine or raise a RuntimeError."""
@@ -265,7 +265,7 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to resume engine, it was not paused")
 
-        self._protocol._msg_handler, self._disable_sending, args = self._engine_state
+        self._protocol._msg_handler, self._disable_sending, *args = self._engine_state  # type: ignore[assignment]
         self._engine_lock.release()
 
         if self._transport:
@@ -284,7 +284,7 @@ class Engine:
 
     @staticmethod
     def create_cmd(
-        verb: Verb, device_id: _DeviceIdT, code: Code, payload: _PayloadT, **kwargs
+        verb: VerbT, device_id: DeviceIdT, code: Code, payload: PayloadT, **kwargs
     ) -> Command:
         """Make a command addressed to device_id."""
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
@@ -312,6 +312,6 @@ class Engine:
     def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism
         msg.__class__ = Message  # HACK (next line too)
-        msg._gwy = self
+        msg._gwy = self  # type: ignore[assignment]
 
         self._this_msg, self._prev_msg = msg, self._this_msg

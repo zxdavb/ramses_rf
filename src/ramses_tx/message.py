@@ -36,9 +36,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..ramses_rf import Gateway  # type: ignore[import-untyped]
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from ramses_rf import Gateway
+
+    from .const import IndexT, VerbT  # noqa: F401, pylint: disable=unused-import
 
 
 __all__ = ["Message"]
@@ -71,7 +72,7 @@ class MessageBase:
 
         self.dtm: dt = pkt.dtm
 
-        self.verb: Verb = pkt.verb
+        self.verb: VerbT = pkt.verb
         self.seqn: str = pkt.seqn
         self.code: Code = pkt.code
         self.len: int = pkt._len
@@ -297,7 +298,7 @@ class Message(MessageBase):  # add _expired attr
     # .HAS_DIED = 1.0  # fraction_expired >= 1.0 (is expected lifespan)
     IS_EXPIRING = 0.8  # fraction_expired >= 0.8 (and < HAS_EXPIRED)
 
-    _gwy: Gateway = None  # FIXME: where does this get set?
+    _gwy: Gateway
     _fraction_expired: float | None = None
 
     @property

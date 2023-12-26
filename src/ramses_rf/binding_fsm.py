@@ -24,13 +24,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from .device import Message
+    from ramses_tx import IndexT, Message
+
     from .device.base import Fakeable
 
 
@@ -178,7 +176,7 @@ class BindContextRespondent(BindContextBase):
     async def wait_for_binding_request(
         self,
         codes: Code | list[Code],
-        idx: None | Index = None,
+        idx: None | IndexT = None,
     ) -> tuple[Message, Message, Message, Message]:
         """Device starts binding as a Respondent, by listening for an Offer.
 
@@ -211,7 +209,7 @@ class BindContextRespondent(BindContextBase):
         return await self.state.wait_for_offer(timeout)
 
     async def _accept_offer(
-        self, tender: Message, codes: Iterable[Code], idx: Index = "00"
+        self, tender: Message, codes: Iterable[Code], idx: IndexT = "00"
     ) -> Message:
         """Resp sends an Accept on the basis of a rcvd Offer & returns the Confirm."""
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
@@ -299,7 +297,7 @@ class BindContextSupplicant(BindContextBase):
         return await self.state.wait_for_accept(timeout)
 
     async def _confirm_accept(
-        self, accept: Message, codes: None | Iterable[Code] = None, idx: Index = "00"
+        self, accept: Message, codes: None | Iterable[Code] = None, idx: IndexT = "00"
     ) -> Message:
         """Supp casts a Confirm on the basis of a rcvd Accept & returns the Confirm."""
         cmd = Command.put_bind(I_, self._dev.id, codes, dst_id=accept.src.id, idx=idx)

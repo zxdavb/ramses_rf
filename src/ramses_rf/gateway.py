@@ -72,11 +72,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
-    from ramses_tx.frame import _DeviceIdT
+    from ramses_tx.frame import DeviceIdT
     from ramses_tx.protocol import RamsesTransportT
 
     from .device import Device
@@ -312,7 +309,7 @@ class Gateway(Engine):
 
     def get_device(
         self,
-        dev_id: _DeviceIdT,
+        dev_id: DeviceIdT,
         *,
         msg: Message | None = None,
         parent=None,
@@ -328,7 +325,7 @@ class Gateway(Engine):
         If a device is created, attach it to the gateway.
         """
 
-        def check_filter_lists(dev_id: _DeviceIdT) -> None:  # may: LookupError
+        def check_filter_lists(dev_id: DeviceIdT) -> None:  # may: LookupError
             """Raise an LookupError if a device_id is filtered out by a list."""
 
             if dev_id in self._unwanted:  # TODO: shouldn't invalidate a msg
@@ -479,7 +476,7 @@ class Gateway(Engine):
 
     def fake_device(
         self,
-        device_id: _DeviceIdT,
+        device_id: DeviceIdT,
         create_device: bool = False,
         start_binding: bool = False,
     ) -> Device:
@@ -520,6 +517,8 @@ class Gateway(Engine):
         super()._msg_handler(msg)
 
         # TODO: ideally remove this feature...
+        assert self._this_msg  # mypy check
+
         if self._prev_msg and detect_array_fragment(self._this_msg, self._prev_msg):
             msg._pkt._force_has_array()  # may be an array of length 1
             msg._payload = self._prev_msg.payload + (

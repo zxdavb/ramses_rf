@@ -8,15 +8,10 @@ Heating devices.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from ramses_rf.const import DEV_TYPE_MAP
 from ramses_rf.schemas import SZ_CLASS, SZ_FAKED
 from ramses_tx import Address, Command, Message, Packet  # noqa: F401
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     BASE_CLASS_BY_SLUG,

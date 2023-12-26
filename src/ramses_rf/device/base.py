@@ -28,9 +28,8 @@ from ramses_rf.schemas import (
     SZ_KNOWN_LIST,
     SZ_SCHEME,
 )
+from ramses_tx import Command, Packet
 from ramses_tx.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
-
-from . import Command, Packet
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -40,15 +39,13 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from typing import Any
 
     from ramses_rf import Gateway
+    from ramses_tx import Address, Message
+    from ramses_tx.const import IndexT
 
-    from . import Address, Message
 
 DEFAULT_BDR_ID = "13:888888"
 DEFAULT_EXT_ID = "17:888888"
@@ -349,7 +346,7 @@ class Fakeable(DeviceBase):
     async def wait_for_binding_request(
         self,
         codes: Iterable[Code],
-        idx: Index = "00",
+        idx: IndexT = "00",
         scheme: None | str = None,
     ) -> Message:
         """Listen for a binding and return the Offer, or raise an exception."""

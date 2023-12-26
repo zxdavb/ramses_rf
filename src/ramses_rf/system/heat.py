@@ -10,7 +10,7 @@ from asyncio import Future
 from datetime import datetime as dt, timedelta as td
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import (
@@ -86,9 +86,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     W_,
     Code,
 )
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_rf.const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 _LOGGER = logging.getLogger(__name__)

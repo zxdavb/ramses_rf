@@ -9,7 +9,7 @@ from enum import EnumCheck, IntEnum, StrEnum, verify
 from types import SimpleNamespace
 from typing import Final, Literal
 
-__dev_mode__ = False
+__dev_mode__ = False  # NOTE: this is const.py
 DEV_MODE = __dev_mode__
 
 # used by transport...
@@ -624,12 +624,12 @@ FAN_RATE: Final[str] = "fan_rate"  # percentage, 0.0 - 1.0
 
 
 # Below, verbs & codes - can use Verb/Code/Index for mypy type checking
-Verb = Literal[" I", "RQ", "RP", " W"]
+VerbT = Literal[" I", "RQ", "RP", " W"]
 
-I_: Final[Verb] = " I"
-RQ: Final[Verb] = "RQ"
-RP: Final[Verb] = "RP"
-W_: Final[Verb] = " W"
+I_: Final[VerbT] = " I"
+RQ: Final[VerbT] = "RQ"
+RP: Final[VerbT] = "RP"
+W_: Final[VerbT] = " W"
 
 
 # StrEnum is intended include all known codes, see: test suite, code schema in ramses.py
@@ -741,7 +741,7 @@ class Code(StrEnum):
 
 
 # fmt: off
-Index = Literal[
+IndexT = Literal[
     "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0A", "0B", "0C", "0D", "0E", "0F",
     "21",  # used by Nuaire
     "F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "FA", "FB", "FC", "FD", "FE", "FF"
