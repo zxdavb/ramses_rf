@@ -783,7 +783,7 @@ class Gateway(Engine):
         super()._msg_handler(msg)
 
         # TODO: ideally remove this feature...
-        if detect_array_fragment(self._this_msg, self._prev_msg):
+        if self._prev_msg and detect_array_fragment(self._this_msg, self._prev_msg):
             msg._pkt._force_has_array()  # may be an array of length 1
             msg._payload = self._prev_msg.payload + (
                 msg.payload if isinstance(msg.payload, list) else [msg.payload]

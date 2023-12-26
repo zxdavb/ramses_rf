@@ -281,8 +281,7 @@ def detect_array_fragment(this: Message, prev: Message) -> bool:  # _PayloadT
     # .I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
 
     return bool(
-        prev
-        and prev._has_array
+        prev._has_array
         and this.code in (Code._000A, Code._22C9)  # TODO: not a complete list
         and this.code == prev.code
         and this.verb == prev.verb == I_
