@@ -50,7 +50,7 @@ from collections.abc import Iterable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import serial_asyncio  # type: ignore[import-untyped]
 from serial import (  # type: ignore[import-untyped]
@@ -81,7 +81,7 @@ from .schemas import (
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
 )
-from .typing import ExceptionT, RamsesProtocolT, RamsesTransportT, SerPortName
+from .typing import ExceptionT, SerPortName
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -94,6 +94,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .address import DeviceId
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from .protocol import RamsesProtocolT
 
 
 _SIGNATURE_MAX_TRYS = 24
@@ -802,6 +803,9 @@ class QosTransport(PortTransport):
     # the note in Protocol layer
 
     pass
+
+
+RamsesTransportT: TypeAlias = QosTransport | PortTransport | FileTransport
 
 
 async def transport_factory(

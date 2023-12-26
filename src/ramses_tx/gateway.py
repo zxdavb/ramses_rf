@@ -51,8 +51,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .const import Verb  # noqa: F401, pylint: disable=unused-import
-
-if TYPE_CHECKING:
     from .frame import _DeviceIdT, _PayloadT
     from .protocol import RamsesProtocolT, RamsesTransportT
 
@@ -118,7 +116,7 @@ class Engine:
         self._engine_lock = Lock()
         self._engine_state: tuple[Callable, tuple] | None = None
 
-        self._protocol: RamsesProtocolT = None
+        self._protocol: RamsesProtocolT = None  # type: ignore[assignment]
         self._transport: RamsesTransportT | None = None  # None until self.start()
 
         self._prev_msg: Message | None = None
@@ -247,7 +245,8 @@ class Engine:
         self._engine_lock.release()  # is ok to release now
 
         self._protocol.pause_writing()  # TODO: call_soon()?
-        self._transport.pause_reading()  # TODO: call_soon()?
+        if self._transport:
+            self._transport.pause_reading()  # TODO: call_soon()?
 
         self._protocol._msg_handler, handler = None, self._protocol._msg_handler
         self._disable_sending, read_only = True, self._disable_sending
@@ -269,7 +268,8 @@ class Engine:
         self._protocol._msg_handler, self._disable_sending, args = self._engine_state
         self._engine_lock.release()
 
-        self._transport.resume_reading()
+        if self._transport:
+            self._transport.resume_reading()
         if not self._disable_sending:
             self._protocol.resume_writing()
 

@@ -40,7 +40,6 @@ from .typing import (
     MsgFilterT,
     MsgHandlerT,
     QosParams,
-    RamsesTransportT,
 )
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -54,6 +53,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
     from .address import DeviceId
     from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+    from .transport import RamsesTransportT
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -613,7 +613,7 @@ class QosProtocol(PortProtocol):
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler)
 
-        self._context = ProtocolContext(self)  # type: ignore[arg-type]
+        self._context = ProtocolContext(self)
         self._selective_qos = selective_qos
 
     def __repr__(self) -> str:
