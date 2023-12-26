@@ -16,6 +16,7 @@ from .const import (  # noqa: F401
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
 )
+from .gateway import Engine  # noqa: F401
 from .logger import set_logger_timesource, set_pkt_logging  # noqa: F401
 from .message import Message  # noqa: F401
 from .packet import _PKT_LOGGER, Packet  # noqa: F401

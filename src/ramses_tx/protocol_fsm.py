@@ -16,9 +16,11 @@ from queue import Empty, Full, PriorityQueue
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from . import Command, Packet, exceptions as exc
+from . import exceptions as exc
 from .address import HGI_DEV_ADDR
+from .command import Command
 from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
+from .packet import Packet
 from .typing import (
     ExceptionT,
     QosParams,
