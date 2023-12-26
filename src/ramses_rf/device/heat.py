@@ -753,10 +753,14 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         super()._setup_discovery_cmds()
 
-        # TODO: # always send RQ|3EF0 and RQ|3220|00 (status), regardless of use_native_ot
+        # always send at least one of RQ|3EF0 or RQ|3220|00 (status)
         if self._gwy.config.use_native_ot != "never":
             self._add_discovery_cmd(Command.get_opentherm_data(self.id, "00"), 60)
+
         if self._gwy.config.use_native_ot != "always":
+            self._add_discovery_cmd(
+                Command.from_attrs(RQ, self.id, Code._2401, "00"), 60
+            )
             self._add_discovery_cmd(
                 Command.from_attrs(RQ, self.id, Code._3EF0, "00"), 60
             )
@@ -810,11 +814,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         self._msgs_ot[msg_id] = msg
 
         if DEV_MODE:  # here to follow state changes
-            self._send_cmd(
-                Command.from_attrs(RQ, self.id, Code._2401, "00")
-            )  # oem code
-            if msg_id != "73":
-                self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
+            # if msg_id != "73":
+            #     self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
             # TODO: this is development code - will be rationalised, eventually
             if self._gwy.config.use_native_ot and (
