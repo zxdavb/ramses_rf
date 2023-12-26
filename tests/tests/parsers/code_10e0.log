@@ -7,6 +7,12 @@
 2022-06-04T18:55:44.942717 069 RP --- 37:171871 18:005904 --:------ 10E0 001 00
 
 
+# The payload changes as the firmware is updated & date_2 is updated
+2019-12-21T18:29:44.104610 057 RP --- 01:145038 18:056026 --:------ 10E0 038 000002FF0163FFFFFFFF140B07E1010807DD45766F20436F6C6F720000000000000000000000  # {'oem_code': 'FF', 'manufacturer_sub_id': 'FF', 'product_id': '01', 'date_1': '2013-08-01', 'date_2': '2017-11-20', 'description': 'Evo Color'}
+2020-05-14T15:41:48.743111 045 RP --- 01:145038 18:013393 --:------ 10E0 038 000002FF0163FFFFFFFF640307E4010807DD45766F20436F6C6F720000000000000000000000  # {'oem_code': 'FF', 'manufacturer_sub_id': 'FF', 'product_id': '01', 'date_1': '2013-08-01', 'date_2': '2020-03-04', 'description': 'Evo Color'}
+2021-01-25T23:23:00.520205 051 RP --- 01:145038 18:140805 --:------ 10E0 038 000002FF0163FFFFFFFF0B0807E4010807DD45766F20436F6C6F720000000000000000000000  # {'oem_code': 'FF', 'manufacturer_sub_id': 'FF', 'product_id': '01', 'date_1': '2013-08-01', 'date_2': '2020-08-11', 'description': 'Evo Color'}
+
+
 #
 # oem_code 'FF' - Honeywell/Resideo CH/DHW
 2021-11-24T09:30:56.274409 049 RP --- 01:024170 18:009231 --:------ 10E0 038 000002FFFF17FFFFFFFFFFFFFFFF0B0507DC494F4E41205241492050726F746F747970650000  # {'description': 'IONA RAI Prototype',  'date_2': '0000-00-00', 'date_1': '2012-05-11', 'manufacturer_sub_id': 'FF', 'product_id': 'FF', 'oem_code': 'FF'}
