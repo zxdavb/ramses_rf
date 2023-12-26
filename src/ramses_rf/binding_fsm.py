@@ -27,7 +27,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from ramses_tx import IndexT, Message
+    from ramses_tx import Message
+    from ramses_tx.const import IndexT
 
     from .device.base import Fakeable
 
