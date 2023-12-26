@@ -3,7 +3,6 @@
 #
 
 # TODO:
-# - self._tasks is not ThreadSafe
 # - sort out gwy.config...
 # - sort out reduced processing
 
@@ -29,7 +28,7 @@ from ramses_tx import (
     Command,
     Packet,
     SendPriority,
-    exceptions,
+    exceptions as exc,
     is_hgi80,
     is_valid_dev_id,
     protocol_factory,
@@ -45,6 +44,7 @@ from ramses_tx.protocol_fsm import (
 from ramses_tx.schemas import (
     SCH_ENGINE_CONFIG,
     SZ_BLOCK_LIST,
+    SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_KNOWN_LIST,
@@ -54,7 +54,7 @@ from ramses_tx.schemas import (
     select_device_filter_mode,
 )
 
-from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
+from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
 from .helpers import shrink
@@ -94,11 +94,7 @@ if TYPE_CHECKING:
 _MsgHandlerT = Callable[[Message], None]
 
 
-DEV_MODE = __dev_mode__ and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 class Engine:
@@ -150,20 +146,20 @@ class Engine:
             self._include,
             self._exclude,
         )
-        self._kwargs = kwargs  # HACK
+        self._kwargs: dict[str, Any] = kwargs  # HACK
 
         self._engine_lock = Lock()
         self._engine_state: tuple[Callable, tuple] | None = None
 
-        self._protocol: RamsesProtocolT | None = None
-        self._transport: RamsesTransportT | None = None
+        self._protocol: RamsesProtocolT = None
+        self._transport: RamsesTransportT | None = None  # None until self.start()
 
         self._prev_msg: Message | None = None
         self._this_msg: Message | None = None
 
         self._tasks: list[asyncio.Task] = []
 
-        self._set_msg_handler(self._msg_handler)
+        self._set_msg_handler(self._msg_handler)  # sets self._protocol
 
     def __str__(self) -> str:
         if not self._transport:
@@ -177,9 +173,7 @@ class Engine:
     def _dt_now(self):
         return self._transport._dt_now() if self._transport else dt.now()
 
-    def _set_msg_handler(
-        self, msg_handler: _MsgHandlerT
-    ) -> tuple[RamsesProtocolT, RamsesTransportT]:
+    def _set_msg_handler(self, msg_handler: _MsgHandlerT) -> None:
         """Create an appropriate protocol for the packet source (transport).
 
         The corresponding transport will be created later.
@@ -188,7 +182,7 @@ class Engine:
         self._protocol = protocol_factory(
             msg_handler,
             disable_sending=self._disable_sending,
-            disable_qos=self._kwargs.get("disable_qos", False),
+            disable_qos=self._kwargs.get(SZ_DISABLE_QOS, False),
         )
 
     def add_msg_handler(
@@ -218,12 +212,12 @@ class Engine:
         Initiate receiving (Messages) and sending (Commands).
         """
 
-        pkt_source = {}
+        pkt_source: dict[str, Any] = {}  # [str, dict | str | TextIO]
         if self.ser_name:
             pkt_source[SZ_PORT_NAME] = self.ser_name
             pkt_source[SZ_PORT_CONFIG] = self._port_config
         else:  # if self._input_file:
-            pkt_source[SZ_PACKET_LOG] = self._input_file
+            pkt_source[SZ_PACKET_LOG] = self._input_file  # io.TextIOWrapper
 
         self._transport = await transport_factory(
             self._protocol,
@@ -233,10 +227,10 @@ class Engine:
             include_list=self._include,
             loop=self._loop,
             **pkt_source,
-            **self._kwargs,  # HACK: only accept disable_qos, extra & use_regex
+            **self._kwargs,  # HACK: only accept disable_qos, extra & one other
         )
 
-        self._kwargs = None  # HACK
+        self._kwargs = {}  # HACK
 
         if self._input_file:
             await self._wait_for_protocol_to_stop()
@@ -244,29 +238,36 @@ class Engine:
     async def stop(self) -> None:
         """Close the transport (will stop the protocol)."""
 
+        async def cancel_all_tasks() -> None:  # TODO: needs a lock?
+            _ = [t.cancel() for t in self._tasks if not t.done()]
+            try:  # FIXME: this is broken
+                if tasks := (t for t in self._tasks if not t.done()):
+                    await asyncio.gather(*tasks)
+            except asyncio.CancelledError:
+                pass
+
+        await cancel_all_tasks()
+
         if self._transport:
             self._transport.close()
-        elif not self._protocol.wait_connection_lost.done():
+        elif (
+            self._protocol.wait_connection_lost
+            and not self._protocol.wait_connection_lost.done()
+        ):
             # the transport was never started
             self._protocol.connection_lost(None)
-        await self._wait_for_protocol_to_stop()
 
-        _ = [t.cancel() for t in self._tasks if not t.done()]
-        try:  # FIXME: this is broken
-            if tasks := (t for t in self._tasks if not t.done()):
-                await asyncio.gather(*tasks)
-        except asyncio.CancelledError:
-            pass
+        await self._wait_for_protocol_to_stop()
 
         return None
 
     async def _wait_for_protocol_to_stop(self) -> None:
         await self._protocol.wait_connection_lost
-        return self._protocol.wait_connection_lost.result()  # may raise an exception
+        self._protocol.wait_connection_lost.result()  # may raise an exception
+        return
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
-        (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
 
         if not self._engine_lock.acquire(blocking=False):
             raise RuntimeError("Unable to pause engine, failed to acquire lock")
@@ -288,7 +289,6 @@ class Engine:
 
     def _resume(self) -> tuple:  # FIXME: not atomic
         """Resume the (paused) engine or raise a RuntimeError."""
-        (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Resuming engine...")
 
         args: tuple  # mypy
 
@@ -399,7 +399,7 @@ class Gateway(Engine):
 
         # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
         # if self.config.reduce_processing > 0:
-        self._tcs: System | None = None  # type: ignore[assignment]
+        self._tcs: System | None = None
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
@@ -415,6 +415,7 @@ class Gateway(Engine):
             device_id := self._transport.get_extra_info(SZ_ACTIVE_HGI)
         ):
             return self.device_by_id.get(device_id)
+        return None
 
     async def start(
         self, /, *, start_discovery: bool = True, cached_packets: dict | None = None
@@ -460,6 +461,7 @@ class Gateway(Engine):
 
         There is the option to save other objects, as *args.
         """
+        _LOGGER.debug("Gateway: Pausing engine...")
 
         self.config.disable_discovery, disc_flag = True, self.config.disable_discovery
 
@@ -474,6 +476,7 @@ class Gateway(Engine):
 
         Will restore other objects, as *args.
         """
+        _LOGGER.debug("Gateway: Resuming engine...")
 
         self.config.disable_discovery, *args = super()._resume()
 
@@ -693,8 +696,7 @@ class Gateway(Engine):
             SZ_CONFIG: {SZ_ENFORCE_KNOWN_LIST: self._enforce_known_list},
             SZ_KNOWN_LIST: self.known_list,
             SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
-            "_unwanted": sorted(self._transport._unwanted),
-            "_unwanted_alt": sorted(self._unwanted),
+            "_unwanted": sorted(self._unwanted),
         }
 
     @property
@@ -826,7 +828,7 @@ class Gateway(Engine):
                 timeout=timeout,
                 wait_for_reply=wait_for_reply,
             )
-        except exceptions.ProtocolSendFailed as err:
+        except exc.ProtocolSendFailed as err:
             _LOGGER.error(f"Failed to send {cmd._hdr}: {err}")
             return None
 
