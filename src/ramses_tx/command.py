@@ -440,7 +440,7 @@ class Command(Frame):
     def get_zone_name(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT) -> Command:
         """Constructor to get the name of a zone (c.f. parser_0004)."""
 
-        return cls.from_attrs(RQ, ctl_id, Code._0004, _check_idx(zone_idx))
+        return cls.from_attrs(RQ, ctl_id, Code._0004, f"{_check_idx(zone_idx)}00")
 
     @classmethod  # constructor for W|0004
     def set_zone_name(cls, ctl_id: DeviceId, zone_idx: _ZoneIdxT, name: str) -> Command:
