@@ -773,7 +773,7 @@ if DEV_MODE:
 #
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
-#
+# TODO: 34: can 3220 - split out RND from THM/STA
 _DEV_KLASSES_HEAT: dict[str, dict] = {
     DevType.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},
