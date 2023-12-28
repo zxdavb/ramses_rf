@@ -2254,7 +2254,9 @@ def parser_3220(payload: str, msg: Message) -> dict:
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
     if ot_schema is None and ot_type != OtMsgType.UNKNOWN_DATAID:
-        raise exc.PacketPayloadInvalid(f"OpenTherm: Unknown data-id: {ot_id}")
+        raise exc.PacketPayloadInvalid(
+            f"OpenTherm: Unknown data-id: 0x{ot_id:02X} ({ot_id})"
+        )
 
     result = {
         SZ_MSG_ID: ot_id,
@@ -2291,14 +2293,17 @@ def parser_3220(payload: str, msg: Message) -> dict:
 
             result.update(ot_value)
 
-        try:
+        try:  # These are checking flags in payload of data-id 0x00
             assert ot_id != 0 or (
                 [result[SZ_VALUE][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
+                # and [result[SZ_VALUE][i] for i in (1, )] == [1]
             ), result[SZ_VALUE]
 
             assert ot_id != 0 or (
                 [result[SZ_VALUE][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
+                # and [result[SZ_VALUE][8 + i] for i in (1, 2, 3)] == [0] * 3
             ), result[SZ_VALUE]
+
         except AssertionError:
             _LOGGER.warning(
                 f"{msg!r} < {_INFORM_DEV_MSG}, with a description of your system"
