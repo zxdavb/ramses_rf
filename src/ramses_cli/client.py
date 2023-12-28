@@ -46,7 +46,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 
 _DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 _PROFILE_LIBRARY = False  # NOTE: for profiling of library
-_DEV_MODE = False
 
 if _PROFILE_LIBRARY:
     import cProfile
@@ -473,19 +472,15 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
         In this case, the message is merely printed.
         """
 
-        if _DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
+        if kwargs["long_format"]:  # HACK for test/dev
             print(
                 f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
                 f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
             return
 
-        if kwargs["long_format"]:
-            dtm = msg.dtm.isoformat(timespec="microseconds")
-            con_cols = None
-        else:
-            dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-            con_cols = CONSOLE_COLS
+        dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        con_cols = CONSOLE_COLS
 
         if msg.code == Code._PUZZ:
             print(f"{Style.BRIGHT}{Fore.YELLOW}{dtm} {msg}"[:con_cols])
