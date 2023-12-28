@@ -996,7 +996,7 @@ def parity(x: int) -> int:
     return x & 1
 
 
-def msg_value(val_seqx: str, val_type: str) -> float | int | list | str | None:
+def _msg_value(val_seqx: str, val_type: str) -> float | int | list | str | None:
     """Make this the docstring."""
 
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
@@ -1102,7 +1102,10 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
     #     raise ValueError(f"Reserved msg-type (0b{msg_type:03b})")
 
     data_id = int(frame[2:4], 16)
-    msg_schema = OPENTHERM_MESSAGES.get(data_id, {})
+    try:
+        msg_schema = OPENTHERM_MESSAGES[data_id]
+    except KeyError as err:
+        raise KeyError(f"Unknown data id: 0x{frame[2:4]} ({data_id})") from err
 
     # There are five msg_id with FLAGS - the following is not 100% correct...
     data_value = {SZ_MSG_NAME: msg_schema.get(FLAGS, msg_schema.get(VAR))}
@@ -1113,11 +1116,11 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
         return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg_schema
 
     if not msg_schema:  # may be a corrupt payload
-        data_value[SZ_VALUE] = msg_value(frame[4:8], U16)
+        data_value[SZ_VALUE] = _msg_value(frame[4:8], U16)
 
     elif isinstance(msg_schema[VAL], dict):
-        value_hb = msg_value(frame[4:6], msg_schema[VAL].get(HB, msg_schema[VAL]))
-        value_lb = msg_value(frame[6:8], msg_schema[VAL].get(LB, msg_schema[VAL]))
+        value_hb = _msg_value(frame[4:6], msg_schema[VAL].get(HB, msg_schema[VAL]))
+        value_lb = _msg_value(frame[6:8], msg_schema[VAL].get(LB, msg_schema[VAL]))
 
         if isinstance(value_hb, list) and isinstance(value_lb, list):  # FLAG8
             data_value[SZ_VALUE] = value_hb + value_lb  # only data_id 0x00
@@ -1126,20 +1129,20 @@ def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
             data_value[SZ_VALUE_LB] = value_lb
 
     elif isinstance(msg_schema.get(VAR), dict):
-        data_value[SZ_VALUE_HB] = msg_value(frame[4:6], msg_schema[VAL])
-        data_value[SZ_VALUE_LB] = msg_value(frame[6:8], msg_schema[VAL])
+        data_value[SZ_VALUE_HB] = _msg_value(frame[4:6], msg_schema[VAL])
+        data_value[SZ_VALUE_LB] = _msg_value(frame[6:8], msg_schema[VAL])
 
     elif msg_schema[VAL] in (FLAG8, U8, S8):
-        data_value[SZ_VALUE] = msg_value(frame[4:6], msg_schema[VAL])
+        data_value[SZ_VALUE] = _msg_value(frame[4:6], msg_schema[VAL])
 
     elif msg_schema[VAL] in (S16, U16):
-        data_value[SZ_VALUE] = msg_value(frame[4:8], msg_schema[VAL])
+        data_value[SZ_VALUE] = _msg_value(frame[4:8], msg_schema[VAL])
 
     elif msg_schema[VAL] != F8_8:  # shouldn't reach here
-        data_value[SZ_VALUE] = msg_value(frame[4:8], U16)
+        data_value[SZ_VALUE] = _msg_value(frame[4:8], U16)
 
     elif msg_schema[VAL] == F8_8:  # TODO: needs finishing
-        result: float = msg_value(frame[4:8], msg_schema[VAL])  # type: ignore[assignment]
+        result: float = _msg_value(frame[4:8], msg_schema[VAL])  # type: ignore[assignment]
         if result is None:
             data_value[SZ_VALUE] = result
         elif msg_schema.get(SENSOR) == Sensor.PERCENTAGE:

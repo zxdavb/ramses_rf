@@ -360,7 +360,10 @@ class _Discovery(_MessageDB):
         return {
             msg_id: OPENTHERM_MESSAGES[int(msg_id, 16)].get("var")
             for msg_id in sorted(self._msgz[Code._3220].get(RP, []))
-            if self.is_pollable_cmd(Code._3220, ctx=msg_id)
+            if (
+                self.is_pollable_cmd(Code._3220, ctx=msg_id)
+                and int(msg_id, 16) in OPENTHERM_MESSAGES
+            )
         }
 
     def is_pollable_cmd(self, code, ctx=None) -> bool:
