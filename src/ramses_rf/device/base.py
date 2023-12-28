@@ -11,7 +11,7 @@ import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from ramses_rf.binding_fsm import BindContext
+from ramses_rf.binding_fsm import BindContext, Vendor
 from ramses_rf.const import (
     DEV_TYPE_MAP,
     SZ_DEVICE_ID,
@@ -99,7 +99,7 @@ class DeviceBase(Entity):
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
         self._faked: bool = False
-        self._scheme: str | None = None
+        self._scheme: Vendor = None  # type: ignore[assignment]
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
@@ -347,24 +347,24 @@ class Fakeable(DeviceBase):
         self,
         codes: Iterable[Code],
         idx: IndexT = "00",
-        scheme: None | str = None,
+        scheme: Vendor | None = None,
     ) -> Message:
         """Listen for a binding and return the Offer, or raise an exception."""
-        return await self._context.wait_for_binding_request(codes, idx, scheme=scheme)
+        return await self._context.wait_for_binding_request(codes, idx, vendor=scheme)
 
     async def initiate_binding_process(
         self,
         codes: Iterable[Code],
-        oem_code: None | str = None,
-        scheme: None | str = None,
+        oem_code: str | None = None,
+        scheme: Vendor | None = None,
     ) -> Message:
         """Start a binding and return the Accept, or raise an exception."""
         return await self._context.initiate_binding_process(
-            codes, oem_code, scheme=scheme
+            codes, oem_code, vendor=scheme
         )
 
     @property
-    def oem_code(self) -> None | str:
+    def oem_code(self) -> str | None:
         """Return the OEM code (a 2-char ascii str) for this device, if there is one."""
         # raise NotImplementedError  # self.traits is a @property
         if not self.traits.get(SZ_OEM_CODE):
