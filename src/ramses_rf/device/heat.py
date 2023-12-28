@@ -804,18 +804,20 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         (self._handle_3220 if msg.code == Code._3220 else self._handle_code)(msg)
 
     def _handle_3220(self, msg: Message) -> None:
-        if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:  # workaround
-            return
+        """Handle 3220-based messages."""
 
-        msg_id = f"{msg.payload[SZ_MSG_ID]:02X}"
+        # if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:  # workaround
+        #     return
+
+        msg_id = msg.payload[SZ_MSG_ID]
         self._msgs_ot[msg_id] = msg
 
-        if DEV_MODE:  # here to follow state changes
+        # TODO: this is development code - will be rationalised, eventually
+        if False and DEV_MODE:  # here to follow state changes
             # if msg_id != "73":
             #     self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
-            # TODO: this is development code - will be rationalised, eventually
-            if self._gwy.config.use_native_ot and (
+            if self._gwy.config.use_native_ot != "never" and (
                 code := self.OT_TO_RAMSES.get(msg_id)
             ):
                 self._send_cmd(Command.from_attrs(RQ, self.id, code, "00"))
@@ -836,6 +838,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
 
     def _handle_code(self, msg: Message) -> None:
+        """Handle non-3220-based messages."""
+
         if msg.code == Code._3EF0 and msg.verb == I_:  # chasing flags
             self._send_cmd(
                 Command.get_opentherm_data(self.id, "00"),
@@ -859,7 +863,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return None
 
     @staticmethod
-    def _ot_msg_name(msg) -> str:
+    def _ot_msg_name(msg) -> str:  # TODO: remove
         return (
             msg.payload[SZ_MSG_NAME]
             if isinstance(msg.payload[SZ_MSG_NAME], str)
@@ -1118,7 +1122,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
+            if self._supported_cmds_ctx.get(k) and k in PARAMS_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
