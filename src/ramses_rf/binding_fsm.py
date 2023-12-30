@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+import voluptuous as vol
+
 from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
+from ramses_tx.const import DevType
 
 from . import exceptions as exc
 
@@ -57,14 +61,40 @@ _AFFIRM_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
 _RATIFY_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
 
 
-#
-
-
 class Vendor(StrEnum):
     ITHO = "itho"
     NUAIRE = "nuaire"
     ORCON = "orcon"
     DEFAULT = "default"
+
+
+SZ_CLASS = "class"
+SZ_VENDOR = "vendor"
+SZ_TENDER = "tender"
+SZ_AFFIRM = "affirm"
+SZ_RATIFY = "thumbrint"
+
+VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
+VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))
+VOL_OEM_ID_REGEX = vol.Match(re.compile(r"^[0-9A-F]{2}$"))
+
+VOL_TENDER_CODES = vol.All(
+    {vol.Required(VOL_CODE_REGEX, default="00"): VOL_OEM_ID_REGEX},
+    vol.Length(min=1),
+)
+
+VOL_SUPPLICANT = vol.Schema(
+    {
+        vol.Required(SZ_CLASS): DevType.THM,
+        vol.Optional(SZ_VENDOR, default="honeywell"): vol.Any(
+            "honeywell", "resideo", *(m.value for m in Vendor)
+        ),
+        vol.Optional(SZ_TENDER): VOL_TENDER_CODES,
+        vol.Optional(SZ_AFFIRM, default={}): vol.Any({}),
+        vol.Optional(SZ_RATIFY, default=None): vol.Any(None),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
 
 
 class BindPhase(StrEnum):
