@@ -343,25 +343,36 @@ class Fakeable(DeviceBase):
         if self._context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
             self._context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
-    async def wait_for_binding_request(
+    async def _wait_for_binding_request(
         self,
-        codes: Iterable[Code],
+        accept_codes: Iterable[Code],
+        /,
+        *,
         idx: IndexT = "00",
-        scheme: Vendor | None = None,
-    ) -> Message:
+        require_ratify: bool = False,
+    ) -> Message:  # TODO: Packets or Message?
         """Listen for a binding and return the Offer, or raise an exception."""
-        return await self._context.wait_for_binding_request(codes, idx, vendor=scheme)
-
-    async def initiate_binding_process(
-        self,
-        codes: Iterable[Code],
-        oem_code: str | None = None,
-        scheme: Vendor | None = None,
-    ) -> Message:
-        """Start a binding and return the Accept, or raise an exception."""
-        return await self._context.initiate_binding_process(
-            codes, oem_code, vendor=scheme
+        msgs = await self._context.wait_for_binding_request(
+            accept_codes, idx=idx, require_ratify=require_ratify
         )
+        return msgs
+
+    async def _initiate_binding_process(
+        self,
+        offer_codes: Iterable[Code],
+        /,
+        *,
+        confirm_code: Code | None = None,
+        ratify_cmd: Command | None = None,
+    ) -> Message:  # TODO: Packets or Message?
+        """Start a binding and return the Accept, or raise an exception.
+
+        confirm_code can be FFFF.
+        """
+        msgs = await self._context.initiate_binding_process(
+            offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
+        )
+        return msgs
 
     @property
     def oem_code(self) -> str | None:

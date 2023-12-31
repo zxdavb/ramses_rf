@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
-from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
+from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command, Message
 from ramses_tx.const import DevType
 
 from . import exceptions as exc
@@ -31,12 +31,12 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from ramses_tx import Message, Packet
+    from ramses_tx import Packet
     from ramses_tx.const import IndexT
 
     from .device.base import Fakeable
 
-
+DEV_MODE = True
 _LOGGER = logging.getLogger(__name__)
 
 # All debug flags should be False for end-users
@@ -85,7 +85,7 @@ VOL_TENDER_CODES = vol.All(
 
 VOL_SUPPLICANT = vol.Schema(
     {
-        vol.Required(SZ_CLASS): DevType.THM,
+        vol.Required(SZ_CLASS): vol.Any(DevType.THM.value, DevType.DHW.value),
         vol.Optional(SZ_VENDOR, default="honeywell"): vol.Any(
             "honeywell", "resideo", *(m.value for m in Vendor)
         ),
@@ -206,10 +206,12 @@ class BindContextRespondent(BindContextBase):
 
     async def wait_for_binding_request(
         self,
-        codes: Code | list[Code],
-        idx: IndexT | None = None,
-        vendor: Vendor | None = None,
-    ) -> tuple[Message, Message, Message, Message]:
+        accept_codes: Iterable[Code],
+        /,
+        *,
+        idx: IndexT = "00",
+        require_ratify: bool = False,
+    ) -> tuple[Packet, Packet, Packet, None]:
         """Device starts binding as a Respondent, by listening for an Offer.
 
         Returns the Supplicant's Offer or raise an exception if the binding is
@@ -224,17 +226,18 @@ class BindContextRespondent(BindContextBase):
         tender = await self._wait_for_offer()
 
         # Step R2: Respondent expects a Confirm after sending an Accept (accepts Offer)
-        accept = await self._accept_offer(tender, codes, idx=idx)
+        accept = await self._accept_offer(tender, accept_codes, idx=idx)
         affirm = await self._wait_for_confirm(accept)
 
         # Step R3: Respondent expects an Addenda (optional)
-        try:
-            ratify = await self._wait_for_addenda(accept)
-        except exc.BindingFlowFailed:
+        if False and require_ratify:  # TODO: not recvd as sent to 63:262142
+            self.set_state(RespIsWaitingForAddenda)  # HACK: easiest way
+            ratify = await self._wait_for_addenda(accept)  # may: exc.BindingFlowFailed:
+        else:
             ratify = None
 
         # self._set_as_bound(tender, accept, affirm, ratify)
-        return tender, accept, affirm, ratify
+        return tender._pkt, accept, affirm._pkt, (ratify._pkt if ratify else None)  # type: ignore[attr-defined]
 
     async def _wait_for_offer(self, timeout: float = _TENDER_WAIT_TIME) -> Message:
         """Resp waits timeout seconds for an Offer to arrive & returns it."""
@@ -242,10 +245,14 @@ class BindContextRespondent(BindContextBase):
 
     async def _accept_offer(
         self, tender: Message, codes: Iterable[Code], idx: IndexT = "00"
-    ) -> Message:
+    ) -> Packet:
         """Resp sends an Accept on the basis of a rcvd Offer & returns the Confirm."""
+
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
-        pkt = await self._dev._async_send_cmd(cmd)
+        if DEV_MODE:
+            assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
+        pkt = await self._dev._async_send_cmd(cmd)  # send accept/accept
+
         self.state.accept_offer()
         return pkt
 
@@ -269,10 +276,12 @@ class BindContextSupplicant(BindContextBase):
 
     async def initiate_binding_process(
         self,
-        codes: Code | list[Code],
-        vendor: Vendor | None = None,
-        oem_code: str | None = "FF",
-    ) -> tuple[Message, Message, Message, Message]:
+        offer_codes: Iterable[Code],
+        /,
+        *,
+        confirm_code: Code | None = None,
+        ratify_cmd: Command | None = None,
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Device starts binding as a Supplicant, by sending an Offer.
 
         Returns the Respondent's Accept, or raise an exception if the binding is
@@ -283,40 +292,43 @@ class BindContextSupplicant(BindContextBase):
             raise exc.BindingFsmError(f"{self}: bad State for binding as a Supplicant")
         self.set_state(SuppSendOfferWaitForAccept)  # self._is_respondent = False
 
+        if ratify_cmd:
+            oem_code = ratify_cmd.payload[14:16]
+        else:
+            oem_code = None
+
         # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
-        tender = await self._make_offer(codes, vendor=vendor, oem_code=oem_code)
+        tender = await self._make_offer(offer_codes, oem_code=oem_code)
         accept = await self._wait_for_accept(tender)
 
         # Step S2: Supplicant sends a Confirm (confirms Accept)
-        affirm = await self._confirm_accept(accept)
+        affirm = await self._confirm_accept(accept, confirm_code=confirm_code)
 
         # Step S3: Supplicant sends an Addenda (optional)
         if oem_code:
-            ratify = await self._cast_addenda(accept, oem_code=oem_code)
+            self.set_state(SuppIsReadyToSendAddenda)  # HACK: easiest way
+            ratify = await self._cast_addenda(accept, ratify_cmd)
         else:
             ratify = None
 
         # self._set_as_bound(tender, accept, affirm, ratify)
-        return tender, accept, affirm, ratify
+        return tender, accept._pkt, affirm, ratify
 
     async def _make_offer(
         self,
         codes: Iterable[Code],
-        vendor: Vendor | None = None,
         oem_code: str | None = None,
     ) -> Message:
         """Supp sends an Offer & returns the corresponding Packet."""
-
-        scheme: dict = SCHEME_LOOKUP[vendor or Vendor.DEFAULT]
-
-        oem_code = scheme.get("oem_code")
-        dst_id = scheme.get("offer_to", self._dev.id)
+        # if oem_code, send an 10E0
 
         # state = self.state
         cmd = Command.put_bind(
-            I_, self._dev.id, codes, dst_id=dst_id, oem_code=oem_code
+            I_, self._dev.id, codes, dst_id=self._dev.id, oem_code=oem_code
         )
-        pkt = await self._dev._async_send_cmd(cmd)  # , timeout=30)
+        if DEV_MODE:
+            assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
+        pkt = await self._dev._async_send_cmd(cmd)  # send tender/offer
 
         # await state._fut
         self.state.make_offer()
@@ -329,18 +341,24 @@ class BindContextSupplicant(BindContextBase):
         return await self.state.wait_for_accept(timeout)
 
     async def _confirm_accept(
-        self, accept: Message, codes: Iterable[Code] | None = None, idx: IndexT = "00"
+        self, accept: Message, confirm_code: Code | None = None
     ) -> Message:
         """Supp casts a Confirm on the basis of a rcvd Accept & returns the Confirm."""
-        cmd = Command.put_bind(I_, self._dev.id, codes, dst_id=accept.src.id, idx=idx)
-        pkt = await self._dev._async_send_cmd(cmd)
+        idx = accept._pkt.payload[:2]  # HACK assumes all idx same
+
+        cmd = Command.put_bind(
+            I_, self._dev.id, confirm_code, dst_id=accept.src.id, idx=idx
+        )
+        if DEV_MODE:
+            assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
+        pkt = await self._dev._async_send_cmd(cmd)  # send affirm/confirm
+
         await self.state.confirm_accept()
         return pkt
 
-    async def _cast_addenda(self, accept: Message, oem_code: str | None) -> Message:
+    async def _cast_addenda(self, accept: Message, cmd: Command) -> Packet:
         """Supp casts an Addenda (the final 10E0 command)."""
-        msg = self._dev._get_msg_by_hdr(f"{Code._10E0}|{I_}|{self._dev.id}")
-        pkt = await self._dev._async_send_cmd(Command(msg._pkt._frame))
+        pkt = await self._dev._async_send_cmd(cmd)  # send ratify/addenda
         await self.state.cast_addenda()
         return pkt
 
