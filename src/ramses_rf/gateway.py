@@ -21,7 +21,6 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from ramses_tx import (
-    SZ_ACTIVE_HGI,
     Address,
     Command,
     Engine,
@@ -33,9 +32,10 @@ from ramses_tx import (
     set_pkt_logging_config,
     transport_factory,
 )
-from ramses_tx.protocol_fsm import (
+from ramses_tx.const import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_TIMEOUT,
+    SZ_ACTIVE_HGI,
 )
 from ramses_tx.schemas import (
     SCH_ENGINE_CONFIG,
@@ -545,6 +545,8 @@ class Gateway(Engine):
     async def async_send_cmd(
         self,
         cmd: Command,
+        /,
+        *,
         max_retries: int = DEFAULT_MAX_RETRIES,
         priority: SendPriority = SendPriority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,

@@ -81,7 +81,7 @@ from .schemas import (
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
 )
-from .typing import ExceptionT, SerPortName
+from .typing import ExceptionT, SerPortNameT
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -110,8 +110,8 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags (used for dev/test) should be False for end-users
-_DEBUG_DISABLE_REGEX_WARNINGS = False
-_DEBUG_FORCE_LOG_FRAMES = False
+_DBG_DISABLE_REGEX_WARNINGS = False
+_DBG_FORCE_LOG_FRAMES = False
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
@@ -162,7 +162,7 @@ else:  # is linux
         return [d for d in map(SysFS, devices) if d.subsystem not in _hide_subsystems]
 
 
-def is_hgi80(serial_port: SerPortName) -> bool | None:
+def is_hgi80(serial_port: SerPortNameT) -> bool | None:
     """Return True/False if the device attached to the port has the attrs of an HGI80.
 
     Return None if it's not possible to tell (falsy should assume is evofw3).
@@ -446,7 +446,7 @@ class _RegHackMixin:
             except re.error as err:
                 _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {err}")
 
-        if result != pkt_line and not _DEBUG_DISABLE_REGEX_WARNINGS:
+        if result != pkt_line and not _DBG_DISABLE_REGEX_WARNINGS:
             (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
                 f"{pkt_line} < Changed by use_regex to: {result}"
             )
@@ -633,7 +633,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
                     yield self._dt_now(), line + b"\r\n"
 
         for dtm, raw_line in bytes_received(data):
-            if _DEBUG_FORCE_LOG_FRAMES:
+            if _DBG_FORCE_LOG_FRAMES:
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
@@ -671,7 +671,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         if self._closing:
             return
 
-        if _DEBUG_FORCE_LOG_FRAMES:
+        if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Tx:     %s", data)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Tx:     %s", data)
@@ -811,7 +811,7 @@ async def transport_factory(
     protocol: RamsesProtocolT,
     /,
     *,
-    port_name: SerPortName | None = None,
+    port_name: SerPortNameT | None = None,
     port_config: dict | None = None,
     packet_log: TextIOWrapper | None = None,
     packet_dict: dict | None = None,
@@ -831,7 +831,7 @@ async def transport_factory(
         while protocol._transport is None:
             await asyncio.sleep(0.005)
 
-    def get_serial_instance(ser_name: SerPortName, ser_config: dict) -> Serial:
+    def get_serial_instance(ser_name: SerPortNameT, ser_config: dict) -> Serial:
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'

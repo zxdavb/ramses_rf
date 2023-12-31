@@ -53,7 +53,7 @@ _LOGGER = logging.getLogger(__name__)
 # all debug flags should be False for published code
 DEV_MODE = False  # set True for useful Tracebacks
 
-_DEBUG_FORCE_LOG_MESSAGES = False  # useful for dev/test
+_DBG_FORCE_LOG_MESSAGES = False  # useful for dev/test
 
 __all__ = ["detect_array_fragment", "process_msg"]
 
@@ -186,7 +186,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
     # which requires a valid payload only for 000C.
 
     def logger_xxxx(msg: Message):
-        if _DEBUG_FORCE_LOG_MESSAGES:
+        if _DBG_FORCE_LOG_MESSAGES:
             _LOGGER.warning(msg)
         elif msg.src is not gwy.hgi or (msg.code != Code._PUZZ and msg.verb != RQ):
             _LOGGER.info(msg)

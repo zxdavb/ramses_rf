@@ -44,14 +44,14 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 )
 
 
-_DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
+_DBG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 _PROFILE_LIBRARY = False  # NOTE: for profiling of library
 
 if _PROFILE_LIBRARY:
     import cProfile
     import pstats
 
-SZ_DEBUG_MODE = "debug_mode"
+SZ_DBG_MODE = "debug_mode"
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
@@ -68,7 +68,7 @@ def _start_debugging(wait_for_client: bool):
         print("   - debugger is now attached, continuing execution.")
 
 
-if _DEBUG_CLI:
+if _DBG_CLI:
     _start_debugging(True)
 
 
@@ -191,8 +191,8 @@ class DeviceIdParamType(click.ParamType):
 def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
-    if kwargs[SZ_DEBUG_MODE] > 0:  # Do first
-        _start_debugging(kwargs[SZ_DEBUG_MODE] == 1)
+    if kwargs[SZ_DBG_MODE] > 0:  # Do first
+        _start_debugging(kwargs[SZ_DBG_MODE] == 1)
 
     kwargs, lib_kwargs = split_kwargs(({}, {SZ_CONFIG: {}}), kwargs)
 

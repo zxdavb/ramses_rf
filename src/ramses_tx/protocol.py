@@ -12,13 +12,15 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta as td
 from functools import wraps
 from time import perf_counter
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from . import exceptions as exc
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
 from .const import (
-    MIN_GAP_BETWEEN_WRITES,
+    DEFAULT_GAP_DURATION,
+    DEFAULT_NUM_REPEATS,
+    MINIMUM_GAP_DURATION,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
@@ -34,8 +36,6 @@ from .protocol_fsm import (
 from .schemas import SZ_PORT_NAME
 from .transport import transport_factory
 from .typing import (
-    _DEFAULT_TX_COUNT,
-    _DEFAULT_TX_DELAY,
     ExceptionT,
     MsgFilterT,
     MsgHandlerT,
@@ -59,10 +59,11 @@ _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
 
 # all debug flags should be False for published code
-_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = False  # #   used for pytest scripts
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = False  # used for pytest scripts
-_DEBUG_DISABLE_QOS = False  # #                used for pytest scripts
-_DEBUG_FORCE_LOG_PACKETS = False
+_DBG_DISABLE_DUTY_CYCLE_LIMIT: Final[bool] = False
+_DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
+_DBG_DISABLE_QOS: Final[bool] = False
+_DBG_FORCE_LOG_PACKETS: Final[bool] = False
+_DBG_MINIMUM_GAP_DURATION: Final[float] = MINIMUM_GAP_DURATION
 
 # other constants
 _MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
@@ -184,7 +185,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
             )
             last_time_bit_added = perf_counter()
 
-            if _DEBUG_DISABLE_DUTY_CYCLE_LIMIT:
+            if _DBG_DISABLE_DUTY_CYCLE_LIMIT:
                 bits_in_bucket = BUCKET_CAPACITY
 
             # if required, wait for the bit bucket to refill (not for SETs/PUTs)
@@ -373,14 +374,14 @@ class _BaseProtocol(asyncio.Protocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """This is the wrapper for self._send_cmd(cmd)."""
 
-        if _DEBUG_FORCE_LOG_PACKETS:
+        if _DBG_FORCE_LOG_PACKETS:
             _LOGGER.warning(f"Sent:     {cmd}")
         else:
             _LOGGER.debug(f"Sent:     {cmd}")
@@ -403,8 +404,8 @@ class _BaseProtocol(asyncio.Protocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:  # only cmd, no args, kwargs
@@ -427,7 +428,7 @@ class _BaseProtocol(asyncio.Protocol):
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
-        if _DEBUG_FORCE_LOG_PACKETS:
+        if _DBG_FORCE_LOG_PACKETS:
             _LOGGER.warning(f"Rcvd: {pkt._rssi} {pkt}")
         else:
             _LOGGER.info(f"Rcvd: {pkt._rssi} {pkt}")
@@ -493,8 +494,8 @@ class ReadProtocol(_BaseProtocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
@@ -517,7 +518,7 @@ class PortProtocol(_BaseProtocol):
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self._transport.write()."""
         while True:
-            await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
+            await asyncio.sleep(_DBG_MINIMUM_GAP_DURATION)
             try:
                 self._leaker_sem.release()
             except ValueError:
@@ -566,7 +567,7 @@ class PortProtocol(_BaseProtocol):
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
 
-        if _DEBUG_DISABLE_IMPERSONATION_ALERTS:
+        if _DBG_DISABLE_IMPERSONATION_ALERTS:
             return
 
         msg = f"{self}: Impersonating device: {cmd.src}, for pkt: {cmd.tx_header}"
@@ -582,8 +583,8 @@ class PortProtocol(_BaseProtocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
@@ -668,8 +669,8 @@ class QosProtocol(PortProtocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
@@ -707,8 +708,8 @@ class QosProtocol(PortProtocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,  # max_retries, timeout, wait_for_reply
     ) -> Packet | None:
@@ -725,8 +726,8 @@ class QosProtocol(PortProtocol):
         sent first.
         """
 
-        assert gap_duration == 0.02
-        assert num_repeats == 1
+        assert gap_duration == DEFAULT_GAP_DURATION
+        assert num_repeats == DEFAULT_NUM_REPEATS
 
         return await super().send_cmd(
             cmd,
@@ -759,7 +760,7 @@ def protocol_factory(
         _LOGGER.debug("ReadProtocol: sending has been disabled")
         return ReadProtocol(msg_handler)
 
-    if disable_qos or _DEBUG_DISABLE_QOS:
+    if disable_qos or _DBG_DISABLE_QOS:
         _LOGGER.debug("PortProtocol: QoS has been disabled")
         return PortProtocol(msg_handler)
 

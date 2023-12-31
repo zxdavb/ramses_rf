@@ -61,9 +61,6 @@ from .const import (
     __dev_mode__,
 )
 
-# from .system import _SystemT  # circular import
-
-
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)

@@ -20,7 +20,6 @@ from ramses_rf.const import (
 )
 from ramses_tx import CODES_SCHEMA, Command, Priority
 from ramses_tx.opentherm import OTB_MSG_IDS
-from ramses_tx.protocol import MIN_GAP_BETWEEN_WRITES
 
 # Beware, none of this is reliable - it is all subject to random change
 # However, these serve as examples how to us eteh other modules
@@ -282,8 +281,10 @@ async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int 
     start_code = start_code or 0
 
     for code in range(start_code, 0x5000):
-        gwy.send_cmd(_mk_cmd(RQ, f"{code:04X}", "0000", dev_id), qos=QOS_SCAN)  # type:ignore[arg-type]
-        await asyncio.sleep(MIN_GAP_BETWEEN_WRITES)
+        await gwy.async_send_cmd(
+            _mk_cmd(RQ, f"{code:04X}", "0000", dev_id),  # type:ignore[arg-type]
+            qos=QOS_SCAN,
+        )
 
 
 @script_decorator

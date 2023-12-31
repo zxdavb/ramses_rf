@@ -28,7 +28,7 @@ NON_DEVICE_ID = "--:------"
 NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
 # All debug flags should be False for end-users
-_DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
+_DBG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
 
 
 class Address:
@@ -200,7 +200,7 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             f"Invalid address set: {addr_fragment}: {err}"
         ) from None
 
-    if not _DEBUG_DISABLE_STRICT_CHECKING and (
+    if not _DBG_DISABLE_STRICT_CHECKING and (
         not (
             # .I --- 01:145038 --:------ 01:145038 1F09 003 FF073F # valid
             # .I --- 04:108173 --:------ 01:155341 2309 003 0001F4 # valid

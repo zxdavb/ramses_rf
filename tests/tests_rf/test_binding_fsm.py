@@ -30,12 +30,12 @@ from ramses_tx.protocol import QosProtocol
 from .virtual_rf import rf_factory
 
 # patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
-_DEBUG_DISABLE_QOS = False  # #                 ramses_tx.protocol
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
+_DBG_DISABLE_QOS = False  # #                 ramses_tx.protocol
 DEFAULT_MAX_RETRIES = 0  # #                    ramses_tx.protocol
 DEFAULT_TIMEOUT = 0.005  # #                    ramses_tx.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #               ramses_tx.protocol_fsm
-MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_tx.protocol
+_DBG_MINIMUM_GAP_DURATION = 0  # #            ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -173,11 +173,11 @@ TEST_SUITE_300 = [
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
+        _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol._DBG_MINIMUM_GAP_DURATION", _DBG_MINIMUM_GAP_DURATION
     )
 
 
@@ -320,16 +320,16 @@ async def _test_flow_10x(
     await assert_context_state(respondent, _BindStates.NEEDING_RATIFY)
     await assert_context_state(supplicant, _BindStates.TO_SEND_RATIFY)
 
-    # Step R3: Respondent expects an Addenda (optional)
-    resp_task = loop.create_task(
-        respondent._context._wait_for_addenda(accept, timeout=0.05)
-    )
+    # # Step R3: Respondent expects an Addenda (optional)
+    # resp_task = loop.create_task(
+    #     respondent._context._wait_for_addenda(accept, timeout=0.05)
+    # )
 
-    # Step S3: Supplicant sends an Addenda (optional)
-    msg = Message(Packet(dt.now(), "000 " + pkt_flow_expected[_RATIFY]))
-    supplicant._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
+    # # Step S3: Supplicant sends an Addenda (optional)
+    # msg = Message(Packet(dt.now(), "000 " + pkt_flow_expected[_RATIFY]))
+    # supplicant._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
 
-    # TODO: need to finish this
+    # # TODO: need to finish this
     # pkt = await supplicant._context._cast_addenda()
     # await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
 
@@ -394,7 +394,7 @@ async def _test_flow_20x(
     assert str(supp_flow[_ACCEPT]) == pkt_flow_expected[_ACCEPT]
 
 
-# TODO: binding working without QoS  # @patch("ramses_tx.protocol._DEBUG_DISABLE_QOS", True)
+# TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_100(test_set: dict[str:dict]) -> None:
     """Check packet flow / state change of a binding at context layer."""
@@ -423,7 +423,7 @@ async def test_flow_100(test_set: dict[str:dict]) -> None:
         await rf.stop()
 
 
-# TODO: binding working without QoS  # @patch("ramses_tx.protocol._DEBUG_DISABLE_QOS", True)
+# TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_200(test_set: dict[str:dict]) -> None:
     """Check packet flow / state change of a binding at device layer."""

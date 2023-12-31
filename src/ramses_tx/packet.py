@@ -35,7 +35,7 @@ _TD_MINS_360 = td(minutes=360)
 _TD_DAYS_001 = td(minutes=60 * 24)
 
 
-_PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
+PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
 class Packet(Frame):
@@ -83,11 +83,11 @@ class Packet(Frame):
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
             # FIXME: this is messy
-            _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
+            PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
         except exc.PacketInvalid as err:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
-                _PKT_LOGGER.warning("%s", err, extra=self.__dict__)
+                PKT_LOGGER.warning("%s", err, extra=self.__dict__)
             raise err
 
     def __repr__(self) -> str:

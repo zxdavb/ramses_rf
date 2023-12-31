@@ -19,7 +19,7 @@ from .const import (  # noqa: F401
 from .gateway import Engine  # noqa: F401
 from .logger import set_logger_timesource, set_pkt_logging  # noqa: F401
 from .message import Message  # noqa: F401
-from .packet import _PKT_LOGGER, Packet  # noqa: F401
+from .packet import PKT_LOGGER, Packet  # noqa: F401
 from .protocol import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
     QosProtocol,
@@ -66,5 +66,5 @@ if TYPE_CHECKING:
 
 
 def set_pkt_logging_config(**config) -> Logger:
-    set_pkt_logging(_PKT_LOGGER, **config)
-    return _PKT_LOGGER  # type: ignore[no-any-return]
+    set_pkt_logging(PKT_LOGGER, **config)
+    return PKT_LOGGER  # type: ignore[no-any-return]

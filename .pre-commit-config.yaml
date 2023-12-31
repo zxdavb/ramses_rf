@@ -33,7 +33,7 @@ repos:
 
     - id: secrets
       name: check DEBUG flags
-      entry: '_DEBUG_.*=.*True'
+      entry: '_DBG_.*=.*True'
       language: pygrep
       args: [-i]
       exclude: (.pre-commit-config.yaml|^tests/.*\.py$)  # avoid false +ve

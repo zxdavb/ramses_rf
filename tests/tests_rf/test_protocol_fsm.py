@@ -35,12 +35,12 @@ from ramses_tx.typing import QosParams
 from .virtual_rf import VirtualRf
 
 # patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
-_DEBUG_MAINTAIN_STATE_CHAIN = False  # #        ramses_tx.protocol_fsm
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
+_DBG_MAINTAIN_STATE_CHAIN = False  # #        ramses_tx.protocol_fsm
 DEFAULT_MAX_RETRIES = 0  # #                    ramses_tx.protocol
 DEFAULT_TIMEOUT = 0.05  # #                     ramses_tx.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #                       ramses_tx.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_tx.protocol
+_DBG_MINIMUM_GAP_DURATION = 0  # #             ramses_tx.protocol
 
 # other constants
 CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
@@ -79,15 +79,15 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
+        _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol._DBG_MINIMUM_GAP_DURATION", _DBG_MINIMUM_GAP_DURATION
     )
     monkeypatch.setattr(
-        "ramses_tx.protocol_fsm._DEBUG_MAINTAIN_STATE_CHAIN",
-        _DEBUG_MAINTAIN_STATE_CHAIN,
+        "ramses_tx.protocol_fsm._DBG_MAINTAIN_STATE_CHAIN",
+        _DBG_MAINTAIN_STATE_CHAIN,
     )
 
 

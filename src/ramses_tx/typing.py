@@ -13,20 +13,19 @@ from typing import Any, Protocol, TypeVar
 from serial import Serial  # type: ignore[import-untyped]
 
 from .command import Command
+from .const import (
+    DEFAULT_GAP_DURATION,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_NUM_REPEATS,
+    DEFAULT_TIMEOUT,
+)
 from .message import Message
 from .packet import Packet
 
 ExceptionT = TypeVar("ExceptionT", bound=type[Exception])
 MsgFilterT = Callable[[Message], bool]
 MsgHandlerT = Callable[[Message], None]
-SerPortName = str
-
-
-_DEFAULT_TX_COUNT = 1  # number of times to Tx each Command
-_DEFAULT_TX_DELAY = 0.02  # gap between re-Tx of same Command
-
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_TIMEOUT = 30.0  # total waiting for successful send: FIXME
+SerPortNameT = str
 
 
 class SendPriority(IntEnum):
@@ -80,14 +79,14 @@ class SendParams:
     def __init__(
         self,
         *,
-        gap_duration: float | None = _DEFAULT_TX_DELAY,
-        num_repeats: int | None = _DEFAULT_TX_COUNT,
+        gap_duration: float | None = DEFAULT_GAP_DURATION,
+        num_repeats: int | None = DEFAULT_NUM_REPEATS,
         priority: SendPriority | None = SendPriority.DEFAULT,
     ) -> None:
         """Create a SendParams instance."""
 
-        self._gap_duration = gap_duration or _DEFAULT_TX_DELAY
-        self._num_repeats = num_repeats or _DEFAULT_TX_COUNT
+        self._gap_duration = gap_duration or DEFAULT_GAP_DURATION
+        self._num_repeats = num_repeats or DEFAULT_NUM_REPEATS
         self._priority = priority or SendPriority.DEFAULT
 
         self._dt_cmd_arrived: dt | None = None
@@ -204,8 +203,8 @@ class RamsesProtocolT(Protocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: SendPriority = SendPriority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:

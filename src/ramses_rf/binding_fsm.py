@@ -40,7 +40,7 @@ DEV_MODE = True
 _LOGGER = logging.getLogger(__name__)
 
 # All debug flags should be False for end-users
-_DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
+_DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
 SZ_RESPONDENT = "respondent"
@@ -154,7 +154,7 @@ class BindContextBase:
             except exc.BindingError as err:
                 self._fut.set_result(err)
 
-        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DBG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             # if prev_state in (None, )
             prev_state = self._state
 
@@ -166,7 +166,7 @@ class BindContextBase:
         elif state is SuppSendOfferWaitForAccept:
             self._is_respondent = False
 
-        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DBG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
     @property

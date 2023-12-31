@@ -22,14 +22,15 @@ from typing import TYPE_CHECKING, Any
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import Command
-from .const import __dev_mode__
+from .const import (
+    DEFAULT_GAP_DURATION,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_NUM_REPEATS,
+    DEFAULT_TIMEOUT,
+)
 from .message import Message
 from .packet import Packet
 from .protocol import QosParams, SendPriority, protocol_factory
-from .protocol_fsm import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_TIMEOUT,
-)
 from .schemas import (
     SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
@@ -57,7 +58,7 @@ if TYPE_CHECKING:
 _MsgHandlerT = Callable[[Message], None]
 
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -292,6 +293,8 @@ class Engine:
     async def async_send_cmd(
         self,
         cmd: Command,
+        /,
+        *,
         max_retries: int = DEFAULT_MAX_RETRIES,
         priority: SendPriority = SendPriority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
@@ -306,7 +309,11 @@ class Engine:
         )
 
         return await self._protocol.send_cmd(
-            cmd, priority=priority, num_repeats=1, gap_duration=0.02, qos=qos
+            cmd,
+            gap_duration=DEFAULT_GAP_DURATION,
+            num_repeats=DEFAULT_NUM_REPEATS,
+            priority=priority,
+            qos=qos,
         )
 
     def _msg_handler(self, msg: Message) -> None:

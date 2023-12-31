@@ -22,10 +22,10 @@ from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
-_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DEBUG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
-MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_tx.transport
+_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
+_DBG_MINIMUM_GAP_DURATION = 0  # #          ramses_tx.transport
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -70,15 +70,15 @@ _global_failed_ports: list[str] = []
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,
+        "ramses_tx.protocol._DBG_DISABLE_DUTY_CYCLE_LIMIT",
+        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
     )
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
+        _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr(
-        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
+        "ramses_tx.protocol._DBG_MINIMUM_GAP_DURATION", _DBG_MINIMUM_GAP_DURATION
     )
 
 
@@ -185,8 +185,8 @@ async def real_ti3410():
 
 
 @patch(  # DISABLE_STRICT_CHECKING
-    "ramses_tx.address._DEBUG_DISABLE_STRICT_CHECKING",
-    _DEBUG_DISABLE_STRICT_CHECKING,
+    "ramses_tx.address._DBG_DISABLE_STRICT_CHECKING",
+    _DBG_DISABLE_STRICT_CHECKING,
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
