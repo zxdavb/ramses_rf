@@ -921,11 +921,13 @@ class Command(Frame):
         oem_code: str | None = None,
         qos: dict | None = None,
     ) -> Command:
-        if not codes:  # might be []
+        # TODO: should preserve order of codes, else tests may fail
+        kodes = [c for c in codes if c not in (Code._1FC9, Code._10E0)]
+        if not kodes:  # might be []
             raise exc.CommandInvalid(f"Invalid codes for a bind offer: {codes}")
 
         hex_id = Address.convert_to_hex(src_id)
-        payload = "".join(f"00{c}{hex_id}" for c in codes)
+        payload = "".join(f"00{c}{hex_id}" for c in kodes)
 
         if oem_code:  # 01, 67, 6C
             payload += f"{oem_code}{Code._10E0}{hex_id}"
