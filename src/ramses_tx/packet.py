@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime as dt, timedelta as td
 
 from . import exceptions as exc
+from .command import Command
 from .frame import Frame
 from .logger import getLogger  # overridden logger.getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS, WRITE_MSG_IDS
@@ -127,6 +128,13 @@ class Packet(Frame):
         fragment, _, err_msg = fragment.partition("*")
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
+
+    @classmethod
+    def _from_cmd(cls, cmd: Command, dtm: dt | None = None) -> Packet:
+        """Create a Packet from a Command."""
+        if dtm is None:
+            dtm = dt.now()
+        return cls.from_port(dtm, f"... {cmd._frame}")
 
     @classmethod
     def from_dict(cls, dtm: str, pkt_line: str) -> Packet:

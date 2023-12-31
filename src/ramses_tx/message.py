@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from . import exceptions as exc
 from .address import Address
+from .command import Command
 from .const import (
     DEV_TYPE_MAP,
     SZ_DHW_IDX,
@@ -300,6 +301,16 @@ class Message(MessageBase):  # add _expired attr
 
     _gwy: Gateway
     _fraction_expired: float | None = None
+
+    @classmethod
+    def _from_cmd(cls, cmd: Command, dtm: dt | None = None) -> Message:
+        """Create a Message from a Command."""
+        return cls(Packet._from_cmd(cmd, dtm=dtm))
+
+    @classmethod
+    def _from_pkt(cls, pkt: Packet) -> Message:
+        """Create a Message from a Packet."""
+        return cls(pkt)
 
     @property
     def _expired(self) -> bool:
