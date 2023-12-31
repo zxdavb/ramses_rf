@@ -24,6 +24,7 @@ from .const import (
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
+    Priority,
 )
 from .helpers import dt_now
 from .logger import set_logger_timesource
@@ -31,7 +32,6 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import (
     ProtocolContext,
-    SendPriority,
 )
 from .schemas import SZ_PORT_NAME
 from .transport import transport_factory
@@ -376,7 +376,7 @@ class _BaseProtocol(asyncio.Protocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """This is the wrapper for self._send_cmd(cmd)."""
@@ -406,7 +406,7 @@ class _BaseProtocol(asyncio.Protocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:  # only cmd, no args, kwargs
         """This is the wrapper for self._send_frame(cmd), with repeats.
@@ -496,7 +496,7 @@ class ReadProtocol(_BaseProtocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Raise an exception as the Protocol cannot send Commands."""
@@ -585,7 +585,7 @@ class PortProtocol(_BaseProtocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Send a Command without QoS (send an impersonation alert if required)."""
@@ -671,7 +671,7 @@ class QosProtocol(PortProtocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
@@ -710,7 +710,7 @@ class QosProtocol(PortProtocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,  # max_retries, timeout, wait_for_reply
     ) -> Packet | None:
         """Send a Command with Qos (with retries, until success or ProtocolError).

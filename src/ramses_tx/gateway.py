@@ -27,10 +27,11 @@ from .const import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
     DEFAULT_TIMEOUT,
+    Priority,
 )
 from .message import Message
 from .packet import Packet
-from .protocol import QosParams, SendPriority, protocol_factory
+from .protocol import QosParams, protocol_factory
 from .schemas import (
     SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
@@ -296,7 +297,7 @@ class Engine:
         /,
         *,
         max_retries: int = DEFAULT_MAX_RETRIES,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: bool | None = None,
     ) -> Packet | None:

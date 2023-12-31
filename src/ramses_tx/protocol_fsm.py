@@ -25,9 +25,10 @@ from .const import (
     DEFAULT_TIMEOUT,
     MINIMUM_GAP_DURATION,
     SZ_ACTIVE_HGI,
+    Priority,
 )
 from .packet import Packet
-from .typing import ExceptionT, QosParams, SendPriority
+from .typing import ExceptionT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -160,7 +161,7 @@ class ProtocolContext:
         self,
         send_fnc: Callable[[Command], Coroutine[Any, Any, None]],
         cmd: Command,
-        priority: SendPriority,
+        priority: Priority,
         qos: QosParams,
     ) -> Packet:
         """Send the Command (with retries) and wait for the expected Packet.

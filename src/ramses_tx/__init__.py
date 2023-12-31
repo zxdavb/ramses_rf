@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .address import NUL_DEV_ADDR, NUL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
-from .command import CODE_API_MAP, Command, Priority  # noqa: F401
+from .command import CODE_API_MAP, Command  # noqa: F401
 from .const import (  # noqa: F401
     SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,
@@ -15,6 +15,7 @@ from .const import (  # noqa: F401
     SZ_ZONE_IDX,
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
+    Priority,
 )
 from .gateway import Engine  # noqa: F401
 from .logger import set_logger_timesource, set_pkt_logging  # noqa: F401
@@ -24,7 +25,6 @@ from .protocol import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
     QosProtocol,
     ReadProtocol,
-    SendPriority,
     protocol_factory,
 )
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA  # noqa: F401

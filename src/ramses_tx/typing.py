@@ -6,7 +6,6 @@
 import asyncio
 from collections.abc import Callable
 from datetime import datetime as dt
-from enum import IntEnum
 from io import TextIOWrapper
 from typing import Any, Protocol, TypeVar
 
@@ -18,6 +17,7 @@ from .const import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
     DEFAULT_TIMEOUT,
+    Priority,
 )
 from .message import Message
 from .packet import Packet
@@ -26,14 +26,6 @@ ExceptionT = TypeVar("ExceptionT", bound=type[Exception])
 MsgFilterT = Callable[[Message], bool]
 MsgHandlerT = Callable[[Message], None]
 SerPortNameT = str
-
-
-class SendPriority(IntEnum):
-    _MAX = -9
-    HIGH = -2
-    DEFAULT = 0
-    LOW = 2
-    _MIN = 9
 
 
 class QosParams:
@@ -81,13 +73,13 @@ class SendParams:
         *,
         gap_duration: float | None = DEFAULT_GAP_DURATION,
         num_repeats: int | None = DEFAULT_NUM_REPEATS,
-        priority: SendPriority | None = SendPriority.DEFAULT,
+        priority: Priority | None = Priority.DEFAULT,
     ) -> None:
         """Create a SendParams instance."""
 
         self._gap_duration = gap_duration or DEFAULT_GAP_DURATION
         self._num_repeats = num_repeats or DEFAULT_NUM_REPEATS
-        self._priority = priority or SendPriority.DEFAULT
+        self._priority = priority or Priority.DEFAULT
 
         self._dt_cmd_arrived: dt | None = None
         self._dt_cmd_queued: dt | None = None
@@ -102,7 +94,7 @@ class SendParams:
         return self._num_repeats
 
     @property
-    def priority(self) -> SendPriority:
+    def priority(self) -> Priority:
         return self._priority
 
 
@@ -205,7 +197,7 @@ class RamsesProtocolT(Protocol):
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: SendPriority = SendPriority.DEFAULT,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         ...
