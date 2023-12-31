@@ -32,19 +32,18 @@ from .const import (
 from .schemas import SZ_CIRCUITS
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    F9,
-    FA,
-    FC,
-    FF,
-)
-
-
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
     Code,
+)
+
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 if TYPE_CHECKING:
