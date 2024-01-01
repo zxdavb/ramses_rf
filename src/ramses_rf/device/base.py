@@ -295,8 +295,6 @@ class Fakeable(DeviceBase):
         self._faked: bool = None  # type: ignore[assignment]
         self._context = BindContext(self)
 
-        self._1fc9_state: dict[str, Any] = {}
-
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
 
