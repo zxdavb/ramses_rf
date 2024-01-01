@@ -63,13 +63,12 @@ ORCON_ = "orcon"
 
 TEST_SUITE_300 = [
     {
-        SZ_RESPONDENT: {
-            "30:098165": {"class": "FAN", "scheme": "nuaire", "_note": "ECO-HEAT-HC"},
+        SZ_RESPONDENT: {  # "_note": "ECO-HEAT-HC"
+            "30:098165": {"class": "FAN", "scheme": "nuaire"},
         },
-        SZ_SUPPLICANT: {
-            "32:208628": {"class": "REM", "scheme": "nuaire", "_note": "4-way switch"}
+        SZ_SUPPLICANT: {  # "_note": "4-way switch",
+            "32:208628": {"class": "REM", "scheme": "nuaire", "faked": True}
         },
-        f"{SZ_RESPONDENT}_attr": {"codes": [Code._31DA], "idx": "21"},
         PKT_FLOW: (
             " I --- 32:208628 --:------ 32:208628 1FC9 018 00-22F1-832EF4 6C-10E0-832EF4 00-1FC9-832EF4",
             " W --- 30:098165 32:208628 --:------ 1FC9 006 21-31DA-797F75",
@@ -79,13 +78,12 @@ TEST_SUITE_300 = [
         ),
     },
     {
-        SZ_RESPONDENT: {
-            "18:126620": {"class": "FAN", "scheme": "itho", "_note": "Spider HRU"},
+        SZ_RESPONDENT: {  # "_note": "Spider HRU"
+            "18:126620": {"class": "FAN", "scheme": "itho"},
         },
-        SZ_SUPPLICANT: {
-            "37:154011": {"class": "CO2", "scheme": "itho", "_note": "Spider CO2"}
+        SZ_SUPPLICANT: {  # "_note": "Spider CO2"
+            "37:154011": {"class": "CO2", "scheme": "itho", "faked": True}
         },
-        f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
         PKT_FLOW: (
             " I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B",
             " W --- 18:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C",
@@ -94,13 +92,12 @@ TEST_SUITE_300 = [
         ),
     },
     # {  # FIXME: offer sent to 63:262142, so send_cmd() wont return corresponding accept FIXME
-    #     SZ_RESPONDENT: {
-    #         "32:155617": {"class": "FAN", "scheme": "orcon", "_note": "HRC-350"},
+    #     SZ_RESPONDENT: {  # "_note": "HRC-350"
+    #         "32:155617": {"class": "FAN", "scheme": "orcon"},
     #     },
-    #     SZ_SUPPLICANT: {
-    #         "29:158183": {"class": "REM", "scheme": "orcon", "_note": "VMN-15LF01"}
+    #     SZ_SUPPLICANT: {  # "_note": "VMN-15LF01"
+    #         "29:158183": {"class": "REM", "scheme": "orcon", "faked": True}
     #     },
-    #     f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
     #     PKT_FLOW: (
     #         " I --- 29:158183 63:262142 --:------ 1FC9 024 00-22F1-7669E7 00-22F3-7669E7 67-10E0-7669E7 00-1FC9-7669E7",
     #         " W --- 32:155617 29:158183 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1",
@@ -110,9 +107,12 @@ TEST_SUITE_300 = [
     #     ),
     # },
     {  # FIXME: supplicant used oem_code and 10E0
-        SZ_RESPONDENT: {"32:155617": {"class": "FAN", "scheme": "orcon"}},
-        SZ_SUPPLICANT: {"37:171871": {"class": "DIS"}},  # , "scheme": "orcon"}},
-        f"{SZ_RESPONDENT}_attr": {"codes": [Code._31D9, Code._31DA]},
+        SZ_RESPONDENT: {
+            "32:155617": {"class": "FAN", "scheme": "orcon"},
+        },
+        SZ_SUPPLICANT: {
+            "37:171871": {"class": "DIS", "faked": True}  # "scheme": "orcon",
+        },  # , "scheme": "orcon"}},
         PKT_FLOW: (
             " I --- 37:171871 --:------ 37:171871 1FC9 024 00-22F1-969F5F 00-22F3-969F5F 67-10E0-969F5F 00-1FC9-969F5F",
             " W --- 32:155617 37:171871 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1",
@@ -122,8 +122,7 @@ TEST_SUITE_300 = [
     },
     {  # FIXME: confirm is:  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
         SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"07:045960": {"class": "DHW"}},
-        f"{SZ_RESPONDENT}_attr": {"codes": [Code._10A0]},
+        SZ_SUPPLICANT: {"07:045960": {"class": "DHW", "faked": True}},
         PKT_FLOW: (
             " I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388",
             " W --- 01:145038 07:045960 --:------ 1FC9 006 00-10A0-06368E",
@@ -132,8 +131,7 @@ TEST_SUITE_300 = [
     },
     {  # FIXME: confirm is not:  I --- 22:057520 01:085545 --:------ 1FC9 006 07
         SZ_RESPONDENT: {"01:085545": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"22:057520": {"class": "THM"}},  # is THM, not STA
-        f"{SZ_RESPONDENT}_attr": {"codes": [Code._2309], "idx": "07"},
+        SZ_SUPPLICANT: {"22:057520": {"class": "THM", "faked": True}},  # THM, not STA
         PKT_FLOW: (
             " I --- 22:057520 --:------ 22:057520 1FC9 024 00-2309-58E0B0 00-30C9-58E0B0 00-0008-58E0B0 00-1FC9-58E0B0",
             " W --- 01:085545 22:057520 --:------ 1FC9 006 07-2309-054E29",
@@ -142,7 +140,7 @@ TEST_SUITE_300 = [
     },
     {  # FIXME: needs initiate_binding_process(), and above
         SZ_RESPONDENT: {"01:220768": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"34:259472": {"class": "RND"}},
+        SZ_SUPPLICANT: {"34:259472": {"class": "RND", "faked": True}},
         PKT_FLOW: (
             " I --- 34:259472 --:------ 34:259472 1FC9 024 00-2309-8BF590 00-30C9-8BF590 00-0008-8BF590 00-1FC9-8BF590",
             " W --- 01:220768 34:259472 --:------ 1FC9 006 01-2309-075E60",
