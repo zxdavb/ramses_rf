@@ -591,8 +591,8 @@ class PortProtocol(_BaseProtocol):
     ) -> Packet | None:
         """Send a Command without QoS (send an impersonation alert if required)."""
 
-        assert gap_duration == 0.02
-        assert 1 <= num_repeats <= 3
+        assert gap_duration == DEFAULT_GAP_DURATION
+        assert DEFAULT_NUM_REPEATS <= num_repeats <= 3
 
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
