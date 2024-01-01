@@ -16,11 +16,10 @@ from datetime import datetime as dt
 
 import pytest
 
-from ramses_rf import Code, Command, Device, Gateway, Message, Packet
+from ramses_rf import Code, Command, Gateway, Message, Packet
 from ramses_rf.binding_fsm import (
     SZ_RESPONDENT,
     SZ_SUPPLICANT,
-    BindContext,
     BindStateBase,
     _BindStates,
 )
@@ -28,14 +27,15 @@ from ramses_rf.device import Fakeable
 from ramses_tx.protocol import QosProtocol
 
 from .virtual_rf import rf_factory
+from .virtual_rf.helpers import ensure_fakeable
 
 # patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
-_DBG_DISABLE_QOS = False  # #                 ramses_tx.protocol
-DEFAULT_MAX_RETRIES = 0  # #                    ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.005  # #                    ramses_tx.protocol_fsm
-MAINTAIN_STATE_CHAIN = False  # #               ramses_tx.protocol_fsm
-_GAP_BETWEEN_WRITES = 0  # #            ramses_tx.protocol
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DBG_DISABLE_QOS = False  # #               ramses_tx.protocol
+DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
+DEFAULT_TIMEOUT = 0.005  # #                ramses_tx.protocol_fsm
+MAINTAIN_STATE_CHAIN = False  # #           ramses_tx.protocol_fsm
+_GAP_BETWEEN_WRITES = 0  # #                ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -187,22 +187,6 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
 
 
 # ######################################################################################
-
-
-def ensure_fakeable(dev: Device) -> None:
-    """If a Device is not Fakeable (i.e. Fakeable, not _faked), make it so."""
-
-    class _Fakeable(dev.__class__, Fakeable):
-        pass
-
-    if isinstance(dev, Fakeable):
-        # if hasattr(dev, "_make_fake"):  # no need for callable(getattr(...))
-        return
-
-    dev.__class__ = _Fakeable
-    setattr(dev, "_faked", None)
-    setattr(dev, "_context", BindContext(dev))
-    setattr(dev, "_1fc9_state", {})
 
 
 async def assert_context_state(
