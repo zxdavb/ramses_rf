@@ -374,6 +374,26 @@ class Gateway(Engine):
 
         return dev
 
+    def fake_device(
+        self,
+        device_id: DeviceIdT,
+        create_device: bool = False,
+    ) -> Device:
+        """Create a faked device."""
+
+        if not is_valid_dev_id(device_id):
+            raise TypeError(f"The device id is not valid: {device_id}")
+
+        if not create_device and device_id not in self.device_by_id:
+            raise LookupError(f"The device id does not exist: {device_id}")
+        elif create_device and device_id not in self.known_list:
+            raise LookupError(f"The device id is not in the known_list: {device_id}")
+
+        if (dev := self.get_device(device_id)) and isinstance(dev, Fakeable):
+            return dev._make_fake()
+
+        raise TypeError(f"The device is not fakable: {device_id}")
+
     @property
     def tcs(self) -> System | None:
         """Return the primary TCS, if any."""
@@ -473,35 +493,6 @@ class Gateway(Engine):
     @property
     def status(self) -> dict:
         return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
-
-    def fake_device(
-        self,
-        device_id: DeviceIdT,
-        create_device: bool = False,
-        start_binding: bool = False,
-    ) -> Device:
-        """Create a faked device, and optionally set it to binding mode.
-
-        Will make any neccesary changed to the device lists.
-        """
-        # TODO: enable to use the HGI as a (say) sensor/actuator
-
-        if not is_valid_dev_id(device_id):
-            raise TypeError(f"The device id is not valid: {device_id}")
-
-        if create_device and device_id in self.device_by_id:
-            raise LookupError(f"The device id already exists: {device_id}")
-        elif not create_device and device_id not in self.device_by_id:
-            raise LookupError(f"The device id does not exist: {device_id}")
-
-        if self._enforce_known_list and device_id not in self._include:
-            self._include[device_id] = {}
-        elif device_id in self._exclude:
-            del self._exclude[device_id]
-
-        if (dev := self.get_device(device_id)) and isinstance(dev, Fakeable):
-            return dev._make_fake(bind=start_binding)
-        raise TypeError(f"The device is not fakable: {device_id}")
 
     def _msg_handler(self, msg: Message) -> None:
         """A callback to handle messages from the protocol stack."""
