@@ -330,6 +330,9 @@ class Fakeable(DeviceBase):
         require_ratify: bool = False,
     ) -> Message:  # TODO: Packets or Message?
         """Listen for a binding and return the Offer, or raise an exception."""
+        if not self.is_faked:
+            raise TypeError(f"{self}: Faking not enabled")
+
         msgs = await self._context.wait_for_binding_request(
             accept_codes, idx=idx, require_ratify=require_ratify
         )
@@ -347,6 +350,9 @@ class Fakeable(DeviceBase):
 
         confirm_code can be FFFF.
         """
+        if not self.is_faked:
+            raise TypeError(f"{self}: Faking not enabled")
+
         msgs = await self._context.initiate_binding_process(
             offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
         )
