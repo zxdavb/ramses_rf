@@ -309,7 +309,7 @@ class Gateway(Engine):
 
     def get_device(
         self,
-        dev_id: DeviceIdT,
+        device_id: DeviceIdT,
         *,
         msg: Message | None = None,
         parent=None,
@@ -347,12 +347,12 @@ class Gateway(Engine):
                     f" (if required, remove it from the {SZ_BLOCK_LIST})"
                 )
 
-        check_filter_lists(dev_id)
+        check_filter_lists(device_id)
 
-        dev = self.device_by_id.get(dev_id)
+        dev = self.device_by_id.get(device_id)
         if not dev:
-            traits = SCH_TRAITS(self._include.get(dev_id, {}))
-            dev = device_factory(self, Address(dev_id), msg=msg, **traits)
+            traits = SCH_TRAITS(self._include.get(device_id, {}))
+            dev = device_factory(self, Address(device_id), msg=msg, **traits)
 
             if traits.get(SZ_FAKED):
                 if isinstance(dev, Fakeable):
