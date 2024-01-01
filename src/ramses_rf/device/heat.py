@@ -142,7 +142,7 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
         if (
             msg.code == Code._3EF0
             and msg.verb == I_  # will be a 13:
-            and not self._faked
+            and not self.is_faked
             and not self._gwy._disable_sending
             and not self._gwy.config.disable_discovery
         ):
@@ -219,7 +219,7 @@ class Weather(Fakeable, DeviceHeat):  # 0002
     # @check_faking_enabled
     @temperature.setter
     def temperature(self, value) -> None:  # 0002
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         cmd = Command.put_outdoor_temp(self.id, value)
         # cmd = Command.put_zone_temp(
@@ -250,7 +250,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        if not self._faked:  # discover_flag & Discover.STATUS and
+        if not self.is_faked:  # discover_flag & Discover.STATUS and
             self._add_discovery_cmd(Command.get_relay_demand(self.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
@@ -261,7 +261,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
         if (
             self._gwy._disable_sending
-            or not self._faked
+            or not self.is_faked
             or self._child_id is None
             or self._child_id
             not in (
@@ -278,7 +278,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         # elif msg.code == Code._0009:  # can only be I, from a controller
         # elif msg.code == Code._3B00...:
 
-        if not self._faked or msg.verb != RQ:  # duplicated, above
+        if not self.is_faked or msg.verb != RQ:  # duplicated, above
             return
 
         # TODO: handle relay_failsafe, reply to RQs
@@ -350,7 +350,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
     # @check_faking_enabled
     @temperature.setter
     def temperature(self, value) -> None:  # 1260
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_dhw_temp(value))
         # lf._send_cmd(Command.get_dhw_temp(self.ctl.id, self.zone.idx))
@@ -384,7 +384,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
     # @check_faking_enabled
     @temperature.setter
     def temperature(self, value) -> None:
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_sensor_temp(self.id, value))
         # lf._send_cmd(Command.get_zone_temp(self.ctl.id, self.zone.idx))
@@ -1343,7 +1343,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 
         super()._setup_discovery_cmds()
 
-        if self._faked:
+        if self.is_faked:
             return
 
         self._add_discovery_cmd(Command.get_tpi_params(self.id), 6 * 3600)  # params

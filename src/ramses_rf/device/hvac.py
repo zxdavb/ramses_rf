@@ -108,7 +108,7 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
     # @check_faking_enabled
     @co2_level.setter
     def co2_level(self, value) -> None:
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_co2_level(self.id, value))
         # lf._send_cmd(Command.get_co2_level(...))
@@ -144,7 +144,7 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
     # @check_faking_enabled
     @indoor_humidity.setter
     def indoor_humidity(self, value) -> None:
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_indoor_humidity(self.id, value))
         # lf._send_cmd(Command.get_indoor_humidity(...))
@@ -180,7 +180,7 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
     # @check_faking_enabled
     @presence_detected.setter
     def presence_detected(self, value) -> None:
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_presence_detected(self.id, value))
         # lf._send_cmd(Command.get_presence_detected(...))
@@ -288,7 +288,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
     # @check_faking_enabled
     @fan_rate.setter
     def fan_rate(self, rate) -> None:  # I/22F1
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         for _ in range(3):
             self._send_cmd(

@@ -62,7 +62,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def check_faking_enabled(fnc):
     def wrapper(self, *args, **kwargs):
-        if not self._faked:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         return fnc(self, *args, **kwargs)
 
@@ -197,7 +197,7 @@ class DeviceBase(Entity):
 
     @property
     def is_faked(self) -> bool:  # TODO: impersonated vs virtual
-        return bool(self._faked)
+        return bool(self.is_faked)
 
     @property
     def _is_present(self) -> bool:
@@ -246,13 +246,13 @@ class BatteryState(DeviceBase):  # 1060
 
     @property
     def battery_low(self) -> None | bool:  # 1060
-        if self._faked:
+        if self.is_faked:
             return False
         return self._msg_value(Code._1060, key=self.BATTERY_LOW)
 
     @property
     def battery_state(self) -> dict | None:  # 1060
-        if self._faked:
+        if self.is_faked:
             return None
         return self._msg_value(Code._1060)
 
@@ -323,7 +323,7 @@ class Fakeable(DeviceBase):
         pass
 
     def _make_fake(self, bind: bool = False) -> Fakeable:
-        if not self._faked:
+        if not self.is_faked:
             self._faked = True
             self._gwy._include[self.id] = {SZ_FAKED: True}
             _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
