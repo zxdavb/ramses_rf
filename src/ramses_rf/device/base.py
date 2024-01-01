@@ -54,15 +54,6 @@ BIND_CONFIRM_TIMEOUT = 5  # how long to wait for a confirm after sending an acce
 _LOGGER = logging.getLogger(__name__)
 
 
-def check_faking_enabled(fnc):
-    def wrapper(self, *args, **kwargs):
-        if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        return fnc(self, *args, **kwargs)
-
-    return wrapper
-
-
 class DeviceBase(Entity):
     """The Device base class - can also be used for unknown device types."""
 
@@ -312,18 +303,11 @@ class Fakeable(DeviceBase):
         if kwargs.get(SZ_FAKED):
             self._make_fake()
 
-    @check_faking_enabled
-    def _bind(self):
-        pass
-
-    def _make_fake(self, bind: bool = False) -> Fakeable:
+    def _make_fake(self) -> None:
         if not self.is_faked:
             self._faked = True
             self._gwy._include[self.id] = {SZ_FAKED: True}
             _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
-        if bind:
-            self._bind()
-        return self
 
     async def _async_send_cmd(self, cmd: Command) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
