@@ -222,9 +222,6 @@ class Weather(Fakeable, DeviceHeat):  # 0002
         if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         cmd = Command.put_outdoor_temp(self.id, value)
-        # cmd = Command.put_zone_temp(
-        #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
-        # )
         self._send_cmd(cmd)
 
     @property
