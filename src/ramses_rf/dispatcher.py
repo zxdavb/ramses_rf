@@ -255,7 +255,6 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             devices = []
 
         for d in devices:  # FIXME: some may be Addresses?
-            # if True or getattr(d, "_faked", False):
             gwy._loop.call_soon(d._handle_msg, msg)
 
     except (AssertionError, exc.RamsesException, NotImplementedError) as err:
