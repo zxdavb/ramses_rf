@@ -63,9 +63,10 @@ _DBG_DISABLE_DUTY_CYCLE_LIMIT: Final[bool] = False
 _DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
 _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
-_DBG_MINIMUM_GAP_DURATION: Final[float] = MINIMUM_GAP_DURATION
 
 # other constants
+_GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
+
 _MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
 _MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
 _CYCLE_DURATION = 60  # seconds
@@ -518,7 +519,7 @@ class PortProtocol(_BaseProtocol):
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self._transport.write()."""
         while True:
-            await asyncio.sleep(_DBG_MINIMUM_GAP_DURATION)
+            await asyncio.sleep(_GAP_BETWEEN_WRITES)
             try:
                 self._leaker_sem.release()
             except ValueError:

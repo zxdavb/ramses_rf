@@ -18,7 +18,7 @@ from .virtual_rf import (
 # patched constants
 # _DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
 # _DBG_DISABLE_QOS = False  # #                 ramses_tx.protocol
-_DBG_MINIMUM_GAP_DURATION = 0  # #              ramses_tx.protocol
+_GAP_BETWEEN_WRITES = 0  # #              ramses_tx.protocol
 
 # other constants
 GWY_ID_0 = "18:000000"
@@ -67,7 +67,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> str:
     return hgi_id, fw_type
 
 
-@patch("ramses_tx.protocol._DBG_MINIMUM_GAP_DURATION", _DBG_MINIMUM_GAP_DURATION)
+@patch("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def rf_factory(
     schemas: list[dict], start_gwys: bool = True
 ) -> tuple[VirtualRf, list[Gateway]]:

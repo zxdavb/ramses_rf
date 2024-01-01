@@ -35,7 +35,7 @@ _DBG_DISABLE_QOS = False  # #                 ramses_tx.protocol
 DEFAULT_MAX_RETRIES = 0  # #                    ramses_tx.protocol
 DEFAULT_TIMEOUT = 0.005  # #                    ramses_tx.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #               ramses_tx.protocol_fsm
-_DBG_MINIMUM_GAP_DURATION = 0  # #            ramses_tx.protocol
+_GAP_BETWEEN_WRITES = 0  # #            ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -176,9 +176,7 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
         "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
         _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_MINIMUM_GAP_DURATION", _DBG_MINIMUM_GAP_DURATION
-    )
+    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):

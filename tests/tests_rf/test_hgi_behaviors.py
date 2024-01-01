@@ -25,7 +25,7 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 _DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
 _DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
 _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
-_DBG_MINIMUM_GAP_DURATION = 0  # #          ramses_tx.transport
+_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.transport
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -77,9 +77,7 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
         "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
         _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_MINIMUM_GAP_DURATION", _DBG_MINIMUM_GAP_DURATION
-    )
+    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
