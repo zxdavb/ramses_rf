@@ -231,11 +231,12 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
             gwy._loop.call_soon(msg.src._handle_msg, msg)
 
-        # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
+        # TODO: only be for fully-faked (not Fakable) dst (it picks up via RF if not)
         if msg.dst is not msg.src and isinstance(msg.dst, Fakeable):
             devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
 
         elif msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
+            # vices = [d for d in gwy.devices if d is not msg.src and d._is_binding]
             devices = [
                 d
                 for d in gwy.devices

@@ -83,7 +83,6 @@ class DeviceBase(Entity):
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._faked: bool = False
         self._scheme: Vendor = None  # type: ignore[assignment]
 
     def __str__(self) -> str:
@@ -181,8 +180,12 @@ class DeviceBase(Entity):
         return isinstance(self, BatteryState) or Code._1060 in self._msgz
 
     @property
-    def is_faked(self) -> bool:  # TODO: impersonated vs virtual
-        return bool(self._faked)
+    def is_faked(self) -> bool:
+        return bool(getattr(self, "_bind_context", None))
+
+    @property
+    def _is_binding(self) -> bool:
+        return isinstance(self, Fakeable) and self._bind_context.is_binding
 
     @property
     def _is_present(self) -> bool:
@@ -292,8 +295,7 @@ class Fakeable(DeviceBase):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._faked: bool = None  # type: ignore[assignment]
-        self._context = BindContext(self)
+        self._bind_context: BindContext | None = None
 
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
@@ -302,22 +304,24 @@ class Fakeable(DeviceBase):
             self._make_fake()
 
     def _make_fake(self) -> None:
-        if not self.is_faked:
-            self._faked = True
-            self._gwy._include[self.id] = {SZ_FAKED: True}
-            _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
+        if self.is_faked:
+            return
+
+        self._bind_context = BindContext(self)
+        self._gwy._include[self.id] = {SZ_FAKED: True}  # TODO: remove this
+        _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
 
     async def _async_send_cmd(self, cmd: Command) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
-        if self._context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
-            self._context.sent_cmd(cmd)  # other codes needed for edge cases
+        if self._bind_context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
+            self._bind_context.sent_cmd(cmd)  # other codes needed for edge cases
         return await super()._async_send_cmd(cmd)
 
     def _handle_msg(self, msg: Message) -> None:
         """Wrapper to CC: any relevant Packets to the binding Context."""
         super()._handle_msg(msg)
-        if self._context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
-            self._context.rcvd_msg(msg)  # maybe other codes needed for edge cases
+        if self._bind_context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
+            self._bind_context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
     async def _wait_for_binding_request(
         self,
@@ -331,7 +335,7 @@ class Fakeable(DeviceBase):
         if not self.is_faked:
             raise TypeError(f"{self}: Faking not enabled")
 
-        msgs = await self._context.wait_for_binding_request(
+        msgs = await self._bind_context.wait_for_binding_request(
             accept_codes, idx=idx, require_ratify=require_ratify
         )
         return msgs
@@ -351,7 +355,7 @@ class Fakeable(DeviceBase):
         if not self.is_faked:
             raise TypeError(f"{self}: Faking not enabled")
 
-        msgs = await self._context.initiate_binding_process(
+        msgs = await self._bind_context.initiate_binding_process(
             offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
         )
         return msgs

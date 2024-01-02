@@ -194,9 +194,9 @@ async def assert_context_state(
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
-        if isinstance(device._context.state, state):
+        if isinstance(device._bind_context.state, state):
             break
-    assert isinstance(device._context.state, state)
+    assert isinstance(device._bind_context.state, state)
 
 
 # ### TESTS ############################################################################
@@ -218,31 +218,31 @@ async def _test_flow_10x(
     await assert_context_state(respondent, _BindStates.IS_IDLE_DEVICE)
     await assert_context_state(supplicant, _BindStates.IS_IDLE_DEVICE)
 
-    assert not respondent._context.is_binding
-    assert not supplicant._context.is_binding
+    assert not respondent._bind_context.is_binding
+    assert not supplicant._bind_context.is_binding
 
     #
     # Step R0: Respondent initial state
-    respondent._context.set_state(_BindStates.NEEDING_TENDER)
+    respondent._bind_context.set_state(_BindStates.NEEDING_TENDER)
     await assert_context_state(respondent, _BindStates.NEEDING_TENDER)
-    assert respondent._context.is_binding
+    assert respondent._bind_context.is_binding
 
     #
     # Step S0: Supplicant initial state
-    supplicant._context.set_state(_BindStates.NEEDING_ACCEPT)
+    supplicant._bind_context.set_state(_BindStates.NEEDING_ACCEPT)
     await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
-    assert supplicant._context.is_binding
+    assert supplicant._bind_context.is_binding
 
     #
     # Step R1: Respondent expects an Offer
-    resp_task = loop.create_task(respondent._context._wait_for_offer())
+    resp_task = loop.create_task(respondent._bind_context._wait_for_offer())
 
     #
     # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
     msg = Message(Packet(dt.now(), "000 " + pkt_flow_expected[_TENDER]))
     codes = [b[1] for b in msg.payload["bindings"] if b[1] != Code._1FC9]
 
-    pkt = await supplicant._context._make_offer(codes)
+    pkt = await supplicant._bind_context._make_offer(codes)
     await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
 
     await resp_task
@@ -254,14 +254,14 @@ async def _test_flow_10x(
     tender = resp_task.result()
     assert tender._pkt == pkt, "Resp's Msg doesn't match Supp's Offer cmd"
 
-    supp_task = loop.create_task(supplicant._context._wait_for_accept(tender))
+    supp_task = loop.create_task(supplicant._bind_context._wait_for_accept(tender))
 
     #
     # Step R2: Respondent expects a Confirm after sending an Accept (accepts Offer)
     msg = Message(Packet(dt.now(), "000 " + pkt_flow_expected[_ACCEPT]))
     codes = [b[1] for b in msg.payload["bindings"]]
 
-    pkt = await respondent._context._accept_offer(tender, codes)
+    pkt = await respondent._bind_context._accept_offer(tender, codes)
     await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
 
     await supp_task
@@ -270,24 +270,28 @@ async def _test_flow_10x(
     accept = supp_task.result()
     assert accept._pkt == pkt, "Supp's Msg doesn't match Resp's Accept cmd"
 
-    resp_task = loop.create_task(respondent._context._wait_for_confirm(accept))
+    resp_task = loop.create_task(respondent._bind_context._wait_for_confirm(accept))
 
     #
     # Step S2: Supplicant sends a Confirm (confirms Accept)
     msg = Message(Packet(dt.now(), "000 " + pkt_flow_expected[_AFFIRM]))
     codes = [b[1] for b in msg.payload["bindings"] if len(b) > 1]
 
-    pkt = await supplicant._context._confirm_accept(accept, confirm_code=codes)
+    pkt = await supplicant._bind_context._confirm_accept(accept, confirm_code=codes)
     await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
 
     if len(pkt_flow_expected) > _RATIFY:  # FIXME
-        supplicant._context.set_state(_BindStates.TO_SEND_RATIFY)  # HACK: easiest way
+        supplicant._bind_context.set_state(
+            _BindStates.TO_SEND_RATIFY
+        )  # HACK: easiest way
 
     await resp_task
     await assert_context_state(respondent, _BindStates.HAS_BOUND_RESP)
 
     if len(pkt_flow_expected) > _RATIFY:  # FIXME
-        respondent._context.set_state(_BindStates.NEEDING_RATIFY)  # HACK: easiest way
+        respondent._bind_context.set_state(
+            _BindStates.NEEDING_RATIFY
+        )  # HACK: easiest way
 
     affirm = resp_task.result()
     assert affirm._pkt == pkt, "Resp's Msg doesn't match Supp's Confirm cmd"
