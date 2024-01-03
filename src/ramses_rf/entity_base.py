@@ -17,6 +17,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from ramses_rf.helpers import schedule_task
+from ramses_tx import Priority, QosParams
 from ramses_tx.opentherm import OPENTHERM_MESSAGES
 from ramses_tx.ramses import CODES_SCHEMA
 
@@ -141,7 +142,12 @@ class _Entity:
         return self._gwy.send_cmd(cmd)
 
     # FIXME: this is a mess
-    async def _async_send_cmd(self, cmd: Command) -> Packet | None:
+    async def _async_send_cmd(
+        self,
+        cmd: Command,
+        priority: Priority | None = None,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
 
         if self._gwy._disable_sending:
@@ -153,7 +159,13 @@ class _Entity:
             return None  # TODO: raise Exception
 
         # cmd._source_entity = self  # TODO: is needed?
-        return await self._gwy.async_send_cmd(cmd)
+        return await self._gwy.async_send_cmd(
+            cmd,
+            max_retries=qos.max_retries,
+            priority=priority,
+            timeout=qos.timeout,
+            wait_for_reply=qos.wait_for_reply,
+        )
 
 
 class _MessageDB(_Entity):

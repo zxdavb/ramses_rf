@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
-from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command, Message
+from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command, Message, Priority
 from ramses_tx.const import DevType
+from ramses_tx.typing import QosParams
 
 from . import exceptions as exc
 
@@ -61,6 +62,13 @@ _AFFIRM_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
 _RATIFY_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
 
 
+BINDING_QOS = QosParams(
+    max_retries=SENDING_RETRY_LIMIT,
+    timeout=WAITING_TIMEOUT_SECS * 2,
+    wait_for_reply=True,
+)
+
+
 class Vendor(StrEnum):
     ITHO = "itho"
     NUAIRE = "nuaire"
@@ -74,7 +82,7 @@ SZ_TENDER = "tender"
 SZ_AFFIRM = "affirm"
 SZ_RATIFY = "thumbrint"
 
-VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
+# VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
 VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))
 VOL_OEM_ID_REGEX = vol.Match(re.compile(r"^[0-9A-F]{2}$"))
 
@@ -211,7 +219,7 @@ class BindContextRespondent(BindContextBase):
         *,
         idx: IndexT = "00",
         require_ratify: bool = False,
-    ) -> tuple[Packet, Packet, Packet, None]:
+    ) -> tuple[Packet, Packet, Packet, None]:  # TODO: last is Packet | None
         """Device starts binding as a Respondent, by listening for an Offer.
 
         Returns the Supplicant's Offer or raise an exception if the binding is
@@ -251,7 +259,9 @@ class BindContextRespondent(BindContextBase):
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
         if DEV_MODE:
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
-        pkt = await self._dev._async_send_cmd(cmd)  # send accept/accept
+        pkt = await self._dev._async_send_cmd(  # Tx accept/accept
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
 
         self.state.accept_offer()
         return pkt
@@ -328,7 +338,9 @@ class BindContextSupplicant(BindContextBase):
         )
         if DEV_MODE:
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
-        pkt = await self._dev._async_send_cmd(cmd)  # send tender/offer
+        pkt = await self._dev._async_send_cmd(  # Tx tender/offer
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
 
         # await state._fut
         self.state.make_offer()
@@ -351,14 +363,18 @@ class BindContextSupplicant(BindContextBase):
         )
         if DEV_MODE:
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
-        pkt = await self._dev._async_send_cmd(cmd)  # send affirm/confirm
+        pkt = await self._dev._async_send_cmd(  # Tx affirm/confirm
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
 
         await self.state.confirm_accept()
         return pkt
 
     async def _cast_addenda(self, accept: Message, cmd: Command) -> Packet:
         """Supp casts an Addenda (the final 10E0 command)."""
-        pkt = await self._dev._async_send_cmd(cmd)  # send ratify/addenda
+        pkt = await self._dev._async_send_cmd(  # Tx ratify/addenda
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
         await self.state.cast_addenda()
         return pkt
 

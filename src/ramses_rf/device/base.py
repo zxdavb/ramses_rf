@@ -27,7 +27,7 @@ from ramses_rf.schemas import (
     SZ_KNOWN_LIST,
     SZ_SCHEME,
 )
-from ramses_tx import Command, Packet
+from ramses_tx import Command, Packet, Priority, QosParams
 from ramses_tx.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -185,7 +185,7 @@ class DeviceBase(Entity):
 
     @property
     def _is_binding(self) -> bool:
-        return isinstance(self, Fakeable) and self._bind_context.is_binding
+        return self.is_faked and self._bind_context.is_binding
 
     @property
     def _is_present(self) -> bool:
@@ -311,16 +311,21 @@ class Fakeable(DeviceBase):
         self._gwy._include[self.id] = {SZ_FAKED: True}  # TODO: remove this
         _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
 
-    async def _async_send_cmd(self, cmd: Command) -> Packet | None:
+    async def _async_send_cmd(
+        self,
+        cmd: Command,
+        priority: Priority | None = None,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
-        if self._bind_context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
+        if self._is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
             self._bind_context.sent_cmd(cmd)  # other codes needed for edge cases
-        return await super()._async_send_cmd(cmd)
+        return await super()._async_send_cmd(cmd, priority=priority, qos=qos)
 
     def _handle_msg(self, msg: Message) -> None:
         """Wrapper to CC: any relevant Packets to the binding Context."""
         super()._handle_msg(msg)
-        if self._bind_context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
+        if self._is_binding:  # msg.code in (Code._1FC9, Code._10E0)
             self._bind_context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
     async def _wait_for_binding_request(
