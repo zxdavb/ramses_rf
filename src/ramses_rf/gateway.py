@@ -390,7 +390,8 @@ class Gateway(Engine):
             raise LookupError(f"The device id is not in the known_list: {device_id}")
 
         if (dev := self.get_device(device_id)) and isinstance(dev, Fakeable):
-            return dev._make_fake()
+            dev._make_fake()
+            return dev
 
         raise TypeError(f"The device is not fakable: {device_id}")
 
