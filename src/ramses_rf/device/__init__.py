@@ -76,7 +76,7 @@ def best_dev_role(
     slug: None | str = None
 
     try:  # convert (say) 'dhw_sensor' to DHW
-        slug = DEV_TYPE_MAP.slug(schema.get(SZ_CLASS))
+        slug = DEV_TYPE_MAP.slug(schema.get(SZ_CLASS))  # FIXME: broken
     except KeyError:
         slug = schema.get(SZ_CLASS)
 
