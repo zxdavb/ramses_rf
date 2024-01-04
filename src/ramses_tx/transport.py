@@ -60,7 +60,7 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR
+from .address import ALL_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
     DEV_TYPE_MAP,
@@ -271,7 +271,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
-        self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
+        self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, ALL_DEV_ADDR.id]
 
         self._foreign_gwys_lst: list[DeviceIdT] = []
         self._foreign_last_run = dt.now().date()

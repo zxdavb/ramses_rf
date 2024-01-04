@@ -11,7 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from . import exceptions as exc
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
+from .address import ALL_DEV_ADDR, NON_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP
 from .ramses import (
     CODE_IDX_COMPLEX,
@@ -525,7 +525,7 @@ def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | HeaderT:
         # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
         # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
         if not rx_header:
-            device_id = NUL_DEV_ADDR.id if pkt.src == pkt.dst else pkt.dst.id
+            device_id = ALL_DEV_ADDR.id if pkt.src == pkt.dst else pkt.dst.id
             return "|".join((pkt.code, pkt.verb, device_id))
         if pkt.src == pkt.dst:  # and pkt.verb == I_:
             return "|".join((pkt.code, W_, pkt.src.id))

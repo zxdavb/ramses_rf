@@ -25,7 +25,7 @@ DEV_TYPE_MAP: dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
 
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
-NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
+ALL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
 # All debug flags should be False for end-users
 _DBG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
@@ -92,7 +92,7 @@ class Address:
         """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
 
         if device_hex == "FFFFFE":  # aka '63:262142'
-            return ">null dev<" if friendly_id else NUL_DEVICE_ID
+            return ">null dev<" if friendly_id else ALL_DEVICE_ID
 
         if not device_hex.strip():  # aka '--:------'
             return f"{'':10}" if friendly_id else NON_DEVICE_ID
@@ -132,7 +132,7 @@ def id_to_address(device_id: DeviceIdT) -> Address:
 
 HGI_DEV_ADDR = Address(HGI_DEVICE_ID)  # 18:000730
 NON_DEV_ADDR = Address(NON_DEVICE_ID)  # --:------
-NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
+ALL_DEV_ADDR = Address(ALL_DEVICE_ID)  # 63:262142
 
 
 def dev_id_to_hex_id(device_id: DeviceIdT) -> str:
@@ -153,7 +153,7 @@ def dev_id_to_hex_id(device_id: DeviceIdT) -> str:
 def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
     if device_hex == "FFFFFE":  # aka '63:262142'
-        return "NUL:262142" if friendly_id else NUL_DEVICE_ID
+        return "NUL:262142" if friendly_id else ALL_DEVICE_ID
 
     if not device_hex.strip():  # aka '--:------'
         return f"{'':10}" if friendly_id else NON_DEVICE_ID
@@ -204,20 +204,20 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
         not (
             # .I --- 01:145038 --:------ 01:145038 1F09 003 FF073F # valid
             # .I --- 04:108173 --:------ 01:155341 2309 003 0001F4 # valid
-            addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+            addrs[0] not in (NON_DEV_ADDR, ALL_DEV_ADDR)
             and addrs[1] == NON_DEV_ADDR
             and addrs[2] != NON_DEV_ADDR
         )
         and not (
             # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A         # valid
             # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid
-            addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+            addrs[0] not in (NON_DEV_ADDR, ALL_DEV_ADDR)
             and addrs[1] not in (NON_DEV_ADDR, addrs[0])
             and addrs[2] == NON_DEV_ADDR
         )
         and not (
             # .I --- --:------ --:------ 10:105624 1FD4 003 00AAD4 # valid
-            addrs[2] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+            addrs[2] not in (NON_DEV_ADDR, ALL_DEV_ADDR)
             and addrs[0] == NON_DEV_ADDR
             and addrs[1] == NON_DEV_ADDR
         )

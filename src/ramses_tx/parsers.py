@@ -23,7 +23,7 @@ from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
 from . import exceptions as exc
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR, hex_id_to_dev_id
+from .address import ALL_DEV_ADDR, NON_DEV_ADDR, hex_id_to_dev_id
 from .const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
@@ -1281,7 +1281,7 @@ def parser_1fc9(payload: str, msg: Message) -> dict[str, list | str | None]:
             assert int(seqx[:2], 16) < 16, _INFORM_DEV_MSG
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
-    if msg.verb == I_ and msg.dst.id in (msg.src.id, NUL_DEV_ADDR.id):
+    if msg.verb == I_ and msg.dst.id in (msg.src.id, ALL_DEV_ADDR.id):
         bind_phase = SZ_OFFER
     elif msg.verb == W_ and msg.src is not msg.dst:
         bind_phase = SZ_ACCEPT

@@ -62,7 +62,46 @@ NUAIRE = "nuaire"
 ORCON_ = "orcon"
 
 TEST_SUITE_300 = [
-    {
+    # {  # THM to CTL: FIXME: affirm is I|1FC9|07, not I|1FC9|00
+    #     SZ_RESPONDENT: {"01:085545": {"class": "CTL"}},
+    #     SZ_SUPPLICANT: {"22:057520": {"class": "THM", "faked": True}},  # THM, not STA
+    #     PKT_FLOW: (
+    #         " I --- 22:057520 --:------ 22:057520 1FC9 024 00-2309-58E0B0 00-30C9-58E0B0 00-0008-58E0B0 00-1FC9-58E0B0",
+    #         " W --- 01:085545 22:057520 --:------ 1FC9 006 07-2309-054E29",
+    #         " I --- 22:057520 01:085545 --:------ 1FC9 006 00-2309-58E0B0",
+    #     ),
+    # },
+    # #
+    {  # RND to CTL
+        SZ_RESPONDENT: {"01:220768": {"class": "CTL"}},
+        SZ_SUPPLICANT: {"34:259472": {"class": "RND", "faked": True}},
+        PKT_FLOW: (
+            " I --- 34:259472 --:------ 34:259472 1FC9 024 00-2309-8BF590 00-30C9-8BF590 00-0008-8BF590 00-1FC9-8BF590",
+            " W --- 01:220768 34:259472 --:------ 1FC9 006 01-2309-075E60",
+            " I --- 34:259472 01:220768 --:------ 1FC9 006 01-2309-8BF590",
+            # I --- 34:259472 63:262142 --:------ 10E0 038 00-0001C8380F01-00-F1FF070B07E6030507E15438375246323032350000000000000000000000",
+            # I --- 34:259472 --:------ 34:259472 1060 003 00-FF01",
+            # I --- 34:259472 --:------ 34:259472 0005 012 000A0000000F000000100000",
+            # I --- 34:259472 --:------ 34:259472 000C 018 000A7FFFFFFF000F7FFFFFFF00107FFFFFFF",
+        ),
+    },
+    #
+    {  # CO2 to FAN
+        SZ_RESPONDENT: {  # "_note": "Spider HRU"
+            "18:126620": {"class": "FAN", "scheme": "itho"},
+        },
+        SZ_SUPPLICANT: {  # "_note": "Spider CO2"
+            "37:154011": {"class": "CO2", "scheme": "itho", "faked": True}
+        },
+        PKT_FLOW: (
+            " I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B",
+            " W --- 18:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C",
+            " I --- 37:154011 18:126620 --:------ 1FC9 001 00",
+            " I --- 37:154011 63:262142 --:------ 10E0 038 00-000100280901-01-FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000",
+        ),
+    },
+    #
+    {  # REM to FAN (nuaire)
         SZ_RESPONDENT: {  # "_note": "ECO-HEAT-HC"
             "30:098165": {"class": "FAN", "scheme": "nuaire"},
         },
@@ -77,21 +116,8 @@ TEST_SUITE_300 = [
             # I --- 32:208628 --:------ 32:208628 1060 003 00-FF01",  # sends x3
         ),
     },
-    {
-        SZ_RESPONDENT: {  # "_note": "Spider HRU"
-            "18:126620": {"class": "FAN", "scheme": "itho"},
-        },
-        SZ_SUPPLICANT: {  # "_note": "Spider CO2"
-            "37:154011": {"class": "CO2", "scheme": "itho", "faked": True}
-        },
-        PKT_FLOW: (
-            " I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B",
-            " W --- 18:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C",
-            " I --- 37:154011 18:126620 --:------ 1FC9 001 00",
-            " I --- 37:154011 63:262142 --:------ 10E0 038 00-000100280901-01-FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000",
-        ),
-    },
-    # {  # FIXME: offer sent to 63:262142, so send_cmd() wont return corresponding accept FIXME
+    #
+    # {  # REM to FAN (orcon): FIXME: tender dst is 63:262142 (not dst=src)
     #     SZ_RESPONDENT: {  # "_note": "HRC-350"
     #         "32:155617": {"class": "FAN", "scheme": "orcon"},
     #     },
@@ -106,7 +132,8 @@ TEST_SUITE_300 = [
     #         # I --- 29:158183 --:------ 29:158183 1060 003 00-FF01",
     #     ),
     # },
-    {  # FIXME: supplicant used oem_code and 10E0
+    # #
+    {  # DIS to FAN
         SZ_RESPONDENT: {
             "32:155617": {"class": "FAN", "scheme": "orcon"},
         },
@@ -120,7 +147,8 @@ TEST_SUITE_300 = [
             " I --- 37:171871 63:262142 --:------ 10E0 038 00-0001C8940301-67-FFFFFFFFFFFF1B0807E4564D492D313557534A3533000000000000000000",
         ),
     },
-    {  # FIXME: confirm is:  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
+    #
+    {  # DHW to CTL
         SZ_RESPONDENT: {"01:145038": {"class": "CTL"}},
         SZ_SUPPLICANT: {"07:045960": {"class": "DHW", "faked": True}},
         PKT_FLOW: (
@@ -129,41 +157,9 @@ TEST_SUITE_300 = [
             " I --- 07:045960 01:145038 --:------ 1FC9 006 00-1260-1CB388",
         ),  # TODO: need epilogue packets, if any (1060?)
     },
-    {  # FIXME: confirm is not:  I --- 22:057520 01:085545 --:------ 1FC9 006 07
-        SZ_RESPONDENT: {"01:085545": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"22:057520": {"class": "THM", "faked": True}},  # THM, not STA
-        PKT_FLOW: (
-            " I --- 22:057520 --:------ 22:057520 1FC9 024 00-2309-58E0B0 00-30C9-58E0B0 00-0008-58E0B0 00-1FC9-58E0B0",
-            " W --- 01:085545 22:057520 --:------ 1FC9 006 07-2309-054E29",
-            " I --- 22:057520 01:085545 --:------ 1FC9 006 00-2309-58E0B0",
-        ),
-    },
-    {  # FIXME: needs initiate_binding_process(), and above
-        SZ_RESPONDENT: {"01:220768": {"class": "CTL"}},
-        SZ_SUPPLICANT: {"34:259472": {"class": "RND", "faked": True}},
-        PKT_FLOW: (
-            " I --- 34:259472 --:------ 34:259472 1FC9 024 00-2309-8BF590 00-30C9-8BF590 00-0008-8BF590 00-1FC9-8BF590",
-            " W --- 01:220768 34:259472 --:------ 1FC9 006 01-2309-075E60",
-            " I --- 34:259472 01:220768 --:------ 1FC9 006 01-2309-8BF590",
-            # I --- 34:259472 63:262142 --:------ 10E0 038 00-0001C8380F01-00-F1FF070B07E6030507E15438375246323032350000000000000000000000",
-            # I --- 34:259472 --:------ 34:259472 1060 003 00-FF01",
-            # I --- 34:259472 --:------ 34:259472 0005 012 000A0000000F000000100000",
-            # I --- 34:259472 --:------ 34:259472 000C 018 000A7FFFFFFF000F7FFFFFFF00107FFFFFFF",
-        ),
-    },
+    #
 ]
-
-RESPONDENT_ATTRS_BY_SUPPLICANT = {
-    f"{list(d[SZ_SUPPLICANT].keys())[0]} to {list(d[SZ_RESPONDENT].keys())[0]}": d.get(
-        f"{SZ_RESPONDENT}_attr", {}
-    )  # can't use .pop in a comprehension
-    for d in TEST_SUITE_300
-}
-
-TEST_SUITE_300 = [
-    {k: d[k] for k in (SZ_SUPPLICANT, SZ_RESPONDENT, PKT_FLOW)} for d in TEST_SUITE_300
-]
-
+# TEST_SUITE_300 = [TEST_SUITE_300[-2]]
 
 # ### FIXTURES #########################################################################
 
@@ -374,8 +370,12 @@ async def _test_flow_20x(
     resp_flow = resp_task.result()
     supp_flow = supp_task.result()
 
-    assert str(resp_flow[_TENDER]) == pkt_flow_expected[_TENDER]
-    assert str(supp_flow[_ACCEPT]) == pkt_flow_expected[_ACCEPT]
+    for i in range(len(pkt_flow_expected)):
+        assert resp_flow[i] == supp_flow[i]
+        assert resp_flow[i] == Command(pkt_flow_expected[i])
+
+        assert str(resp_flow[i]) == str(supp_flow[i])
+        assert str(resp_flow[i]) == pkt_flow_expected[i]
 
 
 # TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
@@ -426,7 +426,9 @@ async def test_flow_200(test_set: dict[str:dict]) -> None:
     ]
 
     # cant use fixture for this, as new schema required for every test
-    rf, gwys = await rf_factory([config[SZ_RESPONDENT], config[SZ_SUPPLICANT]])
+    rf, gwys = await rf_factory(
+        [config[SZ_RESPONDENT], config[SZ_SUPPLICANT]]
+    )  # can pop orphans_hvac
 
     try:
         await _test_flow_20x(gwys[0], gwys[1], pkt_flow)

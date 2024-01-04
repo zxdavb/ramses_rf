@@ -20,7 +20,7 @@ from io import TextIOWrapper
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
     DEFAULT_GAP_DURATION,
@@ -105,7 +105,7 @@ class Engine:
         self._include: dict[DeviceIdT, dict] = known_list or {}
         self._unwanted: list[DeviceIdT] = [
             NON_DEV_ADDR.id,
-            NUL_DEV_ADDR.id,
+            ALL_DEV_ADDR.id,
             "01:000001",  # why this one?
         ]
         self._enforce_known_list = select_device_filter_mode(

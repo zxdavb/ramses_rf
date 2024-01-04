@@ -13,7 +13,7 @@ from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from . import exceptions as exc
-from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
+from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, Address, pkt_addrs
 from .const import (
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
@@ -890,7 +890,7 @@ class Command(Frame):
         else:
             raise exc.CommandInvalid(f"Invalid codes for a bind command: {codes}")
 
-        if verb == I_ and dst_id in (None, src_id, NUL_DEV_ADDR.id):
+        if verb == I_ and dst_id in (None, src_id, ALL_DEV_ADDR.id):
             oem_code = kwargs.pop("oem_code", None)
             assert not kwargs, kwargs
             return cls._put_bind_offer(
@@ -1361,7 +1361,7 @@ class Command(Frame):
         else:
             payload += hex_from_str(message)
 
-        return cls.from_attrs(I_, NUL_DEV_ADDR.id, Code._PUZZ, payload[:48], qos=qos)
+        return cls.from_attrs(I_, ALL_DEV_ADDR.id, Code._PUZZ, payload[:48], qos=qos)
 
 
 # A convenience dict

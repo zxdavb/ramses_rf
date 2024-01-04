@@ -16,6 +16,7 @@ from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
 from ramses_tx import (
+    ALL_DEV_ADDR,
     CODES_BY_DEV_SLUG,
     Message,
 )
@@ -232,11 +233,16 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             gwy._loop.call_soon(msg.src._handle_msg, msg)
 
         # TODO: only be for fully-faked (not Fakable) dst (it picks up via RF if not)
-        if msg.dst is not msg.src and isinstance(msg.dst, Fakeable):
-            devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
 
-        elif msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
+        if msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
             devices = [d for d in gwy.devices if d is not msg.src and d._is_binding]
+
+        elif msg.dst == ALL_DEV_ADDR:  # some offers use dst=63:, so after IFC9 offer
+            devices = [d for d in gwy.devices if d is not msg.src and d.is_faked]
+
+        elif msg.dst is not msg.src and isinstance(msg.dst, Fakeable):  # is_faked?
+            # to eavesdrop pkts from other devices, but relevant to this device
+            devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
 
         elif hasattr(msg.src, SZ_DEVICES):  # FIXME: use isinstance()
             # elif isinstance(msg.src, Controller):

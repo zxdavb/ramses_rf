@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
-from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command, Message, Priority
+from ramses_tx import ALL_DEV_ADDR, ALL_DEVICE_ID, Command, Message, Priority
 from ramses_tx.const import DevType
 from ramses_tx.typing import QosParams
 
@@ -53,7 +53,7 @@ CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of send
 SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
 
 CONFIRM_TIMEOUT_SECS = 3  # automatically Bound, from BoundAccepted > this # of seconds
-WAITING_TIMEOUT_SECS = 3  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+WAITING_TIMEOUT_SECS = 5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
 
 # raise a BindTimeoutError if expected Pkt is not received before this number of seconds
 _TENDER_WAIT_TIME = WAITING_TIMEOUT_SECS  # resp. listening for Offer
@@ -122,7 +122,7 @@ class BindRole(StrEnum):
 SCHEME_LOOKUP = {
     Vendor.ITHO: {"oem_code": "01"},
     Vendor.NUAIRE: {"oem_code": "6C"},
-    Vendor.ORCON: {"oem_code": "67", "offer_to": NUL_DEVICE_ID},
+    Vendor.ORCON: {"oem_code": "67", "offer_to": ALL_DEVICE_ID},
     Vendor.DEFAULT: {"oem_code": None},
 }
 
@@ -238,14 +238,14 @@ class BindContextRespondent(BindContextBase):
         affirm = await self._wait_for_confirm(accept)
 
         # Step R3: Respondent expects an Addenda (optional)
-        if False and require_ratify:  # TODO: not recvd as sent to 63:262142
+        if require_ratify:  # TODO: not recvd as sent to 63:262142
             self.set_state(RespIsWaitingForAddenda)  # HACK: easiest way
             ratify = await self._wait_for_addenda(accept)  # may: exc.BindingFlowFailed:
         else:
             ratify = None
 
         # self._set_as_bound(tender, accept, affirm, ratify)
-        return tender._pkt, accept, affirm._pkt, (ratify._pkt if ratify else None)  # type: ignore[attr-defined]
+        return tender._pkt, accept, affirm._pkt, (ratify._pkt if ratify else None)
 
     async def _wait_for_offer(self, timeout: float = _TENDER_WAIT_TIME) -> Message:
         """Resp waits timeout seconds for an Offer to arrive & returns it."""
@@ -267,7 +267,7 @@ class BindContextRespondent(BindContextBase):
         return pkt
 
     async def _wait_for_confirm(
-        self, accept: Message, timeout: float = _AFFIRM_WAIT_TIME
+        self, accept: Packet, timeout: float = _AFFIRM_WAIT_TIME
     ) -> Message:
         """Resp waits timeout seconds for a Confirm to arrive & returns it."""
         return await self.state.wait_for_confirm(timeout)
@@ -465,11 +465,11 @@ class BindStateBase:
         if cmd.code != Code._1FC9:
             return False
         if phase == BindPhase.TENDER:
-            return cmd.verb == I_ and cmd.dst in (cmd.src, NUL_DEV_ADDR)
+            return cmd.verb == I_ and cmd.dst in (cmd.src, ALL_DEV_ADDR)
         if phase == BindPhase.ACCEPT:
             return cmd.verb == W_ and cmd.dst is not cmd.src
         if phase == BindPhase.AFFIRM:
-            return cmd.verb == I_ and cmd.dst not in (cmd.src, NUL_DEV_ADDR)
+            return cmd.verb == I_ and cmd.dst not in (cmd.src, ALL_DEV_ADDR)
         return False
 
     # Respondent State APIs...

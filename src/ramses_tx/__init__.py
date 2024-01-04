@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .address import NUL_DEV_ADDR, NUL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
+from .address import ALL_DEV_ADDR, ALL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
 from .command import CODE_API_MAP, Command  # noqa: F401
 from .const import (  # noqa: F401
     SZ_DEVICE_ROLE,
