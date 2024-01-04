@@ -139,18 +139,18 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
         return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
-        raise exc.PacketInvalid("%r < Unknown src type, is it HVAC?", msg)
+        raise exc.PacketInvalid(f"{msg!r} < Unknown src type, is it HVAC?")
 
     #
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:
-        raise exc.PacketInvalid("%r < Unexpected code for src to Tx", msg)
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected code for src to Tx")
 
     #
     #
 
     if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:
-        raise exc.PacketInvalid("%r < Unexpected verb/code for src to Tx", msg)
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected verb/code for src to Tx")
 
 
 def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
@@ -168,7 +168,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:
-        raise exc.PacketInvalid("%r < Unexpected code for dst to Rx", msg)
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected code for dst to Rx")
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{Code._0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
@@ -176,7 +176,7 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     if {RQ: RP, RP: RQ, W_: I_}[msg.verb] not in CODES_BY_DEV_SLUG[slug][msg.code]:
-        raise exc.PacketInvalid("%r < Unexpected verb/code for dst to Rx", msg)
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected verb/code for dst to Rx")
 
 
 def process_msg(gwy: Gateway, msg: Message) -> None:
