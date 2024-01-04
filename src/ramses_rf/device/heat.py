@@ -819,10 +819,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             ):
                 self._send_cmd(Command.from_attrs(RQ, self.id, code, "00"))
 
-        if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
-            self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
+        # 12-13, 19-1C have been seen to issue 47AB... can pop in/out
+        if msg._pkt.payload[6:] == "47AB" and msg.payload.get(SZ_VALUE) is None:
+            # self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
+            pass  # FIXME: deprecation of 3220|47AB appears bad idea since is transient
 
-        else:
+        else:  # see if we can un-deprecate 3220|data-id
             # 18:50:32.524 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
             # 18:50:32.547 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # -reserved-
             # 18:55:32.601 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000

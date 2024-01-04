@@ -66,6 +66,9 @@ class OtMsgId(IntEnum):  # the subset of data-ids used by the OTB
     _7F = 0x7F
 
 
+# grep -E 'RP.* 34:.* 30:.* 3220 ' | grep -vE ' 005 00..(01   |05|  |11|12|13|19|1A|1C            |73                           )' returns no results
+# grep -E 'RP.* 10:.* 01:.* 3220 ' | grep -vE ' 005 00..(   03|05|0F|11|12|13|19|1A|1C|38|39|71|72|73|74|75|76|77|78|79|7A|7B|7F)' returns no results
+
 # These are R8810A/R8820A-supported msg_ids and their descriptions
 SCHEMA_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     0x03: "Slave configuration",  # .                                             #   3
@@ -81,17 +84,18 @@ SCHEMA_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     #
     0x7F: "Slave product version number and type",  # .                           # 127
     #
-    # These are STATUS seen RQ'd by 01:/30:, but here to retrieve less frequently
-    0x71: "Number of un-successful burner starts",  # .                           # 113
-    0x72: "Number of times flame signal was too low",  # .                        # 114
-    0x74: "Number of starts burner",  # .                                         # 116
-    0x75: "Number of starts central heating pump",  # .                           # 117
-    0x76: "Number of starts DHW pump/valve",  # .                                 # 118
-    0x77: "Number of starts burner during DHW mode",  # .                         # 119
-    0x78: "Number of hours burner is in operation (i.e. flame on)",  # .          # 120
-    0x79: "Number of hours central heating pump has been running",  # .           # 121
-    0x7A: "Number of hours DHW pump has been running/valve has been opened",  # . # 122
-    0x7B: "Number of hours DHW burner is in operation during DHW mode",  # .      # 123
+    # TODO: deprecate 71-2, 74-7B, as appears that always value=None
+    # # These are STATUS seen RQ'd by 01:/30:, but here to retrieve less frequently
+    # 0x71: "Number of un-successful burner starts",  # .                           # 113
+    # 0x72: "Number of times flame signal was too low",  # .                        # 114
+    # 0x74: "Number of starts burner",  # .                                         # 116
+    # 0x75: "Number of starts central heating pump",  # .                           # 117
+    # 0x76: "Number of starts DHW pump/valve",  # .                                 # 118
+    # 0x77: "Number of starts burner during DHW mode",  # .                         # 119
+    # 0x78: "Number of hours burner is in operation (i.e. flame on)",  # .          # 120
+    # 0x79: "Number of hours central heating pump has been running",  # .           # 121
+    # 0x7A: "Number of hours DHW pump has been running/valve has been opened",  # . # 122
+    # 0x7B: "Number of hours DHW burner is in operation during DHW mode",  # .      # 123
 }
 PARAMS_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     0x0E: "Maximum relative modulation level setting (%)",  # .                   #  14
@@ -118,7 +122,8 @@ STATUS_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     0x11: "Relative Modulation Level (%)",  # .                                   #  17
     0x12: "Water pressure in CH circuit (bar)",  # .                              #  18
     0x13: "Water flow rate in DHW circuit. (L/min)",  # .                         #  19
-    0x18: "Room temperature (°C)",  # .                                           #  24
+    # TODO: deprecate 18, as appears that always fixed value
+    # 0x18: "Room temperature (°C)",  # .                                           #  24
     0x19: "Boiler flow water temperature (°C)",  # .                              #  25
     0x1A: "DHW temperature (°C)",  # .                                            #  26
     0x1B: "Outside temperature (°C)",  # TODO: any value here?  # is R/W          #  27
