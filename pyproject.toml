@@ -77,23 +77,12 @@
   # files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
   files = [
     "client.py",
-    # "src/ramses_cli",
     "src/ramses_cli/discovery.py",
+    "src/ramses_rf/*.py",
     "src/ramses_tx",
     #
     # "src/ramses_rf/device",
     # "src/ramses_rf/system",
-    #
-    "src/ramses_rf/__init__.py",
-    "src/ramses_rf/binding_fsm.py",
-    "src/ramses_rf/const.py",
-    "src/ramses_rf/dispatcher.py",
-    "src/ramses_rf/entity_base.py",
-    "src/ramses_rf/exceptions.py",
-    "src/ramses_rf/gateway.py",
-    "src/ramses_rf/helpers.py",
-    "src/ramses_rf/schemas.py",
-    "src/ramses_rf/version.py",
   ]
 
   # exclude = []  # doesn't work?
