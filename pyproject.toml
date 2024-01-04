@@ -85,7 +85,7 @@
     # "src/ramses_rf/system",
     #
     "src/ramses_rf/__init__.py",
-    # "src/ramses_rf/binding_fsm.py",
+    "src/ramses_rf/binding_fsm.py",
     "src/ramses_rf/const.py",
     "src/ramses_rf/dispatcher.py",
     "src/ramses_rf/entity_base.py",

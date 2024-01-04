@@ -219,7 +219,7 @@ class BindContextRespondent(BindContextBase):
         *,
         idx: IndexT = "00",
         require_ratify: bool = False,
-    ) -> tuple[Packet, Packet, Packet, None]:  # TODO: last is Packet | None
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Device starts binding as a Respondent, by listening for an Offer.
 
         Returns the Supplicant's Offer or raise an exception if the binding is
@@ -274,7 +274,7 @@ class BindContextRespondent(BindContextBase):
         return await self.state.wait_for_confirm(timeout)
 
     async def _wait_for_addenda(
-        self, accept: Message, timeout: float = _RATIFY_WAIT_TIME
+        self, accept: Packet, timeout: float = _RATIFY_WAIT_TIME
     ) -> Message:
         """Resp waits timeout seconds for an Addenda to arrive & returns it."""
         return await self.state.wait_for_addenda(timeout)
@@ -318,7 +318,7 @@ class BindContextSupplicant(BindContextBase):
         # Step S3: Supplicant sends an Addenda (optional)
         if oem_code:
             self.set_state(SuppIsReadyToSendAddenda)  # HACK: easiest way
-            ratify = await self._cast_addenda(accept, ratify_cmd)
+            ratify = await self._cast_addenda(accept, ratify_cmd)  # type: ignore[arg-type]
         else:
             ratify = None
 
@@ -349,7 +349,7 @@ class BindContextSupplicant(BindContextBase):
         return pkt
 
     async def _wait_for_accept(
-        self, tender: Message, timeout: float = _ACCEPT_WAIT_TIME
+        self, tender: Packet, timeout: float = _ACCEPT_WAIT_TIME
     ) -> Message:
         """Supp waits timeout seconds for an Accept to arrive & returns it."""
         return await self.state.wait_for_accept(timeout)
@@ -438,7 +438,8 @@ class BindStateBase:
             self._handle_wait_timer_expired(timeout)
         else:
             self._set_context_state(self._next_ctx_state)
-        return self._fut.result()
+        result: Message = self._fut.result()  # may raise exception
+        return result
 
     def _handle_wait_timer_expired(self, timeout: float) -> None:
         """Process an overrun of the wait timer when waiting for a Message."""
