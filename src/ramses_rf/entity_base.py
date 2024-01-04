@@ -161,10 +161,10 @@ class _Entity:
         # cmd._source_entity = self  # TODO: is needed?
         return await self._gwy.async_send_cmd(
             cmd,
-            max_retries=qos.max_retries,
+            max_retries=qos.max_retries if qos else None,
             priority=priority,
-            timeout=qos.timeout,
-            wait_for_reply=qos.wait_for_reply,
+            timeout=qos.timeout if qos else None,
+            wait_for_reply=qos.wait_for_reply if qos else None,
         )
 
 

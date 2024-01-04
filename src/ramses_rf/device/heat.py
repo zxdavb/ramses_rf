@@ -116,7 +116,7 @@ DEV_MODE = True
 _LOGGER = logging.getLogger(__name__)
 
 
-class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
+class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
     # .I --- 13:109598 --:------ 13:109598 3EF0 003 00C8FF                # event-driven, 00/C8
     # RP --- 13:109598 18:002563 --:------ 0008 002 00C8                  # 00/C8, as abobe
     # RP --- 13:109598 18:002563 --:------ 3EF1 007 0000BF-00BFC8FF       # 00/C8, as above
@@ -360,7 +360,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         }
 
 
-class Temperature(Fakeable, DeviceHeat):  # 30C9
+class Temperature(DeviceHeat):  # 30C9
     def _bind(self):
         # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
         # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
@@ -650,7 +650,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         }
 
 
-class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
+class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
     _SLUG: str = DevType.DHW
@@ -685,7 +685,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
         }
 
 
-class OutSensor(Weather):  # OUT: 17
+class OutSensor(Weather, Fakeable):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
     _SLUG: str = DevType.OUT
@@ -1249,7 +1249,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
 
-class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
+class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
     _SLUG: str = DevType.THM

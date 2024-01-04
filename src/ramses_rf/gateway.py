@@ -47,7 +47,6 @@ from ramses_tx.schemas import (
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
-from .helpers import shrink
 from .schemas import (
     SCH_GATEWAY_CONFIG,
     SCH_GLOBAL_SCHEMAS,
@@ -175,11 +174,11 @@ class Gateway(Engine):
             self.config.disable_discovery,
         )
 
-        load_schema(self, **self._schema)
+        load_schema(self, known_list=self._include, **self._schema)  # create faked too
 
-        await super().start()
+        await super().start()  # TODO: do this *after* restore cache
         if cached_packets:
-            await self.set_state(cached_packets, clear_state=True)
+            await self._restore_cached_packets(cached_packets)
 
         self.config.disable_discovery = disable_discovery
 
@@ -216,26 +215,11 @@ class Gateway(Engine):
 
         return args  # type: ignore[return-value]
 
-    def _clear_state(self) -> None:
-        _LOGGER.info("ENGINE: Clearing existing schema/state...")
-
-        self._tcs = None
-        self.devices = []
-        self.device_by_id = {}
-
-        self._prev_msg = None
-        self._this_msg = None
-
     def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
         """Return the current schema & state (may include expired packets)."""
 
         self._pause()
-        result = self._get_state(include_expired=include_expired)
-        self._resume()
 
-        return result
-
-    def _get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
         def wanted_msg(msg: Message, include_expired: bool = False) -> bool:
             if msg.code == Code._313F:
                 return msg.verb in (I_, RP)  # usu. expired, useful 4 back-back restarts
@@ -262,38 +246,34 @@ class Gateway(Engine):
             if wanted_msg(msg, include_expired=include_expired)
         }
 
-        return self.schema, dict(sorted(pkts.items()))
-
-    async def set_state(
-        self, packets: dict, *, schema: dict | None = None, clear_state: bool = True
-    ) -> None:
-        """Restore a cached schema & state (includes expired packets).
-
-        is schema is None (rather than {}), use the existing schema.
-        """
-
-        _LOGGER.warning("ENGINE: Restoring a state...")
-
-        self._pause()
-
-        if clear_state:
-            schema = schema or {}
-        elif schema is None:  # TODO: also for known_list (device traits)?
-            schema = shrink(self.schema)
-
-        if clear_state:
-            self._clear_state()
-
-        await self._set_state(packets, schema=schema)
-
-        _LOGGER.warning("ENGINE: Restored, resuming")
         self._resume()
 
-    async def _set_state(self, packets: dict, *, schema: dict | None = None) -> None:
+        return self.schema, dict(sorted(pkts.items()))
+
+    async def _restore_cached_packets(
+        self, packets: dict[str, str], _clear_state: bool = False
+    ) -> None:
+        """Restore cached packets (may include expired packets)."""
+
+        def clear_state() -> None:
+            _LOGGER.info("GATEWAY: Clearing existing schema/state...")
+
+            # self._schema = {}
+
+            self._tcs = None
+            self.devices = []
+            self.device_by_id = {}
+
+            self._prev_msg = None
+            self._this_msg = None
+
         tmp_transport: RamsesTransportT  # mypy hint
 
-        if schema:  # TODO: if is None -> make {} & set?
-            load_schema(self, **schema)
+        _LOGGER.warning("GATEWAY: Restoring a cached packet log...")
+        self._pause()
+
+        if _clear_state:  # only intended for test suite use
+            clear_state()
 
         tmp_protocol = protocol_factory(self._msg_handler, disable_sending=True)
 
@@ -307,6 +287,9 @@ class Gateway(Engine):
 
         await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
 
+        _LOGGER.warning("GATEWAY: Restored, resuming")
+        self._resume()
+
     def get_device(
         self,
         device_id: DeviceIdT,
@@ -315,7 +298,7 @@ class Gateway(Engine):
         parent=None,
         child_id=None,
         is_sensor: bool | None = None,
-    ) -> Device:  # TODO: **schema) -> Device:  # may: LookupError
+    ) -> Device:  # TODO: **schema/traits) -> Device:  # may: LookupError
         """Return a device, create it if required.
 
         First, use the traits to create/update it, then pass it any msg to handle.
@@ -350,8 +333,10 @@ class Gateway(Engine):
         check_filter_lists(device_id)
 
         dev = self.device_by_id.get(device_id)
+
         if not dev:
             traits = SCH_TRAITS(self._include.get(device_id, {}))
+
             dev = device_factory(self, Address(device_id), msg=msg, **traits)
 
             if traits.get(SZ_FAKED):

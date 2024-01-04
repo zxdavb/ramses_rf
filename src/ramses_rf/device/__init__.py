@@ -8,10 +8,10 @@ Heating devices.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 from ramses_rf.const import DEV_TYPE_MAP
 from ramses_rf.schemas import SZ_CLASS, SZ_FAKED
-from ramses_tx import Address, Command, Message, Packet  # noqa: F401
 
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     BASE_CLASS_BY_SLUG,
@@ -49,6 +49,9 @@ from .hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     class_dev_hvac,
 )
 
+if TYPE_CHECKING:
+    from ramses_rf import Gateway
+    from ramses_tx import Address, Message
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ def best_dev_role(
     *,
     msg: Message = None,
     eavesdrop: bool = False,
-    **schema,
+    **schema: Any,
 ) -> type[Device]:
     """Return the best device role (object class) for a given device id/msg/schema.
 
@@ -116,7 +119,9 @@ def best_dev_role(
     return DeviceHvac  # type: ignore[return-value]
 
 
-def device_factory(gwy, dev_addr: Address, *, msg: Message = None, **traits) -> Device:
+def device_factory(
+    gwy: Gateway, dev_addr: Address, *, msg: Message = None, **traits: Any
+) -> Device:
     """Return the initial device class for a given device id/msg/traits.
 
     Devices of certain classes are promotable to a compatible sub class.

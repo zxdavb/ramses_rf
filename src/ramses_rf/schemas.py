@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -60,6 +60,11 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
+
+if TYPE_CHECKING:
+    from . import Device, Gateway
+    from .system import Evohome
+
 
 DEV_MODE = __dev_mode__ and False
 
@@ -312,7 +317,7 @@ SCH_RESTORE_CACHE_DICT = {
 
 #
 # 6/5: Other stuff
-def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
+def _get_device(gwy: Gateway, dev_id: str, **kwargs: Any) -> Device:  # , **traits
     """Raise an LookupError if a device_id is filtered out by a list.
 
     The underlying method is wrapped only to provide a better error message.
@@ -337,31 +342,40 @@ def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
     return gwy.get_device(dev_id, **kwargs)
 
 
-def load_schema(gwy, **kwargs) -> None:
-    """Process the schema, and the configuration and return True if it is valid."""
+def load_schema(gwy: Gateway, known_list: dict | None = None, **schema) -> None:
+    """Instantiate all entities in the schema, and faked devices in the known_list."""
 
-    # kwargs: dict = SCH_GLOBAL_SCHEMAS_DICT(kwargs)
+    known_list = known_list or {}
+
+    # schema: dict = SCH_GLOBAL_SCHEMAS_DICT(schema)
 
     [
         load_tcs(gwy, ctl_id, schema)
-        for ctl_id, schema in kwargs.items()
+        for ctl_id, schema in schema.items()
         if re.match(DEVICE_ID_REGEX.ANY, ctl_id) and SZ_REMOTES not in schema
     ]
-    if kwargs.get(SZ_MAIN_TCS):
-        gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_TCS])
+    if schema.get(SZ_MAIN_TCS):
+        gwy._tcs = gwy.system_by_id.get(schema[SZ_MAIN_TCS])
     [
         load_fan(gwy, fan_id, schema)
-        for fan_id, schema in kwargs.items()
+        for fan_id, schema in schema.items()
         if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
     ]
     [  # NOTE: class favoured, domain ignored
         _get_device(gwy, device_id)  # domain=key[-4:])
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
-        for device_id in kwargs.get(key, [])
+        for device_id in schema.get(key, [])
     ]  # TODO: pass domain (Heat/HVAC), or generalise to SZ_ORPHANS
 
+    # create any devices in the known list that are faked, or fake those already created
+    for device_id, traits in known_list.items():
+        if traits.get(SZ_FAKED):
+            dev = _get_device(gwy, device_id)  # , **traits)
+            if not dev.is_faked:
+                dev._make_fake()
 
-def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
+
+def load_fan(gwy: Gateway, fan_id: str, schema: dict) -> Device:
     """Create a FAN using its schema (i.e. with remotes, sensors)."""
 
     fan = _get_device(gwy, fan_id)
@@ -370,13 +384,13 @@ def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
     return fan
 
 
-def load_tcs(gwy, ctl_id: str, schema: dict) -> Any:  # System
+def load_tcs(gwy: Gateway, ctl_id: str, schema: dict) -> Evohome:
     """Create a TCS using its schema."""
     # print(schema)
     # schema = SCH_TCS_ZONES_ZON(schema)
 
     ctl = _get_device(gwy, ctl_id)
-    ctl.tcs._update_schema(**schema)  # TODO
+    ctl.tcs._update_schema(**schema)
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}):  # UFH controllers
         _get_device(gwy, dev_id, parent=ctl.tcs)  # , **_schema)

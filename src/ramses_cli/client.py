@@ -398,7 +398,7 @@ def print_results(gwy: Gateway, **kwargs):
 
 
 def _save_state(gwy: Gateway):
-    schema, msgs = gwy._get_state()
+    schema, msgs = gwy.get_state()
 
     with open("state_msgs.log", "w") as f:
         [f.write(f"{dtm} {pkt}\r\n") for dtm, pkt in msgs.items()]  # if not m._expired
@@ -408,7 +408,7 @@ def _save_state(gwy: Gateway):
 
 
 def _print_engine_state(gwy: Gateway, **kwargs):
-    (schema, packets) = gwy._get_state(include_expired=True)
+    (schema, packets) = gwy.get_state(include_expired=True)
 
     if kwargs["print_state"] > 0:
         print(f"schema: {json.dumps(schema, indent=4)}\r\n")
@@ -512,9 +512,9 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
         gwy.add_msg_handler(handle_msg)
 
     if kwargs["restore_state"]:
-        print(" - restoring client state from a HA cache...")
+        print(" - restoring packets from a HA cache...")
         state = json.load(kwargs["restore_state"])["data"]["client_state"]
-        await gwy.set_state(packets=state["packets"])
+        await gwy._restore_cached_packets(state["packets"])
 
     print("\r\nclient.py: Starting engine...")
 

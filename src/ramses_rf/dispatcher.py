@@ -236,14 +236,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
 
         elif msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
-            # vices = [d for d in gwy.devices if d is not msg.src and d._is_binding]
-            devices = [
-                d
-                for d in gwy.devices
-                if d is not msg.src
-                and isinstance(d, Fakeable)
-                and d._context.is_binding
-            ]
+            devices = [d for d in gwy.devices if d is not msg.src and d._is_binding]
 
         elif hasattr(msg.src, SZ_DEVICES):  # FIXME: use isinstance()
             # elif isinstance(msg.src, Controller):

@@ -63,7 +63,7 @@ class DeviceBase(Entity):
 
     def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
-        super().__init__(gwy)
+        # super().__init__(gwy)  # NOTE: is invoked lower down
 
         # if not check_valid(dev_addr.id):  # TODO
         #     raise ValueError(f"Invalid device id: {dev_addr.id}")
@@ -95,7 +95,7 @@ class DeviceBase(Entity):
             return NotImplemented
         return self.id < other.id  # type: ignore[no-any-return]
 
-    def _update_traits(self, **traits):
+    def _update_traits(self, **traits: Any):
         """Update a device with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -111,7 +111,7 @@ class DeviceBase(Entity):
         self._scheme = traits.get(SZ_SCHEME)
 
     @classmethod
-    def create_from_schema(cls, gwy, dev_addr: Address, **schema):
+    def create_from_schema(cls, gwy: Gateway, dev_addr: Address, **schema):
         """Create a device (for a GWY) and set its schema attrs (aka traits).
 
         All devices have traits, but also controllers (CTL, UFC) have a system schema.
@@ -137,7 +137,7 @@ class DeviceBase(Entity):
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
         super()._make_cmd(code, self.id, payload=payload, **kwargs)
 
-    def _send_cmd(self, cmd, **kwargs) -> None:
+    def _send_cmd(self, cmd: Command, **kwargs) -> None:
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (it has a battery)")
 
@@ -292,11 +292,12 @@ class Fakeable(DeviceBase):
     such packets via RF.
     """
 
-    def __init__(self, gwy, *args, **kwargs) -> None:
+    def __init__(self, gwy: Gateway, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
         self._bind_context: BindContext | None = None
 
+        # TOD: thsi si messy - device schema vs device traits
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
 
@@ -308,7 +309,7 @@ class Fakeable(DeviceBase):
             return
 
         self._bind_context = BindContext(self)
-        self._gwy._include[self.id] = {SZ_FAKED: True}  # TODO: remove this
+        self._gwy._include[self.id][SZ_FAKED] = True  # TODO: remove this
         _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
 
     async def _async_send_cmd(
@@ -403,7 +404,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
 
     _SLUG: str = DevType.HEA  # shouldn't be any of these instantiated
 
-    def __init__(self, gwy, dev_addr, **kwargs):
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs):
         super().__init__(gwy, dev_addr, **kwargs)
 
         self.ctl = None  # type: ignore[assignment]

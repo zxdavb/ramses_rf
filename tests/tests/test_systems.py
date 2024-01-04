@@ -69,7 +69,7 @@ async def test_schemax_with_log_file(dir_name):
         dir_name, **expected["schema"], known_list=expected["known_list"]
     )
 
-    global_schema, _ = gwy._get_state()
+    global_schema, _ = gwy.get_state()
 
     assert_expected(
         shrink(global_schema),
@@ -92,10 +92,11 @@ async def test_restore_from_log_file(dir_name):
     expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_gwy(dir_name)  # noqa: F811
 
-    schema, packets = gwy._get_state(include_expired=True)
+    schema, packets = gwy.get_state(include_expired=True)
 
-    await gwy.set_state(packets, schema=schema)
+    await gwy._restore_cached_packets(packets)
     assert_expected_set(gwy, expected)
+    # assert shrink(gwy.schema) == shrink(schema)
 
 
 async def test_shuffle_from_log_file(dir_name):
@@ -104,14 +105,16 @@ async def test_shuffle_from_log_file(dir_name):
     expected: dict = load_expected_results(dir_name) or {}
     gwy: Gateway = await load_test_gwy(dir_name)  # noqa: F811
 
-    schema, packets = gwy._get_state(include_expired=True)
+    schema, packets = gwy.get_state(include_expired=True)
 
     packets = shuffle_dict(packets)
 
-    await gwy.set_state(packets, schema=schema)  # clear_state=True
+    await gwy._restore_cached_packets(packets)
     assert_expected_set(gwy, expected)
+    # assert shrink(gwy.schema) == shrink(schema)
 
     packets = shuffle_dict(packets)
 
-    await gwy.set_state(packets, clear_state=False)  # use existing schema
+    await gwy._restore_cached_packets(packets)
     assert_expected_set(gwy, expected)
+    # assert shrink(gwy.schema) == shrink(schema)

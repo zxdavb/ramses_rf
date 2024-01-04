@@ -28,11 +28,11 @@ def pytest_generate_tests(metafunc):
 async def assert_schemas_equal(gwy: Gateway, expected_schema: dict):
     """Check the gwy schema, then shuffle and test again."""
 
-    schema, packets = gwy._get_state(include_expired=True)
+    schema, packets = gwy.get_state(include_expired=True)
     assert_expected(schema, expected_schema)
 
     packets = shuffle_dict(packets)
-    await gwy.set_state(packets, schema=schema)
+    await gwy._restore_cached_packets(packets)
     assert_expected(gwy.schema, expected_schema)
 
 
