@@ -2243,7 +2243,7 @@ def parser_3210(payload: str, msg: Message) -> dict:
     return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
 
 
-# opentherm_msg, from OTB
+# opentherm_msg, from OTB (and some RND)
 def parser_3220(payload: str, msg: Message) -> dict:
     try:
         ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
@@ -2257,6 +2257,11 @@ def parser_3220(payload: str, msg: Message) -> dict:
         raise exc.PacketPayloadInvalid(
             f"OpenTherm: Unknown data-id: 0x{ot_id:02X} ({ot_id})"
         )
+
+    # These OT data id can pop in/out of 47AB, which is an invalid value
+    # Done here, and not in decode_frame() as this isn't in the OT specification
+    if payload[6:] == "47AB" and ot_id in (0x12, 0x13, 0x19, 0x1A, 0x1B, 0x1C):
+        ot_value[SZ_VALUE] = None
 
     result = {
         SZ_MSG_ID: ot_id,
