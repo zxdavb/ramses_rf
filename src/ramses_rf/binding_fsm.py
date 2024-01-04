@@ -259,11 +259,12 @@ class BindContextRespondent(BindContextBase):
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
         if DEV_MODE:
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
-        pkt = await self._dev._async_send_cmd(  # Tx accept/accept
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx accept/accept
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 
-        self.state.accept_offer()
+        self.state.cast_accept_offer()
         return pkt
 
     async def _wait_for_confirm(
@@ -328,7 +329,7 @@ class BindContextSupplicant(BindContextBase):
         self,
         codes: Iterable[Code],
         oem_code: str | None = None,
-    ) -> Message:
+    ) -> Packet:
         """Supp sends an Offer & returns the corresponding Packet."""
         # if oem_code, send an 10E0
 
@@ -338,12 +339,13 @@ class BindContextSupplicant(BindContextBase):
         )
         if DEV_MODE:
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
-        pkt = await self._dev._async_send_cmd(  # Tx tender/offer
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx tender/offer
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 
         # await state._fut
-        self.state.make_offer()
+        self.state.cast_offer()
         return pkt
 
     async def _wait_for_accept(
@@ -354,7 +356,7 @@ class BindContextSupplicant(BindContextBase):
 
     async def _confirm_accept(
         self, accept: Message, confirm_code: Code | None = None
-    ) -> Message:
+    ) -> Packet:
         """Supp casts a Confirm on the basis of a rcvd Accept & returns the Confirm."""
         idx = accept._pkt.payload[:2]  # HACK assumes all idx same
 
@@ -363,18 +365,21 @@ class BindContextSupplicant(BindContextBase):
         )
         if DEV_MODE:
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
-        pkt = await self._dev._async_send_cmd(  # Tx affirm/confirm
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx affirm/confirm
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 
-        await self.state.confirm_accept()
+        await self.state.cast_confirm_accept()
         return pkt
 
     async def _cast_addenda(self, accept: Message, cmd: Command) -> Packet:
         """Supp casts an Addenda (the final 10E0 command)."""
-        pkt = await self._dev._async_send_cmd(  # Tx ratify/addenda
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx ratify/addenda
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
+
         await self.state.cast_addenda()
         return pkt
 
@@ -473,43 +478,43 @@ class BindStateBase:
         return False
 
     # Respondent State APIs...
-    async def wait_for_offer(self, *args, **kwargs) -> Message:
+    async def wait_for_offer(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_offer() from this State"
         )
 
-    def accept_offer(self, *args, **kwargs) -> Message:
+    def cast_accept_offer(self) -> None:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't accept_offer() from this State"
         )
 
-    async def wait_for_confirm(self, *args, **kwargs) -> Message:
+    async def wait_for_confirm(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_confirm() from this State"
         )
 
-    async def wait_for_addenda(self, *args, **kwargs) -> Message:
+    async def wait_for_addenda(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_addenda() from this State"
         )
 
     # Supplicant State APIs...
-    def make_offer(self, *args, **kwargs) -> Message:
+    def cast_offer(self, timeout: float | None = None) -> None:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't make_offer() from this State"
         )
 
-    async def wait_for_accept(self, *args, **kwargs) -> Message:
+    async def wait_for_accept(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_accept() from this State"
         )
 
-    async def confirm_accept(self, *args, **kwargs) -> Message:
+    async def cast_confirm_accept(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't confirm_accept() from this State"
         )
 
-    async def cast_addenda(self, *args, **kwargs) -> Message:
+    async def cast_addenda(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't cast_addenda() from this State"
         )
@@ -540,7 +545,7 @@ class _DevIsWaitingForMsg(BindStateBase):
         super()._set_context_state(next_state)
 
     def rcvd_msg(self, msg: Message) -> None:
-        """If the msg is the expected pkt, transition to the next state."""
+        """If the msg is the waited-for pkt, transition to the next state."""
         if self.is_phase(msg._pkt, self._expected_pkt_phase):
             self._fut.set_result(msg)
 
@@ -587,7 +592,7 @@ class _DevIsReadyToSendCmd(BindStateBase):
         self._cmd = self._cmd or cmd
 
     def rcvd_msg(self, msg: Message) -> None:
-        """If the msg is the expected echo, transition to the next state."""
+        """If the msg is the echo of the sent cmd, transition to the next state."""
         if self._cmd and msg._pkt == self._cmd:
             self._fut.set_result(msg)
 
@@ -651,7 +656,8 @@ class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, BindStateBase):
         BindStateBase
     ] = RespHasBoundAsRespondent  # or: RespIsWaitingForAddenda
 
-    def accept_offer(self) -> Message:
+    def cast_accept_offer(self) -> None:
+        """Ignore any received Offer, other than the first."""
         pass
 
     async def wait_for_confirm(self, timeout: float | None = None) -> Message:
@@ -705,7 +711,7 @@ class SuppIsReadyToSendConfirm(
         BindStateBase
     ] = SuppHasBoundAsSupplicant  # or: SuppIsReadyToSendAddenda
 
-    async def confirm_accept(self, timeout: float | None = None) -> Message:
+    async def cast_confirm_accept(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)
 
 
@@ -718,7 +724,7 @@ class SuppSendOfferWaitForAccept(_DevSendCmdUntilReply, BindStateBase):
     _expected_pkt_phase: BindPhase = BindPhase.ACCEPT
     _next_ctx_state: type[BindStateBase] = SuppIsReadyToSendConfirm
 
-    def make_offer(self) -> Message:
+    def cast_offer(self, timeout: float | None = None) -> None:
         pass
 
     async def wait_for_accept(self, timeout: float | None = None) -> Message:
