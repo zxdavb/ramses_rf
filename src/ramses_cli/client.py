@@ -32,6 +32,7 @@ from ramses_tx.schemas import (
     SZ_SERIAL_PORT,
 )
 
+from .debug import SZ_DBG_MODE, _start_debugging
 from .discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -43,33 +44,11 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
-
-_DBG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 _PROFILE_LIBRARY = False  # NOTE: for profiling of library
 
 if _PROFILE_LIBRARY:
     import cProfile
     import pstats
-
-SZ_DBG_MODE = "debug_mode"
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
-
-
-def _start_debugging(wait_for_client: bool):
-    import debugpy
-
-    debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-    print(f" - Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}")
-
-    if wait_for_client:
-        print("   - execution paused, waiting for debugger to attach...")
-        debugpy.wait_for_client()
-        print("   - debugger is now attached, continuing execution.")
-
-
-if _DBG_CLI:
-    _start_debugging(True)
 
 
 SZ_INPUT_FILE = "input_file"

@@ -43,7 +43,7 @@
 
 #
 [project.scripts]
-  client = "ramses_rf.client:main"
+  client = "ramses_cli.client:main"
 
 #
 ### build-system #####################################################################
