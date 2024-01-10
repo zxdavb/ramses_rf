@@ -782,19 +782,19 @@ class Logbook(SystemBase):  # 0418
     #     return self._faultlog.faultlog
 
     @property
-    def active_fault(self) -> None | tuple:
+    def active_fault(self) -> tuple[str] | None:
         """Return the most recently logged event, but only if it is a fault."""
         if self.latest_fault != self.latest_event:
             return None
         return self.latest_fault
 
     @property
-    def latest_event(self) -> None | tuple:
+    def latest_event(self) -> tuple[str] | None:
         """Return the most recently logged event (fault or restore), if any."""
         return self._this_event and self._this_event.payload["log_entry"]
 
     @property
-    def latest_fault(self) -> None | tuple:
+    def latest_fault(self) -> tuple[str] | None:
         """Return the most recently logged fault, if any."""
         return self._this_fault and self._this_fault.payload["log_entry"]
 

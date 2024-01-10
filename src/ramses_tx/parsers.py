@@ -685,7 +685,7 @@ def parser_0404(payload: str, msg: Message) -> dict:
 
 
 # system_fault
-def parser_0418(payload: str, msg: Message) -> dict:
+def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
     # RP --- 01:145038 18:013393 --:------ 0418 022 000000B006F604000000711607697FFFFF7000348A86  # COMMS FAULT, CHANGEOVER
     # RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa: E501
     # RP --- 01:145038 18:013393 --:------ 0418 022 000036B0010000000000108000007FFFFF7000000000  # noqa: E501
@@ -713,8 +713,8 @@ def parser_0418(payload: str, msg: Message) -> dict:
             f"{msg!r} < {_INFORM_DEV_MSG} ({err}), with a photo of your fault log"
         )
 
-    result = {
-        "timestamp": hex_to_dts(payload[18:30]),
+    result: dict[str, str] = {
+        "timestamp": hex_to_dts(payload[18:30]),  # type: ignore[dict-item]
         "state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
         SZ_DEVICE_CLASS: FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
@@ -731,9 +731,8 @@ def parser_0418(payload: str, msg: Message) -> dict:
         key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID
         result.update({key_name: payload[10:12]})
 
-    if payload[38:] == "000002":  # "00:000002 for Unknown?
-        result.update({SZ_DEVICE_ID: None})
-    elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
+    if payload[38:] not in ("000000", "000001", "000002"):
+        # "00:000001 for Controller? "00:000002 for Unknown?
         result.update({SZ_DEVICE_ID: hex_id_to_dev_id(payload[38:])})
 
     result.update(
@@ -744,7 +743,7 @@ def parser_0418(payload: str, msg: Message) -> dict:
         }
     )
 
-    return {"log_entry": [v for k, v in result.items() if k != "log_idx"]}
+    return {"log_entry": tuple(v for k, v in result.items() if k != "log_idx")}  # type: ignore[dict-item]
 
 
 # unknown_042f, from STA, VMS
