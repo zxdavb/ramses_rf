@@ -706,7 +706,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
-    OT_TO_RAMSES = {  # TODO: move to opentherm.py
+    OT_TO_RAMSES: dict[int, Code] = {  # TODO: move to opentherm.py
         0x00: Code._3EF0,  # master/slave status (actuator_state)
         0x01: Code._22D9,  # boiler_setpoint
         0x0E: Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
@@ -720,7 +720,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         0x38: Code._10A0,  # dhw_setpoint (is a PARAM)
         0x39: Code._1081,  # ch_max_setpoint (is a PARAM)
     }
-    RAMSES_TO_OT = {v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0}
+    RAMSES_TO_OT: dict[Code, int] = {
+        v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0
+    }
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
