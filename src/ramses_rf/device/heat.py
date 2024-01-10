@@ -707,18 +707,18 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
     OT_TO_RAMSES = {  # TODO: move to opentherm.py
-        "00": Code._3EF0,  # master/slave status (actuator_state)
-        "01": Code._22D9,  # boiler_setpoint
-        "0E": Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
-        "11": Code._3EF0,  # rel_modulation_level (actuator_state, also Code._3EF1)
-        "12": Code._1300,  # ch_water_pressure
-        "13": Code._12F0,  # dhw_flow_rate
-        "19": Code._3200,  # boiler_output_temp
-        "1A": Code._1260,  # dhw_temp
-        "1B": Code._1290,  # outside_temp
-        "1C": Code._3210,  # boiler_return_temp
-        "38": Code._10A0,  # dhw_setpoint (is a PARAM)
-        "39": Code._1081,  # ch_max_setpoint (is a PARAM)
+        0x00: Code._3EF0,  # master/slave status (actuator_state)
+        0x01: Code._22D9,  # boiler_setpoint
+        0x0E: Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
+        0x11: Code._3EF0,  # rel_modulation_level (actuator_state, also Code._3EF1)
+        0x12: Code._1300,  # ch_water_pressure
+        0x13: Code._12F0,  # dhw_flow_rate
+        0x19: Code._3200,  # boiler_output_temp
+        0x1A: Code._1260,  # dhw_temp
+        0x1B: Code._1290,  # outside_temp
+        0x1C: Code._3210,  # boiler_return_temp
+        0x38: Code._10A0,  # dhw_setpoint (is a PARAM)
+        0x39: Code._1081,  # ch_max_setpoint (is a PARAM)
     }
     RAMSES_TO_OT = {v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0}
 
