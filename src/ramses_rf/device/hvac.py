@@ -80,7 +80,7 @@ class HvacSensorBase(DeviceHvac):
     pass
 
 
-class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
+class CarbonDioxide(HvacSensorBase):  # 1298
     """The CO2 sensor (cardinal code is 1298)."""
 
     def _bind(self) -> None:
@@ -102,16 +102,14 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
         )
 
     @property
-    def co2_level(self) -> float | None:
+    def co2_level(self) -> int | None:  # 1298
         return self._msg_value(Code._1298, key=SZ_CO2_LEVEL)
 
-    # @check_faking_enabled
     @co2_level.setter
-    def co2_level(self, value) -> None:
+    def co2_level(self, value: int | None) -> None:
         if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_co2_level(self.id, value))
-        # lf._send_cmd(Command.get_co2_level(...))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -121,7 +119,7 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
         }
 
 
-class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
+class IndoorHumidity(HvacSensorBase):  # 12A0
     """The relative humidity sensor (12A0)."""
 
     def _bind(self) -> None:
@@ -138,16 +136,14 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
         self._bind_request((Code._12A0, Code._31E0), callback=callback)
 
     @property
-    def indoor_humidity(self) -> float | None:
+    def indoor_humidity(self) -> float | None:  # 12A0
         return self._msg_value(Code._12A0, key=SZ_INDOOR_HUMIDITY)
 
-    # @check_faking_enabled
     @indoor_humidity.setter
-    def indoor_humidity(self, value) -> None:
+    def indoor_humidity(self, value: float | None) -> None:
         if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_indoor_humidity(self.id, value))
-        # lf._send_cmd(Command.get_indoor_humidity(...))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -157,7 +153,7 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
         }
 
 
-class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
+class PresenceDetect(HvacSensorBase):  # 2E10
     """The presence sensor (2E10/31E0)."""
 
     def _bind(self):
@@ -174,16 +170,14 @@ class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
         self._bind_request((Code._2E10, Code._31E0), callback=callback)
 
     @property
-    def presence_detected(self) -> float | None:
+    def presence_detected(self) -> bool | None:
         return self._msg_value(Code._2E10, key=SZ_PRESENCE_DETECTED)
 
-    # @check_faking_enabled
     @presence_detected.setter
-    def presence_detected(self, value) -> None:
+    def presence_detected(self, value: bool | None) -> None:
         if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_presence_detected(self.id, value))
-        # lf._send_cmd(Command.get_presence_detected(...))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -221,7 +215,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
         self.tcs = None
 
 
-class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
+class HvacHumiditySensor(BatteryState, IndoorHumidity, Fakeable):  # HUM: I/12A0
     """The class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -246,7 +240,7 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
         }
 
 
-class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
+class HvacCarbonDioxideSensor(CarbonDioxide, Fakeable):  # CO2: I/1298
     """The class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -282,18 +276,16 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         )
 
     @property
-    def fan_rate(self) -> str | None:
+    def fan_rate(self) -> str | None:  # 22F1
         return self._msg_value(Code._22F1, key="rate")
 
-    # @check_faking_enabled
     @fan_rate.setter
-    def fan_rate(self, rate) -> None:  # I/22F1
+    def fan_rate(self, rate) -> None:
         if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
-        for _ in range(3):
-            self._send_cmd(
-                Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
-            )  # TODO: needs checking
+        self._send_cmd(
+            Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
+        )  # TODO: needs checking
 
     @property
     def fan_mode(self) -> str | None:

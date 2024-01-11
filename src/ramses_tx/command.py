@@ -760,7 +760,9 @@ class Command(Frame):
         return cls.from_attrs(RQ, ctl_id, Code._1260, dhw_idx)
 
     @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
-    def put_dhw_temp(cls, dev_id: DeviceIdT, temperature: float, **kwargs) -> Command:
+    def put_dhw_temp(
+        cls, dev_id: DeviceIdT, temperature: float | None, **kwargs
+    ) -> Command:
         """Constructor to announce the current temperature of an DHW sensor (1260).
 
         This is for use by a faked CS92A or similar.
@@ -779,7 +781,7 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._1260, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for I|1290  # TODO: trap corrupt temps?
-    def put_outdoor_temp(cls, dev_id: DeviceIdT, temperature: float) -> Command:
+    def put_outdoor_temp(cls, dev_id: DeviceIdT, temperature: float | None) -> Command:
         """Constructor to announce the current outdoor temperature (1290).
 
         This is for use by a faked HVAC sensor or similar.

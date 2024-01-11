@@ -354,7 +354,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def relay_failsafe(self) -> None | float:  # 0009
         return self._msg_value(Code._0009, key=SZ_RELAY_FAILSAFE)
 
-    def set_mode(self, *, mode=None, active=None, until=None) -> Future:
+    def set_mode(
+        self,
+        *,
+        mode: int | str | None = None,
+        active: bool | None = None,
+        until: dt | str | None = None,
+    ) -> Future:
         """Set the DHW mode (mode, active, until)."""
         return self._send_cmd(
             Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
@@ -372,7 +378,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Revert the DHW to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
-    def set_config(self, *, setpoint=None, overrun=None, differential=None) -> Future:
+    def set_config(
+        self,
+        *,
+        setpoint: float | None = None,
+        overrun: int | None = None,
+        differential: float | None = None,
+    ) -> Future:
         """Set the DHW parameters (setpoint, overrun, differential)."""
         # dhw_params = self._msg_value(Code._10A0)
         # if setpoint is None:
@@ -726,7 +738,13 @@ class Zone(ZoneSchedule, ZoneBase):
         """Set the zone to the lowest possible setpoint, indefinitely."""
         return self.set_mode(mode=ZON_MODE_MAP.PERMANENT, setpoint=5)  # TODO
 
-    def set_mode(self, *, mode=None, setpoint=None, until=None) -> Future:  # 2309/2349
+    def set_mode(
+        self,
+        *,
+        mode: str | None = None,
+        setpoint: float | None = None,
+        until: dt | str | None = None,
+    ) -> Future:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
         if mode is None and until is None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
