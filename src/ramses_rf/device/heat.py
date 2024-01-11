@@ -38,7 +38,6 @@ from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from ramses_tx.address import NON_DEV_ADDR
 from ramses_tx.command import Command, Priority
-from ramses_tx.const import SZ_BINDINGS
 from ramses_tx.opentherm import (
     PARAMS_MSG_IDS,
     SCHEMA_MSG_IDS,
@@ -199,19 +198,6 @@ class Setpoint(DeviceHeat):  # 2309
 class Weather(DeviceHeat):  # 0002
     TEMPERATURE = SZ_TEMPERATURE  # TODO: deprecate
 
-    def _bind(self):
-        # .I ---
-        # .W ---
-        # .I ---
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the ..."""
-            pass
-            #
-
-        super()._bind()
-        self._bind_request(Code._0002, callback=callback)
-
     @property
     def temperature(self) -> float | None:  # 0002
         return self._msg_value(Code._0002, key=SZ_TEMPERATURE)
@@ -231,6 +217,10 @@ class Weather(DeviceHeat):  # 0002
 
 
 class RelayDemand(DeviceHeat):  # 0008
+    # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
+    # .W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
+    # .I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
+
     # Some either 00/C8, others 00-C8
     # .I --- 01:145038 --:------ 01:145038 0008 002 0314  # ZON valve zone (ELE too?)
     # .I --- 01:145038 --:------ 01:145038 0008 002 F914  # HTG valve
@@ -294,19 +284,6 @@ class RelayDemand(DeviceHeat):  # 0008
             qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
             [self._send_cmd(cmd, **qos) for _ in range(1)]
 
-    def _bind(self):
-        # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
-        # .W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
-        # .I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the ..."""
-            pass
-            #
-
-        super()._bind()
-        self._bind_waiting(Code._3EF0, callback=callback)
-
     @property
     def relay_demand(self) -> float | None:  # 0008
         return self._msg_value(Code._0008, key=self.RELAY_DEMAND)
@@ -321,19 +298,6 @@ class RelayDemand(DeviceHeat):  # 0008
 
 class DhwTemperature(DeviceHeat):  # 1260
     TEMPERATURE = SZ_TEMPERATURE  # TODO: deprecate
-
-    def _bind(self):
-        # .I ---
-        # .W ---
-        # .I ---
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the ..."""
-            self.set_parent(msg.src, child_id=FA, is_sensor=True)
-            #
-
-        super()._bind()
-        self._bind_request(Code._1260, callback=callback)
 
     async def initiate_binding_process(self) -> Packet:
         return await super().initiate_binding_process(Code._1260)
@@ -357,19 +321,9 @@ class DhwTemperature(DeviceHeat):  # 1260
 
 
 class Temperature(DeviceHeat):  # 30C9
-    def _bind(self):
-        # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
-        # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
-        # .I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
-
-        def callback(msg):  # TODO: needs work
-            """Use the accept pkt to determine the zone/domain id."""
-            child_id = msg.payload[SZ_BINDINGS][0][0]
-            self.set_parent(msg.src, child_id=child_id, is_sensor=True)
-
-        super()._bind()
-        self._bind_request(Code._30C9, callback=callback)
-
+    # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
+    # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+    # .I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
     @property
     def temperature(self) -> float | None:  # 30C9
         return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)
