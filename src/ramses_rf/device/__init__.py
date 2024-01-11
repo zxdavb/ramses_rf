@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Heating devices.
-"""
+"""RAMSES RF - Heating devices (e.g. CTL, OTB, BDR, TRV)."""
 from __future__ import annotations
 
 import logging

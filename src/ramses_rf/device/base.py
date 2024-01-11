@@ -281,6 +281,7 @@ class DeviceInfo(DeviceBase):  # 10E0
         return result
 
 
+# NOTE: devices (Thermostat) not attrs (Temperature) are faked
 class Fakeable(DeviceBase):
     """There are two types of Faking: impersonation (of real devices) and full-faking.
 
