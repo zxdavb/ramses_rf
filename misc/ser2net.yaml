@@ -1,12 +1,15 @@
+
 # HGI80-like ser2net connection that allows multiple connections
 connection: &con00
-  accepter: telnet(rfc2217),tcp,5001
+  accepter: telnet(rfc2217),ipv4,tcp,5001
   timeout: 0
-  connector: serialdev,/dev/ttyUSB0,115200n81,local
+  connector: serialdev,/dev/ttyACM0,115200n81,local
   options:
     max-connections: 3
 
+# 5001:telnet:0:/dev/ttyACM0:115200 max-connections=1
+
 # In HA's configuration.yaml, add:
-# evohome_cc:
+# ramses_cc:
 #   serial_port:
 #     port_name: rfc2217://localhost:5001
