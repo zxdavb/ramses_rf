@@ -5,7 +5,7 @@
 
 Operates at the pkt layer of: app - msg - pkt - h/w
 
-For ser2net, use the following YAML with: ser2net -c hgi80.yaml
+For ser2net, use the following YAML with: ser2net -c misc/ser2net.yaml
   connection: &con00
   accepter: telnet(rfc2217),tcp,5001
   timeout: 0
@@ -169,6 +169,16 @@ def is_hgi80(serial_port: SerPortNameT) -> bool | None:
     Raise TransportSerialError if the port is not found at all.
     """
     # TODO: add tests for different serial ports, incl./excl/ by-id
+
+    # See: https://github.com/pyserial/pyserial-asyncio/issues/46
+    if "://" in serial_port:  # e.g. "rfc2217://localhost:5001"
+        try:
+            serial_for_url(serial_port, do_not_open=True)
+        except (SerialException, ValueError) as err:
+            raise exc.TransportSerialError(
+                f"Unable to find {serial_port}: {err}"
+            ) from err
+        return None
 
     if not os.path.exists(serial_port):
         raise exc.TransportSerialError(f"Unable to find {serial_port}")
