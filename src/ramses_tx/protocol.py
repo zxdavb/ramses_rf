@@ -383,9 +383,9 @@ class _BaseProtocol(asyncio.Protocol):
         """This is the wrapper for self._send_cmd(cmd)."""
 
         if _DBG_FORCE_LOG_PACKETS:
-            _LOGGER.warning(f"Sent:     {cmd}")
+            _LOGGER.warning(f"SENT:     {cmd}")
         else:
-            _LOGGER.debug(f"Sent:     {cmd}")
+            _LOGGER.debug(f"SENT:     {cmd}")
 
         # if not self._transport:
         #     raise exc.ProtocolSendFailed("There is no connected Transport")
@@ -431,8 +431,10 @@ class _BaseProtocol(asyncio.Protocol):
         """A wrapper for self._pkt_received(pkt)."""
         if _DBG_FORCE_LOG_PACKETS:
             _LOGGER.warning(f"Rcvd: {pkt._rssi} {pkt}")
-        else:
+        elif _LOGGER.getEffectiveLevel() > logging.DEBUG:
             _LOGGER.info(f"Rcvd: {pkt._rssi} {pkt}")
+        else:
+            _LOGGER.debug(f"Rcvd: {pkt._rssi} {pkt}")
 
         self._pkt_received(pkt)
 
@@ -645,7 +647,7 @@ class QosProtocol(PortProtocol):
         """Inform the FSM that the connection with the Transport has been lost."""
 
         super().connection_lost(err)
-        self._context.connection_lost(err)
+        self._context.connection_lost(err)  # is this safe, when KeyboardInterrupt?
 
     def pkt_received(self, pkt: Packet) -> None:
         """Inform the FSM that a Packet has been received."""
