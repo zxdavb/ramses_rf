@@ -222,14 +222,19 @@ def _normalise(pkt_line: str) -> str:
 
     Goals:
     - ensure an evofw3 provides the same output as a HGI80 (none, presently)
-    - handle 'strange' packets (e.g. I/08:/0008)
+    - handle 'strange' packets (e.g. I|08:|0008)
     """
 
-    # psuedo-RAMSES-II packets...
+    # ramses-esp bugs, see: https://github.com/IndaloTech/ramses_esp/issues/1
+    pkt_line = re.sub("\r\r", "\r", pkt_line)
+    for s in (I_, RQ, RP, W_, "000", "\r\n"):
+        pkt_line = re.sub(f"^ {s}", s, pkt_line)
+
+    # psuedo-RAMSES-II packets (encrypted payload?)...
     if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
 
-    return pkt_line.strip()
+    return pkt_line
 
 
 def _str(value: bytes) -> str:
