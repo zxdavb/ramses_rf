@@ -60,7 +60,7 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
-from .address import ALL_DEV_ADDR, NON_DEV_ADDR
+from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, pkt_addrs
 from .command import Command
 from .const import (
     DEV_TYPE_MAP,
@@ -286,7 +286,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
-        self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, ALL_DEV_ADDR.id]
+        self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
         self._foreign_gwys_lst: list[DeviceIdT] = []
         self._foreign_last_run = dt.now().date()
@@ -372,7 +372,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
     def _is_wanted_addrs(
-        self, src_id: DeviceIdT, dst_id: DeviceIdT, payload: str | None = None
+        self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
     ) -> bool:
         """Return True if the packet is not to be filtered out.
 
@@ -410,6 +410,9 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             if dev_id in self._include:  # incl. 63:262142 & --:------
                 continue
 
+            if sending and dev_id == HGI_DEV_ADDR.id:
+                continue
+
             if self.enforce_include:
                 return False
 
@@ -427,7 +430,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         Also maintain _prev_pkt, _this_pkt attrs.
         """
 
-        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
+        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
             return
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
@@ -438,6 +441,12 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             self._protocol.pkt_received(pkt)
         except AssertionError as err:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
+
+    def _send_frame(self, frame: str) -> None:
+        src, dst, *_ = pkt_addrs(frame[7:36])
+        if not self._is_wanted_addrs(src.id, dst.id, sending=True):
+            raise exc.TransportError(f"Packet excluded by device_id filter: {frame}")
+        super()._send_frame(frame)  # type: ignore[misc]
 
 
 class _RegHackMixin:
