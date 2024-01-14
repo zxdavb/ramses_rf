@@ -695,6 +695,11 @@ class QosProtocol(PortProtocol):
         if (self._selective_qos and cmd.code != Code._1FC9) or qos is None:
             return await send_cmd(cmd)  # type: ignore[func-returns-value]
 
+        if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+            raise exc.ProtocolError(
+                f"{self}: Failed to send {cmd._hdr}: excluded by list"
+            )
+
         if qos is None:
             qos = QosParams()
 
@@ -703,7 +708,10 @@ class QosProtocol(PortProtocol):
         # except InvalidStateError as err:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
         except exc.ProtocolError as err:
-            _LOGGER.info(f"AAA {self}: Failed to send {cmd._hdr}: {err}")
+            # raise exc.ProtocolError(
+            #     f"{self}: Failed to send {cmd._hdr}: {err}"
+            # ) from err
+            _LOGGER.info(f"{self}: Failed to send {cmd._hdr}: {err}")
             raise
 
     async def send_cmd(
