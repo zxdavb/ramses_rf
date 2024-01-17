@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from ramses_rf.const import DEV_TYPE_MAP
 from ramses_rf.schemas import SZ_CLASS, SZ_FAKED
+from ramses_tx.const import DevType
 
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    BASE_CLASS_BY_SLUG,
+    BASE_CLASS_BY_SLUG as _BASE_CLASS_BY_SLUG,
     Device,
     Fakeable,
     DeviceHeat,
@@ -21,7 +22,7 @@ from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    HEAT_CLASS_BY_SLUG,
+    HEAT_CLASS_BY_SLUG as _HEAT_CLASS_BY_SLUG,
     BdrSwitch,
     Controller,
     DhwSensor,
@@ -37,7 +38,7 @@ from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 from .hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    HVAC_CLASS_BY_SLUG,
+    HVAC_CLASS_BY_SLUG as _HVAC_CLASS_BY_SLUG,
     HvacCarbonDioxideSensor,
     HvacHumiditySensor,
     HvacRemote,
@@ -53,7 +54,14 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-_CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
+_CLASS_BY_SLUG = _BASE_CLASS_BY_SLUG | _HEAT_CLASS_BY_SLUG | _HVAC_CLASS_BY_SLUG
+
+HEAT_DEV_CLASS_BY_SLUG = {
+    k: v for k, v in _HEAT_CLASS_BY_SLUG.items() if k is not DevType.HEA
+}
+HVAC_DEV_CLASS_BY_SLUG = {
+    k: v for k, v in _HVAC_CLASS_BY_SLUG.items() if k is not DevType.HVC
+}
 
 
 def best_dev_role(
