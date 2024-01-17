@@ -2,7 +2,7 @@
 # last updated 2023-11-28
 
 # exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
-exclude: (^.secrets/|^docs/|^misc)
+exclude: (^.secrets/|^docs/|^misc|tests/deprecated)
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -51,3 +51,10 @@ repos:
       language: pygrep
       args: [-i]
       exclude: .pre-commit-config.yaml  # avoid false +ve
+
+    # - id: private imports
+    #   name: check private imports
+    #   entry: 'from .* import _.*'
+    #   language: pygrep
+    #   args: [-i]
+    #   exclude: .pre-commit-config.yaml  # avoid false +ve

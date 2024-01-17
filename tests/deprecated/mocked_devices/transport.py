@@ -24,7 +24,7 @@ from typing import Callable
 from ramses_rf import Gateway
 from ramses_rf.const import Code
 from ramses_tx import Command, Packet, PacketInvalid
-from ramses_tx.transport_old import (
+from ramses_tx.transport import (
     PacketProtocolFile,
     PacketProtocolPort,
     SerTransportPoll,

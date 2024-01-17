@@ -32,7 +32,7 @@ from ramses_tx.schemas import (
     SZ_SERIAL_PORT,
 )
 
-from .debug import SZ_DBG_MODE, _start_debugging
+from .debug import SZ_DBG_MODE, start_debugging
 from .discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -171,7 +171,7 @@ def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
     if kwargs[SZ_DBG_MODE] > 0:  # Do first
-        _start_debugging(kwargs[SZ_DBG_MODE] == 1)
+        start_debugging(kwargs[SZ_DBG_MODE] == 1)
 
     kwargs, lib_kwargs = split_kwargs(({}, {SZ_CONFIG: {}}), kwargs)
 

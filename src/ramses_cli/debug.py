@@ -9,7 +9,7 @@ DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
 
-def _start_debugging(wait_for_client: bool) -> None:
+def start_debugging(wait_for_client: bool) -> None:
     import debugpy
 
     debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))

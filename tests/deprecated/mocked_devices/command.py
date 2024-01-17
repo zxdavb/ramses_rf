@@ -13,8 +13,6 @@ from ramses_tx.command import Command, validate_api_params
 from ramses_tx.const import I_, RP, Code
 from ramses_tx.helpers import hex_from_flag8
 
-# from .const import __dev_mode__
-
 
 class MockCommand(Command):
     @classmethod  # constructor for I/RP|0005

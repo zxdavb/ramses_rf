@@ -8,6 +8,6 @@ _DBG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 
 
 if _DBG_CLI:
-    from .debug import _start_debugging
+    from .debug import start_debugging
 
-    _start_debugging(True)
+    start_debugging(True)
