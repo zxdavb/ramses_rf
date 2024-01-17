@@ -428,7 +428,9 @@ async def _test_flow_602() -> None:
 
 
 @pytest_asyncio.fixture
-async def async_benchmark(benchmark, event_loop: asyncio.AbstractEventLoop):
+async def async_benchmark(benchmark):
+    event_loop = asyncio.get_running_loop()
+
     def _wrapper(func, *args, **kwargs):
         if asyncio.iscoroutinefunction(func):
 

@@ -7,7 +7,6 @@
 
 """RAMSES RF - Check GWY address/type detection and its treatment of addr0."""
 
-import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -66,6 +65,8 @@ _global_failed_ports: list[str] = []
 
 # ### FIXTURES #########################################################################
 
+pytestmark = pytest.mark.asyncio(scope="module")
+
 
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
@@ -82,16 +83,6 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_idx", TEST_CMDS)
-
-
-@pytest.fixture(scope="module")
-def event_loop():
-    """Overrides pytest default function scoped event loop"""
-    loop = asyncio.get_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
 
 
 @pytest.fixture(scope="module")
@@ -138,7 +129,7 @@ async def fake_ti3410():
             await rf.stop()
 
 
-@pytest.fixture(scope="module")  # TODO: remove HACK
+@pytest.fixture(scope="module")  # TODO: remove HACK, below
 async def real_evofw3():
     """Utilize an actual evofw3-compatible gateway."""
 
@@ -158,7 +149,7 @@ async def real_evofw3():
         await gwy.stop()
 
 
-@pytest.fixture(scope="module")  # TODO: remove HACK
+@pytest.fixture(scope="module")  # TODO: remove HACK, below
 async def real_ti3410():
     """Utilize an actual HGI80-compatible gateway."""
 
