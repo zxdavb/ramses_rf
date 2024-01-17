@@ -6,3 +6,4 @@
 
 # for using the the library via the CLI, client.py
   click>=8.1.7
+  colorama>=0.4.6
