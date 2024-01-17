@@ -98,7 +98,7 @@ class MessageBase:
         if self._str is not None:
             return self._str
 
-        if self.src.id == self._addrs[0].id:
+        if self.src.id == self._addrs[0].id:  # type: ignore[unreachable]
             name_0 = self._name(self.src)
             name_1 = "" if self.dst is self.src else self._name(self.dst)
         else:

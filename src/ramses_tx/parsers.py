@@ -2252,7 +2252,7 @@ def parser_3220(payload: str, msg: Message) -> dict:
         raise exc.PacketPayloadInvalid(f"OpenTherm: {err}") from err
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
-    if ot_schema is None and ot_type != OtMsgType.UNKNOWN_DATAID:
+    if ot_schema is None and ot_type != OtMsgType.UNKNOWN_DATAID:  # type: ignore[unreachable]
         raise exc.PacketPayloadInvalid(
             f"OpenTherm: Unknown data-id: 0x{ot_id:02X} ({ot_id})"
         )

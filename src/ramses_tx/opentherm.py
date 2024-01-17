@@ -1152,7 +1152,7 @@ def decode_frame(
         data_value[SZ_VALUE] = _msg_value(frame[4:8], U16)
 
     elif msg_schema[VAL] == F8_8:  # TODO: needs finishing
-        result: float = _msg_value(frame[4:8], msg_schema[VAL])  # type: ignore[assignment]
+        result: float | None = _msg_value(frame[4:8], msg_schema[VAL])  # type: ignore[assignment]
 
         if result is None:
             data_value[SZ_VALUE] = result

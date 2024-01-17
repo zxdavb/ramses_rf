@@ -853,7 +853,7 @@ async def transport_factory(
     async def poll_until_connection_made(protocol: RamsesProtocolT) -> None:
         """Poll until the Transport is bound to the Protocol."""
         while protocol._transport is None:
-            await asyncio.sleep(0.005)
+            await asyncio.sleep(0.005)  # type: ignore[unreachable]
 
     def get_serial_instance(ser_name: SerPortNameT, ser_config: dict) -> Serial:
         # For example:

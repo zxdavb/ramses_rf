@@ -27,7 +27,6 @@ from .const import (
     SZ_TIMEOUT,
     ZON_MODE_MAP,
     Priority,
-    __dev_mode__,
 )
 from .frame import Frame, pkt_header
 from .helpers import (
@@ -68,7 +67,7 @@ if TYPE_CHECKING:
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

@@ -250,7 +250,7 @@ def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
 
         return wrapper
 
-        @wraps(fnc)
+        @wraps(fnc)  # type: ignore[unreachable]
         async def null_wrapper(*args, **kwargs) -> Any:
             return await fnc(*args, **kwargs)
 

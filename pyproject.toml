@@ -98,40 +98,61 @@
   warn_redundant_casts = true  # this is not per-module
   warn_unused_ignores = true
 
-  # # Getting these passing should be easy
+  # Getting these passing should be easy
   # extra_checks = true  # was: strict_equality, strict_concatenate = true
 
-  # # Strongly recommend enabling this one as soon as you can
+  # Strongly recommend enabling this one as soon as you can
   check_untyped_defs = true
 
-  # # These shouldn't be too much additional work, but may be tricky to
-  # # get passing if you use a lot of untyped libraries
+  # These shouldn't be too much additional work, but may be tricky to
+  # get passing if you use a lot of untyped libraries
   disallow_subclassing_any = true
   disallow_untyped_decorators = true  # TODO: set to True
-  # disallow_any_generics = true
+  # disallow_any_generics = true                                                         # current work is here
 
-  # # These next few are various gradations of forcing use of type annotations
+  # These next few are various gradations of forcing use of type annotations
   # disallow_untyped_calls = true
   # disallow_incomplete_defs = true
   # disallow_untyped_defs = true
 
-  # # This one isn't too hard to get passing, but return on investment is lower
-  # # no_implicit_reexport = true
+  # This one isn't too hard to get passing, but return on investment is lower
+  # no_implicit_reexport = true
 
-  # # This one can be tricky to get passing if you use a lot of untyped libraries
+  # This one can be tricky to get passing if you use a lot of untyped libraries
   warn_return_any = true
 
-  # # disallow_any_unimported = true
+  # disallow_any_unimported = true
   warn_no_return = true
-  # warn_unreachable = true
+  warn_unreachable = true                                                              # current work is here
+
 
 [[tool.mypy.overrides]]
   module = "ramses_cli.discovery"
+
+  disallow_any_generics = false
   disable_error_code = ["misc"]  # disallow_untyped_decorators
 
 [[tool.mypy.overrides]]
+  module = ["ramses_rf.*"]
+
+  disable_error_code = ["unreachable"]
+  disallow_any_generics = false
+
+[[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
+
   disable_error_code = ["arg-type", "attr-defined"]
+
+[[tool.mypy.overrides]]
+  module = ["ramses_tx.frame", "ramses_tx.protocol_fsm"]
+
+  disable_error_code = ["unreachable"]
+
+[[tool.mypy.overrides]]
+  module = ["ramses_tx.parsers"]
+
+  disallow_any_generics = false
+
 
 
 #

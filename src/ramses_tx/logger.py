@@ -16,11 +16,10 @@ from collections.abc import Callable
 from datetime import datetime as dt
 from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
 
-from .const import __dev_mode__
 from .schemas import SZ_FILE_NAME, SZ_ROTATE_BACKUPS, SZ_ROTATE_BYTES
 from .version import VERSION
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

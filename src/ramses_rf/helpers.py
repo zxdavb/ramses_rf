@@ -16,7 +16,7 @@ _SchemaT: TypeAlias = dict[str, Any]
 def is_subset(inner: _SchemaT, outer: _SchemaT) -> bool:
     """Return True is one dict (or list) is a subset of another."""
 
-    def _is_subset(a: dict | list | Any, b: dict | list | Any) -> bool:  # type: ignore[type-arg]
+    def _is_subset(a: dict | list | Any, b: dict | list | Any) -> bool:
         if isinstance(a, dict):
             return isinstance(b, dict) and all(
                 k in b and _is_subset(v, b[k]) for k, v in a.items()

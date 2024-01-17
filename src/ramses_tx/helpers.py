@@ -122,7 +122,7 @@ def timestamp() -> float:
         return time.time_ns() / 1e9
 
     # otherwise, is since 1601-01-01T00:00:00Z
-    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))  # type: ignore[unreachable]
     _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
     return _time - 134774 * 24 * 60 * 60
 
@@ -354,7 +354,7 @@ def hex_to_temp(value: HexStr4) -> bool | float | None:
     return temp
 
 
-def hex_from_temp(value: float | None) -> HexStr4:
+def hex_from_temp(value: bool | float | None) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?

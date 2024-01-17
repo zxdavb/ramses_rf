@@ -64,7 +64,7 @@ class Address:
     def hex_id(self) -> str:
         if self._hex_id is not None:
             return self._hex_id
-        self._hex_id = self.convert_to_hex(self.id)
+        self._hex_id = self.convert_to_hex(self.id)  # type: ignore[unreachable]
         return self._hex_id
 
     @staticmethod
