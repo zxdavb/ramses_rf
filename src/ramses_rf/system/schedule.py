@@ -122,13 +122,13 @@ class Schedule:  # 0404
         self.tcs = zone.tcs
         self._gwy = zone._gwy
 
-        self._schedule: None | dict[str, Any] = {}
+        self._schedule: dict[str, Any] | None = {}
         self._schedule_done = None  # TODO: deprecate
 
         self._rx_frags: list = self._init_set()
         self._tx_frags: list = self._init_set()
 
-        self._global_ver: None | int = None  # None is a sentinel for 'dont know'
+        self._global_ver: int | None = None  # None is a sentinel for 'dont know'
         self._sched_ver: int = 0  # TODO: start with None
 
     def __str__(self) -> str:
@@ -180,7 +180,7 @@ class Schedule:  # 0404
 
         return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
-    async def get_schedule(self, *, force_io: bool = False) -> None | dict:
+    async def get_schedule(self, *, force_io: bool = False) -> dict | None:
         """Retrieve/return the brief schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
@@ -196,7 +196,7 @@ class Schedule:  # 0404
             raise
         return self.schedule
 
-    async def _get_schedule(self, *, force_io: bool = False) -> None | dict:
+    async def _get_schedule(self, *, force_io: bool = False) -> dict | None:
         """Retrieve/return the brief schedule of a zone."""
 
         async def get_fragment(frag_num: int):  # may: TimeoutError?
@@ -236,7 +236,7 @@ class Schedule:  # 0404
         self.tcs._release_lock()
         return self.schedule
 
-    def _proc_set(self, frag_set: list) -> None | dict:  # return full_schedule
+    def _proc_set(self, frag_set: list) -> dict | None:  # return full_schedule
         """Process a frag set and return the full schedule (sets `self._schedule`).
 
         If the schedule is for DHW, set the `zone_idx` key to 'HW' (to avoid confusing
@@ -295,7 +295,7 @@ class Schedule:  # 0404
             return frag_set
         return self._init_set(fragment)
 
-    async def set_schedule(self, schedule, force_refresh=False) -> None | dict:
+    async def set_schedule(self, schedule, force_refresh=False) -> dict | None:
         """Set the schedule of a zone."""
 
         async def put_fragment(frag_num, frag_cnt, fragment) -> None:
@@ -351,12 +351,12 @@ class Schedule:  # 0404
         return self.schedule
 
     @property
-    def schedule(self) -> None | dict:
+    def schedule(self) -> dict | None:
         """Return the current schedule, if any."""
         return self._schedule[SZ_SCHEDULE] if self._schedule else None
 
     @property
-    def version(self) -> None | int:
+    def version(self) -> int | None:
         """Return the version associated with the current schedule, if any."""
         return self._sched_ver if self._schedule else None
 

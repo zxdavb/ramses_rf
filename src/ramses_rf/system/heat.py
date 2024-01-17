@@ -272,15 +272,15 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
-    def tpi_params(self) -> None | dict:  # 1100
+    def tpi_params(self) -> dict | None:  # 1100
         return self._msg_value(Code._1100)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150/FC
+    def heat_demand(self) -> float | None:  # 3150/FC
         return self._msg_value(Code._3150, domain_id=FC, key=SZ_HEAT_DEMAND)
 
     @property
-    def is_calling_for_heat(self) -> None | bool:
+    def is_calling_for_heat(self) -> bool | None:
         """Return True is the system is currently calling for heat."""
         return self._app_cntrl and self._app_cntrl.actuator_state
 
@@ -678,7 +678,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self.zone_lock.release()
 
     @property
-    def schedule_version(self) -> None | int:
+    def schedule_version(self) -> int | None:
         return self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER)
 
     @property
@@ -698,7 +698,7 @@ class Language(SystemBase):  # 0100
         )
 
     @property
-    def language(self) -> None | str:
+    def language(self) -> str | None:
         return self._msg_value(Code._0100, key=SZ_LANGUAGE)
 
     @property
@@ -760,7 +760,7 @@ class Logbook(SystemBase):  # 0418
 
     async def get_faultlog(
         self, *, start=None, limit=None, force_io=None
-    ) -> None | dict:
+    ) -> dict | None:
         if self._gwy._disable_sending:
             raise RuntimeError("Sending is disabled")
 
@@ -884,15 +884,15 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         return self._dhw
 
     @property
-    def dhw_sensor(self) -> None | Device:
+    def dhw_sensor(self) -> Device | None:
         return self._dhw.sensor if self._dhw else None
 
     @property
-    def hotwater_valve(self) -> None | Device:
+    def hotwater_valve(self) -> Device | None:
         return self._dhw.hotwater_valve if self._dhw else None
 
     @property
-    def heating_valve(self) -> None | Device:
+    def heating_valve(self) -> Device | None:
         return self._dhw.heating_valve if self._dhw else None
 
     @property
@@ -924,7 +924,7 @@ class SysMode(SystemBase):  # 2E04
         self._add_discovery_cmd(Command.get_system_mode(self.id), 60 * 5, delay=5)
 
     @property
-    def system_mode(self) -> None | dict:  # 2E04
+    def system_mode(self) -> dict | None:  # 2E04
         return self._msg_value(Code._2E04)
 
     def set_mode(
@@ -965,11 +965,11 @@ class Datetime(SystemBase):  # 313F
             if diff > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
 
-    async def get_datetime(self) -> None | dt:
+    async def get_datetime(self) -> dt | None:
         msg = await self._gwy.async_send_cmd(Command.get_system_time(self.id))
         return dt.fromisoformat(msg.payload[SZ_DATETIME])
 
-    async def set_datetime(self, dtm: dt) -> None | Message:
+    async def set_datetime(self, dtm: dt) -> Message | None:
         return await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
@@ -1033,21 +1033,21 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 assert False, f"Unexpected code with a domain_id: {msg.code}"  # noqa: B011
 
     @property
-    def heat_demands(self) -> None | dict:  # 3150
+    def heat_demands(self) -> dict | None:  # 3150
         # FC: 00-C8 (no F9, FA), TODO: deprecate as FC only?
         if not self._heat_demands:
             return None
         return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
-    def relay_demands(self) -> None | dict:  # 0008
+    def relay_demands(self) -> dict | None:  # 0008
         # FC: 00-C8, F9: 00-C8, FA: 00 or C8 only (01: all 3, 02: FC/FA only)
         if not self._relay_demands:
             return None
         return {k: v.payload["relay_demand"] for k, v in self._relay_demands.items()}
 
     @property
-    def relay_failsafes(self) -> None | dict:  # 0009
+    def relay_failsafes(self) -> dict | None:  # 0009
         if not self._relay_failsafes:
             return None
         return {}  # TODO: failsafe_enabled

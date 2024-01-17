@@ -146,21 +146,21 @@ class ZoneSchedule:  # 0404
         if msg.code in (Code._0006, Code._0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_io=None) -> None | dict:
+    async def get_schedule(self, *, force_io=None) -> dict | None:
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
-    async def set_schedule(self, schedule) -> None | dict:
+    async def set_schedule(self, schedule) -> dict | None:
         await self._schedule.set_schedule(schedule)
         return self.schedule
 
     @property
-    def schedule(self) -> None | dict:
+    def schedule(self) -> dict | None:
         """Return the latest retrieved schedule (not guaranteed to be up to date)."""
         return self._schedule.schedule
 
     @property
-    def schedule_version(self) -> None | int:
+    def schedule_version(self) -> int | None:
         """Return the version number associated with the latest retrieved schedule."""
         return self._schedule.version
 
@@ -323,15 +323,15 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return "Stored HW"
 
     @property
-    def config(self) -> None | dict:  # 10A0
+    def config(self) -> dict | None:  # 10A0
         return self._msg_value(Code._10A0)
 
     @property
-    def mode(self) -> None | dict:  # 1F41
+    def mode(self) -> dict | None:  # 1F41
         return self._msg_value(Code._1F41)
 
     @property
-    def setpoint(self) -> None | float:  # 10A0
+    def setpoint(self) -> float | None:  # 10A0
         return self._msg_value(Code._10A0, key=SZ_SETPOINT)
 
     @setpoint.setter
@@ -339,19 +339,19 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self.set_config(setpoint=value)
 
     @property
-    def temperature(self) -> None | float:  # 1260
+    def temperature(self) -> float | None:  # 1260
         return self._msg_value(Code._1260, key=SZ_TEMPERATURE)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         return self._msg_value(Code._3150, key=SZ_HEAT_DEMAND)
 
     @property
-    def relay_demand(self) -> None | float:  # 0008
+    def relay_demand(self) -> float | None:  # 0008
         return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
 
     @property  # only seen with FC, but seems should pair with 0008?
-    def relay_failsafe(self) -> None | float:  # 0009
+    def relay_failsafe(self) -> float | None:  # 0009
         return self._msg_value(Code._0009, key=SZ_RELAY_FAILSAFE)
 
     def set_mode(
@@ -644,16 +644,16 @@ class Zone(ZoneSchedule, ZoneBase):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
     @property
-    def sensor(self) -> None | Device:
+    def sensor(self) -> Device | None:
         return self._sensor
 
     @property
-    def heating_type(self) -> None | str:
+    def heating_type(self) -> str | None:
         if self._SLUG is not None:  # isinstance(self, ???)
             return ZON_ROLE_MAP[self._SLUG]
 
     @property
-    def name(self) -> None | str:  # 0004
+    def name(self) -> str | None:  # 0004
         """Return the name of the zone."""
         return self._msg_value(Code._0004, key=SZ_NAME)
 
@@ -663,15 +663,15 @@ class Zone(ZoneSchedule, ZoneBase):
         self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, value))
 
     @property
-    def config(self) -> None | dict:  # 000A
+    def config(self) -> dict | None:  # 000A
         return self._msg_value(Code._000A)
 
     @property
-    def mode(self) -> None | dict:  # 2349
+    def mode(self) -> dict | None:  # 2349
         return self._msg_value(Code._2349)
 
     @property
-    def setpoint(self) -> None | float:  # 2309 (2349 is a superset of 2309)
+    def setpoint(self) -> float | None:  # 2309 (2349 is a superset of 2309)
         return self._msg_value((Code._2309, Code._2349), key=SZ_SETPOINT)
 
     @setpoint.setter
@@ -683,11 +683,11 @@ class Zone(ZoneSchedule, ZoneBase):
             self._send_cmd(Command.set_zone_setpoint(self.ctl.id, self.idx, value))
 
     @property
-    def temperature(self) -> None | float:  # 30C9
+    def temperature(self) -> float | None:  # 30C9
         return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         demands = [
             d.heat_demand
@@ -697,7 +697,7 @@ class Zone(ZoneSchedule, ZoneBase):
         return _transform(max(demands + [0])) if demands else None
 
     @property
-    def window_open(self) -> None | bool:  # 12B0
+    def window_open(self) -> bool | None:  # 12B0
         """Return an estimate of the zone's current window_open state."""
         return self._msg_value(Code._12B0, key=SZ_WINDOW_OPEN)
 
@@ -801,12 +801,12 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
             raise TypeError("WHAT 2")
 
     @property
-    def heat_demand(self) -> None | float:
+    def heat_demand(self) -> float | None:
         """Return 0 as the zone's heat demand, as electric zones don't call for heat."""
         return 0
 
     @property
-    def relay_demand(self) -> None | float:  # 0008 (NOTE: CTLs wont RP|0008)
+    def relay_demand(self) -> float | None:  # 0008 (NOTE: CTLs wont RP|0008)
         # if Code._0008 in self._msgs:
         #     return self._msgs[Code._0008].payload[SZ_RELAY_DEMAND]
         return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
@@ -867,7 +867,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.UFH
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         if (demand := self._msg_value(Code._3150, key=SZ_HEAT_DEMAND)) is not None:
             return _transform(demand)
@@ -883,7 +883,7 @@ class ValZone(EleZone):  # BDR91A/T
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.VAL
 
     @property
-    def heat_demand(self) -> None | float:  # 0008 (NOTE: not 3150)
+    def heat_demand(self) -> float | None:  # 0008 (NOTE: not 3150)
         """Return the zone's heat demand, using relay demand as a proxy."""
         return self.relay_demand
 

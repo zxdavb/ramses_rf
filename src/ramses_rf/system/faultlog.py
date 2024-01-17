@@ -45,7 +45,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._gwy = ctl._gwy
 
         self._faultlog: dict = {}
-        self._faultlog_done: None | bool = None
+        self._faultlog_done: bool | None = None
 
         self._START = 0x00  # max 0x3E
         self._limit = 0x06
@@ -65,7 +65,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
     #         return NotImplemented
     #     return (self.verb, self._pkt.payload) == (other.verb, self._pkt.payload)  # type: ignore[no-any-return]
 
-    async def get_faultlog(self, start=0, limit=6, force_refresh=None) -> None | dict:
+    async def get_faultlog(self, start=0, limit=6, force_refresh=None) -> dict | None:
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
 
@@ -130,7 +130,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         )
 
     @property
-    def faultlog(self) -> None | dict:
+    def faultlog(self) -> dict | None:
         """Return the fault log of a system."""
         if not self._faultlog_done:
             return None
