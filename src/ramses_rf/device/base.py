@@ -364,7 +364,7 @@ class Fakeable(DeviceBase):
 
         msgs = await self._bind_context.initiate_binding_process(
             offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
-        )
+        )  # TODO: if successul, re-discover schema?
         return msgs
 
     @property

@@ -927,7 +927,9 @@ class SysMode(SystemBase):  # 2E04
     def system_mode(self) -> None | dict:  # 2E04
         return self._msg_value(Code._2E04)
 
-    def set_mode(self, system_mode, *, until=None) -> Future:
+    def set_mode(
+        self, system_mode: int | str | None, *, until: dt | str | None = None
+    ) -> Future:
         """Set a system mode for a specified duration, or indefinitely."""
         return self._send_cmd(
             Command.set_system_mode(self.id, system_mode, until=until)
