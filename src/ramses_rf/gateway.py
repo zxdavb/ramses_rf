@@ -507,6 +507,7 @@ class Gateway(Engine):
     def send_cmd(
         self,
         cmd: Command,
+        priority: Priority = Priority.DEFAULT,
         callback: Callable | None = None,
         **kwargs: Any,
     ) -> asyncio.Task:
@@ -514,7 +515,9 @@ class Gateway(Engine):
 
         assert not kwargs, kwargs
 
-        task = self._loop.create_task(self.async_send_cmd(cmd, callback=callback))
+        task = self._loop.create_task(
+            self.async_send_cmd(cmd, priority=priority, callback=callback)
+        )
 
         self.add_task(task)
         return task
