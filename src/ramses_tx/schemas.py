@@ -343,7 +343,7 @@ def select_device_filter_mode(
 # 4/5: Gateway (engine) configuration
 SZ_DISABLE_SENDING: Final[str] = "disable_sending"
 SZ_DISABLE_QOS: Final[str] = "disable_qos"
-SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
+SZ_ENFORCE_KNOWN_LIST: Final[str] = f"enforce_{SZ_KNOWN_LIST}"
 SZ_EVOFW_FLAG: Final[str] = "evofw_flag"
 SZ_USE_REGEX: Final[str] = "use_regex"
 
