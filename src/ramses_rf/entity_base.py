@@ -14,7 +14,7 @@ from datetime import datetime as dt, timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from ramses_rf.helpers import schedule_task
 from ramses_tx import Priority, QosParams
@@ -60,12 +60,12 @@ if TYPE_CHECKING:
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
 
-_SZ_LAST_PKT = "last_msg"
-_SZ_NEXT_DUE = "next_due"
-_SZ_TIMEOUT = "timeout"
-_SZ_FAILURES = "failures"
-_SZ_INTERVAL = "interval"
-_SZ_COMMAND = "command"
+_SZ_LAST_PKT: Final[str] = "last_msg"
+_SZ_NEXT_DUE: Final[str] = "next_due"
+_SZ_TIMEOUT: Final[str] = "timeout"
+_SZ_FAILURES: Final[str] = "failures"
+_SZ_INTERVAL: Final[str] = "interval"
+_SZ_COMMAND: Final[str] = "command"
 
 
 _LOGGER = logging.getLogger(__name__)
