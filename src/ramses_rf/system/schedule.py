@@ -148,8 +148,8 @@ class Schedule:  # 0404
 
         self._full_schedule: _FullScheduleT = {}
 
-        self._rx_frags: _PayloadSetT = self._init_payload_set()
-        self._tx_frags: _FragmentSetT = []
+        self._payload_set: _PayloadSetT = EMPTY_PAYLOAD_SET  # Rx'd
+        self._fragments: _FragmentSetT = []  # to Tx
 
         self._global_ver = 0  # None is a sentinel for 'dont know'
         self._sched_ver = 0  # the global_ver when this schedule was retrieved
@@ -160,16 +160,17 @@ class Schedule:  # 0404
     def _handle_msg(self, msg: Message) -> None:
         """Process a schedule packet: if possible, create the corresponding schedule."""
 
-        if msg.code == Code._0006:
+        if msg.code == Code._0006:  # keep up, in cause is useful to know in future
             self._global_ver = msg.payload[SZ_CHANGE_COUNTER]
             return
 
         if msg.code != Code._0404:
             return
 
+        # can do via here, or via gwy.async_send_cmd(cmd)
         # next line also in self._get_schedule(), so protected here with a lock
         if msg.payload[SZ_TOTAL_FRAGS] != 0xFF and self.tcs.zone_lock_idx != self.idx:
-            self._rx_frags = self._incr_set(self._rx_frags, msg.payload)
+            self._payload_set = self._update_payload_set(self._payload_set, msg.payload)
 
     async def _is_dated(self, *, force_io: bool = False) -> tuple[bool, bool]:
         """Indicate if it is possible that a more recent schedule is available.
@@ -228,7 +229,7 @@ class Schedule:  # 0404
         async def get_fragment(frag_num: int) -> _PayloadT:  # may: TimeoutError?
             """Retrieve a schedule fragment from the controller."""
 
-            frag_set_size = 0 if frag_num == 1 else self._size_set(self._rx_frags)
+            frag_set_size = 0 if frag_num == 1 else _len(self._payload_set)
             cmd = Command.get_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_set_size
             )
@@ -249,11 +250,13 @@ class Schedule:  # 0404
         if not did_io:  # must know the version of the schedule about to be RQ'd
             self._global_ver, _ = await self.tcs._schedule_version(force_io=True)
 
-        self._rx_frags[0] = None  # if 1st frag valid: schedule very likely unchanged
-        while frag_num := next(i for i, f in enumerate(self._rx_frags, 1) if f is None):
+        self._payload_set[0] = None  # if 1st frag valid: schedule very likely unchanged
+        while frag_num := next(
+            i for i, f in enumerate(self._payload_set, 1) if f is None
+        ):
             fragment = await get_fragment(frag_num)
             # next line also in self._handle_msg(), so protected there with a lock
-            self._rx_frags = self._incr_set(self._rx_frags, fragment)
+            self._payload_set = self._update_payload_set(self._payload_set, fragment)
             if self._full_schedule:  # TODO: potential for infinite loop?
                 self._sched_ver = self._global_ver
                 break
@@ -286,35 +289,9 @@ class Schedule:  # 0404
 
         return self._full_schedule  # NOTE: not self.schedule
 
-    @staticmethod
-    def _init_payload_set(payload: _PayloadT | None = None) -> _PayloadSetT:
-        """Return a new payload set, after initializing it with an optional payload."""
-
-        if payload is None or payload[SZ_TOTAL_FRAGS] is None:
-            return EMPTY_PAYLOAD_SET
-
-        payload_set: _PayloadSetT = [None] * payload[SZ_TOTAL_FRAGS]
-        payload_set[payload[SZ_FRAG_NUMBER] - 1] = payload
-        return payload_set
-
-    @staticmethod
-    def _size_set(frag_set: _PayloadSetT) -> int:  # return len(frag_set)
-        """Return the total number of fragments in the complete frag set.
-
-        Return 0 if the expected set size is unknown (sentinel value as per RAMSES II).
-
-        Uses frag_set[i][SZ_TOTAL_FRAGS] instead of `len(frag_set)` (is necessary?).
-        """
-        for frag in (f for f in frag_set if f is not None):  # they will all match
-            assert len(frag_set) == frag[SZ_TOTAL_FRAGS]  # TODO: remove
-            assert isinstance(frag[SZ_TOTAL_FRAGS], int)  # mypy check
-            result: int = frag[SZ_TOTAL_FRAGS]
-            return result
-
-        assert frag_set == EMPTY_PAYLOAD_SET  # TODO: remove
-        return 0  # sentinel value as per RAMSES protocol
-
-    def _incr_set(self, payload_set: _PayloadSetT, payload: _PayloadT) -> _PayloadSetT:
+    def _update_payload_set(
+        self, payload_set: _PayloadSetT, payload: _PayloadT
+    ) -> _PayloadSetT:
         """Add a fragment to a frag set and process/return the new set.
 
         If the frag set is complete, check for a schedule (sets `self._schedule`).
@@ -322,15 +299,18 @@ class Schedule:  # 0404
         If required, start a new frag set with the fragment.
         """
 
+        def init_payload_set(payload: _PayloadT) -> _PayloadSetT:
+            payload_set: _PayloadSetT = [None] * payload[SZ_TOTAL_FRAGS]
+            payload_set[payload[SZ_FRAG_NUMBER] - 1] = payload
+            return payload_set
+
         if payload[SZ_TOTAL_FRAGS] is None:  # zone has no schedule
-            payload_set = self._init_payload_set()
+            payload_set = EMPTY_PAYLOAD_SET
             self._proc_payload_set(payload_set)
             return payload_set
 
-        if payload[SZ_TOTAL_FRAGS] != self._size_set(
-            payload_set
-        ):  # schedule has changed
-            return self._init_payload_set(payload)
+        if payload[SZ_TOTAL_FRAGS] != _len(payload_set):  # sched has changed
+            return init_payload_set(payload)
 
         payload_set[payload[SZ_FRAG_NUMBER] - 1] = payload
         if None in payload_set or self._proc_payload_set(
@@ -338,7 +318,7 @@ class Schedule:  # 0404
         ):  # sets self._schedule
             return payload_set
 
-        return self._init_payload_set(payload)
+        return init_payload_set(payload)
 
     async def set_schedule(
         self, schedule: _ScheduleT, force_refresh: bool = False
@@ -374,13 +354,13 @@ class Schedule:  # 0404
             return full_schedule
 
         full_schedule = normalise_validate(schedule)
-        self._tx_frags = full_sched_to_fragz(full_schedule)
+        self._fragments = full_sched_to_fragz(full_schedule)
 
         await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
 
         try:
-            for num, frag in enumerate(self._tx_frags, 1):
-                await put_fragment(num, len(self._tx_frags), frag)
+            for num, frag in enumerate(self._fragments, 1):
+                await put_fragment(num, len(self._fragments), frag)
         except TimeoutError as err:
             raise TimeoutError(f"failed to set schedule: {err}") from err
         else:
@@ -410,6 +390,25 @@ class Schedule:  # 0404
     def version(self) -> int | None:
         """Return the version associated with the current schedule, if any."""
         return self._sched_ver if self._full_schedule else None
+
+
+# TODO: deprecate in favour of len(payload_set)
+def _len(payload_set: _PayloadSetT) -> int:
+    """Return the total number of fragments in the complete frag set.
+
+    Return 0 if the expected set size is unknown (sentinel value as per RAMSES II).
+
+    Uses frag_set[i][SZ_TOTAL_FRAGS] instead of `len(frag_set)` (is necessary?).
+    """
+    # for frag in (f for f in payload_set if f is not None):  # they will all match
+    #     assert len(payload_set) == frag[SZ_TOTAL_FRAGS]  # TODO: remove
+    #     assert isinstance(frag[SZ_TOTAL_FRAGS], int)  # mypy check
+    #     result: int = frag[SZ_TOTAL_FRAGS]
+    #     return result
+
+    # assert payload_set == EMPTY_PAYLOAD_SET  # TODO: remove
+    # return 0  # sentinel value as per RAMSES protocol
+    return len(payload_set)
 
 
 def fragz_to_full_sched(fragments: Iterable[_FragmentT]) -> _FullScheduleT:
@@ -496,9 +495,12 @@ def _struct_unpack(raw_schedule: bytes) -> tuple[int, int, int, int]:
     return idx, dow, tod, val
 
 
-#     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0100
-#     # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0104 688...
-#     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0204
-#     # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0204 4AE...
-#     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
-#     # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
+# 16:27:56.942 000 RQ --- 18:006402 01:145038 --:------ 0006 001 00
+# 16:27:56.958 038 RP --- 01:145038 18:006402 --:------ 0006 004 00050009
+
+# 16:27:57.005 000 RQ --- 18:006402 01:145038 --:------ 0404 007 0120000800-0100
+# 16:27:57.068 037 RP --- 01:145038 18:006402 --:------ 0404 048 0120000829-0103-68816DCFCB0980301045D1994C3E624916660956604596600516E1D285094112F566F5B80C072222A2
+# 16:27:57.114 000 RQ --- 18:006402 01:145038 --:------ 0404 007 0120000800-0203
+# 16:27:57.161 038 RP --- 01:145038 18:006402 --:------ 0404 048 0120000829-0203-52DF92C79CEA7EDA91C7F06997FDEFC620B287D6143C054FC153F01C780E3C079E03CFC033F00C3C03
+# 16:27:57.202 000 RQ --- 18:006402 01:145038 --:------ 0404 007 0120000800-0303
+# 16:27:57.245 038 RP --- 01:145038 18:006402 --:------ 0404 045 0120000826-0303-CF83E7C1F3E079F0CADC3E5E696BFECC944EED5BF5DEAD7AAD45F0227811BCD87937936E24CF
