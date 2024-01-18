@@ -14,9 +14,9 @@ import struct
 import zlib
 from collections.abc import Iterable
 from datetime import timedelta as td
-from typing import Any
+from typing import TYPE_CHECKING, Any, Final, TypeAlias
 
-import voluptuous as vol  # type: ignore[import]
+import voluptuous as vol  # type: ignore[import, unused-ignore]
 
 from ramses_rf.const import (
     SZ_FRAG_NUMBER,
@@ -28,6 +28,7 @@ from ramses_rf.const import (
 from ramses_tx.command import Command
 from ramses_tx.const import SZ_CHANGE_COUNTER
 from ramses_tx.message import Message
+from ramses_tx.packet import Packet
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -37,99 +38,121 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
+if TYPE_CHECKING:
+    from ramses_rf.system.heat import ScheduleSync
+    from ramses_rf.system.zones import DhwZone, Zone
+
 
 _LOGGER = logging.getLogger(__name__)
 
 
-MSG = "msg"
-
-DAY_OF_WEEK = "day_of_week"
-HEAT_SETPOINT = "heat_setpoint"
-SWITCHPOINTS = "switchpoints"
-TIME_OF_DAY = "time_of_day"
-ENABLED = "enabled"
-
 FIVE_MINS = td(minutes=5)
 
-REGEX_TIME_OF_DAY = r"^([0-1][0-9]|2[0-3]):[0-5][05]$"
+SZ_MSG: Final[str] = "msg"
+
+SZ_DAY_OF_WEEK: Final[str] = "day_of_week"
+SZ_HEAT_SETPOINT: Final[str] = "heat_setpoint"
+SZ_SWITCHPOINTS: Final[str] = "switchpoints"
+SZ_TIME_OF_DAY: Final[str] = "time_of_day"
+SZ_ENABLED: Final[str] = "enabled"
+
+REGEX_TIME_OF_DAY: Final = r"^([0-1][0-9]|2[0-3]):[0-5][05]$"
 
 
 def schema_sched(schema_switchpoint: vol.Schema) -> vol.Schema:
     schema_sched_day = vol.Schema(
         {
-            vol.Required(DAY_OF_WEEK): int,
-            vol.Required(SWITCHPOINTS): vol.All(
+            vol.Required(SZ_DAY_OF_WEEK): int,
+            vol.Required(SZ_SWITCHPOINTS): vol.All(
                 [schema_switchpoint], vol.Length(min=1)
             ),
         },
         extra=vol.PREVENT_EXTRA,
     )
     return vol.Schema(
-        vol.Schema([schema_sched_day], vol.Length(min=7, max=7)),
+        vol.Schema([schema_sched_day], vol.Length(min=0, max=7)),
         extra=vol.PREVENT_EXTRA,
     )
 
 
 SCH_SWITCHPOINT_DHW = vol.Schema(
     {
-        vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
-        vol.Required(ENABLED): bool,
+        vol.Required(SZ_TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
+        vol.Required(SZ_ENABLED): bool,
     },
     extra=vol.PREVENT_EXTRA,
 )
+
 SCH_SWITCHPOINT_ZON = vol.Schema(
     {
-        vol.Required(TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
-        vol.Required(HEAT_SETPOINT): vol.All(
+        vol.Required(SZ_TIME_OF_DAY): vol.Match(REGEX_TIME_OF_DAY),
+        vol.Required(SZ_HEAT_SETPOINT): vol.All(
             vol.Coerce(float), vol.Range(min=5, max=35)
         ),
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCH_SCHEDULE_DHW = vol.Schema(
+
+SCH_SCHEDULE_DHW = schema_sched(SCH_SWITCHPOINT_DHW)
+SCH_SCHEDULE_DHW_FULL = vol.Schema(
     {
         vol.Required(SZ_ZONE_IDX): "HW",
-        vol.Required(SZ_SCHEDULE): schema_sched(SCH_SWITCHPOINT_DHW),
+        vol.Required(SZ_SCHEDULE): SCH_SCHEDULE_DHW,
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCH_SCHEDULE_ZON = vol.Schema(
+
+SCH_SCHEDULE_ZON = schema_sched(SCH_SWITCHPOINT_ZON)
+SCH_SCHEDULE_ZON_FULL = vol.Schema(
     {
         vol.Required(SZ_ZONE_IDX): vol.Match(r"0[0-F]"),
-        vol.Required(SZ_SCHEDULE): schema_sched(SCH_SWITCHPOINT_ZON),
+        vol.Required(SZ_SCHEDULE): SCH_SCHEDULE_ZON,
     },
     extra=vol.PREVENT_EXTRA,
 )
-SCH_SCHEDULE = vol.Schema(
-    vol.Any(SCH_SCHEDULE_DHW, SCH_SCHEDULE_ZON), extra=vol.PREVENT_EXTRA
+
+SCH_FULL_SCHEDULE = vol.Schema(
+    vol.Any(SCH_SCHEDULE_DHW_FULL, SCH_SCHEDULE_ZON_FULL),
+    extra=vol.PREVENT_EXTRA,
 )
+
+
+_PayloadT: TypeAlias = dict[str, Any]  # Message payload
+_PayloadSetT: TypeAlias = list[_PayloadT | None]
+
+_SwitchPointT: TypeAlias = dict[str, bool | float | str]
+_DayOfWeekT: TypeAlias = dict[str, int | list[_SwitchPointT]]
+_ScheduleT: TypeAlias = list[_DayOfWeekT]
+_FullScheduleT: TypeAlias = dict[str, str | _ScheduleT]
+
+_FragmentT: TypeAlias = str
+_FragmentSetT: TypeAlias = list[_FragmentT]
+
+EMPTY_PAYLOAD_SET: _PayloadSetT = [None]
 
 
 # TODO: make stateful (a la binding)
 class Schedule:  # 0404
     """The schedule of a zone."""
 
-    def __init__(self, zone, **kwargs) -> None:
+    def __init__(self, zone: DhwZone | Zone) -> None:
         _LOGGER.debug("Schedule(zon=%s).__init__()", zone)
-
-        self._loop = zone._gwy._loop
 
         self.id = zone.id
         self._zone = zone
         self.idx = zone.idx
 
         self.ctl = zone.ctl
-        self.tcs = zone.tcs
+        self.tcs: ScheduleSync = zone.tcs
         self._gwy = zone._gwy
 
-        self._schedule: dict[str, Any] | None = {}
-        self._schedule_done = None  # TODO: deprecate
+        self._full_schedule: _FullScheduleT = {}
 
-        self._rx_frags: list = self._init_set()
-        self._tx_frags: list = self._init_set()
+        self._rx_frags: _PayloadSetT = self._init_payload_set()
+        self._tx_frags: _FragmentSetT = []
 
-        self._global_ver: int | None = None  # None is a sentinel for 'dont know'
-        self._sched_ver: int = 0  # TODO: start with None
+        self._global_ver = 0  # None is a sentinel for 'dont know'
+        self._sched_ver = 0  # the global_ver when this schedule was retrieved
 
     def __str__(self) -> str:
         return f"{self._zone} (schedule)"
@@ -141,8 +164,11 @@ class Schedule:  # 0404
             self._global_ver = msg.payload[SZ_CHANGE_COUNTER]
             return
 
+        if msg.code != Code._0404:
+            return
+
         # next line also in self._get_schedule(), so protected here with a lock
-        if msg.payload[SZ_TOTAL_FRAGS] != 255 and self.tcs.zone_lock_idx != self.idx:
+        if msg.payload[SZ_TOTAL_FRAGS] != 0xFF and self.tcs.zone_lock_idx != self.idx:
             self._rx_frags = self._incr_set(self._rx_frags, msg.payload)
 
     async def _is_dated(self, *, force_io: bool = False) -> tuple[bool, bool]:
@@ -180,7 +206,7 @@ class Schedule:  # 0404
 
         return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
-    async def get_schedule(self, *, force_io: bool = False) -> dict | None:
+    async def get_schedule(self, *, force_io: bool = False) -> _ScheduleT | None:
         """Retrieve/return the brief schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
@@ -193,31 +219,30 @@ class Schedule:  # 0404
         try:
             await asyncio.wait_for(self._get_schedule(force_io=force_io), timeout=15)
         except asyncio.TimeoutError:
-            raise
+            raise  # TODO: raise a more parochial exception
         return self.schedule
 
-    async def _get_schedule(self, *, force_io: bool = False) -> dict | None:
-        """Retrieve/return the brief schedule of a zone."""
+    async def _get_schedule(self, *, force_io: bool = False) -> None:
+        """Retrieve/return the schedule of a zone (sets self._full_schedule)."""
 
-        async def get_fragment(frag_num: int):  # may: TimeoutError?
+        async def get_fragment(frag_num: int) -> _PayloadT:  # may: TimeoutError?
             """Retrieve a schedule fragment from the controller."""
 
             frag_set_size = 0 if frag_num == 1 else self._size_set(self._rx_frags)
             cmd = Command.get_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_set_size
             )
-            return (await self._gwy.async_send_cmd(cmd)).payload  # may: TimeoutError?
-
-        async def get_tst_fragment(frag_idx: int):
-            if self._incr_set(self._rx_frags, await get_fragment(frag_idx)):
-                self._sched_ver = self._global_ver
-                return self._schedule
+            msg: Message = await self._gwy.async_send_cmd(cmd)
+            if isinstance(msg, Packet):  # HACK: async_send_cmd shoudl return Msg
+                msg = Message(msg)
+            assert isinstance(msg.payload, dict)  # mypy check
+            return msg.payload  # may: TimeoutError?
 
         is_dated, did_io = await self._is_dated(force_io=force_io)
         if is_dated:
-            self._schedule = {}  # keep fragments, maybe only other sched(s) changed
-        if self._schedule:
-            return self.schedule
+            self._full_schedule = {}  # keep fragments, maybe only other sched(s) changed
+        if self._full_schedule:
+            return
 
         await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
 
@@ -229,42 +254,51 @@ class Schedule:  # 0404
             fragment = await get_fragment(frag_num)
             # next line also in self._handle_msg(), so protected there with a lock
             self._rx_frags = self._incr_set(self._rx_frags, fragment)
-            if self._schedule:  # TODO: potential for infinite loop?
+            if self._full_schedule:  # TODO: potential for infinite loop?
                 self._sched_ver = self._global_ver
                 break
 
         self.tcs._release_lock()
-        return self.schedule
 
-    def _proc_set(self, frag_set: list) -> dict | None:  # return full_schedule
-        """Process a frag set and return the full schedule (sets `self._schedule`).
+    def _proc_payload_set(self, payload_set: _PayloadSetT) -> _FullScheduleT | None:
+        """Process a payload set and return the full schedule (sets `self._schedule`).
 
         If the schedule is for DHW, set the `zone_idx` key to 'HW' (to avoid confusing
         with zone '00').
         """
-        if frag_set == self._init_set(None):
-            self._schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: None}
-            return self._schedule
+
+        # TODO: relying upon caller to ensure set is only empty or full
+
+        if payload_set == EMPTY_PAYLOAD_SET:
+            self._full_schedule = {SZ_ZONE_IDX: self.idx}
+            return self._full_schedule
+
         try:
-            schedule = fragments_to_schedule(frag[SZ_FRAGMENT] for frag in frag_set)
+            schedule = fragz_to_full_sched(
+                payload[SZ_FRAGMENT] for payload in payload_set if payload
+            )  # TODO: messy - what is set not full
         except zlib.error:
-            return None
+            return None  # TODO: raise a more parochial exception
+
         if self.idx == "HW":
             schedule[SZ_ZONE_IDX] = "HW"
-        self._schedule = schedule
-        return self._schedule  # NOTE: not self.schedule
+        self._full_schedule = schedule
+
+        return self._full_schedule  # NOTE: not self.schedule
 
     @staticmethod
-    def _init_set(fragment: dict = None) -> list:  # return frag_set
-        """Return a new frag set, after initializing it with an optional fragment."""
-        if fragment is None or fragment[SZ_TOTAL_FRAGS] is None:
-            return [None]
-        frag_set = [None] * fragment[SZ_TOTAL_FRAGS]
-        frag_set[fragment[SZ_FRAG_NUMBER] - 1] = fragment
-        return frag_set
+    def _init_payload_set(payload: _PayloadT | None = None) -> _PayloadSetT:
+        """Return a new payload set, after initializing it with an optional payload."""
+
+        if payload is None or payload[SZ_TOTAL_FRAGS] is None:
+            return EMPTY_PAYLOAD_SET
+
+        payload_set: _PayloadSetT = [None] * payload[SZ_TOTAL_FRAGS]
+        payload_set[payload[SZ_FRAG_NUMBER] - 1] = payload
+        return payload_set
 
     @staticmethod
-    def _size_set(frag_set: list) -> int:  # return len(frag_set)
+    def _size_set(frag_set: _PayloadSetT) -> int:  # return len(frag_set)
         """Return the total number of fragments in the complete frag set.
 
         Return 0 if the expected set size is unknown (sentinel value as per RAMSES II).
@@ -273,60 +307,74 @@ class Schedule:  # 0404
         """
         for frag in (f for f in frag_set if f is not None):  # they will all match
             assert len(frag_set) == frag[SZ_TOTAL_FRAGS]  # TODO: remove
-            return frag[SZ_TOTAL_FRAGS]
-        assert len(frag_set) == 1 and frag_set == [None]  # TODO: remove
+            assert isinstance(frag[SZ_TOTAL_FRAGS], int)  # mypy check
+            result: int = frag[SZ_TOTAL_FRAGS]
+            return result
+
+        assert frag_set == EMPTY_PAYLOAD_SET  # TODO: remove
         return 0  # sentinel value as per RAMSES protocol
 
-    def _incr_set(self, frag_set: list, fragment: dict) -> list:  # return frag_set
+    def _incr_set(self, payload_set: _PayloadSetT, payload: _PayloadT) -> _PayloadSetT:
         """Add a fragment to a frag set and process/return the new set.
 
         If the frag set is complete, check for a schedule (sets `self._schedule`).
 
         If required, start a new frag set with the fragment.
         """
-        if fragment[SZ_TOTAL_FRAGS] is None:  # zone has no schedule
-            frag_set = self._init_set(None)
-            self._proc_set(frag_set)
-            return frag_set
-        if fragment[SZ_TOTAL_FRAGS] != self._size_set(frag_set):  # schedule has changed
-            return self._init_set(fragment)
-        frag_set[fragment[SZ_FRAG_NUMBER] - 1] = fragment
-        if None in frag_set or self._proc_set(frag_set):  # sets self._schedule
-            return frag_set
-        return self._init_set(fragment)
 
-    async def set_schedule(self, schedule, force_refresh=False) -> dict | None:
+        if payload[SZ_TOTAL_FRAGS] is None:  # zone has no schedule
+            payload_set = self._init_payload_set()
+            self._proc_payload_set(payload_set)
+            return payload_set
+
+        if payload[SZ_TOTAL_FRAGS] != self._size_set(
+            payload_set
+        ):  # schedule has changed
+            return self._init_payload_set(payload)
+
+        payload_set[payload[SZ_FRAG_NUMBER] - 1] = payload
+        if None in payload_set or self._proc_payload_set(
+            payload_set
+        ):  # sets self._schedule
+            return payload_set
+
+        return self._init_payload_set(payload)
+
+    async def set_schedule(
+        self, schedule: _ScheduleT, force_refresh: bool = False
+    ) -> _ScheduleT | None:
         """Set the schedule of a zone."""
 
-        async def put_fragment(frag_num, frag_cnt, fragment) -> None:
+        async def put_fragment(frag_num: int, frag_cnt: int, fragment: str) -> None:
             """Send a schedule fragment to the controller."""
 
-            #
             cmd = Command.set_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_cnt, fragment
             )
             await self._gwy.async_send_cmd(cmd)
 
-        def normalise_validate(schedule) -> dict:
+        def normalise_validate(schedule: _ScheduleT) -> _FullScheduleT:
+            full_schedule: _FullScheduleT
+
             if self.idx == "HW":
-                schedule = {SZ_ZONE_IDX: "HW", SZ_SCHEDULE: schedule}
-                schema_schedule = SCH_SCHEDULE_DHW
+                full_schedule = {SZ_ZONE_IDX: "HW", SZ_SCHEDULE: schedule}
+                schedule_schema = SCH_SCHEDULE_DHW_FULL
             else:
-                schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
-                schema_schedule = SCH_SCHEDULE_ZON
+                full_schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
+                schedule_schema = SCH_SCHEDULE_ZON_FULL
 
             try:
-                schedule = schema_schedule(schedule)
+                full_schedule = schedule_schema(full_schedule)
             except vol.MultipleInvalid as err:
                 raise TypeError(f"failed to set schedule: {err}") from err
 
-            if self.idx == "HW":
-                schedule[SZ_ZONE_IDX] = "00"
+            if self.idx == "HW":  # HACK: to avoid confusing dhw with zone '00'
+                full_schedule[SZ_ZONE_IDX] = "00"
 
-            return schedule
+            return full_schedule
 
-        schedule = normalise_validate(schedule)
-        self._tx_frags = schedule_to_fragments(schedule)
+        full_schedule = normalise_validate(schedule)
+        self._tx_frags = full_sched_to_fragz(full_schedule)
 
         await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
 
@@ -344,25 +392,28 @@ class Schedule:  # 0404
             self.tcs._release_lock()
 
         if force_refresh:
-            self._schedule = await self.get_schedule(force_io=True)
+            await self.get_schedule(force_io=True)  # sets self._full_schedule
         else:
-            self._schedule = schedule
+            self._full_schedule = full_schedule
 
         return self.schedule
 
     @property
-    def schedule(self) -> dict | None:
-        """Return the current schedule, if any."""
-        return self._schedule[SZ_SCHEDULE] if self._schedule else None
+    def schedule(self) -> _ScheduleT | None:
+        """Return the current (not full) schedule, if any."""
+        if not self._full_schedule:  # can be {}
+            return None
+        result: _ScheduleT = self._full_schedule.get(SZ_SCHEDULE)  # type: ignore[assignment]
+        return result
 
     @property
     def version(self) -> int | None:
         """Return the version associated with the current schedule, if any."""
-        return self._sched_ver if self._schedule else None
+        return self._sched_ver if self._full_schedule else None
 
 
-def fragments_to_schedule(fragments: Iterable) -> dict:
-    """Convert a set of fragments (a blob) into a schedule.
+def fragz_to_full_sched(fragments: Iterable[_FragmentT]) -> _FullScheduleT:
+    """Convert a tuple of fragments strs (a blob) into a schedule.
 
     May raise a `zlib.error` exception.
     """
@@ -370,63 +421,84 @@ def fragments_to_schedule(fragments: Iterable) -> dict:
     raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
 
     old_day = 0
-    schedule = []
-    switchpoints: list[dict] = []
-    zone_idx = None
+    schedule: _ScheduleT = []
+    switchpoints: list[_SwitchPointT] = []
+
+    idx: int
+    dow: int
+    tod: int
+    val: int
 
     for i in range(0, len(raw_schedule), 20):
-        zone_idx, day, time, temp, _ = struct.unpack(
-            "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
-        )
-        if day > old_day:
-            schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-            old_day, switchpoints = day, []
+        idx, dow, tod, val = _struct_unpack(raw_schedule[i : i + 20])
+
+        if dow > old_day:
+            schedule.append({SZ_DAY_OF_WEEK: old_day, SZ_SWITCHPOINTS: switchpoints})
+            old_day, switchpoints = dow, []
+
         switchpoints.append(
             {
-                TIME_OF_DAY: "{:02d}:{:02d}".format(*divmod(time, 60)),
+                SZ_TIME_OF_DAY: "{:02d}:{:02d}".format(*divmod(tod, 60)),
                 **(
-                    {ENABLED: bool(temp)}
-                    if temp in (0, 1)
-                    else {HEAT_SETPOINT: temp / 100}
+                    {SZ_ENABLED: bool(val)}
+                    if val in (0, 1)
+                    else {SZ_HEAT_SETPOINT: val / 100}
                 ),
             }
         )
 
-    schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+    schedule.append({SZ_DAY_OF_WEEK: old_day, SZ_SWITCHPOINTS: switchpoints})
 
-    return {SZ_ZONE_IDX: f"{zone_idx:02X}", SZ_SCHEDULE: schedule}
+    return {SZ_ZONE_IDX: f"{idx:02X}", SZ_SCHEDULE: schedule}
 
 
-def schedule_to_fragments(schedule: dict) -> list:
+def full_sched_to_fragz(full_schedule: _FullScheduleT) -> list[_FragmentT]:
     """Convert a schedule into a set of fragments (a blob).
 
     May raise `KeyError`, `zlib.error` exceptions.
     """
 
-    frags = [
-        (
-            int(schedule[SZ_ZONE_IDX], 16),
-            int(week_day[DAY_OF_WEEK]),
-            int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
-            int(
-                (setpoint[HEAT_SETPOINT] * 100)
-                if setpoint.get(HEAT_SETPOINT)
-                else setpoint[ENABLED]
-            ),
-        )
-        for week_day in schedule[SZ_SCHEDULE]
-        for setpoint in week_day[SWITCHPOINTS]
-    ]
-    frags_: list[bytes] = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
-
     cobj = zlib.compressobj(level=9, wbits=14)
-    blob = (b"".join(cobj.compress(s) for s in frags_) + cobj.flush()).hex().upper()
+    frags: list[bytes] = []
+
+    week_days: _ScheduleT = full_schedule[SZ_SCHEDULE]  # type: ignore[assignment]
+    for week_day in week_days:
+        switchpoints: list[_SwitchPointT] = week_day[SZ_SWITCHPOINTS]  # type: ignore[assignment]
+        for switchpoint in switchpoints:
+            frags.append(_struct_pack(full_schedule, week_day, switchpoint))
+
+    blob = (b"".join(cobj.compress(f) for f in frags) + cobj.flush()).hex().upper()
 
     return [blob[i : i + 82] for i in range(0, len(blob), 82)]
 
-    # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0100
-    # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0104 688...
-    # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0204
-    # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0204 4AE...
-    # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
-    # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
+
+def _struct_pack(
+    full_schedule: _FullScheduleT, week_day: _DayOfWeekT, switchpoint: _SwitchPointT
+) -> bytes:
+    idx_: str = full_schedule[SZ_ZONE_IDX]  # type: ignore[assignment]
+    dow_: int = week_day[SZ_DAY_OF_WEEK]  # type: ignore[assignment]
+    tod_: str = switchpoint[SZ_TIME_OF_DAY]  # type: ignore[assignment]
+
+    idx = int(idx_, 16)
+    dow = int(dow_)
+    tod = int(tod_[:2]) * 60 + int(tod_[3:])
+
+    if SZ_HEAT_SETPOINT in switchpoint:
+        val = int(switchpoint[SZ_HEAT_SETPOINT] * 100)
+    else:
+        val = int(bool(switchpoint[SZ_ENABLED]))
+
+    return struct.pack("<xxxxBxxxBxxxHxxHxx", idx, dow, tod, val)
+
+
+def _struct_unpack(raw_schedule: bytes) -> tuple[int, int, int, int]:
+    idx, dow, tod, val, _ = struct.unpack("<xxxxBxxxBxxxHxxHH", raw_schedule)
+    return idx, dow, tod, val
+
+
+#     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0100
+#     # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0104 688...
+#     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0204
+#     # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0204 4AE...
+#     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
+#     # RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...

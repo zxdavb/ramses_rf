@@ -62,6 +62,7 @@ from ramses_tx import (
     Address,
     Command,
     Message,
+    Packet,
     Priority,
 )
 from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
@@ -638,6 +639,9 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self._msg_0006 = await self._gwy.async_send_cmd(
             Command.get_schedule_version(self.ctl.id)
         )
+
+        if isinstance(self._msg_0006, Packet):  # HACK
+            self._msg_0006 = Message(self._msg_0006)
 
         assert isinstance(  # TODO: remove me
             self._msg_0006, Message
