@@ -33,7 +33,9 @@ from ramses_tx import (
     transport_factory,
 )
 from ramses_tx.const import (
+    DEFAULT_GAP_DURATION,
     DEFAULT_MAX_RETRIES,
+    DEFAULT_NUM_REPEATS,
     DEFAULT_TIMEOUT,
     SZ_ACTIVE_HGI,
 )
@@ -507,18 +509,28 @@ class Gateway(Engine):
     def send_cmd(
         self,
         cmd: Command,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         callback: Callable | None = None,
-        **kwargs: Any,
     ) -> asyncio.Task:
-        """Wrapper to schedule an async_send_cmd() and return the Task."""
+        """Wrapper to schedule an async_send_cmd() and return the Task.
 
-        assert not kwargs, kwargs
+        num_repeats:  0 = send once, 1 = send twice, etc.
+        gap_duration: the gap between repeats (in seconds)
+        priority:     the priority of the command
+        callback:     a callback to run when the command is sent (needs QoS)
+        """
 
-        task = self._loop.create_task(
-            self.async_send_cmd(cmd, priority=priority, callback=callback)
+        coro = self.async_send_cmd(
+            cmd,
+            gap_duration=gap_duration,
+            num_repeats=num_repeats,
+            priority=priority,
+            callback=callback,
         )
 
+        task = self._loop.create_task(coro)
         self.add_task(task)
         return task
 
@@ -527,7 +539,9 @@ class Gateway(Engine):
         cmd: Command,
         /,
         *,
+        gap_duration: float = DEFAULT_GAP_DURATION,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: bool | None = None,
@@ -538,10 +552,15 @@ class Gateway(Engine):
         callback = kwargs.pop("callback", None)  # warn if no Qos
         assert not kwargs, kwargs
 
+        # if callback and self._protocol. disable_qos is not False:
+        #     raise
+
         try:  # TODO: remove this try/except
             pkt = await super().async_send_cmd(
                 cmd,
+                gap_duration=gap_duration,
                 max_retries=max_retries,
+                num_repeats=num_repeats,
                 priority=priority,
                 timeout=timeout,
                 wait_for_reply=wait_for_reply,

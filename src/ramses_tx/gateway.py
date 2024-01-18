@@ -296,12 +296,17 @@ class Engine:
         cmd: Command,
         /,
         *,
+        gap_duration: float = DEFAULT_GAP_DURATION,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_TIMEOUT,
         wait_for_reply: bool | None = None,
     ) -> Packet | None:
-        """Send a Command and, if QoS is enabled, return the corresponding Packet."""
+        """Send a Command and, if QoS is enabled, return the corresponding Packet.
+
+        If wait_for_reply is None, then it acts as True for 1FC9, 0006, etc.
+        """
 
         qos = QosParams(
             max_retries=max_retries,
@@ -311,8 +316,8 @@ class Engine:
 
         return await self._protocol.send_cmd(
             cmd,
-            gap_duration=DEFAULT_GAP_DURATION,
-            num_repeats=DEFAULT_NUM_REPEATS,
+            gap_duration=gap_duration,
+            num_repeats=num_repeats,
             priority=priority,
             qos=qos,
         )
