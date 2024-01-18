@@ -10,7 +10,7 @@
 from unittest.mock import patch
 
 import pytest
-from serial import SerialException
+import serial as ser
 from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Gateway
@@ -235,7 +235,7 @@ async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
 
     try:
         await _test_gwy_device(gwy, test_idx)
-    except SerialException as err:
+    except (ser.SerialException, exc.TransportSerialError) as err:
         _global_failed_ports.append(gwy.ser_name)
         pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
 
@@ -257,7 +257,7 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
 
     try:
         await _test_gwy_device(gwy, test_idx)
-    except SerialException as err:
+    except (ser.SerialException, exc.TransportSerialError) as err:
         _global_failed_ports.append(gwy.ser_name)
         pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
 
