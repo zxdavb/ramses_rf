@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 import voluptuous as vol
 
@@ -75,26 +75,26 @@ if DEV_MODE:
 
 #
 # 0/5: Schema strings
-SZ_SCHEMA = "schema"
-SZ_MAIN_TCS = "main_tcs"
+SZ_SCHEMA: Final[str] = "schema"
+SZ_MAIN_TCS: Final[str] = "main_tcs"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DevType.CTL]
-SZ_SYSTEM = "system"
+SZ_SYSTEM: Final[str] = "system"
 SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DevRole.APP]
-SZ_ORPHANS = "orphans"
-SZ_ORPHANS_HEAT = "orphans_heat"
-SZ_ORPHANS_HVAC = "orphans_hvac"
+SZ_ORPHANS: Final[str] = "orphans"
+SZ_ORPHANS_HEAT: Final[str] = "orphans_heat"
+SZ_ORPHANS_HVAC: Final[str] = "orphans_hvac"
 
-SZ_DHW_SYSTEM = "stored_hotwater"
+SZ_DHW_SYSTEM: Final[str] = "stored_hotwater"
 SZ_DHW_SENSOR = DEV_ROLE_MAP[DevRole.DHW]
 SZ_DHW_VALVE = DEV_ROLE_MAP[DevRole.HTG]
 SZ_HTG_VALVE = DEV_ROLE_MAP[DevRole.HT1]
 
-SZ_SENSOR_FAKED = "sensor_faked"
+SZ_SENSOR_FAKED: Final[str] = "sensor_faked"
 
-SZ_UFH_SYSTEM = "underfloor_heating"
+SZ_UFH_SYSTEM: Final[str] = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP[DevType.UFC]  # ufh_controller
-SZ_CIRCUITS = "circuits"
+SZ_CIRCUITS: Final[str] = "circuits"
 
 HEAT_ZONES_STRS = tuple(ZON_ROLE_MAP[t] for t in ZON_ROLE_MAP.HEAT_ZONES)
 
@@ -191,8 +191,8 @@ SCH_TCS = vol.Schema(
 
 #
 # 2/5: Schemas for Ventilation control systems, aka HVAC/VCS
-SZ_REMOTES = "remotes"
-SZ_SENSORS = "sensors"
+SZ_REMOTES: Final[str] = "remotes"
+SZ_SENSORS: Final[str] = "sensors"
 
 SCH_VCS_DATA = vol.Schema(
     {
@@ -238,12 +238,12 @@ SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA
 
 #
 # 4/5: Gateway (parser/state) configuration
-SZ_DISABLE_DISCOVERY = "disable_discovery"
-SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
-SZ_MAX_ZONES = "max_zones"  # TODO: move to TCS-attr from GWY-layer
-SZ_REDUCE_PROCESSING = "reduce_processing"
-SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
-SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
+SZ_DISABLE_DISCOVERY: Final[str] = "disable_discovery"
+SZ_ENABLE_EAVESDROP: Final[str] = "enable_eavesdrop"
+SZ_MAX_ZONES: Final[str] = "max_zones"  # TODO: move to TCS-attr from GWY-layer
+SZ_REDUCE_PROCESSING: Final[str] = "reduce_processing"
+SZ_USE_ALIASES: Final[str] = "use_aliases"  # use friendly device names from known_list
+SZ_USE_NATIVE_OT: Final[str] = "use_native_ot"  # favour OT (3220s) over RAMSES
 
 SCH_GATEWAY_DICT = {
     vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
@@ -264,7 +264,7 @@ SCH_GATEWAY_CONFIG = vol.Schema(SCH_GATEWAY_DICT, extra=vol.REMOVE_EXTRA)
 
 #
 # 5/5: the Global (gateway) Schema
-SZ_CONFIG = "config"
+SZ_CONFIG: Final[str] = "config"
 
 SCH_GLOBAL_CONFIG = (
     vol.Schema(
@@ -298,9 +298,9 @@ def NormaliseRestoreCache() -> Callable:
     return normalise_restore_cache
 
 
-SZ_RESTORE_CACHE = "restore_cache"
-SZ_RESTORE_SCHEMA = "restore_schema"
-SZ_RESTORE_STATE = "restore_state"
+SZ_RESTORE_CACHE: Final[str] = "restore_cache"
+SZ_RESTORE_SCHEMA: Final[str] = "restore_schema"
+SZ_RESTORE_STATE: Final[str] = "restore_state"
 
 SCH_RESTORE_CACHE_DICT = {
     vol.Optional(SZ_RESTORE_CACHE, default=True): vol.Any(
