@@ -11,7 +11,7 @@ import asyncio
 import logging
 import re
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import voluptuous as vol
 
@@ -44,22 +44,36 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
-SZ_RESPONDENT = "respondent"
-SZ_SUPPLICANT = "supplicant"
-SZ_IS_DORMANT = "is_dormant"
+SZ_RESPONDENT: Final[str] = "respondent"
+SZ_SUPPLICANT: Final[str] = "supplicant"
+SZ_IS_DORMANT: Final[str] = "is_dormant"
 
 
-CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of sends
-SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
+CONFIRM_RETRY_LIMIT: Final[
+    int
+] = 3  # automatically Bound, from Confirming > this # of sends
+SENDING_RETRY_LIMIT: Final[
+    int
+] = 3  # fail Offering/Accepting if no reponse > this # of sends
 
-CONFIRM_TIMEOUT_SECS = 3  # automatically Bound, from BoundAccepted > this # of seconds
-WAITING_TIMEOUT_SECS = 5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+CONFIRM_TIMEOUT_SECS: Final[
+    int
+] = 3  # automatically Bound, from BoundAccepted > this # of seconds
+WAITING_TIMEOUT_SECS: Final[
+    int
+] = 5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
 
 # raise a BindTimeoutError if expected Pkt is not received before this number of seconds
-_TENDER_WAIT_TIME = WAITING_TIMEOUT_SECS  # resp. listening for Offer
-_ACCEPT_WAIT_TIME = WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
-_AFFIRM_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
-_RATIFY_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
+_TENDER_WAIT_TIME: Final[int] = WAITING_TIMEOUT_SECS  # resp. listening for Offer
+_ACCEPT_WAIT_TIME: Final[
+    int
+] = WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
+_AFFIRM_WAIT_TIME: Final[
+    int
+] = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
+_RATIFY_WAIT_TIME: Final[
+    int
+] = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
 
 
 BINDING_QOS = QosParams(
@@ -76,11 +90,11 @@ class Vendor(StrEnum):
     DEFAULT = "default"
 
 
-SZ_CLASS = "class"
-SZ_VENDOR = "vendor"
-SZ_TENDER = "tender"
-SZ_AFFIRM = "affirm"
-SZ_RATIFY = "thumbrint"
+SZ_CLASS: Final[str] = "class"
+SZ_VENDOR: Final[str] = "vendor"
+SZ_TENDER: Final[str] = "tender"
+SZ_AFFIRM: Final[str] = "affirm"
+SZ_RATIFY: Final[str] = "thumbrint"
 
 # VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
 VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))
