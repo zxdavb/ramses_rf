@@ -9,9 +9,10 @@ import asyncio
 import json
 import logging
 from datetime import datetime as dt, timedelta as td
+from typing import TYPE_CHECKING
 
 from ramses_rf import exceptions as exc
-from ramses_tx import Command
+from ramses_tx import Command, Message
 from ramses_tx.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -21,6 +22,9 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     W_,
     Code,
 )
+
+if TYPE_CHECKING:
+    from ramses_rf.system.heat import Evohome
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,7 +38,7 @@ TIMER_LONG_TIMEOUT = td(seconds=60)
 class FaultLog:  # 0418  # TODO: used a NamedTuple
     """The fault log of a system."""
 
-    def __init__(self, ctl, **kwargs) -> None:
+    def __init__(self, ctl: Evohome) -> None:
         _LOGGER.debug("FaultLog(ctl=%s).__init__()", ctl)
 
         self._loop = ctl._gwy._loop
@@ -56,16 +60,9 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
     def __str__(self) -> str:
         return f"{self.ctl} (fault log)"
 
-    # @staticmethod
-    # def _is_valid_operand(other) -> bool:
-    #     return hasattr(other, "verb") and hasattr(other, "_pkt")
-
-    # def __eq__(self, other) -> bool:
-    #     if not self._is_valid_operand(other):
-    #         return NotImplemented
-    #     return (self.verb, self._pkt.payload) == (other.verb, self._pkt.payload)  # type: ignore[no-any-return]
-
-    async def get_faultlog(self, start=0, limit=6, force_refresh=None) -> dict | None:
+    async def get_faultlog(
+        self, start: int = 0, limit: int = 6, force_refresh: bool | None = None
+    ) -> dict | None:
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
 
@@ -88,11 +85,11 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
         return self.faultlog
 
-    def _rq_log_entry(self, log_idx=0):
+    def _rq_log_entry(self, log_idx: int = 0):
         """Request the next log entry."""
         _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
 
-        def rq_callback(msg) -> None:
+        def rq_callback(msg: Message) -> None:
             _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
 
             if not msg:
