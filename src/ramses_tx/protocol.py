@@ -617,7 +617,7 @@ class QosProtocol(PortProtocol):
         super().__init__(msg_handler)
 
         self._context = ProtocolContext(self)
-        self._selective_qos = selective_qos
+        self._selective_qos = selective_qos  # QoS for some commands
 
     def __repr__(self) -> str:
         cls = self._context.state.__class__.__name__
@@ -691,8 +691,10 @@ class QosProtocol(PortProtocol):
                 await asyncio.sleep(gap_duration)
                 await self._send_frame(str(kmd))
 
+        _CODES = (Code._0006, Code._0404, Code._1FC9)  # must have QoS
+
         # selective QoS (HACK) or the cmd does not want QoS
-        if (self._selective_qos and cmd.code != Code._1FC9) or qos is None:
+        if (self._selective_qos and cmd.code not in _CODES) or qos is None:
             return await send_cmd(cmd)  # type: ignore[func-returns-value]
 
         if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):

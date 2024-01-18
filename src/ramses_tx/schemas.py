@@ -349,8 +349,8 @@ SZ_USE_REGEX = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-    vol.Optional(SZ_DISABLE_QOS, default=True): vol.Any(
-        None,  # None is selective QoS (e.g. QoS only for bindings)
+    vol.Optional(SZ_DISABLE_QOS, default=None): vol.Any(
+        None,  # None is selective QoS (e.g. QoS only for bindings, schedule, etc.)
         bool,
     ),  # in long term, this default to be True (and no None)
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
