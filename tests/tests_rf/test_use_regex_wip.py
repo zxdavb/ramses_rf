@@ -164,6 +164,7 @@ async def test_regex_with_qos():
     rf = VirtualRf(2)
 
     config = GWY_CONFIG
+    config["config"].update({"disable_qos": False})  # currently, default is None
     config["config"].update(
         {SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND, SZ_OUTBOUND: RULES_OUTBOUND}}
     )
@@ -183,7 +184,7 @@ async def test_regex_with_qos():
 
         for before, after in TESTS_OUTBOUND.items():
             cmd = Command(before)
-            if cmd.rx_header:  # we weont be getting any replies
+            if cmd.rx_header:  # we wont be getting any replies
                 continue
 
             pkt_src = await gwy_0.async_send_cmd(cmd)  # , timeout=DEFAULT_WAIT_TIMEOUT)
