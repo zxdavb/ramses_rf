@@ -63,10 +63,7 @@ def _mk_cmd(verb: VerbT, code: Code, payload: str, dest_id) -> Command:
 
 def script_decorator(fnc):
     def wrapper(gwy: Gateway, *args, **kwargs):
-        highest = {
-            SZ_PRIORITY: Priority.HIGHEST,
-            SZ_RETRIES: 3,
-        }
+        highest = {SZ_PRIORITY: Priority.HIGHEST, SZ_RETRIES: 3}
         gwy.send_cmd(Command._puzzle(message="Script begins:"), qos=highest)
 
         result = fnc(gwy, *args, **kwargs)
