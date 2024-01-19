@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import (
@@ -37,16 +37,16 @@ if TYPE_CHECKING:
     from ramses_rf import Gateway, IndexT, VerbT
 
 
-EXEC_CMD = "exec_cmd"
-GET_FAULTS = "get_faults"
-GET_SCHED = "get_schedule"
-SET_SCHED = "set_schedule"
+EXEC_CMD: Final[str] = "exec_cmd"
+GET_FAULTS: Final[str] = "get_faults"
+GET_SCHED: Final[str] = "get_schedule"
+SET_SCHED: Final[str] = "set_schedule"
 
-EXEC_SCR = "exec_scr"
-SCAN_DISC = "scan_disc"
-SCAN_FULL = "scan_full"
-SCAN_HARD = "scan_hard"
-SCAN_XXXX = "scan_xxxx"
+EXEC_SCR: Final[str] = "exec_scr"
+SCAN_DISC: Final[str] = "scan_disc"
+SCAN_FULL: Final[str] = "scan_full"
+SCAN_HARD: Final[str] = "scan_hard"
+SCAN_XXXX: Final[str] = "scan_xxxx"
 
 # DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
