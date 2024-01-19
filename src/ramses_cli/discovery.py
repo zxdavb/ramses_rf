@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Final
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import (
-    SZ_DISABLE_BACKOFF,
     SZ_PRIORITY,
     SZ_RETRIES,
     SZ_SCHEDULE,
@@ -67,13 +66,12 @@ def script_decorator(fnc):
         highest = {
             SZ_PRIORITY: Priority.HIGHEST,
             SZ_RETRIES: 3,
-            SZ_DISABLE_BACKOFF: True,
         }
         gwy.send_cmd(Command._puzzle(message="Script begins:"), qos=highest)
 
         result = fnc(gwy, *args, **kwargs)
 
-        lowest = {SZ_PRIORITY: Priority.LOWEST, SZ_RETRIES: 3, SZ_DISABLE_BACKOFF: True}
+        lowest = {SZ_PRIORITY: Priority.LOWEST, SZ_RETRIES: 3}
         gwy.send_cmd(Command._puzzle(message="Script done."), qos=lowest)
 
         return result

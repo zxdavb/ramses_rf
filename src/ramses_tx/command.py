@@ -20,7 +20,6 @@ from .const import (
     SYS_MODE_MAP,
     SZ_BACKOFF,
     SZ_DHW_IDX,
-    SZ_DISABLE_BACKOFF,
     SZ_PRIORITY,
     SZ_QOS,
     SZ_RETRIES,
@@ -1345,7 +1344,6 @@ class Command(Frame):
         qos: dict[str, Priority | bool | int | float] = {}
         qos[SZ_PRIORITY] = qos.get(SZ_PRIORITY, Priority.HIGHEST)
         if msg_type == "10":
-            qos[SZ_DISABLE_BACKOFF] = qos.get(SZ_DISABLE_BACKOFF, True)
             qos[SZ_RETRIES] = qos.get(SZ_RETRIES, 12)
 
         payload = f"00{msg_type}"

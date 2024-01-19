@@ -30,7 +30,6 @@ DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 
 SZ_BACKOFF: Final[str] = "backoff"
-SZ_DISABLE_BACKOFF: Final[str] = "disable_backoff"
 SZ_PRIORITY: Final[str] = "priority"
 SZ_QOS: Final[str] = "qos"
 SZ_RETRIES: Final[str] = "retries"
