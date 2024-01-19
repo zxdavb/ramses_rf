@@ -18,7 +18,6 @@ from .const import (
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     SYS_MODE_MAP,
-    SZ_BACKOFF,
     SZ_DHW_IDX,
     SZ_PRIORITY,
     SZ_QOS,
@@ -92,7 +91,7 @@ class Qos:
 
     TX_BACKOFFS_MAX = 2  # i.e. tx_timeout 2 ** MAX_BACKOFF
 
-    QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT, SZ_BACKOFF)
+    QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT)
     # priority, retries, rx_timeout, backoff
     DEFAULT_QOS = (Priority.DEFAULT, TX_RETRIES_DEFAULT, TX_TIMEOUT_DEFAULT, True)
     DEFAULT_QOS_TABLE = {
