@@ -395,14 +395,6 @@ class Command(Frame):
         # e.g.: 000A|RQ|01:145038|08
         return super().__repr__()  # TODO: self._hdr
 
-    @staticmethod
-    def _is_valid_operand(other: Any) -> bool:
-        return (
-            hasattr(other, "_dtm")
-            and hasattr(other, "_qos")
-            and hasattr(other._qos, "priority")
-        )
-
     @property
     def tx_header(self) -> HeaderT:
         """Return the QoS header of this (request) packet."""
