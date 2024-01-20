@@ -110,10 +110,10 @@ class Qos:
     def __init__(
         self,
         *,
-        priority: Priority | None = None,
-        retries: int | None = None,
-        timeout: td | None = None,
-        backoff: bool | None = None,
+        priority: Priority | None = None,  # TODO: deprecate
+        retries: int | None = None,  # TODO:       deprecate
+        timeout: td | None = None,  # TODO:        deprecate
+        backoff: bool | None = None,  # TODO:      deprecate
     ) -> None:
         self.priority = self.DEFAULT_QOS[0] if priority is None else priority
         self.retry_limit = self.DEFAULT_QOS[1] if retries is None else retries
