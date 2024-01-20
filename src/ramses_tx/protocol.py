@@ -702,9 +702,6 @@ class QosProtocol(PortProtocol):
                 f"{self}: Failed to send {cmd._hdr}: excluded by list"
             )
 
-        if qos is None:
-            qos = QosParams()
-
         try:
             return await self._context.send_cmd(send_cmd, cmd, priority, qos)
         # except InvalidStateError as err:  # TODO: handle InvalidStateError separately
