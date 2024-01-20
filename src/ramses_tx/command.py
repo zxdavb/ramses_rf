@@ -250,15 +250,17 @@ class Command(Frame):
         except exc.PacketInvalid as err:
             raise exc.CommandInvalid from err
 
-        # used by app layer: callback (protocol.py: func, args, daemon, timeout)
-        self._cbk = callback or {}
-        # used by msg layer (for which cmd to send next, with _qos.priority)
-        self._dtm = dt_now()
-        # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
-        self._qos = _qos_params(self.verb, self.code, qos or {})
-
         self._rx_header: str | None = None
         # self._source_entity: Entity | None = None  # TODO: is needed?
+
+        # used by msg layer (for which cmd to send next, with _qos.priority)
+        self._dtm = dt_now()  # TODO: is needed? deprecate
+
+        # used by app layer: callback (protocol.py: func, args, daemon, timeout)
+        self._cbk = callback or {}  # TODO: deprecated
+
+        # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
+        self._qos = _qos_params(self.verb, self.code, qos or {})  # TODO: deprecated
 
         self._validate(strict_checking=False)
 
