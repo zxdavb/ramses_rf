@@ -31,7 +31,8 @@ DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pk
 
 SZ_PRIORITY: Final[str] = "priority"
 SZ_QOS: Final[str] = "qos"
-SZ_RETRIES: Final[str] = "retries"
+SZ_RETRIES: Final[str] = "retries"  # TODO: deprecate
+SZ_MAX_RETRIES: Final[str] = "max_retries"
 SZ_TIMEOUT: Final[str] = "timeout"
 
 # these are used by QoS
