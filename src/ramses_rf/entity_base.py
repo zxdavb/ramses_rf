@@ -122,7 +122,9 @@ class _Entity:
         # if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
         #     self.deprecate_device(msg._pkt, reset=True)
 
-    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
+    def _make_and_send_cmd(
+        self, code, dest_id, payload="00", verb=RQ, **kwargs
+    ) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
     # FIXME: this is a mess - to deprecate for async version?

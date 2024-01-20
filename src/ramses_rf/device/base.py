@@ -134,8 +134,8 @@ class DeviceBase(Entity):
 
         pass
 
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
-        super()._make_cmd(code, self.id, payload=payload, **kwargs)
+    def _make_and_send_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
+        super()._make_and_send_cmd(code, self.id, payload=payload, **kwargs)
 
     def _send_cmd(self, cmd: Command, **kwargs) -> None:
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:

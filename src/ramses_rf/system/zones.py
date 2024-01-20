@@ -120,9 +120,9 @@ class ZoneBase(Child, Parent, Entity):
             return NotImplemented
         return self.idx < other.idx  # type: ignore[no-any-return]
 
-    def _make_cmd(self, code, **kwargs) -> None:
+    def _make_and_send_cmd(self, code, **kwargs) -> None:
         payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")
-        super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
+        super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
     def heating_type(self) -> str:
@@ -631,7 +631,9 @@ class Zone(ZoneSchedule, ZoneBase):
 
             # TODO: testing this concept, hoping to learn device_id of UFC
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
-                self._make_cmd(Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
+                self._make_and_send_cmd(
+                    Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}"
+                )
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (
