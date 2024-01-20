@@ -76,10 +76,9 @@
 ### mypy #############################################################################
 
 [tool.mypy]
-  # files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
   files = [
     "client.py",
-    # "src/ramses_cli/discovery.py",
+    "src/ramses_cli",
     #
     "src/ramses_rf/*.py",
     "src/ramses_rf/system/schedule.py",
@@ -90,7 +89,7 @@
     #
   ]
 
-  # exclude = []  # doesn't work?
+  exclude = ["src/ramses_cli/client.py", "src/ramses_cli/utils/*"]
 
 
   follow_imports = "skip"  # TODO: don't use this feature

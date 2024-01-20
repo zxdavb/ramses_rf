@@ -20,7 +20,7 @@ from ramses_tx import CODES_SCHEMA, Command, Priority
 from ramses_tx.opentherm import OTB_MSG_IDS
 
 # Beware, none of this is reliable - it is all subject to random change
-# However, these serve as examples how to us eteh other modules
+# However, these serve as examples how to use the other modules
 
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -32,7 +32,7 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 )
 
 if TYPE_CHECKING:
-    from ramses_rf import Gateway, IndexT, VerbT
+    from ramses_rf import Gateway, IndexT
 
 
 EXEC_CMD: Final[str] = "exec_cmd"
@@ -48,15 +48,10 @@ SCAN_XXXX: Final[str] = "scan_xxxx"
 
 # DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
-QOS_SCAN = {SZ_PRIORITY: Priority.LOW, "max_retries": 0}
+QOS_SCAN: dict[str, int] = {SZ_PRIORITY: Priority.LOW, "num_repeats": 0}
 
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _mk_cmd(verb: VerbT, code: Code, payload: str, dest_id) -> Command:
-    """A convenience function, to cope with a change to the Command class."""
-    return Command.from_attrs(verb, dest_id, code, payload)
 
 
 def script_decorator(fnc):
@@ -108,15 +103,15 @@ def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task]:
 
 
 async def exec_cmd(gwy: Gateway, **kwargs):
-    await gwy.async_send_cmd(Command.from_cli(kwargs[EXEC_CMD], Priority=Priority.HIGH))
+    await gwy.async_send_cmd(Command.from_cli(kwargs[EXEC_CMD], priority=Priority.HIGH))
 
 
 # @script_decorator
 # async def script_scan_001(gwy: Gateway, dev_id: str):
 #     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 #     for idx in range(0x10):
-#         gwy.send_cmd(_mk_cmd(W_, Code._000E, f"{idx:02X}0050", dev_id))
-#         gwy.send_cmd(_mk_cmd(RQ, Code._000E, f"{idx:02X}00C8", dev_id))
+#         gwy.send_cmd(Command.from_attrs(W_, dev_id, Code._000E, f"{idx:02X}0050"))
+#         gwy.send_cmd(Command.from_attrs(RQ, dev_id, Code._000E, f"{idx:02X}00C8"))
 
 
 async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3F):
@@ -168,7 +163,7 @@ def script_poll_device(gwy: Gateway, dev_id: str) -> list:
     ):
         async def periodic_(interval_: float) -> None:
             await asyncio.sleep(interval_)
-            gwy.send_cmd(cmd, **QOS_SCAN)
+            gwy.send_cmd(cmd, **QOS_SCAN)  # type: ignore[arg-type]
 
         if interval is None:
             interval = 0 if count == 1 else 60
@@ -185,7 +180,7 @@ def script_poll_device(gwy: Gateway, dev_id: str) -> list:
     tasks = []
 
     for code in (Code._0016, Code._1FC9):
-        cmd = _mk_cmd(RQ, code, "00", dev_id)
+        cmd = Command.from_attrs(RQ, dev_id, code, "00")
         tasks.append(gwy._loop.create_task(periodic_send(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
@@ -203,24 +198,24 @@ async def script_scan_disc(gwy: Gateway, dev_id: str):
 async def script_scan_full(gwy: Gateway, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
-    gwy.send_cmd(_mk_cmd(RQ, Code._0016, "0000", dev_id), num_repeats=3)
+    gwy.send_cmd(Command.from_attrs(RQ, dev_id, Code._0016, "0000"), num_repeats=3)
 
     for code in sorted(CODES_SCHEMA):
         if code == Code._0005:
             for zone_type in range(20):  # known up to 18
-                gwy.send_cmd(_mk_cmd(RQ, code, f"00{zone_type:02X}", dev_id))
+                gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, f"00{zone_type:02X}"))
 
         elif code == Code._000C:
             for zone_idx in range(16):  # also: FA-FF?
-                gwy.send_cmd(_mk_cmd(RQ, code, f"{zone_idx:02X}00", dev_id))
+                gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, f"{zone_idx:02X}00"))
 
         elif code == Code._0016:
             continue
 
         elif code in (Code._01D0, Code._01E9):
             for zone_idx in ("00", "01", "FC"):  # type: ignore[assignment]
-                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}00", dev_id))
-                gwy.send_cmd(_mk_cmd(W_, code, f"{zone_idx}03", dev_id))
+                gwy.send_cmd(Command.from_attrs(W_, dev_id, code, f"{zone_idx}00"))
+                gwy.send_cmd(Command.from_attrs(W_, dev_id, code, f"{zone_idx}03"))
 
         elif code == Code._0404:  # FIXME
             gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 1, 0))
@@ -248,14 +243,14 @@ async def script_scan_full(gwy: Gateway, dev_id: str):
             and RQ in CODES_SCHEMA[code]
             and re.match(CODES_SCHEMA[code][RQ], "00")
         ):
-            gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id))
+            gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "00"))
 
         else:
-            gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id))
+            gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "0000"))
 
     # these are possible/difficult codes
     for code in (Code._0150, Code._2389):
-        gwy.send_cmd(_mk_cmd(RQ, code, "0000", dev_id))
+        gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "0000"))
 
 
 @script_decorator
@@ -266,8 +261,8 @@ async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int 
 
     for code in range(start_code, 0x5000):
         await gwy.async_send_cmd(
-            _mk_cmd(RQ, f"{code:04X}", "0000", dev_id),  # type:ignore[arg-type]
-            **QOS_SCAN,
+            Command.from_attrs(RQ, dev_id, f"{code:04X}", "0000"),  # type:ignore[arg-type]
+            **QOS_SCAN,  # type: ignore[arg-type]
         )
 
 
@@ -286,7 +281,7 @@ async def script_scan_fan(gwy: Gateway, dev_id: str):
         c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in OUT_CODES
     )
     for code in OLD_CODES:
-        gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id))
+        gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "00"))
 
     NEW_CODES = (
         Code._0150,
@@ -315,7 +310,7 @@ async def script_scan_fan(gwy: Gateway, dev_id: str):
 
     for code in NEW_CODES:
         if code not in OLD_CODES and code not in OUT_CODES:
-            gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id))
+            gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "00"))
 
 
 @script_decorator
@@ -331,7 +326,7 @@ async def script_scan_otb_hard(gwy: Gateway, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     for msg_id in range(0x80):
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), **QOS_SCAN)
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), **QOS_SCAN)  # type: ignore[arg-type]
 
 
 @script_decorator
@@ -352,8 +347,8 @@ async def script_scan_otb_map(gwy: Gateway, dev_id: str):  # Tested only upon a 
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
-        gwy.send_cmd(_mk_cmd(RQ, code, "00", dev_id), **QOS_SCAN)
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), **QOS_SCAN)
+        gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "00"), **QOS_SCAN)  # type: ignore[arg-type]
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), **QOS_SCAN)  # type: ignore[arg-type]
 
 
 @script_decorator
@@ -389,12 +384,7 @@ async def script_scan_otb_ramses(
         Code._3EF1,  # rel. modulation level  / RelativeModulationLevel
     )  # excl. 3220
 
-    # 3EF0 also includes:
-    #  - boiler status        /
-    #  - ch setpoint          /
-    #  - max. rel. modulation /
-
-    [gwy.send_cmd(_mk_cmd(RQ, c, "00", dev_id), **QOS_SCAN) for c in CODES]
+    [gwy.send_cmd(Command.from_attrs(RQ, dev_id, c, "00"), **QOS_SCAN) for c in CODES]  # type: ignore[arg-type]
 
 
 SCRIPTS = {
