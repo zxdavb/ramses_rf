@@ -686,15 +686,6 @@ def parser_0404(payload: str, msg: Message) -> dict:
 
 # system_fault
 def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
-    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B006F604000000711607697FFFFF7000348A86  # COMMS FAULT, CHANGEOVER
-    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa: E501
-    # RP --- 01:145038 18:013393 --:------ 0418 022 000036B0010000000000108000007FFFFF7000000000  # noqa: E501
-    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa: E501
-    # .I --- 01:037519 --:------ 01:037519 0418 022 000000B0050000000000239581877FFFFF7000000001  # Evotouch Battery Error  # noqa: E501
-    # RP --- 01:037519 18:140805 --:------ 0418 022 004024B0060006000000CB94A112FFFFFF70007AD47D  # noqa: E501
-    #                                                 0     0   1     1            3        3
-    #                                                 2     8   2     8            0        8
-
     # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
     if hex_to_dts(payload[18:30]) is None:  # a null log entry
