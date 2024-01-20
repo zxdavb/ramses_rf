@@ -63,9 +63,7 @@ from ramses_tx import (
     Command,
     Message,
     Packet,
-    Priority,
 )
-from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
 
 from .faultlog import FaultLog
 from .zones import DhwZone, Zone
@@ -240,19 +238,6 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if msg.code == Code._0008:
             if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
                 self._relay_demands[domain_id] = msg
-                if domain_id == F9:
-                    device = self.dhw.heating_valve if self.dhw else None
-                elif domain_id == "xFA":  # TODO, FIXME
-                    device = self.dhw.hotwater_valve if self.dhw else None
-                elif domain_id == FC:
-                    device = self.appliance_control
-                else:
-                    device = None
-
-                if False and device is not None:  # TODO: FIXME
-                    qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 2}
-                    for code in (Code._0008, Code._3EF1):
-                        device._make_cmd(code, qos)
 
         elif msg.code == Code._3150:
             if msg.payload.get(SZ_DOMAIN_ID) == FC and msg.verb in (I_, RP):
