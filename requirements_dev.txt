@@ -7,7 +7,7 @@
 # used for development
   mypy>=1.8.0
   pre-commit>=3.6.0
-  ruff>=0.1.8
+  ruff>=0.1.12       # HA is using 0.1.8
 
 # used for testing
   pytest>=7.4.3

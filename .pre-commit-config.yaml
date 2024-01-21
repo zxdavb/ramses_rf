@@ -1,15 +1,20 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb
-# last updated 2023-11-28
+# last updated 2024-01-21
 
-# exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
 exclude: (^.secrets/|^docs/|^misc|tests/deprecated)
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+    rev: v0.1.12
     hooks:
       - id: ruff         # linter
       - id: ruff-format  # formatter
+
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #   - id: mypy
+  #     additional_dependencies: [voluptuous==0.14.1]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
