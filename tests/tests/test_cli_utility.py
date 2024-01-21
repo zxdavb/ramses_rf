@@ -61,7 +61,7 @@ LIB_CONFIG_BASE = {
 }
 
 LIB_CONFIG_EXECUTE = {
-    "config": {"reduce_processing": 0, "evofw_flag": None, "disable_discovery": False},
+    "config": {"reduce_processing": 0, "evofw_flag": None, "disable_discovery": True},
     "serial_port": "/dev/ttyUSB0",
     "packet_log": None,
 }

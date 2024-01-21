@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import sys
+from typing import Final
 
 import click
 from colorama import Fore, Style, init as colorama_init
@@ -51,7 +52,7 @@ if _PROFILE_LIBRARY:
     import pstats
 
 
-SZ_INPUT_FILE = "input_file"
+SZ_INPUT_FILE: Final[str] = "input_file"
 
 # DEFAULT_SUMMARY can be: True, False, or None
 SHOW_SCHEMA = False
@@ -314,10 +315,10 @@ def execute(obj, **kwargs):
     config, lib_config = split_kwargs(obj, kwargs)
 
     print(" - discovery is force-disabled")
-    lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
+    lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
 
     if kwargs[GET_FAULTS]:
-        known_list = {kwargs[GET_FAULTS][0]: {}}
+        known_list = {kwargs[GET_FAULTS]: {}}
     elif kwargs[GET_SCHED][0]:
         known_list = {kwargs[GET_SCHED][0]: {}}
     elif kwargs[SET_SCHED][0]:
@@ -349,7 +350,7 @@ def listen(obj, **kwargs):
 
 def print_results(gwy: Gateway, **kwargs):
     if kwargs[GET_FAULTS]:
-        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
+        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._faultlog.fault_log
 
         if fault_log is None:
             print("No fault log, or failed to get the fault log.")
