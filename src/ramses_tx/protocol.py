@@ -282,6 +282,8 @@ class _BaseProtocol(asyncio.Protocol):
 
     @property
     def hgi_id(self) -> DeviceIdT:
+        if not self._transport:
+            return HGI_DEV_ADDR.id  # better: known_hgi or HGI_DEV_ADDR.id?
         hgi_id: DeviceIdT | None = self._transport.get_extra_info(SZ_ACTIVE_HGI)
         if hgi_id is not None:
             return hgi_id
