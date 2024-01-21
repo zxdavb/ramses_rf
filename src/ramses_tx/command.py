@@ -28,7 +28,6 @@ from .const import (
 )
 from .frame import Frame, pkt_header
 from .helpers import (
-    dt_now,
     hex_from_bool,
     hex_from_double,
     hex_from_dtm,
@@ -240,9 +239,7 @@ class Command(Frame):
     They have QoS and/or callbacks (but no RSSI).
     """
 
-    def __init__(
-        self, frame: str, qos: dict | None = None, callback: dict | None = None
-    ) -> None:
+    def __init__(self, frame: str, qos: dict | None = None) -> None:
         """Create a command from a string (and its meta-attrs)."""
 
         try:
@@ -253,11 +250,8 @@ class Command(Frame):
         self._rx_header: str | None = None
         # self._source_entity: Entity | None = None  # TODO: is needed?
 
-        # used by msg layer (for which cmd to send next, with _qos.priority)
-        self._dtm = dt_now()  # TODO: is needed? deprecate
-
-        # used by app layer: callback (protocol.py: func, args, daemon, timeout)
-        self._cbk = callback or {}  # TODO: deprecated
+        # # used by msg layer (for which cmd to send next, with _qos.priority)
+        # self._dtm = dt_now()  # TODO: is needed? deprecate
 
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
         self._qos = _qos_params(self.verb, self.code, qos or {})  # TODO: deprecated
