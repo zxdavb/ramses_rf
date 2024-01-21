@@ -367,7 +367,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         elif dev_id in self._include:
             pass
         elif self.enforce_include:
-            _LOGGER.error(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
+            _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
+            # self._include.append(dev_id)  # a good idea?
         else:
             _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
