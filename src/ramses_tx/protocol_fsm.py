@@ -174,10 +174,10 @@ class ProtocolContext:
         """
 
         def is_future_done(item: tuple) -> bool:
-            """Return True if the item's Future is done."""
+            """Return True if the item's Future is done (condition)."""
             fut: asyncio.Future  # mypy
             *_, fut = item
-            return fut.done()
+            return fut.done()  # usu. because expired?
 
         def remove_unwanted_items(queue: PriorityQueue, condition: Callable):
             """Removes all entries from the queue that satisfy the condition.."""
@@ -211,7 +211,9 @@ class ProtocolContext:
         self._ensure_queue_processor()  # because just added job to send queue
 
         try:
-            pkt: Packet = await asyncio.wait_for(fut, timeout)
+            pkt: Packet = await asyncio.wait_for(
+                fut, timeout
+            )  # TODO: return message instead?
         except asyncio.TimeoutError as err:
             self.set_state(IsFailed)
             raise exc.ProtocolSendFailed(
