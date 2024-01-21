@@ -332,12 +332,17 @@ class Gateway(Engine):
                     f" (if required, remove it from the {SZ_BLOCK_LIST})"
                 )
 
-        check_filter_lists(device_id)
+        try:
+            check_filter_lists(device_id)
+        except LookupError:
+            # have to allow for GWY not being in known_list...
+            if device_id != self._protocol.hgi_id:
+                raise  # TODO: make parochial
 
         dev = self.device_by_id.get(device_id)
 
         if not dev:
-            traits = SCH_TRAITS(self._include.get(device_id, {}))
+            traits: dict = SCH_TRAITS(self._include.get(device_id, {}))
 
             dev = device_factory(self, Address(device_id), msg=msg, **traits)
 
