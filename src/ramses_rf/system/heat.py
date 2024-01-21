@@ -707,9 +707,9 @@ class Logbook(SystemBase):  # 0418
         self._prev_fault: Message = None  # type: ignore[assignment]
         self._this_fault: Message = None  # type: ignore[assignment]
 
-        # FaultLog(self.ctl)
-        self._faultlog: FaultLog = None  # type: ignore[assignment]
-        self._faultlog_outdated: bool = True
+        self._faultlog: FaultLog = (
+            None  # FIXME: FaultLog(self)  # type: ignore[assignment]
+        )
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -722,8 +722,13 @@ class Logbook(SystemBase):  # 0418
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
+        return  # FIXME
+
         if msg.code != Code._0418:
             return
+
+        # if msg.code == Code._0418:
+        #     self._faultlog._handle_msg(msg)
 
         if msg.payload["log_idx"] == "00":
             if not self._this_event or (
@@ -743,19 +748,20 @@ class Logbook(SystemBase):  # 0418
         # if msg.payload["log_entry"][1] == "restore" and not self._this_fault:
         #     self._send_cmd(Command.get_system_log_entry(self.ctl.id, 1))
 
-        # TODO: if self._faultlog_outdated:
+        # TODO: if self._faultlog.outdated:
         #     if not self._gwy._read_only:
-        #         self._loop.create_task(self.get_faultlog(force_io=True))
+        #         self._loop.create_task(self.get_faultlog(force_refresh=True))
 
     async def get_faultlog(
-        self, *, start=None, limit=None, force_io=None
+        self,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+        force_refresh: bool = False,
     ) -> dict | None:
-        if self._gwy._disable_sending:
-            raise RuntimeError("Sending is disabled")
-
         try:
             return await self._faultlog.get_faultlog(
-                start=start, limit=limit, force_io=force_io
+                start=start, limit=limit, force_refresh=force_refresh
             )
         except (exc.ExpiredCallbackError, RuntimeError):
             return None
