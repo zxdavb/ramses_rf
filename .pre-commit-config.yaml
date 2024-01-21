@@ -5,16 +5,10 @@ exclude: (^.secrets/|^docs/|^misc|tests/deprecated)
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.12
+    rev: v0.1.14
     hooks:
       - id: ruff         # linter
       - id: ruff-format  # formatter
-
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.8.0
-  #   hooks:
-  #   - id: mypy
-  #     additional_dependencies: [voluptuous==0.14.1]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
@@ -63,3 +57,30 @@ repos:
     #   language: pygrep
     #   args: [-i]
     #   exclude: .pre-commit-config.yaml  # avoid false +ve
+
+    # We do not use pre-commit/mirrors-mypy, as it comes with opinionated defaults
+    # (like --ignore-missing-imports) and is difficult to configure to run
+    # with the dependencies correctly installed.
+
+    # - id: mypy
+    #   name: check mypy
+    #   entry: mypy
+    #   language: python
+    #   additional_dependencies: [voluptuous==0.14.1]
+    #   types: [python]
+    #   # use require_serial so that script is only called once per commit
+    #   require_serial: true
+    #   # Print the number of files as a sanity-check
+    #   verbose: true
+    #   args: ["--config-file", "./pyproject.toml"]
+
+  # We do not use pre-commit/mirrors-mypy, as it comes with opinionated defaults
+  # (like --ignore-missing-imports) and is difficult to configure to run
+  # with the dependencies correctly installed.
+
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #   - id: mypy
+  #     additional_dependencies: [voluptuous==0.14.1]
+  #     args: ["--config-file", "./pyproject.toml"]
