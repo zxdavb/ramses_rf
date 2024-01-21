@@ -1,4 +1,4 @@
-# last checked/updated: 2023/11/06 (based on HA 2023.11.1)
+# last checked/updated: 2024/01/21 (based on HA 2024.1.5)
 #
 
 # for using the library
