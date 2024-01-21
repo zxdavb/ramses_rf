@@ -31,17 +31,18 @@ DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pk
 
 SZ_PRIORITY: Final[str] = "priority"
 SZ_QOS: Final[str] = "qos"
-SZ_RETRIES: Final[str] = "retries"  # TODO: deprecate
 SZ_MAX_RETRIES: Final[str] = "max_retries"
 SZ_TIMEOUT: Final[str] = "timeout"
 
-# these are used by QoS
-SZ_CALLBACK: Final[str] = "callback"
-SZ_DAEMON: Final[str] = "daemon"  # TODO: deprecate
-SZ_EXPIRED: Final[str] = "expired"
-SZ_EXPIRES: Final[str] = "expires"
-SZ_FUNC: Final[str] = "func"  # TODO: deprecate
-SZ_ARGS: Final[str] = "args"  # TODO: deprecate
+SZ_RETRIES: Final[str] = "retries"  # TODO: deprecate
+
+# # these are used by old QoS
+# SZ_CALLBACK: Final[str] = "callback"  # TODO: deprecate?
+# SZ_DAEMON: Final[str] = "daemon"  # TODO: deprecate
+# SZ_EXPIRED: Final[str] = "expired"  # TODO: deprecate
+# SZ_EXPIRES: Final[str] = "expires"  # TODO: deprecate
+# SZ_FUNC: Final[str] = "func"  # TODO: deprecate
+# SZ_ARGS: Final[str] = "args"  # TODO: deprecate
 
 # used by schedule.py...
 SZ_FRAGMENT: Final[str] = "fragment"
