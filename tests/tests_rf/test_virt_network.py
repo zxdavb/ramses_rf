@@ -188,10 +188,8 @@ async def test_virtual_rf_pkt_flow():
         gwy_0, "01:022222", Code._1F09, max_sleep=0, test_not=True
     )  # device wont exist
 
-    cmd = Command(
-        "RP --- 01:022222 --:------ 01:022222 1F09 003 0004B5", qos={"retries": 0}
-    )  # no retries, otherwise long duration
-    gwy_0.send_cmd(cmd)
+    cmd = Command("RP --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
+    gwy_0.send_cmd(cmd, num_repeats=1)
 
     await assert_devices(gwy_0, ["01:022222", "18:000000", "18:111111", "40:000000"])
     await assert_code_in_device_msgz(gwy_0, "01:022222", Code._1F09)
@@ -204,10 +202,8 @@ async def test_virtual_rf_pkt_flow():
         gwy_0, "40:000000", Code._22F1, max_sleep=0, test_not=True
     )
 
-    cmd = Command(
-        " I --- 40:000000 --:------ 40:000000 22F1 003 000507", qos={"retries": 0}
-    )  # no retries, otherwise long duration
-    gwy_0.send_cmd(cmd)  # ?needs QoS
+    cmd = Command(" I --- 40:000000 --:------ 40:000000 22F1 003 000507")
+    gwy_0.send_cmd(cmd, num_repeats=1)
 
     # await assert_code_in_device_msgz(gwy_0, "40:000000", Code._22F1)  # ?needs QoS
 

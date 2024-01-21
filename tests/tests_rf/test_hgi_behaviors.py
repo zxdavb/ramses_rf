@@ -187,7 +187,7 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     cmd_str = TEST_CMDS[test_idx].replace(TST_ID_, gwy.hgi.id)
     # this is irrevelent for fake (virtual) gwys, as they been assigned this id
 
-    cmd = Command(cmd_str, qos={"retries": 0})
+    cmd = Command(cmd_str)
     assert str(cmd) == cmd_str  # sanity check
 
     is_hgi80 = not gwy._protocol._is_evofw3  # TODO: is_hgi80?
