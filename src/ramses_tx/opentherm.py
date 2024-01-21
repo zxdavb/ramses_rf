@@ -1093,7 +1093,7 @@ def _decode_flags(data_id: _DataIdT, flags: str) -> _FlagsSchemaT:  # TBA: list[
 
 # ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
 def decode_frame(
-    frame: _FrameT
+    frame: _FrameT,
 ) -> tuple[OtMsgType, OtMsgId, dict[str, Any], _OtMsgSchemaT]:
     """Decode a 3220 payload."""
 

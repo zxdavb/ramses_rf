@@ -391,7 +391,7 @@ def _faulted_device(param_name: str, value: str) -> dict[str, str]:
 
 # TODO: refactor as per 31DA parsers
 def parse_valve_demand(
-    value: HexStr2
+    value: HexStr2,
 ) -> dict[str, float] | dict[str, str] | dict[str, None]:
     """Convert a 2-char hex string into a percentage.
 
