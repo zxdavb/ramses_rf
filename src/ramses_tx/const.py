@@ -37,11 +37,11 @@ SZ_TIMEOUT: Final[str] = "timeout"
 
 # these are used by QoS
 SZ_CALLBACK: Final[str] = "callback"
-SZ_DAEMON: Final[str] = "daemon"
+SZ_DAEMON: Final[str] = "daemon"  # TODO: deprecate
 SZ_EXPIRED: Final[str] = "expired"
 SZ_EXPIRES: Final[str] = "expires"
-SZ_FUNC: Final[str] = "func"
-SZ_ARGS: Final[str] = "args"
+SZ_FUNC: Final[str] = "func"  # TODO: deprecate
+SZ_ARGS: Final[str] = "args"  # TODO: deprecate
 
 # used by schedule.py...
 SZ_FRAGMENT: Final[str] = "fragment"
