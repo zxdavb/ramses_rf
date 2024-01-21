@@ -165,7 +165,7 @@
 [tool.ruff]
   exclude = ["tests/deprecated/*.py"]
   src = ["src", "tests"]
-  target-version = "py311"  # Assume Python 3.11
+  target-version = "py312"  # Assume Python 3.12
 
 
 [tool.ruff.lint]

@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Test via pytest
         run: |
           pytest -v tests/tests     # --log-cli-level=WARNING
-          # pytest -v tests/tests_rf  # --log-cli-level=WARNING
+          pytest -v tests/tests_rf  # --log-cli-level=WARNING
 
       # - name: Test with without voluptuous
       #   run: |
