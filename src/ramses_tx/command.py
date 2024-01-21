@@ -20,7 +20,6 @@ from .const import (
     SYS_MODE_MAP,
     SZ_DHW_IDX,
     SZ_PRIORITY,
-    SZ_QOS,
     SZ_RETRIES,
     SZ_TIMEOUT,
     ZON_MODE_MAP,
@@ -866,8 +865,6 @@ class Command(Frame):
 
         kodes: list[Code]
 
-        qos = kwargs.pop(SZ_QOS, {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3})
-
         if not codes:  # None, "", or []
             kodes = []  # used by confirm
         elif len(codes[0]) == len(Code._1FC9):  # type: ignore[index]  # if iterable: list, tuple, or dict.keys()
@@ -880,19 +877,17 @@ class Command(Frame):
         if verb == I_ and dst_id in (None, src_id, ALL_DEV_ADDR.id):
             oem_code = kwargs.pop("oem_code", None)
             assert not kwargs, kwargs
-            return cls._put_bind_offer(
-                src_id, dst_id, kodes, qos=qos, oem_code=oem_code
-            )
+            return cls._put_bind_offer(src_id, dst_id, kodes, oem_code=oem_code)
 
         elif verb == W_ and dst_id not in (None, src_id):
             idx = kwargs.pop("idx", None)
             assert not kwargs, kwargs
-            return cls._put_bind_accept(src_id, dst_id, kodes, qos=qos, idx=idx)  # type: ignore[arg-type]
+            return cls._put_bind_accept(src_id, dst_id, kodes, idx=idx)  # type: ignore[arg-type]
 
         elif verb == I_:
             idx = kwargs.pop("idx", None)
             assert not kwargs, kwargs
-            return cls._put_bind_confirm(src_id, dst_id, kodes, qos=qos, idx=idx)  # type: ignore[arg-type]
+            return cls._put_bind_confirm(src_id, dst_id, kodes, idx=idx)  # type: ignore[arg-type]
 
         raise exc.CommandInvalid(
             f"Invalid verb|dst_id for a bind command: {verb}|{dst_id}"
@@ -906,7 +901,6 @@ class Command(Frame):
         codes: list[Code],
         *,
         oem_code: str | None = None,
-        qos: dict | None = None,
     ) -> Command:
         # TODO: should preserve order of codes, else tests may fail
         kodes = [c for c in codes if c not in (Code._1FC9, Code._10E0)]
@@ -921,7 +915,7 @@ class Command(Frame):
         payload += f"00{Code._1FC9}{hex_id}"
 
         return cls.from_attrs(  # NOTE: .from_attrs, not ._from_attrs
-            I_, dst_id or src_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
+            I_, dst_id or src_id, Code._1FC9, payload, from_id=src_id
         )  # as dst_id could be NUL_DEV_ID
 
     @classmethod  # constructor for 1FC9 (rf_bind) accept - mainly used for test suite
@@ -932,7 +926,6 @@ class Command(Frame):
         codes: list[Code],
         *,
         idx: str | None = "00",
-        qos: dict | None = None,
     ) -> Command:
         if not codes:  # might be
             raise exc.CommandInvalid(f"Invalid codes for a bind accept: {codes}")
@@ -940,12 +933,7 @@ class Command(Frame):
         hex_id = Address.convert_to_hex(src_id)
         payload = "".join(f"{idx or '00'}{c}{hex_id}" for c in codes)
 
-        return cls.from_attrs(
-            W_, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
-        )
-        # return cls._from_attrs(
-        #     W_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
-        # )
+        return cls.from_attrs(W_, dst_id, Code._1FC9, payload, from_id=src_id)
 
     @classmethod  # constructor for 1FC9 (rf_bind) confirm
     def _put_bind_confirm(
@@ -955,7 +943,6 @@ class Command(Frame):
         codes: list[Code],
         *,
         idx: str | None = "00",
-        qos: dict | None = None,
     ) -> Command:
         if not codes:  # if not payload
             payload = idx or "00"  # e.g. Nuaire 4-way switch uses 21!
@@ -963,12 +950,7 @@ class Command(Frame):
             hex_id = Address.convert_to_hex(src_id)
             payload = f"{idx or '00'}{codes[0]}{hex_id}"
 
-        return cls.from_attrs(
-            I_, dst_id, Code._1FC9, payload, from_id=src_id, qos=qos or {}
-        )
-        # return cls._from_attrs(
-        #     I_, Code._1FC9, payload, addr0=src_id, addr1=dst_id, qos=qos or {}
-        # )
+        return cls.from_attrs(I_, dst_id, Code._1FC9, payload, from_id=src_id)
 
     @classmethod  # constructor for I|22F1
     def set_fan_mode(
@@ -1328,11 +1310,6 @@ class Command(Frame):
 
         assert msg_type in LOOKUP_PUZZ, f"Invalid/deprecated Puzzle type: {msg_type}"
 
-        qos: dict[str, Priority | bool | int | float] = {}
-        qos[SZ_PRIORITY] = qos.get(SZ_PRIORITY, Priority.HIGHEST)
-        if msg_type == "10":
-            qos[SZ_RETRIES] = qos.get(SZ_RETRIES, 12)
-
         payload = f"00{msg_type}"
 
         if int(msg_type, 16) >= int("20", 16):
@@ -1347,7 +1324,7 @@ class Command(Frame):
         else:
             payload += hex_from_str(message)
 
-        return cls.from_attrs(I_, ALL_DEV_ADDR.id, Code._PUZZ, payload[:48], qos=qos)
+        return cls.from_attrs(I_, ALL_DEV_ADDR.id, Code._PUZZ, payload[:48])
 
 
 # A convenience dict

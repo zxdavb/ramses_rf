@@ -693,6 +693,9 @@ class QosProtocol(PortProtocol):
                 await asyncio.sleep(gap_duration)
                 await self._send_frame(str(kmd))
 
+        # if cmd.code == Code._PUZZ:  # NOTE: not as simple as this
+        #     priority = Priority.HIGHEST  # FIXME: hack for _7FFF
+
         _CODES = (Code._0006, Code._0404, Code._1FC9)  # must have QoS
 
         # selective QoS (HACK) or the cmd does not want QoS
