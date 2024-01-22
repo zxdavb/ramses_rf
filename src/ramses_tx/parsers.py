@@ -2462,7 +2462,7 @@ def parser_3ef0(
                 "flame_on": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
                 "_unknown_4": payload[8:10],  # FF, 00, 01, 0A
                 "_unknown_5": payload[10:12],  # FF, 13, 1C, ?others
-            }
+            }  # TODO: change to flame_active?
         )
 
     if msg.len >= 9:  # I/RP|OTB|009 (R8820A only?)
