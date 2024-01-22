@@ -501,7 +501,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                     # child_id=msg.payload[SZ_ZONE_IDX],
                 )
 
-        elif msg.code == Code._22C9:  # ufh_setpoints
+        elif msg.code == Code._22C9:  # setpoint_bounds
             # .I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
             # .I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
             self._setpoints = msg
@@ -650,6 +650,7 @@ class OutSensor(Weather, Fakeable):  # OUT: 17
     _STATE_ATTR = SZ_TEMPERATURE
 
 
+# NOTE: config.use_native_ot should enforces sends, but not reads from ._msgz DB
 class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
@@ -759,47 +760,32 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _handle_3220(self, msg: Message) -> None:
         """Handle 3220-based messages."""
 
-        # if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:  # workaround
-        #     return
+        # NOTE: Reserved msgs have null data, but that msg_id may later be OK!
+        if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:
+            return
+
+        # NOTE: Some msgs have invalid data, but that msg_id may later be OK!
+        if msg.payload.get(SZ_VALUE) is None:
+            return
 
         msg_id: int = msg.payload[SZ_MSG_ID]
         self._msgs_ot[f"{msg_id:02X}"] = msg
 
-        # TODO: this is development code - will be rationalised, eventually
-        if False and DEV_MODE:  # here to follow state changes
-            # if msg_id != "73":
-            #     self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
-
-            if self._gwy.config.use_native_ot != "never" and (
-                code := self.OT_TO_RAMSES.get(msg_id)
-            ):
-                self._send_cmd(Command.from_attrs(RQ, self.id, code, "00"))
-
-        # 12-13, 19-1C have been seen to issue 47AB... can pop in/out
-        if msg._pkt.payload[6:] == "47AB" and msg.payload.get(SZ_VALUE) is None:
-            # self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
-            pass  # FIXME: deprecation of 3220|47AB appears bad idea since is transient
-
-        else:  # see if we can un-deprecate 3220|data-id
-            # 18:50:32.524 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
-            # 18:50:32.547 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # -reserved-
-            # 18:55:32.601 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
-            # 18:55:32.630 ... RP --- 10:048122 18:013393 --:------ 3220 005 00C07300CB  # Read-Ack, 'value': 203
-            reset = msg.payload[SZ_MSG_TYPE] not in (
-                OtMsgType.DATA_INVALID,
-                OtMsgType.UNKNOWN_DATAID,
-                # OtMsgType.RESERVED,  # some always reserved, others sometimes so
-            )
-            self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
+        reset = msg.payload[SZ_MSG_TYPE] not in (
+            OtMsgType.DATA_INVALID,
+            OtMsgType.UNKNOWN_DATAID,
+            OtMsgType.RESERVED,  # but some are ?always reserved
+        )
+        self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
 
     def _handle_code(self, msg: Message) -> None:
         """Handle non-3220-based messages."""
 
         if msg.code == Code._3EF0 and msg.verb == I_:  # chasing flags
-            self._send_cmd(
-                Command.get_opentherm_data(self.id, "00"),
-                qos={SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 1},
-            )
+            # NOTE: this is development/discovery code
+            # self._send_cmd(
+            #     Command.get_opentherm_data(self.id, "00"), qos=QOS_MID
+            # )  # FIXME: deprecate QoS in kwargs
             return
 
         if msg.code in (Code._10A0, Code._3EF1) or msg.len != 3:
@@ -807,7 +793,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
-        ):
+        ):  # latter is CH water pressure
             self.deprecate_code_ctx(msg._pkt)
         else:
             self.deprecate_code_ctx(msg._pkt, reset=True)
@@ -850,34 +836,46 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             return cbk_ot() if cbk_ot else None
         return result_ramses  # incl. use_native_ot == "never"
 
-    def _result_by_lookup(self, code, *args, **kwargs) -> Any | None:
+    def _result_by_lookup(
+        self,
+        code,
+        /,
+        *,
+        key: str,
+    ) -> Any | None:
         """Return a value using OpenTherm or RAMSES as per `config.use_native_ot`."""
         # assert code in self.RAMSES_TO_OT and kwargs.get("key"):
 
         if self._gwy.config.use_native_ot == "always":
             return self._ot_msg_value(self.RAMSES_TO_OT[code])
+
         if self._gwy.config.use_native_ot == "prefer":
             if (result_ot := self._ot_msg_value(self.RAMSES_TO_OT[code])) is not None:
                 return result_ot
 
-        result_ramses = self._msg_value(code, *args, **kwargs)
+        result_ramses = self._msg_value(code, key=key)
         if self._gwy.config.use_native_ot == "avoid" and result_ramses is None:
             return self._ot_msg_value(self.RAMSES_TO_OT[code])
+
         return result_ramses  # incl. use_native_ot == "never"
 
     def _result_by_value(
         self, result_ot: Any | None, result_ramses: Any | None
     ) -> Any | None:
         """Return a value using OpenTherm or RAMSES as per `config.use_native_ot`."""
+        #
 
         if self._gwy.config.use_native_ot == "always":
             return result_ot
+
         if self._gwy.config.use_native_ot == "prefer":
             if result_ot is not None:
                 return result_ot
 
+        #
         elif self._gwy.config.use_native_ot == "avoid" and result_ramses is None:
             return result_ot
+
         return result_ramses  # incl. use_native_ot == "never"
 
     @property  # TODO
@@ -936,8 +934,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def ch_water_pressure(self) -> float | None:  # 3220|12, or 1300
-        result = self._result_by_lookup(Code._1300, key=SZ_PRESSURE)
-        return None if result == 25.5 else result  # HACK: to make more rigourous
+        return self._result_by_lookup(Code._1300, key=SZ_PRESSURE)
 
     @property
     def dhw_flow_rate(self) -> float | None:  # 3220|13, or 12F0
@@ -1032,9 +1029,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             return self._msg_value(Code._3EF0, key="flame_on")
         return self._result_by_value(
             self._ot_msg_flag("00", 8 + 3),
-            self._msg_value(
-                Code._3EF0, key="flame_on"
-            ),  # TODO: change to SZ_FLAME_ACTIVE
+            self._msg_value(Code._3EF0, key="flame_on"),
         )
 
     @property

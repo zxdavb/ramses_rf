@@ -166,3 +166,30 @@
 2023-12-26T20:47:40.780358 ... RP --- 10:048122 18:006402 --:------ 3220 005 00C07F0564  # {'msg_id': 0x7F, 'msg_type': 'Read-Ack',       'msg_name': {'hb': 'SlaveProductType', 'lb': 'SlaveProductVersion'}, 'value_hb':   5, 'value_lb': 100, 'description': 'Slave product version and type'}
 2023-12-02T08:32:12.809175 ... RP --- 10:073263 01:128378 --:------ 3220 005 00C07F0534  # {'msg_id': 0x7F, 'msg_type': 'Read-Ack',       'msg_name': {'hb': 'SlaveProductType', 'lb': 'SlaveProductVersion'}, 'value_hb':   5, 'value_lb':  52, 'description': 'Slave product version and type'}
 2023-11-13T17:35:54.091880 ... RP --- 10:102998 01:155672 --:------ 3220 005 00C07F641E  # {'msg_id': 0x7F, 'msg_type': 'Read-Ack',       'msg_name': {'hb': 'SlaveProductType', 'lb': 'SlaveProductVersion'}, 'value_hb': 100, 'value_lb':  30, 'description': 'Slave product version and type'}
+
+
+# Round thermostats with OT
+2023-11-05T23:40:08.937872 ... RP --- 34:128145 30:205699 --:------ 3220 005 0040010A00  # {'msg_id': 0x01, 'msg_type': 'Read-Ack',       'msg_name': 'ControlSetpoint', 'value': 10.0, 'description': 'Control setpoint'}
+
+2023-11-05T23:35:19.451297 ... RP --- 34:128145 30:205699 --:------ 3220 005 00C00500FF  # {'msg_id': 0x05, 'msg_type': 'Read-Ack',       'msg_name': 'fault_flags', 'value_hb': [0, 0, 0, 0, 0, 0, 0, 0], 'value_lb': 255, 'description': 'Fault flags & OEM fault code'}
+
+2023-11-04T12:18:10.869106 ... RP --- 34:128145 30:205699 --:------ 3220 005 00C0110000  # {'msg_id': 0x11, 'msg_type': 'Read-Ack',       'msg_name': 'RelativeModulationLevel', 'value': 0.0,  'description': 'Relative modulation level'}
+2023-11-04T13:02:01.969272 ... RP --- 34:128145 30:205699 --:------ 3220 005 0040111600  # {'msg_id': 0x11, 'msg_type': 'Read-Ack',       'msg_name': 'RelativeModulationLevel', 'value': 0.22, 'description': 'Relative modulation level'}
+
+2023-11-04T13:26:28.891774 ... RP --- 34:128145 30:205699 --:------ 3220 005 0030120000  # {'msg_id': 0x12, 'msg_type': '-reserved-',     'msg_name': 'CHWaterPressure',               'description': 'Central heating water pressure (bar)'}
+2023-11-04T12:57:08.248604 ... RP --- 34:128145 30:205699 --:------ 3220 005 00C01201E6  # {'msg_id': 0x12, 'msg_type': 'Read-Ack',       'msg_name': 'CHWaterPressure', 'value': 1.8, 'description': 'Central heating water pressure (bar)'}
+
+2023-11-04T12:03:38.347796 ... RP --- 34:128145 30:205699 --:------ 3220 005 00B0130000  # {'msg_id': 0x13, 'msg_type': '-reserved-',     'msg_name': 'DHWFlowRate', 'description': 'DHW flow rate (litres/minute)'}
+2023-11-04T12:03:40.245724 ... RP --- 34:128145 30:205699 --:------ 3220 005 0070130000  # {'msg_id': 0x13, 'msg_type': 'Unknown-DataId', 'msg_name': 'DHWFlowRate', 'description': 'DHW flow rate (litres/minute)'}
+
+2023-11-04T15:14:26.931684 ... RP --- 34:128145 30:205699 --:------ 3220 005 0040194080  # {'msg_id': 0x19, 'msg_type': 'Read-Ack',       'msg_name': 'BoilerWaterTemperature', 'value': 64.5, 'description': 'Boiler water temperature'}
+2023-11-05T23:49:56.824456 ... RP --- 34:128145 30:205699 --:------ 3220 005 00C0191880  # {'msg_id': 0x19, 'msg_type': 'Read-Ack',       'msg_name': 'BoilerWaterTemperature', 'value': 24.5, 'description': 'Boiler water temperature'}
+
+2023-11-04T09:37:18.788374 ... RP --- 34:128145 30:205699 --:------ 3220 005 00B01A0000  # {'msg_id': 0x1A, 'msg_type': '-reserved-',     'msg_name': 'DHWTemperature',                'description': 'DHW temperature'}
+2023-11-04T12:42:37.603715 ... RP --- 34:128145 30:205699 --:------ 3220 005 00C01A2600  # {'msg_id': 0x1A, 'msg_type': 'Read-Ack',       'msg_name': 'DHWTemperature', 'value': 38.0, 'description': 'DHW temperature'}
+
+2023-11-04T10:11:22.682700 ... RP --- 34:128145 30:205699 --:------ 3220 005 00B01C0000  # {'msg_id': 0x1C, 'msg_type': '-reserved-',     'msg_name': 'ReturnWaterTemperature',                'description': 'Return water temperature'}
+2023-11-04T12:08:36.364616 ... RP --- 34:128145 30:205699 --:------ 3220 005 00401C3000  # {'msg_id': 0x1C, 'msg_type': 'Read-Ack',       'msg_name': 'ReturnWaterTemperature', 'value': 48.0, 'description': 'Return water temperature'}
+
+2023-11-04T11:14:50.190127 ... RP --- 34:128145 30:205699 --:------ 3220 005 00B0730000  # {'msg_id': 0x73, 'msg_type': '-reserved-',     'msg_name': 'OEMDiagnosticCode', 'description': 'OEM diagnostic code'}
+2023-11-04T12:28:06.097695 ... RP --- 34:128145 30:205699 --:------ 3220 005 0070730000  # {'msg_id': 0x73, 'msg_type': 'Unknown-DataId', 'msg_name': 'OEMDiagnosticCode', 'description': 'OEM diagnostic code'}
