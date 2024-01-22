@@ -159,8 +159,6 @@ if TYPE_CHECKING:
 
 _2411_TABLE = {k: v["description"] for k, v in _2411_PARAMS_SCHEMA.items()}
 
-_INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"
-
 LOOKUP_PUZZ = {
     "10": "engine",  # .    # version str, e.g. v0.14.0
     "11": "impersonating",  # pkt header, e.g. 30C9| I|03:123001 (15 characters, packed)
@@ -169,6 +167,10 @@ LOOKUP_PUZZ = {
     "20": "engine",  # .    # version str, e.g. v0.50.0, has higher-precision timestamp
     "7F": "null",  # .      # packet is null / was nullified: payload to be ignored
 }  # "00" is reserved
+
+
+_INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"
+
 
 _LOGGER = _PKT_LOGGER = logging.getLogger(__name__)
 
@@ -1378,7 +1380,7 @@ def parser_22b0(payload: str, msg: Message) -> dict:
     }
 
 
-# ufh_setpoint, TODO: max length = 24?
+# setpoint_bounds, TODO: max length = 24?
 def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     # .I --- 02:001107 --:------ 02:001107 22C9 024 00-0834-0A28-01-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
     # .I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
