@@ -1131,7 +1131,8 @@ def parser_12f0(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 # ch_pressure
 def parser_1300(payload: str, msg: Message) -> Mapping[str, float | None]:
-    return {SZ_PRESSURE: hex_to_temp(payload[2:])}  # is 2's complement still
+    # 0x9F6 (2550 dec = 2.55 bar) appears to be a sentinel value
+    return {SZ_PRESSURE: None if payload[2:] == "09F6" else hex_to_temp(payload[2:])}
 
 
 # programme_scheme, HVAC
