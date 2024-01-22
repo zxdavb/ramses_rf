@@ -20,6 +20,8 @@
 
 
 # BEWARE: the 47AB payload problem: 12-13, 19-1C (and others?)...
+# this one stays? at 1980 (25.5 bar)
+2021-10-23T11:36:45.000000 044 RP --- 10:047707 18:002563 --:------ 3220 005 00C0121980  # {'msg_id': 0x12, 'msg_type': 'Read-Ack', 'msg_name': 'CHWaterPressure',        'value': None,  'description': 'Central heating water pressure (bar)'}
 # this one pops in/out of 47AB
 2023-12-26T19:32:14.487953 048 RP --- 10:047712 01:164379 --:------ 3220 005 0040120100  # {'msg_id': 0x12, 'msg_type': 'Read-Ack', 'msg_name': 'CHWaterPressure',        'value':  1.0,  'description': 'Central heating water pressure (bar)'}
 2023-12-26T19:37:24.535399 048 RP --- 10:047712 01:164379 --:------ 3220 005 00401247AB  # {'msg_id': 0x12, 'msg_type': 'Read-Ack', 'msg_name': 'CHWaterPressure',        'value': None,  'description': 'Central heating water pressure (bar)'}
@@ -108,7 +110,7 @@
 2021-10-26T21:56:29.525542 071 RP --- 10:052644 18:198151 --:------ 3220 005 00C01C0200  # {'msg_id': 0x1C, 'msg_type': 'Read-Ack',       'msg_name': 'ReturnWaterTemperature', 'value': 2.0, 'description': 'Return water temperature'}
 
 2023-12-26T21:20:43.593214 ... RP --- 10:048122 18:140805 --:------ 3220 005 00C0305014  # {'msg_id': 0x30, 'msg_type': 'Read-Ack',       'msg_name': {'hb': 'DHWUpperBound', 'lb': 'DHWLowerBound'}, 'value_hb': 80, 'value_lb': 20, 'description': 'DHW setpoint boundaries'}
-2023-12-26T20:49:13.455321 ... RP --- 10:048122 18:006402 --:------ 3220 005 0040315A14  # {'msg_id': 0x31, 'msg_type': 'Read-Ack',       'msg_name': {'hb': 'CHUpperBound', 'lb': 'CHLowerBound'}, 'value_hb': 90, 'value_lb': 20, 'description': 'Max. central heating setpoint boundaries'}
+2023-12-26T20:49:13.455321 ... RP --- 10:048122 18:006402 --:------ 3220 005 0040315A14  # {'msg_id': 0x31, 'msg_type': 'Read-Ack',       'msg_name': {'hb':  'CHUpperBound', 'lb': 'CHLowerBound'}, 'value_hb': 90, 'value_lb': 20, 'description': 'Max. central heating setpoint boundaries'}
 
 2021-10-26T21:59:41.770761 069 RQ --- 30:042165 10:052644 --:------ 3220 005 0080380000  # {'msg_id': 0x38, 'msg_type': 'Read-Data',      'msg_name': 'DHWSetpoint',                 'description': 'DHW setpoint'}
 2021-10-26T21:59:43.207992 071 RP --- 10:052644 30:042165 --:------ 3220 005 00C038001A  # {'msg_id': 0x38, 'msg_type': 'Read-Ack',       'msg_name': 'DHWSetpoint', 'value':  0.1,  'description': 'DHW setpoint'}
@@ -116,13 +118,18 @@
 2023-11-13T17:35:47.506543 ... RP --- 10:102998 01:155672 --:------ 3220 005 0040383219  # {'msg_id': 0x38, 'msg_type': 'Read-Ack',       'msg_name': 'DHWSetpoint', 'value': 50.09, 'description': 'DHW setpoint'}
 2023-12-02T23:23:49.589805 ... RP --- 10:073263 18:204815 --:------ 3220 005 00C0384600  # {'msg_id': 0x38, 'msg_type': 'Read-Ack',       'msg_name': 'DHWSetpoint', 'value': 70.0,  'description': 'DHW setpoint'}
 
-2023-12-26T21:36:36.824336 068 RP --- 10:048122 18:140805 --:------ 3220 005 0040393700  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint',  'value': 55.0, 'description': 'Max. central heating water setpoint'}
-2023-12-02T23:14:48.709870 ... RP --- 10:073263 18:204815 --:------ 3220 005 00C0393C00  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint',  'value': 60.0, 'description': 'Max. central heating water setpoint'}
-2023-11-13T17:35:48.142847 ... RP --- 10:102998 01:155672 --:------ 3220 005 00C0395000  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint',  'value': 80.0, 'description': 'Max. central heating water setpoint'}
+2023-12-26T21:36:36.824336 068 RP --- 10:048122 18:140805 --:------ 3220 005 0040393700  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint', 'value': 55.0, 'description': 'Max. central heating water setpoint'}
+2023-12-02T23:14:48.709870 ... RP --- 10:073263 18:204815 --:------ 3220 005 00C0393C00  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint', 'value': 60.0, 'description': 'Max. central heating water setpoint'}
+2023-11-13T17:35:48.142847 ... RP --- 10:102998 01:155672 --:------ 3220 005 00C0395000  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint', 'value': 80.0, 'description': 'Max. central heating water setpoint'}
 2022-11-05T00:33:38.268900 ... RP --- 10:047707 18:002563 --:------ 3220 005 00C0395A00  # {'msg_id': 0x39, 'msg_type': 'Read-Ack',       'msg_name': 'MaxCHWaterSetpoint', 'value': 90.0, 'description': 'Max. central heating water setpoint'}
 
 #
-# 73: sometime payload, sometimes not
+# 73: sometime payload, sometimes not!
+2001-01-01T18:50:32.524000 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000  # {'msg_id': 0x73, 'msg_type': 'Read-Data',      'msg_name': 'OEMDiagnosticCode',               'description': 'OEM diagnostic code'}
+2001-01-01T18:50:32.547000 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # {'msg_id': 0x73, 'msg_type': '-reserved-',     'msg_name': 'OEMDiagnosticCode',               'description': 'OEM diagnostic code'}
+2001-01-01T18:55:32.601000 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000  # {'msg_id': 0x73, 'msg_type': 'Read-Data',      'msg_name': 'OEMDiagnosticCode',               'description': 'OEM diagnostic code'}
+2001-01-01T18:55:32.630000 ... RP --- 10:048122 18:013393 --:------ 3220 005 00C07300CB  # {'msg_id': 0x73, 'msg_type': 'Read-Ack',       'msg_name': 'OEMDiagnosticCode', 'value': 203, 'description': 'OEM diagnostic code'}
+
 2021-10-26T21:56:49.349562 070 RP --- 10:052644 30:042165 --:------ 3220 005 0070730000  # {'msg_id': 0x73, 'msg_type': 'Unknown-DataId', 'msg_name': 'OEMDiagnosticCode',               'description': 'OEM diagnostic code'}
 2021-10-26T21:56:49.001561 070 RQ --- 30:042165 10:052644 --:------ 3220 005 0080730000  # {'msg_id': 0x73, 'msg_type': 'Read-Data',      'msg_name': 'OEMDiagnosticCode',               'description': 'OEM diagnostic code'}
 
