@@ -2250,11 +2250,6 @@ def parser_3220(payload: str, msg: Message) -> dict:
             f"OpenTherm: Unknown data-id: 0x{ot_id:02X} ({ot_id})"
         )
 
-    # These OT data id can pop in/out of 47AB, which is an invalid value
-    # Done here, and not in decode_frame() as this isn't in the OT specification
-    if payload[6:] == "47AB" and ot_id in (0x12, 0x13, 0x19, 0x1A, 0x1B, 0x1C):
-        ot_value[SZ_VALUE] = None
-
     result = {
         SZ_MSG_ID: ot_id,
         SZ_MSG_TYPE: str(ot_type),
@@ -2275,36 +2270,49 @@ def parser_3220(payload: str, msg: Message) -> dict:
 
             result.update(ot_value)  # TODO: find some of these packets to review
 
-    else:  # if msg.verb == RP:
-        _LIST = (OtMsgType.DATA_INVALID, OtMsgType.UNKNOWN_DATAID, OtMsgType.RESERVED)
-        assert ot_type not in _LIST or payload[6:10] in (
-            "0000",
-            "FFFF",
-        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+        result[SZ_DESCRIPTION] = ot_schema.get(EN)
+        return result
 
-        if ot_type not in _LIST:
-            assert ot_type in (
-                OtMsgType.READ_ACK,
-                OtMsgType.WRITE_ACK,
-            ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
+    # if msg.verb != RP:
+    #     raise
 
-            result.update(ot_value)
+    _LIST = (OtMsgType.DATA_INVALID, OtMsgType.UNKNOWN_DATAID, OtMsgType.RESERVED)
+    assert ot_type not in _LIST or payload[6:10] in (
+        "0000",
+        "FFFF",
+    ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-        try:  # These are checking flags in payload of data-id 0x00
-            assert ot_id != 0 or (
-                [result[SZ_VALUE][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
-                # and [result[SZ_VALUE][i] for i in (1, )] == [1]
-            ), result[SZ_VALUE]
+    # HACK: These OT data id can pop in/out of 47AB, which is an invalid value
+    if payload[6:] == "47AB" and ot_id in (0x12, 0x13, 0x19, 0x1A, 0x1B, 0x1C):
+        ot_value[SZ_VALUE] = None
+    # HACK: This OT data id can be 1980, which is an invalid value
+    if payload[6:] == "1980" and ot_id:  # CH pressure is 25.5 bar!
+        ot_value[SZ_VALUE] = None
+    # HACK: Done above, not in OT.decode_frame() as they isn't in the OT specification
 
-            assert ot_id != 0 or (
-                [result[SZ_VALUE][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
-                # and [result[SZ_VALUE][8 + i] for i in (1, 2, 3)] == [0] * 3
-            ), result[SZ_VALUE]
+    if ot_type not in _LIST:
+        assert ot_type in (
+            OtMsgType.READ_ACK,
+            OtMsgType.WRITE_ACK,
+        ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
 
-        except AssertionError:
-            _LOGGER.warning(
-                f"{msg!r} < {_INFORM_DEV_MSG}, with a description of your system"
-            )
+        result.update(ot_value)
+
+    try:  # These are checking flags in payload of data-id 0x00
+        assert ot_id != 0 or (
+            [result[SZ_VALUE][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
+            # and [result[SZ_VALUE][i] for i in (1, )] == [1]
+        ), result[SZ_VALUE]
+
+        assert ot_id != 0 or (
+            [result[SZ_VALUE][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
+            # and [result[SZ_VALUE][8 + i] for i in (1, 2, 3)] == [0] * 3
+        ), result[SZ_VALUE]
+
+    except AssertionError:
+        _LOGGER.warning(
+            f"{msg!r} < {_INFORM_DEV_MSG}, with a description of your system"
+        )
 
     result[SZ_DESCRIPTION] = ot_schema.get(EN)
     return result
