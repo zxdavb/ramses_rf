@@ -878,6 +878,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._313F: {
             I_: {}
         },  # .W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
+        Code._3220: {RP: {}},  # RND (using OT)
         Code._3B00: {I_: {}},
         Code._3EF0: {RQ: {}},  # when bound direct to a 13:
         Code._3EF1: {RQ: {}},  # when bound direct to a 13:
