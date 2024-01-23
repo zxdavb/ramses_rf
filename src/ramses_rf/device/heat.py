@@ -110,6 +110,10 @@ SZ_SUMMER_MODE: Final[str] = "summer_mode"
 SZ_OTC_ACTIVE: Final[str] = "otc_active"
 
 
+QOS_LOW = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1}  # FIXME:  deprecate QoS in kwargs
+QOS_MID = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 1}  # FIXME: deprecate QoS in kwargs
+QOS_MAX = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}  # FIXME: deprecate QoS in kwargs
+
 DEV_MODE = True
 
 _LOGGER = logging.getLogger(__name__)
@@ -146,11 +150,11 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             and not self._gwy.config.disable_discovery
         ):
             # lf._make_and_send_cmd(
-            #   Code._0008, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1}
-            # )
+            #   Code._0008, qos=QOS_LOW
+            # )  # FIXME: deprecate QoS in kwargs
             self._make_and_send_cmd(
-                Code._3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1}
-            )
+                Code._3EF1, qos=QOS_LOW
+            )  # FIXME: deprecate QoS in kwargs
 
     @property
     def actuator_cycle(self) -> dict | None:  # 3EF1
@@ -262,7 +266,7 @@ class RelayDemand(DeviceHeat):  # 0008
         if msg.code == Code._3EF0 and msg.verb == I_:  # NOT RP
             # should't use for RP as RQ's might be polled quite often
             cmd = Command.get_relay_demand(self.id)
-            self._send_cmd(cmd, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
+            self._send_cmd(cmd, qos=QOS_LOW)  # FIXME: deprecate QoS in kwargs
 
         # elif msg.code == Code._0009:  # can only be I, from a controller
         # elif msg.code == Code._3B00...:
@@ -278,15 +282,17 @@ class RelayDemand(DeviceHeat):  # 0008
                 mod_level = 1.0 if mod_level > 0 else 0
 
             cmd = Command.put_actuator_state(self.id, mod_level)
-            qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]
+            [
+                self._send_cmd(cmd, **QOS_MAX) for _ in range(1)
+            ]  # FIXME: deprecate QoS in kwargs
 
         elif msg.code == Code._3EF1 and msg.verb == RQ:  # NOTE: WIP for FAKING
             mod_level = 1.0
 
             cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
-            qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]
+            [
+                self._send_cmd(cmd, **QOS_MAX) for _ in range(1)
+            ]  # FIXME: deprecate QoS in kwargs
 
     @property
     def relay_demand(self) -> float | None:  # 0008

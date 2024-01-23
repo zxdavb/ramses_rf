@@ -238,7 +238,7 @@ class Command(Frame):
     They have QoS and/or callbacks (but no RSSI).
     """
 
-    def __init__(self, frame: str, qos: dict | None = None) -> None:
+    def __init__(self, frame: str) -> None:
         """Create a command from a string (and its meta-attrs)."""
 
         try:
@@ -249,11 +249,8 @@ class Command(Frame):
         self._rx_header: str | None = None
         # self._source_entity: Entity | None = None  # TODO: is needed?
 
-        # # used by msg layer (for which cmd to send next, with _qos.priority)
-        # self._dtm = dt_now()  # TODO: is needed? deprecate
-
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
-        self._qos = _qos_params(self.verb, self.code, qos or {})  # TODO: deprecated
+        self._qos = _qos_params(self.verb, self.code, {})  # TODO: deprecated
 
         self._validate(strict_checking=False)
 
@@ -267,7 +264,6 @@ class Command(Frame):
         *,
         from_id: DeviceIdT | None = None,
         seqn=None,
-        **kwargs,
     ) -> Command:
         """Create a command from its attrs using a destination device_id."""
 
@@ -288,7 +284,6 @@ class Command(Frame):
             addr1=addrs[1],
             addr2=addrs[2],
             seqn=seqn,
-            **kwargs,
         )
 
     @classmethod  # generic constructor
@@ -302,7 +297,6 @@ class Command(Frame):
         addr1: DeviceIdT | None = None,
         addr2: DeviceIdT | None = None,
         seqn=None,
-        **kwargs,
     ) -> Command:
         """Create a command from its attrs using an address set."""
 
@@ -331,10 +325,10 @@ class Command(Frame):
             )
         )
 
-        return cls(frame, **kwargs)
+        return cls(frame)
 
     @classmethod  # used by CLI for -x switch (NB: no len field)
-    def from_cli(cls, cmd_str: str, **kwargs) -> Command:
+    def from_cli(cls, cmd_str: str) -> Command:
         """Create a command from a CLI string (the -x switch).
 
         Examples include (whitespace for readability):
@@ -376,7 +370,6 @@ class Command(Frame):
             payload,
             **{f"addr{k}": v for k, v in enumerate(addrs)},
             seqn=seqn,
-            **kwargs,
         )
 
     def __repr__(self) -> str:

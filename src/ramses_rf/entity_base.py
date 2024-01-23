@@ -125,7 +125,14 @@ class _Entity:
     def _make_and_send_cmd(
         self, code, dest_id, payload="00", verb=RQ, **kwargs
     ) -> None:
-        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+        qos = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
+        if kwargs:
+            raise RuntimeError("Deprecated kwargs: %s", kwargs)
+
+        self._send_cmd(
+            self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs),
+            qos=qos,
+        )
 
     # FIXME: this is a mess - to deprecate for async version?
     def _send_cmd(self, cmd: Command, **kwargs) -> asyncio.Task | None:
@@ -139,9 +146,25 @@ class _Entity:
             _LOGGER.info(f"{cmd} < Sending was deprecated for {self}")
             return None  # TODO: raise Exception
 
+        qos: dict = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
+        if kwargs:
+            raise RuntimeError("Deprecated kwargs: %s ", kwargs)
+
+        kwargs = {}
+        if "priority" in qos:
+            kwargs["priority"] = qos.pop("priority")
+        if "retries" in kwargs:
+            kwargs["max_retries"] = qos.pop("retries")
+
         # cmd._source_entity = self  # TODO: is needed?
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)
+        return self._gwy.send_cmd(
+            cmd,
+            **kwargs,
+            # max_retries=qos.max_retries if qos else None,
+            # timeout=qos.timeout if qos else None,
+            # wait_for_reply=qos.wait_for_reply if qos else None,
+        )
 
     # FIXME: this is a mess
     async def _async_send_cmd(
@@ -151,6 +174,9 @@ class _Entity:
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
+
+        if qos or priority:
+            raise RuntimeError("Deprecated qos=%s, priority=%s)", qos, priority)
 
         if self._gwy._disable_sending:
             _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
