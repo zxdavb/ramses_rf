@@ -57,22 +57,22 @@ SENDING_RETRY_LIMIT: Final[
 ] = 3  # fail Offering/Accepting if no reponse > this # of sends
 
 CONFIRM_TIMEOUT_SECS: Final[
-    int
+    float
 ] = 3  # automatically Bound, from BoundAccepted > this # of seconds
 WAITING_TIMEOUT_SECS: Final[
-    int
+    float
 ] = 5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
 
 # raise a BindTimeoutError if expected Pkt is not received before this number of seconds
-_TENDER_WAIT_TIME: Final[int] = WAITING_TIMEOUT_SECS  # resp. listening for Offer
+_TENDER_WAIT_TIME: Final[float] = WAITING_TIMEOUT_SECS  # resp. listening for Offer
 _ACCEPT_WAIT_TIME: Final[
-    int
+    float
 ] = WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
 _AFFIRM_WAIT_TIME: Final[
-    int
+    float
 ] = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
 _RATIFY_WAIT_TIME: Final[
-    int
+    float
 ] = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
 
 
