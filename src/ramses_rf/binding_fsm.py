@@ -543,7 +543,7 @@ class _DevIsWaitingForMsg(BindStateBase):
 
     _expected_pkt_phase: BindPhase
 
-    _wait_timer_limit: float = 3.0
+    _wait_timer_limit: float = 5.1  # WAITING_TIMEOUT_SECS
 
     def __init__(self, context: BindContextBase) -> None:
         super().__init__(context)
