@@ -11,11 +11,7 @@ import re
 from typing import TYPE_CHECKING, Final
 
 from ramses_rf import exceptions as exc
-from ramses_rf.const import (
-    SZ_PRIORITY,
-    SZ_SCHEDULE,
-    SZ_ZONE_IDX,
-)
+from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_tx import CODES_SCHEMA, Command, Priority
 from ramses_tx.opentherm import OTB_MSG_IDS
 
@@ -47,8 +43,6 @@ SCAN_HARD: Final[str] = "scan_hard"
 SCAN_XXXX: Final[str] = "scan_xxxx"
 
 # DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
-
-QOS_SCAN: dict[str, int] = {SZ_PRIORITY: Priority.LOW, "num_repeats": 0}
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -163,7 +157,7 @@ def script_poll_device(gwy: Gateway, dev_id: str) -> list:
     ):
         async def periodic_(interval_: float) -> None:
             await asyncio.sleep(interval_)
-            gwy.send_cmd(cmd, **QOS_SCAN)  # type: ignore[arg-type]
+            gwy.send_cmd(cmd, priority=Priority.LOW)
 
         if interval is None:
             interval = 0 if count == 1 else 60
@@ -262,7 +256,7 @@ async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int 
     for code in range(start_code, 0x5000):
         await gwy.async_send_cmd(
             Command.from_attrs(RQ, dev_id, f"{code:04X}", "0000"),  # type:ignore[arg-type]
-            **QOS_SCAN,  # type: ignore[arg-type]
+            priority=Priority.LOW,
         )
 
 
@@ -326,7 +320,7 @@ async def script_scan_otb_hard(gwy: Gateway, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     for msg_id in range(0x80):
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), **QOS_SCAN)  # type: ignore[arg-type]
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), priority=Priority.LOW)
 
 
 @script_decorator
@@ -347,8 +341,8 @@ async def script_scan_otb_map(gwy: Gateway, dev_id: str):  # Tested only upon a 
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
-        gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "00"), **QOS_SCAN)  # type: ignore[arg-type]
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), **QOS_SCAN)  # type: ignore[arg-type]
+        gwy.send_cmd(Command.from_attrs(RQ, dev_id, code, "00"), priority=Priority.LOW)
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id), priority=Priority.LOW)
 
 
 @script_decorator
@@ -357,7 +351,7 @@ async def script_scan_otb_ramses(
 ):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_ramses invoked - expect a lot of nonsense")
 
-    CODES = (
+    _CODES = (
         Code._042F,
         Code._10E0,  # device_info
         Code._10E1,  # device_id
@@ -384,7 +378,8 @@ async def script_scan_otb_ramses(
         Code._3EF1,  # rel. modulation level  / RelativeModulationLevel
     )  # excl. 3220
 
-    [gwy.send_cmd(Command.from_attrs(RQ, dev_id, c, "00"), **QOS_SCAN) for c in CODES]  # type: ignore[arg-type]
+    for c in _CODES:
+        gwy.send_cmd(Command.from_attrs(RQ, dev_id, c, "00"), priority=Priority.LOW)
 
 
 SCRIPTS = {
