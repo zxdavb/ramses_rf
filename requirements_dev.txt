@@ -1,7 +1,8 @@
-# last checked/updated: 2024/01/21 (based on HA 2024.1.5)
+# last checked/updated: 2024/01/24 (based on HA 2024.1.5)
+#  - to check against pyproject.toml, github workflows
 #
 
-# for using the the library via the CLI, client.py (includes requirements.txt)
+# for development of the library, incl using the CLI
   -r requirements_cli.txt
 
 # used for development
@@ -13,9 +14,6 @@
   pytest>=7.4.3
   pytest-asyncio>=0.21.0
   pytest-xdist>=3.3.1
-
-# used for testing at runtime
-  debugpy>=1.8.0
 
 # used for build/deploy
   hatch>=1.9.2       # is not core HA

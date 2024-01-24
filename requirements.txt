@@ -1,5 +1,5 @@
-# last checked/updated: 2024/01/21 (based on HA 2024.1.5)
-#  - to check against pyproject.toml
+# last checked/updated: 2024/01/24 (based on HA 2024.1.5)
+#  - to check against pyproject.toml, github workflows
 #
 
 # for using the library (sans CLI)
