@@ -131,7 +131,7 @@ class _Entity:
 
         self._send_cmd(
             self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs),
-            qos=qos,
+            **qos,
         )
 
     # FIXME: this is a mess - to deprecate for async version?
@@ -146,15 +146,10 @@ class _Entity:
             _LOGGER.info(f"{cmd} < Sending was deprecated for {self}")
             return None  # TODO: raise Exception
 
-        qos: dict = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
-        if kwargs:
+        if [
+            k for k in kwargs if k not in ("priority", "num_repeats")
+        ]:  # FIXME: deprecate QoS in kwargs
             raise RuntimeError("Deprecated kwargs: %s ", kwargs)
-
-        kwargs = {}
-        if "priority" in qos:
-            kwargs["priority"] = qos.pop("priority")
-        if "retries" in kwargs:
-            kwargs["max_retries"] = qos.pop("retries")
 
         # cmd._source_entity = self  # TODO: is needed?
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
@@ -171,12 +166,9 @@ class _Entity:
         self,
         cmd: Command,
         priority: Priority | None = None,
-        qos: QosParams | None = None,
+        qos: QosParams | None = None,  # FIXME: deprecate QoS in kwargs?
     ) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
-
-        if qos or priority:
-            raise RuntimeError("Deprecated qos=%s, priority=%s)", qos, priority)
 
         if self._gwy._disable_sending:
             _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
@@ -514,12 +506,15 @@ class _Discovery(_MessageDB):
 
             if failures > 5:
                 secs = 60 * 60 * 6
-                _LOGGER.warning(f"No response for task({hdr}): throttling to 1/6h")
+                _LOGGER.error(
+                    f"No response for {hdr} ({failures}/5): throttling to 1/6h"
+                )
             elif failures > 2:
-                _LOGGER.debug(f"No response for task({hdr}): retrying in 30s")
+                _LOGGER.warning(
+                    f"No response for {hdr} ({failures}/5): retrying in 30s"
+                )
                 secs = self.MAX_CYCLE_SECS
             else:
-                # _LOGGER.info(f"No response for task({hdr}): retrying in 3s")
                 secs = self.MIN_CYCLE_SECS
 
             return td(seconds=secs)

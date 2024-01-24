@@ -289,6 +289,12 @@ class Engine:
         verb: VerbT, device_id: DeviceIdT, code: Code, payload: PayloadT, **kwargs
     ) -> Command:
         """Make a command addressed to device_id."""
+
+        if [
+            k for k in kwargs if k not in ("from_id", "seqn")
+        ]:  # FIXME: deprecate QoS in kwargs
+            raise RuntimeError("Deprecated kwargs: %s", kwargs)
+
         return Command.from_attrs(verb, device_id, code, payload, **kwargs)
 
     async def async_send_cmd(

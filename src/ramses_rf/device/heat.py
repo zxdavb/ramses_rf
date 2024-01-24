@@ -20,9 +20,7 @@ from ramses_rf.const import (
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
     SZ_PRESSURE,
-    SZ_PRIORITY,
     SZ_RELAY_DEMAND,
-    SZ_RETRIES,
     SZ_SETPOINT,
     SZ_TEMPERATURE,
     SZ_UFH_IDX,
@@ -38,6 +36,7 @@ from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from ramses_tx.address import NON_DEV_ADDR
 from ramses_tx.command import Command, Priority
+from ramses_tx.const import SZ_NUM_REPEATS, SZ_PRIORITY
 from ramses_tx.opentherm import (
     PARAMS_MSG_IDS,
     SCHEMA_MSG_IDS,
@@ -110,11 +109,11 @@ SZ_SUMMER_MODE: Final[str] = "summer_mode"
 SZ_OTC_ACTIVE: Final[str] = "otc_active"
 
 
-QOS_LOW = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1}  # FIXME:  deprecate QoS in kwargs
-QOS_MID = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 1}  # FIXME: deprecate QoS in kwargs
-QOS_MAX = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}  # FIXME: deprecate QoS in kwargs
+QOS_LOW = {SZ_PRIORITY: Priority.LOW}  # FIXME:  deprecate QoS in kwargs
+QOS_MID = {SZ_PRIORITY: Priority.HIGH}  # FIXME: deprecate QoS in kwargs
+QOS_MAX = {SZ_PRIORITY: Priority.HIGH, SZ_NUM_REPEATS: 3}  # FIXME: deprecate QoS...
 
-DEV_MODE = True
+DEV_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,7 +149,7 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             and not self._gwy.config.disable_discovery
         ):
             # lf._make_and_send_cmd(
-            #   Code._0008, qos=QOS_LOW
+            #     Code._0008, qos=QOS_LOW
             # )  # FIXME: deprecate QoS in kwargs
             self._make_and_send_cmd(
                 Code._3EF1, qos=QOS_LOW
@@ -245,54 +244,6 @@ class RelayDemand(DeviceHeat):  # 0008
 
         if not self.is_faked:  # discover_flag & Discover.STATUS and
             self._add_discovery_cmd(Command.get_relay_demand(self.id), 60 * 15)
-
-    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
-        super()._handle_msg(msg)
-
-        if msg.src.id == self.id:
-            return
-
-        if (
-            self._gwy._disable_sending
-            or not self.is_faked
-            or self._child_id is None
-            or self._child_id
-            not in (
-                v for k, v in msg.payload.items() if k in (SZ_DOMAIN_ID, SZ_ZONE_IDX)
-            )
-        ):
-            return
-
-        if msg.code == Code._3EF0 and msg.verb == I_:  # NOT RP
-            # should't use for RP as RQ's might be polled quite often
-            cmd = Command.get_relay_demand(self.id)
-            self._send_cmd(cmd, qos=QOS_LOW)  # FIXME: deprecate QoS in kwargs
-
-        # elif msg.code == Code._0009:  # can only be I, from a controller
-        # elif msg.code == Code._3B00...:
-
-        if not self.is_faked or msg.verb != RQ:  # duplicated, above
-            return
-
-        # TODO: handle relay_failsafe, reply to RQs
-        if msg.code == Code._0008 and msg.verb == RQ:  # NOTE: WIP for FAKING
-            # 076  I --- 01:054173 --:------ 01:054173 0008 002 037C
-            mod_level = msg.payload[self.RELAY_DEMAND]
-            if mod_level is not None:
-                mod_level = 1.0 if mod_level > 0 else 0
-
-            cmd = Command.put_actuator_state(self.id, mod_level)
-            [
-                self._send_cmd(cmd, **QOS_MAX) for _ in range(1)
-            ]  # FIXME: deprecate QoS in kwargs
-
-        elif msg.code == Code._3EF1 and msg.verb == RQ:  # NOTE: WIP for FAKING
-            mod_level = 1.0
-
-            cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
-            [
-                self._send_cmd(cmd, **QOS_MAX) for _ in range(1)
-            ]  # FIXME: deprecate QoS in kwargs
 
     @property
     def relay_demand(self) -> float | None:  # 0008
@@ -787,10 +738,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _handle_code(self, msg: Message) -> None:
         """Handle non-3220-based messages."""
 
-        if msg.code == Code._3EF0 and msg.verb == I_:  # chasing flags
-            # NOTE: this is development/discovery code
+        if msg.code == Code._3EF0 and msg.verb == I_:
+            # NOTE: this is development/discovery code  # chasing flags
             # self._send_cmd(
-            #     Command.get_opentherm_data(self.id, "00"), qos=QOS_MID
+            #     Command.get_opentherm_data(self.id, "00"), **QOS_MID
             # )  # FIXME: deprecate QoS in kwargs
             return
 

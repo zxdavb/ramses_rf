@@ -29,20 +29,15 @@ DEFAULT_MAX_RETRIES: Final[int] = 3
 DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 
-SZ_PRIORITY: Final[str] = "priority"
 SZ_QOS: Final[str] = "qos"
+
+SZ_CALLBACK: Final[str] = "callback"
+SZ_GAP_DURATION: Final[str] = "gap_duration"
 SZ_MAX_RETRIES: Final[str] = "max_retries"
+SZ_NUM_REPEATS: Final[str] = "num_repeats"
+SZ_PRIORITY: Final[str] = "priority"
 SZ_TIMEOUT: Final[str] = "timeout"
 
-SZ_RETRIES: Final[str] = "retries"  # TODO: deprecate
-
-# # these are used by old QoS
-# SZ_CALLBACK: Final[str] = "callback"  # TODO: deprecate?
-# SZ_DAEMON: Final[str] = "daemon"  # TODO: deprecate
-# SZ_EXPIRED: Final[str] = "expired"  # TODO: deprecate
-# SZ_EXPIRES: Final[str] = "expires"  # TODO: deprecate
-# SZ_FUNC: Final[str] = "func"  # TODO: deprecate
-# SZ_ARGS: Final[str] = "args"  # TODO: deprecate
 
 # used by schedule.py...
 SZ_FRAGMENT: Final[str] = "fragment"

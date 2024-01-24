@@ -12,8 +12,7 @@ from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING
 
 from ramses_rf import exceptions as exc
-from ramses_tx import Command, Message
-from ramses_tx.const import SZ_DAEMON, SZ_FUNC, SZ_TIMEOUT
+from ramses_tx import Command, Message, Packet
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -38,6 +37,9 @@ TIMER_LONG_TIMEOUT = td(seconds=60)
 class FaultLog:  # 0418  # TODO: used a NamedTuple
     """The fault log of a system."""
 
+    _MIN_IDX = 0x00
+    _MAX_IDX = 0x3E
+
     def __init__(self, ctl: Evohome) -> None:
         _LOGGER.debug("FaultLog(ctl=%s).__init__()", ctl)
 
@@ -51,7 +53,8 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._faultlog: dict = {}
         self._faultlog_done: bool | None = None
 
-        self._START = 0x00  # max 0x3E
+        self.outdated: bool = True  # if we now our log is out of date
+
         self._limit = 0x06
 
     def __repr__(self) -> str:
@@ -66,16 +69,12 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
 
-        if self._gwy._read_only:
-            raise RuntimeError("Sending is disabled")
-
-        self._START = 0 if start is None else start
         self._limit = 6 if limit is None else limit
 
         self._faultlog = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
         self._faultlog_done = None
 
-        self._rq_log_entry(log_idx=self._START)
+        self._rq_log_entry(log_idx=self._MIN_IDX if start is None else start)
 
         time_start = dt.now()
         while not self._faultlog_done:
@@ -85,12 +84,15 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
         return self.faultlog
 
-    def _rq_log_entry(self, log_idx: int = 0):
+    def _rq_log_entry(self, log_idx: int):
         """Request the next log entry."""
         _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
 
         def rq_callback(msg: Message) -> None:
             _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
+
+            if isinstance(msg, Packet):  # HACK: until QoS returns msgs
+                msg = Message._from_pkt(msg)
 
             if not msg:
                 self._faultlog_done = True
@@ -110,21 +112,24 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
             else:
                 self._faultlog_done = True
 
-        # FIXME: refactoring protocol stack
-        # FIXME: make a better way of creating these callbacks
-        # register callback for null response, which has no ctx (no frag_id),
-        # and so a different header
-        null_header = "|".join((RP, self.id, Code._0418))
-        if null_header not in self._gwy.msg_transport._callbacks:
-            self._gwy.msg_transport._callbacks[null_header] = {
-                SZ_FUNC: rq_callback,
-                SZ_DAEMON: True,
-            }
+        # # FIXME: refactoring protocol stack
+        # # FIXME: make a better way of creating these callbacks
+        # # register callback for null response, which has no ctx (no frag_id),
+        # # and so a different header
+        # null_header = "|".join((RP, self.id, Code._0418))
+        # if null_header not in self._gwy._transport._callbacks:
+        #     self._gwy.msg_transport._callbacks[null_header] = {
+        #         SZ_FUNC: rq_callback,  # deprecated
+        #         SZ_DAEMON: True,  # deprecated
+        #     }
 
-        rq_callback = {SZ_FUNC: rq_callback, SZ_TIMEOUT: 10}
         self._gwy.send_cmd(
-            Command.get_system_log_entry(self.ctl.id, log_idx, callback=rq_callback)
+            Command.get_system_log_entry(self.ctl.id, log_idx), callback=rq_callback
         )
+
+    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
+        if msg.code != Code._0418:
+            return
 
     @property
     def faultlog(self) -> dict | None:

@@ -19,8 +19,8 @@ from .const import (
     DEVICE_ID_REGEX,
     SYS_MODE_MAP,
     SZ_DHW_IDX,
+    SZ_MAX_RETRIES,
     SZ_PRIORITY,
-    SZ_RETRIES,
     SZ_TIMEOUT,
     ZON_MODE_MAP,
     Priority,
@@ -89,8 +89,8 @@ class Qos:
 
     TX_BACKOFFS_MAX = 2  # i.e. tx_timeout 2 ** MAX_BACKOFF
 
-    QOS_KEYS = (SZ_PRIORITY, SZ_RETRIES, SZ_TIMEOUT)
-    # priority, retries, rx_timeout, backoff
+    QOS_KEYS = (SZ_PRIORITY, SZ_MAX_RETRIES, SZ_TIMEOUT)
+    # priority, max_retries, rx_timeout, backoff
     DEFAULT_QOS = (Priority.DEFAULT, TX_RETRIES_DEFAULT, TX_TIMEOUT_DEFAULT, True)
     DEFAULT_QOS_TABLE = {
         f"{RQ}|{Code._0016}": (Priority.HIGH, 5, None, True),
@@ -109,12 +109,12 @@ class Qos:
         self,
         *,
         priority: Priority | None = None,  # TODO: deprecate
-        retries: int | None = None,  # TODO:       deprecate
+        max_retries: int | None = None,  # TODO:   deprecate
         timeout: td | None = None,  # TODO:        deprecate
         backoff: bool | None = None,  # TODO:      deprecate
     ) -> None:
         self.priority = self.DEFAULT_QOS[0] if priority is None else priority
-        self.retry_limit = self.DEFAULT_QOS[1] if retries is None else retries
+        self.retry_limit = self.DEFAULT_QOS[1] if max_retries is None else max_retries
         self.tx_timeout = self.TX_TIMEOUT_DEFAULT
         self.rx_timeout = self.DEFAULT_QOS[2] if timeout is None else timeout
         self.disable_backoff = not (self.DEFAULT_QOS[3] if backoff is None else backoff)
