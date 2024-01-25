@@ -385,9 +385,9 @@ class _BaseProtocol(asyncio.Protocol):
         """This is the wrapper for self._send_cmd(cmd)."""
 
         if _DBG_FORCE_LOG_PACKETS:
-            _LOGGER.warning(f"SENT:     {cmd}")
+            _LOGGER.warning(f"QUEUED:     {cmd}")
         else:
-            _LOGGER.debug(f"SENT:     {cmd}")
+            _LOGGER.debug(f"QUEUED:     {cmd}")
 
         # if not self._transport:
         #     raise exc.ProtocolSendFailed("There is no connected Transport")
@@ -418,7 +418,6 @@ class _BaseProtocol(asyncio.Protocol):
         """
 
         await self._send_frame(str(cmd))
-
         for _ in range(num_repeats - 1):
             await asyncio.sleep(gap_duration)
             await self._send_frame(str(cmd))
@@ -432,11 +431,11 @@ class _BaseProtocol(asyncio.Protocol):
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
         if _DBG_FORCE_LOG_PACKETS:
-            _LOGGER.warning(f"Rcvd: {pkt._rssi} {pkt}")
+            _LOGGER.warning(f"Recv'd: {pkt._rssi} {pkt}")
         elif _LOGGER.getEffectiveLevel() > logging.DEBUG:
-            _LOGGER.info(f"Rcvd: {pkt._rssi} {pkt}")
+            _LOGGER.info(f"Recv'd: {pkt._rssi} {pkt}")
         else:
-            _LOGGER.debug(f"Rcvd: {pkt._rssi} {pkt}")
+            _LOGGER.debug(f"Recv'd: {pkt._rssi} {pkt}")
 
         self._pkt_received(pkt)
 
@@ -683,12 +682,14 @@ class QosProtocol(PortProtocol):
 
         # Should do the same as super()._send_cmd()
         async def send_cmd(kmd: Command) -> None:
-            """Wrapper to send a Command without QoS (with x re-transmits)."""
+            """Wrapper to for self._send_frame(cmd) with x re-transmits.
+
+            Repeats are distinct from retries (a QoS feature): you wouldn't have both.
+            """
 
             assert kmd is cmd  # maybe the FSM is confused
 
             await self._send_frame(str(kmd))
-
             for _ in range(num_repeats - 1):
                 await asyncio.sleep(gap_duration)
                 await self._send_frame(str(kmd))
