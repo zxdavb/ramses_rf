@@ -182,6 +182,7 @@
   # B011  - Do not call assert False since python -O removes these calls
   # E501  - Line too long
   # UP009 - UTF-8 encoding declaration is unnecessary
+  # UP040 - Type alias uses `TypeAlias` annotation instead of the `type` keyword
 
 
 [tool.ruff.lint.isort]
