@@ -508,7 +508,7 @@ class _Discovery(_MessageDB):
             """Backoff the interval if there are/were any failures."""
 
             if not _DBG_ENABLE_BACKOFF:  # FIXME: data gaps
-                return self.discovery_cmds[hdr][_SZ_INTERVAL]
+                return self.discovery_cmds[hdr][_SZ_INTERVAL]  # type: ignore[no-any-return]
 
             if failures > 5:
                 secs = 60 * 60 * 6
