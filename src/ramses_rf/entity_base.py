@@ -68,6 +68,8 @@ _SZ_INTERVAL: Final[str] = "interval"
 _SZ_COMMAND: Final[str] = "command"
 
 
+_DBG_ENABLE_BACKOFF = False
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -122,6 +124,7 @@ class _Entity:
         # if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
         #     self.deprecate_device(msg._pkt, reset=True)
 
+    # TODO: deprecate this API
     def _make_and_send_cmd(
         self, code, dest_id, payload="00", verb=RQ, **kwargs
     ) -> None:
@@ -504,6 +507,9 @@ class _Discovery(_MessageDB):
         def backoff(hdr: HeaderT, failures: int) -> td:
             """Backoff the interval if there are/were any failures."""
 
+            if not _DBG_ENABLE_BACKOFF:  # FIXME: data gaps
+                return self.discovery_cmds[hdr][_SZ_INTERVAL]
+
             if failures > 5:
                 secs = 60 * 60 * 6
                 _LOGGER.error(
@@ -511,10 +517,13 @@ class _Discovery(_MessageDB):
                 )
             elif failures > 2:
                 _LOGGER.warning(
-                    f"No response for {hdr} ({failures}/5): retrying in 30s"
+                    f"No response for {hdr} ({failures}/5): retrying in {self.MAX_CYCLE_SECS}s"
                 )
                 secs = self.MAX_CYCLE_SECS
             else:
+                _LOGGER.info(
+                    f"No response for {hdr} ({failures}/5): retrying in {self.MIN_CYCLE_SECS}s"
+                )
                 secs = self.MIN_CYCLE_SECS
 
             return td(seconds=secs)
