@@ -113,7 +113,10 @@ QOS_LOW = {SZ_PRIORITY: Priority.LOW}  # FIXME:  deprecate QoS in kwargs
 QOS_MID = {SZ_PRIORITY: Priority.HIGH}  # FIXME: deprecate QoS in kwargs
 QOS_MAX = {SZ_PRIORITY: Priority.HIGH, SZ_NUM_REPEATS: 3}  # FIXME: deprecate QoS...
 
+
 DEV_MODE = False
+
+_DBG_ENABLE_DEPRECATION = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -712,7 +715,13 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        (self._handle_3220 if msg.code == Code._3220 else self._handle_code)(msg)
+        if msg.verb not in (I_, RP):
+            return
+
+        if msg.code == Code._3220:
+            self._handle_3220(msg)
+        elif msg.code in self.RAMSES_TO_OT:
+            self._handle_code(msg)
 
     def _handle_3220(self, msg: Message) -> None:
         """Handle 3220-based messages."""
@@ -727,6 +736,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         msg_id: int = msg.payload[SZ_MSG_ID]
         self._msgs_ot[f"{msg_id:02X}"] = msg
+
+        if not _DBG_ENABLE_DEPRECATION:  # FIXME: data gaps
+            return
 
         reset = msg.payload[SZ_MSG_TYPE] not in (
             OtMsgType.DATA_INVALID,
@@ -745,9 +757,13 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             # )  # FIXME: deprecate QoS in kwargs
             return
 
-        if msg.code in (Code._10A0, Code._3EF1) or msg.len != 3:
+        if msg.code in (Code._10A0, Code._3EF1):
             return
 
+        if not _DBG_ENABLE_DEPRECATION:  # FIXME: data gaps
+            return
+
+        # TODO: can be temporarily 7FFF?
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
         ):  # latter is CH water pressure
