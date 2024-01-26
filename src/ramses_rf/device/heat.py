@@ -899,8 +899,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def ch_max_setpoint(self) -> float | None:  # 3220|39, or 1081
         return self._result_by_lookup(Code._1081, key=SZ_SETPOINT)
 
-    @property  # TODO
-    def ch_setpoint(self) -> float | None:  # 3EF0 (byte 7, only R8820A?), TODO: no OT
+    @property  # TODO: no OT equivalent
+    def ch_setpoint(self) -> float | None:  # 3EF0 (byte 7, only R8820A?)
         return self._result_by_value(
             None, self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
         )
