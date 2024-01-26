@@ -385,7 +385,7 @@ class _Discovery(_MessageDB):
         return {
             code: (CODES_SCHEMA[code][SZ_NAME] if code in CODES_SCHEMA else None)
             for code in sorted(self._msgz)
-            if self._msgz[code].get(RP) and self.is_pollable_cmd(code)
+            if self._msgz[code].get(RP) and self.is_not_deprecated_cmd(code)
         }
 
     @property
@@ -395,12 +395,12 @@ class _Discovery(_MessageDB):
             f"0x{msg_id}": OPENTHERM_MESSAGES[msg_id].get("var")
             for msg_id in sorted(self._msgz[Code._3220].get(RP, []))
             if (
-                self.is_pollable_cmd(Code._3220, ctx=msg_id)
+                self.is_not_deprecated_cmd(Code._3220, ctx=msg_id)
                 and msg_id in OPENTHERM_MESSAGES
             )
         }
 
-    def is_pollable_cmd(self, code, ctx=None) -> bool:
+    def is_not_deprecated_cmd(self, code, ctx=None) -> bool:
         """Return True if the code|ctx pair is not deprecated."""
 
         if ctx is None:
@@ -566,9 +566,9 @@ class _Discovery(_MessageDB):
             # since we may do I/O, check if the code|msg_id is deprecated
             task[_SZ_NEXT_DUE] = dt_now + task[_SZ_INTERVAL]  # might undeprecate later
 
-            if not self.is_pollable_cmd(task[_SZ_COMMAND].code):
+            if not self.is_not_deprecated_cmd(task[_SZ_COMMAND].code):
                 continue
-            if not self.is_pollable_cmd(
+            if not self.is_not_deprecated_cmd(
                 task[_SZ_COMMAND].code, ctx=task[_SZ_COMMAND].payload[4:6]
             ):  # only for Code._3220
                 continue
@@ -601,7 +601,7 @@ class _Discovery(_MessageDB):
                 supported_dict[idx] = False
 
         def reinstate(supported_dict: dict, idx: str):
-            if self.is_pollable_cmd(idx, None) is False:
+            if self.is_not_deprecated_cmd(idx, None) is False:
                 _LOGGER.info(
                     f"{pkt} < Polling now reinstated for code|ctx={idx}: "
                     "it now appears supported"
