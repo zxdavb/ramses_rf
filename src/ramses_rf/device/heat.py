@@ -783,11 +783,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     def _ot_msg_value(self, msg_id: str) -> int | float | list | None:
         # data_id = int(msg_id, 16)
-        if (
-            self.is_pollable_cmd(Code._3220, ctx=msg_id)
-            and self._msgs_ot.get(msg_id)
-            and not self._msgs_ot[msg_id]._expired
-        ):
+        if self._msgs_ot.get(msg_id) and not self._msgs_ot[msg_id]._expired:
             return self._msgs_ot[msg_id].payload.get(SZ_VALUE)  # TODO: value_hb/_lb
 
     def _result_by_callback(
