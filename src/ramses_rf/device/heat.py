@@ -675,7 +675,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         for _msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
             if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
-                self._add_discovery_cmd(cmd, 24 * 3600, delay=180)
+                self._add_discovery_cmd(cmd, 6 * 3600, delay=180)
 
         for _msg_id in PARAMS_MSG_IDS:  # params or L/T state
             if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
@@ -783,8 +783,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     def _ot_msg_value(self, msg_id: str) -> int | float | list | None:
         # data_id = int(msg_id, 16)
-        if self._msgs_ot.get(msg_id) and not self._msgs_ot[msg_id]._expired:
-            return self._msgs_ot[msg_id].payload.get(SZ_VALUE)  # TODO: value_hb/_lb
+        if (msg := self._msgs_ot.get(msg_id)) and not msg._expired:
+            return msg.payload.get(SZ_VALUE)  # TODO: value_hb/_lb
 
     def _result_by_callback(
         self, cbk_ot: Callable | None, cbk_ramses: Callable | None

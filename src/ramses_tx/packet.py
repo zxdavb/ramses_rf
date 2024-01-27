@@ -190,16 +190,16 @@ def pkt_lifespan(pkt: Packet) -> td:  # import OtbGateway??
     if pkt.code in (Code._2309, Code._30C9) and pkt._has_array:  # sends I /sync_cycle
         return _TD_SECS_360
 
-    if pkt.code == Code._3220:  # FIXME
+    if pkt.code == Code._3220:  # FIXME: 2.1 means we can miss two packets
         if pkt.payload[4:6] in WRITE_MSG_IDS:  #  and Write-Data:  # TODO
-            return _TD_SECS_003
+            return _TD_SECS_003 * 2.1
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
-            return _TD_MINS_060
+            return _TD_MINS_360 * 2.1
         if pkt.payload[4:6] in PARAMS_MSG_IDS:
-            return _TD_MINS_360
+            return _TD_MINS_060 * 2.1
         if pkt.payload[4:6] in STATUS_MSG_IDS:
-            return _TD_MINS_005
-        return _TD_MINS_005
+            return _TD_MINS_005 * 2.1
+        return _TD_MINS_005 * 2.1
 
     # if pkt.code in (Code._3B00, Code._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
