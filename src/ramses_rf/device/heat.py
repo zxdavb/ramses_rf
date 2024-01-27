@@ -384,7 +384,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = FA  # NOTE: domain_id, HACK: UFC
+        self._child_id = FA  # NOTE: domain_id, UFC
 
         self.circuit_by_id = {f"{i:02X}": {} for i in range(8)}
 
@@ -921,12 +921,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def dhw_temp(self) -> float | None:  # 3220|1A, or 1260
         return self._result_by_lookup(Code._1260, key=SZ_TEMPERATURE)
 
-    @property
+    @property  # TODO: no reliable OT equivalent?
     def max_rel_modulation(self) -> float | None:  # 3220|0E, or 3EF0 (byte 8)
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
-        #     return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
+            return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
         return self._result_by_value(
-            self._ot_msg_value("0E"),
+            self._ot_msg_value("0E"),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION),
         )
 
@@ -938,30 +938,30 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def outside_temp(self) -> float | None:  # 3220|1B, 1290
         return self._result_by_lookup(Code._1290, key=SZ_TEMPERATURE)
 
-    @property
+    @property  # TODO: no reliable OT equivalent?
     def rel_modulation_level(self) -> float | None:  # 3220|11, or 3EF0/3EF1
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
-        #     return self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
+            return self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
         return self._result_by_value(
-            self._ot_msg_value("11"),
+            self._ot_msg_value("11"),  # NOTE: not reliable?
             self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL),
         )
 
-    @property
+    @property  # TODO: no reliable OT equivalent?
     def ch_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
-        #     return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
+            return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 1),
+            self._ot_msg_flag("00", 8 + 1),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
         )
 
-    @property
+    @property  # TODO: no reliable OT equivalent?
     def ch_enabled(self) -> bool | None:  # 3220|00, or 3EF0 (byte 6)
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
-        #     return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
+            return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
         return self._result_by_value(
-            self._ot_msg_flag("00", 0),
+            self._ot_msg_flag("00", 0),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
         )
 
@@ -973,12 +973,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def cooling_enabled(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 2), None)
 
-    @property
+    @property  # TODO: no reliable OT equivalent?
     def dhw_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
-        #     return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
+            return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 2),
+            self._ot_msg_flag("00", 8 + 2),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
         )
 
@@ -994,12 +994,12 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def fault_present(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 8), None)
 
-    @property
+    @property  # TODO: no reliable OT equivalent?
     def flame_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
-        # if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
-        #     return self._msg_value(Code._3EF0, key="flame_on")
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
+            return self._msg_value(Code._3EF0, key="flame_on")
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 3),
+            self._ot_msg_flag("00", 8 + 3),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key="flame_on"),
         )
 
