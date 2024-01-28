@@ -6,15 +6,15 @@
   -r requirements_cli.txt
 
 # used for development
-  mypy>=1.8.0
-  pre-commit>=3.6.0
-  ruff>=0.1.12       # HA is using 0.1.8
+  mypy >= 1.8.0
+  pre-commit >= 3.6.0
+  ruff >= 0.1.12       # HA is using 0.1.8
 
 # used for testing
-  pytest>=7.4.3
-  pytest-asyncio>=0.21.0
-  pytest-xdist>=3.3.1
+  pytest >= 7.4.3, <8.0.0
+  pytest-asyncio >= 0.21.0
+  pytest-xdist >= 3.3.1
 
 # used for build/deploy
-  hatch>=1.9.2       # is not core HA
-  hatchling>=1.21.0  # is not core HA
+  hatch >= 1.9.2       # is not core HA
+  hatchling >= 1.21.0  # is not core HA
