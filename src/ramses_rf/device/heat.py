@@ -672,6 +672,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             self._add_discovery_cmd(
                 Command.from_attrs(RQ, self.id, Code._3EF0, "00"), 60
             )
+            self._add_discovery_cmd(  # NOTE: this code is a WIP
+                Command.from_attrs(RQ, self.id, Code._2401, "00"), 60
+            )
 
         for _msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
             if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
