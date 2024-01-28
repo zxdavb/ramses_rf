@@ -36,9 +36,9 @@ jobs:
 
       - name: Install pytest
         run: |
-          pip install pytest>=7.4.3
-          pip install pytest-asyncio>=0.21.0
-          pip install pytest-xdist>=3.3.1
+          pip install pytest >= 7.4.3, <8.0.0
+          pip install pytest-asyncio >= 0.21.0
+          pip install pytest-xdist >= 3.3.1
 
       - name: Install the package
         run: |
