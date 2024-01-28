@@ -134,6 +134,7 @@ class DeviceBase(Entity):
 
         pass
 
+    # TODO: deprecate this API
     def _make_and_send_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
         super()._make_and_send_cmd(code, self.id, payload=payload, **kwargs)
 
