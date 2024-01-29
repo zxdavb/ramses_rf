@@ -79,6 +79,45 @@ SZ_SPEED_CAP: Final[str] = "speed_capabilities"
 SZ_PRESENCE_DETECTED: Final[str] = "presence_detected"
 
 
+# used by OTB
+SZ_BURNER_HOURS: Final[str] = "burner_hours"
+SZ_BURNER_STARTS: Final[str] = "burner_starts"
+SZ_BURNER_FAILED_STARTS: Final[str] = "burner_failed_starts"
+SZ_CH_PUMP_HOURS: Final[str] = "ch_pump_hours"
+SZ_CH_PUMP_STARTS: Final[str] = "ch_pump_starts"
+SZ_DHW_BURNER_HOURS: Final[str] = "dhw_burner_hours"
+SZ_DHW_BURNER_STARTS: Final[str] = "dhw_burner_starts"
+SZ_DHW_PUMP_HOURS: Final[str] = "dhw_pump_hours"
+SZ_DHW_PUMP_STARTS: Final[str] = "dhw_pump_starts"
+SZ_FLAME_SIGNAL_LOW: Final[str] = "flame_signal_low"
+
+SZ_BOILER_OUTPUT_TEMP: Final[str] = "boiler_output_temp"
+SZ_BOILER_RETURN_TEMP: Final[str] = "boiler_return_temp"
+SZ_BOILER_SETPOINT: Final[str] = "boiler_setpoint"
+SZ_CH_MAX_SETPOINT: Final[str] = "ch_max_setpoint"
+SZ_CH_SETPOINT: Final[str] = "ch_setpoint"
+SZ_CH_WATER_PRESSURE: Final[str] = "ch_water_pressure"
+SZ_DHW_FLOW_RATE: Final[str] = "dhw_flow_rate"
+SZ_DHW_SETPOINT: Final[str] = "dhw_setpoint"
+SZ_DHW_TEMP: Final[str] = "dhw_temp"
+SZ_MAX_REL_MODULATION: Final[str] = "max_rel_modulation"
+# SZ_OEM_CODE:Final[str] = "oem_code"
+SZ_OUTSIDE_TEMP: Final[str] = "outside_temp"
+SZ_REL_MODULATION_LEVEL: Final[str] = "rel_modulation_level"
+
+SZ_CH_ACTIVE: Final[str] = "ch_active"
+SZ_CH_ENABLED: Final[str] = "ch_enabled"
+SZ_COOLING_ACTIVE: Final[str] = "cooling_active"
+SZ_COOLING_ENABLED: Final[str] = "cooling_enabled"
+SZ_DHW_ACTIVE: Final[str] = "dhw_active"
+SZ_DHW_BLOCKING: Final[str] = "dhw_blocking"
+SZ_DHW_ENABLED: Final[str] = "dhw_enabled"
+SZ_FAULT_PRESENT: Final[str] = "fault_present"
+SZ_FLAME_ACTIVE: Final[str] = "flame_active"
+SZ_SUMMER_MODE: Final[str] = "summer_mode"
+SZ_OTC_ACTIVE: Final[str] = "otc_active"
+
+
 @verify(EnumCheck.UNIQUE)
 class Priority(IntEnum):
     LOWEST = 4

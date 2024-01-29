@@ -66,47 +66,46 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
+from ramses_tx.const import (
+    SZ_BOILER_OUTPUT_TEMP,
+    SZ_BOILER_RETURN_TEMP,
+    SZ_BOILER_SETPOINT,
+    SZ_BURNER_FAILED_STARTS,
+    SZ_BURNER_HOURS,
+    SZ_BURNER_STARTS,
+    SZ_CH_ACTIVE,
+    SZ_CH_ENABLED,
+    SZ_CH_MAX_SETPOINT,
+    SZ_CH_PUMP_HOURS,
+    SZ_CH_PUMP_STARTS,
+    SZ_CH_SETPOINT,
+    SZ_CH_WATER_PRESSURE,
+    SZ_COOLING_ACTIVE,
+    SZ_COOLING_ENABLED,
+    SZ_DHW_ACTIVE,
+    SZ_DHW_BLOCKING,
+    SZ_DHW_BURNER_HOURS,
+    SZ_DHW_BURNER_STARTS,
+    SZ_DHW_ENABLED,
+    SZ_DHW_FLOW_RATE,
+    SZ_DHW_PUMP_HOURS,
+    SZ_DHW_PUMP_STARTS,
+    SZ_DHW_SETPOINT,
+    SZ_DHW_TEMP,
+    SZ_FAULT_PRESENT,
+    SZ_FLAME_ACTIVE,
+    SZ_FLAME_SIGNAL_LOW,
+    SZ_MAX_REL_MODULATION,
+    SZ_OEM_CODE,
+    SZ_OTC_ACTIVE,
+    SZ_OUTSIDE_TEMP,
+    SZ_REL_MODULATION_LEVEL,
+    SZ_SUMMER_MODE,
+)
+
 if TYPE_CHECKING:
     from ramses_rf.system import Zone
     from ramses_tx import Address, Message, Packet
-
-
-SZ_BURNER_HOURS: Final[str] = "burner_hours"
-SZ_BURNER_STARTS: Final[str] = "burner_starts"
-SZ_BURNER_FAILED_STARTS: Final[str] = "burner_failed_starts"
-SZ_CH_PUMP_HOURS: Final[str] = "ch_pump_hours"
-SZ_CH_PUMP_STARTS: Final[str] = "ch_pump_starts"
-SZ_DHW_BURNER_HOURS: Final[str] = "dhw_burner_hours"
-SZ_DHW_BURNER_STARTS: Final[str] = "dhw_burner_starts"
-SZ_DHW_PUMP_HOURS: Final[str] = "dhw_pump_hours"
-SZ_DHW_PUMP_STARTS: Final[str] = "dhw_pump_starts"
-SZ_FLAME_SIGNAL_LOW: Final[str] = "flame_signal_low"
-
-SZ_BOILER_OUTPUT_TEMP: Final[str] = "boiler_output_temp"
-SZ_BOILER_RETURN_TEMP: Final[str] = "boiler_return_temp"
-SZ_BOILER_SETPOINT: Final[str] = "boiler_setpoint"
-SZ_CH_MAX_SETPOINT: Final[str] = "ch_max_setpoint"
-SZ_CH_SETPOINT: Final[str] = "ch_setpoint"
-SZ_CH_WATER_PRESSURE: Final[str] = "ch_water_pressure"
-SZ_DHW_FLOW_RATE: Final[str] = "dhw_flow_rate"
-SZ_DHW_SETPOINT: Final[str] = "dhw_setpoint"
-SZ_DHW_TEMP: Final[str] = "dhw_temp"
-SZ_MAX_REL_MODULATION: Final[str] = "max_rel_modulation"
-SZ_OEM_CODE: Final[str] = "oem_code"
-SZ_OUTSIDE_TEMP: Final[str] = "outside_temp"
-SZ_REL_MODULATION_LEVEL: Final[str] = "rel_modulation_level"
-
-SZ_CH_ACTIVE: Final[str] = "ch_active"
-SZ_CH_ENABLED: Final[str] = "ch_enabled"
-SZ_COOLING_ACTIVE: Final[str] = "cooling_active"
-SZ_COOLING_ENABLED: Final[str] = "cooling_enabled"
-SZ_DHW_ACTIVE: Final[str] = "dhw_active"
-SZ_DHW_BLOCKING: Final[str] = "dhw_blocking"
-SZ_DHW_ENABLED: Final[str] = "dhw_enabled"
-SZ_FAULT_PRESENT: Final[str] = "fault_present"
-SZ_FLAME_ACTIVE: Final[str] = "flame_active"
-SZ_SUMMER_MODE: Final[str] = "summer_mode"
-SZ_OTC_ACTIVE: Final[str] = "otc_active"
 
 
 QOS_LOW = {SZ_PRIORITY: Priority.LOW}  # FIXME:  deprecate QoS in kwargs
@@ -133,10 +132,10 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
     # RP --- 10:138926 34:010253 --:------ 3EF0 006 002E11-0000FF         # 10:s only RP
     # .I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # 13:s only  I
 
-    ACTUATOR_CYCLE = "actuator_cycle"
-    ACTUATOR_ENABLED = "actuator_enabled"  # boolean
-    ACTUATOR_STATE = "actuator_state"
-    MODULATION_LEVEL = "modulation_level"  # percentage (0.0-1.0)
+    ACTUATOR_CYCLE: Final = "actuator_cycle"
+    ACTUATOR_ENABLED: Final = "actuator_enabled"  # boolean
+    ACTUATOR_STATE: Final = "actuator_state"
+    MODULATION_LEVEL: Final = "modulation_level"  # percentage (0.0-1.0)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
@@ -176,7 +175,7 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
 
 
 class HeatDemand(DeviceHeat):  # 3150
-    HEAT_DEMAND = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
+    HEAT_DEMAND: Final = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
     @property
     def heat_demand(self) -> float | None:  # 3150
@@ -191,7 +190,7 @@ class HeatDemand(DeviceHeat):  # 3150
 
 
 class Setpoint(DeviceHeat):  # 2309
-    SETPOINT = SZ_SETPOINT  # degrees Celsius
+    SETPOINT: Final = SZ_SETPOINT  # degrees Celsius
 
     @property
     def setpoint(self) -> float | None:  # 2309
@@ -206,7 +205,7 @@ class Setpoint(DeviceHeat):  # 2309
 
 
 class Weather(DeviceHeat):  # 0002
-    TEMPERATURE = SZ_TEMPERATURE  # TODO: deprecate
+    TEMPERATURE: Final = SZ_TEMPERATURE  # TODO: deprecate
 
     @property
     def temperature(self) -> float | None:  # 0002
@@ -240,7 +239,7 @@ class RelayDemand(DeviceHeat):  # 0008
     # RP --- 13:109598 18:199952 --:------ 0008 002 0000
     # RP --- 13:109598 18:199952 --:------ 0008 002 00C8
 
-    RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
+    RELAY_DEMAND: Final = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -261,7 +260,7 @@ class RelayDemand(DeviceHeat):  # 0008
 
 
 class DhwTemperature(DeviceHeat):  # 1260
-    TEMPERATURE = SZ_TEMPERATURE  # TODO: deprecate
+    TEMPERATURE: Final = SZ_TEMPERATURE  # TODO: deprecate
 
     async def initiate_binding_process(self) -> Packet:
         return await super().initiate_binding_process(Code._1260)
@@ -371,7 +370,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
     _SLUG: str = DevType.UFC
 
-    HEAT_DEMAND = SZ_HEAT_DEMAND
+    HEAT_DEMAND: Final = SZ_HEAT_DEMAND
 
     _STATE_ATTR = SZ_HEAT_DEMAND
 
@@ -569,8 +568,8 @@ class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
 
     _SLUG: str = DevType.DHW
 
-    DHW_PARAMS = "dhw_params"
-    TEMPERATURE = SZ_TEMPERATURE
+    DHW_PARAMS: Final = "dhw_params"
+    TEMPERATURE: Final = SZ_TEMPERATURE
 
     _STATE_ATTR = SZ_TEMPERATURE
 
@@ -1240,8 +1239,8 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 
     _SLUG: str = DevType.BDR
 
-    ACTIVE = "active"
-    TPI_PARAMS = "tpi_params"
+    ACTIVE: Final = "active"
+    TPI_PARAMS: Final = "tpi_params"
 
     _STATE_ATTR = "active"
 
@@ -1333,7 +1332,7 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
     _SLUG: str = DevType.TRV
 
-    WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
+    WINDOW_OPEN: Final = SZ_WINDOW_OPEN
 
     _STATE_ATTR = SZ_HEAT_DEMAND
 
