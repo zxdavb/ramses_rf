@@ -36,7 +36,7 @@ from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from ramses_tx.address import NON_DEV_ADDR
 from ramses_tx.command import Command, Priority
-from ramses_tx.const import SZ_NUM_REPEATS, SZ_PRIORITY
+from ramses_tx.const import SZ_NUM_REPEATS, SZ_PRIORITY, MsgId
 from ramses_tx.opentherm import (
     PARAMS_MSG_IDS,
     SCHEMA_MSG_IDS,
@@ -531,7 +531,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     @property
     def setpoints(self) -> dict | None:  # 22C9|ufh_idx array
         if self._setpoints is None:
-            return
+            return None
 
         return {
             c[SZ_UFH_IDX]: {
@@ -622,18 +622,18 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
     OT_TO_RAMSES: dict[str, Code] = {  # TODO: move to opentherm.py
-        "00": Code._3EF0,  # master/slave status (actuator_state)
-        "01": Code._22D9,  # boiler_setpoint
-        "0E": Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
-        "11": Code._3EF0,  # rel_modulation_level (actuator_state, also Code._3EF1)
-        "12": Code._1300,  # ch_water_pressure
-        "13": Code._12F0,  # dhw_flow_rate
-        "19": Code._3200,  # boiler_output_temp
-        "1A": Code._1260,  # dhw_temp
-        "1B": Code._1290,  # outside_temp
-        "1C": Code._3210,  # boiler_return_temp
-        "38": Code._10A0,  # dhw_setpoint (is a PARAM)
-        "39": Code._1081,  # ch_max_setpoint (is a PARAM)
+        MsgId._00: Code._3EF0,  # master/slave status (actuator_state)
+        MsgId._01: Code._22D9,  # boiler_setpoint
+        MsgId._0E: Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
+        MsgId._11: Code._3EF0,  # rel_modulation_level (actuator_state, also Code._3EF1)
+        MsgId._12: Code._1300,  # ch_water_pressure
+        MsgId._13: Code._12F0,  # dhw_flow_rate
+        MsgId._19: Code._3200,  # boiler_output_temp
+        MsgId._1A: Code._1260,  # dhw_temp
+        MsgId._1B: Code._1290,  # outside_temp
+        MsgId._1C: Code._3210,  # boiler_return_temp
+        MsgId._38: Code._10A0,  # dhw_setpoint (is a PARAM)
+        MsgId._39: Code._1081,  # ch_max_setpoint (is a PARAM)
     }
     RAMSES_TO_OT: dict[Code, str] = {
         v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0
@@ -651,7 +651,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # lf._msgs_ot_ctl_polled = {}
 
     def _setup_discovery_cmds(self) -> None:
-        def which_cmd(use_native_ot: str, msg_id: str) -> Command | None:
+        def which_cmd(use_native_ot: str, msg_id: MsgId) -> Command | None:
             """Create a OT cmd, or its RAMSES equivalent, depending."""
             # we know RQ|3220 is an option, question is: use that, or RAMSES or nothing?
             if use_native_ot in ("always", "prefer"):
@@ -771,7 +771,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         else:
             self.deprecate_code_ctx(msg._pkt, reset=True)
 
-    def _ot_msg_flag(self, msg_id: str, flag_idx: int) -> bool | None:
+    def _ot_msg_flag(self, msg_id: MsgId, flag_idx: int) -> bool | None:
         if flags := self._ot_msg_value(msg_id):
             return bool(flags[flag_idx])
         return None
@@ -784,10 +784,11 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             else f"{msg.payload[SZ_MSG_ID]:02X}"
         )
 
-    def _ot_msg_value(self, msg_id: str) -> int | float | list | None:
+    def _ot_msg_value(self, msg_id: MsgId) -> int | float | list | None:
         # data_id = int(msg_id, 16)
         if (msg := self._msgs_ot.get(msg_id)) and not msg._expired:
             return msg.payload.get(SZ_VALUE)  # TODO: value_hb/_lb
+        return None
 
     def _result_by_callback(
         self, cbk_ot: Callable | None, cbk_ramses: Callable | None
@@ -1426,6 +1427,7 @@ class UfhCircuit(Entity):
     def zone_idx(self) -> str | None:
         if self._zone:
             return self._zone._child_id
+        return None
 
 
 HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller

@@ -635,6 +635,30 @@ RP: Final[VerbT] = "RP"
 W_: Final[VerbT] = " W"
 
 
+@verify(EnumCheck.UNIQUE)
+class MsgId(StrEnum):
+    _00 = "00"
+    _03 = "03"
+    _06 = "06"
+    _01 = "01"
+    _05 = "05"
+    _0E = "0E"
+    _0F = "0F"
+    _11 = "11"
+    _12 = "12"
+    _13 = "13"
+    _19 = "19"
+    _1A = "1A"
+    _1B = "1B"
+    _1C = "1C"
+    _30 = "30"
+    _31 = "31"
+    _38 = "38"
+    _39 = "39"
+    _73 = "73"
+    _7F = "7F"
+
+
 # StrEnum is intended include all known codes, see: test suite, code schema in ramses.py
 @verify(EnumCheck.UNIQUE)
 class Code(StrEnum):
