@@ -249,7 +249,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
             # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
             # needed for (e.g.) faked relays: each device decides if the pkt is useful
-            devices = msg.src.devices  # type: ignore[attr-defined]
+            devices = msg.src.devices
 
         else:
             devices = []
