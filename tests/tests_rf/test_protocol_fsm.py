@@ -347,9 +347,14 @@ async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     pkt = await protocol._send_cmd(cmd, qos=QosParams())
     assert pkt == cmd
 
-    for x in (None, False, True):
-        pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=x))
-        assert pkt == cmd
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
+    assert pkt == cmd
+
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
+    assert pkt == cmd
+
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
+    assert pkt == cmd
 
     # Simple test for an RQ (expects an RP)...
     cmd = Command.get_system_time("01:333333")  # 1F09|RQ|01:333333
@@ -360,8 +365,17 @@ async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     pkt = await protocol._send_cmd(cmd, qos=None)
     assert pkt is None
 
+    # FIXME: reduce timeouts to speed up test
     # try:
     #     pkt = await protocol._send_cmd(cmd, qos=QosParams())
+    # except exc.ProtocolSendFailed:
+    #     pass
+    # else:
+    #     assert False, "Expected ProtocolSendFailed"
+
+    # FIXME: reduce timeouts to speed up test
+    # try:
+    #     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
     # except exc.ProtocolSendFailed:
     #     pass
     # else:
@@ -370,13 +384,13 @@ async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
     assert pkt == cmd
 
-    # for x in (None, True):
-    #     try:
-    #         pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=x))
-    #     except exc.ProtocolSendFailed:
-    #         pass
-    #     else:
-    #         assert False, "Expected ProtocolSendFailed"
+    # FIXME: reduce timeouts to speed up test
+    # try:
+    #     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
+    # except exc.ProtocolSendFailed:
+    #     pass
+    # else:
+    #     assert False, "Expected ProtocolSendFailed"
 
 
 @protocol_decorator
