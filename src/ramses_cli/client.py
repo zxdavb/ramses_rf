@@ -26,6 +26,7 @@ from ramses_rf.schemas import (
 from ramses_tx import is_valid_dev_id  # noqa: F401
 from ramses_tx.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_tx.schemas import (
+    SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
@@ -70,10 +71,10 @@ PRINT_STATE = False  # print engine state
 logging.basicConfig(level=logging.WARNING, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
 
-EXECUTE = "execute"
-LISTEN = "listen"
-MONITOR = "monitor"
-PARSE = "parse"
+EXECUTE: Final = "execute"
+LISTEN: Final = "listen"
+MONITOR: Final = "monitor"
+PARSE: Final = "parse"
 
 
 COLORS = {
@@ -316,6 +317,7 @@ def execute(obj, **kwargs):
 
     print(" - discovery is force-disabled")
     lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
+    lib_config[SZ_CONFIG][SZ_DISABLE_QOS] = False
 
     if kwargs[GET_FAULTS]:
         known_list = {kwargs[GET_FAULTS]: {}}

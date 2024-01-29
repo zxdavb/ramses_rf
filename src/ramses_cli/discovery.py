@@ -97,7 +97,8 @@ def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task]:
 
 
 async def exec_cmd(gwy: Gateway, **kwargs):
-    await gwy.async_send_cmd(Command.from_cli(kwargs[EXEC_CMD]), priority=Priority.HIGH)
+    cmd = Command.from_cli(kwargs[EXEC_CMD])
+    await gwy.async_send_cmd(cmd, priority=Priority.HIGH, wait_for_reply=True)
 
 
 # @script_decorator
