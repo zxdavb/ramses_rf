@@ -60,12 +60,12 @@ if TYPE_CHECKING:
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
 
-_SZ_LAST_PKT: Final[str] = "last_msg"
-_SZ_NEXT_DUE: Final[str] = "next_due"
-_SZ_TIMEOUT: Final[str] = "timeout"
-_SZ_FAILURES: Final[str] = "failures"
-_SZ_INTERVAL: Final[str] = "interval"
-_SZ_COMMAND: Final[str] = "command"
+_SZ_LAST_PKT: Final = "last_msg"
+_SZ_NEXT_DUE: Final = "next_due"
+_SZ_TIMEOUT: Final = "timeout"
+_SZ_FAILURES: Final = "failures"
+_SZ_INTERVAL: Final = "interval"
+_SZ_COMMAND: Final = "command"
 
 
 _DBG_ENABLE_BACKOFF = False

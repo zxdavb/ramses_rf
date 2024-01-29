@@ -23,16 +23,16 @@ _LOGGER = logging.getLogger(__name__)
 
 #
 # 0/5: Packet source configuration
-SZ_INPUT_FILE: Final[str] = "input_file"
-SZ_PACKET_SOURCE: Final[str] = "packet_source"
+SZ_INPUT_FILE: Final = "input_file"
+SZ_PACKET_SOURCE: Final = "packet_source"
 
 
 #
 # 1/5: Packet log configuration
-SZ_FILE_NAME: Final[str] = "file_name"
-SZ_PACKET_LOG: Final[str] = "packet_log"
-SZ_ROTATE_BACKUPS: Final[str] = "rotate_backups"
-SZ_ROTATE_BYTES: Final[str] = "rotate_bytes"
+SZ_FILE_NAME: Final = "file_name"
+SZ_PACKET_LOG: Final = "packet_log"
+SZ_ROTATE_BACKUPS: Final = "rotate_backups"
+SZ_ROTATE_BYTES: Final = "rotate_bytes"
 
 
 def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any]:
@@ -85,15 +85,15 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any
 
 #
 # 2/5: Serial port configuration
-SZ_PORT_CONFIG: Final[str] = "port_config"
-SZ_PORT_NAME: Final[str] = "port_name"
-SZ_SERIAL_PORT: Final[str] = "serial_port"
+SZ_PORT_CONFIG: Final = "port_config"
+SZ_PORT_NAME: Final = "port_name"
+SZ_SERIAL_PORT: Final = "serial_port"
 
-SZ_BAUDRATE: Final[str] = "baudrate"
-SZ_DSRDTR: Final[str] = "dsrdtr"
-SZ_RTSCTS: Final[str] = "rtscts"
-SZ_TIMEOUT: Final[str] = "timeout"
-SZ_XONXOFF: Final[str] = "xonxoff"
+SZ_BAUDRATE: Final = "baudrate"
+SZ_DSRDTR: Final = "dsrdtr"
+SZ_RTSCTS: Final = "rtscts"
+SZ_TIMEOUT: Final = "timeout"
+SZ_XONXOFF: Final = "xonxoff"
 
 
 SCH_SERIAL_PORT_CONFIG = vol.Schema(
@@ -161,13 +161,13 @@ def ConvertNullToDict():
     return convert_null_to_dict
 
 
-SZ_ALIAS: Final[str] = "alias"
-SZ_CLASS: Final[str] = "class"
-SZ_FAKED: Final[str] = "faked"
-SZ_SCHEME: Final[str] = "scheme"
+SZ_ALIAS: Final = "alias"
+SZ_CLASS: Final = "class"
+SZ_FAKED: Final = "faked"
+SZ_SCHEME: Final = "scheme"
 
-SZ_BLOCK_LIST: Final[str] = "block_list"
-SZ_KNOWN_LIST: Final[str] = "known_list"
+SZ_BLOCK_LIST: Final = "block_list"
+SZ_KNOWN_LIST: Final = "known_list"
 
 SCH_DEVICE_ID_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
 SCH_DEVICE_ID_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
@@ -341,11 +341,11 @@ def select_device_filter_mode(
 
 #
 # 4/5: Gateway (engine) configuration
-SZ_DISABLE_SENDING: Final[str] = "disable_sending"
-SZ_DISABLE_QOS: Final[str] = "disable_qos"
+SZ_DISABLE_SENDING: Final = "disable_sending"
+SZ_DISABLE_QOS: Final = "disable_qos"
 SZ_ENFORCE_KNOWN_LIST: Final[str] = f"enforce_{SZ_KNOWN_LIST}"
-SZ_EVOFW_FLAG: Final[str] = "evofw_flag"
-SZ_USE_REGEX: Final[str] = "use_regex"
+SZ_EVOFW_FLAG: Final = "evofw_flag"
+SZ_USE_REGEX: Final = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
@@ -360,5 +360,5 @@ SCH_ENGINE_DICT = {
 }
 SCH_ENGINE_CONFIG = vol.Schema(SCH_ENGINE_DICT, extra=vol.REMOVE_EXTRA)
 
-SZ_INBOUND: Final[str] = "inbound"  # for use_regex (intentionally obscured)
-SZ_OUTBOUND: Final[str] = "outbound"
+SZ_INBOUND: Final = "inbound"  # for use_regex (intentionally obscured)
+SZ_OUTBOUND: Final = "outbound"

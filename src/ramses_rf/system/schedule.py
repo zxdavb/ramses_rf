@@ -48,13 +48,13 @@ _LOGGER = logging.getLogger(__name__)
 
 FIVE_MINS = td(minutes=5)
 
-SZ_MSG: Final[str] = "msg"
+SZ_MSG: Final = "msg"
 
-SZ_DAY_OF_WEEK: Final[str] = "day_of_week"
-SZ_HEAT_SETPOINT: Final[str] = "heat_setpoint"
-SZ_SWITCHPOINTS: Final[str] = "switchpoints"
-SZ_TIME_OF_DAY: Final[str] = "time_of_day"
-SZ_ENABLED: Final[str] = "enabled"
+SZ_DAY_OF_WEEK: Final = "day_of_week"
+SZ_HEAT_SETPOINT: Final = "heat_setpoint"
+SZ_SWITCHPOINTS: Final = "switchpoints"
+SZ_TIME_OF_DAY: Final = "time_of_day"
+SZ_ENABLED: Final = "enabled"
 
 REGEX_TIME_OF_DAY: Final = r"^([0-1][0-9]|2[0-3]):[0-5][05]$"
 

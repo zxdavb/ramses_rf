@@ -52,7 +52,7 @@ if _PROFILE_LIBRARY:
     import pstats
 
 
-SZ_INPUT_FILE: Final[str] = "input_file"
+SZ_INPUT_FILE: Final = "input_file"
 
 # DEFAULT_SUMMARY can be: True, False, or None
 SHOW_SCHEMA = False

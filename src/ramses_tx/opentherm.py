@@ -183,36 +183,36 @@ OTB_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = (
 
 # Also see:
 # github.com/rvdbreemen/OTGW-firmware
-READ_WRITE: Final[str] = "RW"
-READ_ONLY: Final[str] = "R-"
-WRITE_ONLY: Final[str] = "-W"
+READ_WRITE: Final = "RW"
+READ_ONLY: Final = "R-"
+WRITE_ONLY: Final = "-W"
 
-EN: Final[str] = "en"
-FLAGS: Final[str] = "flags"
-DIR: Final[str] = "dir"
-NL: Final[str] = "nl"
-SENSOR: Final[str] = "sensor"
-VAL: Final[str] = "val"
-VAR: Final[str] = "var"
+EN: Final = "en"
+FLAGS: Final = "flags"
+DIR: Final = "dir"
+NL: Final = "nl"
+SENSOR: Final = "sensor"
+VAL: Final = "val"
+VAR: Final = "var"
 
-FLAG8: Final[str] = "flag8"
-FLAG: Final[str] = "flag"
-U8: Final[str] = "u8"
-S8: Final[str] = "s8"
-F8_8: Final[str] = "f8.8"
-U16: Final[str] = "u16"
-S16: Final[str] = "s16"
+FLAG8: Final = "flag8"
+FLAG: Final = "flag"
+U8: Final = "u8"
+S8: Final = "s8"
+F8_8: Final = "f8.8"
+U16: Final = "u16"
+S16: Final = "s16"
 SPECIAL: Final[str] = U8  # used for ID 0x14 (20)
 
-HB: Final[str] = "hb"
-LB: Final[str] = "lb"
+HB: Final = "hb"
+LB: Final = "lb"
 
-SZ_MESSAGES: Final[str] = "messages"
-SZ_DESCRIPTION: Final[str] = "description"
-SZ_MSG_ID: Final[str] = "msg_id"
-SZ_MSG_NAME: Final[str] = "msg_name"
-SZ_MSG_TYPE: Final[str] = "msg_type"
-SZ_VALUE: Final[str] = "value"
+SZ_MESSAGES: Final = "messages"
+SZ_DESCRIPTION: Final = "description"
+SZ_MSG_ID: Final = "msg_id"
+SZ_MSG_NAME: Final = "msg_name"
+SZ_MSG_TYPE: Final = "msg_type"
+SZ_VALUE: Final = "value"
 SZ_VALUE_HB: Final[str] = f"{SZ_VALUE}_{HB}"
 SZ_VALUE_LB: Final[str] = f"{SZ_VALUE}_{LB}"
 
@@ -253,11 +253,11 @@ OPENTHERM_MSG_TYPE: dict[int, OtMsgType] = {
     0b111: OtMsgType.UNKNOWN_DATAID,
 }
 
-SZ_STATUS_FLAGS: Final[str] = "status_flags"
-SZ_MASTER_CONFIG_FLAGS: Final[str] = "master_config_flags"
-SZ_SLAVE_CONFIG_FLAGS: Final[str] = "slave_config_flags"
-SZ_FAULT_FLAGS: Final[str] = "fault_flags"
-SZ_REMOTE_FLAGS: Final[str] = "remote_flags"
+SZ_STATUS_FLAGS: Final = "status_flags"
+SZ_MASTER_CONFIG_FLAGS: Final = "master_config_flags"
+SZ_SLAVE_CONFIG_FLAGS: Final = "slave_config_flags"
+SZ_FAULT_FLAGS: Final = "fault_flags"
+SZ_REMOTE_FLAGS: Final = "remote_flags"
 
 
 # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]

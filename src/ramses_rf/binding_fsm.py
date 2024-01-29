@@ -44,9 +44,9 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
-SZ_RESPONDENT: Final[str] = "respondent"
-SZ_SUPPLICANT: Final[str] = "supplicant"
-SZ_IS_DORMANT: Final[str] = "is_dormant"
+SZ_RESPONDENT: Final = "respondent"
+SZ_SUPPLICANT: Final = "supplicant"
+SZ_IS_DORMANT: Final = "is_dormant"
 
 
 CONFIRM_RETRY_LIMIT: Final[
@@ -90,11 +90,11 @@ class Vendor(StrEnum):
     DEFAULT = "default"
 
 
-SZ_CLASS: Final[str] = "class"
-SZ_VENDOR: Final[str] = "vendor"
-SZ_TENDER: Final[str] = "tender"
-SZ_AFFIRM: Final[str] = "affirm"
-SZ_RATIFY: Final[str] = "thumbrint"
+SZ_CLASS: Final = "class"
+SZ_VENDOR: Final = "vendor"
+SZ_TENDER: Final = "tender"
+SZ_AFFIRM: Final = "affirm"
+SZ_RATIFY: Final = "thumbrint"
 
 # VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
 VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))

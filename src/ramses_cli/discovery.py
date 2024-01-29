@@ -31,16 +31,16 @@ if TYPE_CHECKING:
     from ramses_rf import Gateway, IndexT
 
 
-EXEC_CMD: Final[str] = "exec_cmd"
-GET_FAULTS: Final[str] = "get_faults"
-GET_SCHED: Final[str] = "get_schedule"
-SET_SCHED: Final[str] = "set_schedule"
+EXEC_CMD: Final = "exec_cmd"
+GET_FAULTS: Final = "get_faults"
+GET_SCHED: Final = "get_schedule"
+SET_SCHED: Final = "set_schedule"
 
-EXEC_SCR: Final[str] = "exec_scr"
-SCAN_DISC: Final[str] = "scan_disc"
-SCAN_FULL: Final[str] = "scan_full"
-SCAN_HARD: Final[str] = "scan_hard"
-SCAN_XXXX: Final[str] = "scan_xxxx"
+EXEC_SCR: Final = "exec_scr"
+SCAN_DISC: Final = "scan_disc"
+SCAN_FULL: Final = "scan_full"
+SCAN_HARD: Final = "scan_hard"
+SCAN_XXXX: Final = "scan_xxxx"
 
 # DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
