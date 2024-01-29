@@ -18,6 +18,10 @@ except ModuleNotFoundError as err:
 from ramses_cli import _DBG_CLI  # noqa: E402, I001
 from ramses_cli.client import PARSE, cli  # noqa: E402, I001
 
+# TODO: add tests for:
+# client execute /dev/ttyACM0 -x "RQ 01:145038 1F09 00"
+# client execute /dev/ttyACM0 --get-schedule 01:145038 01
+
 
 if _DBG_CLI:
     pytest.skip(f"_DBG_CLI = {_DBG_CLI}", allow_module_level=True)
@@ -61,7 +65,12 @@ LIB_CONFIG_BASE = {
 }
 
 LIB_CONFIG_EXECUTE = {
-    "config": {"reduce_processing": 0, "evofw_flag": None, "disable_discovery": True},
+    "config": {
+        "reduce_processing": 0,
+        "evofw_flag": None,
+        "disable_discovery": True,
+        "disable_qos": False,  # the client enforces this
+    },
     "serial_port": "/dev/ttyUSB0",
     "packet_log": None,
 }
