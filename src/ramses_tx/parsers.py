@@ -20,9 +20,9 @@ import logging
 import re
 from collections.abc import Mapping
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from . import exceptions as exc
+from . import exceptions as exc, typed_dicts as PARSER
 from .address import ALL_DEV_ADDR, NON_DEV_ADDR, hex_id_to_dev_id
 from .const import (
     DEV_ROLE_MAP,
@@ -43,6 +43,7 @@ from .const import (
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
+    SZ_DHW_FLOW_RATE,
     SZ_DOMAIN_ID,
     SZ_DURATION,
     SZ_FAN_MODE,
@@ -125,6 +126,7 @@ from .opentherm import (
     decode_frame,
 )
 from .ramses import _2411_PARAMS_SCHEMA
+from .typed_dicts import PayDictT
 from .version import VERSION
 
 # Kudos & many thanks to:
@@ -813,7 +815,7 @@ def parser_1060(payload: str, msg: Message) -> dict:
 
 
 # max_ch_setpoint (supply high limit)
-def parser_1081(payload: str, msg: Message) -> dict:
+def parser_1081(payload: str, msg: Message) -> PayDictT._1081:
     return {SZ_SETPOINT: hex_to_temp(payload[2:])}
 
 
@@ -874,7 +876,7 @@ def parser_10a0(payload: str, msg: Message) -> dict:
     assert msg.len in (1, 3, 6), msg.len  # OTB uses 3, evohome uses 6
     assert payload[:2] in ("00", "01"), payload[:2]  # can be two DHW valves/system
 
-    result = {}
+    result: dict[str, Any] = {}
     if msg.len >= 2:
         setpoint = hex_to_temp(payload[2:6])  # 255 for OTB? iff no DHW?
         result = {SZ_SETPOINT: None if setpoint == 255 else setpoint}  # 30.0-85.0 C
@@ -1045,8 +1047,8 @@ def parser_11f0(payload: str, msg: Message) -> dict:
 
 
 # dhw cylinder temperature
-def parser_1260(payload: str, msg: Message) -> dict:
-    return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
+def parser_1260(payload: str, msg: Message) -> PayDictT._1260:
+    return PARSER.parse_1260(payload)
 
 
 # HVAC: outdoor humidity
@@ -1065,7 +1067,7 @@ def parser_1280(payload: str, msg: Message) -> dict:
 
 
 # outdoor temperature
-def parser_1290(payload: str, msg: Message) -> Mapping[str, float | str | None]:
+def parser_1290(payload: str, msg: Message) -> PayDictT._1290:
     # evohome responds to an RQ, also from OTB
     return parse_outdoor_temp(payload[2:])
 
@@ -1125,12 +1127,12 @@ def parser_12c8(payload: str, _) -> Mapping[str, float | str | None]:
 
 
 # dhw_flow_rate
-def parser_12f0(payload: str, msg: Message) -> Mapping[str, float | None]:
-    return {"dhw_flow_rate": hex_to_temp(payload[2:])}
+def parser_12f0(payload: str, msg: Message) -> PayDictT._12F0:
+    return {SZ_DHW_FLOW_RATE: hex_to_temp(payload[2:])}
 
 
 # ch_pressure
-def parser_1300(payload: str, msg: Message) -> Mapping[str, float | None]:
+def parser_1300(payload: str, msg: Message) -> PayDictT._1300:
     # 0x9F6 (2550 dec = 2.55 bar) appears to be a sentinel value
     return {SZ_PRESSURE: None if payload[2:] == "09F6" else hex_to_temp(payload[2:])}
 
@@ -1437,7 +1439,7 @@ def parser_22d0(payload: str, msg: Message) -> dict:
 
 
 # desired boiler setpoint
-def parser_22d9(payload: str, msg: Message) -> dict:
+def parser_22d9(payload: str, msg: Message) -> PayDictT._22D9:
     return {SZ_SETPOINT: hex_to_temp(payload[2:6])}
 
 
@@ -2227,12 +2229,12 @@ def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # supplied boiler water (flow) temp
-def parser_3200(payload: str, msg: Message) -> dict:
+def parser_3200(payload: str, msg: Message) -> PayDictT._3200:
     return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
 
 
 # return (boiler) water temp
-def parser_3210(payload: str, msg: Message) -> dict:
+def parser_3210(payload: str, msg: Message) -> PayDictT._3210:
     return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
 
 

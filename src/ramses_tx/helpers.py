@@ -9,7 +9,7 @@ import sys
 import time
 from collections.abc import Iterable, Mapping
 from datetime import datetime as dt
-from typing import Literal, TypeAlias
+from typing import TYPE_CHECKING, Final, Literal, TypeAlias
 
 from .const import (
     SZ_AIR_QUALITY,
@@ -37,18 +37,21 @@ from .const import (
 )
 from .ramses import _31DA_FAN_INFO
 
+if TYPE_CHECKING:
+    from .typed_dicts import PayDictT
+
 # Sensor faults
-SZ_UNRELIABLE = "unreliable"
-SZ_TOO_HIGH = "out_of_range_high"
-SZ_TOO_LOW = "out_of_range_low"
+SZ_UNRELIABLE: Final = "unreliable"
+SZ_TOO_HIGH: Final = "out_of_range_high"
+SZ_TOO_LOW: Final = "out_of_range_low"
 # Actuator, Valve/damper faults
-SZ_STUCK_VALVE = "stuck_valve"  # Damper/Valve jammed
-SZ_STUCK_ACTUATOR = "stuck_actuator"  # Actuator jammed
+SZ_STUCK_VALVE: Final = "stuck_valve"  # Damper/Valve jammed
+SZ_STUCK_ACTUATOR: Final = "stuck_actuator"  # Actuator jammed
 # Common (to both) faults
-SZ_OPEN_CIRCUIT = "open_circuit"
-SZ_SHORT_CIRCUIT = "short_circuit"
-SZ_UNAVAILABLE = "unavailable"
-SZ_OTHER_FAULT = "other_fault"  # Non-specific fault
+SZ_OPEN_CIRCUIT: Final = "open_circuit"
+SZ_SHORT_CIRCUIT: Final = "short_circuit"
+SZ_UNAVAILABLE: Final = "unavailable"
+SZ_OTHER_FAULT: Final = "other_fault"  # Non-specific fault
 
 DEVICE_FAULT_CODES = {
     0x0: SZ_OPEN_CIRCUIT,  # NOTE: open, short
@@ -337,7 +340,7 @@ def hex_from_str(value: str) -> str:
     return "".join(f"{ord(x):02X}" for x in value)  # or: value.encode().hex()
 
 
-def hex_to_temp(value: HexStr4) -> bool | float | None:
+def hex_to_temp(value: HexStr4) -> bool | float | None:  # TODO: remove bool
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -482,7 +485,7 @@ def parse_indoor_humidity(value: str) -> ReturnValueDictT:
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _parse_fan_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
 # 31DA[12:14] and 1280[2:12]
@@ -491,10 +494,10 @@ def parse_outdoor_humidity(value: str) -> ReturnValueDictT:
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _parse_fan_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _parse_hvac_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
 
 
-def _parse_fan_humidity(
+def _parse_hvac_humidity(
     param_name: str, value: HexStr2, temp: str, dewpoint: str
 ) -> ReturnValueDictT:
     """Return the relative humidity, etc. (called by sensor parsers).
@@ -531,30 +534,30 @@ def _parse_fan_humidity(
 
 
 # 31DA[14:18]
-def parse_exhaust_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_exhaust_temp(value: HexStr4) -> PayDictT.temperature:
     """Return the exhaust temperature ('C)."""
-    return _parse_fan_temp(SZ_EXHAUST_TEMP, value)
+    return _parse_hvac_temp(SZ_EXHAUST_TEMP, value)
 
 
 # 31DA[18:22]
-def parse_supply_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_supply_temp(value: HexStr4) -> PayDictT.temperature:
     """Return the supply temperature ('C)."""
-    return _parse_fan_temp(SZ_SUPPLY_TEMP, value)
+    return _parse_hvac_temp(SZ_SUPPLY_TEMP, value)
 
 
 # 31DA[22:26]
-def parse_indoor_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_indoor_temp(value: HexStr4) -> PayDictT.temperature:
     """Return the indoor temperature ('C)."""
-    return _parse_fan_temp(SZ_INDOOR_TEMP, value)
+    return _parse_hvac_temp(SZ_INDOOR_TEMP, value)
 
 
 # 31DA[26:30] & 1290[2:6]?
-def parse_outdoor_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_outdoor_temp(value: HexStr4) -> PayDictT.temperature:
     """Return the outdoor temperature ('C)."""
-    return _parse_fan_temp(SZ_OUTDOOR_TEMP, value)
+    return _parse_hvac_temp(SZ_OUTDOOR_TEMP, value)
 
 
-def _parse_fan_temp(param_name: str, value: HexStr4) -> ReturnValueDictT:
+def _parse_hvac_temp(param_name: str, value: HexStr4) -> PayDictT.temperature:
     """Return the temperature ('C) (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -566,19 +569,19 @@ def _parse_fan_temp(param_name: str, value: HexStr4) -> ReturnValueDictT:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
     if value == "7FFF":  # Not implemented
-        return {param_name: None}
+        return {param_name: None}  # type: ignore[misc]
     if value == "31FF":  # Other
-        return {param_name: None}
+        return {param_name: None}  # type: ignore[misc]
 
     if int(value[:2], 16) & 0xF0 == 0x80:  # or temperature < -273.15:
-        return _faulted_sensor(param_name, value)
+        return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
     temp: float = int(value, 16)
     temp = (temp if temp < 2**15 else temp - 2**16) / 100
     if temp <= -273:  # TODO: < 273.15?
-        return _faulted_sensor(param_name, value)
+        return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
-    return {param_name: temp}
+    return {param_name: temp}  # type: ignore[misc]
 
 
 # 31DA[30:34]
