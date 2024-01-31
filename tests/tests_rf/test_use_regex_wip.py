@@ -126,8 +126,8 @@ async def test_regex_inbound_():
 
 # TODO: get tests working with QoS enabled
 @pytest.mark.xdist_group(name="virt_serial")
-@patch("ramses_tx.protocol._DBG_DISABLE_QOS", _DBG_DISABLE_QOS)
-async def test_regex_outbound():
+@patch("ramses_tx.protocol._DBG_DISABLE_QOS", False)
+async def _test_regex_outbound():
     """Check the regex filters work as expected."""
 
     rf = VirtualRf(2)
@@ -135,6 +135,7 @@ async def test_regex_outbound():
     # NOTE: the absence of reciprocal inbound tests is intentional
     config = GWY_CONFIG
     config["config"].update({SZ_USE_REGEX: {SZ_OUTBOUND: RULES_OUTBOUND}})
+    config["config"]["disable_qos"] = False
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])

@@ -597,6 +597,9 @@ class PortProtocol(_BaseProtocol):
         assert gap_duration == DEFAULT_GAP_DURATION
         assert DEFAULT_NUM_REPEATS <= num_repeats <= 3
 
+        if qos and not isinstance(self, QosProtocol):
+            raise exc.ProtocolError(f"{self}: QoS is not supported by this Protocol")
+
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
 
@@ -703,6 +706,14 @@ class QosProtocol(PortProtocol):
         if (self._selective_qos and cmd.code not in _CODES) or qos is None:
             return await send_cmd(cmd)  # type: ignore[func-returns-value]
 
+        # if qos is None and cmd.code in _CODES:
+        #     qos = QosParams(wait_for_reply=True)
+        # if self._selective_qos and qos is None:
+        #     return await send_cmd(cmd)  # type: ignore[func-returns-value]
+        # if qos is None:
+        #     qos = QosParams()
+
+        # Should do this check before, or after previous block (of non-QoS sends)?
         if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
             raise exc.ProtocolError(
                 f"{self}: Failed to send {cmd._hdr}: excluded by list"
