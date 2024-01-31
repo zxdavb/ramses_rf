@@ -19,7 +19,7 @@ import pytest_asyncio
 import serial
 import serial_asyncio
 
-from ramses_rf import Command, Packet
+from ramses_rf import Command, Message, Packet
 from ramses_tx.protocol import QosProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
@@ -35,12 +35,12 @@ from ramses_tx.typing import QosParams
 from .virtual_rf import VirtualRf
 
 # patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
-_DBG_MAINTAIN_STATE_CHAIN = False  # #        ramses_tx.protocol_fsm
-DEFAULT_MAX_RETRIES = 0  # #                    ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.05  # #                     ramses_tx.protocol_fsm
-MAX_DUTY_CYCLE = 1.0  # #                       ramses_tx.protocol
-_GAP_BETWEEN_WRITES = 0  # #             ramses_tx.protocol
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DBG_MAINTAIN_STATE_CHAIN = False  # #      ramses_tx.protocol_fsm
+DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
+DEFAULT_TIMEOUT = 0.05  # #                 ramses_tx.protocol_fsm
+MAX_DUTY_CYCLE = 1.0  # #                   ramses_tx.protocol
+_GAP_BETWEEN_WRITES = 0  # #                ramses_tx.protocol
 
 # other constants
 CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
@@ -89,47 +89,52 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     )
 
 
-def protocol_decorator(fnc):  # TODO: make a fixture
-    """Create a virtual RF network with a protocol stack."""
+def prot_factory(disable_qos: bool | None = False):
+    def prot_decorator(fnc):  # TODO: make a fixture
+        """Create a virtual RF network with a protocol stack (i.e. without a gateway)."""
 
-    @functools.wraps(fnc)
-    async def test_wrapper(*args, **kwargs):
-        def _msg_handler(msg) -> None:
-            pass
+        @functools.wraps(fnc)
+        async def prot_wrapper(*args, **kwargs):
+            def _msg_handler(msg: Message) -> None:
+                pass
 
-        rf = VirtualRf(2, start=True)
+            rf = VirtualRf(2, start=True)
 
-        protocol = protocol_factory(kwargs.pop("msg_handler", _msg_handler))
-        await assert_protocol_state(protocol, Inactive, max_sleep=0)
+            protocol = protocol_factory(
+                kwargs.pop("msg_handler", _msg_handler), disable_qos=disable_qos
+            )
+            await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
-        transport: serial_asyncio.SerialTransport = await transport_factory(
-            protocol,
-            port_name=rf.ports[0],
-            port_config=kwargs.pop("port_config", {}),
-            enforce_include_list=kwargs.pop("enforce_include_list", False),
-            exclude_list=kwargs.pop("exclude_list", {}),
-            include_list=kwargs.pop("include_list", {}),
-        )
-        transport._extra["virtual_rf"] = rf  # injected to aid any debugging
+            transport: serial_asyncio.SerialTransport = await transport_factory(
+                protocol,
+                port_name=rf.ports[0],
+                port_config=kwargs.pop("port_config", {}),
+                enforce_include_list=kwargs.pop("enforce_include_list", False),
+                exclude_list=kwargs.pop("exclude_list", {}),
+                include_list=kwargs.pop("include_list", {}),
+            )
+            transport._extra["virtual_rf"] = rf  # injected to aid any debugging
 
-        try:
-            await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
-            await fnc(rf, protocol, *args, **kwargs)
-            await assert_protocol_state(protocol, (IsInIdle, IsFailed))
-        except serial.SerialException as err:
-            transport._close(err=err)
-            raise
-        except (AssertionError, asyncio.InvalidStateError, asyncio.TimeoutError):
-            transport.close()
-            raise
-        else:
-            transport.close()
-        finally:
-            await rf.stop()
+            try:
+                await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
+                await fnc(rf, protocol, *args, **kwargs)
+                await assert_protocol_state(protocol, (IsInIdle, IsFailed))
+            except serial.SerialException as err:
+                transport._close(err=err)
+                raise
+            except (AssertionError, asyncio.InvalidStateError, asyncio.TimeoutError):
+                transport.close()
+                raise
+            else:
+                transport.close()
+            finally:
+                await rf.stop()
 
-        await assert_protocol_state(protocol, Inactive, max_sleep=0)
+            await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
-    return test_wrapper
+        return prot_wrapper
+
+    return prot_decorator
 
 
 # ######################################################################################
@@ -187,7 +192,7 @@ async def async_pkt_received(
 # ### TESTS ############################################################################
 
 
-@protocol_decorator
+@prot_factory()
 async def _test_flow_10x(
     rf: VirtualRf,
     protocol: QosProtocol,
@@ -279,7 +284,7 @@ async def _test_flow_10x(
     # gather
 
 
-@protocol_decorator
+@prot_factory()
 async def _test_flow_30x(
     rf: VirtualRf,
     protocol: QosProtocol,
@@ -332,7 +337,7 @@ async def _test_flow_30x(
     assert await task == RP_PKT_1
 
 
-@protocol_decorator
+@prot_factory(disable_qos=False)
 async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
     # Simple test for an I (does not expect any rx)...
@@ -393,7 +398,7 @@ async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     #     assert False, "Expected ProtocolSendFailed"
 
 
-@protocol_decorator
+@prot_factory()
 async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
     #
     # Setup...
