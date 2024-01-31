@@ -29,7 +29,7 @@ from ramses_rf.const import (
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
     SZ_REMAINING_MINS,
-    SZ_SPEED_CAP,
+    SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
@@ -392,7 +392,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def speed_cap(self) -> int | None:
-        return self._msg_value(Code._31DA, key=SZ_SPEED_CAP)
+        return self._msg_value(Code._31DA, key=SZ_SPEED_CAPABILITIES)
 
     @property
     def supply_fan_speed(self) -> float | None:

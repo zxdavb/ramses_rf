@@ -60,7 +60,7 @@ from ramses_tx.const import (  # noqa: F401
     SZ_SCHEDULE,
     SZ_SENSOR,
     SZ_SETPOINT,
-    SZ_SPEED_CAP,
+    SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,

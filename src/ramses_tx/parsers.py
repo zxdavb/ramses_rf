@@ -22,7 +22,7 @@ from collections.abc import Mapping
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any
 
-from . import exceptions as exc, typed_dicts as PARSER
+from . import exceptions as exc
 from .address import ALL_DEV_ADDR, NON_DEV_ADDR, hex_id_to_dev_id
 from .const import (
     DEV_ROLE_MAP,
@@ -50,7 +50,6 @@ from .const import (
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
-    SZ_INDOOR_HUMIDITY,
     SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_LOCAL_OVERRIDE,
@@ -62,7 +61,6 @@ from .const import (
     SZ_OEM_CODE,
     SZ_OFFER,
     SZ_OPENWINDOW_FUNCTION,
-    SZ_OUTDOOR_HUMIDITY,
     SZ_PAYLOAD,
     SZ_PERCENTAGE,
     SZ_PHASE,
@@ -1048,22 +1046,12 @@ def parser_11f0(payload: str, msg: Message) -> dict:
 
 # dhw cylinder temperature
 def parser_1260(payload: str, msg: Message) -> PayDictT._1260:
-    return PARSER.parse_1260(payload)
+    return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
 
 
 # HVAC: outdoor humidity
-def parser_1280(payload: str, msg: Message) -> dict:
-    # educated guess - this packet never seen in the wild
-
-    rh = hex_to_percent(payload[2:4], high_res=False)
-    if msg.len == 2:
-        return {SZ_OUTDOOR_HUMIDITY: rh}
-
-    return {
-        SZ_OUTDOOR_HUMIDITY: rh,
-        SZ_TEMPERATURE: hex_to_temp(payload[4:8]),
-        "dewpoint_temp": hex_to_temp(payload[8:12]),
-    }
+def parser_1280(payload: str, msg: Message) -> PayDictT._1280:
+    return parse_outdoor_humidity(payload[2:])
 
 
 # outdoor temperature
@@ -1073,27 +1061,13 @@ def parser_1290(payload: str, msg: Message) -> PayDictT._1290:
 
 
 # HVAC: co2_level, see: 31DA[6:10]
-def parser_1298(payload: str, _) -> Mapping[str, int | str | None]:
+def parser_1298(payload: str, _) -> PayDictT._1298:
     return parse_co2_level(payload[2:6])
 
 
 # HVAC: indoor_humidity
-def parser_12a0(payload: str, msg: Message) -> Mapping[str, float | str | None]:
-    FAULT_CODES_RHUM: dict[str, str] = {}  # relative humidity sensor
-
-    assert payload[2:4] in FAULT_CODES_RHUM or int(payload[2:4], 16) <= 100
-    if fault := FAULT_CODES_RHUM.get(payload[2:4]):
-        return {"sensor_fault": fault}
-
-    rh = hex_to_percent(payload[2:4], high_res=False)
-    if msg.len == 2:
-        return {SZ_INDOOR_HUMIDITY: rh}
-
-    return {
-        SZ_INDOOR_HUMIDITY: rh,
-        SZ_TEMPERATURE: hex_to_temp(payload[4:8]),
-        "dewpoint_temp": hex_to_temp(payload[8:12]),
-    }
+def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
+    return parse_indoor_humidity(payload[2:])
 
 
 # window_state (of a device/zone)
@@ -1122,7 +1096,7 @@ def parser_12c0(payload: str, msg: Message) -> Mapping[str, float | int | str | 
 
 
 # HVAC: air_quality (and air_quality_basis), see: 31DA[2:6]
-def parser_12c8(payload: str, _) -> Mapping[str, float | str | None]:
+def parser_12c8(payload: str, _) -> PayDictT._12C8:
     return parse_air_quality(payload[2:6])
 
 
@@ -2119,8 +2093,9 @@ def parser_31d9(payload: str, msg: Message) -> dict:
 
 
 # ventilation state (extended), HVAC
-def parser_31da(payload: str, msg: Message) -> dict:
-    return {
+def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
+    # see: https://github.com/python/typing/issues/1445
+    return {  # type: ignore[typeddict-unknown-key]
         **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_fan_info(payload[36:38]),  # 22F3-ish
         #

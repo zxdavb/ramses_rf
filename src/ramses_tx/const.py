@@ -48,6 +48,8 @@ SZ_TOTAL_FRAGS: Final = "total_frags"
 SZ_SCHEDULE: Final = "schedule"
 SZ_CHANGE_COUNTER: Final = "change_counter"
 
+SZ_SENSOR_FAULT: Final = "sensor_fault"
+
 
 # used by 31DA
 SZ_AIR_QUALITY: Final = "air_quality"
@@ -74,7 +76,7 @@ SZ_REMAINING_MINS: Final = "remaining_mins"
 SZ_SUPPLY_FAN_SPEED: Final = "supply_fan_speed"
 SZ_SUPPLY_FLOW: Final = "supply_flow"
 SZ_SUPPLY_TEMP: Final = "supply_temp"
-SZ_SPEED_CAP: Final = "speed_capabilities"
+SZ_SPEED_CAPABILITIES: Final = "speed_capabilities"
 
 SZ_PRESENCE_DETECTED: Final = "presence_detected"
 

@@ -1,96 +1,166 @@
 # We use typed dicts rather than data classes because we migrated from dicts
 
-from typing import TypeAlias, TypedDict
-
-from .const import (
-    SZ_DHW_FLOW_RATE,
-    SZ_PRESSURE,
-    SZ_SETPOINT,
-    SZ_TEMPERATURE,
-)
-from .helpers import hex_to_temp
+from typing import NotRequired, TypeAlias, TypedDict
 
 _HexToTempT: TypeAlias = float | None
 
 
-class _flow_rate(TypedDict):
+__all__ = ["PayDictT"]
+
+
+class _FlowRate(TypedDict):
     dhw_flow_rate: _HexToTempT
 
 
-class _pressure(TypedDict):
+class _Pressure(TypedDict):
     pressure: _HexToTempT
 
 
-class _setpoint(TypedDict):
+class _Setpoint(TypedDict):
     setpoint: _HexToTempT
 
 
-class _temperature(TypedDict):
+class _Temperature(TypedDict):
     temperature: _HexToTempT
+
+
+# These are from 31DA...
+class AirQuality(TypedDict):
+    air_quality: float | None
+    air_quality_basis: NotRequired[str]
+
+
+class Co2Level(TypedDict):
+    co2_level: float | None
+
+
+class IndoorHumidity(TypedDict):
+    indoor_humidity: _HexToTempT
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
+class OutdoorHumidity(TypedDict):
+    outdoor_humidity: _HexToTempT
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
+class ExhaustTemp(TypedDict):
+    exhaust_temp: _HexToTempT
+
+
+class SupplyTemp(TypedDict):
+    supply_temp: _HexToTempT
+
+
+class IndoorTemp(TypedDict):
+    indoor_temp: _HexToTempT
+
+
+class OutdoorTemp(TypedDict):
+    outdoor_temp: _HexToTempT
+
+
+class Capabilities(TypedDict):
+    speed_capabilities: list[str] | None
+
+
+class BypassPosition(TypedDict):
+    bypass_position: float | None
+
+
+class FanInfo(TypedDict):
+    fan_info: str
+    _unknown_fan_info_flags: list[int]
+
+
+class ExhaustFanSpeed(TypedDict):
+    exhaust_fan: float | None
+
+
+class SupplyFanSpeed(TypedDict):
+    supply_fan: float | None
+
+
+class RemainingMins(TypedDict):
+    remaining_mins: int | None
+
+
+class PostHeater(TypedDict):
+    post_heater: float | None
+
+
+class PreHeater(TypedDict):
+    pre_heater: float | None
+
+
+class SupplyFlow(TypedDict):
+    supply_flow: float | None
+
+
+class ExhaustFlow(TypedDict):
+    exhaust_flow: float | None
+
+
+class _VentilationState(
+    AirQuality,
+    Co2Level,
+    ExhaustTemp,
+    SupplyTemp,
+    IndoorTemp,
+    OutdoorTemp,
+    Capabilities,
+    BypassPosition,
+    FanInfo,
+    ExhaustFanSpeed,
+    SupplyFanSpeed,
+    RemainingMins,
+    PostHeater,
+    PreHeater,
+    SupplyFlow,
+    ExhaustFlow,
+):
+    indoor_humidity: _HexToTempT
+    outdoor_humidity: _HexToTempT
 
 
 class PayDictT:
     """Payload dict types."""
 
-    temperature: TypeAlias = _temperature
+    TEMPERATURE: TypeAlias = _Temperature
 
-    _1081: TypeAlias = _setpoint
-    _1260: TypeAlias = _temperature
-    _1290: TypeAlias = _temperature
-    _12F0: TypeAlias = _flow_rate
-    _1300: TypeAlias = _pressure
-    _22D9: TypeAlias = _setpoint
-    _3200: TypeAlias = _temperature
-    _3210: TypeAlias = _temperature
+    # 31DA primitives
+    AIR_QUALITY: TypeAlias = AirQuality
+    CO2_LEVEL: TypeAlias = Co2Level
+    EXHAUST_TEMP: TypeAlias = ExhaustTemp
+    SUPPLY_TEMP: TypeAlias = SupplyTemp
+    INDOOR_HUMIDITY: TypeAlias = IndoorHumidity
+    OUTDOOR_HUMIDITY: TypeAlias = OutdoorHumidity
+    INDOOR_TEMP: TypeAlias = IndoorTemp
+    OUTDOOR_TEMP: TypeAlias = OutdoorTemp
+    CAPABILITIES: TypeAlias = Capabilities
+    BYPASS_POSITION: TypeAlias = BypassPosition
+    FAN_INFO: TypeAlias = FanInfo
+    EXHAUST_FAN_SPEED: TypeAlias = ExhaustFanSpeed
+    SUPPLY_FAN_SPEED: TypeAlias = SupplyFanSpeed
+    REMAINING_MINUTES: TypeAlias = RemainingMins
+    POST_HEATER: TypeAlias = PostHeater
+    PRE_HEATER: TypeAlias = PreHeater
+    SUPPLY_FLOW: TypeAlias = SupplyFlow
+    EXHAUST_FLOW: TypeAlias = ExhaustFlow
 
-
-def parse_1081(payload: str) -> PayDictT._1081:
-    """Return the max CH setpoint."""
-    res: PayDictT._1081 = {SZ_SETPOINT: hex_to_temp(payload[2:])}
-    return res
-
-
-def parse_1260(payload: str) -> PayDictT._1260:
-    """Return the DHW cylinder temp ('C)."""
-    res: PayDictT._1260 = {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
-    return res
-
-
-def parse_1290(payload: str) -> PayDictT._1290:
-    """Return the outside temp ('C)."""
-    res: PayDictT._1260 = {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
-    return res
-
-
-def parse_12F0(payload: str) -> PayDictT._12F0:
-    """Return the DHW flow rate."""
-    res: PayDictT._12F0 = {SZ_DHW_FLOW_RATE: hex_to_temp(payload[2:])}
-    return res
-
-
-def parse_1300(payload: str) -> PayDictT._1300:
-    """Return the CV pressure (bar)."""
-
-    # 0x9F6 (2550 dec = 2.55 bar) appears to be a sentinel value
-    temp = None if payload[2:] == "09F6" else hex_to_temp(payload[2:])
-
-    res: PayDictT._1300 = {SZ_PRESSURE: temp}
-    return res
-
-
-def parse_22D9(payload: str) -> PayDictT._22D9:
-    """Return the desired boiler setpoint."""
-    res: PayDictT._22D9 = {SZ_SETPOINT: hex_to_temp(payload[2:])}
-    return res
-
-
-def parse_3200(payload: str) -> PayDictT._3200:
-    """Return the supplied boiler water (flow) temp."""
-    res: PayDictT._3200 = {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
-    return res
-
-
-def parse_3210(payload: str) -> PayDictT._3210:
-    """Return the boiler water temp."""
-    res: PayDictT._3210 = {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
-    return res
+    # codes
+    _1081: TypeAlias = _Setpoint
+    _1260: TypeAlias = _Temperature
+    _1280: TypeAlias = OutdoorHumidity
+    _1290: TypeAlias = OutdoorTemp
+    _1298: TypeAlias = Co2Level
+    _12A0: TypeAlias = IndoorHumidity
+    _12C8: TypeAlias = AirQuality
+    _12F0: TypeAlias = _FlowRate
+    _1300: TypeAlias = _Pressure
+    _22D9: TypeAlias = _Setpoint
+    _31DA: TypeAlias = _VentilationState
+    _3200: TypeAlias = _Temperature
+    _3210: TypeAlias = _Temperature
