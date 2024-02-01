@@ -59,6 +59,28 @@ class _1f09(TypedDict):
     _next_sync: str
 
 
+class _1fd4(TypedDict):
+    ticker: int
+
+
+class _22b0(TypedDict):
+    enabled: bool
+
+
+class _2d49(TypedDict):
+    state: bool | None
+
+
+class _2e04(TypedDict):
+    system_mode: str
+    until: NotRequired[str | None]
+
+
+class _3110(TypedDict):
+    mode: str
+    demand: NotRequired[float | None]
+
+
 class _FlowRate(TypedDict):
     dhw_flow_rate: _HexToTempT
 
@@ -201,7 +223,12 @@ class PayDictT:
     _12F0: TypeAlias = _FlowRate
     _1300: TypeAlias = _Pressure
     _1F09: TypeAlias = _1f09
+    _1FD4: TypeAlias = _1fd4
+    _22B0: TypeAlias = _22b0
     _22D9: TypeAlias = _Setpoint
+    _2D49: TypeAlias = _2d49
+    _2E04: TypeAlias = _2e04
+    _3110: TypeAlias = _3110
     _31DA: TypeAlias = _VentilationState
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature

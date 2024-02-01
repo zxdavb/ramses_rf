@@ -72,7 +72,6 @@ from .const import (
     SZ_TEMPERATURE,
     SZ_TOTAL_FRAGS,
     SZ_UFH_IDX,
-    SZ_UNKNOWN,
     SZ_UNTIL,
     SZ_VALUE,
     SZ_WINDOW_OPEN,
@@ -375,7 +374,7 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         return {
             SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
-            f"{SZ_UNKNOWN}_0": seqx[4:],
+            "unknown_0": seqx[4:],
         }
 
     if msg._has_array:
@@ -383,7 +382,7 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
     return {
         "failsafe_enabled": {"00": False, "01": True}.get(payload[2:4]),
-        f"{SZ_UNKNOWN}_0": payload[4:],
+        "unknown_0": payload[4:],
     }
 
 
@@ -565,7 +564,7 @@ def parser_01d0(payload: str, msg: Message) -> dict:
 
     assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
-        f"{SZ_UNKNOWN}_0": payload[2:],
+        "unknown_0": payload[2:],
     }
 
 
@@ -576,7 +575,7 @@ def parser_01e9(payload: str, msg: Message) -> dict:
 
     assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
-        f"{SZ_UNKNOWN}_0": payload[2:],
+        "unknown_0": payload[2:],
     }
 
 
@@ -755,7 +754,7 @@ def parser_042f(payload: str, msg: Message) -> dict:
         "counter_1": f"0x{payload[2:6]}",
         "counter_3": f"0x{payload[6:10]}",
         "counter_5": f"0x{payload[10:14]}",
-        f"{SZ_UNKNOWN}_7": f"0x{payload[14:]}",
+        "unknown_7": f"0x{payload[14:]}",
     }
 
 
@@ -764,7 +763,7 @@ def parser_0b04(payload: str, msg: Message) -> dict:
     # .I --- --:------ --:------ 12:207082 0B04 002 00C8  # batch of 3, every 24h
 
     return {
-        f"{SZ_UNKNOWN}_1": payload[2:],
+        "unknown_1": payload[2:],
     }
 
 
@@ -837,8 +836,8 @@ def parser_1098(payload: str, msg: Message) -> dict:
     assert payload == "00C8", _INFORM_DEV_MSG
 
     return {
-        f"_{SZ_PAYLOAD}": payload,
-        f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
+        "_payload": payload,
+        "_value": {"00": False, "C8": True}.get(
             payload[2:], hex_to_percent(payload[2:])
         ),
     }
@@ -891,8 +890,8 @@ def parser_10b0(payload: str, msg: Message) -> dict:
     assert payload == "0000", _INFORM_DEV_MSG
 
     return {
-        f"_{SZ_PAYLOAD}": payload,
-        f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
+        "_payload": payload,
+        "_value": {"00": False, "C8": True}.get(
             payload[2:], hex_to_percent(payload[2:])
         ),
     }
@@ -1136,9 +1135,9 @@ def parser_1470(payload: str, msg: Message) -> dict:
     return {
         "scheme": SCHEDULE_SCHEME.get(payload[2:3], f"unknown_{payload[2:3]}"),
         "daily_setpoints": payload[3:4],
-        f"_{SZ_VALUE}_4": payload[4:8],
-        f"_{SZ_VALUE}_8": payload[8:10],
-        f"_{SZ_VALUE}_10": payload[10:],
+        "_value_4": payload[4:8],
+        "_value_8": payload[8:10],
+        "_value_10": payload[10:],
     }
 
 
@@ -1217,12 +1216,12 @@ def parser_1f70(payload: str, msg: Message) -> dict:
         "setpoint_idx": payload[8:10],  # needs to be mod 1470[3:4]?
         "start_time": f"{int(payload[18:20], 16):02d}:{int(payload[20:22], 16):02d}",
         "fan_speed_wip": payload[24:26],  # # E4/E5/E6   / 00(RQ)
-        f"_{SZ_VALUE}_02": payload[2:4],  # # 00/01      / 00(RQ)
-        f"_{SZ_VALUE}_04": payload[4:8],  # # 0800
-        f"_{SZ_VALUE}_10": payload[10:14],  # 0000
-        f"_{SZ_VALUE}_14": payload[14:16],  # 15(RP,I)   / 00(RQ,W)
-        f"_{SZ_VALUE}_22": payload[22:24],  # 60         / 00(RQ)
-        f"_{SZ_VALUE}_26": payload[26:],  # # 008000(RP) / 000000(I/RQ/W)
+        "_value_02": payload[2:4],  # # 00/01      / 00(RQ)
+        "_value_04": payload[4:8],  # # 0800
+        "_value_10": payload[10:14],  # 0000
+        "_value_14": payload[14:16],  # 15(RP,I)   / 00(RQ,W)
+        "_value_22": payload[22:24],  # 60         / 00(RQ)
+        "_value_26": payload[26:],  # # 008000(RP) / 000000(I/RQ/W)
     }
 
 
@@ -1297,7 +1296,7 @@ def parser_1fd0(payload: str, msg: Message) -> dict:
 
 
 # opentherm_sync, otb_sync
-def parser_1fd4(payload: str, msg: Message) -> dict:
+def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
     return {"ticker": int(payload[2:], 16)}
 
 
@@ -1680,7 +1679,7 @@ def parser_2349(payload: str, msg: Message) -> dict:
 
     assert msg.len in (7, 13), f"expected len 7,13, got {msg.len}"
 
-    assert payload[6:8] in ZON_MODE_MAP, f"{SZ_UNKNOWN} zone_mode: {payload[6:8]}"
+    assert payload[6:8] in ZON_MODE_MAP, "unknown zone_mode: {payload[6:8]}"
     result = {
         SZ_MODE: ZON_MODE_MAP.get(payload[6:8]),
         SZ_SETPOINT: hex_to_temp(payload[2:6]),
@@ -1821,7 +1820,7 @@ def parser_2411(payload: str, msg: Message) -> dict:
 
     result |= {
         "value": parser(payload[10:18][-length:]),  # type: ignore[operator]
-        f"_{SZ_VALUE}_06": payload[6:10],
+        "_value_06": payload[6:10],
     }
 
     if msg.len == 9:
@@ -1833,7 +1832,7 @@ def parser_2411(payload: str, msg: Message) -> dict:
             "min_value": parser(payload[18:26][-length:]),  # type: ignore[operator]
             "max_value": parser(payload[26:34][-length:]),  # type: ignore[operator]
             "precision": parser(payload[34:42][-length:]),  # type: ignore[operator]
-            f"_{SZ_VALUE}_42": payload[42:],
+            "_value_42": payload[42:],
         }
     )
 
@@ -1848,7 +1847,7 @@ def parser_2420(payload: str, msg: Message) -> dict:
 
 
 # _state (of cooling?), from BDR91T, hometronics CTL
-def parser_2d49(payload: str, msg: Message) -> dict:
+def parser_2d49(payload: str, msg: Message) -> PayDictT._2D49:
     assert payload[2:] in ("0000", "00FF", "C800", "C8FF"), _INFORM_DEV_MSG
 
     return {
@@ -1857,7 +1856,7 @@ def parser_2d49(payload: str, msg: Message) -> dict:
 
 
 # system_mode
-def parser_2e04(payload: str, msg: Message) -> dict:
+def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
     # if msg.verb == W_:
 
     # .I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0007FFFFFFFFFFFF04  # Manual          # noqa: E501
@@ -1878,7 +1877,7 @@ def parser_2e04(payload: str, msg: Message) -> dict:
         # msg.len in (8, 16)  # evohome 8, hometronics 16
         assert False, f"Packet length is {msg.len} (expecting 8, 16)"  # noqa: B011
 
-    result = {SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]]}
+    result: PayDictT._2E04 = {SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]]}
     if payload[:2] not in (
         SYS_MODE_MAP.AUTO,
         SYS_MODE_MAP.HEAT_OFF,
@@ -1915,7 +1914,7 @@ def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # ufc_demand, HVAC (Itho autotemp / spider)
-def parser_3110(payload: str, msg: Message) -> dict:
+def parser_3110(payload: str, msg: Message) -> PayDictT._3110:
     # .I --- 02:250708 --:------ 02:250708 3110 004 0000C820  # cooling, 100%
     # .I --- 21:042656 --:------ 21:042656 3110 004 00000010  # heating, 0%
 
@@ -1964,9 +1963,9 @@ def parser_3120(payload: str, msg: Message) -> dict:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
     return {
-        f"{SZ_UNKNOWN}_0": payload[2:10],
-        f"{SZ_UNKNOWN}_5": payload[10:12],
-        f"{SZ_UNKNOWN}_2": payload[12:],
+        "unknown_0": payload[2:10],
+        "unknown_5": payload[10:12],
+        "unknown_2": payload[12:],
     }
 
 
@@ -2088,7 +2087,7 @@ def parser_31d9(payload: str, msg: Message) -> dict:
     return {
         **result,
         "_unknown_4": payload[8:32],
-        f"{SZ_UNKNOWN}_16": payload[32:],
+        "unknown_16": payload[32:],
     }
 
 
@@ -2305,7 +2304,7 @@ def parser_3221(payload: str, msg: Message) -> dict:
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
-        f"_{SZ_PAYLOAD}": payload,
+        "_payload": payload,
         SZ_VALUE: int(payload[2:], 16),
     }
 
@@ -2337,7 +2336,7 @@ def parser_3223(payload: str, msg: Message) -> dict:
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
-        f"_{SZ_PAYLOAD}": payload,
+        "_payload": payload,
         SZ_VALUE: int(payload[2:], 16),
     }
 
@@ -2820,16 +2819,14 @@ def parser_unknown(payload: str, msg: Message) -> dict:
     # These are generic parsers
     if msg.len == 2 and payload[:2] == "00":
         return {
-            f"_{SZ_PAYLOAD}": payload,
-            f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
-                payload[2:], int(payload[2:], 16)
-            ),
+            "_payload": payload,
+            "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
         }
 
     if msg.len == 3 and payload[:2] == "00":
         return {
-            f"_{SZ_PAYLOAD}": payload,
-            f"_{SZ_VALUE}": hex_to_temp(payload[2:]),
+            "_payload": payload,
+            "_value": hex_to_temp(payload[2:]),
         }
 
     raise NotImplementedError
