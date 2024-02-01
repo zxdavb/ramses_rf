@@ -261,17 +261,17 @@ def parser_0002(payload: str, msg: Message) -> dict:
 
     if msg.src.type == DEV_TYPE_MAP.HCW:  # payload[2:] == DEV_TYPE_MAP.HCW, DEX
         assert payload == "03020105"
-        return {f"_{SZ_UNKNOWN}": payload}
+        return {"_unknown": payload}
 
     # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
     return {
         SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
-        f"_{SZ_UNKNOWN}": payload[6:],
+        "_unknown": payload[6:],
     }
 
 
 # zone_name
-def parser_0004(payload: str, msg: Message) -> dict:
+def parser_0004(payload: str, msg: Message) -> PayDictT._0004:
     # RQ payload is zz00; limited to 12 chars in evohome UI? if "7F"*20: not a zone
 
     return {} if payload[4:] == "7F" * 20 else {SZ_NAME: hex_to_str(payload[4:])}
@@ -312,7 +312,7 @@ def parser_0005(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # schedule_sync (any changes?)
-def parser_0006(payload: str, msg: Message) -> dict:
+def parser_0006(payload: str, msg: Message) -> PayDictT._0006:
     """Return the total number of changes to the schedules, including the DHW schedule.
 
     An RQ is sent every ~60s by a RFG100, an increase will prompt it to send a run of
@@ -333,7 +333,7 @@ def parser_0006(payload: str, msg: Message) -> dict:
 
 
 # relay_demand (domain/zone/device)
-def parser_0008(payload: str, msg: Message) -> dict:
+def parser_0008(payload: str, msg: Message) -> PayDictT._0008:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # e.g. Electric Heat Zone
 
@@ -347,7 +347,7 @@ def parser_0008(payload: str, msg: Message) -> dict:
 
     if msg.src.type == DEV_TYPE_MAP.JST and msg.len == 13:  # Honeywell Japser, DEX
         assert msg.len == 13, "expecting length 13"
-        return {
+        return {  # type: ignore[typeddict-item]
             "ordinal": f"0x{payload[2:8]}",
             "blob": payload[8:],
         }
@@ -397,7 +397,7 @@ def parser_000a(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
             SZ_LOCAL_OVERRIDE: not bool(bitmap & 1),
             SZ_OPENWINDOW_FUNCTION: not bool(bitmap & 2),
             SZ_MULTIROOM_MODE: not bool(bitmap & 16),
-            f"_{SZ_UNKNOWN}_bitmap": f"0b{bitmap:08b}",  # TODO: try W with this
+            "_unknown_bitmap": f"0b{bitmap:08b}",  # TODO: try W with this
         }  # cannot determine zone_type from this information
 
     if msg._has_array:  # NOTE: these arrays can span 2 pkts!
@@ -535,13 +535,13 @@ def parser_0016(payload: str, msg: Message) -> dict:
 
 
 # language (of device/system)
-def parser_0100(payload: str, msg: Message) -> dict:
+def parser_0100(payload: str, msg: Message) -> PayDictT._0100 | PayDictT.EMPTY:
     if msg.verb == RQ and msg.len == 1:  # some RQs have a payload
         return {}
 
     return {
         SZ_LANGUAGE: hex_to_str(payload[2:6]),
-        f"_{SZ_UNKNOWN}_0": payload[6:],
+        "_unknown_0": payload[6:],
     }
 
 
@@ -730,9 +730,9 @@ def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
 
     result.update(
         {
-            f"_{SZ_UNKNOWN}_3": payload[6:8],  # B0 ?priority
-            f"_{SZ_UNKNOWN}_7": payload[14:18],  # 0000
-            f"_{SZ_UNKNOWN}_15": payload[30:38],  # FFFF7000/1/2
+            "_unknown_3": payload[6:8],  # B0 ?priority
+            "_unknown_7": payload[14:18],  # 0000
+            "_unknown_15": payload[30:38],  # FFFF7000/1/2
         }
     )
 
@@ -797,7 +797,7 @@ def parser_1030(payload: str, msg: Message) -> dict:
 
 
 # device_battery (battery_state)
-def parser_1060(payload: str, msg: Message) -> dict:
+def parser_1060(payload: str, msg: Message) -> PayDictT._1060:
     """Return the battery state.
 
     Some devices (04:) will also report battery level.
@@ -818,7 +818,7 @@ def parser_1081(payload: str, msg: Message) -> PayDictT._1081:
 
 
 # unknown_1090 (non-Evohome, e.g. ST9520C)
-def parser_1090(payload: str, msg: Message) -> dict:
+def parser_1090(payload: str, msg: Message) -> PayDictT._1090:
     # 14:08:05.176 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
     # 18:08:05.809 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
 
@@ -827,8 +827,8 @@ def parser_1090(payload: str, msg: Message) -> dict:
     assert int(payload[:2], 16) < 2, _INFORM_DEV_MSG
 
     return {
-        f"{SZ_TEMPERATURE}_0": hex_to_temp(payload[2:6]),
-        f"{SZ_TEMPERATURE}_1": hex_to_temp(payload[6:10]),
+        "temperature_0": hex_to_temp(payload[2:6]),
+        "temperature_1": hex_to_temp(payload[6:10]),
     }
 
 
@@ -899,7 +899,7 @@ def parser_10b0(payload: str, msg: Message) -> dict:
 
 
 # filter_change, HVAC
-def parser_10d0(payload: str, msg: Message) -> Mapping[str, bool | float | int | None]:
+def parser_10d0(payload: str, msg: Message) -> dict:
     # 2022-07-03T22:52:34.571579 045  W --- 37:171871 32:155617 --:------ 10D0 002 00FF
     # 2022-07-03T22:52:34.596526 066  I --- 32:155617 37:171871 --:------ 10D0 006 0047B44F0000
     # then...
@@ -960,12 +960,12 @@ def parser_10e0(payload: str, msg: Message) -> dict:
         "description": bytearray.fromhex(description).decode(),
     }
     if unknown:  # TODO: why only RP|OTB, I|DT4s do this?
-        result[f"_{SZ_UNKNOWN}"] = unknown
+        result["_unknown"] = unknown
     return result
 
 
 # device_id
-def parser_10e1(payload: str, msg: Message) -> dict:
+def parser_10e1(payload: str, msg: Message) -> PayDictT._10E1:
     return {SZ_DEVICE_ID: hex_id_to_dev_id(payload[2:])}
 
 
@@ -1010,7 +1010,7 @@ def parser_1100(payload: str, msg: Message) -> Mapping[str, float | int | str | 
             "cycle_rate": int(int(payload[2:4], 16) / 4),  # cycles/hour
             "min_on_time": int(payload[4:6], 16) / 4,  # min
             "min_off_time": int(payload[6:8], 16) / 4,  # min
-            f"_{SZ_UNKNOWN}_0": payload[8:10],  # always 00, FF?
+            "_unknown_0": payload[8:10],  # always 00, FF?
         }
 
     result: dict[str, float | int | str | None] = _parser(payload)
@@ -1025,7 +1025,7 @@ def parser_1100(payload: str, msg: Message) -> Mapping[str, float | int | str | 
         result.update(
             {
                 "proportional_band_width": pbw,
-                f"_{SZ_UNKNOWN}_1": payload[14:],  # always 01?
+                "_unknown_1": payload[14:],  # always 01?
             }
         )
 
@@ -1071,7 +1071,7 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
 
 
 # window_state (of a device/zone)
-def parser_12b0(payload: str, msg: Message) -> dict:
+def parser_12b0(payload: str, msg: Message) -> PayDictT._12B0:
     assert payload[2:] in ("0000", "C800", "FFFF"), payload[2:]  # "FFFF" means N/A
 
     return {
@@ -1091,7 +1091,7 @@ def parser_12c0(payload: str, msg: Message) -> Mapping[str, float | int | str | 
     return {
         SZ_TEMPERATURE: temp,
         "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],
-        f"_{SZ_UNKNOWN}_6": payload[6:],
+        "_unknown_6": payload[6:],
     }
 
 
@@ -1143,7 +1143,7 @@ def parser_1470(payload: str, msg: Message) -> dict:
 
 
 # system_sync
-def parser_1f09(payload: str, msg: Message) -> dict:
+def parser_1f09(payload: str, msg: Message) -> PayDictT._1F09:
     # 22:51:19.287 067  I --- --:------ --:------ 12:193204 1F09 003 010A69
     # 22:51:19.318 068  I --- --:------ --:------ 12:193204 2309 003 010866
     # 22:51:19.321 067  I --- --:------ --:------ 12:193204 30C9 003 0108C3
@@ -1280,8 +1280,8 @@ def parser_1fca(payload: str, msg: Message) -> Mapping[str, str]:
     # .W --- 30:248208 34:021943 --:------ 1FCA 009 00-01FF-7BC990-FFFFFF  # sent x2
 
     return {
-        f"_{SZ_UNKNOWN}_0": payload[:2],
-        f"_{SZ_UNKNOWN}_1": payload[2:6],
+        "_unknown_0": payload[:2],
+        "_unknown_1": payload[2:6],
         "device_id_0": hex_id_to_dev_id(payload[6:12]),
         "device_id_1": hex_id_to_dev_id(payload[12:]),
     }
@@ -1591,7 +1591,7 @@ def parser_22f3(payload: str, msg: Message) -> dict:
         result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
 
     if msg.len >= 7:  # fallback speed?
-        result.update({f"_{SZ_UNKNOWN}_5": payload[10:]})
+        result.update({"_unknown_5": payload[10:]})
 
     return result
 
@@ -1710,7 +1710,7 @@ def parser_2349(payload: str, msg: Message) -> dict:
 # unknown_2389, from 03:
 def parser_2389(payload: str, msg: Message) -> dict:
     return {
-        f"_{SZ_UNKNOWN}": hex_to_temp(payload[2:6]),
+        "_unknown": hex_to_temp(payload[2:6]),
     }
 
 
@@ -1896,7 +1896,7 @@ def parser_2e10(payload: str, msg: Message) -> dict:
 
     return {
         "presence_detected": bool(payload[2:4]),
-        f"_{SZ_UNKNOWN}_4": payload[4:],
+        "_unknown_4": payload[4:],
     }
 
 
@@ -2014,7 +2014,7 @@ def parser_313f(payload: str, msg: Message) -> dict:  # TODO: look for TZ
     return {
         SZ_DATETIME: hex_to_dtm(payload[4:18]),
         SZ_IS_DST: True if bool(int(payload[4:6], 16) & 0x80) else None,
-        f"_{SZ_UNKNOWN}_0": payload[2:4],
+        "_unknown_0": payload[2:4],
     }
 
 
@@ -2074,7 +2074,7 @@ def parser_31d9(payload: str, msg: Message) -> dict:
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
-    result.update({f"_{SZ_UNKNOWN}_3": payload[6:8]})
+    result.update({"_unknown_3": payload[6:8]})
 
     if msg.len == 4:  # usu: I -->20: (no seq#)
         return result
@@ -2087,7 +2087,7 @@ def parser_31d9(payload: str, msg: Message) -> dict:
 
     return {
         **result,
-        f"_{SZ_UNKNOWN}_4": payload[8:32],
+        "_unknown_4": payload[8:32],
         f"{SZ_UNKNOWN}_16": payload[32:],
     }
 
@@ -2195,7 +2195,7 @@ def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
             # "hvac_idx": seqx[:2],
             "flags": seqx[2:4],
             "vent_demand": hex_to_percent(seqx[4:6]),
-            f"_{SZ_UNKNOWN}_3": payload[6:],
+            "_unknown_3": payload[6:],
         }
 
     if len(payload) > 8:
@@ -2539,7 +2539,7 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
         "modulation_level": percent,  # 0008[2:4], 3EF0[2:4]
         "actuator_countdown": actuator_countdown,
         "cycle_countdown": cycle_countdown,
-        f"_{SZ_UNKNOWN}_0": payload[12:],
+        "_unknown_0": payload[12:],
     }
 
 

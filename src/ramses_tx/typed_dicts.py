@@ -8,6 +8,57 @@ _HexToTempT: TypeAlias = float | None
 __all__ = ["PayDictT"]
 
 
+class _empty(TypedDict):
+    pass
+
+
+class _0004(TypedDict):
+    name: NotRequired[str | None]
+
+
+class _0006(TypedDict):
+    change_counter: NotRequired[int]
+    _header: NotRequired[str]
+
+
+class _0008(TypedDict):
+    relay_demand: float | None
+
+
+class _0100(TypedDict):
+    language: str
+    _unknown_0: str
+
+
+class _1060(TypedDict):
+    battery_low: bool
+    battery_level: float | None
+
+
+class _1090(TypedDict):
+    temperature_0: float | None
+    temperature_1: float | None
+
+
+class _10d0(TypedDict):
+    days_remaining: int | None
+    days_lifetime: NotRequired[int | None]
+    percent_remaining: NotRequired[float | None]
+
+
+class _10e1(TypedDict):
+    device_id: str
+
+
+class _12b0(TypedDict):
+    window_open: bool | None
+
+
+class _1f09(TypedDict):
+    remaining_seconds: float
+    _next_sync: str
+
+
 class _FlowRate(TypedDict):
     dhw_flow_rate: _HexToTempT
 
@@ -128,6 +179,33 @@ class _VentilationState(
 class PayDictT:
     """Payload dict types."""
 
+    EMPTY: TypeAlias = _empty
+
+    # command codes
+    _0004: TypeAlias = _0004
+    _0006: TypeAlias = _0006
+    _0008: TypeAlias = _0008
+    _0100: TypeAlias = _0100
+    _1060: TypeAlias = _1060
+    _1081: TypeAlias = _Setpoint
+    _1090: TypeAlias = _1090
+    _10D0: TypeAlias = _10d0
+    _10E1: TypeAlias = _10e1
+    _1260: TypeAlias = _Temperature
+    _1280: TypeAlias = OutdoorHumidity
+    _1290: TypeAlias = OutdoorTemp
+    _1298: TypeAlias = Co2Level
+    _12A0: TypeAlias = IndoorHumidity
+    _12B0: TypeAlias = _12b0
+    _12C8: TypeAlias = AirQuality
+    _12F0: TypeAlias = _FlowRate
+    _1300: TypeAlias = _Pressure
+    _1F09: TypeAlias = _1f09
+    _22D9: TypeAlias = _Setpoint
+    _31DA: TypeAlias = _VentilationState
+    _3200: TypeAlias = _Temperature
+    _3210: TypeAlias = _Temperature
+
     TEMPERATURE: TypeAlias = _Temperature
 
     # 31DA primitives
@@ -149,18 +227,3 @@ class PayDictT:
     PRE_HEATER: TypeAlias = PreHeater
     SUPPLY_FLOW: TypeAlias = SupplyFlow
     EXHAUST_FLOW: TypeAlias = ExhaustFlow
-
-    # codes
-    _1081: TypeAlias = _Setpoint
-    _1260: TypeAlias = _Temperature
-    _1280: TypeAlias = OutdoorHumidity
-    _1290: TypeAlias = OutdoorTemp
-    _1298: TypeAlias = Co2Level
-    _12A0: TypeAlias = IndoorHumidity
-    _12C8: TypeAlias = AirQuality
-    _12F0: TypeAlias = _FlowRate
-    _1300: TypeAlias = _Pressure
-    _22D9: TypeAlias = _Setpoint
-    _31DA: TypeAlias = _VentilationState
-    _3200: TypeAlias = _Temperature
-    _3210: TypeAlias = _Temperature
