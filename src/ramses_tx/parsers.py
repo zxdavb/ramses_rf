@@ -315,7 +315,7 @@ def parser_0006(payload: str, msg: Message) -> PayDictT._0006:
     """Return the total number of changes to the schedules, including the DHW schedule.
 
     An RQ is sent every ~60s by a RFG100, an increase will prompt it to send a run of
-    RQ/0404s (it seems to assume only the zones may have changed?).
+    RQ|0404s (it seems to assume only the zones may have changed?).
     """
     # 16:10:34.288 053 RQ --- 30:071715 01:145038 --:------ 0006 001 00
     # 16:10:34.291 053 RP --- 01:145038 30:071715 --:------ 0006 004 00050008
@@ -326,8 +326,7 @@ def parser_0006(payload: str, msg: Message) -> PayDictT._0006:
     assert payload[2:4] == "05"
 
     return {
-        SZ_CHANGE_COUNTER: int(payload[4:], 16),
-        "_header": payload[:4],
+        SZ_CHANGE_COUNTER: None if payload[4:] == "FFFF" else int(payload[4:], 16),
     }
 
 
@@ -515,7 +514,7 @@ def parser_000e(payload: str, msg: Message) -> dict:
 
 # rf_check
 def parser_0016(payload: str, msg: Message) -> dict:
-    # TODO: does 0016 include parent_idx?, but RQ/07:/0000?
+    # TODO: does 0016 include parent_idx?, but RQ|07:|0000?
     # RQ --- 22:060293 01:078710 --:------ 0016 002 0200
     # RP --- 01:078710 22:060293 --:------ 0016 002 021E
     # RQ --- 12:010740 01:145038 --:------ 0016 002 0800

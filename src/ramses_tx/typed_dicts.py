@@ -17,8 +17,7 @@ class _0004(TypedDict):
 
 
 class _0006(TypedDict):
-    change_counter: NotRequired[int]
-    _header: NotRequired[str]
+    change_counter: NotRequired[int | None]
 
 
 class _0008(TypedDict):
