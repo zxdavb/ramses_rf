@@ -122,7 +122,7 @@ def prot_factory(disable_qos: bool | None = False):
             except serial.SerialException as err:
                 transport._close(err=err)
                 raise
-            except (AssertionError, asyncio.InvalidStateError, asyncio.TimeoutError):
+            except (AssertionError, asyncio.InvalidStateError, TimeoutError):
                 transport.close()
                 raise
             else:

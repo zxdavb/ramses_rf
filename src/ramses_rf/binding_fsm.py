@@ -448,7 +448,7 @@ class BindStateBase:
         """
         try:
             await asyncio.wait_for(self._fut, timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._handle_wait_timer_expired(timeout)
         else:
             self._set_context_state(self._next_ctx_state)
