@@ -1,4 +1,4 @@
-# last checked/updated: 2024/01/24 (based on HA 2024.1.5)
+# last checked/updated: 2024/01/24 (based on HA 2024.3.0.dev0)
 #  - to check against pyproject.toml, github workflows
 #
 
@@ -8,13 +8,13 @@
 # used for development
   mypy >= 1.8.0
   pre-commit >= 3.6.0
-  ruff >= 0.1.12       # HA is using 0.1.8
+  ruff >= 0.1.15
 
 # used for testing
-  pytest >= 7.4.3, <8.0.0
-  pytest-asyncio >= 0.21.0
+  pytest >= 7.4.4, <8.0.0
+  pytest-asyncio >= 0.23.4
   pytest-xdist >= 3.3.1
 
 # used for build/deploy
-  hatch >= 1.9.2       # is not core HA
-  hatchling >= 1.21.0  # is not core HA
+  hatch >= 1.9.3       # is not core HA
+  hatchling >= 1.21.1  # is not core HA
