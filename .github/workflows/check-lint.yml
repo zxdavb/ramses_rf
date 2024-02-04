@@ -36,7 +36,7 @@ jobs:
 
       - name: Install ruff
         run: |
-          pip install ruff>=0.1.12
+          pip install ruff>=0.2.0
 
       - name: Format via ruff
         run: ruff format .
