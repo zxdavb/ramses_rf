@@ -580,31 +580,70 @@ def parser_01e9(payload: str, msg: Message) -> dict:
 
 # unknown_01ff, to/from a Itho Spider/Thermostat
 def parser_01ff(payload: str, msg: Message) -> dict:
-    # see: https://github.com/zxdavb/ramses_rf/issues/73
+    # see: https://github.com/zxdavb/ramses_rf/issues/73 & 101
+
+    # lots of '80's, and I see temps are `int(payload[6:8], 16) / 2`, so I wonder if 0x80 is N/A?
+    # also is '7F'
+
+    # return {
+    #     "dis_temp": None if payload[4:6] == "80" else int(payload[4:6], 16) / 2,
+    #     "set_temp": int(payload[6:8], 16) / 2,
+    #     "max_temp": int(payload[8:10], 16) / 2,  # 22C9 - temp high
+    #     "mode_val": payload[10:12],
+    #     "mode_xxx": payload[10:11] in ("9", "B", "D") and payload[11:12] in ("0", "2"),
+    # }
 
     assert payload[:4] in ("0080", "0180"), f"{_INFORM_DEV_MSG} ({payload[:4]})"
     assert payload[12:14] == "00", f"{_INFORM_DEV_MSG} ({payload[12:14]})"
-    assert payload[16:22] in (
-        "00143C",
-        "7F8080",
-    ), f"{_INFORM_DEV_MSG} ({payload[16:22]})"  # idx|25.9C?
+    # assert payload[16:22] in (
+    #     "00143C",
+    #     "002430",
+    #     "7F8080",
+    # ), f"{_INFORM_DEV_MSG} ({payload[16:22]})"  # idx|25.9C?
     assert payload[26:30] == "0000", f"{_INFORM_DEV_MSG} ({payload[26:30]})"
     assert payload[34:46] == "80800280FF80", f"{_INFORM_DEV_MSG} ({payload[34:46]})"
-    assert payload[48:] == "0000", f"{_INFORM_DEV_MSG} ({payload[48:]})"
+    # assert payload[48:] in (
+    #     "0000",
+    #     "0020",
+    #     "0084",
+    #     "00A4",
+    # ), f"{_INFORM_DEV_MSG} ({payload[48:]})"
 
     if msg.verb in (I_, RQ):  # from Spider thermostat to gateway
         assert payload[14:16] == "80", f"{_INFORM_DEV_MSG} ({payload[14:16]})"
-        assert payload[22:26] == "2840", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
-        assert payload[30:34] == "0104", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
+        # assert payload[22:26] in (
+        #     "2832",
+        #     "2840",
+        # ), f"{_INFORM_DEV_MSG} ({payload[22:26]})"
+        # assert payload[30:34] in (
+        #     "0104",
+        #     "4402",
+        #     "C102",
+        #     "C402",
+        # ), f"{_INFORM_DEV_MSG} ({payload[30:34]})"
         assert payload[46:48] in ("04", "07"), f"{_INFORM_DEV_MSG} ({payload[46:48]})"
 
     if msg.verb in (RP, W_):  # from Spider gateway to thermostat
-        assert payload[4:6] == "80", f"{_INFORM_DEV_MSG} ({payload[4:6]})"
-        # assert payload[6:8] == payload[8:10], f"{_INFORM_DEV_MSG} ({payload[8:10]})"
-        assert payload[14:16] in ("00", "7F"), f"{_INFORM_DEV_MSG} ({payload[14:16]})"
-        assert payload[22:26] == "8080", f"{_INFORM_DEV_MSG} ({payload[22:26]})"
-        assert payload[30:34] == "3100", f"{_INFORM_DEV_MSG} ({payload[30:34]})"
-        assert payload[46:48] in ("00", "04"), f"{_INFORM_DEV_MSG} ({payload[46:48]})"
+        # assert payload[14:16] in (
+        #     "00",
+        #     "7F",
+        #     "80",
+        # ), f"{_INFORM_DEV_MSG} ({payload[14:16]})"
+        # assert payload[22:26] in (
+        #     "2840",
+        #     "8080",
+        # ), f"{_INFORM_DEV_MSG} ({payload[22:26]})"
+        # assert payload[30:34] in (
+        #     "0104",
+        #     "3100",
+        #     "3700",
+        #     "B400",
+        # ), f"{_INFORM_DEV_MSG} ({payload[30:34]})"
+        assert payload[46:48] in (
+            "00",
+            "04",
+            "07",
+        ), f"{_INFORM_DEV_MSG} ({payload[46:48]})"
 
     setpoint_bounds = (
         int(payload[6:8], 16) / 2,  # as: 22C9[2:6] and [6:10] ???
@@ -908,7 +947,7 @@ def parser_10d0(payload: str, msg: Message) -> dict:
     # Default is 180 180 200. The returned value is the amount of days (180),
     # total amount of days till change (180), percentage (200)
 
-    result: dict[str, bool | float | int | None]
+    result: dict[str, bool | float | None]
 
     if msg.verb == W_:
         result = {"reset_counter": payload[2:4] == "FF"}
@@ -1080,7 +1119,7 @@ def parser_12b0(payload: str, msg: Message) -> PayDictT._12B0:
 # displayed temperature (on a TR87RF bound to a RFG100)
 def parser_12c0(payload: str, msg: Message) -> Mapping[str, float | int | str | None]:
     if payload[2:4] == "80":
-        temp: float | int | None = None
+        temp: float | None = None
     elif payload[4:] == "00":  # units are 1.0 F
         temp = int(payload[2:4], 16)
     else:  # if payload[4:] == "01":  # units are 0.5 C
