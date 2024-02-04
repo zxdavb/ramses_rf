@@ -37,7 +37,6 @@ from .const import (
     DevType,
 )
 from .device import Device, Fakeable
-from .device.base import DeviceBase
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -54,8 +53,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # all debug flags should be False for published code
 DEV_MODE = False  # set True for useful Tracebacks
+
 _DBG_FORCE_LOG_MESSAGES = False  # useful for dev/test
-STRICT_MODE = False
 
 __all__ = ["detect_array_fragment", "process_msg"]
 
@@ -136,14 +135,13 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     """Validate the packet's source device class against its verb/code pair."""
 
     if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
-        slug = getattr(msg.src, "_SLUG", DevType.DEV)
-    if slug in (DevType.HGI, DevType.DEV, DevType.HEA, DevType.HVC):
+        slug = getattr(msg.src, "_SLUG", None)
+    if slug in (None, DevType.HGI, DevType.DEV, DevType.HEA, DevType.HVC):
         return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
         raise exc.PacketInvalid(f"{msg!r} < Unknown src type, is it HVAC?")
 
-    #
     #
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:
@@ -152,19 +150,12 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     #
     #
 
-    #
-    # (code := CODES_BY_DEV_SLUG[slug][msg.code]) and msg.verb not in code:
     if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:
         raise exc.PacketInvalid(f"{msg!r} < Unexpected verb/code for src to Tx")
 
 
 def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
-    """Validate the packet's destination device class (type) against its verb/code pair.
-
-    Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
-    """
-
-    assert isinstance(msg.src, DeviceBase)  # mypy check
+    """Validate the packet's destination device class against its verb/code pair."""
 
     if slug is None:
         slug = getattr(msg.dst, "_SLUG", None)
@@ -172,17 +163,8 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
-        if msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
-            err_msg = f"Unknown dst type: {msg.dst}"
-            if STRICT_MODE:
-                raise exc.PacketInvalid(err_msg)
-            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
-            return
-        _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
-        return
+        raise exc.PacketInvalid(f"{msg!r} < Unknown dst type, is it HVAC?")
 
-    if msg.verb == I_:  # TODO: not common, unless src=dst
-        return  # receiving an I isn't currently in the schema & cant yet be tested
     if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{Code._3EF1}",):
         return  # HACK: an exception-to-the-rule that need sorting
 
