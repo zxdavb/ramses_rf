@@ -927,7 +927,7 @@ async def transport_factory(
     # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
     try:
         await asyncio.wait_for(transport._init_fut, timeout=3)  # signature echo
-    except asyncio.TimeoutError as err:
+    except TimeoutError as err:
         raise exc.TransportSerialError(
             "Transport did not initialise successfully"
         ) from err
@@ -935,7 +935,7 @@ async def transport_factory(
     # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
     try:
         await asyncio.wait_for(poll_until_connection_made(protocol), timeout=3)
-    except asyncio.TimeoutError as err:
+    except TimeoutError as err:
         raise exc.TransportSerialError("Transport did not bind to Protocol") from err
 
     return transport

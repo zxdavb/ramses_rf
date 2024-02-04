@@ -214,7 +214,7 @@ class ProtocolContext:
             pkt: Packet = await asyncio.wait_for(
                 fut, timeout
             )  # TODO: return message instead?
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             self.set_state(IsFailed)
             raise exc.ProtocolSendFailed(
                 f"{cmd._hdr}: Timeout (outer) has expired"

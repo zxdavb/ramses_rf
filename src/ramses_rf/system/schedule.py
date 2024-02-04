@@ -219,7 +219,7 @@ class Schedule:  # 0404
 
         try:
             await asyncio.wait_for(self._get_schedule(force_io=force_io), timeout=15)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise  # TODO: raise a more parochial exception
         return self.schedule
 

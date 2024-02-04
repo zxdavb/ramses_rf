@@ -542,7 +542,7 @@ class _Discovery(_MessageDB):
             except exc.ProtocolError as err:  # InvalidStateError, SendTimeoutError
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
 
-            except asyncio.TimeoutError as err:  # safety valve timeout
+            except TimeoutError as err:  # safety valve timeout
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
 
             else:
