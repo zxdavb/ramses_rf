@@ -194,8 +194,8 @@ def hex_from_double(value: float | None, factor: int = 1) -> HexStr4:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
-    if not isinstance(value, float):
-        raise ValueError(f"Invalid value: {value}, is not a double (a float)")
+    if not isinstance(value, float | int):
+        raise ValueError(f"Invalid value: {value}, is not a double (a float/int)")
     return f"{int(value * factor):04X}"
 
 
