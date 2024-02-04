@@ -9,71 +9,115 @@ from enum import EnumCheck, IntEnum, StrEnum, verify
 from types import SimpleNamespace
 from typing import Final, Literal
 
-__dev_mode__ = False
+__dev_mode__ = False  # NOTE: this is const.py
 DEV_MODE = __dev_mode__
 
 # used by transport...
-SZ_ACTIVE_HGI: Final[str] = "active_gwy"
-SZ_SIGNATURE: Final[str] = "signature"
-SZ_KNOWN_HGI: Final[str] = "known_hgi"
-SZ_IS_EVOFW3: Final[str] = "is_evofw3"
+SZ_ACTIVE_HGI: Final = "active_gwy"
+SZ_SIGNATURE: Final = "signature"
+SZ_KNOWN_HGI: Final = "known_hgi"
+SZ_IS_EVOFW3: Final = "is_evofw3"
 
 # used by protocol QoS...
-MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
+MINIMUM_GAP_DURATION: Final[float] = 0.02  # seconds
 
-SZ_BACKOFF: Final[str] = "backoff"
-SZ_DISABLE_BACKOFF: Final[str] = "disable_backoff"
-SZ_PRIORITY: Final[str] = "priority"
-SZ_QOS: Final[str] = "qos"
-SZ_RETRIES: Final[str] = "retries"
-SZ_TIMEOUT: Final[str] = "timeout"
+DEFAULT_GAP_DURATION: Final[float] = MINIMUM_GAP_DURATION
+DEFAULT_NUM_REPEATS: Final[int] = 1
+DEFAULT_TIMEOUT: Final[float] = 30.0  # total waiting for successful send: FIXME
 
-# these are used by QoS
-SZ_CALLBACK: Final[str] = "callback"
-SZ_DAEMON: Final[str] = "daemon"
-SZ_EXPIRED: Final[str] = "expired"
-SZ_EXPIRES: Final[str] = "expires"
-SZ_FUNC: Final[str] = "func"
-SZ_ARGS: Final[str] = "args"
+DEFAULT_MAX_RETRIES: Final[int] = 3
+DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
+DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
+
+SZ_QOS: Final = "qos"
+
+SZ_CALLBACK: Final = "callback"
+SZ_GAP_DURATION: Final = "gap_duration"
+SZ_MAX_RETRIES: Final = "max_retries"
+SZ_NUM_REPEATS: Final = "num_repeats"
+SZ_PRIORITY: Final = "priority"
+SZ_TIMEOUT: Final = "timeout"
+
 
 # used by schedule.py...
-SZ_FRAGMENT: Final[str] = "fragment"
-SZ_FRAG_NUMBER: Final[str] = "frag_number"
-SZ_FRAG_LENGTH: Final[str] = "frag_length"
-SZ_TOTAL_FRAGS: Final[str] = "total_frags"
+SZ_FRAGMENT: Final = "fragment"
+SZ_FRAG_NUMBER: Final = "frag_number"
+SZ_FRAG_LENGTH: Final = "frag_length"
+SZ_TOTAL_FRAGS: Final = "total_frags"
 
-SZ_SCHEDULE: Final[str] = "schedule"
-SZ_CHANGE_COUNTER: Final[str] = "change_counter"
+SZ_SCHEDULE: Final = "schedule"
+SZ_CHANGE_COUNTER: Final = "change_counter"
+
+SZ_SENSOR_FAULT: Final = "sensor_fault"
 
 
 # used by 31DA
-SZ_AIR_QUALITY: Final[str] = "air_quality"
-SZ_AIR_QUALITY_BASIS: Final[str] = "air_quality_basis"
-SZ_BOOST_TIMER: Final[str] = "boost_timer"
-SZ_BYPASS_POSITION: Final[str] = "bypass_position"
-SZ_CO2_LEVEL: Final[str] = "co2_level"
-SZ_DEWPOINT_TEMP: Final[str] = "dewpoint_temp"
-SZ_EXHAUST_FAN_SPEED: Final[str] = "exhaust_fan_speed"
-SZ_EXHAUST_FLOW: Final[str] = "exhaust_flow"
-SZ_EXHAUST_TEMP: Final[str] = "exhaust_temp"
-SZ_FAN_INFO: Final[str] = "fan_info"
-SZ_FAN_MODE: Final[str] = "fan_mode"
-SZ_FAN_RATE: Final[str] = "fan_rate"
-SZ_FILTER_REMAINING: Final[str] = "filter_remaining"
-SZ_INDOOR_HUMIDITY: Final[str] = "indoor_humidity"
-SZ_INDOOR_TEMP: Final[str] = "indoor_temp"
-SZ_OUTDOOR_HUMIDITY: Final[str] = "outdoor_humidity"
-SZ_OUTDOOR_TEMP: Final[str] = "outdoor_temp"
-SZ_POST_HEAT: Final[str] = "post_heat"
-SZ_PRE_HEAT: Final[str] = "pre_heat"
-SZ_REL_HUMIDITY: Final[str] = "rel_humidity"
-SZ_REMAINING_MINS: Final[str] = "remaining_mins"
-SZ_SUPPLY_FAN_SPEED: Final[str] = "supply_fan_speed"
-SZ_SUPPLY_FLOW: Final[str] = "supply_flow"
-SZ_SUPPLY_TEMP: Final[str] = "supply_temp"
-SZ_SPEED_CAP: Final[str] = "speed_capabilities"
+SZ_AIR_QUALITY: Final = "air_quality"
+SZ_AIR_QUALITY_BASIS: Final = "air_quality_basis"
+SZ_BOOST_TIMER: Final = "boost_timer"
+SZ_BYPASS_POSITION: Final = "bypass_position"
+SZ_CO2_LEVEL: Final = "co2_level"
+SZ_DEWPOINT_TEMP: Final = "dewpoint_temp"
+SZ_EXHAUST_FAN_SPEED: Final = "exhaust_fan_speed"
+SZ_EXHAUST_FLOW: Final = "exhaust_flow"
+SZ_EXHAUST_TEMP: Final = "exhaust_temp"
+SZ_FAN_INFO: Final = "fan_info"
+SZ_FAN_MODE: Final = "fan_mode"
+SZ_FAN_RATE: Final = "fan_rate"
+SZ_FILTER_REMAINING: Final = "filter_remaining"
+SZ_INDOOR_HUMIDITY: Final = "indoor_humidity"
+SZ_INDOOR_TEMP: Final = "indoor_temp"
+SZ_OUTDOOR_HUMIDITY: Final = "outdoor_humidity"
+SZ_OUTDOOR_TEMP: Final = "outdoor_temp"
+SZ_POST_HEAT: Final = "post_heat"
+SZ_PRE_HEAT: Final = "pre_heat"
+SZ_REL_HUMIDITY: Final = "rel_humidity"
+SZ_REMAINING_MINS: Final = "remaining_mins"
+SZ_SUPPLY_FAN_SPEED: Final = "supply_fan_speed"
+SZ_SUPPLY_FLOW: Final = "supply_flow"
+SZ_SUPPLY_TEMP: Final = "supply_temp"
+SZ_SPEED_CAPABILITIES: Final = "speed_capabilities"
 
-SZ_PRESENCE_DETECTED: Final[str] = "presence_detected"
+SZ_PRESENCE_DETECTED: Final = "presence_detected"
+
+
+# used by OTB
+SZ_BURNER_HOURS: Final = "burner_hours"
+SZ_BURNER_STARTS: Final = "burner_starts"
+SZ_BURNER_FAILED_STARTS: Final = "burner_failed_starts"
+SZ_CH_PUMP_HOURS: Final = "ch_pump_hours"
+SZ_CH_PUMP_STARTS: Final = "ch_pump_starts"
+SZ_DHW_BURNER_HOURS: Final = "dhw_burner_hours"
+SZ_DHW_BURNER_STARTS: Final = "dhw_burner_starts"
+SZ_DHW_PUMP_HOURS: Final = "dhw_pump_hours"
+SZ_DHW_PUMP_STARTS: Final = "dhw_pump_starts"
+SZ_FLAME_SIGNAL_LOW: Final = "flame_signal_low"
+
+SZ_BOILER_OUTPUT_TEMP: Final = "boiler_output_temp"
+SZ_BOILER_RETURN_TEMP: Final = "boiler_return_temp"
+SZ_BOILER_SETPOINT: Final = "boiler_setpoint"
+SZ_CH_MAX_SETPOINT: Final = "ch_max_setpoint"
+SZ_CH_SETPOINT: Final = "ch_setpoint"
+SZ_CH_WATER_PRESSURE: Final = "ch_water_pressure"
+SZ_DHW_FLOW_RATE: Final = "dhw_flow_rate"
+SZ_DHW_SETPOINT: Final = "dhw_setpoint"
+SZ_DHW_TEMP: Final = "dhw_temp"
+SZ_MAX_REL_MODULATION: Final = "max_rel_modulation"
+# SZ_OEM_CODE:Final[str] = "oem_code"
+SZ_OUTSIDE_TEMP: Final = "outside_temp"
+SZ_REL_MODULATION_LEVEL: Final = "rel_modulation_level"
+
+SZ_CH_ACTIVE: Final = "ch_active"
+SZ_CH_ENABLED: Final = "ch_enabled"
+SZ_COOLING_ACTIVE: Final = "cooling_active"
+SZ_COOLING_ENABLED: Final = "cooling_enabled"
+SZ_DHW_ACTIVE: Final = "dhw_active"
+SZ_DHW_BLOCKING: Final = "dhw_blocking"
+SZ_DHW_ENABLED: Final = "dhw_enabled"
+SZ_FAULT_PRESENT: Final = "fault_present"
+SZ_FLAME_ACTIVE: Final = "flame_active"
+SZ_SUMMER_MODE: Final = "summer_mode"
+SZ_OTC_ACTIVE: Final = "otc_active"
 
 
 @verify(EnumCheck.UNIQUE)
@@ -92,9 +136,9 @@ def slug(string: str) -> str:
 
 # TODO: FIXME: This is a mess - needs converting to StrEnum
 class AttrDict(dict):
-    _SZ_AKA_SLUG: Final[str] = "_root_slug"
-    _SZ_DEFAULT: Final[str] = "_default"
-    _SZ_SLUGS: Final[str] = "SLUGS"
+    _SZ_AKA_SLUG: Final = "_root_slug"
+    _SZ_DEFAULT: Final = "_default"
+    _SZ_SLUGS: Final = "SLUGS"
 
     @classmethod
     def __readonly(cls, *args, **kwargs):
@@ -451,58 +495,58 @@ SYS_MODE_MAP = attr_dict_factory(
 )
 
 
-SZ_ACTIVE: Final[str] = "active"
-SZ_ACTUATOR: Final[str] = "actuator"
-SZ_ACTUATORS: Final[str] = "actuators"
-SZ_BINDINGS: Final[str] = "bindings"
-SZ_DATETIME: Final[str] = "datetime"
-SZ_DEMAND: Final[str] = "demand"
-SZ_DEVICE_CLASS: Final[str] = "device_class"  # used in 0418 only?
-SZ_DEVICE_ID: Final[str] = "device_id"
-SZ_DEVICE_ROLE: Final[str] = "device_role"
-SZ_DEVICES: Final[str] = "devices"
-SZ_DHW_IDX: Final[str] = "dhw_idx"
-SZ_DOMAIN_ID: Final[str] = "domain_id"
-SZ_DURATION: Final[str] = "duration"
-SZ_HEAT_DEMAND: Final[str] = "heat_demand"
-SZ_IS_DST: Final[str] = "is_dst"
-SZ_LANGUAGE: Final[str] = "language"
-SZ_LOCAL_OVERRIDE: Final[str] = "local_override"
-SZ_LOG_IDX: Final[str] = "log_idx"
-SZ_MAX_TEMP: Final[str] = "max_temp"
-SZ_MIN_TEMP: Final[str] = "min_temp"
-SZ_MODE: Final[str] = "mode"
-SZ_MULTIROOM_MODE: Final[str] = "multiroom_mode"
-SZ_NAME: Final[str] = "name"
-SZ_OEM_CODE: Final[str] = "oem_code"
-SZ_OPENWINDOW_FUNCTION: Final[str] = "openwindow_function"
-SZ_PAYLOAD: Final[str] = "payload"
-SZ_PERCENTAGE: Final[str] = "percentage"
-SZ_PRESSURE: Final[str] = "pressure"
-SZ_RELAY_DEMAND: Final[str] = "relay_demand"
-SZ_RELAY_FAILSAFE: Final[str] = "relay_failsafe"
-SZ_SENSOR: Final[str] = "sensor"
-SZ_SETPOINT: Final[str] = "setpoint"
-SZ_SETPOINT_BOUNDS: Final[str] = "setpoint_bounds"
-SZ_SLUG: Final[str] = "_SLUG"
-SZ_SYSTEM_MODE: Final[str] = "system_mode"
-SZ_TEMPERATURE: Final[str] = "temperature"
-SZ_UFH_IDX: Final[str] = "ufh_idx"
-SZ_UNKNOWN: Final[str] = "unknown"
-SZ_UNTIL: Final[str] = "until"
-SZ_VALUE: Final[str] = "value"
-SZ_WINDOW_OPEN: Final[str] = "window_open"
-SZ_ZONE_CLASS: Final[str] = "zone_class"
-SZ_ZONE_IDX: Final[str] = "zone_idx"
-SZ_ZONE_MASK: Final[str] = "zone_mask"
-SZ_ZONE_TYPE: Final[str] = "zone_type"
-SZ_ZONES: Final[str] = "zones"
+SZ_ACTIVE: Final = "active"
+SZ_ACTUATOR: Final = "actuator"
+SZ_ACTUATORS: Final = "actuators"
+SZ_BINDINGS: Final = "bindings"
+SZ_DATETIME: Final = "datetime"
+SZ_DEMAND: Final = "demand"
+SZ_DEVICE_CLASS: Final = "device_class"  # used in 0418 only?
+SZ_DEVICE_ID: Final = "device_id"
+SZ_DEVICE_ROLE: Final = "device_role"
+SZ_DEVICES: Final = "devices"
+SZ_DHW_IDX: Final = "dhw_idx"
+SZ_DOMAIN_ID: Final = "domain_id"
+SZ_DURATION: Final = "duration"
+SZ_HEAT_DEMAND: Final = "heat_demand"
+SZ_IS_DST: Final = "is_dst"
+SZ_LANGUAGE: Final = "language"
+SZ_LOCAL_OVERRIDE: Final = "local_override"
+SZ_LOG_IDX: Final = "log_idx"
+SZ_MAX_TEMP: Final = "max_temp"
+SZ_MIN_TEMP: Final = "min_temp"
+SZ_MODE: Final = "mode"
+SZ_MULTIROOM_MODE: Final = "multiroom_mode"
+SZ_NAME: Final = "name"
+SZ_OEM_CODE: Final = "oem_code"
+SZ_OPENWINDOW_FUNCTION: Final = "openwindow_function"
+SZ_PAYLOAD: Final = "payload"
+SZ_PERCENTAGE: Final = "percentage"
+SZ_PRESSURE: Final = "pressure"
+SZ_RELAY_DEMAND: Final = "relay_demand"
+SZ_RELAY_FAILSAFE: Final = "relay_failsafe"
+SZ_SENSOR: Final = "sensor"
+SZ_SETPOINT: Final = "setpoint"
+SZ_SETPOINT_BOUNDS: Final = "setpoint_bounds"
+SZ_SLUG: Final = "_SLUG"
+SZ_SYSTEM_MODE: Final = "system_mode"
+SZ_TEMPERATURE: Final = "temperature"
+SZ_UFH_IDX: Final = "ufh_idx"
+SZ_UNKNOWN: Final = "unknown"
+SZ_UNTIL: Final = "until"
+SZ_VALUE: Final = "value"
+SZ_WINDOW_OPEN: Final = "window_open"
+SZ_ZONE_CLASS: Final = "zone_class"
+SZ_ZONE_IDX: Final = "zone_idx"
+SZ_ZONE_MASK: Final = "zone_mask"
+SZ_ZONE_TYPE: Final = "zone_type"
+SZ_ZONES: Final = "zones"
 
 # used in 1FC9
-SZ_OFFER: Final[str] = "offer"
-SZ_ACCEPT: Final[str] = "accept"
-SZ_CONFIRM: Final[str] = "confirm"
-SZ_PHASE: Final[str] = "phase"
+SZ_OFFER: Final = "offer"
+SZ_ACCEPT: Final = "accept"
+SZ_CONFIRM: Final = "confirm"
+SZ_PHASE: Final = "phase"
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
@@ -596,10 +640,10 @@ class SystemType(StrEnum):
 
 
 # used by 22Fx parser, and FanSwitch devices
-# SZ_BOOST_TIMER: Final[str] = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
-HEATER_MODE: Final[str] = "heater_mode"  # e.g. auto, off
-FAN_MODE: Final[str] = "fan_mode"  # e.g. low. high
-FAN_RATE: Final[str] = "fan_rate"  # percentage, 0.0 - 1.0
+# SZ_BOOST_TIMER:Final = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
+HEATER_MODE: Final = "heater_mode"  # e.g. auto, off
+FAN_MODE: Final = "fan_mode"  # e.g. low. high
+FAN_RATE: Final = "fan_rate"  # percentage, 0.0 - 1.0
 
 
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # before adding RFG100
@@ -624,12 +668,36 @@ FAN_RATE: Final[str] = "fan_rate"  # percentage, 0.0 - 1.0
 
 
 # Below, verbs & codes - can use Verb/Code/Index for mypy type checking
-Verb = Literal[" I", "RQ", "RP", " W"]
+VerbT = Literal[" I", "RQ", "RP", " W"]
 
-I_: Final[Verb] = " I"
-RQ: Final[Verb] = "RQ"
-RP: Final[Verb] = "RP"
-W_: Final[Verb] = " W"
+I_: Final[VerbT] = " I"
+RQ: Final[VerbT] = "RQ"
+RP: Final[VerbT] = "RP"
+W_: Final[VerbT] = " W"
+
+
+@verify(EnumCheck.UNIQUE)
+class MsgId(StrEnum):
+    _00 = "00"
+    _03 = "03"
+    _06 = "06"
+    _01 = "01"
+    _05 = "05"
+    _0E = "0E"
+    _0F = "0F"
+    _11 = "11"
+    _12 = "12"
+    _13 = "13"
+    _19 = "19"
+    _1A = "1A"
+    _1B = "1B"
+    _1C = "1C"
+    _30 = "30"
+    _31 = "31"
+    _38 = "38"
+    _39 = "39"
+    _73 = "73"
+    _7F = "7F"
 
 
 # StrEnum is intended include all known codes, see: test suite, code schema in ramses.py
@@ -741,7 +809,7 @@ class Code(StrEnum):
 
 
 # fmt: off
-Index = Literal[
+IndexT = Literal[
     "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0A", "0B", "0C", "0D", "0E", "0F",
     "21",  # used by Nuaire
     "F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "FA", "FB", "FC", "FD", "FE", "FF"

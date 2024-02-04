@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, Final
 
 import voluptuous as vol
 
@@ -61,7 +61,9 @@ from .const import (
     __dev_mode__,
 )
 
-# from .system import _SystemT  # circular import
+if TYPE_CHECKING:
+    from . import Device, Gateway
+    from .system import Evohome
 
 
 DEV_MODE = __dev_mode__ and False
@@ -73,26 +75,26 @@ if DEV_MODE:
 
 #
 # 0/5: Schema strings
-SZ_SCHEMA = "schema"
-SZ_MAIN_TCS = "main_tcs"
+SZ_SCHEMA: Final = "schema"
+SZ_MAIN_TCS: Final = "main_tcs"
 
 SZ_CONTROLLER = DEV_TYPE_MAP[DevType.CTL]
-SZ_SYSTEM = "system"
+SZ_SYSTEM: Final = "system"
 SZ_APPLIANCE_CONTROL = DEV_ROLE_MAP[DevRole.APP]
-SZ_ORPHANS = "orphans"
-SZ_ORPHANS_HEAT = "orphans_heat"
-SZ_ORPHANS_HVAC = "orphans_hvac"
+SZ_ORPHANS: Final = "orphans"
+SZ_ORPHANS_HEAT: Final = "orphans_heat"
+SZ_ORPHANS_HVAC: Final = "orphans_hvac"
 
-SZ_DHW_SYSTEM = "stored_hotwater"
+SZ_DHW_SYSTEM: Final = "stored_hotwater"
 SZ_DHW_SENSOR = DEV_ROLE_MAP[DevRole.DHW]
 SZ_DHW_VALVE = DEV_ROLE_MAP[DevRole.HTG]
 SZ_HTG_VALVE = DEV_ROLE_MAP[DevRole.HT1]
 
-SZ_SENSOR_FAKED = "sensor_faked"
+SZ_SENSOR_FAKED: Final = "sensor_faked"
 
-SZ_UFH_SYSTEM = "underfloor_heating"
+SZ_UFH_SYSTEM: Final = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP[DevType.UFC]  # ufh_controller
-SZ_CIRCUITS = "circuits"
+SZ_CIRCUITS: Final = "circuits"
 
 HEAT_ZONES_STRS = tuple(ZON_ROLE_MAP[t] for t in ZON_ROLE_MAP.HEAT_ZONES)
 
@@ -189,8 +191,8 @@ SCH_TCS = vol.Schema(
 
 #
 # 2/5: Schemas for Ventilation control systems, aka HVAC/VCS
-SZ_REMOTES = "remotes"
-SZ_SENSORS = "sensors"
+SZ_REMOTES: Final = "remotes"
+SZ_SENSORS: Final = "sensors"
 
 SCH_VCS_DATA = vol.Schema(
     {
@@ -236,12 +238,12 @@ SCH_GLOBAL_SCHEMAS = vol.Schema(SCH_GLOBAL_SCHEMAS_DICT, extra=vol.PREVENT_EXTRA
 
 #
 # 4/5: Gateway (parser/state) configuration
-SZ_DISABLE_DISCOVERY = "disable_discovery"
-SZ_ENABLE_EAVESDROP = "enable_eavesdrop"
-SZ_MAX_ZONES = "max_zones"  # TODO: move to TCS-attr from GWY-layer
-SZ_REDUCE_PROCESSING = "reduce_processing"
-SZ_USE_ALIASES = "use_aliases"  # use friendly device names from known_list
-SZ_USE_NATIVE_OT = "use_native_ot"  # favour OT (3220s) over RAMSES
+SZ_DISABLE_DISCOVERY: Final = "disable_discovery"
+SZ_ENABLE_EAVESDROP: Final = "enable_eavesdrop"
+SZ_MAX_ZONES: Final = "max_zones"  # TODO: move to TCS-attr from GWY-layer
+SZ_REDUCE_PROCESSING: Final = "reduce_processing"
+SZ_USE_ALIASES: Final = "use_aliases"  # use friendly device names from known_list
+SZ_USE_NATIVE_OT: Final = "use_native_ot"  # favour OT (3220s) over RAMSES
 
 SCH_GATEWAY_DICT = {
     vol.Optional(SZ_DISABLE_DISCOVERY, default=False): bool,
@@ -262,7 +264,7 @@ SCH_GATEWAY_CONFIG = vol.Schema(SCH_GATEWAY_DICT, extra=vol.REMOVE_EXTRA)
 
 #
 # 5/5: the Global (gateway) Schema
-SZ_CONFIG = "config"
+SZ_CONFIG: Final = "config"
 
 SCH_GLOBAL_CONFIG = (
     vol.Schema(
@@ -296,9 +298,9 @@ def NormaliseRestoreCache() -> Callable:
     return normalise_restore_cache
 
 
-SZ_RESTORE_CACHE = "restore_cache"
-SZ_RESTORE_SCHEMA = "restore_schema"
-SZ_RESTORE_STATE = "restore_state"
+SZ_RESTORE_CACHE: Final = "restore_cache"
+SZ_RESTORE_SCHEMA: Final = "restore_schema"
+SZ_RESTORE_STATE: Final = "restore_state"
 
 SCH_RESTORE_CACHE_DICT = {
     vol.Optional(SZ_RESTORE_CACHE, default=True): vol.Any(
@@ -315,7 +317,7 @@ SCH_RESTORE_CACHE_DICT = {
 
 #
 # 6/5: Other stuff
-def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
+def _get_device(gwy: Gateway, dev_id: str, **kwargs: Any) -> Device:  # , **traits
     """Raise an LookupError if a device_id is filtered out by a list.
 
     The underlying method is wrapped only to provide a better error message.
@@ -340,31 +342,40 @@ def _get_device(gwy, dev_id: str, **kwargs) -> Any:  # Device
     return gwy.get_device(dev_id, **kwargs)
 
 
-def load_schema(gwy, **kwargs) -> None:
-    """Process the schema, and the configuration and return True if it is valid."""
+def load_schema(gwy: Gateway, known_list: dict | None = None, **schema) -> None:
+    """Instantiate all entities in the schema, and faked devices in the known_list."""
 
-    # kwargs: dict = SCH_GLOBAL_SCHEMAS_DICT(kwargs)
+    known_list = known_list or {}
+
+    # schema: dict = SCH_GLOBAL_SCHEMAS_DICT(schema)
 
     [
         load_tcs(gwy, ctl_id, schema)
-        for ctl_id, schema in kwargs.items()
+        for ctl_id, schema in schema.items()
         if re.match(DEVICE_ID_REGEX.ANY, ctl_id) and SZ_REMOTES not in schema
     ]
-    if kwargs.get(SZ_MAIN_TCS):
-        gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_TCS])
+    if schema.get(SZ_MAIN_TCS):
+        gwy._tcs = gwy.system_by_id.get(schema[SZ_MAIN_TCS])
     [
         load_fan(gwy, fan_id, schema)
-        for fan_id, schema in kwargs.items()
+        for fan_id, schema in schema.items()
         if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
     ]
     [  # NOTE: class favoured, domain ignored
         _get_device(gwy, device_id)  # domain=key[-4:])
         for key in (SZ_ORPHANS_HEAT, SZ_ORPHANS_HVAC)
-        for device_id in kwargs.get(key, [])
+        for device_id in schema.get(key, [])
     ]  # TODO: pass domain (Heat/HVAC), or generalise to SZ_ORPHANS
 
+    # create any devices in the known list that are faked, or fake those already created
+    for device_id, traits in known_list.items():
+        if traits.get(SZ_FAKED):
+            dev = _get_device(gwy, device_id)  # , **traits)
+            if not dev.is_faked:
+                dev._make_fake()
 
-def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
+
+def load_fan(gwy: Gateway, fan_id: str, schema: dict) -> Device:
     """Create a FAN using its schema (i.e. with remotes, sensors)."""
 
     fan = _get_device(gwy, fan_id)
@@ -373,13 +384,13 @@ def load_fan(gwy, fan_id: str, schema: dict) -> Any:  # Device
     return fan
 
 
-def load_tcs(gwy, ctl_id: str, schema: dict) -> Any:  # System
+def load_tcs(gwy: Gateway, ctl_id: str, schema: dict) -> Evohome:
     """Create a TCS using its schema."""
     # print(schema)
     # schema = SCH_TCS_ZONES_ZON(schema)
 
     ctl = _get_device(gwy, ctl_id)
-    ctl.tcs._update_schema(**schema)  # TODO
+    ctl.tcs._update_schema(**schema)
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}):  # UFH controllers
         _get_device(gwy, dev_id, parent=ctl.tcs)  # , **_schema)

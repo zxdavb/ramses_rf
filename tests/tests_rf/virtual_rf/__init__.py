@@ -9,16 +9,15 @@ from ramses_rf import Gateway
 from ramses_rf.const import DEV_TYPE_MAP, DevType
 from ramses_rf.schemas import SZ_CLASS, SZ_KNOWN_LIST
 
-from .helpers import ensure_fakeable  # noqa: F401, pylint: disable=unused-import
 from .virtual_rf import (
     HgiFwTypes,  # noqa: F401, pylint: disable=unused-import
     VirtualRf,
 )
 
 # patched constants
-# _DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
-# _DEBUG_DISABLE_QOS = False  # #                 ramses_tx.protocol
-MIN_GAP_BETWEEN_WRITES = 0  # #                 ramses_tx.protocol
+# _DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
+# _DBG_DISABLE_QOS = False  # #                 ramses_tx.protocol
+_GAP_BETWEEN_WRITES = 0  # #              ramses_tx.protocol
 
 # other constants
 GWY_ID_0 = "18:000000"
@@ -67,7 +66,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> str:
     return hgi_id, fw_type
 
 
-# @patch("ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def rf_factory(
     schemas: list[dict], start_gwys: bool = True
 ) -> tuple[VirtualRf, list[Gateway]]:

@@ -1,8 +1,9 @@
-# last checked/updated: 2023/11/06 (based on HA 2023.11.1)
-#  - to check against pyproject.toml
+# last checked/updated: 2024/01/24 (based on HA 2024.1.5)
+#  - to check against pyproject.toml, github workflows
 #
 
 # for using the library (sans CLI)
-  colorlog>=6.7.0  # incl. colorama, if Windows
-  pyserial-asyncio>=0.6  # incl. pyserial
-  voluptuous>=0.14.1
+  colorlog>=6.7.0             # incl. colorama, if Windows
+  pyserial-asyncio>=0.6       # incl. pyserial==3.5
+# pyserial-asyncio-fast>=0.6  # HA uses (written by HA)
+  voluptuous>=0.13.1          # we use 0.14.1 for typing support

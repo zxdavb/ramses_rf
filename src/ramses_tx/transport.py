@@ -5,7 +5,7 @@
 
 Operates at the pkt layer of: app - msg - pkt - h/w
 
-For ser2net, use the following YAML with: ser2net -c hgi80.yaml
+For ser2net, use the following YAML with: ser2net -c misc/ser2net.yaml
   connection: &con00
   accepter: telnet(rfc2217),tcp,5001
   timeout: 0
@@ -41,14 +41,16 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import glob
 import logging
 import os
 import re
+import sys
 from collections.abc import Iterable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import serial_asyncio  # type: ignore[import-untyped]
 from serial import (  # type: ignore[import-untyped]
@@ -56,10 +58,9 @@ from serial import (  # type: ignore[import-untyped]
     SerialException,
     serial_for_url,
 )
-from serial.tools.list_ports import comports  # type: ignore[import-untyped]
 
 from . import exceptions as exc
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR
+from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, pkt_addrs
 from .command import Command
 from .const import (
     DEV_TYPE_MAP,
@@ -80,7 +81,7 @@ from .schemas import (
     SZ_KNOWN_LIST,
     SZ_OUTBOUND,
 )
-from .typing import ExceptionT, RamsesProtocolT, RamsesTransportT, SerPortName
+from .typing import ExceptionT, SerPortNameT
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -90,9 +91,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .address import DeviceId
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from .address import DeviceIdT
+    from .protocol import RamsesProtocolT
 
 
 _SIGNATURE_MAX_TRYS = 24
@@ -109,11 +110,59 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags (used for dev/test) should be False for end-users
-_DEBUG_DISABLE_REGEX_WARNINGS = False
-_DEBUG_FORCE_LOG_FRAMES = False
+_DBG_DISABLE_REGEX_WARNINGS = False
+_DBG_FORCE_LOG_FRAMES = False
 
 
-def is_hgi80(serial_port: SerPortName) -> bool | None:
+# For linux, use a modified version of comports() to include /dev/serial/by-id/* links
+if os.name == "nt":  # sys.platform == 'win32':
+    from serial.tools.list_ports_windows import comports  # type: ignore[import-untyped]
+
+elif os.name != "posix":  # is unsupported
+    raise ImportError(
+        f"Sorry: no implementation for your platform ('{os.name}') available"
+    )
+
+elif sys.platform.lower()[:5] != "linux":  # e.g. osx
+    from serial.tools.list_ports_posix import comports  # type: ignore[import-untyped]
+
+else:  # is linux
+    # - see: https://github.com/pyserial/pyserial/pull/700
+    # - see: https://github.com/pyserial/pyserial/pull/709
+
+    from serial.tools.list_ports_linux import SysFS  # type: ignore[import-untyped]
+
+    def list_links(devices):
+        """Search for symlinks to ports already listed in devices."""
+
+        links = []
+        for device in glob.glob("/dev/*") + glob.glob("/dev/serial/by-id/*"):
+            if os.path.islink(device) and os.path.realpath(device) in devices:
+                links.append(device)
+        return links
+
+    def comports(
+        include_links: bool = False, _hide_subsystems: list[str] | None = None
+    ) -> list[SysFS]:
+        """Return a list of Serial objects for all known serial ports."""
+
+        if _hide_subsystems is None:
+            _hide_subsystems = ["platform"]
+
+        devices = set()
+        drivers = open("/proc/tty/drivers").readlines()
+        for driver in drivers:
+            items = driver.strip().split()
+            if items[4] == "serial":
+                devices.update(glob.glob(items[1] + "*"))
+
+        if include_links:
+            devices.update(list_links(devices))
+
+        return [d for d in map(SysFS, devices) if d.subsystem not in _hide_subsystems]
+
+
+def is_hgi80(serial_port: SerPortNameT) -> bool | None:
     """Return True/False if the device attached to the port has the attrs of an HGI80.
 
     Return None if it's not possible to tell (falsy should assume is evofw3).
@@ -121,10 +170,20 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     """
     # TODO: add tests for different serial ports, incl./excl/ by-id
 
+    # See: https://github.com/pyserial/pyserial-asyncio/issues/46
+    if "://" in serial_port:  # e.g. "rfc2217://localhost:5001"
+        try:
+            serial_for_url(serial_port, do_not_open=True)
+        except (SerialException, ValueError) as err:
+            raise exc.TransportSerialError(
+                f"Unable to find {serial_port}: {err}"
+            ) from err
+        return None
+
     if not os.path.exists(serial_port):
         raise exc.TransportSerialError(f"Unable to find {serial_port}")
 
-    # first, try the easy win (comports() wont take by-id)...
+    # first, try the easy win...
     if "by-id" not in serial_port:
         pass
     elif "TUSB3410" in serial_port:
@@ -132,8 +191,11 @@ def is_hgi80(serial_port: SerPortName) -> bool | None:
     elif "evofw3" in serial_port or "FT232R" in serial_port or "NANO" in serial_port:
         return False
 
-    # otherwise, we can use comports()...
-    komports = comports(include_links=True)  # doesn't include by-id links!
+    # otherwise, we can look at device attrs via comports()...
+    try:
+        komports = comports(include_links=True)
+    except ImportError as err:
+        raise exc.TransportSerialError(f"Unable to find {serial_port}: {err}") from err
 
     # TODO: remove get(): not monkeypatching comports() correctly for /dev/pts/...
     vid = {x.device: x.vid for x in komports}.get(serial_port)
@@ -170,14 +232,19 @@ def _normalise(pkt_line: str) -> str:
 
     Goals:
     - ensure an evofw3 provides the same output as a HGI80 (none, presently)
-    - handle 'strange' packets (e.g. I/08:/0008)
+    - handle 'strange' packets (e.g. I|08:|0008)
     """
 
-    # psuedo-RAMSES-II packets...
+    # ramses-esp bugs, see: https://github.com/IndaloTech/ramses_esp/issues/1
+    pkt_line = re.sub("\r\r", "\r", pkt_line)
+    for s in (I_, RQ, RP, W_, "000", "\r\n"):
+        pkt_line = re.sub(f"^ {s}", s, pkt_line)
+
+    # psuedo-RAMSES-II packets (encrypted payload?)...
     if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
 
-    return pkt_line.strip()
+    return pkt_line
 
 
 def _str(value: bytes) -> str:
@@ -203,8 +270,8 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         self,
         *args,
         enforce_include_list: bool = False,
-        exclude_list: dict[DeviceId, str] | None = None,
-        include_list: dict[DeviceId, str] | None = None,
+        exclude_list: dict[DeviceIdT, str] | None = None,
+        include_list: dict[DeviceIdT, str] | None = None,
         **kwargs,
     ) -> None:
         exclude_list = exclude_list or {}
@@ -219,9 +286,9 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
-        self._include = list(include_list.keys()) + [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
+        self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
-        self._foreign_gwys_lst: list[DeviceId] = []
+        self._foreign_gwys_lst: list[DeviceIdT] = []
         self._foreign_last_run = dt.now().date()
 
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
@@ -233,7 +300,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
 
-    def _get_known_hgi(self, include_list: dict[DeviceId, Any]) -> DeviceId | None:
+    def _get_known_hgi(self, include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:
         """Return the device_id of the gateway specified in the include_list, if any.
 
         The 'Known' gateway is the predicted Active gateway, given the known_list.
@@ -280,7 +347,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         return known_hgis[0]
 
-    def _set_active_hgi(self, dev_id: DeviceId, by_signature: bool = False) -> None:
+    def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
         """Set the Active Gateway (HGI) device_if.
 
         Send a warning if the include list is configured incorrectly.
@@ -300,12 +367,13 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         elif dev_id in self._include:
             pass
         elif self.enforce_include:
-            _LOGGER.error(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
+            _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
+            # self._include.append(dev_id)  # a good idea?
         else:
             _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
     def _is_wanted_addrs(
-        self, src_id: DeviceId, dst_id: DeviceId, payload: str | None = None
+        self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
     ) -> bool:
         """Return True if the packet is not to be filtered out.
 
@@ -316,7 +384,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         - by known_list (HGI80/evofw3), when filtering packets
         """
 
-        def warn_foreign_hgi(dev_id: DeviceId) -> None:
+        def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
             current_date = dt.now().date()
 
             if self._foreign_last_run != current_date:
@@ -343,6 +411,9 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             if dev_id in self._include:  # incl. 63:262142 & --:------
                 continue
 
+            if sending and dev_id == HGI_DEV_ADDR.id:
+                continue
+
             if self.enforce_include:
                 return False
 
@@ -360,7 +431,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         Also maintain _prev_pkt, _this_pkt attrs.
         """
 
-        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id, pkt.payload):
+        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
             return
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
@@ -371,6 +442,12 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             self._protocol.pkt_received(pkt)
         except AssertionError as err:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
+
+    def _send_frame(self, frame: str) -> None:
+        src, dst, *_ = pkt_addrs(frame[7:36])
+        if not self._is_wanted_addrs(src.id, dst.id, sending=True):
+            raise exc.TransportError(f"Packet excluded by device_id filter: {frame}")
+        super()._send_frame(frame)  # type: ignore[misc]
 
 
 class _RegHackMixin:
@@ -394,7 +471,7 @@ class _RegHackMixin:
             except re.error as err:
                 _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {err}")
 
-        if result != pkt_line and not _DEBUG_DISABLE_REGEX_WARNINGS:
+        if result != pkt_line and not _DBG_DISABLE_REGEX_WARNINGS:
             (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
                 f"{pkt_line} < Changed by use_regex to: {result}"
             )
@@ -523,7 +600,7 @@ class _FileTransport(asyncio.ReadTransport):
         self._loop.call_soon(self._protocol.connection_lost, exc)
 
     def close(self) -> None:
-        """Close the transport (calls self._protocol.connection_lost())."""
+        """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
         self._close()
 
 
@@ -581,7 +658,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
                     yield self._dt_now(), line + b"\r\n"
 
         for dtm, raw_line in bytes_received(data):
-            if _DEBUG_FORCE_LOG_FRAMES:
+            if _DBG_FORCE_LOG_FRAMES:
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
@@ -619,7 +696,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         if self._closing:
             return
 
-        if _DEBUG_FORCE_LOG_FRAMES:
+        if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Tx:     %s", data)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Tx:     %s", data)
@@ -643,7 +720,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             self._init_task.cancel()
 
     def close(self) -> None:
-        """Close the transport gracefully (calls self._protocol.connection_lost())."""
+        """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
         if not self._closing:
             self._close()
 
@@ -752,11 +829,14 @@ class QosTransport(PortTransport):
     pass
 
 
+RamsesTransportT: TypeAlias = QosTransport | PortTransport | FileTransport
+
+
 async def transport_factory(
     protocol: RamsesProtocolT,
     /,
     *,
-    port_name: SerPortName | None = None,
+    port_name: SerPortNameT | None = None,
     port_config: dict | None = None,
     packet_log: TextIOWrapper | None = None,
     packet_dict: dict | None = None,
@@ -774,9 +854,9 @@ async def transport_factory(
     async def poll_until_connection_made(protocol: RamsesProtocolT) -> None:
         """Poll until the Transport is bound to the Protocol."""
         while protocol._transport is None:
-            await asyncio.sleep(0.005)
+            await asyncio.sleep(0.005)  # type: ignore[unreachable]
 
-    def get_serial_instance(ser_name: SerPortName, ser_config: dict) -> Serial:
+    def get_serial_instance(ser_name: SerPortNameT, ser_config: dict) -> Serial:
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
@@ -839,7 +919,7 @@ async def transport_factory(
             loop=loop,
             **kwargs,
         )
-    else:
+    else:  # disable_qos could  be False, None
         transport = QosTransport(
             protocol, ser_instance, extra=extra, loop=loop, **kwargs
         )

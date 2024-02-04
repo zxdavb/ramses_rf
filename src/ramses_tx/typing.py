@@ -6,35 +6,26 @@
 import asyncio
 from collections.abc import Callable
 from datetime import datetime as dt
-from enum import IntEnum
 from io import TextIOWrapper
 from typing import Any, Protocol, TypeVar
 
 from serial import Serial  # type: ignore[import-untyped]
 
 from .command import Command
+from .const import (
+    DEFAULT_GAP_DURATION,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_NUM_REPEATS,
+    DEFAULT_TIMEOUT,
+    Priority,
+)
 from .message import Message
 from .packet import Packet
 
 ExceptionT = TypeVar("ExceptionT", bound=type[Exception])
 MsgFilterT = Callable[[Message], bool]
 MsgHandlerT = Callable[[Message], None]
-SerPortName = str
-
-
-_DEFAULT_TX_COUNT = 1  # number of times to Tx each Command
-_DEFAULT_TX_DELAY = 0.02  # gap between re-Tx of same Command
-
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_TIMEOUT = 30.0  # total waiting for successful send: FIXME
-
-
-class SendPriority(IntEnum):
-    _MAX = -9
-    HIGH = -2
-    DEFAULT = 0
-    LOW = 2
-    _MIN = 9
+SerPortNameT = str
 
 
 class QosParams:
@@ -80,15 +71,15 @@ class SendParams:
     def __init__(
         self,
         *,
-        gap_duration: float | None = _DEFAULT_TX_DELAY,
-        num_repeats: int | None = _DEFAULT_TX_COUNT,
-        priority: SendPriority | None = SendPriority.DEFAULT,
+        gap_duration: float | None = DEFAULT_GAP_DURATION,
+        num_repeats: int | None = DEFAULT_NUM_REPEATS,
+        priority: Priority | None = Priority.DEFAULT,
     ) -> None:
         """Create a SendParams instance."""
 
-        self._gap_duration = gap_duration or _DEFAULT_TX_DELAY
-        self._num_repeats = num_repeats or _DEFAULT_TX_COUNT
-        self._priority = priority or SendPriority.DEFAULT
+        self._gap_duration = gap_duration or DEFAULT_GAP_DURATION
+        self._num_repeats = num_repeats or DEFAULT_NUM_REPEATS
+        self._priority = priority or Priority.DEFAULT
 
         self._dt_cmd_arrived: dt | None = None
         self._dt_cmd_queued: dt | None = None
@@ -103,7 +94,7 @@ class SendParams:
         return self._num_repeats
 
     @property
-    def priority(self) -> SendPriority:
+    def priority(self) -> Priority:
         return self._priority
 
 
@@ -133,6 +124,9 @@ class RamsesTransportT(Protocol):
         ...
 
     def close(self) -> None:
+        """Close the transport gracefully.
+
+        Schedules a call to `transport._protocol.connection_lost(None)`."""
         ...
 
     def get_extra_info(self, name, default: Any | None = None) -> Any:
@@ -165,6 +159,7 @@ class RamsesTransportT(Protocol):
 class RamsesProtocolT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Protocol."""
 
+    _msg_handler: MsgHandlerT
     _pause_writing: bool
     _transport: RamsesTransportT
 
@@ -172,11 +167,15 @@ class RamsesProtocolT(Protocol):
         ...
 
     def add_handler(
-        self, /, *, msg_handler: MsgHandlerT, msg_filter: MsgFilterT | None = None
+        self, msg_handler: MsgHandlerT, /, *, msg_filter: MsgFilterT | None = None
     ) -> Callable[[], None]:
         ...
 
     def connection_lost(self, err: ExceptionT | None) -> None:
+        ...
+
+    @property
+    def wait_connection_lost(self) -> asyncio.Future:
         ...
 
     def connection_made(self, transport: RamsesTransportT) -> None:
@@ -196,9 +195,9 @@ class RamsesProtocolT(Protocol):
         cmd: Command,
         /,
         *,
-        gap_duration: float = _DEFAULT_TX_DELAY,
-        num_repeats: int = _DEFAULT_TX_COUNT,
-        priority: SendPriority = SendPriority.DEFAULT,
+        gap_duration: float = DEFAULT_GAP_DURATION,
+        num_repeats: int = DEFAULT_NUM_REPEATS,
+        priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
     ) -> Packet | None:
         ...

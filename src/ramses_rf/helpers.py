@@ -8,10 +8,29 @@ import asyncio
 from collections.abc import Callable
 from copy import deepcopy
 from inspect import iscoroutinefunction
-from typing import Any
+from typing import Any, TypeAlias
+
+_SchemaT: TypeAlias = dict[str, Any]
 
 
-def deep_merge(src: dict, dst: dict, _dc: bool = None) -> dict:
+def is_subset(inner: _SchemaT, outer: _SchemaT) -> bool:
+    """Return True is one dict (or list) is a subset of another."""
+
+    def _is_subset(a: dict | list | Any, b: dict | list | Any) -> bool:
+        if isinstance(a, dict):
+            return isinstance(b, dict) and all(
+                k in b and _is_subset(v, b[k]) for k, v in a.items()
+            )
+        if isinstance(a, list):
+            return isinstance(b, list) and all(
+                any(_is_subset(x, y) for y in b) for x in a
+            )
+        return bool(a == b)
+
+    return _is_subset(inner, outer)
+
+
+def deep_merge(src: _SchemaT, dst: _SchemaT, _dc: bool = None) -> _SchemaT:
     """Deep merge a src dict (precedent) into a dst dict and return the result.
 
     run me with nosetests --with-doctest file.py
@@ -42,8 +61,8 @@ def deep_merge(src: dict, dst: dict, _dc: bool = None) -> dict:
 
 
 def shrink(
-    value: dict, keep_falsys: bool = False, keep_hints: bool = False
-) -> dict[str, Any]:
+    value: _SchemaT, keep_falsys: bool = False, keep_hints: bool = False
+) -> _SchemaT:
     """Return a minimized dict, after removing all the meaningless items.
 
     Specifically, removes items with:
@@ -104,48 +123,3 @@ def schedule_task(
     return asyncio.create_task(
         schedule_fnc(fnc, delay, period, *args, **kwargs), name=str(fnc)
     )
-
-
-def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
-    import logging
-    import os
-    import signal
-
-    _LOGGER = logging.getLogger(__name__)
-
-    def handle_exception(loop, context):
-        """Handle exceptions on any platform."""
-        _LOGGER.error("Caught an exception (%s), processing...", context["message"])
-
-        err = context.get("exception")
-        if err:
-            try:
-                raise err
-            except KeyboardInterrupt:
-                pass
-
-    async def handle_sig_posix(sig):
-        """Handle signals on posix platform."""
-        _LOGGER.debug("Received a signal (%s), processing...", sig.name)
-
-        if sig == signal.SIGUSR1:
-            _LOGGER.info("Schema: \r\n%s", {self.tcs.id: self.tcs.schema})
-            _LOGGER.info("Params: \r\n%s", {self.tcs.id: self.tcs.params})
-            _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
-
-        elif sig == signal.SIGUSR2:
-            _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
-
-    _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
-    self._loop.set_exception_handler(handle_exception)
-
-    _LOGGER.debug("_setup_event_handlers(): Creating signal handlers...")
-    if os.name == "posix":  # full support
-        for sig in [signal.SIGUSR1, signal.SIGUSR2]:
-            self._loop.add_signal_handler(
-                sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
-            )
-    elif os.name == "nt":  # supported, but YMMV
-        _LOGGER.warning("Be aware, YMMV with Windows...")
-    else:  # unsupported
-        raise RuntimeError(f"Unsupported OS for this module: {os.name}")

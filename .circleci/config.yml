@@ -55,7 +55,7 @@ jobs:
       - run: &clear_dev_hack
           name: Clear any test/dev, debug flags, if set
           command: |
-            sed -i -e '/_DEBUG.* =/ s/= .*/= False/' ramses_rf/protocol/*.py
+            sed -i -e '/_DBG.* =/ s/= .*/= False/' ramses_rf/protocol/*.py
             sed -i -e '/DEV_MODE =/ s/= .*/= False/' ramses_rf/protocol/*.py
 
       - run:

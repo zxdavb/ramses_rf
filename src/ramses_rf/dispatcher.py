@@ -16,6 +16,7 @@ from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
 from ramses_tx import (
+    ALL_DEV_ADDR,
     CODES_BY_DEV_SLUG,
     Message,
 )
@@ -46,9 +47,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from . import Gateway
 
@@ -56,7 +54,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # all debug flags should be False for published code
 DEV_MODE = False  # set True for useful Tracebacks
-_DEBUG_FORCE_LOG_MESSAGES = False  # useful for dev/test
+_DBG_FORCE_LOG_MESSAGES = False  # useful for dev/test
 STRICT_MODE = False
 
 __all__ = ["detect_array_fragment", "process_msg"]
@@ -143,31 +141,13 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
         return  # TODO: use DEV_TYPE_MAP.PROMOTABLE_SLUGS
 
     if slug not in CODES_BY_DEV_SLUG:
-        if msg.code != Code._10E0 and msg.code not in CODES_OF_HVAC_DOMAIN_ONLY:
-            err_msg = f"Unknown src type: {msg.dst}"
-            if STRICT_MODE:
-                raise exc.PacketInvalid(err_msg)
-            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
-            return
-        _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
-        return
+        raise exc.PacketInvalid(f"{msg!r} < Unknown src type, is it HVAC?")
 
     #
     #
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:
-        if slug != DevType.DEV:
-            err_msg = f"Invalid code for {msg.src} to Tx: {msg.code}"
-            if STRICT_MODE:
-                raise exc.PacketInvalid(err_msg)
-            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
-            return
-        if msg.verb in (RQ, W_):
-            return
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
-            f"{msg!r} < Invalid code for {msg.src} to Tx: {msg.code}"
-        )
-        return
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected code for src to Tx")
 
     #
     #
@@ -175,10 +155,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
     #
     # (code := CODES_BY_DEV_SLUG[slug][msg.code]) and msg.verb not in code:
     if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:
-        err_msg = f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
-        if STRICT_MODE:
-            raise exc.PacketInvalid(err_msg)
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected verb/code for src to Tx")
 
 
 def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
@@ -210,32 +187,15 @@ def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in CODES_BY_DEV_SLUG[slug]:
-        if False and slug != DevType.HGI:  # NOTE: not yet needed because of 1st if
-            err_msg = f"Invalid code for {msg.dst} to Rx: {msg.code}"
-            if STRICT_MODE:
-                raise exc.PacketInvalid(err_msg)
-            (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
-            return
-        if msg.src._SLUG == DevType.HGI or msg.verb == RP:
-            # HGI can do what it like
-            return
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
-            f"{msg!r} < Invalid code for {msg.dst} to Rx/Tx: {msg.code}"
-        )
-        return
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected code for dst to Rx")
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{Code._0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
     if f"{slug}/{msg.verb}/{msg.code}" in (f"{DevType.BDR}/{RQ}/{Code._3EF0}",):
         return  # HACK: an exception-to-the-rule that need sorting
 
-    verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
-    # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and verb not in code:
-    if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:
-        err_msg = f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
-        if STRICT_MODE:
-            raise exc.PacketInvalid(err_msg)
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(f"{msg!r} < {err_msg}")
+    if {RQ: RP, RP: RQ, W_: I_}[msg.verb] not in CODES_BY_DEV_SLUG[slug][msg.code]:
+        raise exc.PacketInvalid(f"{msg!r} < Unexpected verb/code for dst to Rx")
 
 
 def process_msg(gwy: Gateway, msg: Message) -> None:
@@ -245,7 +205,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
     # which requires a valid payload only for 000C.
 
     def logger_xxxx(msg: Message):
-        if _DEBUG_FORCE_LOG_MESSAGES:
+        if _DBG_FORCE_LOG_MESSAGES:
             _LOGGER.warning(msg)
         elif msg.src is not gwy.hgi or (msg.code != Code._PUZZ and msg.verb != RQ):
             _LOGGER.info(msg)
@@ -271,7 +231,12 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             return
 
         _check_src_slug(msg)  # ? raise exc.PacketInvalid
-        if msg.dst is not msg.src and msg.verb != I_ and msg.src._SLUG != DevType.HGI:
+        if (
+            msg.src._SLUG != DevType.HGI  # avoid: msg.src.id != gwy.hgi.id
+            and msg.verb != I_
+            and msg.dst is not msg.src
+        ):
+            # HGI80 can do what it likes
             # receiving an I isn't currently in the schema & so cant yet be tested
             _check_dst_slug(msg)  # ? raise exc.PacketInvalid
 
@@ -285,31 +250,29 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
             gwy._loop.call_soon(msg.src._handle_msg, msg)
 
-        # TODO: should only be for fully-faked dst (as it will pick up via RF if not)
-        if msg.dst is not msg.src and isinstance(msg.dst, Fakeable):
-            devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
+        # TODO: only be for fully-faked (not Fakable) dst (it picks up via RF if not)
 
-        elif msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
-            devices = [
-                d
-                for d in gwy.devices
-                if d is not msg.src
-                and isinstance(d, Fakeable)
-                and d._context.is_binding
-            ]
+        if msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
+            devices = [d for d in gwy.devices if d is not msg.src and d._is_binding]
+
+        elif msg.dst == ALL_DEV_ADDR:  # some offers use dst=63:, so after IFC9 offer
+            devices = [d for d in gwy.devices if d is not msg.src and d.is_faked]
+
+        elif msg.dst is not msg.src and isinstance(msg.dst, Fakeable):  # is_faked?
+            # to eavesdrop pkts from other devices, but relevant to this device
+            devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
 
         elif hasattr(msg.src, SZ_DEVICES):  # FIXME: use isinstance()
             # elif isinstance(msg.src, Controller):
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
             # .I --- 01:054173 --:------ 01:054173 0008 002 03AA
             # needed for (e.g.) faked relays: each device decides if the pkt is useful
-            devices = msg.src.devices  # type: ignore[attr-defined]
+            devices = msg.src.devices
 
         else:
             devices = []
 
         for d in devices:  # FIXME: some may be Addresses?
-            # if True or getattr(d, "_faked", False):
             gwy._loop.call_soon(d._handle_msg, msg)
 
     except (AssertionError, exc.RamsesException, NotImplementedError) as err:
@@ -332,8 +295,7 @@ def detect_array_fragment(this: Message, prev: Message) -> bool:  # _PayloadT
     # .I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
 
     return bool(
-        prev
-        and prev._has_array
+        prev._has_array
         and this.code in (Code._000A, Code._22C9)  # TODO: not a complete list
         and this.code == prev.code
         and this.verb == prev.verb == I_

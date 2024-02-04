@@ -87,3 +87,7 @@ class PacketPayloadInvalid(PacketInvalid):
 
 class ParserError(ParserBaseError):
     """The packet cannot be parsed without error."""
+
+
+class CommandInvalid(ParserError):
+    """The command is corrupt/not internally consistent."""

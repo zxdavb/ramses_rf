@@ -1,0 +1,38 @@
+34:136285:
+  class: RND  # TR87RF (initiates as supplicant)
+  scheme: honeywell
+  tender:
+    "2309": "00"  # setpoint
+    "30C9": "00"  # temperature
+    "0008": "00"  # relay demand
+    "1FC9": "00"
+  affirm: {"2309": null}
+  ratify: 000001C8380F0100F1FF040A07E1030507E154383752463230323500
+
+22:140285:
+  class: DTS  # DTS92(A) (initiates as supplicant)
+  scheme: honeywell
+  tender:
+    "2309": "00"  # setpoint
+    "30C9": "00"  # temperature
+    "0008": "00"  # relay demand
+    "1FC9": "00"
+  affirm: {"2309": null}
+  ratify:
+
+03:183434:
+  class: HCW  # HCW82 (initiates as supplicant)
+  scheme: honeywell
+  tender:
+    "2309": "00"  # setpoint
+    "30C9": "00"  # temperature
+    "0008": "00"  # relay demand
+    # no 1FC9 !!
+  affirm:
+  ratify:
+
+# planned / hope will work: temp sensor without 'stat
+03:123456:
+  class: THM
+  tender:
+    "30C9":  # temperature

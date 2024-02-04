@@ -13,13 +13,13 @@ from pathlib import Path, PurePath
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.system.schedule import (
-    ENABLED,
-    HEAT_SETPOINT,
-    SCH_SCHEDULE_DHW,
-    SCH_SCHEDULE_ZON,
-    SWITCHPOINTS,
-    fragments_to_schedule,
-    schedule_to_fragments,
+    SCH_SCHEDULE_DHW_FULL,
+    SCH_SCHEDULE_ZON_FULL,
+    SZ_ENABLED,
+    SZ_HEAT_SETPOINT,
+    SZ_SWITCHPOINTS,
+    fragz_to_full_sched,
+    full_sched_to_fragz,
 )
 from tests.helpers import TEST_DIR, load_test_gwy
 
@@ -45,7 +45,7 @@ async def test_schedule_get(dir_name):
 
     zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
     assert zone.schedule == schedule[SZ_SCHEDULE]
-    assert zone._schedule._schedule == schedule
+    assert zone._schedule._full_schedule == schedule
 
     await gwy.stop()
 
@@ -59,25 +59,23 @@ async def test_schedule_helpers(dir_name):
     new_schedule = deepcopy(schedule)
 
     if schedule[SZ_ZONE_IDX] == "HW":
-        SCH_SCHEDULE_DHW(schedule)
+        SCH_SCHEDULE_DHW_FULL(schedule)
         schedule[SZ_ZONE_IDX] = "00"
     else:
-        SCH_SCHEDULE_ZON(schedule)
+        SCH_SCHEDULE_ZON_FULL(schedule)
 
-    assert schedule == fragments_to_schedule(schedule_to_fragments(schedule))
+    assert schedule == fragz_to_full_sched(full_sched_to_fragz(schedule))
 
     if new_schedule[SZ_ZONE_IDX] == "HW":
         new_schedule[SZ_ZONE_IDX] = "00"
-        new_schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][ENABLED] = not (
-            schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][ENABLED]
+        new_schedule[SZ_SCHEDULE][-1][SZ_SWITCHPOINTS][-1][SZ_ENABLED] = not (
+            schedule[SZ_SCHEDULE][-1][SZ_SWITCHPOINTS][-1][SZ_ENABLED]
         )
     else:
-        new_schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] = (
-            schedule[SZ_SCHEDULE][-1][SWITCHPOINTS][-1][HEAT_SETPOINT] + 1
+        new_schedule[SZ_SCHEDULE][-1][SZ_SWITCHPOINTS][-1][SZ_HEAT_SETPOINT] = (
+            schedule[SZ_SCHEDULE][-1][SZ_SWITCHPOINTS][-1][SZ_HEAT_SETPOINT] + 1
         )
 
     # the schedule code relies upon the following inequality...
     # i.e. if the schedule has changed, then the first fragment will be different
-    assert (
-        schedule_to_fragments(new_schedule)[0] != (schedule_to_fragments(schedule)[0])
-    )
+    assert full_sched_to_fragz(new_schedule)[0] != (full_sched_to_fragz(schedule)[0])

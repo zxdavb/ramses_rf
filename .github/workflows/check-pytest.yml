@@ -25,25 +25,32 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install CLI dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
           pip install -r requirements_cli.txt
-          pip install -r requirements_dev.txt
+
+      - name: Install pytest
+        run: |
+          pip install 'pytest >=7.4.3, <8.0.0'
+          pip install 'pytest-asyncio >=0.21.0'
+          pip install 'pytest-xdist >=3.3.1'
 
       - name: Install the package
         run: |
           pip install -e .
 
-      - name: Test via pytest
+      - name: Test non-RF via pytest
         run: |
-          pytest -v tests/tests     # --log-cli-level=WARNING
-          # pytest -v tests/tests_rf  # --log-cli-level=WARNING
+          pytest -v tests/tests_rf  # --log-cli-level=WARNING
+
+      - name: Test virtual RF via pytest
+        run: |
+          pytest -v tests/tests_rf  # --log-cli-level=WARNING
 
       # - name: Test with without voluptuous
       #   run: |

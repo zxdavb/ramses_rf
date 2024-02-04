@@ -8,12 +8,12 @@ Decode/process a packet (packet that was received).
 from __future__ import annotations
 
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING
 
 from . import exceptions as exc
+from .command import Command
 from .frame import Frame
 from .logger import getLogger  # overridden logger.getLogger
-from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS, WRITE_MSG_IDS
+from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
 from .ramses import CODES_SCHEMA, SZ_LIFESPAN
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -23,9 +23,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     Code,
 )
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 # these trade memory for speed
@@ -38,7 +35,7 @@ _TD_MINS_360 = td(minutes=360)
 _TD_DAYS_001 = td(minutes=60 * 24)
 
 
-_PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
+PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
 class Packet(Frame):
@@ -86,11 +83,11 @@ class Packet(Frame):
             super()._validate(strict_checking=strict_checking)  # no RSSI
 
             # FIXME: this is messy
-            _PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
+            PKT_LOGGER.info("", extra=self.__dict__)  # the packet.log line
 
         except exc.PacketInvalid as err:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
-                _PKT_LOGGER.warning("%s", err, extra=self.__dict__)
+                PKT_LOGGER.warning("%s", err, extra=self.__dict__)
             raise err
 
     def __repr__(self) -> str:
@@ -131,6 +128,13 @@ class Packet(Frame):
         fragment, _, err_msg = fragment.partition("*")
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
         return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
+
+    @classmethod
+    def _from_cmd(cls, cmd: Command, dtm: dt | None = None) -> Packet:
+        """Create a Packet from a Command."""
+        if dtm is None:
+            dtm = dt.now()
+        return cls.from_port(dtm, f"... {cmd._frame}")
 
     @classmethod
     def from_dict(cls, dtm: str, pkt_line: str) -> Packet:
@@ -186,16 +190,16 @@ def pkt_lifespan(pkt: Packet) -> td:  # import OtbGateway??
     if pkt.code in (Code._2309, Code._30C9) and pkt._has_array:  # sends I /sync_cycle
         return _TD_SECS_360
 
-    if pkt.code == Code._3220:  # FIXME
-        if pkt.payload[4:6] in WRITE_MSG_IDS:  #  and Write-Data:  # TODO
-            return _TD_SECS_003
+    if pkt.code == Code._3220:  # FIXME: 2.1 means we can miss two packets
+        # if pkt.payload[4:6] in WRITE_MSG_IDS:  #  and Write-Data:  # TODO
+        #     return _TD_SECS_003 * 2.1
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
-            return _TD_MINS_060
+            return _TD_MINS_360 * 2.1
         if pkt.payload[4:6] in PARAMS_MSG_IDS:
-            return _TD_MINS_360
+            return _TD_MINS_060 * 2.1
         if pkt.payload[4:6] in STATUS_MSG_IDS:
-            return _TD_MINS_005
-        return _TD_MINS_005
+            return _TD_MINS_005 * 2.1
+        return _TD_MINS_005 * 2.1
 
     # if pkt.code in (Code._3B00, Code._3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP

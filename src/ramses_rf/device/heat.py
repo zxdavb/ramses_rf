@@ -11,9 +11,32 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final
 
+from ramses_rf import exceptions as exc
+from ramses_rf.const import (
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
+    DOMAIN_TYPE_MAP,
+    SZ_DEVICES,
+    SZ_DOMAIN_ID,
+    SZ_HEAT_DEMAND,
+    SZ_PRESSURE,
+    SZ_RELAY_DEMAND,
+    SZ_SETPOINT,
+    SZ_TEMPERATURE,
+    SZ_UFH_IDX,
+    SZ_WINDOW_OPEN,
+    SZ_ZONE_IDX,
+    SZ_ZONE_MASK,
+    SZ_ZONE_TYPE,
+    ZON_ROLE_MAP,
+    DevType,
+)
+from ramses_rf.entity_base import Entity, Parent, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from ramses_tx.address import NON_DEV_ADDR
-from ramses_tx.command import Command, Priority, _mk_cmd
-from ramses_tx.const import SZ_BINDINGS
+from ramses_tx.command import Command, Priority
+from ramses_tx.const import SZ_NUM_REPEATS, SZ_PRIORITY, MsgId
 from ramses_tx.opentherm import (
     PARAMS_MSG_IDS,
     SCHEMA_MSG_IDS,
@@ -26,42 +49,16 @@ from ramses_tx.opentherm import (
 )
 from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
 
-from .. import exceptions as exc
-from ..const import (
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    DOMAIN_TYPE_MAP,
-    SZ_DEVICES,
-    SZ_DOMAIN_ID,
-    SZ_HEAT_DEMAND,
-    SZ_PRESSURE,
-    SZ_PRIORITY,
-    SZ_RELAY_DEMAND,
-    SZ_RETRIES,
-    SZ_SETPOINT,
-    SZ_TEMPERATURE,
-    SZ_UFH_IDX,
-    SZ_WINDOW_OPEN,
-    SZ_ZONE_IDX,
-    SZ_ZONE_MASK,
-    SZ_ZONE_TYPE,
-    ZON_ROLE_MAP,
-    DevType,
-)
-from ..entity_base import Entity, Parent, class_by_attr
-from ..helpers import shrink
-from ..schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from .base import BatteryState, Device, DeviceHeat, Fakeable
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -69,59 +66,61 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+from ramses_tx.const import (
+    SZ_BOILER_OUTPUT_TEMP,
+    SZ_BOILER_RETURN_TEMP,
+    SZ_BOILER_SETPOINT,
+    SZ_BURNER_FAILED_STARTS,
+    SZ_BURNER_HOURS,
+    SZ_BURNER_STARTS,
+    SZ_CH_ACTIVE,
+    SZ_CH_ENABLED,
+    SZ_CH_MAX_SETPOINT,
+    SZ_CH_PUMP_HOURS,
+    SZ_CH_PUMP_STARTS,
+    SZ_CH_SETPOINT,
+    SZ_CH_WATER_PRESSURE,
+    SZ_COOLING_ACTIVE,
+    SZ_COOLING_ENABLED,
+    SZ_DHW_ACTIVE,
+    SZ_DHW_BLOCKING,
+    SZ_DHW_BURNER_HOURS,
+    SZ_DHW_BURNER_STARTS,
+    SZ_DHW_ENABLED,
+    SZ_DHW_FLOW_RATE,
+    SZ_DHW_PUMP_HOURS,
+    SZ_DHW_PUMP_STARTS,
+    SZ_DHW_SETPOINT,
+    SZ_DHW_TEMP,
+    SZ_FAULT_PRESENT,
+    SZ_FLAME_ACTIVE,
+    SZ_FLAME_SIGNAL_LOW,
+    SZ_MAX_REL_MODULATION,
+    SZ_OEM_CODE,
+    SZ_OTC_ACTIVE,
+    SZ_OUTSIDE_TEMP,
+    SZ_REL_MODULATION_LEVEL,
+    SZ_SUMMER_MODE,
+)
 
 if TYPE_CHECKING:
+    from ramses_rf.system import Zone
     from ramses_tx import Address, Message, Packet
 
-    from ..system import Zone
+
+QOS_LOW = {SZ_PRIORITY: Priority.LOW}  # FIXME:  deprecate QoS in kwargs
+QOS_MID = {SZ_PRIORITY: Priority.HIGH}  # FIXME: deprecate QoS in kwargs
+QOS_MAX = {SZ_PRIORITY: Priority.HIGH, SZ_NUM_REPEATS: 3}  # FIXME: deprecate QoS...
 
 
-SZ_BURNER_HOURS: Final[str] = "burner_hours"
-SZ_BURNER_STARTS: Final[str] = "burner_starts"
-SZ_BURNER_FAILED_STARTS: Final[str] = "burner_failed_starts"
-SZ_CH_PUMP_HOURS: Final[str] = "ch_pump_hours"
-SZ_CH_PUMP_STARTS: Final[str] = "ch_pump_starts"
-SZ_DHW_BURNER_HOURS: Final[str] = "dhw_burner_hours"
-SZ_DHW_BURNER_STARTS: Final[str] = "dhw_burner_starts"
-SZ_DHW_PUMP_HOURS: Final[str] = "dhw_pump_hours"
-SZ_DHW_PUMP_STARTS: Final[str] = "dhw_pump_starts"
-SZ_FLAME_SIGNAL_LOW: Final[str] = "flame_signal_low"
+DEV_MODE = False
 
-SZ_BOILER_OUTPUT_TEMP: Final[str] = "boiler_output_temp"
-SZ_BOILER_RETURN_TEMP: Final[str] = "boiler_return_temp"
-SZ_BOILER_SETPOINT: Final[str] = "boiler_setpoint"
-SZ_CH_MAX_SETPOINT: Final[str] = "ch_max_setpoint"
-SZ_CH_SETPOINT: Final[str] = "ch_setpoint"
-SZ_CH_WATER_PRESSURE: Final[str] = "ch_water_pressure"
-SZ_DHW_FLOW_RATE: Final[str] = "dhw_flow_rate"
-SZ_DHW_SETPOINT: Final[str] = "dhw_setpoint"
-SZ_DHW_TEMP: Final[str] = "dhw_temp"
-SZ_MAX_REL_MODULATION: Final[str] = "max_rel_modularion"
-SZ_OEM_CODE: Final[str] = "oem_code"
-SZ_OUTSIDE_TEMP: Final[str] = "outside_temp"
-SZ_REL_MODULATION_LEVEL: Final[str] = "rel_modulation_level"
-
-SZ_CH_ACTIVE: Final[str] = "ch_active"
-SZ_CH_ENABLED: Final[str] = "ch_enabled"
-SZ_COOLING_ACTIVE: Final[str] = "cooling_active"
-SZ_COOLING_ENABLED: Final[str] = "cooling_enabled"
-SZ_DHW_ACTIVE: Final[str] = "dhw_active"
-SZ_DHW_BLOCKING: Final[str] = "dhw_blocking"
-SZ_DHW_ENABLED: Final[str] = "dhw_enabled"
-SZ_FAULT_PRESENT: Final[str] = "fault_present"
-SZ_FLAME_ACTIVE: Final[str] = "flame_active"
-SZ_SUMMER_MODE: Final[str] = "summer_mode"
-SZ_OTC_ACTIVE: Final[str] = "otc_active"
-
-
-DEV_MODE = True
+_DBG_ENABLE_DEPRECATION = False
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
+class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
     # .I --- 13:109598 --:------ 13:109598 3EF0 003 00C8FF                # event-driven, 00/C8
     # RP --- 13:109598 18:002563 --:------ 0008 002 00C8                  # 00/C8, as abobe
     # RP --- 13:109598 18:002563 --:------ 3EF1 007 0000BF-00BFC8FF       # 00/C8, as above
@@ -133,10 +132,10 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
     # RP --- 10:138926 34:010253 --:------ 3EF0 006 002E11-0000FF         # 10:s only RP
     # .I --- 13:209679 --:------ 13:209679 3EF0 003 00C8FF                # 13:s only  I
 
-    ACTUATOR_CYCLE = "actuator_cycle"
-    ACTUATOR_ENABLED = "actuator_enabled"  # boolean
-    ACTUATOR_STATE = "actuator_state"
-    MODULATION_LEVEL = "modulation_level"  # percentage (0.0-1.0)
+    ACTUATOR_CYCLE: Final = "actuator_cycle"
+    ACTUATOR_ENABLED: Final = "actuator_enabled"  # boolean
+    ACTUATOR_STATE: Final = "actuator_state"
+    MODULATION_LEVEL: Final = "modulation_level"  # percentage (0.0-1.0)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
@@ -147,19 +146,23 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
         if (
             msg.code == Code._3EF0
             and msg.verb == I_  # will be a 13:
-            and not self._faked
+            and not self.is_faked
             and not self._gwy._disable_sending
             and not self._gwy.config.disable_discovery
         ):
-            # self._make_cmd(Code._0008, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
-            self._make_cmd(Code._3EF1, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
+            # lf._make_and_send_cmd(
+            #     Code._0008, qos=QOS_LOW
+            # )  # FIXME: deprecate QoS in kwargs
+            self._make_and_send_cmd(
+                Code._3EF1, qos=QOS_LOW
+            )  # FIXME: deprecate QoS in kwargs
 
     @property
-    def actuator_cycle(self) -> None | dict:  # 3EF1
+    def actuator_cycle(self) -> dict | None:  # 3EF1
         return self._msg_value(Code._3EF1)
 
     @property
-    def actuator_state(self) -> None | dict:  # 3EF0
+    def actuator_state(self) -> dict | None:  # 3EF0
         return self._msg_value(Code._3EF0)
 
     @property
@@ -172,10 +175,10 @@ class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
 
 
 class HeatDemand(DeviceHeat):  # 3150
-    HEAT_DEMAND = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
+    HEAT_DEMAND: Final = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         return self._msg_value(Code._3150, key=self.HEAT_DEMAND)
 
     @property
@@ -187,10 +190,10 @@ class HeatDemand(DeviceHeat):  # 3150
 
 
 class Setpoint(DeviceHeat):  # 2309
-    SETPOINT = SZ_SETPOINT  # degrees Celsius
+    SETPOINT: Final = SZ_SETPOINT  # degrees Celsius
 
     @property
-    def setpoint(self) -> None | float:  # 2309
+    def setpoint(self) -> float | None:  # 2309
         return self._msg_value(Code._2309, key=self.SETPOINT)
 
     @property
@@ -201,36 +204,18 @@ class Setpoint(DeviceHeat):  # 2309
         }
 
 
-class Weather(Fakeable, DeviceHeat):  # 0002
-    TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
-
-    def _bind(self):
-        # .I ---
-        # .W ---
-        # .I ---
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the ..."""
-            pass
-            #
-
-        super()._bind()
-        self._bind_request(Code._0002, callback=callback)
+class Weather(DeviceHeat):  # 0002
+    TEMPERATURE: Final = SZ_TEMPERATURE  # TODO: deprecate
 
     @property
-    def temperature(self) -> None | float:  # 0002
-        return self._msg_value(Code._0002, key=self.TEMPERATURE)
+    def temperature(self) -> float | None:  # 0002
+        return self._msg_value(Code._0002, key=SZ_TEMPERATURE)
 
-    # @check_faking_enabled
     @temperature.setter
-    def temperature(self, value) -> None:  # 0002
-        if not self._faked:
+    def temperature(self, value: float | None) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
-        cmd = Command.put_outdoor_temp(self.id, value)
-        # cmd = Command.put_zone_temp(
-        #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
-        # )
-        self._send_cmd(cmd)
+        self._send_cmd(Command.put_outdoor_temp(self.id, value))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -240,7 +225,11 @@ class Weather(Fakeable, DeviceHeat):  # 0002
         }
 
 
-class RelayDemand(Fakeable, DeviceHeat):  # 0008
+class RelayDemand(DeviceHeat):  # 0008
+    # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
+    # .W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
+    # .I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
+
     # Some either 00/C8, others 00-C8
     # .I --- 01:145038 --:------ 01:145038 0008 002 0314  # ZON valve zone (ELE too?)
     # .I --- 01:145038 --:------ 01:145038 0008 002 F914  # HTG valve
@@ -250,75 +239,16 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
     # RP --- 13:109598 18:199952 --:------ 0008 002 0000
     # RP --- 13:109598 18:199952 --:------ 0008 002 00C8
 
-    RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
+    RELAY_DEMAND: Final = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        if not self._faked:  # discover_flag & Discover.STATUS and
+        if not self.is_faked:  # discover_flag & Discover.STATUS and
             self._add_discovery_cmd(Command.get_relay_demand(self.id), 60 * 15)
 
-    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
-        super()._handle_msg(msg)
-
-        if msg.src.id == self.id:
-            return
-
-        if (
-            self._gwy._disable_sending
-            or not self._faked
-            or self._child_id is None
-            or self._child_id
-            not in (
-                v for k, v in msg.payload.items() if k in (SZ_DOMAIN_ID, SZ_ZONE_IDX)
-            )
-        ):
-            return
-
-        if msg.code == Code._3EF0 and msg.verb == I_:  # NOT RP
-            # should't use for RP as RQ's might be polled quite often
-            cmd = Command.get_relay_demand(self.id)
-            self._send_cmd(cmd, qos={SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 1})
-
-        # elif msg.code == Code._0009:  # can only be I, from a controller
-        # elif msg.code == Code._3B00...:
-
-        if not self._faked or msg.verb != RQ:  # duplicated, above
-            return
-
-        # TODO: handle relay_failsafe, reply to RQs
-        if msg.code == Code._0008 and msg.verb == RQ:  # NOTE: WIP for FAKING
-            # 076  I --- 01:054173 --:------ 01:054173 0008 002 037C
-            mod_level = msg.payload[self.RELAY_DEMAND]
-            if mod_level is not None:
-                mod_level = 1.0 if mod_level > 0 else 0
-
-            cmd = Command.put_actuator_state(self.id, mod_level)
-            qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]
-
-        elif msg.code == Code._3EF1 and msg.verb == RQ:  # NOTE: WIP for FAKING
-            mod_level = 1.0
-
-            cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
-            qos = {SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 3}
-            [self._send_cmd(cmd, **qos) for _ in range(1)]
-
-    def _bind(self):
-        # .I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
-        # .W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
-        # .I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the ..."""
-            pass
-            #
-
-        super()._bind()
-        self._bind_waiting(Code._3EF0, callback=callback)
-
     @property
-    def relay_demand(self) -> None | float:  # 0008
+    def relay_demand(self) -> float | None:  # 0008
         return self._msg_value(Code._0008, key=self.RELAY_DEMAND)
 
     @property
@@ -329,36 +259,21 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         }
 
 
-class DhwTemperature(Fakeable, DeviceHeat):  # 1260
-    TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
-
-    def _bind(self):
-        # .I ---
-        # .W ---
-        # .I ---
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the ..."""
-            self.set_parent(msg.src, child_id=FA, is_sensor=True)
-            #
-
-        super()._bind()
-        self._bind_request(Code._1260, callback=callback)
+class DhwTemperature(DeviceHeat):  # 1260
+    TEMPERATURE: Final = SZ_TEMPERATURE  # TODO: deprecate
 
     async def initiate_binding_process(self) -> Packet:
         return await super().initiate_binding_process(Code._1260)
 
     @property
-    def temperature(self) -> None | float:  # 1260
-        return self._msg_value(Code._1260, key=self.TEMPERATURE)
+    def temperature(self) -> float | None:  # 1260
+        return self._msg_value(Code._1260, key=SZ_TEMPERATURE)
 
-    # @check_faking_enabled
     @temperature.setter
-    def temperature(self, value) -> None:  # 1260
-        if not self._faked:
+    def temperature(self, value: float | None) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_dhw_temp(value))
-        # lf._send_cmd(Command.get_dhw_temp(self.ctl.id, self.zone.idx))
+        self._send_cmd(Command.put_dhw_temp(self.id, value))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -368,31 +283,19 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         }
 
 
-class Temperature(Fakeable, DeviceHeat):  # 30C9
-    def _bind(self):
-        # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
-        # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
-        # .I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
-
-        def callback(msg):  # TODO: needs work
-            """Use the accept pkt to determine the zone/domain id."""
-            child_id = msg.payload[SZ_BINDINGS][0][0]
-            self.set_parent(msg.src, child_id=child_id, is_sensor=True)
-
-        super()._bind()
-        self._bind_request(Code._30C9, callback=callback)
-
+class Temperature(DeviceHeat):  # 30C9
+    # .I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
+    # .W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+    # .I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
     @property
-    def temperature(self) -> None | float:  # degrees Celsius
+    def temperature(self) -> float | None:  # 30C9
         return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)
 
-    # @check_faking_enabled
     @temperature.setter
-    def temperature(self, value) -> None:
-        if not self._faked:
+    def temperature(self, value: float | None) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_sensor_temp(self.id, value))
-        # lf._send_cmd(Command.get_zone_temp(self.ctl.id, self.zone.idx))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -437,7 +340,7 @@ class Controller(DeviceHeat):  # CTL (01):
             If a TCS is created, attach it to this device (which should be a CTL).
             """
 
-            from ..system import system_factory
+            from ramses_rf.system import system_factory
 
             schema = shrink(SCH_TCS(schema))
 
@@ -467,7 +370,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
     _SLUG: str = DevType.UFC
 
-    HEAT_DEMAND = SZ_HEAT_DEMAND
+    HEAT_DEMAND: Final = SZ_HEAT_DEMAND
 
     _STATE_ATTR = SZ_HEAT_DEMAND
 
@@ -480,7 +383,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = FA  # NOTE: domain_id, HACK: UFC
+        self._child_id = FA  # NOTE: domain_id, UFC
 
         self.circuit_by_id = {f"{i:02X}": {} for i in range(8)}
 
@@ -497,24 +400,22 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
-        self._add_discovery_cmd(
-            _mk_cmd(RQ, Code._0005, f"00{DEV_ROLE_MAP.UFH}", self.id), 60 * 60 * 24
-        )
+        cmd = Command.from_attrs(RQ, self.id, Code._0005, f"00{DEV_ROLE_MAP.UFH}")
+        self._add_discovery_cmd(cmd, 60 * 60 * 24)
+
         # TODO: this needs work
         # if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
         for ufc_idx in self.circuit_by_id:
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000A, ufc_idx, self.id), 60 * 60 * 6
-            )
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._2309, ufc_idx, self.id), 60 * 60 * 6
-            )
+            cmd = Command.get_zone_config(self.id, ufc_idx)
+            self._add_discovery_cmd(cmd, 60 * 60 * 6)
+
+            cmd = Command.get_zone_setpoint(self.id, ufc_idx)
+            self._add_discovery_cmd(cmd, 60 * 60 * 6)
 
         for ufc_idx in range(8):  # type: ignore[assignment]
             payload = f"{ufc_idx:02X}{DEV_ROLE_MAP.UFH}"
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24
-            )
+            cmd = Command.from_attrs(RQ, self.id, Code._000C, payload)
+            self._add_discovery_cmd(cmd, 60 * 60 * 24)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -534,7 +435,9 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                 if not flag:
                     self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: None}
                 elif SZ_ZONE_IDX not in self.circuit_by_id[ufh_idx]:
-                    self._make_cmd(Code._000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}")
+                    self._make_and_send_cmd(
+                        Code._000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}"
+                    )
 
         elif msg.code == Code._0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get(SZ_DOMAIN_ID) == FC:
@@ -557,7 +460,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                     # child_id=msg.payload[SZ_ZONE_IDX],
                 )
 
-        elif msg.code == Code._22C9:  # ufh_setpoints
+        elif msg.code == Code._22C9:  # setpoint_bounds
             # .I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
             # .I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
             self._setpoints = msg
@@ -608,26 +511,26 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     #     return self.circuit_by_id
 
     @property
-    def heat_demand(self) -> None | float:  # 3150|FC (there is also 3150|FA)
+    def heat_demand(self) -> float | None:  # 3150|FC (there is also 3150|FA)
         return self._msg_value_msg(self._heat_demand, key=self.HEAT_DEMAND)
 
     @property
-    def heat_demands(self) -> None | dict:  # 3150|ufh_idx array
+    def heat_demands(self) -> dict | None:  # 3150|ufh_idx array
         # return self._heat_demands.payload if self._heat_demands else None
         return self._msg_value_msg(self._heat_demands)
 
     @property
-    def relay_demand(self) -> None | dict:  # 0008|FC
+    def relay_demand(self) -> dict | None:  # 0008|FC
         return self._msg_value_msg(self._relay_demand, key=SZ_RELAY_DEMAND)
 
     @property
-    def relay_demand_fa(self) -> None | dict:  # 0008|FA
+    def relay_demand_fa(self) -> dict | None:  # 0008|FA
         return self._msg_value_msg(self._relay_demand_fa, key=SZ_RELAY_DEMAND)
 
     @property
-    def setpoints(self) -> None | dict:  # 22C9|ufh_idx array
+    def setpoints(self) -> dict | None:  # 22C9|ufh_idx array
         if self._setpoints is None:
-            return
+            return None
 
         return {
             c[SZ_UFH_IDX]: {
@@ -660,13 +563,13 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         }
 
 
-class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
+class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
     _SLUG: str = DevType.DHW
 
-    DHW_PARAMS = "dhw_params"
-    TEMPERATURE = SZ_TEMPERATURE
+    DHW_PARAMS: Final = "dhw_params"
+    TEMPERATURE: Final = SZ_TEMPERATURE
 
     _STATE_ATTR = SZ_TEMPERATURE
 
@@ -684,7 +587,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
             self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 
     @property
-    def dhw_params(self) -> None | dict:  # 10A0
+    def dhw_params(self) -> dict | None:  # 10A0
         return self._msg_value(Code._10A0)
 
     @property
@@ -695,7 +598,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
         }
 
 
-class OutSensor(Weather):  # OUT: 17
+class OutSensor(Weather, Fakeable):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
     _SLUG: str = DevType.OUT
@@ -706,6 +609,7 @@ class OutSensor(Weather):  # OUT: 17
     _STATE_ATTR = SZ_TEMPERATURE
 
 
+# NOTE: config.use_native_ot should enforces sends, but not reads from ._msgz DB
 class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
@@ -716,21 +620,23 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
-    OT_TO_RAMSES = {  # TODO: move to opentherm.py
-        "00": Code._3EF0,  # master/slave status (actuator_state)
-        "01": Code._22D9,  # boiler_setpoint
-        "0E": Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
-        "11": Code._3EF0,  # rel_modulation_level (actuator_state, also Code._3EF1)
-        "12": Code._1300,  # ch_water_pressure
-        "13": Code._12F0,  # dhw_flow_rate
-        "19": Code._3200,  # boiler_output_temp
-        "1A": Code._1260,  # dhw_temp
-        "1B": Code._1290,  # outside_temp
-        "1C": Code._3210,  # boiler_return_temp
-        "38": Code._10A0,  # dhw_setpoint (is a PARAM)
-        "39": Code._1081,  # ch_max_setpoint (is a PARAM)
+    OT_TO_RAMSES: dict[str, Code] = {  # TODO: move to opentherm.py
+        MsgId._00: Code._3EF0,  # master/slave status (actuator_state)
+        MsgId._01: Code._22D9,  # boiler_setpoint
+        MsgId._0E: Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
+        MsgId._11: Code._3EF0,  # rel_modulation_level (actuator_state, also Code._3EF1)
+        MsgId._12: Code._1300,  # ch_water_pressure
+        MsgId._13: Code._12F0,  # dhw_flow_rate
+        MsgId._19: Code._3200,  # boiler_output_temp
+        MsgId._1A: Code._1260,  # dhw_temp
+        MsgId._1B: Code._1290,  # outside_temp
+        MsgId._1C: Code._3210,  # boiler_return_temp
+        MsgId._38: Code._10A0,  # dhw_setpoint (is a PARAM)
+        MsgId._39: Code._1081,  # ch_max_setpoint (is a PARAM)
     }
-    RAMSES_TO_OT = {v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0}
+    RAMSES_TO_OT: dict[Code, str] = {
+        v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0
+    }  # also 10A0?
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -744,37 +650,43 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         # lf._msgs_ot_ctl_polled = {}
 
     def _setup_discovery_cmds(self) -> None:
-        def which_cmd(use_native_ot: str, msg_id: str) -> None | Command:
+        def which_cmd(use_native_ot: str, msg_id: MsgId) -> Command | None:
             """Create a OT cmd, or its RAMSES equivalent, depending."""
             # we know RQ|3220 is an option, question is: use that, or RAMSES or nothing?
             if use_native_ot in ("always", "prefer"):
                 return Command.get_opentherm_data(self.id, msg_id)
             if msg_id in self.OT_TO_RAMSES:  # is: in ("avoid", "never")
-                return _mk_cmd(RQ, self.OT_TO_RAMSES[msg_id], "00", self.id)
+                return Command.from_attrs(RQ, self.id, self.OT_TO_RAMSES[msg_id], "00")
             if use_native_ot == "avoid":
                 return Command.get_opentherm_data(self.id, msg_id)
             return None  # use_native_ot == "never"
 
         super()._setup_discovery_cmds()
 
-        # TODO: # always send RQ|3EF0 and RQ|3220|00 (status), regardless of use_native_ot
+        # always send at least one of RQ|3EF0 or RQ|3220|00 (status)
         if self._gwy.config.use_native_ot != "never":
             self._add_discovery_cmd(Command.get_opentherm_data(self.id, "00"), 60)
+
         if self._gwy.config.use_native_ot != "always":
-            self._add_discovery_cmd(_mk_cmd(RQ, Code._3EF0, "00", self.id), 60)
+            self._add_discovery_cmd(
+                Command.from_attrs(RQ, self.id, Code._3EF0, "00"), 60
+            )
+            self._add_discovery_cmd(  # NOTE: this code is a WIP
+                Command.from_attrs(RQ, self.id, Code._2401, "00"), 60
+            )
 
-        for msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
-            if cmd := which_cmd(self._gwy.config.use_native_ot, msg_id):
-                self._add_discovery_cmd(cmd, 24 * 3600, delay=180)
+        for _msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
+            if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
+                self._add_discovery_cmd(cmd, 6 * 3600, delay=180)
 
-        for msg_id in PARAMS_MSG_IDS:  # params or L/T state
-            if cmd := which_cmd(self._gwy.config.use_native_ot, msg_id):
+        for _msg_id in PARAMS_MSG_IDS:  # params or L/T state
+            if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
                 self._add_discovery_cmd(cmd, 3600, delay=90)
 
-        for msg_id in STATUS_MSG_IDS:  # except "00", see above
-            if msg_id == "00":
+        for _msg_id in STATUS_MSG_IDS:  # except "00", see above
+            if _msg_id == 0x00:
                 continue
-            if cmd := which_cmd(self._gwy.config.use_native_ot, msg_id):
+            if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
                 self._add_discovery_cmd(cmd, 300, delay=15)
 
         if False and DEV_MODE:  # TODO: these are WIP, but do vary in payload
@@ -783,7 +695,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._3221,  # R8810A/20A
                 Code._3223,  # R8810A/20A
             ):
-                self._add_discovery_cmd(_mk_cmd(RQ, code, "00", self.id), 60)
+                self._add_discovery_cmd(Command.from_attrs(RQ, self.id, code, "00"), 60)
 
         if False and DEV_MODE:  # TODO: these are WIP, appear FIXED in payload
             for code in (
@@ -795,89 +707,91 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Code._2410,  # payload always "000000000000000000000000010000000100000C"
                 Code._2420,  # payload always "0000001000000...
             ):  # TODO: to test against BDR91T
-                cmd = _mk_cmd(RQ, code, "00", self.id)
-                self._add_discovery_cmd(cmd, 300, delay=300)
+                self._add_discovery_cmd(
+                    Command.from_attrs(RQ, self.id, code, "00"), 300
+                )
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        (self._handle_3220 if msg.code == Code._3220 else self._handle_code)(msg)
+        if msg.verb not in (I_, RP):
+            return
+
+        if msg.code == Code._3220:
+            self._handle_3220(msg)
+        elif msg.code in self.RAMSES_TO_OT:
+            self._handle_code(msg)
 
     def _handle_3220(self, msg: Message) -> None:
-        if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:  # workaround
+        """Handle 3220-based messages."""
+
+        # NOTE: Reserved msgs have null data, but that msg_id may later be OK!
+        if msg.payload[SZ_MSG_TYPE] == OtMsgType.RESERVED:
             return
 
-        msg_id = f"{msg.payload[SZ_MSG_ID]:02X}"
-        self._msgs_ot[msg_id] = msg
+        # NOTE: Some msgs have invalid data, but that msg_id may later be OK!
+        if msg.payload.get(SZ_VALUE) is None:
+            return
 
-        if DEV_MODE:  # here to follow state changes
-            self._send_cmd(_mk_cmd(RQ, Code._2401, "00", self.id))  # oem code
-            if msg_id != "73":
-                self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
+        msg_id: int = msg.payload[SZ_MSG_ID]  # msg_id is int in payload/opentherm.py
+        self._msgs_ot[f"{msg_id:02X}"] = msg  # but is str is in this module
 
-            # TODO: this is development code - will be rationalised, eventually
-            if self._gwy.config.use_native_ot and (
-                code := self.OT_TO_RAMSES.get(msg_id)
-            ):
-                self._send_cmd(_mk_cmd(RQ, code, "00", self.id))
+        if not _DBG_ENABLE_DEPRECATION:  # FIXME: data gaps
+            return
 
-        if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
-            self.deprecate_code_ctx(msg._pkt, ctx=msg_id)
-
-        else:
-            # 18:50:32.524 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
-            # 18:50:32.547 ... RP --- 10:048122 18:013393 --:------ 3220 005 00B0730000  # -reserved-
-            # 18:55:32.601 ... RQ --- 18:013393 10:048122 --:------ 3220 005 0080730000
-            # 18:55:32.630 ... RP --- 10:048122 18:013393 --:------ 3220 005 00C07300CB  # Read-Ack, 'value': 203
-            reset = msg.payload[SZ_MSG_TYPE] not in (
-                OtMsgType.DATA_INVALID,
-                OtMsgType.UNKNOWN_DATAID,
-                # OtMsgType.RESERVED,  # some always reserved, others sometimes so
-            )
-            self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
+        reset = msg.payload[SZ_MSG_TYPE] not in (
+            OtMsgType.DATA_INVALID,
+            OtMsgType.UNKNOWN_DATAID,
+            OtMsgType.RESERVED,  # but some are ?always reserved
+        )
+        self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
 
     def _handle_code(self, msg: Message) -> None:
-        if msg.code == Code._3EF0 and msg.verb == I_:  # chasing flags
-            self._send_cmd(
-                Command.get_opentherm_data(self.id, "00"),
-                qos={SZ_PRIORITY: Priority.HIGH, SZ_RETRIES: 1},
-            )
+        """Handle non-3220-based messages."""
+
+        if msg.code == Code._3EF0 and msg.verb == I_:
+            # NOTE: this is development/discovery code  # chasing flags
+            # self._send_cmd(
+            #     Command.get_opentherm_data(self.id, "00"), **QOS_MID
+            # )  # FIXME: deprecate QoS in kwargs
             return
 
-        if msg.code in (Code._10A0, Code._3EF1) or msg.len != 3:
+        if msg.code in (Code._10A0, Code._3EF1):
             return
 
+        if not _DBG_ENABLE_DEPRECATION:  # FIXME: data gaps
+            return
+
+        # TODO: can be temporarily 7FFF?
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
-        ):
+        ):  # latter is CH water pressure
             self.deprecate_code_ctx(msg._pkt)
         else:
             self.deprecate_code_ctx(msg._pkt, reset=True)
 
-    def _ot_msg_flag(self, msg_id, flag_idx) -> None | bool:
+    def _ot_msg_flag(self, msg_id: MsgId, flag_idx: int) -> bool | None:
         if flags := self._ot_msg_value(msg_id):
             return bool(flags[flag_idx])
         return None
 
     @staticmethod
-    def _ot_msg_name(msg) -> str:
+    def _ot_msg_name(msg) -> str:  # TODO: remove
         return (
             msg.payload[SZ_MSG_NAME]
             if isinstance(msg.payload[SZ_MSG_NAME], str)
             else f"{msg.payload[SZ_MSG_ID]:02X}"
         )
 
-    def _ot_msg_value(self, msg_id) -> None | int | float | list:
-        if (
-            self.is_pollable_cmd(Code._3220, ctx=msg_id)
-            and self._msgs_ot.get(msg_id)
-            and not self._msgs_ot[msg_id]._expired
-        ):
-            return self._msgs_ot[msg_id].payload.get(SZ_VALUE)  # TODO: value_hb/_lb
+    def _ot_msg_value(self, msg_id: MsgId) -> int | float | list | None:
+        # data_id = int(msg_id, 16)
+        if (msg := self._msgs_ot.get(msg_id)) and not msg._expired:
+            return msg.payload.get(SZ_VALUE)  # TODO: value_hb/_lb
+        return None
 
     def _result_by_callback(
-        self, cbk_ot: None | Callable, cbk_ramses: None | Callable
-    ) -> None | Any:
+        self, cbk_ot: Callable | None, cbk_ramses: Callable | None
+    ) -> Any | None:
         """Return a value using OpenTherm or RAMSES as per `config.use_native_ot`."""
 
         if self._gwy.config.use_native_ot == "always":
@@ -891,199 +805,213 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             return cbk_ot() if cbk_ot else None
         return result_ramses  # incl. use_native_ot == "never"
 
-    def _result_by_lookup(self, code, *args, **kwargs) -> None | Any:
+    def _result_by_lookup(
+        self,
+        code,
+        /,
+        *,
+        key: str,
+    ) -> Any | None:
         """Return a value using OpenTherm or RAMSES as per `config.use_native_ot`."""
         # assert code in self.RAMSES_TO_OT and kwargs.get("key"):
 
         if self._gwy.config.use_native_ot == "always":
             return self._ot_msg_value(self.RAMSES_TO_OT[code])
+
         if self._gwy.config.use_native_ot == "prefer":
             if (result_ot := self._ot_msg_value(self.RAMSES_TO_OT[code])) is not None:
                 return result_ot
 
-        result_ramses = self._msg_value(code, *args, **kwargs)
+        result_ramses = self._msg_value(code, key=key)
         if self._gwy.config.use_native_ot == "avoid" and result_ramses is None:
             return self._ot_msg_value(self.RAMSES_TO_OT[code])
+
         return result_ramses  # incl. use_native_ot == "never"
 
     def _result_by_value(
-        self, result_ot: None | Any, result_ramses: None | Any
-    ) -> None | Any:
+        self, result_ot: Any | None, result_ramses: Any | None
+    ) -> Any | None:
         """Return a value using OpenTherm or RAMSES as per `config.use_native_ot`."""
+        #
 
         if self._gwy.config.use_native_ot == "always":
             return result_ot
+
         if self._gwy.config.use_native_ot == "prefer":
             if result_ot is not None:
                 return result_ot
 
+        #
         elif self._gwy.config.use_native_ot == "avoid" and result_ramses is None:
             return result_ot
+
         return result_ramses  # incl. use_native_ot == "never"
 
     @property  # TODO
-    def bit_2_4(self) -> None | bool:  # 2401 - WIP
+    def bit_2_4(self) -> bool | None:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 4)
 
     @property  # TODO
-    def bit_2_5(self) -> None | bool:  # 2401 - WIP
+    def bit_2_5(self) -> bool | None:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 5)
 
     @property  # TODO
-    def bit_2_6(self) -> None | bool:  # 2401 - WIP
+    def bit_2_6(self) -> bool | None:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 6)
 
     @property  # TODO
-    def bit_2_7(self) -> None | bool:  # 2401 - WIP
+    def bit_2_7(self) -> bool | None:  # 2401 - WIP
         return self._msg_flag(Code._2401, "_flags_2", 7)
 
     @property  # TODO
-    def bit_3_7(self) -> None | bool:  # 3EF0 (byte 3, only OTB)
+    def bit_3_7(self) -> bool | None:  # 3EF0 (byte 3, only OTB)
         return self._msg_flag(Code._3EF0, "_flags_3", 7)
 
     @property  # TODO
-    def bit_6_6(self) -> None | bool:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
+    def bit_6_6(self) -> bool | None:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
         return self._msg_flag(Code._3EF0, "_flags_6", 6)
 
     @property  # TODO
-    def percent(self) -> None | float:  # 2401 - WIP (~3150|FC)
+    def percent(self) -> float | None:  # 2401 - WIP (~3150|FC)
         return self._msg_value(Code._2401, key=SZ_HEAT_DEMAND)
 
     @property  # TODO
-    def value(self) -> None | int:  # 2401 - WIP
+    def value(self) -> int | None:  # 2401 - WIP
         return self._msg_value(Code._2401, key="_value_2")
 
     @property
-    def boiler_output_temp(self) -> None | float:  # 3220|19, or 3200
+    def boiler_output_temp(self) -> float | None:  # 3220|19, or 3200
+        # _LOGGER.warning(
+        #     "code=%s, 3220=%s, both=%s",
+        #     self._msg_value(Code._3200, key=SZ_TEMPERATURE),
+        #     self._ot_msg_value(str(self.RAMSES_TO_OT[Code._3200])),
+        #     self._result_by_lookup(Code._3200, key=SZ_TEMPERATURE),
+        # )
+
         return self._result_by_lookup(Code._3200, key=SZ_TEMPERATURE)
 
     @property
-    def boiler_return_temp(self) -> None | float:  # 3220|1C, or 3210
+    def boiler_return_temp(self) -> float | None:  # 3220|1C, or 3210
         return self._result_by_lookup(Code._3210, key=SZ_TEMPERATURE)
 
     @property
-    def boiler_setpoint(self) -> None | float:  # 3220|01, or 22D9
+    def boiler_setpoint(self) -> float | None:  # 3220|01, or 22D9
         return self._result_by_lookup(Code._22D9, key=SZ_SETPOINT)
 
     @property
-    def ch_max_setpoint(self) -> None | float:  # 3220|39, or 1081
+    def ch_max_setpoint(self) -> float | None:  # 3220|39, or 1081
         return self._result_by_lookup(Code._1081, key=SZ_SETPOINT)
 
-    @property  # TODO
-    def ch_setpoint(self) -> None | float:  # 3EF0 (byte 7, only R8820A?), TODO: no OT
+    @property  # TODO: no OT equivalent
+    def ch_setpoint(self) -> float | None:  # 3EF0 (byte 7, only R8820A?)
         return self._result_by_value(
             None, self._msg_value(Code._3EF0, key=SZ_CH_SETPOINT)
         )
 
     @property
-    def ch_water_pressure(self) -> None | float:  # 3220|12, or 1300
-        result = self._result_by_lookup(Code._1300, key=SZ_PRESSURE)
-        return None if result == 25.5 else result  # HACK: to make more rigourous
+    def ch_water_pressure(self) -> float | None:  # 3220|12, or 1300
+        return self._result_by_lookup(Code._1300, key=SZ_PRESSURE)
 
     @property
-    def dhw_flow_rate(self) -> None | float:  # 3220|13, or 12F0
+    def dhw_flow_rate(self) -> float | None:  # 3220|13, or 12F0
         return self._result_by_lookup(Code._12F0, key=SZ_DHW_FLOW_RATE)
 
     @property
-    def dhw_setpoint(self) -> None | float:  # 3220|38, or 10A0
+    def dhw_setpoint(self) -> float | None:  # 3220|38, or 10A0
         return self._result_by_lookup(Code._10A0, key=SZ_SETPOINT)
 
     @property
-    def dhw_temp(self) -> None | float:  # 3220|1A, or 1260
+    def dhw_temp(self) -> float | None:  # 3220|1A, or 1260
         return self._result_by_lookup(Code._1260, key=SZ_TEMPERATURE)
 
-    @property  # TODO
-    def max_rel_modulation(
-        self,
-    ) -> None | float:  # 3220|0E, or 3EF0 (byte 8, only R8820A?)
-        if self._gwy.config.use_native_ot == "prefer":  # HACK
+    @property  # TODO: no reliable OT equivalent?
+    def max_rel_modulation(self) -> float | None:  # 3220|0E, or 3EF0 (byte 8)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
         return self._result_by_value(
-            self._ot_msg_value("0E"),
+            self._ot_msg_value("0E"),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION),
         )
 
     @property
-    def oem_code(self) -> None | float:  # 3220|73, no known RAMSES equivalent
+    def oem_code(self) -> float | None:  # 3220|73, no known RAMSES equivalent
         return self._ot_msg_value("73")
 
     @property
-    def outside_temp(self) -> None | float:  # 3220|1B, 1290
+    def outside_temp(self) -> float | None:  # 3220|1B, 1290
         return self._result_by_lookup(Code._1290, key=SZ_TEMPERATURE)
 
-    @property  # HACK
-    def rel_modulation_level(self) -> None | float:  # 3220|11, or 3EF0/3EF1
-        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+    @property  # TODO: no reliable OT equivalent?
+    def rel_modulation_level(self) -> float | None:  # 3220|11, or 3EF0/3EF1
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
         return self._result_by_value(
-            self._ot_msg_value("11"),
+            self._ot_msg_value("11"),  # NOTE: not reliable?
             self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL),
         )
 
-    @property  # HACK
-    def ch_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only R8820A?)
-        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+    @property  # TODO: no reliable OT equivalent?
+    def ch_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 1),
+            self._ot_msg_flag("00", 8 + 1),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
         )
 
-    @property  # HACK
-    def ch_enabled(self) -> None | bool:  # 3220|00, or 3EF0 (byte 6, only R8820A?)
-        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+    @property  # TODO: no reliable OT equivalent?
+    def ch_enabled(self) -> bool | None:  # 3220|00, or 3EF0 (byte 6)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
         return self._result_by_value(
-            self._ot_msg_flag("00", 0),
+            self._ot_msg_flag("00", 0),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
         )
 
     @property
-    def cooling_active(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def cooling_active(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 8 + 4), None)
 
     @property
-    def cooling_enabled(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def cooling_enabled(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 2), None)
 
-    @property  # HACK
-    def dhw_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+    @property  # TODO: no reliable OT equivalent?
+    def dhw_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 2),
+            self._ot_msg_flag("00", 8 + 2),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
         )
 
     @property
-    def dhw_blocking(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def dhw_blocking(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 6), None)
 
     @property
-    def dhw_enabled(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def dhw_enabled(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 1), None)
 
     @property
-    def fault_present(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def fault_present(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 8), None)
 
-    @property  # HACK
-    def flame_active(self) -> None | bool:  # 3220|00, or 3EF0 (byte 3, only OTB)
-        if self._gwy.config.use_native_ot == "prefer":  # HACK (there'll always be 3EF0)
+    @property  # TODO: no reliable OT equivalent?
+    def flame_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
+        if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key="flame_on")
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 3),
-            self._msg_value(
-                Code._3EF0, key="flame_on"
-            ),  # TODO: change to SZ_FLAME_ACTIVE
+            self._ot_msg_flag("00", 8 + 3),  # NOTE: not reliable?
+            self._msg_value(Code._3EF0, key="flame_on"),
         )
 
     @property
-    def otc_active(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def otc_active(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 3), None)
 
     @property
-    def summer_mode(self) -> None | bool:  # 3220|00, TODO: no known RAMSES
+    def summer_mode(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
         return self._result_by_value(self._ot_msg_flag("00", 5), None)
 
     @property
@@ -1119,7 +1047,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
+            if self._supported_cmds_ctx.get(k) and k in PARAMS_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1249,7 +1177,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
 
-class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
+class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
     _SLUG: str = DevType.THM
@@ -1311,8 +1239,8 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 
     _SLUG: str = DevType.BDR
 
-    ACTIVE = "active"
-    TPI_PARAMS = "tpi_params"
+    ACTIVE: Final = "active"
+    TPI_PARAMS: Final = "tpi_params"
 
     _STATE_ATTR = "active"
 
@@ -1340,23 +1268,23 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 
         super()._setup_discovery_cmds()
 
-        if self._faked:
+        if self.is_faked:
             return
 
         self._add_discovery_cmd(Command.get_tpi_params(self.id), 6 * 3600)  # params
         self._add_discovery_cmd(
-            _mk_cmd(RQ, Code._3EF1, "00", self.id),
+            Command.from_attrs(RQ, self.id, Code._3EF1, "00"),
             60 if self._child_id in (F9, FA, FC) else 300,
         )  # status
 
     @property
-    def active(self) -> None | bool:  # 3EF0, 3EF1
+    def active(self) -> bool | None:  # 3EF0, 3EF1
         """Return the actuator's current state."""
         result = self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
         return None if result is None else bool(result)
 
     @property
-    def role(self) -> None | str:
+    def role(self) -> str | None:
         """Return the role of the BDR91A (there are six possibilities)."""
 
         # TODO: use self._parent?
@@ -1374,7 +1302,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         return None
 
     @property
-    def tpi_params(self) -> None | dict:  # 1100
+    def tpi_params(self) -> dict | None:  # 1100
         return self._msg_value(Code._1100)
 
     @property
@@ -1404,19 +1332,19 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
     _SLUG: str = DevType.TRV
 
-    WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
+    WINDOW_OPEN: Final = SZ_WINDOW_OPEN
 
     _STATE_ATTR = SZ_HEAT_DEMAND
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         if (heat_demand := super().heat_demand) is None:
             if self._msg_value(Code._3150) is None and self.setpoint is False:
                 return 0  # instead of None (no 3150s sent when setpoint is False)
         return heat_demand
 
     @property
-    def window_open(self) -> None | bool:  # 12B0
+    def window_open(self) -> bool | None:  # 12B0
         return self._msg_value(Code._12B0, key=self.WINDOW_OPEN)
 
     @property
@@ -1455,7 +1383,7 @@ class UfhCircuit(Entity):
 
         # TODO: _ctl should be: .ufc? .ctl?
         self._ctl: Controller = None  # type: ignore[assignment]
-        self._zone: None | Zone = None
+        self._zone: Zone | None = None
 
     # def __str__(self) -> str:
     #     return f"{self.id} ({self._zone and self._zone._child_id})"
@@ -1495,9 +1423,10 @@ class UfhCircuit(Entity):
         return self._child_id
 
     @property
-    def zone_idx(self) -> None | str:
+    def zone_idx(self) -> str | None:
         if self._zone:
             return self._zone._child_id
+        return None
 
 
 HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller

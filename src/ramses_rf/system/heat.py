@@ -10,22 +10,10 @@ from asyncio import Future
 from datetime import datetime as dt, timedelta as td
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
-from ramses_tx import (
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_ROLE_MAP,
-    Address,
-    Command,
-    Message,
-    Priority,
-)
-from ramses_tx.command import _mk_cmd
-from ramses_tx.const import SZ_PRIORITY, SZ_RETRIES
-
-from .. import exceptions as exc
-from ..const import (
+from ramses_rf import exceptions as exc
+from ramses_rf.const import (
     SYS_MODE_MAP,
     SZ_ACTUATORS,
     SZ_CHANGE_COUNTER,
@@ -42,9 +30,8 @@ from ..const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     SZ_ZONES,
-    __dev_mode__,
 )
-from ..device import (
+from ramses_rf.device import (
     BdrSwitch,
     Controller,
     Device,
@@ -53,9 +40,9 @@ from ..device import (
     Temperature,
     UfhController,
 )
-from ..entity_base import Entity, Parent, class_by_attr
-from ..helpers import shrink
-from ..schemas import (
+from ramses_rf.entity_base import Entity, Parent, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import (
     DEFAULT_MAX_ZONES,
     SCH_TCS,
     SCH_TCS_DHW,
@@ -68,21 +55,30 @@ from ..schemas import (
     SZ_SYSTEM,
     SZ_UFH_SYSTEM,
 )
+from ramses_tx import (
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
+    ZON_ROLE_MAP,
+    Address,
+    Command,
+    Message,
+    Packet,
+)
+
 from .faultlog import FaultLog
 from .zones import DhwZone, Zone
 
 # TODO: refactor packet routing (filter *before* routing)
 
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -90,15 +86,8 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
-
-DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _SystemT = TypeVar("_SystemT", bound="System")
@@ -177,9 +166,8 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
             f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24, delay=0
-            )
+            cmd = Command.from_attrs(RQ, self.ctl.id, Code._000C, payload)
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0)
 
         self._add_discovery_cmd(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
 
@@ -250,19 +238,6 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if msg.code == Code._0008:
             if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
                 self._relay_demands[domain_id] = msg
-                if domain_id == F9:
-                    device = self.dhw.heating_valve if self.dhw else None
-                elif domain_id == "xFA":  # TODO, FIXME
-                    device = self.dhw.hotwater_valve if self.dhw else None
-                elif domain_id == FC:
-                    device = self.appliance_control
-                else:
-                    device = None
-
-                if False and device is not None:  # TODO: FIXME
-                    qos = {SZ_PRIORITY: Priority.LOW, SZ_RETRIES: 2}
-                    for code in (Code._0008, Code._3EF1):
-                        device._make_cmd(code, qos)
 
         elif msg.code == Code._3150:
             if msg.payload.get(SZ_DOMAIN_ID) == FC and msg.verb in (I_, RP):
@@ -271,8 +246,9 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if self._gwy.config.enable_eavesdrop and not self.appliance_control:
             eavesdrop_appliance_control(msg)
 
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:
-        super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
+    # TODO: deprecate this API
+    def _make_and_send_cmd(self, code, payload="00", **kwargs) -> None:
+        super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
     def appliance_control(self) -> Device:
@@ -283,15 +259,15 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
-    def tpi_params(self) -> None | dict:  # 1100
+    def tpi_params(self) -> dict | None:  # 1100
         return self._msg_value(Code._1100)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150/FC
+    def heat_demand(self) -> float | None:  # 3150/FC
         return self._msg_value(Code._3150, domain_id=FC, key=SZ_HEAT_DEMAND)
 
     @property
-    def is_calling_for_heat(self) -> None | bool:
+    def is_calling_for_heat(self) -> bool | None:
         """Return True is the system is currently calling for heat."""
         return self._app_cntrl and self._app_cntrl.actuator_state
 
@@ -386,8 +362,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super()._setup_discovery_cmds()
 
         for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
+            cmd = Command.from_attrs(RQ, self.id, Code._0005, f"00{zone_type}")
             self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._0005, f"00{zone_type}", self.id),
+                cmd,
                 60 * 60 * 24,
                 delay=0,
             )
@@ -615,7 +592,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(_mk_cmd(RQ, Code._0006, "00", self.id), 60 * 5, delay=5)
+        self._add_discovery_cmd(Command.get_schedule_version(self.id), 60 * 5, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retrieve the latest global change counter."""
@@ -648,6 +625,9 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self._msg_0006 = await self._gwy.async_send_cmd(
             Command.get_schedule_version(self.ctl.id)
         )
+
+        if isinstance(self._msg_0006, Packet):  # HACK
+            self._msg_0006 = Message(self._msg_0006)
 
         assert isinstance(  # TODO: remove me
             self._msg_0006, Message
@@ -688,7 +668,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         self.zone_lock.release()
 
     @property
-    def schedule_version(self) -> None | int:
+    def schedule_version(self) -> int | None:
         return self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER)
 
     @property
@@ -708,7 +688,7 @@ class Language(SystemBase):  # 0100
         )
 
     @property
-    def language(self) -> None | str:
+    def language(self) -> str | None:
         return self._msg_value(Code._0100, key=SZ_LANGUAGE)
 
     @property
@@ -728,9 +708,9 @@ class Logbook(SystemBase):  # 0418
         self._prev_fault: Message = None  # type: ignore[assignment]
         self._this_fault: Message = None  # type: ignore[assignment]
 
-        # FaultLog(self.ctl)
-        self._faultlog: FaultLog = None  # type: ignore[assignment]
-        self._faultlog_outdated: bool = True
+        self._faultlog: FaultLog = (
+            None  # FIXME: FaultLog(self)  # type: ignore[assignment]
+        )
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -743,8 +723,13 @@ class Logbook(SystemBase):  # 0418
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
+        return  # FIXME
+
         if msg.code != Code._0418:
             return
+
+        # if msg.code == Code._0418:
+        #     self._faultlog._handle_msg(msg)
 
         if msg.payload["log_idx"] == "00":
             if not self._this_event or (
@@ -764,19 +749,20 @@ class Logbook(SystemBase):  # 0418
         # if msg.payload["log_entry"][1] == "restore" and not self._this_fault:
         #     self._send_cmd(Command.get_system_log_entry(self.ctl.id, 1))
 
-        # TODO: if self._faultlog_outdated:
+        # TODO: if self._faultlog.outdated:
         #     if not self._gwy._read_only:
-        #         self._loop.create_task(self.get_faultlog(force_io=True))
+        #         self._loop.create_task(self.get_faultlog(force_refresh=True))
 
     async def get_faultlog(
-        self, *, start=None, limit=None, force_io=None
-    ) -> None | dict:
-        if self._gwy._disable_sending:
-            raise RuntimeError("Sending is disabled")
-
+        self,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+        force_refresh: bool = False,
+    ) -> dict | None:
         try:
             return await self._faultlog.get_faultlog(
-                start=start, limit=limit, force_io=force_io
+                start=start, limit=limit, force_refresh=force_refresh
             )
         except (exc.ExpiredCallbackError, RuntimeError):
             return None
@@ -792,19 +778,19 @@ class Logbook(SystemBase):  # 0418
     #     return self._faultlog.faultlog
 
     @property
-    def active_fault(self) -> None | tuple:
+    def active_fault(self) -> tuple[str] | None:
         """Return the most recently logged event, but only if it is a fault."""
         if self.latest_fault != self.latest_event:
             return None
         return self.latest_fault
 
     @property
-    def latest_event(self) -> None | tuple:
+    def latest_event(self) -> tuple[str] | None:
         """Return the most recently logged event (fault or restore), if any."""
         return self._this_event and self._this_event.payload["log_entry"]
 
     @property
-    def latest_fault(self) -> None | tuple:
+    def latest_fault(self) -> tuple[str] | None:
         """Return the most recently logged fault, if any."""
         return self._this_fault and self._this_fault.payload["log_entry"]
 
@@ -835,9 +821,8 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             # f"00{DEV_ROLE_MAP.HTG}",  # hotwater_valve
             # f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.id), 60 * 60 * 24, delay=0
-            )
+            cmd = Command.from_attrs(RQ, self.id, Code._000C, payload)
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -895,15 +880,15 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         return self._dhw
 
     @property
-    def dhw_sensor(self) -> None | Device:
+    def dhw_sensor(self) -> Device | None:
         return self._dhw.sensor if self._dhw else None
 
     @property
-    def hotwater_valve(self) -> None | Device:
+    def hotwater_valve(self) -> Device | None:
         return self._dhw.hotwater_valve if self._dhw else None
 
     @property
-    def heating_valve(self) -> None | Device:
+    def heating_valve(self) -> Device | None:
         return self._dhw.heating_valve if self._dhw else None
 
     @property
@@ -935,10 +920,12 @@ class SysMode(SystemBase):  # 2E04
         self._add_discovery_cmd(Command.get_system_mode(self.id), 60 * 5, delay=5)
 
     @property
-    def system_mode(self) -> None | dict:  # 2E04
+    def system_mode(self) -> dict | None:  # 2E04
         return self._msg_value(Code._2E04)
 
-    def set_mode(self, system_mode, *, until=None) -> Future:
+    def set_mode(
+        self, system_mode: int | str | None, *, until: dt | str | None = None
+    ) -> Future:
         """Set a system mode for a specified duration, or indefinitely."""
         return self._send_cmd(
             Command.set_system_mode(self.id, system_mode, until=until)
@@ -974,11 +961,11 @@ class Datetime(SystemBase):  # 313F
             if diff > td(minutes=5):
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
 
-    async def get_datetime(self) -> None | dt:
+    async def get_datetime(self) -> dt | None:
         msg = await self._gwy.async_send_cmd(Command.get_system_time(self.id))
         return dt.fromisoformat(msg.payload[SZ_DATETIME])
 
-    async def set_datetime(self, dtm: dt) -> None | Message:
+    async def set_datetime(self, dtm: dt) -> Message | None:
         return await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
@@ -1042,21 +1029,21 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 assert False, f"Unexpected code with a domain_id: {msg.code}"  # noqa: B011
 
     @property
-    def heat_demands(self) -> None | dict:  # 3150
+    def heat_demands(self) -> dict | None:  # 3150
         # FC: 00-C8 (no F9, FA), TODO: deprecate as FC only?
         if not self._heat_demands:
             return None
         return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
-    def relay_demands(self) -> None | dict:  # 0008
+    def relay_demands(self) -> dict | None:  # 0008
         # FC: 00-C8, F9: 00-C8, FA: 00 or C8 only (01: all 3, 02: FC/FA only)
         if not self._relay_demands:
             return None
         return {k: v.payload["relay_demand"] for k, v in self._relay_demands.items()}
 
     @property
-    def relay_failsafes(self) -> None | dict:  # 0009
+    def relay_failsafes(self) -> dict | None:  # 0009
         if not self._relay_failsafes:
             return None
         return {}  # TODO: failsafe_enabled

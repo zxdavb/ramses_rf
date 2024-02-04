@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
-from ramses_tx import NUL_DEV_ADDR, NUL_DEVICE_ID, Command
+import voluptuous as vol
+
+from ramses_tx import ALL_DEV_ADDR, ALL_DEVICE_ID, Command, Message, Priority
+from ramses_tx.const import DevType
+from ramses_tx.typing import QosParams
 
 from . import exceptions as exc
 
@@ -24,41 +29,58 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from .device import Message
+    from ramses_tx import Packet
+    from ramses_tx.const import IndexT
+
     from .device.base import Fakeable
 
-
+DEV_MODE = True
 _LOGGER = logging.getLogger(__name__)
 
 # All debug flags should be False for end-users
-_DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
+_DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
-SZ_RESPONDENT = "respondent"
-SZ_SUPPLICANT = "supplicant"
-SZ_IS_DORMANT = "is_dormant"
+SZ_RESPONDENT: Final = "respondent"
+SZ_SUPPLICANT: Final = "supplicant"
+SZ_IS_DORMANT: Final = "is_dormant"
 
 
-CONFIRM_RETRY_LIMIT = 3  # automatically Bound, from Confirming > this # of sends
-SENDING_RETRY_LIMIT = 3  # fail Offering/Accepting if no reponse > this # of sends
+CONFIRM_RETRY_LIMIT: Final[
+    int
+] = 3  # automatically Bound, from Confirming > this # of sends
+SENDING_RETRY_LIMIT: Final[
+    int
+] = 3  # fail Offering/Accepting if no reponse > this # of sends
 
-CONFIRM_TIMEOUT_SECS = 3  # automatically Bound, from BoundAccepted > this # of seconds
-WAITING_TIMEOUT_SECS = 3  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+CONFIRM_TIMEOUT_SECS: Final[
+    float
+] = 3  # automatically Bound, from BoundAccepted > this # of seconds
+WAITING_TIMEOUT_SECS: Final[
+    float
+] = 5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
 
 # raise a BindTimeoutError if expected Pkt is not received before this number of seconds
-_TENDER_WAIT_TIME = WAITING_TIMEOUT_SECS  # resp. listening for Offer
-_ACCEPT_WAIT_TIME = WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
-_AFFIRM_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
-_RATIFY_WAIT_TIME = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
+_TENDER_WAIT_TIME: Final[float] = WAITING_TIMEOUT_SECS  # resp. listening for Offer
+_ACCEPT_WAIT_TIME: Final[
+    float
+] = WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
+_AFFIRM_WAIT_TIME: Final[
+    float
+] = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
+_RATIFY_WAIT_TIME: Final[
+    float
+] = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
 
 
-#
+BINDING_QOS = QosParams(
+    max_retries=SENDING_RETRY_LIMIT,
+    timeout=WAITING_TIMEOUT_SECS * 2,
+    wait_for_reply=True,
+)
 
 
 class Vendor(StrEnum):
@@ -66,6 +88,35 @@ class Vendor(StrEnum):
     NUAIRE = "nuaire"
     ORCON = "orcon"
     DEFAULT = "default"
+
+
+SZ_CLASS: Final = "class"
+SZ_VENDOR: Final = "vendor"
+SZ_TENDER: Final = "tender"
+SZ_AFFIRM: Final = "affirm"
+SZ_RATIFY: Final = "thumbrint"
+
+# VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
+VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))
+VOL_OEM_ID_REGEX = vol.Match(re.compile(r"^[0-9A-F]{2}$"))
+
+VOL_TENDER_CODES = vol.All(
+    {vol.Required(VOL_CODE_REGEX, default="00"): VOL_OEM_ID_REGEX},
+    vol.Length(min=1),
+)
+
+VOL_SUPPLICANT = vol.Schema(
+    {
+        vol.Required(SZ_CLASS): vol.Any(DevType.THM.value, DevType.DHW.value),
+        vol.Optional(SZ_VENDOR, default="honeywell"): vol.Any(
+            "honeywell", "resideo", *(m.value for m in Vendor)
+        ),
+        vol.Optional(SZ_TENDER): VOL_TENDER_CODES,
+        vol.Optional(SZ_AFFIRM, default={}): vol.Any({}),
+        vol.Optional(SZ_RATIFY, default=None): vol.Any(None),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
 
 
 class BindPhase(StrEnum):
@@ -85,7 +136,7 @@ class BindRole(StrEnum):
 SCHEME_LOOKUP = {
     Vendor.ITHO: {"oem_code": "01"},
     Vendor.NUAIRE: {"oem_code": "6C"},
-    Vendor.ORCON: {"oem_code": "67", "offer_to": NUL_DEVICE_ID},
+    Vendor.ORCON: {"oem_code": "67", "offer_to": ALL_DEVICE_ID},
     Vendor.DEFAULT: {"oem_code": None},
 }
 
@@ -98,13 +149,13 @@ class BindContextBase:
 
     _attr_role = BindRole.IS_UNKNOWN
 
-    _is_respondent: None | bool  # if binding, is either: respondent or supplicant
+    _is_respondent: bool | None  # if binding, is either: respondent or supplicant
     _state: BindStateBase = None  # type: ignore[assignment]
 
     def __init__(self, dev: Fakeable) -> None:
         self._dev = dev
         self._loop = asyncio.get_running_loop()  # use self.gwy.loop?
-        self._fut: None | asyncio.Future = None
+        self._fut: asyncio.Future | None = None
 
         self.set_state(DevIsNotBinding)
 
@@ -115,7 +166,7 @@ class BindContextBase:
         return f"{self._dev.id}: {self.state}"
 
     def set_state(
-        self, state: type[BindStateBase], result: None | asyncio.Future = None
+        self, state: type[BindStateBase], result: asyncio.Future | None = None
     ) -> None:
         """Transition the State of the Context, and process the result, if any."""
 
@@ -125,7 +176,7 @@ class BindContextBase:
             except exc.BindingError as err:
                 self._fut.set_result(err)
 
-        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DBG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             # if prev_state in (None, )
             prev_state = self._state
 
@@ -137,7 +188,7 @@ class BindContextBase:
         elif state is SuppSendOfferWaitForAccept:
             self._is_respondent = False
 
-        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DBG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
     @property
@@ -177,9 +228,12 @@ class BindContextRespondent(BindContextBase):
 
     async def wait_for_binding_request(
         self,
-        codes: Code | list[Code],
-        idx: None | Index = None,
-    ) -> tuple[Message, Message, Message, Message]:
+        accept_codes: Iterable[Code],
+        /,
+        *,
+        idx: IndexT = "00",
+        require_ratify: bool = False,
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Device starts binding as a Respondent, by listening for an Offer.
 
         Returns the Supplicant's Offer or raise an exception if the binding is
@@ -194,39 +248,47 @@ class BindContextRespondent(BindContextBase):
         tender = await self._wait_for_offer()
 
         # Step R2: Respondent expects a Confirm after sending an Accept (accepts Offer)
-        accept = await self._accept_offer(tender, codes, idx=idx)
+        accept = await self._accept_offer(tender, accept_codes, idx=idx)
         affirm = await self._wait_for_confirm(accept)
 
         # Step R3: Respondent expects an Addenda (optional)
-        try:
-            ratify = await self._wait_for_addenda(accept)
-        except exc.BindingFlowFailed:
+        if require_ratify:  # TODO: not recvd as sent to 63:262142
+            self.set_state(RespIsWaitingForAddenda)  # HACK: easiest way
+            ratify = await self._wait_for_addenda(accept)  # may: exc.BindingFlowFailed:
+        else:
             ratify = None
 
         # self._set_as_bound(tender, accept, affirm, ratify)
-        return tender, accept, affirm, ratify
+        return tender._pkt, accept, affirm._pkt, (ratify._pkt if ratify else None)
 
     async def _wait_for_offer(self, timeout: float = _TENDER_WAIT_TIME) -> Message:
         """Resp waits timeout seconds for an Offer to arrive & returns it."""
         return await self.state.wait_for_offer(timeout)
 
     async def _accept_offer(
-        self, tender: Message, codes: Iterable[Code], idx: Index = "00"
-    ) -> Message:
+        self, tender: Message, codes: Iterable[Code], idx: IndexT = "00"
+    ) -> Packet:
         """Resp sends an Accept on the basis of a rcvd Offer & returns the Confirm."""
+
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
-        pkt = await self._dev._async_send_cmd(cmd)
-        self.state.accept_offer()
+        if DEV_MODE:
+            assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx accept/accept
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
+
+        self.state.cast_accept_offer()
         return pkt
 
     async def _wait_for_confirm(
-        self, accept: Message, timeout: float = _AFFIRM_WAIT_TIME
+        self, accept: Packet, timeout: float = _AFFIRM_WAIT_TIME
     ) -> Message:
         """Resp waits timeout seconds for a Confirm to arrive & returns it."""
         return await self.state.wait_for_confirm(timeout)
 
     async def _wait_for_addenda(
-        self, accept: Message, timeout: float = _RATIFY_WAIT_TIME
+        self, accept: Packet, timeout: float = _RATIFY_WAIT_TIME
     ) -> Message:
         """Resp waits timeout seconds for an Addenda to arrive & returns it."""
         return await self.state.wait_for_addenda(timeout)
@@ -239,10 +301,12 @@ class BindContextSupplicant(BindContextBase):
 
     async def initiate_binding_process(
         self,
-        codes: Code | list[Code],
-        scheme: None | Vendor = None,
-        oem_code: None | str = "FF",
-    ) -> tuple[Message, Message, Message, Message]:
+        offer_codes: Iterable[Code],
+        /,
+        *,
+        confirm_code: Code | None = None,
+        ratify_cmd: Command | None = None,
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Device starts binding as a Supplicant, by sending an Offer.
 
         Returns the Respondent's Accept, or raise an exception if the binding is
@@ -253,64 +317,83 @@ class BindContextSupplicant(BindContextBase):
             raise exc.BindingFsmError(f"{self}: bad State for binding as a Supplicant")
         self.set_state(SuppSendOfferWaitForAccept)  # self._is_respondent = False
 
+        if ratify_cmd:
+            oem_code = ratify_cmd.payload[14:16]
+        else:
+            oem_code = None
+
         # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
-        tender = await self._make_offer(codes, scheme=scheme, oem_code=oem_code)
+        tender = await self._make_offer(offer_codes, oem_code=oem_code)
         accept = await self._wait_for_accept(tender)
 
         # Step S2: Supplicant sends a Confirm (confirms Accept)
-        affirm = await self._confirm_accept(accept)
+        affirm = await self._confirm_accept(accept, confirm_code=confirm_code)
 
         # Step S3: Supplicant sends an Addenda (optional)
         if oem_code:
-            ratify = await self._cast_addenda(accept, oem_code=oem_code)
+            self.set_state(SuppIsReadyToSendAddenda)  # HACK: easiest way
+            ratify = await self._cast_addenda(accept, ratify_cmd)  # type: ignore[arg-type]
         else:
             ratify = None
 
         # self._set_as_bound(tender, accept, affirm, ratify)
-        return tender, accept, affirm, ratify
+        return tender, accept._pkt, affirm, ratify
 
     async def _make_offer(
         self,
         codes: Iterable[Code],
-        scheme: None | Vendor = None,
-        oem_code: None | str = None,
-    ) -> Message:
+        oem_code: str | None = None,
+    ) -> Packet:
         """Supp sends an Offer & returns the corresponding Packet."""
-
-        scheme = scheme or Vendor.DEFAULT
-
-        oem_code = SCHEME_LOOKUP[scheme].get("oem_code")
-        dst_id = SCHEME_LOOKUP[scheme].get("offer_to", self._dev.id)
+        # if oem_code, send an 10E0
 
         # state = self.state
         cmd = Command.put_bind(
-            I_, self._dev.id, codes, dst_id=dst_id, oem_code=oem_code
+            I_, self._dev.id, codes, dst_id=self._dev.id, oem_code=oem_code
         )
-        pkt = await self._dev._async_send_cmd(cmd)  # , timeout=30)
+        if DEV_MODE:
+            assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx tender/offer
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
 
         # await state._fut
-        self.state.make_offer()
+        self.state.cast_offer()
         return pkt
 
     async def _wait_for_accept(
-        self, tender: Message, timeout: float = _ACCEPT_WAIT_TIME
+        self, tender: Packet, timeout: float = _ACCEPT_WAIT_TIME
     ) -> Message:
         """Supp waits timeout seconds for an Accept to arrive & returns it."""
         return await self.state.wait_for_accept(timeout)
 
     async def _confirm_accept(
-        self, accept: Message, codes: None | Iterable[Code] = None, idx: Index = "00"
-    ) -> Message:
+        self, accept: Message, confirm_code: Code | None = None
+    ) -> Packet:
         """Supp casts a Confirm on the basis of a rcvd Accept & returns the Confirm."""
-        cmd = Command.put_bind(I_, self._dev.id, codes, dst_id=accept.src.id, idx=idx)
-        pkt = await self._dev._async_send_cmd(cmd)
-        await self.state.confirm_accept()
+        idx = accept._pkt.payload[:2]  # HACK assumes all idx same
+
+        cmd = Command.put_bind(
+            I_, self._dev.id, confirm_code, dst_id=accept.src.id, idx=idx
+        )
+        if DEV_MODE:
+            assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx affirm/confirm
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
+
+        await self.state.cast_confirm_accept()
         return pkt
 
-    async def _cast_addenda(self, accept: Message, oem_code: None | str) -> Message:
+    async def _cast_addenda(self, accept: Message, cmd: Command) -> Packet:
         """Supp casts an Addenda (the final 10E0 command)."""
-        msg = self._dev._get_msg_by_hdr(f"{Code._10E0}|{I_}|{self._dev.id}")
-        pkt = await self._dev._async_send_cmd(Command(msg._pkt._frame))
+
+        pkt: Packet = await self._dev._async_send_cmd(  # Tx ratify/addenda
+            cmd, priority=Priority.HIGH, qos=BINDING_QOS
+        )
+
         await self.state.cast_addenda()
         return pkt
 
@@ -369,7 +452,8 @@ class BindStateBase:
             self._handle_wait_timer_expired(timeout)
         else:
             self._set_context_state(self._next_ctx_state)
-        return self._fut.result()
+        result: Message = self._fut.result()  # may raise exception
+        return result
 
     def _handle_wait_timer_expired(self, timeout: float) -> None:
         """Process an overrun of the wait timer when waiting for a Message."""
@@ -395,57 +479,57 @@ class BindStateBase:
         raise NotImplementedError
 
     @staticmethod
-    def is_phase(cmd: Command, phase: BindPhase) -> bool:
+    def is_phase(cmd: Command | Packet, phase: BindPhase) -> bool:
         if phase == BindPhase.RATIFY:
             return cmd.verb == I_ and cmd.code == Code._10E0
         if cmd.code != Code._1FC9:
             return False
         if phase == BindPhase.TENDER:
-            return cmd.verb == I_ and cmd.dst in (cmd.src, NUL_DEV_ADDR)
+            return cmd.verb == I_ and cmd.dst in (cmd.src, ALL_DEV_ADDR)
         if phase == BindPhase.ACCEPT:
             return cmd.verb == W_ and cmd.dst is not cmd.src
         if phase == BindPhase.AFFIRM:
-            return cmd.verb == I_ and cmd.dst not in (cmd.src, NUL_DEV_ADDR)
+            return cmd.verb == I_ and cmd.dst not in (cmd.src, ALL_DEV_ADDR)
         return False
 
     # Respondent State APIs...
-    async def wait_for_offer(self, *args, **kwargs) -> Message:
+    async def wait_for_offer(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_offer() from this State"
         )
 
-    def accept_offer(self, *args, **kwargs) -> Message:
+    def cast_accept_offer(self) -> None:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't accept_offer() from this State"
         )
 
-    async def wait_for_confirm(self, *args, **kwargs) -> Message:
+    async def wait_for_confirm(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_confirm() from this State"
         )
 
-    async def wait_for_addenda(self, *args, **kwargs) -> Message:
+    async def wait_for_addenda(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_addenda() from this State"
         )
 
     # Supplicant State APIs...
-    def make_offer(self, *args, **kwargs) -> Message:
+    def cast_offer(self, timeout: float | None = None) -> None:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't make_offer() from this State"
         )
 
-    async def wait_for_accept(self, *args, **kwargs) -> Message:
+    async def wait_for_accept(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't wait_for_accept() from this State"
         )
 
-    async def confirm_accept(self, *args, **kwargs) -> Message:
+    async def cast_confirm_accept(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't confirm_accept() from this State"
         )
 
-    async def cast_addenda(self, *args, **kwargs) -> Message:
+    async def cast_addenda(self, timeout: float | None = None) -> Message:
         raise exc.BindingFsmError(
             f"{self._context!r}: shouldn't cast_addenda() from this State"
         )
@@ -459,7 +543,7 @@ class _DevIsWaitingForMsg(BindStateBase):
 
     _expected_pkt_phase: BindPhase
 
-    _wait_timer_limit: float = 3.0
+    _wait_timer_limit: float = 5.1  # WAITING_TIMEOUT_SECS
 
     def __init__(self, context: BindContextBase) -> None:
         super().__init__(context)
@@ -476,7 +560,7 @@ class _DevIsWaitingForMsg(BindStateBase):
         super()._set_context_state(next_state)
 
     def rcvd_msg(self, msg: Message) -> None:
-        """If the msg is the expected pkt, transition to the next state."""
+        """If the msg is the waited-for pkt, transition to the next state."""
         if self.is_phase(msg._pkt, self._expected_pkt_phase):
             self._fut.set_result(msg)
 
@@ -495,7 +579,7 @@ class _DevIsReadyToSendCmd(BindStateBase):
     def __init__(self, context: BindContextBase) -> None:
         super().__init__(context)
 
-        self._cmd: None | Command = None
+        self._cmd: Command | None = None
         self._cmds_sent: int = 0
 
     def _retries_exceeded(self) -> None:
@@ -523,7 +607,7 @@ class _DevIsReadyToSendCmd(BindStateBase):
         self._cmd = self._cmd or cmd
 
     def rcvd_msg(self, msg: Message) -> None:
-        """If the msg is the expected echo, transition to the next state."""
+        """If the msg is the echo of the sent cmd, transition to the next state."""
         if self._cmd and msg._pkt == self._cmd:
             self._fut.set_result(msg)
 
@@ -572,7 +656,7 @@ class RespIsWaitingForAddenda(_DevIsWaitingForMsg, BindStateBase):
     _expected_pkt_phase: BindPhase = BindPhase.RATIFY
     _next_ctx_state: type[BindStateBase] = RespHasBoundAsRespondent
 
-    async def wait_for_addenda(self, timeout: None | float = None) -> Message:
+    async def wait_for_addenda(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _RATIFY_WAIT_TIME)
 
 
@@ -587,10 +671,11 @@ class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, BindStateBase):
         BindStateBase
     ] = RespHasBoundAsRespondent  # or: RespIsWaitingForAddenda
 
-    def accept_offer(self) -> Message:
+    def cast_accept_offer(self) -> None:
+        """Ignore any received Offer, other than the first."""
         pass
 
-    async def wait_for_confirm(self, timeout: None | float = None) -> Message:
+    async def wait_for_confirm(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _AFFIRM_WAIT_TIME)
 
 
@@ -602,7 +687,7 @@ class RespIsWaitingForOffer(_DevIsWaitingForMsg, BindStateBase):
     _expected_pkt_phase: BindPhase = BindPhase.TENDER
     _next_ctx_state: type[BindStateBase] = RespSendAcceptWaitForConfirm
 
-    async def wait_for_offer(self, timeout: None | float = None) -> Message:
+    async def wait_for_offer(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _TENDER_WAIT_TIME)
 
 
@@ -625,7 +710,7 @@ class SuppIsReadyToSendAddenda(
     _expected_cmd_phase: BindPhase = BindPhase.RATIFY
     _next_ctx_state: type[BindStateBase] = SuppHasBoundAsSupplicant
 
-    async def cast_addenda(self, timeout: None | float = None) -> Message:
+    async def cast_addenda(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)
 
 
@@ -641,7 +726,7 @@ class SuppIsReadyToSendConfirm(
         BindStateBase
     ] = SuppHasBoundAsSupplicant  # or: SuppIsReadyToSendAddenda
 
-    async def confirm_accept(self, timeout: None | float = None) -> Message:
+    async def cast_confirm_accept(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)
 
 
@@ -654,10 +739,10 @@ class SuppSendOfferWaitForAccept(_DevSendCmdUntilReply, BindStateBase):
     _expected_pkt_phase: BindPhase = BindPhase.ACCEPT
     _next_ctx_state: type[BindStateBase] = SuppIsReadyToSendConfirm
 
-    def make_offer(self) -> Message:
+    def cast_offer(self, timeout: float | None = None) -> None:
         pass
 
-    async def wait_for_accept(self, timeout: None | float = None) -> Message:
+    async def wait_for_accept(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)
 
 

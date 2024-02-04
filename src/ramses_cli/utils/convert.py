@@ -14,21 +14,6 @@ import yaml
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import load_config
 
-DEBUG_MODE = False
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
-
-if DEBUG_MODE:
-    import debugpy
-
-    debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-    print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-
-    print(" - execution paused, waiting for debugger to attach...")
-    debugpy.wait_for_client()
-    print(" - debugger is now attached, continuing execution.")
-
-
 parser = argparse.ArgumentParser(description="Convert a file JSON <-> YAML")
 parser.add_argument("-i", "--input-file", type=argparse.FileType("r"), default="-")
 args = parser.parse_args()

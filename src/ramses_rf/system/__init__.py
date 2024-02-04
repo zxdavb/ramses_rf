@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Heating devices.
-"""
+"""RAMSES RF - Heating entities (e.g. TCS, DHW, Zone)."""
 from __future__ import annotations
 
 import logging
-
-from ..const import __dev_mode__
 
 #
 # from .schedule import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -17,6 +12,7 @@ from ..const import __dev_mode__
 
 
 from .heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    Evohome,
     System,
     system_factory,
 )
@@ -32,8 +28,4 @@ from .zones import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 
-DEV_MODE = __dev_mode__  # and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)

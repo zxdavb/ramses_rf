@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from datetime import timedelta as td
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .const import SZ_NAME, DevType
 
@@ -20,14 +20,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 DEV_MODE = False  # used to sort CODE_IDX_COMPLEX, etc.
 
 
-_OUT_EXPIRY = "expiry"
-_OUT_RQ_NULL = "rq_null"
 SZ_LIFESPAN = "lifespan"
 
 
@@ -384,8 +379,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "setpoint_now",  # setpt_now_next
         I_: r"^(0[0-9A-F]{13}){1,2}$",
     },  # TODO: This could be an array
-    Code._22C9: {  # ufh_setpoint
-        SZ_NAME: "ufh_setpoint",
+    Code._22C9: {  # setpoint_bounds (was: ufh_setpoint)
+        SZ_NAME: "setpoint_bounds",
         I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}(0[12]03)?$",  # (0[12]03)? only if len(array) == 1
         W_: r"^(0[0-9A-F][0-9A-F]{8}0[12])$",  # never an array
     },
@@ -427,7 +422,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
-    },  # minutes
+    },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC, NB: no I
         SZ_NAME: "unknown_22f4",
         RQ: r"^00$",
@@ -778,7 +773,7 @@ if DEV_MODE:
 #
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
-#
+# TODO: 34: can 3220 - split out RND from THM/STA
 _DEV_KLASSES_HEAT: dict[str, dict] = {
     DevType.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},
@@ -875,6 +870,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._12C0: {I_: {}},
         Code._1F09: {I_: {}},
         Code._1FC9: {I_: {}},
+        Code._22C9: {W_: {}},  # DT4R
         Code._2309: {I_: {}, RQ: {}, W_: {}},
         Code._2349: {RQ: {}, W_: {}},
         Code._30C9: {I_: {}},
@@ -882,6 +878,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
         Code._313F: {
             I_: {}
         },  # .W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
+        Code._3220: {RP: {}},  # RND (using OT)
         Code._3B00: {I_: {}},
         Code._3EF0: {RQ: {}},  # when bound direct to a 13:
         Code._3EF1: {RQ: {}},  # when bound direct to a 13:

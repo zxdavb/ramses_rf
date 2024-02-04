@@ -16,16 +16,19 @@ from queue import Empty, Full, PriorityQueue
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from . import Command, Packet, exceptions as exc
+from . import exceptions as exc
 from .address import HGI_DEV_ADDR
-from .const import MIN_GAP_BETWEEN_WRITES, SZ_ACTIVE_HGI
-from .typing import (
-    ExceptionT,
-    QosParams,
-    RamsesProtocolT,
-    RamsesTransportT,
-    SendPriority,
+from .command import Command
+from .const import (
+    DEFAULT_ECHO_TIMEOUT,
+    DEFAULT_RPLY_TIMEOUT,
+    DEFAULT_TIMEOUT,
+    MINIMUM_GAP_DURATION,
+    SZ_ACTIVE_HGI,
+    Priority,
 )
+from .packet import Packet
+from .typing import ExceptionT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -35,33 +38,22 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
-    from . import QosProtocol, QosTransport
-else:
-    QosProtocol = asyncio.Protocol
-    QosTransport = asyncio.Transport
+    from .protocol import RamsesProtocolT
+    from .transport import RamsesTransportT
 
 _LOGGER = logging.getLogger(__name__)
 
 # All debug flags should be False for end-users
-_DEBUG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
+_DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
-
-DEFAULT_TIMEOUT = 30.0  # total waiting for successful send: FIXME
-DEFAULT_ECHO_TIMEOUT = 0.04  # waiting for echo pkt after cmd sent
-DEFAULT_RPLY_TIMEOUT = 0.20  # waiting for reply pkt after echo pkt received
 
 _DEFAULT_TIMEOUT = td(seconds=DEFAULT_TIMEOUT)
 _DEFAULT_ECHO_TIMEOUT = td(seconds=DEFAULT_ECHO_TIMEOUT)
 _DEFAULT_RPLY_TIMEOUT = td(seconds=DEFAULT_RPLY_TIMEOUT)
-_MIN_GAP_BETWEEN_WRITES = td(seconds=MIN_GAP_BETWEEN_WRITES)
+_MINIMUM_GAP_DURATION = td(seconds=MINIMUM_GAP_DURATION)
 
-DEFAULT_MAX_RETRIES = 3
-
-POLLING_INTERVAL = 0.0005
+_POLLING_INTERVAL = 0.0005
 
 
 class _ProtocolWaitFailed(exc.ProtocolSendFailed):
@@ -123,7 +115,7 @@ class ProtocolContext:
         # TODO: aquire lock
         if prev_state:
             prev_state._next_state = self._state  # used to detect transitions
-        if _DEBUG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
+        if _DBG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
         # TODO: release lock
 
@@ -169,7 +161,7 @@ class ProtocolContext:
         self,
         send_fnc: Callable[[Command], Coroutine[Any, Any, None]],
         cmd: Command,
-        priority: SendPriority,
+        priority: Priority,
         qos: QosParams,
     ) -> Packet:
         """Send the Command (with retries) and wait for the expected Packet.
@@ -182,10 +174,10 @@ class ProtocolContext:
         """
 
         def is_future_done(item: tuple) -> bool:
-            """Return True if the item's Future is done."""
+            """Return True if the item's Future is done (condition)."""
             fut: asyncio.Future  # mypy
             *_, fut = item
-            return fut.done()
+            return fut.done()  # usu. because expired?
 
         def remove_unwanted_items(queue: PriorityQueue, condition: Callable):
             """Removes all entries from the queue that satisfy the condition.."""
@@ -219,7 +211,9 @@ class ProtocolContext:
         self._ensure_queue_processor()  # because just added job to send queue
 
         try:
-            pkt: Packet = await asyncio.wait_for(fut, timeout)
+            pkt: Packet = await asyncio.wait_for(
+                fut, timeout
+            )  # TODO: return message instead?
         except asyncio.TimeoutError as err:
             self.set_state(IsFailed)
             raise exc.ProtocolSendFailed(
@@ -313,7 +307,7 @@ class ProtocolContext:
                 # assert isinstance(self.state, WantEcho)  # This won't work here
                 prev_state, next_state = await self._wait_for_transition(
                     self.state,  # NOTE: is self.state, not next_state
-                    _DEFAULT_ECHO_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
+                    _DEFAULT_ECHO_TIMEOUT + num_retries * _MINIMUM_GAP_DURATION,
                 )
                 assert prev_state._echo_pkt, f"{self}: Missing echo packet"
 
@@ -344,7 +338,7 @@ class ProtocolContext:
             try:  # receive the reply pkt (if any)
                 prev_state, next_state = await self._wait_for_transition(
                     next_state,  # NOTE: is next_state, not self.state
-                    _DEFAULT_RPLY_TIMEOUT + num_retries * _MIN_GAP_BETWEEN_WRITES,
+                    _DEFAULT_RPLY_TIMEOUT + num_retries * _MINIMUM_GAP_DURATION,
                 )
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                 assert prev_state._rply_pkt, f"{self}: Missing rply packet"
@@ -368,7 +362,7 @@ class ProtocolContext:
         while until > dt.now():
             if this_state._next_state:
                 break
-            await asyncio.sleep(POLLING_INTERVAL)
+            await asyncio.sleep(_POLLING_INTERVAL)
         else:
             raise exc.ProtocolFsmError(f"Failed to leave {this_state} in time")
 

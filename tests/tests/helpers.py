@@ -24,18 +24,6 @@ SCH_GLOBAL_TRAITS = vol.Schema(SCH_GLOBAL_TRAITS_DICT, extra=vol.PREVENT_EXTRA)
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-DEBUG_MODE = False
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
-
-if DEBUG_MODE:
-    import debugpy
-
-    if not debugpy.is_client_connected():
-        debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-        print(f"Debugger listening on {DEBUG_ADDR}:{DEBUG_PORT}, waiting for client...")
-        debugpy.wait_for_client()
-
 logging.disable(logging.WARNING)  # usu. WARNING
 
 

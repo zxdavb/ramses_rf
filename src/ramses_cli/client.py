@@ -8,13 +8,13 @@ import asyncio
 import json
 import logging
 import sys
+from typing import Final
 
 import click
 from colorama import Fore, Style, init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit, Message, exceptions as exc
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
-from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.helpers import deep_merge
 from ramses_rf.schemas import (
     SCH_GLOBAL_CONFIG,
@@ -26,12 +26,16 @@ from ramses_rf.schemas import (
 from ramses_tx import is_valid_dev_id  # noqa: F401
 from ramses_tx.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_tx.schemas import (
+    SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
     SZ_KNOWN_LIST,
     SZ_SERIAL_PORT,
 )
+
+from .debug import SZ_DBG_MODE, start_debugging
+from .discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -42,37 +46,14 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     Code,
 )
 
-
-_DEBUG_CLI = False  # HACK: for debugging of CLI (*before* loading library)
 _PROFILE_LIBRARY = False  # NOTE: for profiling of library
-_DEV_MODE = False
 
 if _PROFILE_LIBRARY:
     import cProfile
     import pstats
 
-SZ_DEBUG_MODE = "debug_mode"
-DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
 
-
-def _start_debugging(wait_for_client: bool):
-    import debugpy
-
-    debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-    print(f" - Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}")
-
-    if wait_for_client:
-        print("   - execution paused, waiting for debugger to attach...")
-        debugpy.wait_for_client()
-        print("   - debugger is now attached, continuing execution.")
-
-
-if _DEBUG_CLI:
-    _start_debugging(True)
-
-
-SZ_INPUT_FILE = "input_file"
+SZ_INPUT_FILE: Final = "input_file"
 
 # DEFAULT_SUMMARY can be: True, False, or None
 SHOW_SCHEMA = False
@@ -90,10 +71,10 @@ PRINT_STATE = False  # print engine state
 logging.basicConfig(level=logging.WARNING, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
 
-EXECUTE = "execute"
-LISTEN = "listen"
-MONITOR = "monitor"
-PARSE = "parse"
+EXECUTE: Final = "execute"
+LISTEN: Final = "listen"
+MONITOR: Final = "monitor"
+PARSE: Final = "parse"
 
 
 COLORS = {
@@ -191,8 +172,8 @@ class DeviceIdParamType(click.ParamType):
 def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
     """A CLI for the ramses_rf library."""
 
-    if kwargs[SZ_DEBUG_MODE] > 0:  # Do first
-        _start_debugging(kwargs[SZ_DEBUG_MODE] == 1)
+    if kwargs[SZ_DBG_MODE] > 0:  # Do first
+        start_debugging(kwargs[SZ_DBG_MODE] == 1)
 
     kwargs, lib_kwargs = split_kwargs(({}, {SZ_CONFIG: {}}), kwargs)
 
@@ -335,10 +316,11 @@ def execute(obj, **kwargs):
     config, lib_config = split_kwargs(obj, kwargs)
 
     print(" - discovery is force-disabled")
-    lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = False
+    lib_config[SZ_CONFIG][SZ_DISABLE_DISCOVERY] = True
+    lib_config[SZ_CONFIG][SZ_DISABLE_QOS] = False
 
     if kwargs[GET_FAULTS]:
-        known_list = {kwargs[GET_FAULTS][0]: {}}
+        known_list = {kwargs[GET_FAULTS]: {}}
     elif kwargs[GET_SCHED][0]:
         known_list = {kwargs[GET_SCHED][0]: {}}
     elif kwargs[SET_SCHED][0]:
@@ -370,7 +352,7 @@ def listen(obj, **kwargs):
 
 def print_results(gwy: Gateway, **kwargs):
     if kwargs[GET_FAULTS]:
-        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
+        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._faultlog.fault_log
 
         if fault_log is None:
             print("No fault log, or failed to get the fault log.")
@@ -398,7 +380,7 @@ def print_results(gwy: Gateway, **kwargs):
 
 
 def _save_state(gwy: Gateway):
-    schema, msgs = gwy._get_state()
+    schema, msgs = gwy.get_state()
 
     with open("state_msgs.log", "w") as f:
         [f.write(f"{dtm} {pkt}\r\n") for dtm, pkt in msgs.items()]  # if not m._expired
@@ -408,7 +390,7 @@ def _save_state(gwy: Gateway):
 
 
 def _print_engine_state(gwy: Gateway, **kwargs):
-    (schema, packets) = gwy._get_state(include_expired=True)
+    (schema, packets) = gwy.get_state(include_expired=True)
 
     if kwargs["print_state"] > 0:
         print(f"schema: {json.dumps(schema, indent=4)}\r\n")
@@ -472,19 +454,15 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
         In this case, the message is merely printed.
         """
 
-        if _DEV_MODE and kwargs["long_format"]:  # HACK for test/dev
+        if kwargs["long_format"]:  # HACK for test/dev
             print(
                 f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
                 f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
             return
 
-        if kwargs["long_format"]:
-            dtm = msg.dtm.isoformat(timespec="microseconds")
-            con_cols = None
-        else:
-            dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-            con_cols = CONSOLE_COLS
+        dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        con_cols = CONSOLE_COLS
 
         if msg.code == Code._PUZZ:
             print(f"{Style.BRIGHT}{Fore.YELLOW}{dtm} {msg}"[:con_cols])
@@ -516,9 +494,9 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
         gwy.add_msg_handler(handle_msg)
 
     if kwargs["restore_state"]:
-        print(" - restoring client state from a HA cache...")
+        print(" - restoring packets from a HA cache...")
         state = json.load(kwargs["restore_state"])["data"]["client_state"]
-        await gwy.set_state(packets=state["packets"])
+        await gwy._restore_cached_packets(state["packets"])
 
     print("\r\nclient.py: Starting engine...")
 

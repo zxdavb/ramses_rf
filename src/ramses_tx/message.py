@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from . import exceptions as exc
 from .address import Address
+from .command import Command
 from .const import (
     DEV_TYPE_MAP,
     SZ_DHW_IDX,
@@ -36,9 +37,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..ramses_rf import Gateway  # type: ignore[import-untyped]
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from ramses_rf import Gateway
+
+    from .const import IndexT, VerbT  # noqa: F401, pylint: disable=unused-import
 
 
 __all__ = ["Message"]
@@ -71,7 +73,7 @@ class MessageBase:
 
         self.dtm: dt = pkt.dtm
 
-        self.verb: Verb = pkt.verb
+        self.verb: VerbT = pkt.verb
         self.seqn: str = pkt.seqn
         self.code: Code = pkt.code
         self.len: int = pkt._len
@@ -96,7 +98,7 @@ class MessageBase:
         if self._str is not None:
             return self._str
 
-        if self.src.id == self._addrs[0].id:
+        if self.src.id == self._addrs[0].id:  # type: ignore[unreachable]
             name_0 = self._name(self.src)
             name_1 = "" if self.dst is self.src else self._name(self.dst)
         else:
@@ -297,8 +299,18 @@ class Message(MessageBase):  # add _expired attr
     # .HAS_DIED = 1.0  # fraction_expired >= 1.0 (is expected lifespan)
     IS_EXPIRING = 0.8  # fraction_expired >= 0.8 (and < HAS_EXPIRED)
 
-    _gwy: Gateway = None  # FIXME: where does this get set?
+    _gwy: Gateway
     _fraction_expired: float | None = None
+
+    @classmethod
+    def _from_cmd(cls, cmd: Command, dtm: dt | None = None) -> Message:
+        """Create a Message from a Command."""
+        return cls(Packet._from_cmd(cmd, dtm=dtm))
+
+    @classmethod
+    def _from_pkt(cls, pkt: Packet) -> Message:
+        """Create a Message from a Packet."""
+        return cls(pkt)
 
     @property
     def _expired(self) -> bool:

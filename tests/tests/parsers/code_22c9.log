@@ -1,5 +1,17 @@
 # TODO: get fragment/array checking working
 
+# second packet is latter portion of a fragmented payload:
+2024-01-18T11:00:00.000000 ...  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A28010108340A28010208340A28010308340A2801  # [{'ufh_idx': '00', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '01', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '02', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '03', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}]
+# 24-01-18T11:00:00.000000 ...  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801                                      # [{'ufh_idx': '00', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '01', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '02', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '03', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}, {'ufh_idx': '04', 'mode': 'heat', 'setpoint_bounds': (21.0, 26.0)}]
+
+#
+2024-01-18T11:00:00.000000 ...  I --- 21:064743 --:------ 21:064743 22C9 006 0007D0083402      # {                 'mode': 'cool', 'setpoint_bounds': (20.0, 21.0)}
+2024-01-18T11:00:00.000000 ...  W --- 21:064743 02:250708 --:------ 22C9 006 0307D0083402      # {'ufh_idx': '03', 'mode': 'cool', 'setpoint_bounds': (20.0, 21.0)}
+2024-01-18T11:00:00.000000 039  I --- 02:250708 21:064743 --:------ 22C9 008 0307D07FFF020203  # {'ufh_idx': '03', 'mode': 'cool', 'setpoint_bounds': (20.0, None)}
+
+# DT4R
+2024-01-18T11:31:38.645707 039  W --- 22:012299 01:216136 --:------ 22C9 006 01076C09F601      # {'ufh_idx': '01', 'mode': 'heat', 'setpoint_bounds': (19.0, 25.5)}
+
 # HVAC: 02:250704 is an Itho Spider Autotemp (UFC), 21:033160 is a Itho Spider Thermostat (not the master stat) - all 008s end (0101|0202)03$
 2022-07-28T13:27:10.939514 ...  W --- 21:033160 02:250704 --:------ 22C9 006 03076C07D002      # {"has_array": False , "has_idx": '03' , "has_payload": True , "is_fragment": False}
 2022-07-28T13:27:11.002110 ...  I --- 02:250704 21:033160 --:------ 22C9 008 03076C7FFF020203  # {"has_array": False , "has_idx": '03' , "has_payload": True , "is_fragment": False}

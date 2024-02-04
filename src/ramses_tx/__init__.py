@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .address import NUL_DEV_ADDR, NUL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
-from .command import CODE_API_MAP, Command, Priority  # noqa: F401
+from .address import ALL_DEV_ADDR, ALL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
+from .command import CODE_API_MAP, Command  # noqa: F401
 from .const import (  # noqa: F401
     SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,
@@ -15,15 +15,16 @@ from .const import (  # noqa: F401
     SZ_ZONE_IDX,
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
+    Priority,
 )
+from .gateway import Engine  # noqa: F401
 from .logger import set_logger_timesource, set_pkt_logging  # noqa: F401
 from .message import Message  # noqa: F401
-from .packet import _PKT_LOGGER, Packet  # noqa: F401
+from .packet import PKT_LOGGER, Packet  # noqa: F401
 from .protocol import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
     QosProtocol,
     ReadProtocol,
-    SendPriority,
     protocol_factory,
 )
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA  # noqa: F401
@@ -36,6 +37,7 @@ from .transport import (  # noqa: F401, pylint: disable=unused-import
     is_hgi80,
     transport_factory,
 )
+from .typing import QosParams  # noqa: F401
 from .version import VERSION  # noqa: F401
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -60,12 +62,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
+if TYPE_CHECKING:
     from logging import Logger
-
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 
 def set_pkt_logging_config(**config) -> Logger:
-    set_pkt_logging(_PKT_LOGGER, **config)
-    return _PKT_LOGGER  # type: ignore[no-any-return]
+    set_pkt_logging(PKT_LOGGER, **config)
+    return PKT_LOGGER  # type: ignore[no-any-return]

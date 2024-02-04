@@ -9,7 +9,7 @@ import sys
 import time
 from collections.abc import Iterable, Mapping
 from datetime import datetime as dt
-from typing import Literal, TypeAlias
+from typing import TYPE_CHECKING, Final, Literal, TypeAlias
 
 from .const import (
     SZ_AIR_QUALITY,
@@ -29,7 +29,7 @@ from .const import (
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
     SZ_REMAINING_MINS,
-    SZ_SPEED_CAP,
+    SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
@@ -37,18 +37,21 @@ from .const import (
 )
 from .ramses import _31DA_FAN_INFO
 
+if TYPE_CHECKING:
+    from .typed_dicts import PayDictT
+
 # Sensor faults
-SZ_UNRELIABLE = "unreliable"
-SZ_TOO_HIGH = "out_of_range_high"
-SZ_TOO_LOW = "out_of_range_low"
+SZ_UNRELIABLE: Final = "unreliable"
+SZ_TOO_HIGH: Final = "out_of_range_high"
+SZ_TOO_LOW: Final = "out_of_range_low"
 # Actuator, Valve/damper faults
-SZ_STUCK_VALVE = "stuck_valve"  # Damper/Valve jammed
-SZ_STUCK_ACTUATOR = "stuck_actuator"  # Actuator jammed
+SZ_STUCK_VALVE: Final = "stuck_valve"  # Damper/Valve jammed
+SZ_STUCK_ACTUATOR: Final = "stuck_actuator"  # Actuator jammed
 # Common (to both) faults
-SZ_OPEN_CIRCUIT = "open_circuit"
-SZ_SHORT_CIRCUIT = "short_circuit"
-SZ_UNAVAILABLE = "unavailable"
-SZ_OTHER_FAULT = "other_fault"  # Non-specific fault
+SZ_OPEN_CIRCUIT: Final = "open_circuit"
+SZ_SHORT_CIRCUIT: Final = "short_circuit"
+SZ_UNAVAILABLE: Final = "unavailable"
+SZ_OTHER_FAULT: Final = "other_fault"  # Non-specific fault
 
 DEVICE_FAULT_CODES = {
     0x0: SZ_OPEN_CIRCUIT,  # NOTE: open, short
@@ -122,7 +125,7 @@ def timestamp() -> float:
         return time.time_ns() / 1e9
 
     # otherwise, is since 1601-01-01T00:00:00Z
-    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))  # type: ignore[unreachable]
     _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
     return _time - 134774 * 24 * 60 * 60
 
@@ -191,8 +194,8 @@ def hex_from_double(value: float | None, factor: int = 1) -> HexStr4:
     """Convert a double into 4-char hex string."""
     if value is None:
         return "7FFF"
-    if not isinstance(value, float):
-        raise ValueError(f"Invalid value: {value}, is not a double (a float)")
+    if not isinstance(value, float | int):
+        raise ValueError(f"Invalid value: {value}, is not a double (a float/int)")
     return f"{int(value * factor):04X}"
 
 
@@ -337,7 +340,7 @@ def hex_from_str(value: str) -> str:
     return "".join(f"{ord(x):02X}" for x in value)  # or: value.encode().hex()
 
 
-def hex_to_temp(value: HexStr4) -> bool | float | None:
+def hex_to_temp(value: HexStr4) -> bool | float | None:  # TODO: remove bool
     """Convert a 2's complement 4-byte hex string to an float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
@@ -354,7 +357,7 @@ def hex_to_temp(value: HexStr4) -> bool | float | None:
     return temp
 
 
-def hex_from_temp(value: float | None) -> HexStr4:
+def hex_from_temp(value: bool | float | None) -> HexStr4:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
@@ -391,7 +394,7 @@ def _faulted_device(param_name: str, value: str) -> dict[str, str]:
 
 # TODO: refactor as per 31DA parsers
 def parse_valve_demand(
-    value: HexStr2
+    value: HexStr2,
 ) -> dict[str, float] | dict[str, str] | dict[str, None]:
     """Convert a 2-char hex string into a percentage.
 
@@ -418,7 +421,7 @@ def parse_valve_demand(
 
 
 # 31DA[2:6] and 12C8[2:6]
-def parse_air_quality(value: HexStr4) -> ReturnValueDictT:
+def parse_air_quality(value: HexStr4) -> PayDictT.AIR_QUALITY:
     """Return the air quality (%): poor (0.0) to excellent (1.0).
 
     The basis of the air quality level should be one of: VOC, CO2 or relative humidity.
@@ -437,7 +440,7 @@ def parse_air_quality(value: HexStr4) -> ReturnValueDictT:
         return {SZ_AIR_QUALITY: None}
 
     if int(value[:2], 16) & 0xF0 == 0xF0:
-        return _faulted_sensor(SZ_AIR_QUALITY, value)
+        return _faulted_sensor(SZ_AIR_QUALITY, value)  # type: ignore[return-value]
 
     level = int(value[:2], 16) / 200  # was: hex_to_percent(value[:2])
     assert level <= 1.0, value[:2]  # TODO: raise exception
@@ -453,7 +456,7 @@ def parse_air_quality(value: HexStr4) -> ReturnValueDictT:
 
 
 # 31DA[6:10] and 1298[2:6]
-def parse_co2_level(value: HexStr4) -> Mapping[str, int | str | None]:
+def parse_co2_level(value: HexStr4) -> PayDictT.CO2_LEVEL:
     """Return the co2 level (ppm).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -470,32 +473,32 @@ def parse_co2_level(value: HexStr4) -> Mapping[str, int | str | None]:
     level = int(value, 16)  # was: hex_to_double(value)  # is it 2's complement?
 
     if int(value[:2], 16) & 0x80 or level >= 0x8000:
-        return _faulted_sensor(SZ_CO2_LEVEL, value)
+        return _faulted_sensor(SZ_CO2_LEVEL, value)  # type: ignore[return-value]
 
     # assert int(value[:2], 16) <= 0x8000, value
     return {SZ_CO2_LEVEL: level}
 
 
 # 31DA[10:12] and 12A0[2:12]
-def parse_indoor_humidity(value: str) -> ReturnValueDictT:
+def parse_indoor_humidity(value: str) -> PayDictT.INDOOR_HUMIDITY:
     """Return the relative indoor humidity (%).
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _parse_fan_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])  # type: ignore[return-value]
 
 
 # 31DA[12:14] and 1280[2:12]
-def parse_outdoor_humidity(value: str) -> ReturnValueDictT:
+def parse_outdoor_humidity(value: str) -> PayDictT.OUTDOOR_HUMIDITY:
     """Return the relative outdoor humidity (%).
 
     The result may include current temperature ('C), and dewpoint temperature ('C).
     """
-    return _parse_fan_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:])
+    return _parse_hvac_humidity(SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])  # type: ignore[return-value]
 
 
-def _parse_fan_humidity(
-    param_name: str, value: HexStr2, temp: str, dewpoint: str
+def _parse_hvac_humidity(
+    param_name: str, value: HexStr2, temp: HexStr4, dewpoint: HexStr4
 ) -> ReturnValueDictT:
     """Return the relative humidity, etc. (called by sensor parsers).
 
@@ -531,30 +534,30 @@ def _parse_fan_humidity(
 
 
 # 31DA[14:18]
-def parse_exhaust_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_exhaust_temp(value: HexStr4) -> PayDictT.EXHAUST_TEMP:
     """Return the exhaust temperature ('C)."""
-    return _parse_fan_temp(SZ_EXHAUST_TEMP, value)
+    return _parse_hvac_temp(SZ_EXHAUST_TEMP, value)  # type: ignore[return-value]
 
 
 # 31DA[18:22]
-def parse_supply_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_supply_temp(value: HexStr4) -> PayDictT.SUPPLY_TEMP:
     """Return the supply temperature ('C)."""
-    return _parse_fan_temp(SZ_SUPPLY_TEMP, value)
+    return _parse_hvac_temp(SZ_SUPPLY_TEMP, value)  # type: ignore[return-value]
 
 
 # 31DA[22:26]
-def parse_indoor_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_indoor_temp(value: HexStr4) -> PayDictT.INDOOR_TEMP:
     """Return the indoor temperature ('C)."""
-    return _parse_fan_temp(SZ_INDOOR_TEMP, value)
+    return _parse_hvac_temp(SZ_INDOOR_TEMP, value)  # type: ignore[return-value]
 
 
 # 31DA[26:30] & 1290[2:6]?
-def parse_outdoor_temp(value: HexStr4) -> ReturnValueDictT:
+def parse_outdoor_temp(value: HexStr4) -> PayDictT.OUTDOOR_TEMP:
     """Return the outdoor temperature ('C)."""
-    return _parse_fan_temp(SZ_OUTDOOR_TEMP, value)
+    return _parse_hvac_temp(SZ_OUTDOOR_TEMP, value)  # type: ignore[return-value]
 
 
-def _parse_fan_temp(param_name: str, value: HexStr4) -> ReturnValueDictT:
+def _parse_hvac_temp(param_name: str, value: HexStr4) -> Mapping[str, float | None]:
     """Return the temperature ('C) (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -571,18 +574,18 @@ def _parse_fan_temp(param_name: str, value: HexStr4) -> ReturnValueDictT:
         return {param_name: None}
 
     if int(value[:2], 16) & 0xF0 == 0x80:  # or temperature < -273.15:
-        return _faulted_sensor(param_name, value)
+        return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
     temp: float = int(value, 16)
     temp = (temp if temp < 2**15 else temp - 2**16) / 100
     if temp <= -273:  # TODO: < 273.15?
-        return _faulted_sensor(param_name, value)
+        return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
     return {param_name: temp}
 
 
 # 31DA[30:34]
-def parse_bypass_position(value: HexStr2) -> ReturnValueDictT:
+def parse_bypass_position(value: HexStr2) -> PayDictT.BYPASS_POSITION:
     """Return the bypass position (%), usually fully open or closed (0%, no bypass).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -597,7 +600,7 @@ def parse_bypass_position(value: HexStr2) -> ReturnValueDictT:
         return {SZ_BYPASS_POSITION: None}
 
     if int(value[:2], 16) & 0xF0 == 0xF0:
-        return _faulted_device(SZ_BYPASS_POSITION, value)
+        return _faulted_device(SZ_BYPASS_POSITION, value)  # type: ignore[return-value]
 
     bypass_pos = int(value, 16) / 200  # was: hex_to_percent(value)
     assert bypass_pos <= 1.0, value
@@ -606,7 +609,7 @@ def parse_bypass_position(value: HexStr2) -> ReturnValueDictT:
 
 
 # 31DA[34:36]
-def parse_capabilities(value: HexStr4) -> Mapping[str, list | str | None]:
+def parse_capabilities(value: HexStr4) -> PayDictT.CAPABILITIES:
     """Return the speed capabilities (a bitmask).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -618,7 +621,7 @@ def parse_capabilities(value: HexStr4) -> Mapping[str, list | str | None]:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
 
     if value == "7FFF":  # TODO: Not implemented???
-        return {SZ_SPEED_CAP: None}
+        return {SZ_SPEED_CAPABILITIES: None}
 
     ABILITIES = {
         15: "off",
@@ -641,11 +644,15 @@ def parse_capabilities(value: HexStr4) -> Mapping[str, list | str | None]:
 
     # assert value in ("0002", "4000", "4808", "F000", "F001", "F800", "F808"), value
 
-    return {SZ_SPEED_CAP: [v for k, v in ABILITIES.items() if int(value, 16) & 2**k]}
+    return {
+        SZ_SPEED_CAPABILITIES: [
+            v for k, v in ABILITIES.items() if int(value, 16) & 2**k
+        ]
+    }
 
 
 # 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
-def parse_fan_info(value: HexStr2) -> Mapping[str, list | str | None]:
+def parse_fan_info(value: HexStr2) -> PayDictT.FAN_INFO:
     """Return the fan info (current speed, and...).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -672,23 +679,23 @@ def parse_fan_info(value: HexStr2) -> Mapping[str, list | str | None]:
 
     return {
         SZ_FAN_INFO: _31DA_FAN_INFO[int(value, 16) & 0x1F],
-        f"_unknown_{SZ_FAN_INFO}_flags": flags,
+        "_unknown_fan_info_flags": flags,
     }
 
 
 # 31DA[38:40]
-def parse_exhaust_fan_speed(value: HexStr2) -> ReturnValueDictT:
+def parse_exhaust_fan_speed(value: HexStr2) -> PayDictT.EXHAUST_FAN_SPEED:
     """Return the exhaust fan speed (% of max speed)."""
-    return _parse_fan_speed(SZ_EXHAUST_FAN_SPEED, value)
+    return _parse_fan_speed(SZ_EXHAUST_FAN_SPEED, value)  # type: ignore[return-value]
 
 
 # 31DA[40:42]
-def parse_supply_fan_speed(value: HexStr2) -> ReturnValueDictT:
+def parse_supply_fan_speed(value: HexStr2) -> PayDictT.SUPPLY_FAN_SPEED:
     """Return the supply fan speed (% of max speed)."""
-    return _parse_fan_speed(SZ_SUPPLY_FAN_SPEED, value)
+    return _parse_fan_speed(SZ_SUPPLY_FAN_SPEED, value)  # type: ignore[return-value]
 
 
-def _parse_fan_speed(param_name: str, value: HexStr2) -> ReturnValueDictT:
+def _parse_fan_speed(param_name: str, value: HexStr2) -> Mapping[str, float | None]:
     """Return the fan speed (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -704,13 +711,13 @@ def _parse_fan_speed(param_name: str, value: HexStr2) -> ReturnValueDictT:
 
     percentage = int(value, 16) / 200  # was: hex_to_percent(value)
     if percentage > 1.0:
-        return _faulted_common(param_name, value)
+        return _faulted_common(param_name, value)  # type: ignore[return-value]
 
     return {param_name: percentage}
 
 
 # 31DA[42:46] & 22F3[2:6]  # TODO: make 22F3-friendly
-def parse_remaining_mins(value: HexStr4) -> ReturnValueDictT:
+def parse_remaining_mins(value: HexStr4) -> PayDictT.REMAINING_MINUTES:
     """Return the remaining time for temporary modes (whole minutes).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -733,18 +740,18 @@ def parse_remaining_mins(value: HexStr4) -> ReturnValueDictT:
 
 
 # 31DA[46:48]
-def parse_post_heater(value: HexStr2) -> ReturnValueDictT:
+def parse_post_heater(value: HexStr2) -> PayDictT.POST_HEATER:
     """Return the post-heater state (% of max heat)."""
-    return _parse_fan_heater(SZ_POST_HEAT, value)
+    return _parse_fan_heater(SZ_POST_HEAT, value)  # type: ignore[return-value]
 
 
 # 31DA[48:50]
-def parse_pre_heater(value: HexStr2) -> ReturnValueDictT:
+def parse_pre_heater(value: HexStr2) -> PayDictT.PRE_HEATER:
     """Return the pre-heater state (% of max heat)."""
-    return _parse_fan_heater(SZ_PRE_HEAT, value)
+    return _parse_fan_heater(SZ_PRE_HEAT, value)  # type: ignore[return-value]
 
 
-def _parse_fan_heater(param_name: str, value: HexStr2) -> ReturnValueDictT:
+def _parse_fan_heater(param_name: str, value: HexStr2) -> Mapping[str, float | None]:
     """Return the heater state (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -759,7 +766,7 @@ def _parse_fan_heater(param_name: str, value: HexStr2) -> ReturnValueDictT:
         return {param_name: None}
 
     if int(value, 16) & 0xF0 == 0xF0:
-        return _faulted_sensor(param_name, value)
+        return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
     percentage = int(value, 16) / 100
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
@@ -768,18 +775,18 @@ def _parse_fan_heater(param_name: str, value: HexStr2) -> ReturnValueDictT:
 
 
 # 31DA[50:54]
-def parse_supply_flow(value: HexStr4) -> ReturnValueDictT:
+def parse_supply_flow(value: HexStr4) -> PayDictT.SUPPLY_FLOW:
     """Return the supply flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)."""
-    return _parse_fan_flow(SZ_SUPPLY_FLOW, value)
+    return _parse_fan_flow(SZ_SUPPLY_FLOW, value)  # type: ignore[return-value]
 
 
 # 31DA[54:58]
-def parse_exhaust_flow(value: HexStr4) -> ReturnValueDictT:
+def parse_exhaust_flow(value: HexStr4) -> PayDictT.EXHAUST_FLOW:
     """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
-    return _parse_fan_flow(SZ_EXHAUST_FLOW, value)
+    return _parse_fan_flow(SZ_EXHAUST_FLOW, value)  # type: ignore[return-value]
 
 
-def _parse_fan_flow(param_name: str, value: HexStr4) -> ReturnValueDictT:
+def _parse_fan_flow(param_name: str, value: HexStr4) -> Mapping[str, float | None]:
     """Return the air flow rate (called by sensor parsers).
 
     The sensor value is None if there is no sensor present (is not an error).
@@ -794,7 +801,7 @@ def _parse_fan_flow(param_name: str, value: HexStr4) -> ReturnValueDictT:
         return {param_name: None}
 
     if int(value[:2], 16) & 0x80:
-        return _faulted_sensor(param_name, value)
+        return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
     flow = int(value, 16) / 100  # was: hex_to_double(value, factor=100)
     assert flow >= 0, value  # TODO: raise exception if < 0?

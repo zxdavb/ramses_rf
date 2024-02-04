@@ -1,22 +1,20 @@
-# last checked/updated: 2023/11/15 (based on HA 2023.11.1)
+# last checked/updated: 2024/01/24 (based on HA 2024.1.5)
+#  - to check against pyproject.toml, github workflows
 #
 
-# for using the the library via the CLI, client.py (includes requirements.txt)
+# for development of the library, incl using the CLI
   -r requirements_cli.txt
 
 # used for development
-  mypy >= 1.7.0
-  pre-commit >= 3.5.0
-  ruff >= 0.1.5
+  mypy >= 1.8.0
+  pre-commit >= 3.6.0
+  ruff >= 0.1.12       # HA is using 0.1.8
 
 # used for testing
-  pytest >= 7.4.3
+  pytest >= 7.4.3, <8.0.0
   pytest-asyncio >= 0.21.0
   pytest-xdist >= 3.3.1
 
-# used for testing at runtime
-  debugpy >= 1.8.0
-
 # used for build/deploy
-  hatch >= 1.7.0  # is not core HA
-  hatchling >= 1.18.0  # is not core HA
+  hatch >= 1.9.2       # is not core HA
+  hatchling >= 1.21.0  # is not core HA

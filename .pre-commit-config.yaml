@@ -1,12 +1,11 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb
-# last updated 2023-11-28
+# last updated 2024-01-21
 
-# exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
-exclude: (^.secrets/|^docs/|^misc)
+exclude: (^.secrets/|^docs/|^misc|tests/deprecated)
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+    rev: v0.1.14
     hooks:
       - id: ruff         # linter
       - id: ruff-format  # formatter
@@ -31,12 +30,19 @@ repos:
     hooks:
       # entry: '[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'  # email address
 
-    - id: secrets
+    - id: debugs
       name: check DEBUG flags
-      entry: '_DEBUG_.*=.*True'
+      entry: '_DBG_.*=.*True'
       language: pygrep
       args: [-i]
       exclude: (.pre-commit-config.yaml|^tests/.*\.py$)  # avoid false +ve
+
+    # - id: fixme
+    #   name: check FIXME flags
+    #   entry: '#.*(FIXME|TODO)'
+    #   language: pygrep
+    #   args: [-i]
+    #   exclude: (.pre-commit-config.yaml|^tests/.*\.py$)  # avoid false +ve
 
     - id: secrets
       name: check secrets
@@ -44,3 +50,37 @@ repos:
       language: pygrep
       args: [-i]
       exclude: .pre-commit-config.yaml  # avoid false +ve
+
+    # - id: private imports
+    #   name: check private imports
+    #   entry: 'from .* import _.*'
+    #   language: pygrep
+    #   args: [-i]
+    #   exclude: .pre-commit-config.yaml  # avoid false +ve
+
+    # We do not use pre-commit/mirrors-mypy, as it comes with opinionated defaults
+    # (like --ignore-missing-imports) and is difficult to configure to run
+    # with the dependencies correctly installed.
+
+    # - id: mypy
+    #   name: check mypy
+    #   entry: mypy
+    #   language: python
+    #   additional_dependencies: [voluptuous==0.14.1]
+    #   types: [python]
+    #   # use require_serial so that script is only called once per commit
+    #   require_serial: true
+    #   # Print the number of files as a sanity-check
+    #   verbose: true
+    #   args: ["--config-file", "./pyproject.toml"]
+
+  # We do not use pre-commit/mirrors-mypy, as it comes with opinionated defaults
+  # (like --ignore-missing-imports) and is difficult to configure to run
+  # with the dependencies correctly installed.
+
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #   - id: mypy
+  #     additional_dependencies: [voluptuous==0.14.1]
+  #     args: ["--config-file", "./pyproject.toml"]

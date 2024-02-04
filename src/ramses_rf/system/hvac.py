@@ -6,22 +6,19 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
+from ramses_rf.entity_base import class_by_attr
 from ramses_tx import Address, Message
 
-from ..const import __dev_mode__
-from ..entity_base import class_by_attr
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -29,15 +26,8 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
-
-DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _HvacSystemT = TypeVar("_HvacSystemT", bound="HvacSystem")

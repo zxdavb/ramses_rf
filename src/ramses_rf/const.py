@@ -27,7 +27,6 @@ from ramses_tx.const import (  # noqa: F401
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
     SZ_DHW_IDX,
-    SZ_DISABLE_BACKOFF,
     SZ_DOMAIN_ID,
     SZ_DURATION,
     SZ_EXHAUST_FAN_SPEED,
@@ -55,15 +54,13 @@ from ramses_tx.const import (  # noqa: F401
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
     SZ_PRESSURE,
-    SZ_PRIORITY,
     SZ_RELAY_DEMAND,
     SZ_RELAY_FAILSAFE,
     SZ_REMAINING_MINS,
-    SZ_RETRIES,
     SZ_SCHEDULE,
     SZ_SENSOR,
     SZ_SETPOINT,
-    SZ_SPEED_CAP,
+    SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
@@ -84,7 +81,15 @@ from ramses_tx.const import (  # noqa: F401
     SystemType,
 )
 
-from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
+from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
@@ -97,20 +102,14 @@ from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     ZoneRole,
 )
 
-
-from ramses_tx import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
-    Code,
-)
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_tx import Index, Verb  # noqa: F401, pylint: disable=unused-import
+if TYPE_CHECKING:
+    from ramses_tx.const import (  # noqa: F401, pylint: disable=unused-import
+        IndexT,
+        VerbT,
+    )
 
 
-__dev_mode__ = False
+__dev_mode__ = False  # NOTE: this is const.py
 
 
 class Discover(IntEnum):

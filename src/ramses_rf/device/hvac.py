@@ -8,13 +8,9 @@ HVAC devices.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
-from ramses_tx import Address, Command, Message, Packet
-from ramses_tx.const import SZ_BINDINGS
-from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
-
-from ..const import (
+from ramses_rf.const import (
     FAN_MODE,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
@@ -33,29 +29,28 @@ from ..const import (
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
     SZ_REMAINING_MINS,
-    SZ_SPEED_CAP,
+    SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
     DevType,
-    __dev_mode__,
 )
-from ..entity_base import class_by_attr
-from ..helpers import shrink
-from ..schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
+from ramses_rf.entity_base import class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
+from ramses_tx import Address, Command, Message, Packet
+from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
+
 from .base import BatteryState, Device, DeviceHvac, Fakeable
 
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
     Code,
 )
-
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
 
 # TODO: Switch this module to utilise the (run-time) decorator design pattern...
 # - https://refactoring.guru/design-patterns/decorator/python/example
@@ -69,11 +64,7 @@ if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
 # - thus, Composite design pattern may be more appropriate
 
 
-DEV_MODE = __dev_mode__  # and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _HvacRemoteBaseT = TypeVar("_HvacRemoteBaseT", bound="HvacRemoteBase")
@@ -88,21 +79,12 @@ class HvacSensorBase(DeviceHvac):
     pass
 
 
-class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
+class CarbonDioxide(HvacSensorBase):  # 1298
     """The CO2 sensor (cardinal code is 1298)."""
 
-    def _bind(self) -> None:
-        # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
-        # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
-        # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
-
-        def callback(msg):
-            """Use the accept pkt to determine the zone/domain id."""
-            _ = msg.payload[SZ_BINDINGS][0][0]
-            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
-
-        super()._bind()
-        self._bind_request((Code._1298, Code._31E0), callback=callback)
+    # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
+    # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
+    # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
 
     async def initiate_binding_process(self) -> Packet:
         return await super().initiate_binding_process(
@@ -110,16 +92,14 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
         )
 
     @property
-    def co2_level(self) -> float | None:
+    def co2_level(self) -> int | None:  # 1298
         return self._msg_value(Code._1298, key=SZ_CO2_LEVEL)
 
-    # @check_faking_enabled
     @co2_level.setter
-    def co2_level(self, value) -> None:
-        if not self._faked:
+    def co2_level(self, value: int | None) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_co2_level(self.id, value))
-        # lf._send_cmd(Command.get_co2_level(...))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -129,33 +109,18 @@ class CarbonDioxide(Fakeable, HvacSensorBase):  # 1298
         }
 
 
-class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
+class IndoorHumidity(HvacSensorBase):  # 12A0
     """The relative humidity sensor (12A0)."""
 
-    def _bind(self) -> None:
-        # .I ---
-        # .W ---
-        # .I ---
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the zone/domain id."""
-            _ = msg.payload[SZ_BINDINGS][0][0]
-            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
-
-        super()._bind()
-        self._bind_request((Code._12A0, Code._31E0), callback=callback)
-
     @property
-    def indoor_humidity(self) -> float | None:
+    def indoor_humidity(self) -> float | None:  # 12A0
         return self._msg_value(Code._12A0, key=SZ_INDOOR_HUMIDITY)
 
-    # @check_faking_enabled
     @indoor_humidity.setter
-    def indoor_humidity(self, value) -> None:
-        if not self._faked:
+    def indoor_humidity(self, value: float | None) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_indoor_humidity(self.id, value))
-        # lf._send_cmd(Command.get_indoor_humidity(...))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -165,33 +130,22 @@ class IndoorHumidity(Fakeable, HvacSensorBase):  # 12A0
         }
 
 
-class PresenceDetect(Fakeable, HvacSensorBase):  # 2E10
+class PresenceDetect(HvacSensorBase):  # 2E10
     """The presence sensor (2E10/31E0)."""
 
-    def _bind(self):
-        # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B              # CO2, idx|10E0 == 01
-        # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
-        # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
-
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the zone/domain id."""
-            _ = msg.payload[SZ_BINDINGS][0][0]
-            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
-
-        super()._bind()
-        self._bind_request((Code._2E10, Code._31E0), callback=callback)
+    # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B              # CO2, idx|10E0 == 01
+    # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
+    # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
 
     @property
-    def presence_detected(self) -> float | None:
+    def presence_detected(self) -> bool | None:
         return self._msg_value(Code._2E10, key=SZ_PRESENCE_DETECTED)
 
-    # @check_faking_enabled
     @presence_detected.setter
-    def presence_detected(self, value) -> None:
-        if not self._faked:
+    def presence_detected(self, value: bool | None) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
         self._send_cmd(Command.put_presence_detected(self.id, value))
-        # lf._send_cmd(Command.get_presence_detected(...))
 
     @property
     def status(self) -> dict[str, Any]:
@@ -229,7 +183,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
         self.tcs = None
 
 
-class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
+class HvacHumiditySensor(BatteryState, IndoorHumidity, Fakeable):  # HUM: I/12A0
     """The class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -254,7 +208,7 @@ class HvacHumiditySensor(BatteryState, IndoorHumidity):  # HUM: I/12A0
         }
 
 
-class HvacCarbonDioxideSensor(CarbonDioxide):  # CO2: I/1298
+class HvacCarbonDioxideSensor(CarbonDioxide, Fakeable):  # CO2: I/1298
     """The class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -271,37 +225,26 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 
     _SLUG: str = DevType.REM
 
-    def _bind(self) -> None:
-        # .I --- 37:155617 --:------ 37:155617 1FC9 024 0022F1965FE10022F3965FE16710E0965FE1001FC9965FE1
-        # .W --- 32:155617 37:155617 --:------ 1FC9 012 0031D9825FE10031DA825FE1
+    async def initiate_binding_process(self) -> Packet:
+        # .I --- 37:155617 --:------ 37:155617 1FC9 024 00-22F1-965FE1 00-22F3-965FE1 67-10E09-65FE1 00-1FC9-965FE1
+        # .W --- 32:155617 37:155617 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1
         # .I --- 37:155617 32:155617 --:------ 1FC9 001 00
 
-        def callback(msg):  # TODO: set_parent()
-            """Use the accept pkt to determine the zone/domain id."""
-            _ = msg.payload[SZ_BINDINGS][0][0]
-            # self.set_parent(msg.src, child_id=child_id, is_sensor=True)
-
-        super()._bind()
-        self._bind_request((Code._22F1, Code._22F3), callback=callback)
-
-    async def initiate_binding_process(self) -> Packet:
         return await super().initiate_binding_process(
             Code._22F1 if self._scheme == "nuaire" else [Code._22F1, Code._22F3]
         )
 
     @property
-    def fan_rate(self) -> str | None:
+    def fan_rate(self) -> str | None:  # 22F1
         return self._msg_value(Code._22F1, key="rate")
 
-    # @check_faking_enabled
     @fan_rate.setter
-    def fan_rate(self, rate) -> None:  # I/22F1
-        if not self._faked:
+    def fan_rate(self, rate) -> None:
+        if not self.is_faked:
             raise RuntimeError(f"Faking is not enabled for {self}")
-        for _ in range(3):
-            self._send_cmd(
-                Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
-            )  # TODO: needs checking
+        self._send_cmd(
+            Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
+        )  # TODO: needs checking
 
     @property
     def fan_mode(self) -> str | None:
@@ -449,7 +392,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def speed_cap(self) -> int | None:
-        return self._msg_value(Code._31DA, key=SZ_SPEED_CAP)
+        return self._msg_value(Code._31DA, key=SZ_SPEED_CAPABILITIES)
 
     @property
     def supply_fan_speed(self) -> float | None:

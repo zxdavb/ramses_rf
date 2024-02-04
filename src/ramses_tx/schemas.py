@@ -8,14 +8,14 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import voluptuous as vol
 
 from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 
 if TYPE_CHECKING:
-    from ramses_tx.frame import _DeviceIdT
+    from .frame import DeviceIdT
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,16 +23,16 @@ _LOGGER = logging.getLogger(__name__)
 
 #
 # 0/5: Packet source configuration
-SZ_INPUT_FILE = "input_file"
-SZ_PACKET_SOURCE = "packet_source"
+SZ_INPUT_FILE: Final = "input_file"
+SZ_PACKET_SOURCE: Final = "packet_source"
 
 
 #
 # 1/5: Packet log configuration
-SZ_FILE_NAME = "file_name"
-SZ_PACKET_LOG = "packet_log"
-SZ_ROTATE_BACKUPS = "rotate_backups"
-SZ_ROTATE_BYTES = "rotate_bytes"
+SZ_FILE_NAME: Final = "file_name"
+SZ_PACKET_LOG: Final = "packet_log"
+SZ_ROTATE_BACKUPS: Final = "rotate_backups"
+SZ_ROTATE_BYTES: Final = "rotate_bytes"
 
 
 def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any]:
@@ -85,15 +85,15 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any
 
 #
 # 2/5: Serial port configuration
-SZ_PORT_CONFIG = "port_config"
-SZ_PORT_NAME = "port_name"
-SZ_SERIAL_PORT = "serial_port"
+SZ_PORT_CONFIG: Final = "port_config"
+SZ_PORT_NAME: Final = "port_name"
+SZ_SERIAL_PORT: Final = "serial_port"
 
-SZ_BAUDRATE = "baudrate"
-SZ_DSRDTR = "dsrdtr"
-SZ_RTSCTS = "rtscts"
-SZ_TIMEOUT = "timeout"
-SZ_XONXOFF = "xonxoff"
+SZ_BAUDRATE: Final = "baudrate"
+SZ_DSRDTR: Final = "dsrdtr"
+SZ_RTSCTS: Final = "rtscts"
+SZ_TIMEOUT: Final = "timeout"
+SZ_XONXOFF: Final = "xonxoff"
 
 
 SCH_SERIAL_PORT_CONFIG = vol.Schema(
@@ -161,13 +161,13 @@ def ConvertNullToDict():
     return convert_null_to_dict
 
 
-SZ_ALIAS = "alias"
-SZ_CLASS = "class"
-SZ_FAKED = "faked"
-SZ_SCHEME = "scheme"
+SZ_ALIAS: Final = "alias"
+SZ_CLASS: Final = "class"
+SZ_FAKED: Final = "faked"
+SZ_SCHEME: Final = "scheme"
 
-SZ_BLOCK_LIST = "block_list"
-SZ_KNOWN_LIST = "known_list"
+SZ_BLOCK_LIST: Final = "block_list"
+SZ_KNOWN_LIST: Final = "known_list"
 
 SCH_DEVICE_ID_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
 SCH_DEVICE_ID_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
@@ -275,8 +275,8 @@ SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 
 def select_device_filter_mode(
     enforce_known_list: bool,
-    known_list: dict[_DeviceIdT, dict],
-    block_list: dict[_DeviceIdT, dict],
+    known_list: dict[DeviceIdT, dict],
+    block_list: dict[DeviceIdT, dict],
 ) -> bool:
     """Determine which device filter to use, if any.
 
@@ -341,15 +341,18 @@ def select_device_filter_mode(
 
 #
 # 4/5: Gateway (engine) configuration
-SZ_DISABLE_SENDING = "disable_sending"
-SZ_DISABLE_QOS = "disable_qos"
-SZ_ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
-SZ_EVOFW_FLAG = "evofw_flag"
-SZ_USE_REGEX = "use_regex"
+SZ_DISABLE_SENDING: Final = "disable_sending"
+SZ_DISABLE_QOS: Final = "disable_qos"
+SZ_ENFORCE_KNOWN_LIST: Final[str] = f"enforce_{SZ_KNOWN_LIST}"
+SZ_EVOFW_FLAG: Final = "evofw_flag"
+SZ_USE_REGEX: Final = "use_regex"
 
 SCH_ENGINE_DICT = {
     vol.Optional(SZ_DISABLE_SENDING, default=False): bool,
-    vol.Optional(SZ_DISABLE_QOS, default=True): bool,  # TODO: shoudl be False
+    vol.Optional(SZ_DISABLE_QOS, default=None): vol.Any(
+        None,  # None is selective QoS (e.g. QoS only for bindings, schedule, etc.)
+        bool,
+    ),  # in long term, this default to be True (and no None)
     vol.Optional(SZ_ENFORCE_KNOWN_LIST, default=False): bool,
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
@@ -357,5 +360,5 @@ SCH_ENGINE_DICT = {
 }
 SCH_ENGINE_CONFIG = vol.Schema(SCH_ENGINE_DICT, extra=vol.REMOVE_EXTRA)
 
-SZ_INBOUND = "inbound"  # for use_regex (intentionally obscured)
-SZ_OUTBOUND = "outbound"
+SZ_INBOUND: Final = "inbound"  # for use_regex (intentionally obscured)
+SZ_OUTBOUND: Final = "outbound"

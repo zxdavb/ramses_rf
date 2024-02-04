@@ -7,11 +7,10 @@
 
 """RAMSES RF - Check GWY address/type detection and its treatment of addr0."""
 
-import asyncio
 from unittest.mock import patch
 
 import pytest
-from serial import SerialException
+import serial as ser
 from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Gateway
@@ -22,10 +21,10 @@ from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
-_DEBUG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DEBUG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
-MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_tx.transport
+_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
+_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.transport
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -66,34 +65,24 @@ _global_failed_ports: list[str] = []
 
 # ### FIXTURES #########################################################################
 
+pytestmark = pytest.mark.asyncio(scope="module")
+
 
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DEBUG_DISABLE_DUTY_CYCLE_LIMIT,
+        "ramses_tx.protocol._DBG_DISABLE_DUTY_CYCLE_LIMIT",
+        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
     )
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
+        _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
-    monkeypatch.setattr(
-        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-    )
+    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_idx", TEST_CMDS)
-
-
-@pytest.fixture(scope="module")
-def event_loop():
-    """Overrides pytest default function scoped event loop"""
-    loop = asyncio.get_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
 
 
 @pytest.fixture(scope="module")
@@ -140,7 +129,7 @@ async def fake_ti3410():
             await rf.stop()
 
 
-@pytest.fixture(scope="module")  # TODO: remove HACK
+@pytest.fixture(scope="module")  # TODO: remove HACK, below
 async def real_evofw3():
     """Utilize an actual evofw3-compatible gateway."""
 
@@ -160,7 +149,7 @@ async def real_evofw3():
         await gwy.stop()
 
 
-@pytest.fixture(scope="module")  # TODO: remove HACK
+@pytest.fixture(scope="module")  # TODO: remove HACK, below
 async def real_ti3410():
     """Utilize an actual HGI80-compatible gateway."""
 
@@ -185,8 +174,8 @@ async def real_ti3410():
 
 
 @patch(  # DISABLE_STRICT_CHECKING
-    "ramses_tx.address._DEBUG_DISABLE_STRICT_CHECKING",
-    _DEBUG_DISABLE_STRICT_CHECKING,
+    "ramses_tx.address._DBG_DISABLE_STRICT_CHECKING",
+    _DBG_DISABLE_STRICT_CHECKING,
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
@@ -198,7 +187,7 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     cmd_str = TEST_CMDS[test_idx].replace(TST_ID_, gwy.hgi.id)
     # this is irrevelent for fake (virtual) gwys, as they been assigned this id
 
-    cmd = Command(cmd_str, qos={"retries": 0})
+    cmd = Command(cmd_str)
     assert str(cmd) == cmd_str  # sanity check
 
     is_hgi80 = not gwy._protocol._is_evofw3  # TODO: is_hgi80?
@@ -246,7 +235,7 @@ async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
 
     try:
         await _test_gwy_device(gwy, test_idx)
-    except SerialException as err:
+    except (ser.SerialException, exc.TransportSerialError) as err:
         _global_failed_ports.append(gwy.ser_name)
         pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
 
@@ -268,7 +257,7 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
 
     try:
         await _test_gwy_device(gwy, test_idx)
-    except SerialException as err:
+    except (ser.SerialException, exc.TransportSerialError) as err:
         _global_failed_ports.append(gwy.ser_name)
         pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
 

@@ -12,7 +12,7 @@ from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 # Test/Dev & Debug flags
 DEV_HVAC = True  #
 
-DeviceId = str
+DeviceIdT = str
 
 DEVICE_LOOKUP: dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
@@ -25,10 +25,10 @@ DEV_TYPE_MAP: dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
 
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
-NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
+ALL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
 # All debug flags should be False for end-users
-_DEBUG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
+_DBG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
 
 
 class Address:
@@ -36,7 +36,7 @@ class Address:
 
     _SLUG = None
 
-    def __init__(self, device_id: DeviceId) -> None:
+    def __init__(self, device_id: DeviceIdT) -> None:
         """Create an address from a valid device id."""
 
         # if device_id is None:
@@ -64,7 +64,7 @@ class Address:
     def hex_id(self) -> str:
         if self._hex_id is not None:
             return self._hex_id
-        self._hex_id = self.convert_to_hex(self.id)
+        self._hex_id = self.convert_to_hex(self.id)  # type: ignore[unreachable]
         return self._hex_id
 
     @staticmethod
@@ -77,7 +77,7 @@ class Address:
         )
 
     @classmethod
-    def _friendly(cls, device_id: DeviceId) -> str:
+    def _friendly(cls, device_id: DeviceIdT) -> str:
         """Convert (say) '01:145038' to 'CTL:145038'."""
 
         if not cls.is_valid(device_id):
@@ -92,7 +92,7 @@ class Address:
         """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
 
         if device_hex == "FFFFFE":  # aka '63:262142'
-            return ">null dev<" if friendly_id else NUL_DEVICE_ID
+            return ">null dev<" if friendly_id else ALL_DEVICE_ID
 
         if not device_hex.strip():  # aka '--:------'
             return f"{'':10}" if friendly_id else NON_DEVICE_ID
@@ -103,7 +103,7 @@ class Address:
         return cls._friendly(device_id) if friendly_id else device_id
 
     @classmethod
-    def convert_to_hex(cls, device_id: DeviceId) -> str:
+    def convert_to_hex(cls, device_id: DeviceIdT) -> str:
         """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
         if not cls.is_valid(device_id):
@@ -125,17 +125,17 @@ class Address:
 
 
 @lru_cache(maxsize=256)
-def id_to_address(device_id: DeviceId) -> Address:
+def id_to_address(device_id: DeviceIdT) -> Address:
     """Factory method to cache & return device Address from device ID."""
     return Address(device_id=device_id)
 
 
 HGI_DEV_ADDR = Address(HGI_DEVICE_ID)  # 18:000730
 NON_DEV_ADDR = Address(NON_DEVICE_ID)  # --:------
-NUL_DEV_ADDR = Address(NUL_DEVICE_ID)  # 63:262142
+ALL_DEV_ADDR = Address(ALL_DEVICE_ID)  # 63:262142
 
 
-def dev_id_to_hex_id(device_id: DeviceId) -> str:
+def dev_id_to_hex_id(device_id: DeviceIdT) -> str:
     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
     if len(device_id) == 9:  # e.g. '01:123456'
@@ -153,7 +153,7 @@ def dev_id_to_hex_id(device_id: DeviceId) -> str:
 def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
     if device_hex == "FFFFFE":  # aka '63:262142'
-        return "NUL:262142" if friendly_id else NUL_DEVICE_ID
+        return "NUL:262142" if friendly_id else ALL_DEVICE_ID
 
     if not device_hex.strip():  # aka '--:------'
         return f"{'':10}" if friendly_id else NON_DEVICE_ID
@@ -200,24 +200,24 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
             f"Invalid address set: {addr_fragment}: {err}"
         ) from None
 
-    if not _DEBUG_DISABLE_STRICT_CHECKING and (
+    if not _DBG_DISABLE_STRICT_CHECKING and (
         not (
             # .I --- 01:145038 --:------ 01:145038 1F09 003 FF073F # valid
             # .I --- 04:108173 --:------ 01:155341 2309 003 0001F4 # valid
-            addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+            addrs[0] not in (NON_DEV_ADDR, ALL_DEV_ADDR)
             and addrs[1] == NON_DEV_ADDR
             and addrs[2] != NON_DEV_ADDR
         )
         and not (
             # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A         # valid
             # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid
-            addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+            addrs[0] not in (NON_DEV_ADDR, ALL_DEV_ADDR)
             and addrs[1] not in (NON_DEV_ADDR, addrs[0])
             and addrs[2] == NON_DEV_ADDR
         )
         and not (
             # .I --- --:------ --:------ 10:105624 1FD4 003 00AAD4 # valid
-            addrs[2] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+            addrs[2] not in (NON_DEV_ADDR, ALL_DEV_ADDR)
             and addrs[0] == NON_DEV_ADDR
             and addrs[1] == NON_DEV_ADDR
         )

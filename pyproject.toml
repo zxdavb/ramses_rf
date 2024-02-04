@@ -1,6 +1,6 @@
 #
 ### project ##########################################################################
-# updated: 2023-12-17
+# ramses_rf, updated: 2023-12-17
 #
 
 [project]
@@ -43,7 +43,7 @@
 
 #
 [project.scripts]
-  client = "ramses_rf.client:main"
+  client = "ramses_cli.client:main"
 
 #
 ### build-system #####################################################################
@@ -69,34 +69,27 @@
 [tool.pytest.ini_options]
   asyncio_mode = "auto"
 
+  norecursedirs = "deprecated/*"
+
 
 #
 ### mypy #############################################################################
 
 [tool.mypy]
-  # files = ["src/ramses_rf", "src/ramses_tx"]  # TODO: [src, tests]
   files = [
     "client.py",
-    # "src/ramses_cli",
-    "src/ramses_tx",
+    "src/ramses_cli",
     #
+    "src/ramses_rf/*.py",
+    "src/ramses_rf/system/schedule.py",
     # "src/ramses_rf/device",
     # "src/ramses_rf/system",
     #
-    "src/ramses_rf/__init__.py",
-    # "src/ramses_rf/binding_fsm.py",
-    "src/ramses_rf/const.py",
-    "src/ramses_rf/discovery.py",
-    "src/ramses_rf/dispatcher.py",
-    "src/ramses_rf/entity_base.py",
-    "src/ramses_rf/exceptions.py",
-    # "src/ramses_rf/gateway.py",
-    "src/ramses_rf/helpers.py",
-    "src/ramses_rf/schemas.py",
-    "src/ramses_rf/version.py",
+    "src/ramses_tx",
+    #
   ]
 
-  # exclude = []  # doesn't work?
+  exclude = ["src/ramses_cli/client.py", "src/ramses_cli/utils/*"]
 
 
   follow_imports = "skip"  # TODO: don't use this feature
@@ -109,45 +102,60 @@
   warn_redundant_casts = true  # this is not per-module
   warn_unused_ignores = true
 
-  # # Getting these passing should be easy
-  extra_checks = true  # was: strict_equality, strict_concatenate = true
+  # Getting these passing should be easy
+  # extra_checks = true  # was: strict_equality, strict_concatenate = true
 
-  # # Strongly recommend enabling this one as soon as you can
+  # Strongly recommend enabling this one as soon as you can
   check_untyped_defs = true
 
-  # # These shouldn't be too much additional work, but may be tricky to
-  # # get passing if you use a lot of untyped libraries
+  # These shouldn't be too much additional work, but may be tricky to
+  # get passing if you use a lot of untyped libraries
   disallow_subclassing_any = true
   disallow_untyped_decorators = true  # TODO: set to True
-  # disallow_any_generics = true
+  # disallow_any_generics = true                                                         # current work is here
 
-  # # These next few are various gradations of forcing use of type annotations
+  # These next few are various gradations of forcing use of type annotations
   # disallow_untyped_calls = true
   # disallow_incomplete_defs = true
   # disallow_untyped_defs = true
 
-  # # This one isn't too hard to get passing, but return on investment is lower
-  # # no_implicit_reexport = true
+  # This one isn't too hard to get passing, but return on investment is lower
+  # no_implicit_reexport = true
 
-  # # This one can be tricky to get passing if you use a lot of untyped libraries
+  # This one can be tricky to get passing if you use a lot of untyped libraries
   warn_return_any = true
 
-  # # disallow_any_unimported = true
+  # disallow_any_unimported = true
   warn_no_return = true
-  # warn_unreachable = true
+  warn_unreachable = true                                                              # current work is here
 
+#
+[[tool.mypy.overrides]]
+  module = "ramses_cli.discovery"
+
+  disallow_any_generics = false
+  disable_error_code = ["misc"]  # disallow_untyped_decorators
+#
+[[tool.mypy.overrides]]
+  module = ["ramses_rf.*"]
+
+  disable_error_code = ["unreachable"]
+  disallow_any_generics = false
+#
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
+
   disable_error_code = ["arg-type", "attr-defined"]
-
+#
 [[tool.mypy.overrides]]
-  module = "ramses_rf.discovery"
-  disable_error_code = ["misc"]  # disallow_untyped_decorators
+  module = ["ramses_tx.frame", "ramses_tx.protocol_fsm"]
 
+  disable_error_code = ["unreachable"]
+#
 [[tool.mypy.overrides]]
-  module = "ramses_tx.command"
-  disable_error_code = ["misc"]  # disallow_untyped_decorators
+  module = ["ramses_tx.parsers"]
 
+  disallow_any_generics = false
 
 
 
@@ -157,7 +165,7 @@
 [tool.ruff]
   exclude = ["tests/deprecated/*.py"]
   src = ["src", "tests"]
-  target-version = "py311"  # Assume Python 3.11
+  target-version = "py312"  # Assume Python 3.12
 
 
 [tool.ruff.lint]
@@ -169,11 +177,12 @@
     # "SIM",  # flake8-simplify
     "UP",  # pyupgrade
   ]
-  ignore = ["B010", "B011", "E501", "UP009"]
+  ignore = ["B010", "B011", "E501", "UP009", "UP040"]
   # B010  - Do not call setattr with a constant attribute value
   # B011  - Do not call assert False since python -O removes these calls
   # E501  - Line too long
   # UP009 - UTF-8 encoding declaration is unnecessary
+  # UP040 - Type alias uses `TypeAlias` annotation instead of the `type` keyword
 
 
 [tool.ruff.lint.isort]

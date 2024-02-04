@@ -1,0 +1,16 @@
+
+#
+# oem_code '01' - Itho Spider HVAC (also Buva?)
+
+#
+# oem_code '66'  - Vasco CH/DHW & HVAC
+2023-02-18T19:56:43.537735 059  I --- 29:136571 63:262142 --:------ 10E0 038 000001C822030166FEFFFFFFFFFF070507DF564D532D31374330310000000000000000000000  # {"SLUG": "CO2", "make": "Vasco", "model": ""}  # unconfirmed
+
+#
+# oem_code '67' - Orcon HVAC
+2019-11-27T22:39:00.000000 ...  I --- 32:097277 63:262142 --:------ 10E0 038 000001C8510D0167FEFFFFFFFFFF0B0207E3564D532D3135434D313700000000000000000000  # {"SLUG": "CO2", "make": "Orcon", "model": ""}  # unconfirmed
+
+#
+# oem_code '6C': Nuaire HVAC (Drimaster-Eco PIVs)
+2022-02-19T18:00:35.234656 062  I --- 32:206250 63:262142 --:------ 10E0 030 000001C85A01016CFFFFFFFFFFFF010607E0564D4E2D32334C4D48323300                  # {"SLUG": "SWI", "make": "Nuaire", "model": "DRI-ECO-4S",   "_notes": "Drimaster-Eco 4-Way Boost Switch"}
+2021-10-24T15:45:16.525879 055  I --- 32:168090 63:262142 --:------ 10E0 038 000001C85802016CFFFFFFFFFFFF0C0707E0564D532D32334842333300000000000000000000  # {"SLUG": "HUM", "make": "Nuaire", "model": "DRI-ECO-RH",   "_notes": "Drimaster-Eco rel. humidity sensor"}

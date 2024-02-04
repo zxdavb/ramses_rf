@@ -11,17 +11,26 @@ import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from ramses_tx.command import _mk_cmd
+from ramses_rf.binding_fsm import BindContext, Vendor
+from ramses_rf.const import (
+    DEV_TYPE_MAP,
+    SZ_OEM_CODE,
+    DevType,
+)
+from ramses_rf.entity_base import Child, Entity, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import (
+    SCH_TRAITS,
+    SZ_ALIAS,
+    SZ_CLASS,
+    SZ_FAKED,
+    SZ_KNOWN_LIST,
+    SZ_SCHEME,
+)
+from ramses_tx import Command, Packet, Priority, QosParams
 from ramses_tx.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 
-from ..binding_fsm import BindContext
-from ..const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_OEM_CODE, DevType, __dev_mode__
-from ..entity_base import Child, Entity, class_by_attr
-from ..helpers import shrink
-from ..schemas import SCH_TRAITS, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST, SZ_SCHEME
-from . import Command, Packet
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -29,18 +38,12 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
 if TYPE_CHECKING:
     from typing import Any
 
-    from .. import Gateway
-    from . import Address, Message
-
-DEFAULT_BDR_ID = "13:888888"
-DEFAULT_EXT_ID = "17:888888"
-DEFAULT_THM_ID = "03:888888"
+    from ramses_rf import Gateway
+    from ramses_tx import Address, Message
+    from ramses_tx.const import IndexT
 
 
 BIND_WAITING_TIMEOUT = 300  # how long to wait, listening for an offer
@@ -48,20 +51,7 @@ BIND_REQUEST_TIMEOUT = 5  # how long to wait for an accept after sending an offe
 BIND_CONFIRM_TIMEOUT = 5  # how long to wait for a confirm after sending an accept
 
 
-DEV_MODE = __dev_mode__  # and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
-
-
-def check_faking_enabled(fnc):
-    def wrapper(self, *args, **kwargs):
-        if not self._faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        return fnc(self, *args, **kwargs)
-
-    return wrapper
 
 
 class DeviceBase(Entity):
@@ -73,7 +63,7 @@ class DeviceBase(Entity):
 
     def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
-        super().__init__(gwy)
+        # super().__init__(gwy)  # NOTE: is invoked lower down
 
         # if not check_valid(dev_addr.id):  # TODO
         #     raise ValueError(f"Invalid device id: {dev_addr.id}")
@@ -93,8 +83,7 @@ class DeviceBase(Entity):
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._faked: bool = False
-        self._scheme: str | None = None
+        self._scheme: Vendor = None  # type: ignore[assignment]
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
@@ -106,7 +95,7 @@ class DeviceBase(Entity):
             return NotImplemented
         return self.id < other.id  # type: ignore[no-any-return]
 
-    def _update_traits(self, **traits):
+    def _update_traits(self, **traits: Any):
         """Update a device with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -122,7 +111,7 @@ class DeviceBase(Entity):
         self._scheme = traits.get(SZ_SCHEME)
 
     @classmethod
-    def create_from_schema(cls, gwy, dev_addr: Address, **schema):
+    def create_from_schema(cls, gwy: Gateway, dev_addr: Address, **schema):
         """Create a device (for a GWY) and set its schema attrs (aka traits).
 
         All devices have traits, but also controllers (CTL, UFC) have a system schema.
@@ -140,15 +129,16 @@ class DeviceBase(Entity):
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         # if discover_flag & Discover.TRAITS:
-        # self._add_discovery_cmd(_mk_cmd(RQ, Code._1FC9, "00", self.id), 60 * 60 * 24)
-        # self._add_discovery_cmd(_mk_cmd(RQ, Code._0016, "00", self.id), 60 * 60)
+        # self._add_discovery_cmd(cmd(RQ, Code._1FC9, "00", self.id), 60 * 60 * 24)
+        # self._add_discovery_cmd(cmd(RQ, Code._0016, "00", self.id), 60 * 60)
 
         pass
 
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
-        super()._make_cmd(code, self.id, payload=payload, **kwargs)
+    # TODO: deprecate this API
+    def _make_and_send_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
+        super()._make_and_send_cmd(code, self.id, payload=payload, **kwargs)
 
-    def _send_cmd(self, cmd, **kwargs) -> None:
+    def _send_cmd(self, cmd: Command, **kwargs) -> None:
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (it has a battery)")
 
@@ -191,8 +181,12 @@ class DeviceBase(Entity):
         return isinstance(self, BatteryState) or Code._1060 in self._msgz
 
     @property
-    def is_faked(self) -> bool:  # TODO: impersonated vs virtual
-        return bool(self._faked)
+    def is_faked(self) -> bool:
+        return bool(getattr(self, "_bind_context", None))
+
+    @property
+    def _is_binding(self) -> bool:
+        return self.is_faked and self._bind_context.is_binding
 
     @property
     def _is_present(self) -> bool:
@@ -241,13 +235,13 @@ class BatteryState(DeviceBase):  # 1060
 
     @property
     def battery_low(self) -> None | bool:  # 1060
-        if self._faked:
+        if self.is_faked:
             return False
         return self._msg_value(Code._1060, key=self.BATTERY_LOW)
 
     @property
     def battery_state(self) -> dict | None:  # 1060
-        if self._faked:
+        if self.is_faked:
             return None
         return self._msg_value(Code._1060)
 
@@ -267,9 +261,8 @@ class DeviceInfo(DeviceBase):  # 10E0
         if self._SLUG not in CODES_BY_DEV_SLUG or RP in CODES_BY_DEV_SLUG[
             self._SLUG
         ].get(Code._10E0, {}):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._10E0, "00", self.id), 60 * 60 * 24
-            )
+            cmd = Command.from_attrs(RQ, self.id, Code._10E0, "00")
+            self._add_discovery_cmd(cmd, 60 * 60 * 24)
 
     @property
     def device_info(self) -> dict | None:  # 10E0
@@ -289,6 +282,7 @@ class DeviceInfo(DeviceBase):  # 10E0
         return result
 
 
+# NOTE: devices (Thermostat) not attrs (Temperature) are faked
 class Fakeable(DeviceBase):
     """There are two types of Faking: impersonation (of real devices) and full-faking.
 
@@ -300,67 +294,82 @@ class Fakeable(DeviceBase):
     such packets via RF.
     """
 
-    def __init__(self, gwy, *args, **kwargs) -> None:
+    def __init__(self, gwy: Gateway, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        self._faked: bool = None  # type: ignore[assignment]
-        self._context = BindContext(self)
+        self._bind_context: BindContext | None = None
 
-        self._1fc9_state: dict[str, Any] = {}
-
+        # TOD: thsi si messy - device schema vs device traits
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
 
         if kwargs.get(SZ_FAKED):
             self._make_fake()
 
-    @check_faking_enabled
-    def _bind(self):
-        pass
+    def _make_fake(self) -> None:
+        if self.is_faked:
+            return
 
-    def _make_fake(self, bind: bool = False) -> Fakeable:
-        if not self._faked:
-            self._faked = True
-            self._gwy._include[self.id] = {SZ_FAKED: True}
-            _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
-        if bind:
-            self._bind()
-        return self
+        self._bind_context = BindContext(self)
+        self._gwy._include[self.id][SZ_FAKED] = True  # TODO: remove this
+        _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
 
-    async def _async_send_cmd(self, cmd: Command) -> Packet | None:
+    async def _async_send_cmd(
+        self,
+        cmd: Command,
+        priority: Priority | None = None,
+        qos: QosParams | None = None,
+    ) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
-        if self._context.is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
-            self._context.sent_cmd(cmd)  # other codes needed for edge cases
-        return await super()._async_send_cmd(cmd)
+        if self._is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
+            self._bind_context.sent_cmd(cmd)  # other codes needed for edge cases
+        return await super()._async_send_cmd(cmd, priority=priority, qos=qos)
 
     def _handle_msg(self, msg: Message) -> None:
         """Wrapper to CC: any relevant Packets to the binding Context."""
         super()._handle_msg(msg)
-        if self._context.is_binding:  # msg.code in (Code._1FC9, Code._10E0)
-            self._context.rcvd_msg(msg)  # maybe other codes needed for edge cases
+        if self._is_binding:  # msg.code in (Code._1FC9, Code._10E0)
+            self._bind_context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
-    async def wait_for_binding_request(
+    async def _wait_for_binding_request(
         self,
-        codes: Iterable[Code],
-        idx: Index = "00",
-        scheme: None | str = None,
-    ) -> Message:
+        accept_codes: Iterable[Code],
+        /,
+        *,
+        idx: IndexT = "00",
+        require_ratify: bool = False,
+    ) -> Message:  # TODO: Packets or Message?
         """Listen for a binding and return the Offer, or raise an exception."""
-        return await self._context.wait_for_binding_request(codes, idx, scheme=scheme)
+        if not self.is_faked:
+            raise TypeError(f"{self}: Faking not enabled")
 
-    async def initiate_binding_process(
-        self,
-        codes: Iterable[Code],
-        oem_code: None | str = None,
-        scheme: None | str = None,
-    ) -> Message:
-        """Start a binding and return the Accept, or raise an exception."""
-        return await self._context.initiate_binding_process(
-            codes, oem_code, scheme=scheme
+        msgs = await self._bind_context.wait_for_binding_request(
+            accept_codes, idx=idx, require_ratify=require_ratify
         )
+        return msgs
+
+    async def _initiate_binding_process(
+        self,
+        offer_codes: Iterable[Code],
+        /,
+        *,
+        confirm_code: Code | None = None,
+        ratify_cmd: Command | None = None,
+    ) -> Message:  # TODO: Packets or Message?
+        """Start a binding and return the Accept, or raise an exception.
+
+        confirm_code can be FFFF.
+        """
+        if not self.is_faked:
+            raise TypeError(f"{self}: Faking not enabled")
+
+        msgs = await self._bind_context.initiate_binding_process(
+            offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
+        )  # TODO: if successul, re-discover schema?
+        return msgs
 
     @property
-    def oem_code(self) -> None | str:
+    def oem_code(self) -> str | None:
         """Return the OEM code (a 2-char ascii str) for this device, if there is one."""
         # raise NotImplementedError  # self.traits is a @property
         if not self.traits.get(SZ_OEM_CODE):
@@ -380,115 +389,9 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         self._child_id = "gw"  # TODO
         self.tcs = None
 
-        self._faked_bdr: Device = None  # type: ignore[assignment]
-        self._faked_ext: Device = None  # type: ignore[assignment]
-        self._faked_thm: Device = None  # type: ignore[assignment]
-
-        # self. _proc_schema(**kwargs)
-
-    # def _proc_schema(self, schema) -> None:
-    #     if schema.get("fake_bdr"):
-    #         self._faked_bdr = self._gwy.get_device(
-    #             self.id, class_=DEV_TYPE.BDR, faked=True
-    #         )  # also for THM, OUT
-
-    def _handle_msg(self, msg: Message) -> None:
-        def fake_addrs(msg, faked_dev):
-            msg.src = faked_dev if msg.src is self else self
-            msg.dst = faked_dev if msg.dst is self else self
-            return msg
-
-        super()._handle_msg(msg)
-
-        # the following is for aliased devices (not fully-faked devices)
-        if msg.code in (Code._3EF0,) and self._faked_bdr:
-            self._faked_bdr._handle_msg(fake_addrs(msg, self._faked_bdr))
-
-        if msg.code in (Code._0002,) and self._faked_ext:
-            self._faked_ext._handle_msg(fake_addrs(msg, self._faked_ext))
-
-        if msg.code in (Code._30C9,) and self._faked_thm:
-            self._faked_thm._handle_msg(fake_addrs(msg, self._faked_thm))
-
-    def _create_fake_dev(self, dev_type, device_id) -> Device:  # TODO:
-        if device_id[:2] != dev_type:
-            raise TypeError(f"Invalid device ID {device_id} for type '{dev_type}:'")
-
-        # dev = self.device_by_id.get(device_id)
-        # if dev:  # TODO: BUG: is broken
-        #     _LOGGER.warning("Destroying %s", dev)
-        #     if dev._parent:
-        #         del dev._parent.child_by_id[dev.id]
-        #         dev._parent.childs.remove(dev)
-        #         dev._parent = None
-        #     del self.device_by_id[dev.id]
-        #     self.devices.remove(dev)
-        #     dev = None
-
-        # dev = self._gwy.get_device(device_id)
-        # dev._make_fake(bind=True)
-        # return dev
-
-        raise NotImplementedError
-
-    def create_fake_bdr(self, device_id=DEFAULT_BDR_ID) -> Device:
-        """Bind a faked relay (BDR91A) to a controller (i.e. to a domain/zone).
-
-        Will alias the gateway (as "13:888888", TBD), or create a fully-faked 13:.
-
-        HGI80s can only alias one device of a type (use_gateway), but evofw3-based
-        gateways can also fully fake multiple devices of the same type.
-        """
-        if device_id in (self.id, None):
-            device_id = DEFAULT_BDR_ID
-        device = self._create_fake_dev(DEV_TYPE_MAP.BDR, device_id=device_id)
-
-        if device.id == DEFAULT_BDR_ID:
-            self._faked_bdr = device
-        return device
-
-    def create_fake_ext(self, device_id=DEFAULT_EXT_ID) -> Device:
-        """Bind a faked external sensor (???) to a controller.
-
-        Will alias the gateway (as "17:888888", TBD), or create a fully-faked 17:.
-
-        HGI80s can only alias one device of a type (use_gateway), but evofw3-based
-        gateways can also fully fake multiple devices of the same type.
-        """
-
-        if device_id in (self.id, None):
-            device_id = DEFAULT_EXT_ID
-        device = self._create_fake_dev(DEV_TYPE_MAP.OUT, device_id=device_id)
-
-        if device.id == DEFAULT_EXT_ID:
-            self._faked_ext = device
-        return device
-
-    def create_fake_thm(self, device_id=DEFAULT_THM_ID) -> Device:
-        """Bind a faked zone sensor (TR87RF) to a controller (i.e. to a zone).
-
-        Will alias the gateway (as "03:888888", TBD), or create a fully-faked 34:,
-        albeit named "03:xxxxxx".
-
-        HGI80s can only alias one device of a type (use_gateway), but evofw3-based
-        gateways can also fully fake multiple devices of the same type.
-        """
-        if device_id in (self.id, None):
-            device_id = DEFAULT_THM_ID
-        device = self._create_fake_dev(DEV_TYPE_MAP.HCW, device_id=device_id)
-
-        if device.id == DEFAULT_THM_ID:
-            self._faked_thm = device
-        return device
-
     @property
     def schema(self):
-        return {
-            SZ_DEVICE_ID: self.id,
-            "faked_bdr": self._faked_bdr and self._faked_bdr.id,
-            "faked_ext": self._faked_ext and self._faked_ext.id,
-            "faked_thm": self._faked_thm and self._faked_thm.id,
-        }
+        return {}
 
 
 class Device(Child, DeviceBase):
@@ -503,7 +406,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
 
     _SLUG: str = DevType.HEA  # shouldn't be any of these instantiated
 
-    def __init__(self, gwy, dev_addr, **kwargs):
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs):
         super().__init__(gwy, dev_addr, **kwargs)
 
         self.ctl = None  # type: ignore[assignment]

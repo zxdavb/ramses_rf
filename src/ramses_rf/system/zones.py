@@ -8,14 +8,10 @@ import logging
 import math
 from asyncio import Future
 from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
-from ramses_tx import Address, Command, Message
-from ramses_tx.command import _mk_cmd
-from ramses_tx.const import SZ_PAYLOAD
-
-from .. import exceptions as exc
-from ..const import (
+from ramses_rf import exceptions as exc
+from ramses_rf.const import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     SZ_DOMAIN_ID,
@@ -32,9 +28,8 @@ from ..const import (
     ZON_ROLE_MAP,
     DevRole,
     ZoneRole,
-    __dev_mode__,
 )
-from ..device import (
+from ramses_rf.device import (
     BdrSwitch,
     Controller,
     Device,
@@ -42,9 +37,9 @@ from ..device import (
     TrvActuator,
     UfhController,
 )
-from ..entity_base import Child, Entity, Parent, class_by_attr
-from ..helpers import shrink
-from ..schemas import (
+from ramses_rf.entity_base import Child, Entity, Parent, class_by_attr
+from ramses_rf.helpers import shrink
+from ramses_rf.schemas import (
     SCH_TCS_DHW,
     SCH_TCS_ZONES_ZON,
     SZ_ACTUATORS,
@@ -54,23 +49,23 @@ from ..schemas import (
     SZ_HTG_VALVE,
     SZ_SENSOR,
 )
+from ramses_tx import Address, Command, Message
+from ramses_tx.const import SZ_PAYLOAD
+
 from .schedule import Schedule
 
 # Kudos & many thanks to:
 # - @dbmandrake: valve_position -> heat_demand transform
 
-# TODO: add optional eavesdrop of zone_type
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
     FA,
     FC,
     FF,
 )
 
-
-from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -78,15 +73,7 @@ from ..const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ..const import Index, Verb  # noqa: F401, pylint: disable=unused-import
-
-
-DEV_MODE = __dev_mode__
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 _ZoneT = TypeVar("_ZoneT", bound="ZoneBase")
@@ -133,9 +120,10 @@ class ZoneBase(Child, Parent, Entity):
             return NotImplemented
         return self.idx < other.idx  # type: ignore[no-any-return]
 
-    def _make_cmd(self, code, **kwargs) -> None:
+    # TODO: deprecate this API
+    def _make_and_send_cmd(self, code, **kwargs) -> None:
         payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")
-        super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
+        super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
     def heating_type(self) -> str:
@@ -159,21 +147,21 @@ class ZoneSchedule:  # 0404
         if msg.code in (Code._0006, Code._0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_io=None) -> None | dict:
+    async def get_schedule(self, *, force_io=None) -> dict | None:
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
-    async def set_schedule(self, schedule) -> None | dict:
+    async def set_schedule(self, schedule) -> dict | None:
         await self._schedule.set_schedule(schedule)
         return self.schedule
 
     @property
-    def schedule(self) -> None | dict:
+    def schedule(self) -> dict | None:
         """Return the latest retrieved schedule (not guaranteed to be up to date)."""
         return self._schedule.schedule
 
     @property
-    def schedule_version(self) -> None | int:
+    def schedule_version(self) -> int | None:
         """Return the version number associated with the latest retrieved schedule."""
         return self._schedule.version
 
@@ -213,7 +201,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             f"01{DEV_ROLE_MAP.HTG}",  # heating_valve
         ):
             self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, payload, self.ctl.id), 60 * 60 * 24
+                Command.from_attrs(RQ, self.ctl.id, Code._000C, payload), 60 * 60 * 24
             )
 
         self._add_discovery_cmd(Command.get_dhw_params(self.ctl.id), 60 * 60 * 6)
@@ -336,15 +324,15 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return "Stored HW"
 
     @property
-    def config(self) -> None | dict:  # 10A0
+    def config(self) -> dict | None:  # 10A0
         return self._msg_value(Code._10A0)
 
     @property
-    def mode(self) -> None | dict:  # 1F41
+    def mode(self) -> dict | None:  # 1F41
         return self._msg_value(Code._1F41)
 
     @property
-    def setpoint(self) -> None | float:  # 10A0
+    def setpoint(self) -> float | None:  # 10A0
         return self._msg_value(Code._10A0, key=SZ_SETPOINT)
 
     @setpoint.setter
@@ -352,22 +340,28 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self.set_config(setpoint=value)
 
     @property
-    def temperature(self) -> None | float:  # 1260
+    def temperature(self) -> float | None:  # 1260
         return self._msg_value(Code._1260, key=SZ_TEMPERATURE)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         return self._msg_value(Code._3150, key=SZ_HEAT_DEMAND)
 
     @property
-    def relay_demand(self) -> None | float:  # 0008
+    def relay_demand(self) -> float | None:  # 0008
         return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
 
     @property  # only seen with FC, but seems should pair with 0008?
-    def relay_failsafe(self) -> None | float:  # 0009
+    def relay_failsafe(self) -> float | None:  # 0009
         return self._msg_value(Code._0009, key=SZ_RELAY_FAILSAFE)
 
-    def set_mode(self, *, mode=None, active=None, until=None) -> Future:
+    def set_mode(
+        self,
+        *,
+        mode: int | str | None = None,
+        active: bool | None = None,
+        until: dt | str | None = None,
+    ) -> Future:
         """Set the DHW mode (mode, active, until)."""
         return self._send_cmd(
             Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
@@ -385,7 +379,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Revert the DHW to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
-    def set_config(self, *, setpoint=None, overrun=None, differential=None) -> Future:
+    def set_config(
+        self,
+        *,
+        setpoint: float | None = None,
+        overrun: int | None = None,
+        differential: float | None = None,
+    ) -> Future:
         """Set the DHW parameters (setpoint, overrun, differential)."""
         # dhw_params = self._msg_value(Code._10A0)
         # if setpoint is None:
@@ -516,11 +516,10 @@ class Zone(ZoneSchedule, ZoneBase):
         # super()._setup_discovery_cmds()
 
         for dev_role in (self._ROLE_ACTUATORS, DEV_ROLE_MAP.SEN):
-            self._add_discovery_cmd(
-                _mk_cmd(RQ, Code._000C, f"{self.idx}{dev_role}", self.ctl.id),
-                60 * 60 * 24,
-                delay=0.5,
+            cmd = Command.from_attrs(
+                RQ, self.ctl.id, Code._000C, f"{self.idx}{dev_role}"
             )
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0.5)
 
         self._add_discovery_cmd(
             Command.get_zone_config(self.ctl.id, self.idx), 60 * 60 * 6, delay=30
@@ -633,7 +632,9 @@ class Zone(ZoneSchedule, ZoneBase):
 
             # TODO: testing this concept, hoping to learn device_id of UFC
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
-                self._make_cmd(Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
+                self._make_and_send_cmd(
+                    Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}"
+                )
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (
@@ -646,16 +647,16 @@ class Zone(ZoneSchedule, ZoneBase):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
     @property
-    def sensor(self) -> None | Device:
+    def sensor(self) -> Device | None:
         return self._sensor
 
     @property
-    def heating_type(self) -> None | str:
+    def heating_type(self) -> str | None:
         if self._SLUG is not None:  # isinstance(self, ???)
             return ZON_ROLE_MAP[self._SLUG]
 
     @property
-    def name(self) -> None | str:  # 0004
+    def name(self) -> str | None:  # 0004
         """Return the name of the zone."""
         return self._msg_value(Code._0004, key=SZ_NAME)
 
@@ -665,15 +666,15 @@ class Zone(ZoneSchedule, ZoneBase):
         self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, value))
 
     @property
-    def config(self) -> None | dict:  # 000A
+    def config(self) -> dict | None:  # 000A
         return self._msg_value(Code._000A)
 
     @property
-    def mode(self) -> None | dict:  # 2349
+    def mode(self) -> dict | None:  # 2349
         return self._msg_value(Code._2349)
 
     @property
-    def setpoint(self) -> None | float:  # 2309 (2349 is a superset of 2309)
+    def setpoint(self) -> float | None:  # 2309 (2349 is a superset of 2309)
         return self._msg_value((Code._2309, Code._2349), key=SZ_SETPOINT)
 
     @setpoint.setter
@@ -685,11 +686,11 @@ class Zone(ZoneSchedule, ZoneBase):
             self._send_cmd(Command.set_zone_setpoint(self.ctl.id, self.idx, value))
 
     @property
-    def temperature(self) -> None | float:  # 30C9
+    def temperature(self) -> float | None:  # 30C9
         return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         demands = [
             d.heat_demand
@@ -699,7 +700,7 @@ class Zone(ZoneSchedule, ZoneBase):
         return _transform(max(demands + [0])) if demands else None
 
     @property
-    def window_open(self) -> None | bool:  # 12B0
+    def window_open(self) -> bool | None:  # 12B0
         """Return an estimate of the zone's current window_open state."""
         return self._msg_value(Code._12B0, key=SZ_WINDOW_OPEN)
 
@@ -740,7 +741,13 @@ class Zone(ZoneSchedule, ZoneBase):
         """Set the zone to the lowest possible setpoint, indefinitely."""
         return self.set_mode(mode=ZON_MODE_MAP.PERMANENT, setpoint=5)  # TODO
 
-    def set_mode(self, *, mode=None, setpoint=None, until=None) -> Future:  # 2309/2349
+    def set_mode(
+        self,
+        *,
+        mode: str | None = None,
+        setpoint: float | None = None,
+        until: dt | str | None = None,
+    ) -> Future:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
         if mode is None and until is None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
@@ -797,12 +804,12 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
             raise TypeError("WHAT 2")
 
     @property
-    def heat_demand(self) -> None | float:
+    def heat_demand(self) -> float | None:
         """Return 0 as the zone's heat demand, as electric zones don't call for heat."""
         return 0
 
     @property
-    def relay_demand(self) -> None | float:  # 0008 (NOTE: CTLs wont RP|0008)
+    def relay_demand(self) -> float | None:  # 0008 (NOTE: CTLs wont RP|0008)
         # if Code._0008 in self._msgs:
         #     return self._msgs[Code._0008].payload[SZ_RELAY_DEMAND]
         return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
@@ -863,7 +870,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.UFH
 
     @property
-    def heat_demand(self) -> None | float:  # 3150
+    def heat_demand(self) -> float | None:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         if (demand := self._msg_value(Code._3150, key=SZ_HEAT_DEMAND)) is not None:
             return _transform(demand)
@@ -879,7 +886,7 @@ class ValZone(EleZone):  # BDR91A/T
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.VAL
 
     @property
-    def heat_demand(self) -> None | float:  # 0008 (NOTE: not 3150)
+    def heat_demand(self) -> float | None:  # 0008 (NOTE: not 3150)
         """Return the zone's heat demand, using relay demand as a proxy."""
         return self.relay_demand
 

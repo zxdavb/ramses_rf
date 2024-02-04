@@ -9,25 +9,25 @@ Test CH/DHW schedules with a mocked controller.
 from copy import deepcopy
 from unittest.mock import patch
 
-from tests_deprecated.common import (
+from tests.deprecated.common import (
     TEST_DIR,
     abort_if_rf_test_fails,
     find_test_tcs,
     load_test_gwy,
     test_ports,
 )
-from tests_deprecated.mocked_rf import MOCKED_PORT
+from tests.deprecated.mocked_devices import MOCKED_PORT
 
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Code
 from ramses_rf.system import DhwZone, System, Zone
 from ramses_rf.system.schedule import (
-    DAY_OF_WEEK,
-    ENABLED,
-    HEAT_SETPOINT,
-    SCH_SCHEDULE_DHW,
-    SCH_SCHEDULE_ZON,
-    SWITCHPOINTS,
-    TIME_OF_DAY,
+    SZ_DAY_OF_WEEK,
+    SZ_ENABLED,
+    SZ_HEAT_SETPOINT,
+    SCH_SCHEDULE_DHW_FULL,
+    SCH_SCHEDULE_ZON_FULL,
+    SZ_SWITCHPOINTS,
+    SZ_TIME_OF_DAY,
 )
 from ramses_tx import Message
 
@@ -43,8 +43,8 @@ def pytest_generate_tests(metafunc):
 _global_flow_marker: int = None  # type: ignore[assignment]
 
 
-MIN_GAP_BETWEEN_WRITES = 0  # patch ramses_tx.transport
-WAITING_TIMEOUT_SECS = 0  # # patch ramses_rf.binding_fsm
+_GAP_BETWEEN_WRITES = 0  # patch ramses_tx.transport
+WAITING_TIMEOUT_SECS = 0  # #      patch ramses_rf.binding_fsm
 
 
 RQ_0006_EXPECTED = 20
@@ -138,15 +138,15 @@ def track_packet_flow(msg, tcs_id, zone_idx=None):
 
 
 def assert_schedule_dict(zone: DhwZone | Zone):
-    schedule_full = zone._schedule._schedule
+    schedule_full = zone._schedule._full_schedule
 
     assert schedule_full[SZ_ZONE_IDX] == zone.idx
     assert schedule_full[SZ_SCHEDULE] == zone.schedule
 
     if schedule_full[SZ_ZONE_IDX] == "HW":
-        SCH_SCHEDULE_DHW(schedule_full)
+        SCH_SCHEDULE_DHW_FULL(schedule_full)
     else:
-        SCH_SCHEDULE_ZON(schedule_full)
+        SCH_SCHEDULE_ZON_FULL(schedule_full)
 
     schedule = schedule_full[SZ_SCHEDULE]
     # assert isinstance(schedule, list)
@@ -154,15 +154,15 @@ def assert_schedule_dict(zone: DhwZone | Zone):
 
     for idx, day_of_week in enumerate(schedule):
         # assert isinstance(day_of_week, dict)
-        assert day_of_week[DAY_OF_WEEK] == idx
+        assert day_of_week[SZ_DAY_OF_WEEK] == idx
 
         # assert isinstance(day_of_week[SWITCHPOINTS], dict)
-        for switchpoint in day_of_week[SWITCHPOINTS]:
-            assert isinstance(switchpoint[TIME_OF_DAY], str)
-            if HEAT_SETPOINT in switchpoint:
-                assert isinstance(switchpoint[HEAT_SETPOINT], float)
+        for switchpoint in day_of_week[SZ_SWITCHPOINTS]:
+            assert isinstance(switchpoint[SZ_TIME_OF_DAY], str)
+            if SZ_HEAT_SETPOINT in switchpoint:
+                assert isinstance(switchpoint[SZ_HEAT_SETPOINT], float)
             else:
-                assert isinstance(switchpoint[ENABLED], bool)
+                assert isinstance(switchpoint[SZ_ENABLED], bool)
 
     return schedule
 
@@ -304,7 +304,7 @@ async def test_rq_0006_ver(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def test_rq_0404_dhw(test_port):
     """Test the dhw.get_schedule() method."""
 
@@ -325,7 +325,7 @@ async def test_rq_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def test_rq_0404_zon(test_port):
     """Test the zone.get_schedule() method."""
 
@@ -346,7 +346,7 @@ async def test_rq_0404_zon(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def test_ww_0404_dhw(test_port):
     """Test the dhw.set_schedule() method (uses get_schedule)."""
 
@@ -367,7 +367,7 @@ async def test_ww_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def test_ww_0404_zon(test_port):
     """Test the zone.set_schedule() method (uses get_schedule)."""
 

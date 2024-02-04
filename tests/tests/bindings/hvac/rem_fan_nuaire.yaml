@@ -1,0 +1,9 @@
+32:208628:
+  class: SWI
+  scheme: nuaire
+  tender:
+    "22F1": "00"
+    "22F3": "00"
+    "10E0": "6C"
+  affirm:
+  ratify: 000001C85A0101-6C-FFFFFFFFFFFF010607E0564D4E2D32334C4D48323300

@@ -14,8 +14,10 @@ from datetime import datetime as dt, timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
+from ramses_rf.helpers import schedule_task
+from ramses_tx import Priority, QosParams
 from ramses_tx.opentherm import OPENTHERM_MESSAGES
 from ramses_tx.ramses import CODES_SCHEMA
 
@@ -31,14 +33,6 @@ from .const import (
 from .schemas import SZ_CIRCUITS
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    F9,
-    FA,
-    FC,
-    FF,
-)
-
-
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
@@ -46,14 +40,18 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-if TYPE_CHECKING:  # mypy TypeVars and similar (e.g. Index, Verb)
-    from ramses_tx.address import DeviceId
-    from ramses_tx.frame import _HeaderT
-
-    from .const import Index, Verb  # noqa: F401, pylint: disable=unused-import
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    F9,
+    FA,
+    FC,
+    FF,
+)
 
 if TYPE_CHECKING:
     from ramses_tx import Command, Message, Packet
+    from ramses_tx.address import DeviceIdT
+    from ramses_tx.const import VerbT
+    from ramses_tx.frame import HeaderT
 
     from .device import Controller
     from .gateway import Gateway
@@ -62,13 +60,15 @@ if TYPE_CHECKING:
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
 
-_SZ_LAST_PKT = "last_msg"
-_SZ_NEXT_DUE = "next_due"
-_SZ_TIMEOUT = "timeout"
-_SZ_FAILURES = "failures"
-_SZ_INTERVAL = "interval"
-_SZ_COMMAND = "command"
+_SZ_LAST_PKT: Final = "last_msg"
+_SZ_NEXT_DUE: Final = "next_due"
+_SZ_TIMEOUT: Final = "timeout"
+_SZ_FAILURES: Final = "failures"
+_SZ_INTERVAL: Final = "interval"
+_SZ_COMMAND: Final = "command"
 
+
+_DBG_ENABLE_BACKOFF = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class _Entity:
 
     def __init__(self, gwy: Gateway) -> None:
         self._gwy = gwy
-        self.id: DeviceId = None  # type: ignore[assignment]
+        self.id: DeviceIdT = None  # type: ignore[assignment]
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 
@@ -124,8 +124,18 @@ class _Entity:
         # if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
         #     self.deprecate_device(msg._pkt, reset=True)
 
-    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
-        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+    # TODO: deprecate this API
+    def _make_and_send_cmd(
+        self, code, dest_id, payload="00", verb=RQ, **kwargs
+    ) -> None:
+        qos = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
+        if kwargs:
+            raise RuntimeError("Deprecated kwargs: %s", kwargs)
+
+        self._send_cmd(
+            self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs),
+            **qos,
+        )
 
     # FIXME: this is a mess - to deprecate for async version?
     def _send_cmd(self, cmd: Command, **kwargs) -> asyncio.Task | None:
@@ -139,12 +149,28 @@ class _Entity:
             _LOGGER.info(f"{cmd} < Sending was deprecated for {self}")
             return None  # TODO: raise Exception
 
+        if [
+            k for k in kwargs if k not in ("priority", "num_repeats")
+        ]:  # FIXME: deprecate QoS in kwargs
+            raise RuntimeError("Deprecated kwargs: %s ", kwargs)
+
         # cmd._source_entity = self  # TODO: is needed?
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(cmd)  # type: ignore[no-any-return]
+        return self._gwy.send_cmd(
+            cmd,
+            **kwargs,
+            # max_retries=qos.max_retries if qos else None,
+            # timeout=qos.timeout if qos else None,
+            # wait_for_reply=qos.wait_for_reply if qos else None,
+        )
 
     # FIXME: this is a mess
-    async def _async_send_cmd(self, cmd: Command) -> Packet | None:
+    async def _async_send_cmd(
+        self,
+        cmd: Command,
+        priority: Priority | None = None,
+        qos: QosParams | None = None,  # FIXME: deprecate QoS in kwargs?
+    ) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
 
         if self._gwy._disable_sending:
@@ -156,7 +182,13 @@ class _Entity:
             return None  # TODO: raise Exception
 
         # cmd._source_entity = self  # TODO: is needed?
-        return await self._gwy.async_send_cmd(cmd)  # type: ignore[no-any-return]
+        return await self._gwy.async_send_cmd(
+            cmd,
+            max_retries=qos.max_retries if qos else None,
+            priority=priority,
+            timeout=qos.timeout if qos else None,
+            wait_for_reply=qos.wait_for_reply if qos else None,
+        )
 
 
 class _MessageDB(_Entity):
@@ -198,12 +230,12 @@ class _MessageDB(_Entity):
         """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    def _get_msg_by_hdr(self, hdr: _HeaderT) -> Message | None:
+    def _get_msg_by_hdr(self, hdr: HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
 
         msg: Message
         code: Code
-        verb: Verb
+        verb: VerbT
 
         # _ is device_id
         code, verb, _, *args = hdr.split("|")  # type: ignore[assignment]
@@ -239,7 +271,7 @@ class _MessageDB(_Entity):
     def _msg_value_code(
         self,
         code: Code,
-        verb: Verb | None = None,
+        verb: VerbT | None = None,
         key: str | None = None,
         **kwargs,
     ) -> dict | list | None:
@@ -328,7 +360,7 @@ class _Discovery(_MessageDB):
     def __init__(self, gwy: Gateway) -> None:
         super().__init__(gwy)
 
-        self._discovery_cmds: dict[_HeaderT, dict] = None  # type: ignore[assignment]
+        self._discovery_cmds: dict[HeaderT, dict] = None  # type: ignore[assignment]
         self._discovery_poller: asyncio.Task | None = None
 
         self._supported_cmds: dict[str, bool | None] = {}
@@ -353,19 +385,22 @@ class _Discovery(_MessageDB):
         return {
             code: (CODES_SCHEMA[code][SZ_NAME] if code in CODES_SCHEMA else None)
             for code in sorted(self._msgz)
-            if self._msgz[code].get(RP) and self.is_pollable_cmd(code)
+            if self._msgz[code].get(RP) and self.is_not_deprecated_cmd(code)
         }
 
     @property
     def supported_cmds_ot(self) -> dict:
         """Return the current list of pollable OT msg_ids."""
         return {
-            msg_id: OPENTHERM_MESSAGES[int(msg_id, 16)].get("var")
+            f"0x{msg_id}": OPENTHERM_MESSAGES[msg_id].get("var")
             for msg_id in sorted(self._msgz[Code._3220].get(RP, []))
-            if self.is_pollable_cmd(Code._3220, ctx=msg_id)
+            if (
+                self.is_not_deprecated_cmd(Code._3220, ctx=msg_id)
+                and msg_id in OPENTHERM_MESSAGES
+            )
         }
 
-    def is_pollable_cmd(self, code, ctx=None) -> bool:
+    def is_not_deprecated_cmd(self, code, ctx=None) -> bool:
         """Return True if the code|ctx pair is not deprecated."""
 
         if ctx is None:
@@ -414,17 +449,25 @@ class _Discovery(_MessageDB):
         }
 
     def _start_discovery_poller(self) -> None:
-        if not self._discovery_poller or self._discovery_poller.done():
-            self._discovery_poller = self._gwy.add_task(self._poll_discovery_cmds)
-            self._discovery_poller.set_name(f"{self.id}_discovery_poller")  # type: ignore[union-attr]
+        """Start the discovery poller (if it is not already running)."""
+
+        if self._discovery_poller and not self._discovery_poller.done():
+            return
+
+        self._discovery_poller = schedule_task(self._poll_discovery_cmds)
+        self._discovery_poller.set_name(f"{self.id}_discovery_poller")
+        self._gwy.add_task(self._discovery_poller)
 
     async def _stop_discovery_poller(self) -> None:
-        if self._discovery_poller and not self._discovery_poller.done():
-            self._discovery_poller.cancel()
-            try:
-                await self._discovery_poller
-            except asyncio.CancelledError:
-                pass
+        """Stop the discovery poller (only if it is running)."""
+        if not self._discovery_poller or self._discovery_poller.done():
+            return
+
+        self._discovery_poller.cancel()
+        try:
+            await self._discovery_poller
+        except asyncio.CancelledError:
+            pass
 
     async def _poll_discovery_cmds(self) -> None:
         """Send any outstanding commands that are past due.
@@ -445,7 +488,7 @@ class _Discovery(_MessageDB):
             await asyncio.sleep(min(delay, self.MAX_CYCLE_SECS))
 
     async def discover(self) -> None:
-        def find_latest_msg(hdr: _HeaderT, task: dict) -> Message | None:
+        def find_latest_msg(hdr: HeaderT, task: dict) -> Message | None:
             """Return the latest message for a header from any source (not just RPs)."""
             msgs: list[Message] = [
                 m
@@ -461,22 +504,31 @@ class _Discovery(_MessageDB):
 
             return max(msgs) if msgs else None
 
-        def backoff(hdr: _HeaderT, failures: int) -> td:
+        def backoff(hdr: HeaderT, failures: int) -> td:
             """Backoff the interval if there are/were any failures."""
+
+            if not _DBG_ENABLE_BACKOFF:  # FIXME: data gaps
+                return self.discovery_cmds[hdr][_SZ_INTERVAL]  # type: ignore[no-any-return]
 
             if failures > 5:
                 secs = 60 * 60 * 6
-                _LOGGER.warning(f"No response for task({hdr}): throttling to 1/6h")
+                _LOGGER.error(
+                    f"No response for {hdr} ({failures}/5): throttling to 1/6h"
+                )
             elif failures > 2:
-                _LOGGER.debug(f"No response for task({hdr}): retrying in 30s")
+                _LOGGER.warning(
+                    f"No response for {hdr} ({failures}/5): retrying in {self.MAX_CYCLE_SECS}s"
+                )
                 secs = self.MAX_CYCLE_SECS
             else:
-                # _LOGGER.info(f"No response for task({hdr}): retrying in 3s")
+                _LOGGER.info(
+                    f"No response for {hdr} ({failures}/5): retrying in {self.MIN_CYCLE_SECS}s"
+                )
                 secs = self.MIN_CYCLE_SECS
 
             return td(seconds=secs)
 
-        async def send_disc_cmd(hdr: _HeaderT, task: dict) -> Packet | None:
+        async def send_disc_cmd(hdr: HeaderT, task: dict) -> Packet | None:
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
@@ -514,9 +566,9 @@ class _Discovery(_MessageDB):
             # since we may do I/O, check if the code|msg_id is deprecated
             task[_SZ_NEXT_DUE] = dt_now + task[_SZ_INTERVAL]  # might undeprecate later
 
-            if not self.is_pollable_cmd(task[_SZ_COMMAND].code):
+            if not self.is_not_deprecated_cmd(task[_SZ_COMMAND].code):
                 continue
-            if not self.is_pollable_cmd(
+            if not self.is_not_deprecated_cmd(
                 task[_SZ_COMMAND].code, ctx=task[_SZ_COMMAND].payload[4:6]
             ):  # only for Code._3220
                 continue
@@ -542,15 +594,15 @@ class _Discovery(_MessageDB):
             if idx not in supported_dict:
                 supported_dict[idx] = None
             elif supported_dict[idx] is None:
-                _LOGGER.warning(
+                _LOGGER.info(
                     f"{pkt} < Polling now deprecated for code|ctx={idx}: "
                     "it appears to be unsupported"
                 )
                 supported_dict[idx] = False
 
         def reinstate(supported_dict: dict, idx: str):
-            if self.is_pollable_cmd(idx, None) is False:
-                _LOGGER.warning(
+            if self.is_not_deprecated_cmd(idx, None) is False:
+                _LOGGER.info(
                     f"{pkt} < Polling now reinstated for code|ctx={idx}: "
                     "it now appears supported"
                 )
@@ -571,8 +623,7 @@ class Entity(_Discovery):
     """The base class for Devices/Zones/Systems."""
 
 
-# FIXME: this is a mess - needs fixing
-def _delete_msg(msg: Message) -> None:
+def _delete_msg(msg: Message) -> None:  # FIXME: this is a mess
     """Remove the msg from all state databases."""
 
     entities = [msg.src]
@@ -605,7 +656,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
-    actuator_by_id: dict[DeviceId, Entity]
+    actuator_by_id: dict[DeviceIdT, Entity]
     actuators: list[Entity]
 
     circuit_by_id: dict[str, Any]

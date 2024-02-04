@@ -22,10 +22,10 @@ from ramses_tx.transport import _str
 from tests_rf.virtual_rf import VirtualRf
 
 # patched constants
-_DEBUG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DEBUG_DISABLE_QOS = True  # #                ramses_tx.protocol
+_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
+_DBG_DISABLE_QOS = True  # #                ramses_tx.protocol
 DEFAULT_TIMEOUT = 0.005  # #                  ramses_tx.protocol_fsm
-MIN_GAP_BETWEEN_WRITES = 0  # #               ramses_tx.protocol
+_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -78,12 +78,10 @@ GWY_CONFIG = {
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_tx.protocol._DEBUG_DISABLE_IMPERSONATION_ALERTS",
-        _DEBUG_DISABLE_IMPERSONATION_ALERTS,
+        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
+        _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
-    monkeypatch.setattr(
-        "ramses_tx.protocol.MIN_GAP_BETWEEN_WRITES", MIN_GAP_BETWEEN_WRITES
-    )
+    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
     monkeypatch.setattr("ramses_tx.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
 
 
@@ -128,8 +126,8 @@ async def test_regex_inbound_():
 
 # TODO: get tests working with QoS enabled
 @pytest.mark.xdist_group(name="virt_serial")
-@patch("ramses_tx.protocol._DEBUG_DISABLE_QOS", _DEBUG_DISABLE_QOS)
-async def test_regex_outbound():
+@patch("ramses_tx.protocol._DBG_DISABLE_QOS", False)
+async def _test_regex_outbound():
     """Check the regex filters work as expected."""
 
     rf = VirtualRf(2)
@@ -137,6 +135,7 @@ async def test_regex_outbound():
     # NOTE: the absence of reciprocal inbound tests is intentional
     config = GWY_CONFIG
     config["config"].update({SZ_USE_REGEX: {SZ_OUTBOUND: RULES_OUTBOUND}})
+    config["config"]["disable_qos"] = False
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
@@ -166,6 +165,7 @@ async def test_regex_with_qos():
     rf = VirtualRf(2)
 
     config = GWY_CONFIG
+    config["config"].update({"disable_qos": False})  # currently, default is None
     config["config"].update(
         {SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND, SZ_OUTBOUND: RULES_OUTBOUND}}
     )
@@ -185,7 +185,7 @@ async def test_regex_with_qos():
 
         for before, after in TESTS_OUTBOUND.items():
             cmd = Command(before)
-            if cmd.rx_header:  # we weont be getting any replies
+            if cmd.rx_header:  # we wont be getting any replies
                 continue
 
             pkt_src = await gwy_0.async_send_cmd(cmd)  # , timeout=DEFAULT_WAIT_TIMEOUT)
