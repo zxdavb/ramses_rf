@@ -42,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import glob
+import json
 import logging
 import os
 import re
@@ -50,9 +51,11 @@ from collections.abc import Iterable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, Final, TypeAlias
+from urllib.parse import unquote, urlparse
 
 import serial_asyncio  # type: ignore[import-untyped]
+from paho.mqtt import MQTTException, client as mqtt  # type: ignore[import-untyped]
 from serial import (  # type: ignore[import-untyped]
     Serial,
     SerialException,
@@ -168,6 +171,10 @@ def is_hgi80(serial_port: SerPortNameT) -> bool | None:
     Return None if it's not possible to tell (falsy should assume is evofw3).
     Raise TransportSerialError if the port is not found at all.
     """
+
+    if serial_port[:7] == "mqtt://":
+        return False  # ramses_esp
+
     # TODO: add tests for different serial ports, incl./excl/ by-id
 
     # See: https://github.com/pyserial/pyserial-asyncio/issues/46
@@ -779,7 +786,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
             #     self._send_frame("!V")
 
-            self.loop.call_soon(
+            self.loop.call_soon_threadsafe(
                 functools.partial(self._protocol.connection_made, self, ramses=True)
             )  # was: self._protocol.connection_made(self, ramses=True)
 
@@ -830,7 +837,156 @@ class QosTransport(PortTransport):
     pass
 
 
-RamsesTransportT: TypeAlias = QosTransport | PortTransport | FileTransport
+# ### Read-Write Transport for MQTT ###################################################
+class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
+    READER_TASK = None
+
+    def __init__(
+        self,
+        protocol: RamsesProtocolT,
+        broker_url: str,
+        loop: asyncio.AbstractEventLoop | None = None,
+        extra: dict | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+
+        if True:  # Breakpoint for debugging
+            import debugpy  # type: ignore[import-untyped]
+
+            debugpy.breakpoint()
+
+        self._protocol = protocol
+        self.loop = loop or asyncio.get_event_loop()
+        self._extra: dict = {} if extra is None else extra
+
+        self.broker = urlparse(broker_url)
+
+        # TODO: check this GWY exists, and is online
+        self._extra[SZ_ACTIVE_HGI] = self.broker.path[-9:]  # "18:017804"  # HACK
+        self._username = unquote(self.broker.username or "")
+        self._password = unquote(self.broker.password or "")
+
+        self._TOPIC_PUB: Final = f"{self.broker.path}/tx"[1:]
+        self._TOPIC_SUB: Final = f"{self.broker.path}/rx"[1:]
+        self._qos: Final = 0
+
+        self._closing = False
+        self._reading = True
+
+        self.client = mqtt.Client()
+        self.loop.call_soon(self._connect)
+
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using the curent dtm."""
+        return dt_now()
+
+    def is_closing(self) -> bool:
+        """Return True if the transport is closing or closed."""
+        return self._closing
+
+    def is_reading(self) -> bool:
+        """Return True if the transport is receiving."""
+        return self._reading
+
+    def pause_reading(self) -> None:
+        """Pause the receiving end (no data to protocol.pkt_received())."""
+        self._reading = False
+
+    def resume_reading(self) -> None:
+        """Resume the receiving end."""
+        self._reading = True
+
+    def _connect(self):
+        self.client.on_connect = self._on_connect
+        self.client.on_message = self._on_message
+        self.client.username_pw_set(self._username, self._password)
+        self.client.connect_async(self.broker.hostname, self.broker.port or 1883, 60)
+
+        self.client.loop_start()
+
+    def _on_connect(
+        self, client: mqtt.Client, userdata: Any | None, flags: dict[str, Any], rc: int
+    ):
+        # print(f"Connected with result code {rc}")
+
+        self.loop.call_soon_threadsafe(
+            functools.partial(self._protocol.connection_made, self, ramses=True)
+        )  # was: self._protocol.connection_made(self, ramses=True)
+
+        client.subscribe(self._TOPIC_SUB, qos=self._qos)
+
+    def _on_message(
+        self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
+    ):
+        if _DBG_FORCE_LOG_FRAMES:
+            _LOGGER.warning("Rx: %s", msg.payload)
+        elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+            _LOGGER.info("Rx: %s", msg.payload)
+
+        payload = json.loads(msg.payload)
+
+        try:
+            pkt = Packet.from_dict(payload["ts"], _normalise(payload["msg"]))
+        except (exc.PacketInvalid, ValueError):  # VE from dt.fromisoformat()
+            return
+
+        # # NOTE: a signature can override an existing active gateway
+        # if (
+        #     not self._init_fut.done()
+        #     and pkt.code == Code._PUZZ
+        #     and pkt.payload == self._extra[SZ_SIGNATURE]
+        # ):
+        #     self._set_active_hgi(pkt.src.id, by_signature=True)
+        #     self._init_fut.set_result(pkt)
+
+        # elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
+        #     self._set_active_hgi(pkt.src.id)
+
+        self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
+
+    def _publish(self, message: mqtt.MQTTMessage) -> None:
+        info: mqtt.MQTTMessageInfo = self.client.publish(
+            self._TOPIC_PUB,
+            payload=message,  # , qos=self._qos
+        )
+        assert info
+
+    def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
+        if True:  # Breakpoint for debugging
+            import debugpy
+
+            debugpy.breakpoint()
+
+        if self._closing:
+            return
+
+        if _DBG_FORCE_LOG_FRAMES:
+            _LOGGER.warning("Tx:     %s", frame)
+        elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+            _LOGGER.info("Tx:     %s", frame)
+
+        try:
+            self._publish(frame)
+        except MQTTException as exc:
+            self._close(exc)
+            return
+
+    def _close(self, exc: ExceptionT | None = None) -> None:
+        """Disconnect from the broker and stop the poller"""
+        self._closing = True
+        self.client.disconnect()
+        self.client.loop_stop()
+
+    def close(self):
+        """Close the transport gracefully."""
+        if not self._closing:
+            self._close()
+
+
+RamsesTransportT: TypeAlias = (
+    QosTransport | PortTransport | FileTransport | MqttTransport
+)
 
 
 async def transport_factory(
@@ -902,6 +1058,9 @@ async def transport_factory(
 
     assert port_name is not None  # mypy check
     assert port_config is not None  # mypy check
+
+    if port_name[:4] == "mqtt":
+        return MqttTransport(protocol, port_name, extra=extra, loop=loop, **kwargs)
 
     # may: raise TransportSerialError("Unable to open serial port...")
     ser_instance = get_serial_instance(port_name, port_config)
