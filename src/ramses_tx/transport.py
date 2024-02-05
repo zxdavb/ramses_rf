@@ -669,7 +669,8 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         try:
             pkt = Packet.from_port(dtm, frame)
-        except (exc.PacketInvalid, ValueError):  # VE from dt.fromisoformat()
+        except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
+            _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
             return
 
         # NOTE: a signature can override an existing active gateway
