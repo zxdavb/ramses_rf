@@ -455,7 +455,7 @@ class _BaseProtocol(asyncio.Protocol):
         Also maintain _prev_msg, _this_msg attrs.
         """
 
-        if self._msg_handler:
+        if self._msg_handler:  # type: ignore[truthy-function]
             self._loop.call_soon_threadsafe(self._msg_handler, msg)
         for callback in self._msg_handlers:
             # TODO: if handler's filter returns True:
