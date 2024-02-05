@@ -505,8 +505,8 @@ class _FileTransport(asyncio.ReadTransport):
         self._protocol = protocol
         self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
 
-        self._is_closing: bool = False
-        self._is_reading: bool = False
+        self._closing: bool = False
+        self._reading: bool = False
 
         self._reader_task = self._loop.create_task(self._start_reader())
 
@@ -522,22 +522,22 @@ class _FileTransport(asyncio.ReadTransport):
 
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
-        return self._is_closing
+        return self._closing
 
     def is_reading(self) -> bool:
         """Return True if the transport is receiving."""
-        return self._is_reading
+        return self._reading
 
     def pause_reading(self) -> None:
         """Pause the receiving end (no data to protocol.pkt_received())."""
-        self._is_reading = False
+        self._reading = False
 
     def resume_reading(self) -> None:
         """Resume the receiving end."""
-        self._is_reading = True
+        self._reading = True
 
     async def _start_reader(self) -> None:  # TODO
-        self._is_reading = True
+        self._reading = True
         try:
             await self._reader()
         except KeyboardInterrupt as err:
@@ -550,14 +550,14 @@ class _FileTransport(asyncio.ReadTransport):
 
         if isinstance(self._pkt_source, dict):
             for dtm_str, pkt_line in self._pkt_source.items():  # assume dtm_str is OK
-                while not self._is_reading:
+                while not self._reading:
                     await asyncio.sleep(0.001)
                 self._frame_received(dtm_str, pkt_line)
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         elif isinstance(self._pkt_source, TextIOWrapper):
             for dtm_pkt_line in self._pkt_source:  # should check dtm_str is OK
-                while not self._is_reading:
+                while not self._reading:
                     await asyncio.sleep(0.001)
                 self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27:])
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
@@ -590,9 +590,9 @@ class _FileTransport(asyncio.ReadTransport):
         raise NotImplementedError(f"{self}: Not implemented")
 
     def _close(self, exc: ExceptionT | None = None) -> None:
-        if self._is_closing:
+        if self._closing:
             return
-        self._is_closing = True
+        self._closing = True
 
         if self._reader_task:
             self._reader_task.cancel()
