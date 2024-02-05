@@ -455,10 +455,11 @@ class _BaseProtocol(asyncio.Protocol):
         Also maintain _prev_msg, _this_msg attrs.
         """
 
-        self._loop.call_soon(self._msg_handler, msg)  # to the internal state machine
+        if self._msg_handler:
+            self._loop.call_soon_threadsafe(self._msg_handler, msg)
         for callback in self._msg_handlers:
-            # TODO: if it's filter returns True:
-            self._loop.call_soon(callback, msg)
+            # TODO: if handler's filter returns True:
+            self._loop.call_soon_threadsafe(callback, msg)
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
