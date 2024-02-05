@@ -599,7 +599,7 @@ class PortProtocol(_BaseProtocol):
         assert DEFAULT_NUM_REPEATS <= num_repeats <= 3
 
         if qos and not isinstance(self, QosProtocol):
-            raise exc.ProtocolError(f"{self}: QoS is not supported by this Protocol")
+            raise exc.ProtocolError(f"{cmd} < QoS is not supported by this Protocol")
 
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
