@@ -241,7 +241,9 @@ class BindContextRespondent(BindContextBase):
         """
 
         if self.is_binding:
-            raise exc.BindingFsmError(f"{self}: bad State for bindings as a Respondent")
+            raise exc.BindingFsmError(
+                f"{self}: bad State for bindings as a Respondent (is already binding)"
+            )
         self.set_state(RespIsWaitingForOffer)  # self._is_respondent = True
 
         # Step R1: Respondent expects an Offer
@@ -314,7 +316,9 @@ class BindContextSupplicant(BindContextBase):
         """
 
         if self.is_binding:
-            raise exc.BindingFsmError(f"{self}: bad State for binding as a Supplicant")
+            raise exc.BindingFsmError(
+                f"{self}: bad State for binding as a Supplicant (is already binding)"
+            )
         self.set_state(SuppSendOfferWaitForAccept)  # self._is_respondent = False
 
         if ratify_cmd:
