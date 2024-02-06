@@ -52,7 +52,7 @@ from datetime import datetime as dt
 from io import TextIOWrapper
 from string import printable
 from typing import TYPE_CHECKING, Any, Final, TypeAlias
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import serial_asyncio  # type: ignore[import-untyped]
 from paho.mqtt import MQTTException, client as mqtt  # type: ignore[import-untyped]
@@ -851,25 +851,20 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
     ) -> None:
         super().__init__()
 
-        if True:  # Breakpoint for debugging
-            import debugpy  # type: ignore[import-untyped]
-
-            debugpy.breakpoint()
-
         self._protocol = protocol
         self.loop = loop or asyncio.get_event_loop()
         self._extra: dict = {} if extra is None else extra
 
-        self.broker = urlparse(broker_url)
+        self.broker_url = urlparse(broker_url)
 
         # TODO: check this GWY exists, and is online
-        self._extra[SZ_ACTIVE_HGI] = self.broker.path[-9:]  # "18:017804"  # HACK
-        self._username = unquote(self.broker.username or "")
-        self._password = unquote(self.broker.password or "")
+        self._extra[SZ_ACTIVE_HGI] = self.broker_url.path[-9:]  # "18:017804"  # HACK
+        self._username = unquote(self.broker_url.username or "")
+        self._password = unquote(self.broker_url.password or "")
 
-        self._TOPIC_PUB: Final = f"{self.broker.path}/tx"[1:]
-        self._TOPIC_SUB: Final = f"{self.broker.path}/rx"[1:]
-        self._qos: Final = 0
+        self._TOPIC_PUB: Final = f"{self.broker_url.path}/tx"[1:]
+        self._TOPIC_SUB: Final = f"{self.broker_url.path}/rx"[1:]
+        self._qos: Final = int(parse_qs(self.broker_url.query).get("qos", ["0"])[0])
 
         self._closing = False
         self._reading = True
@@ -901,7 +896,9 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.username_pw_set(self._username, self._password)
-        self.client.connect_async(self.broker.hostname, self.broker.port or 1883, 60)
+        self.client.connect_async(
+            self.broker_url.hostname, self.broker_url.port or 1883, 60
+        )
 
         self.client.loop_start()
 
@@ -947,24 +944,18 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
 
     def _publish(self, message: mqtt.MQTTMessage) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
-            self._TOPIC_PUB,
-            payload=message,  # , qos=self._qos
+            self._TOPIC_PUB, payload=message, qos=self._qos
         )
         assert info
 
     def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
-        if True:  # Breakpoint for debugging
-            import debugpy
-
-            debugpy.breakpoint()
-
         if self._closing:
             return
 
         if _DBG_FORCE_LOG_FRAMES:
-            _LOGGER.warning("Tx:     %s", frame)
+            _LOGGER.warning("Tx: %s", frame)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-            _LOGGER.info("Tx:     %s", frame)
+            _LOGGER.info("Tx: %s", frame)
 
         try:
             self._publish(frame)
