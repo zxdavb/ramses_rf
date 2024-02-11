@@ -221,8 +221,12 @@ def is_hgi80(serial_port: SerPortNameT) -> bool | None:
     # could try sending an "!V", expect "# evofw3 0.7.1", but that needs I/O
 
     _LOGGER.warning(
-        f"{serial_port}: the gateway type is not determinable, will assume evofw3, "
-        "TIP: specify the serial port by-id (i.e. /dev/serial/by-id/usb-...)"
+        f"{serial_port}: the gateway type is not determinable, will assume evofw3"
+        + (
+            ", TIP: specify the serial port by-id (i.e. /dev/serial/by-id/usb-...)"
+            if "by-id" not in serial_port
+            else ""
+        )
     )
     return None
 
