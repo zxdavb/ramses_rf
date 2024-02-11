@@ -106,20 +106,6 @@ class Frame:
 
         self._repr: str = None  # type: ignore[assignment]
 
-    @classmethod  # for internal use only
-    def _OUT_from_attrs(
-        cls, verb: VerbT, *addrs, code: Code, payload: PayloadT, seqn: None | str = None
-    ) -> Frame:
-        """Create a frame from its attributes (args, kwargs)."""
-
-        seqn = seqn or "---"
-        len_ = f"{int(len(payload) / 2):03d}"
-
-        try:
-            return cls(" ".join((verb, seqn, *addrs, code, len_, payload)))
-        except TypeError as err:
-            raise exc.PacketInvalid("Bad frame: Invalid attrs") from err
-
     # FIXME: this is messy
     def _validate(self, *, strict_checking: bool = False) -> None:
         """Validate the frame: it may be a cmd or a (response) pkt.
@@ -127,20 +113,31 @@ class Frame:
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
         """
 
-        if (seqn := self._frame[3:6]) == "...":
-            raise exc.PacketInvalid(f"Bad frame: Deprecated seqn: {seqn}")
-
         if len(self._frame[46:].split(" ")[0]) != int(self._frame[42:45]) * 2:
             raise exc.PacketInvalid("Bad frame: Payload length mismatch")
+
+        try:
+            # self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
+            src, dst, *addrs = pkt_addrs(self._frame[7:36])
+        except exc.PacketInvalid as err:  # will be: InvalidAddrSetError
+            raise exc.PacketInvalid("Bad frame: Invalid address set") from err
 
         if not strict_checking:
             return
 
-        try:
-            # self.src, self.dst, *self._addrs = pkt_addrs(self._frame[7:36])
-            _ = pkt_addrs(self._frame[7:36])
-        except exc.PacketInvalid as err:  # will be: InvalidAddrSetError
-            raise exc.PacketInvalid("Bad frame: Invalid address set") from err
+        try:  # Strict checking: helps users avoid to constructing bad commands
+            if addrs[0] == NON_DEV_ADDR:
+                assert self.verb == I_, "wrong verb or dst addr should be present"
+            elif addrs[2] == NON_DEV_ADDR:
+                assert (
+                    self.verb == I_ or src is not dst
+                ), "wrong verb or dst addr should not be src"
+            elif addrs[0] is addrs[2]:
+                assert self.verb == I_, "wrong verb or dst addr should not be src"
+            else:
+                assert self.verb in (I_, W_), "wrong verb or dst addr should be src"
+        except AssertionError as err:
+            raise exc.PacketInvalid(f"Bad frame: Invalid address set: {err}") from err
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""

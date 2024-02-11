@@ -244,15 +244,23 @@ class Command(Frame):
         try:
             super().__init__(frame)
         except exc.PacketInvalid as err:
-            raise exc.CommandInvalid from err
+            raise exc.CommandInvalid(err.message) from err
+
+        try:
+            self._validate(strict_checking=False)
+        except exc.PacketInvalid as err:
+            raise exc.CommandInvalid(err.message) from err
+
+        try:
+            self._validate(strict_checking=True)
+        except exc.PacketInvalid as err:
+            _LOGGER.warning(f"{self} < Command is potentially invalid: {err}")
 
         self._rx_header: str | None = None
         # self._source_entity: Entity | None = None  # TODO: is needed?
 
         # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
         self._qos = _qos_params(self.verb, self.code, {})  # TODO: deprecated
-
-        self._validate(strict_checking=False)
 
     @classmethod  # convenience constructor
     def from_attrs(
