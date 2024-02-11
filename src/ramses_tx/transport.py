@@ -846,7 +846,7 @@ class QosTransport(PortTransport):
 
 # ### Read-Write Transport for MQTT ###################################################
 class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
-    READER_TASK = None
+    READER_TASK = "reader_task"  # only for mypy
 
     def __init__(
         self,
