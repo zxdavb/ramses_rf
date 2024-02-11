@@ -160,7 +160,7 @@ class AttrDict(dict):
         self._attr_table[self._SZ_SLUGS] = tuple(sorted(main_table.keys()))
 
         self._slug_lookup: dict = {
-            None: slug
+            None: slug  # noqa: B035
             for slug, table in main_table.items()
             for k in table.values()
             if isinstance(k, str) and table.get(self._SZ_DEFAULT)
