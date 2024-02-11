@@ -7,6 +7,7 @@
 # TODO: add test for ramses_tx.frame.pkt_header()
 
 from ramses_rf.system.zones import _transform
+from ramses_tx.exceptions import PacketInvalid
 from ramses_tx.helpers import (
     hex_from_bool,
     hex_from_double,
@@ -98,19 +99,25 @@ def test_pkt_addr_sets() -> None:  # noqa: F811
     def proc_log_line(pkt_line):
         if "#" not in pkt_line:
             return
-
         pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return
+        expected = eval(pkt_dict)
 
-        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+        try:
+            pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+        except PacketInvalid as err:
+            assert err.__class__ == expected.__class__
+            assert err.args == expected.args
+            return
 
-        assert (pkt.src.id, pkt.dst.id) == eval(pkt_dict)
+        res = {"src": pkt.src.id, "dst": pkt.dst.id, "set": [a.id for a in pkt._addrs]}
+        assert res == expected
 
     with open(f"{WORK_DIR}/pkt_addr_set.log") as f:
         while line := (f.readline()):
-            if line.strip():
+            if (line := line.strip()) and line[:1] != "#":
                 proc_log_line(line)
 
 
