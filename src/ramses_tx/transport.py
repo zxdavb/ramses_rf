@@ -570,7 +570,9 @@ class _FileTransport(asyncio.ReadTransport):
             for dtm_pkt_line in self._pkt_source:  # should check dtm_str is OK
                 while not self._reading:
                     await asyncio.sleep(0.001)
-                self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27:])
+                # can be blank lines in annotated log files
+                if (dtm_pkt_line := dtm_pkt_line.strip()) and dtm_pkt_line[:1] != "#":
+                    self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27:])
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
