@@ -186,8 +186,10 @@ def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
 
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
-def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
+def pkt_addrs(addr_fragment: str) -> tuple[Address, Address, Address, Address, Address]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
+
+    returns: src_addr, dst_addr, addr_0, addr_1, addr_2
 
     Will raise an InvalidAddrSetError is the address fields are not valid.
     """
@@ -231,4 +233,4 @@ def pkt_addrs(addr_fragment: str) -> tuple[Address, ...]:
     if src_addr.id == dst_addr.id:  # incl. HGI_DEV_ADDR == HGI_DEV_ADDR
         src_addr = dst_addr
 
-    return src_addr, dst_addr, *addrs
+    return src_addr, dst_addr, addrs[0], addrs[1], addrs[2]
