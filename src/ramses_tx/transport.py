@@ -55,7 +55,7 @@ from typing import TYPE_CHECKING, Any, Final, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 import serial_asyncio  # type: ignore[import-untyped]
-from paho.mqtt import MQTTException, client as mqtt  # type: ignore[import-untyped]
+from paho.mqtt import MQTTException, client as mqtt
 from serial import (  # type: ignore[import-untyped]
     Serial,
     SerialException,
