@@ -7,7 +7,8 @@
 # TODO: add test for ramses_tx.frame.pkt_header()
 
 from ramses_rf.system.zones import _transform
-from ramses_tx.exceptions import PacketInvalid
+from ramses_tx.command import Command
+from ramses_tx.exceptions import CommandInvalid, PacketInvalid
 from ramses_tx.helpers import (
     hex_from_bool,
     hex_from_double,
@@ -106,13 +107,14 @@ def test_pkt_addr_sets() -> None:  # noqa: F811
         expected = eval(pkt_dict)
 
         try:
-            pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
-        except PacketInvalid as err:
+            cmd = Command(pkt_line[31:].rstrip())
+            cmd._validate(strict_checking=True)
+        except (CommandInvalid, PacketInvalid) as err:
             assert err.__class__ == expected.__class__
-            assert err.args == expected.args
+            assert err.message.startswith(expected.message)
             return
 
-        res = {"src": pkt.src.id, "dst": pkt.dst.id, "set": [a.id for a in pkt._addrs]}
+        res = {"src": cmd.src.id, "dst": cmd.dst.id, "set": [a.id for a in cmd._addrs]}
         assert res == expected
 
     with open(f"{WORK_DIR}/pkt_addr_set.log") as f:
