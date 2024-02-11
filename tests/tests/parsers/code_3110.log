@@ -1,5 +1,8 @@
 # Only Itho Daalderop Spider 02/21: seems to send the 3110 command classes - thanks to @tomkooij
 
+# Note: sent by 30: (HVAC) as well
+2023-11-04T00:00:15.182886 063  I --- 30:068457 --:------ 30:068457 3110 004 01000010
+
 # 02:250708: an Itho Spider Autotemp (UFC)
 2022-08-21T00:02:21.308356 ...  I --- 02:250704 --:------ 02:250704 3110 004 0000C820  # {'mode': 'cooling', 'demand': 1.0}
 2023-03-19T00:07:36.100803 ...  I --- 02:250704 --:------ 02:250704 3110 004 00000010  # {'mode': 'heating', 'demand': 0.0}

@@ -81,8 +81,9 @@
 
 
 #
-# oem_code '00' - unknown
+# oem_code '00' / sub-id 'C9', 30:069468 is a BUVA Boxstream
 2023-11-04T12:34:14.007611 062  I --- 30:068457 63:262142 --:------ 10E0 038 000001C9001B0000FEFEFFFFFFFF0E0507E2425244472D30324A415330310000000000000000  # {'description': 'BRDG-02JAS01',        'manufacturer_sub_id': 'C9', 'product_id': '00', 'date_2': '0000-00-00', 'date_1': '2018-05-14', 'oem_code': '00'}
+2022-01-01T00:00:00.000000 000  I --- 30:069468 63:262142 --:------ 10E0 038 000001C9001B0000FEFEFFFFFFFF0E0507E2425244472D30324A415330310000000000000000  # {'description': 'BRDG-02JAS01',        'manufacturer_sub_id': 'C9', 'product_id': '00', 'date_1': '2018-05-14', 'date_2': '0000-00-00', 'oem_code': '00'}  # BUVA Boxstrea,
 
 #
 # oem_code '01' - Itho Spider HVAC (also Buva?)

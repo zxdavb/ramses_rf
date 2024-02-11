@@ -522,7 +522,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._3110: {  # ufc_demand - HVAC
         SZ_NAME: "ufc_demand",
-        I_: r"^0000[0-9A-F]{2}(00|10|20)",  # (00|10|20|FF)???
+        I_: r"^0[01]00[0-9A-F]{2}(00|10|20)",  # (00|10|20|FF)???
     },
     Code._3120: {  # unknown_3120 - Error Report?
         SZ_NAME: "message_3120",
