@@ -584,7 +584,8 @@ class _FileTransport(asyncio.ReadTransport):
 
         try:
             pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
-        except (exc.PacketInvalid, ValueError):  # VE from dt.fromisoformat()
+        except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
+            _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
             return
         self._pkt_received(pkt)
 
@@ -929,7 +930,8 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
 
         try:
             pkt = Packet.from_dict(payload["ts"], _normalise(payload["msg"]))
-        except (exc.PacketInvalid, ValueError):  # VE from dt.fromisoformat()
+        except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
+            _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
             return
 
         # # NOTE: a signature can override an existing active gateway
