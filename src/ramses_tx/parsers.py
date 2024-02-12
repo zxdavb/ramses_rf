@@ -976,7 +976,7 @@ def parser_10e0(payload: str, msg: Message) -> dict:
     try:  # DEX
         check_signature(msg.src.type, payload[2:20])
     except ValueError as err:
-        _LOGGER.warning(
+        _LOGGER.info(
             f"{msg!r} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src} ({err})"
         )
 
