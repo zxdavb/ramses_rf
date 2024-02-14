@@ -665,7 +665,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         # always send at least one of RQ|3EF0 or RQ|3220|00 (status)
         if self._gwy.config.use_native_ot != "never":
-            self._add_discovery_cmd(Command.get_opentherm_data(self.id, "00"), 60)
+            self._add_discovery_cmd(Command.get_opentherm_data(self.id, MsgId._00), 60)
 
         if self._gwy.config.use_native_ot != "always":
             self._add_discovery_cmd(
@@ -752,7 +752,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if msg.code == Code._3EF0 and msg.verb == I_:
             # NOTE: this is development/discovery code  # chasing flags
             # self._send_cmd(
-            #     Command.get_opentherm_data(self.id, "00"), **QOS_MID
+            #     Command.get_opentherm_data(self.id, MsgId._00), **QOS_MID
             # )  # FIXME: deprecate QoS in kwargs
             return
 
@@ -929,13 +929,13 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION)
         return self._result_by_value(
-            self._ot_msg_value("0E"),  # NOTE: not reliable?
+            self._ot_msg_value(MsgId._0E),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_MAX_REL_MODULATION),
         )
 
     @property
     def oem_code(self) -> float | None:  # 3220|73, no known RAMSES equivalent
-        return self._ot_msg_value("73")
+        return self._ot_msg_value(MsgId._73)
 
     @property
     def outside_temp(self) -> float | None:  # 3220|1B, 1290
@@ -946,7 +946,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL)
         return self._result_by_value(
-            self._ot_msg_value("11"),  # NOTE: not reliable?
+            self._ot_msg_value(MsgId._11),  # NOTE: not reliable?
             self._msg_value((Code._3EF0, Code._3EF1), key=self.MODULATION_LEVEL),
         )
 
@@ -955,7 +955,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE)
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 1),  # NOTE: not reliable?
+            self._ot_msg_flag(MsgId._00, 8 + 1),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_CH_ACTIVE),
         )
 
@@ -964,55 +964,55 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_CH_ENABLED)
         return self._result_by_value(
-            self._ot_msg_flag("00", 0),  # NOTE: not reliable?
+            self._ot_msg_flag(MsgId._00, 0),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_CH_ENABLED),
         )
 
     @property
     def cooling_active(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 8 + 4), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 8 + 4), None)
 
     @property
     def cooling_enabled(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 2), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 2), None)
 
     @property  # TODO: no reliable OT equivalent?
     def dhw_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
         if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE)
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 2),  # NOTE: not reliable?
+            self._ot_msg_flag(MsgId._00, 8 + 2),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key=SZ_DHW_ACTIVE),
         )
 
     @property
     def dhw_blocking(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 6), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 6), None)
 
     @property
     def dhw_enabled(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 1), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 1), None)
 
     @property
     def fault_present(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 8), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 8), None)
 
     @property  # TODO: no reliable OT equivalent?
     def flame_active(self) -> bool | None:  # 3220|00, or 3EF0 (byte 3)
         if self._gwy.config.use_native_ot == "prefer":  # HACK: there'll always be 3EF0
             return self._msg_value(Code._3EF0, key="flame_on")
         return self._result_by_value(
-            self._ot_msg_flag("00", 8 + 3),  # NOTE: not reliable?
+            self._ot_msg_flag(MsgId._00, 8 + 3),  # NOTE: not reliable?
             self._msg_value(Code._3EF0, key="flame_on"),
         )
 
     @property
     def otc_active(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 3), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 3), None)
 
     @property
     def summer_mode(self) -> bool | None:  # 3220|00, TODO: no known RAMSES
-        return self._result_by_value(self._ot_msg_flag("00", 5), None)
+        return self._result_by_value(self._ot_msg_flag(MsgId._00, 5), None)
 
     @property
     def opentherm_schema(self) -> dict:
@@ -1030,16 +1030,16 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def opentherm_counters(self) -> dict:
         # for msg_id in ("71", "72", ...):
         return {
-            SZ_BURNER_HOURS: self._ot_msg_value("78"),
-            SZ_BURNER_STARTS: self._ot_msg_value("74"),
-            SZ_BURNER_FAILED_STARTS: self._ot_msg_value("71"),
-            SZ_CH_PUMP_HOURS: self._ot_msg_value("79"),
-            SZ_CH_PUMP_STARTS: self._ot_msg_value("75"),
-            SZ_DHW_BURNER_HOURS: self._ot_msg_value("7B"),
-            SZ_DHW_BURNER_STARTS: self._ot_msg_value("77"),
-            SZ_DHW_PUMP_HOURS: self._ot_msg_value("7A"),
-            SZ_DHW_PUMP_STARTS: self._ot_msg_value("76"),
-            SZ_FLAME_SIGNAL_LOW: self._ot_msg_value("72"),
+            SZ_BURNER_HOURS: self._ot_msg_value(MsgId._78),
+            SZ_BURNER_STARTS: self._ot_msg_value(MsgId._74),
+            SZ_BURNER_FAILED_STARTS: self._ot_msg_value(MsgId._71),
+            SZ_CH_PUMP_HOURS: self._ot_msg_value(MsgId._79),
+            SZ_CH_PUMP_STARTS: self._ot_msg_value(MsgId._75),
+            SZ_DHW_BURNER_HOURS: self._ot_msg_value(MsgId._7B),
+            SZ_DHW_BURNER_STARTS: self._ot_msg_value(MsgId._77),
+            SZ_DHW_PUMP_HOURS: self._ot_msg_value(MsgId._7A),
+            SZ_DHW_PUMP_STARTS: self._ot_msg_value(MsgId._76),
+            SZ_FLAME_SIGNAL_LOW: self._ot_msg_value(MsgId._72),
         }  # 0x73 is OEM diagnostic code...
 
     @property
@@ -1057,32 +1057,32 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     @property
     def opentherm_status(self) -> dict:
         return {  # most these are in: STATUS_MSG_IDS
-            SZ_BOILER_OUTPUT_TEMP: self._ot_msg_value("19"),
-            SZ_BOILER_RETURN_TEMP: self._ot_msg_value("1C"),
-            SZ_BOILER_SETPOINT: self._ot_msg_value("01"),
-            # SZ_CH_MAX_SETPOINT: self._ot_msg_value("39"),  # in PARAMS_MSG_IDS
-            SZ_CH_WATER_PRESSURE: self._ot_msg_value("12"),
-            SZ_DHW_FLOW_RATE: self._ot_msg_value("13"),
-            # SZ_DHW_SETPOINT: self._ot_msg_value("38"),  # in PARAMS_MSG_IDS
-            SZ_DHW_TEMP: self._ot_msg_value("1A"),
-            SZ_OEM_CODE: self._ot_msg_value("73"),
-            SZ_OUTSIDE_TEMP: self._ot_msg_value("1B"),
-            SZ_REL_MODULATION_LEVEL: self._ot_msg_value("11"),
+            SZ_BOILER_OUTPUT_TEMP: self._ot_msg_value(MsgId._19),
+            SZ_BOILER_RETURN_TEMP: self._ot_msg_value(MsgId._1C),
+            SZ_BOILER_SETPOINT: self._ot_msg_value(MsgId._01),
+            # SZ_CH_MAX_SETPOINT: self._ot_msg_value(MsgId._39),  # in PARAMS_MSG_IDS
+            SZ_CH_WATER_PRESSURE: self._ot_msg_value(MsgId._12),
+            SZ_DHW_FLOW_RATE: self._ot_msg_value(MsgId._13),
+            # SZ_DHW_SETPOINT: self._ot_msg_value(MsgId._38),  # in PARAMS_MSG_IDS
+            SZ_DHW_TEMP: self._ot_msg_value(MsgId._1A),
+            SZ_OEM_CODE: self._ot_msg_value(MsgId._73),
+            SZ_OUTSIDE_TEMP: self._ot_msg_value(MsgId._1B),
+            SZ_REL_MODULATION_LEVEL: self._ot_msg_value(MsgId._11),
             #
-            # SZ...: self._ot_msg_value("05"),  # in STATUS_MSG_IDS
-            # SZ...: self._ot_msg_value("18"),  # in STATUS_MSG_IDS
+            # SZ...: self._ot_msg_value(MsgId._05),  # in STATUS_MSG_IDS
+            # SZ...: self._ot_msg_value(MsgId._18),  # in STATUS_MSG_IDS
             #
-            SZ_CH_ACTIVE: self._ot_msg_flag("00", 8 + 1),
-            SZ_CH_ENABLED: self._ot_msg_flag("00", 0),
-            SZ_COOLING_ACTIVE: self._ot_msg_flag("00", 8 + 4),
-            SZ_COOLING_ENABLED: self._ot_msg_flag("00", 2),
-            SZ_DHW_ACTIVE: self._ot_msg_flag("00", 8 + 2),
-            SZ_DHW_BLOCKING: self._ot_msg_flag("00", 6),
-            SZ_DHW_ENABLED: self._ot_msg_flag("00", 1),
-            SZ_FAULT_PRESENT: self._ot_msg_flag("00", 8),
-            SZ_FLAME_ACTIVE: self._ot_msg_flag("00", 8 + 3),
-            SZ_SUMMER_MODE: self._ot_msg_flag("00", 5),
-            SZ_OTC_ACTIVE: self._ot_msg_flag("00", 3),
+            SZ_CH_ACTIVE: self._ot_msg_flag(MsgId._00, 8 + 1),
+            SZ_CH_ENABLED: self._ot_msg_flag(MsgId._00, 0),
+            SZ_COOLING_ACTIVE: self._ot_msg_flag(MsgId._00, 8 + 4),
+            SZ_COOLING_ENABLED: self._ot_msg_flag(MsgId._00, 2),
+            SZ_DHW_ACTIVE: self._ot_msg_flag(MsgId._00, 8 + 2),
+            SZ_DHW_BLOCKING: self._ot_msg_flag(MsgId._00, 6),
+            SZ_DHW_ENABLED: self._ot_msg_flag(MsgId._00, 1),
+            SZ_FAULT_PRESENT: self._ot_msg_flag(MsgId._00, 8),
+            SZ_FLAME_ACTIVE: self._ot_msg_flag(MsgId._00, 8 + 3),
+            SZ_SUMMER_MODE: self._ot_msg_flag(MsgId._00, 5),
+            SZ_OTC_ACTIVE: self._ot_msg_flag(MsgId._00, 3),
         }
 
     @property

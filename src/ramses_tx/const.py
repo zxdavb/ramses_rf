@@ -696,7 +696,17 @@ class MsgId(StrEnum):
     _31 = "31"
     _38 = "38"
     _39 = "39"
+    _71 = "71"  # unclear if is supported bt OTB
+    _72 = "72"  # unclear if is supported bt OTB
     _73 = "73"
+    _74 = "74"  # unclear if is supported bt OTB
+    _75 = "75"  # unclear if is supported bt OTB
+    _76 = "76"  # unclear if is supported bt OTB
+    _77 = "77"  # unclear if is supported bt OTB
+    _78 = "78"  # unclear if is supported bt OTB
+    _79 = "79"  # unclear if is supported bt OTB
+    _7A = "7A"  # unclear if is supported bt OTB
+    _7B = "7B"  # unclear if is supported bt OTB
     _7F = "7F"
 
 
