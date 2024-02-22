@@ -36,8 +36,8 @@ jobs:
 
       - name: Install pytest
         run: |
-          pip install 'pytest >=7.4.3, <8.0.0'
-          pip install 'pytest-asyncio >=0.21.0'
+          pip install 'pytest >= 8.0.1'
+          pip install 'pytest-asyncio >=0.23.5'
           pip install 'pytest-xdist >=3.3.1'
 
       - name: Install the package
@@ -46,7 +46,7 @@ jobs:
 
       - name: Test non-RF via pytest
         run: |
-          pytest -v tests/tests_rf  # --log-cli-level=WARNING
+          pytest -v tests/tests  # --log-cli-level=WARNING
 
       - name: Test virtual RF via pytest
         run: |

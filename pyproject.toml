@@ -88,12 +88,10 @@
     "src/ramses_tx",
     #
   ]
-
   exclude = ["src/ramses_cli/client.py", "src/ramses_cli/utils/*"]
 
-
   follow_imports = "skip"  # TODO: don't use this feature
-  no_implicit_optional = false  # TODO: don't use this feature
+  no_implicit_optional = false  # TODO: don't disable this
 
   # see: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
 
