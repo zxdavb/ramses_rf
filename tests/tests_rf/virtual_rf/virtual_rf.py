@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 """A virtual RF network useful for testing."""
 
@@ -14,10 +13,11 @@ import tty
 from collections import deque
 from contextlib import ExitStack
 from io import FileIO
+from select import select
 from selectors import EVENT_READ, DefaultSelector
-from typing import TypeAlias
+from typing import TypeAlias, TypedDict
 
-from serial import Serial, serial_for_url  # type: ignore[import]
+from serial import Serial, serial_for_url  # type: ignore[import-untyped]
 
 from .const import HgiFwTypes
 
@@ -26,6 +26,21 @@ _PN: TypeAlias = str  # port name
 
 # _FILEOBJ: TypeAlias = int | Any  # int | HasFileno
 
+_GwyAttrsT = TypedDict(  # noqa: UP013
+    "_GwyAttrsT",
+    {
+        "manufacturer": str,
+        "product": str,
+        "vid": int,
+        "pid": int,
+        "description": str,
+        "interface": str | None,
+        "serial_number": str | None,
+        "subsystem": str,
+        "_dev_path": str,
+        "_dev_by-id": str,
+    },
+)
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
@@ -38,7 +53,7 @@ FW_VERSION = "fw_version"
 MAX_NUM_PORTS = 6
 
 
-_GWY_ATTRS: dict[str, int | str | None] = {
+_GWY_ATTRS: dict[str, _GwyAttrsT] = {
     HgiFwTypes.HGI_80: {
         "manufacturer": "Texas Instruments",
         "product": "TUSB3410 Boot Device",
@@ -86,38 +101,27 @@ _GWY_ATTRS: dict[str, int | str | None] = {
 class VirtualComPortInfo:
     """A container for emulating pyserial's PortInfo (SysFS) objects."""
 
-    manufacturer: str
-    product: str
-
-    vid: int
-    pid: int
-
-    description: str
-    interface: None | str
-    serial_number: None | str
-    subsystem: str
-
     def __init__(self, port_name: _PN, dev_type: HgiFwTypes | None) -> None:
         """Supplies a useful subset of PortInfo attrs according to gateway type."""
 
-        self.device = port_name  # # e.g. /dev/pts/2 (a la /dev/ttyUSB0)
-        self.name = port_name[5:]  # e.g.      pts/2 (a la      ttyUSB0)
+        self.device: _PN = port_name  # # e.g. /dev/pts/2 (a la /dev/ttyUSB0)
+        self.name: str = port_name[5:]  # e.g.      pts/2 (a la      ttyUSB0)
 
         self._set_attrs(_GWY_ATTRS[dev_type or HgiFwTypes.EVOFW3])
 
-    def _set_attrs(self, gwy_attrs: dict[str, int | str | None]) -> None:
-        """Set the USB attributes according to the gateway type."""
+    def _set_attrs(self, gwy_attrs: _GwyAttrsT) -> None:
+        """Set the remaining USB attributes according to the gateway type."""
 
-        self.manufacturer = gwy_attrs["manufacturer"]
-        self.product = gwy_attrs["product"]
+        self.manufacturer: str = gwy_attrs["manufacturer"]
+        self.product: str = gwy_attrs["product"]
 
-        self.vid = gwy_attrs["vid"]
-        self.pid = gwy_attrs["pid"]
+        self.vid: int = gwy_attrs["vid"]
+        self.pid: int = gwy_attrs["pid"]
 
-        self.description = gwy_attrs["description"]
-        self.interface = gwy_attrs["interface"]
-        self.serial_number = gwy_attrs["serial_number"]
-        self.subsystem = gwy_attrs["subsystem"]
+        self.description: str = gwy_attrs["description"]
+        self.interface: str | None = gwy_attrs["interface"]
+        self.serial_number: str | None = gwy_attrs["serial_number"]
+        self.subsystem: str = gwy_attrs["subsystem"]
 
 
 class VirtualRfBase:
@@ -151,7 +155,7 @@ class VirtualRfBase:
         for idx in range(num_ports):
             self._create_port(idx)
 
-        self._log: list[tuple[str, str, bytes]] = deque([], log_size)
+        self._log: deque[tuple[_PN, str, bytes]] = deque([], log_size)
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
     def _create_port(self, port_idx: int, dev_type: None | HgiFwTypes = None) -> None:
@@ -226,7 +230,7 @@ class VirtualRfBase:
                 for key, event_mask in selector.select(timeout=0):
                     if not event_mask & EVENT_READ:
                         continue
-                    self._pull_data_from_src_port(self._master_to_port[key.fileobj])  # type: ignore[arg-type]  # fileobj type is int | HasFileno
+                    self._pull_data_from_src_port(self._master_to_port[key.fileobj])  # type: ignore[index]
                     await asyncio.sleep(0)
                 else:
                     await asyncio.sleep(0.0001)
@@ -344,6 +348,20 @@ class VirtualRf(VirtualRfBase):
 
         self._set_comport_info(port_name, dev_type=fw_type)
 
+    async def dump_pkts_to_rf(self, pkts: list[bytes]) -> None:  # TODO: WIP
+        """Dump frames as if from a sending port (for mocking)."""
+
+        def data_to_read() -> bool:
+            readable, *_ = select(self._port_to_object.values(), [], [], 0)
+            return bool(readable)
+
+        for data in pkts:
+            self._log.append(("/dev/mock", "SENT", data))
+            self._cast_frame_to_all_ports("/dev/mock", data)  # is not echo only
+
+            while data_to_read():  # give the write a chance to effect
+                await asyncio.sleep(0.0001)
+
     def _proc_after_rx(self, rcv_port: _PN, frame: bytes) -> None | bytes:
         """Return the frame as it would have been modified by a gateway after Rx.
 
@@ -397,7 +415,7 @@ class VirtualRf(VirtualRfBase):
         return frame
 
 
-async def main():
+async def main() -> None:
     """ "Demonstrate the class functionality."""
 
     num_ports = 3
@@ -405,7 +423,7 @@ async def main():
     rf = VirtualRf(num_ports)
     print(f"Ports are: {rf.ports}")
 
-    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]  # type: ignore[annotation-unchecked]
+    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]
 
     for i in range(num_ports):
         sers[i].write(bytes(f"Hello World {i}! ", "utf-8"))
