@@ -158,7 +158,7 @@ class VirtualRfBase:
         self._log: deque[tuple[_PN, str, bytes]] = deque([], log_size)
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
-    def _create_port(self, port_idx: int, dev_type: None | HgiFwTypes = None) -> None:
+    def _create_port(self, port_idx: int, dev_type: HgiFwTypes | None = None) -> None:
         """Create a port without a HGI80 attached."""
         master_fd, slave_fd = pty.openpty()  # pty, tty
 
@@ -179,7 +179,7 @@ class VirtualRfBase:
         return list(self._port_info_list.values())
 
     def _set_comport_info(
-        self, port_name: _PN, dev_type: None | HgiFwTypes = None
+        self, port_name: _PN, dev_type: HgiFwTypes | None = None
     ) -> VirtualComPortInfo:
         """Add comport info to the list (wont fail if the entry already exists)."""
         self._port_info_list.pop(port_name, None)
@@ -362,7 +362,7 @@ class VirtualRf(VirtualRfBase):
             while data_to_read():  # give the write a chance to effect
                 await asyncio.sleep(0.0001)
 
-    def _proc_after_rx(self, rcv_port: _PN, frame: bytes) -> None | bytes:
+    def _proc_after_rx(self, rcv_port: _PN, frame: bytes) -> bytes | None:
         """Return the frame as it would have been modified by a gateway after Rx.
 
         Return None if the bytes are not to be Rx by this device.
@@ -383,7 +383,7 @@ class VirtualRf(VirtualRfBase):
             return b"# evofw3 0.7.1\r\n"  # self._fxle_objs[port_name].write(data)
         return None  # TODO: return the ! response
 
-    def _proc_before_tx(self, src_port: _PN, frame: bytes) -> None | bytes:
+    def _proc_before_tx(self, src_port: _PN, frame: bytes) -> bytes | None:
         """Return the frame as it would have been modified by a gateway before Tx.
 
         Return None if the bytes are not to be Tx to the RF ether (e.g. to echo only).
