@@ -175,7 +175,7 @@
     # "SIM",  # flake8-simplify
     "UP",  # pyupgrade
   ]
-  ignore = ["B010", "B011", "E501", "UP009", "UP040"]
+  ignore = ["B011", "E501", "UP009", "UP040"]
   # B010  - Do not call setattr with a constant attribute value
   # B011  - Do not call assert False since python -O removes these calls
   # E501  - Line too long
@@ -185,3 +185,5 @@
 
 [tool.ruff.lint.isort]
   combine-as-imports = true
+  force-sort-within-sections = true
+  split-on-trailing-comma = false
