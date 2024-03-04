@@ -102,10 +102,10 @@ class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
             rv.msg = f" < {rv.msg}"
 
         if value := getattr(rv, "error_text", None):  # HACK
-            setattr(rv, "error_text", f" * {value}")
+            rv.error_text = f" * {value}"
 
         if value := getattr(rv, "comment", None):  # HACK
-            setattr(rv, "comment", f" # {value}")
+            rv.comment = f" # {value}"
 
         return rv
 

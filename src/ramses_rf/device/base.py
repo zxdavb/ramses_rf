@@ -12,11 +12,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from ramses_rf.binding_fsm import BindContext, Vendor
-from ramses_rf.const import (
-    DEV_TYPE_MAP,
-    SZ_OEM_CODE,
-    DevType,
-)
+from ramses_rf.const import DEV_TYPE_MAP, SZ_OEM_CODE, DevType
 from ramses_rf.entity_base import Child, Entity, class_by_attr
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import (

@@ -15,11 +15,7 @@ import logging
 from datetime import timedelta as td
 from typing import TYPE_CHECKING
 
-from ramses_tx import (
-    ALL_DEV_ADDR,
-    CODES_BY_DEV_SLUG,
-    Message,
-)
+from ramses_tx import ALL_DEV_ADDR, CODES_BY_DEV_SLUG, Message
 from ramses_tx.ramses import (
     CODES_OF_HEAT_DOMAIN,
     CODES_OF_HEAT_DOMAIN_ONLY,

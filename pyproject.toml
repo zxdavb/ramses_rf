@@ -185,5 +185,5 @@
 
 [tool.ruff.lint.isort]
   combine-as-imports = true
-  force-sort-within-sections = true
+  force-sort-within-sections = false
   split-on-trailing-comma = false

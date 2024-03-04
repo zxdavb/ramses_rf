@@ -30,17 +30,10 @@ from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
-from .protocol_fsm import (
-    ProtocolContext,
-)
+from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
 from .transport import transport_factory
-from .typing import (
-    ExceptionT,
-    MsgFilterT,
-    MsgHandlerT,
-    QosParams,
-)
+from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
