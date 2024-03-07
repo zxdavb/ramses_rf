@@ -6,4 +6,5 @@
   colorlog >= 6.8.2              # incl. colorama, if Windows
   pyserial-asyncio >= 0.6        # incl. pyserial==3.5
 # pyserial-asyncio-fast == 0.11  # HA uses (written by HA)
-  voluptuous >= 0.13.1           # 0.14.x has typing support
+# voluptuous >= 0.14.2          # 0.14.x has typing support
+  paho-mqtt >=1.6.1, <2.0.0
