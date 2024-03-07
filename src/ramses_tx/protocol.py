@@ -558,7 +558,7 @@ class PortProtocol(_BaseProtocol):
     @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
-        await self._leaker_sem.acquire()  # asyncio.sleep() a minimum time between Tx
+        await self._leaker_sem.acquire()  # asyncio.sleep(_GAP_BETWEEN_WRITES)
 
         await super()._send_frame(frame)
 
