@@ -904,7 +904,9 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
         self.client.on_message = self._on_message
         self.client.username_pw_set(self._username, self._password)
         self.client.connect_async(
-            self.broker_url.hostname, self.broker_url.port or 1883, 60
+            self.broker_url.hostname,  # type: ignore[arg-type]
+            self.broker_url.port or 1883,
+            60,
         )
 
         self.client.loop_start()
@@ -950,7 +952,7 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
 
         self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
 
-    def _publish(self, message: mqtt.MQTTMessage) -> None:
+    def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
             self._TOPIC_PUB, payload=message, qos=self._qos
         )
@@ -971,13 +973,13 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
             self._close(exc)
             return
 
-    def _close(self, exc: ExceptionT | None = None) -> None:
+    def _close(self, exc: ExceptionT | MQTTException | None = None) -> None:
         """Disconnect from the broker and stop the poller"""
         self._closing = True
         self.client.disconnect()
         self.client.loop_stop()
 
-    def close(self):
+    def close(self) -> None:
         """Close the transport gracefully."""
         if not self._closing:
             self._close()
