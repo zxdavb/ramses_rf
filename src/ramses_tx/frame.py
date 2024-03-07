@@ -14,10 +14,10 @@ from . import exceptions as exc
 from .address import ALL_DEV_ADDR, NON_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP
 from .ramses import (
-    CODE_IDX_COMPLEX,
+    CODE_IDX_ARE_COMPLEX,
+    CODE_IDX_ARE_NONE,
+    CODE_IDX_ARE_SIMPLE,
     CODE_IDX_DOMAIN,
-    CODE_IDX_NONE,
-    CODE_IDX_SIMPLE,
     CODES_ONLY_FROM_CTL,
     CODES_SCHEMA,
     CODES_WITH_ARRAYS,
@@ -450,11 +450,11 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
     if pkt.code == Code._3220:  # msg_id/data_id (payload[4:6])
         return pkt.payload[4:6]
 
-    if pkt.code in CODE_IDX_COMPLEX:  # these should be handled above
+    if pkt.code in CODE_IDX_ARE_COMPLEX:  # these should be handled above
         raise NotImplementedError(f"{pkt} # CODE_IDX_COMPLEX")  # a coding error
 
     # mutex 1/4, CODE_IDX_NONE: always returns False
-    if pkt.code in CODE_IDX_NONE:  # returns False
+    if pkt.code in CODE_IDX_ARE_NONE:  # returns False
         if (
             CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00"
             and pkt.payload[:2] != "00"
@@ -493,7 +493,7 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
             f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAB)"
         )  # TODO: add a test for this
 
-    if pkt.code in CODE_IDX_SIMPLE:
+    if pkt.code in CODE_IDX_ARE_SIMPLE:
         return None  # False  # TODO: return None (less precise) or risk false -ves?
 
     # mutex 4/4, CODE_IDX_UNKNOWN: an unknown code

@@ -20,10 +20,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     Code,
 )
 
-DEV_MODE = False  # used to sort CODE_IDX_COMPLEX, etc.
 
-
-SZ_LIFESPAN = "lifespan"
+SZ_LIFESPAN = "lifespan"  # WIP
 
 
 #
@@ -104,7 +102,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._000E: {  # unknown_000e
         SZ_NAME: "message_000e",
-        I_: r"^000014$",
+        I_: r"^0000(14|28)$",
     },
     Code._0016: {  # rf_check
         SZ_NAME: "rf_check",
@@ -138,13 +136,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._01FF: {  # unknown_01ff, TODO: definitely a real code, Itho Spider
         SZ_NAME: "message_01ff",
-        I_: r"^0[01][0-9A-F]{50}$",
-        RQ: r"^0[01][0-9A-F]{50}$",
+        I_: r"^(00|01)[0-9A-F]{50}$",
+        RQ: r"^(00|01)[0-9A-F]{50}$",
         W_: r"^00[0-9A-F]{50}$",
-        # 08:00:49.204  W --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000
-        # 08:00:49.244  I --- 21:033244 18:010629 --:------ 01FF 026 008025262A90008000143C28400000010480800280FF80070000
-        # 08:06:33.733 RQ --- 21:033244 18:010629 --:------ 01FF 026 008025262A90008000143C28400000010480800280FF80070000
-        # 08:06:33.788 RP --- 18:010629 21:033244 --:------ 01FF 026 008080262692000000143C80800000310080800280FF80040000
     },
     Code._0404: {  # zone_schedule
         SZ_NAME: "zone_schedule",
@@ -206,9 +200,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # NOTE: RFG100 uses a domain id! (00|01)
         # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
         # 19:14:31.463 053 RQ --- 30:185469 01:037519 --:------ 10A0 001 01
-        I_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # NOTE: RQ/07/10A0 has a payload
-        RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
-        W_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # TODO: needs checking
+        I_: r"^(00|01)[0-9A-F]{4}([0-9A-F]{6})?$",  # NOTE: RQ/07/10A0 has a payload
+        RQ: r"^(00|01)([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
+        W_: r"^(00|01)[0-9A-F]{4}([0-9A-F]{6})?$",  # TODO: needs checking
         SZ_LIFESPAN: td(hours=4),
     },
     Code._10B0: {  # unknown_10b0
@@ -263,8 +257,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # RQ --- 18:200202 10:067219 --:------ 1260 002 0000
         # RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
         # .I --- 07:045960 --:------ 07:045960 1260 003 0007A9
-        I_: r"^0[01][0-9A-F]{4}$",  # NOTE: RP is same
-        RQ: r"^0[01](00)?$",  # TODO: officially: r"^0[01]$"
+        I_: r"^(00|01)[0-9A-F]{4}$",  # NOTE: RP is same
+        RQ: r"^(00|01)(00)?$",  # TODO: officially: r"^(00|01)$"
         SZ_LIFESPAN: td(hours=1),
     },
     Code._1280: {  # outdoor_humidity
@@ -333,9 +327,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._1F41: {  # dhw_mode
         SZ_NAME: "dhw_mode",
-        I_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
-        RQ: r"^0[01]$",  # will accept: r"^0[01](00)$"
-        W_: r"^0[01](00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
+        I_: r"^(00|01)(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
+        RQ: r"^(00|01)$",  # will accept: r"^(00|01)(00)$"
+        W_: r"^(00|01)(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         SZ_LIFESPAN: td(hours=4),
     },
     Code._1F70: {  # programme_config, HVAC (1470, 1F70, 22B0)
@@ -522,7 +516,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._3110: {  # ufc_demand - HVAC
         SZ_NAME: "ufc_demand",
-        I_: r"^0[01]00[0-9A-F]{2}(00|10|20)",  # (00|10|20|FF)???
+        I_: r"^(00|01)00[0-9A-F]{2}(00|10|20)",  # (00|10|20|FF)???
     },
     Code._3120: {  # unknown_3120 - Error Report?
         SZ_NAME: "message_3120",
@@ -706,52 +700,43 @@ RQ_NO_PAYLOAD.extend((Code._0418,))
 # all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
-CODE_IDX_COMPLEX: list[Code] = [
+CODE_IDX_ARE_COMPLEX: set[Code] = {
     Code._0005,
     Code._000C,  # idx = fx(payload[0:4])
     # Code._0404,  # use "HW" for idx if payload[4:6] == "23"  # TODO: should be used
     # Code._0418,  # log_idx (payload[4:6])  # TODO: should be used
     Code._1100,
     Code._3220,  # data_id (payload[4:6])
-]  # TODO: 0005 to ..._NONE?
+}  # TODO: 0005 to ..._NONE?
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
-CODE_IDX_SIMPLE: list[Code] = [
+
+_SIMPLE_IDX = ("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]", "^(00|01)")
+CODE_IDX_ARE_SIMPLE: set[Code] = {
     k
     for k, v in CODES_SCHEMA.items()
-    if k not in CODE_IDX_COMPLEX
-    and (
-        (RQ in v and v[RQ].startswith(("^0[0-9A-F]", "^(0[0-9A-F]")))
-        or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
-    )
-]
-CODE_IDX_SIMPLE.extend(
-    (
-        Code._01FF,
-        Code._10A0,
-        Code._1260,
-        Code._1F41,
-        Code._22D0,
-        Code._2411,
-        Code._31D9,
-        Code._31DA,
-        Code._3B00,
-        Code._4E0D,
-    )
-)
+    for verb in (RQ, I_)
+    if k not in CODE_IDX_ARE_COMPLEX and v.get(verb, "").startswith(_SIMPLE_IDX)
+}
+CODE_IDX_ARE_SIMPLE |= {
+    Code._22D0,
+    Code._2411,
+    Code._31D9,
+    Code._31DA,
+    Code._3B00,
+    Code._4E0D,
+}
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
-CODE_IDX_NONE: list[Code] = [
+CODE_IDX_ARE_NONE: set[Code] = {
     k
     for k, v in CODES_SCHEMA.items()
-    if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
+    if k not in CODE_IDX_ARE_COMPLEX | CODE_IDX_ARE_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
-]
-CODE_IDX_NONE.extend(
-    (Code._0002, Code._22F1, Code._22F3, Code._2389, Code._2E04, Code._4401)
-)
+}
+CODE_IDX_ARE_NONE |= {Code._22F3, Code._2389, Code._2E04, Code._4401}
 
 # CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
 CODE_IDX_DOMAIN: dict[Code, str] = {
@@ -763,11 +748,6 @@ CODE_IDX_DOMAIN: dict[Code, str] = {
     Code._3150: "^FC",
     Code._3B00: "^FC",
 }
-
-if DEV_MODE:
-    CODE_IDX_COMPLEX.sort()
-    CODE_IDX_SIMPLE.sort()
-    CODE_IDX_NONE.sort()
 
 
 #

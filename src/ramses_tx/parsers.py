@@ -505,7 +505,7 @@ def parser_000c(payload: str, msg: Message) -> dict:
 
 # unknown_000e, from STA
 def parser_000e(payload: str, msg: Message) -> dict:
-    assert payload in ("000000", "000014"), _INFORM_DEV_MSG
+    assert payload in ("000014", "000028"), _INFORM_DEV_MSG
 
     return {
         SZ_PAYLOAD: payload,

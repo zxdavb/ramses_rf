@@ -23,7 +23,7 @@ from .const import (
 )
 from .packet import Packet
 from .parsers import parse_payload
-from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
+from .ramses import CODE_IDX_ARE_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
 
 # TODO:
 # long-format msg.__str__ - alias columns don't line up
@@ -178,7 +178,7 @@ class MessageBase:
         if self.code in (Code._31D9, Code._31DA):  # shouldn't be needed?
             return {"hvac_id": self._pkt._idx}
 
-        if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
+        if self._pkt._idx in (True, False) or self.code in CODE_IDX_ARE_COMPLEX:
             return {}  # above was: CODE_IDX_COMPLEX + (Code._3150):
 
         if self.code in (Code._3220,):  # FIXME: should be _SIMPLE
@@ -195,7 +195,7 @@ class MessageBase:
             DEV_TYPE_MAP.HGI,
             DEV_TYPE_MAP.DT2,
             DEV_TYPE_MAP.PRG,
-        }:  # DEX
+        }:  # FIXME: DEX should be deprecated to use device type rather than class
             assert self._pkt._idx == "00", "What!! (AA)"
             return {}
 

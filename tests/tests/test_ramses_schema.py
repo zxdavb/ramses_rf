@@ -14,9 +14,9 @@ from ramses_tx.ramses import (
     _DEV_KLASSES_HEAT,
     _DEV_KLASSES_HVAC,
     _HVAC_VC_PAIR_BY_CLASS,
-    CODE_IDX_COMPLEX,
-    CODE_IDX_NONE,
-    CODE_IDX_SIMPLE,
+    CODE_IDX_ARE_COMPLEX,
+    CODE_IDX_ARE_NONE,
+    CODE_IDX_ARE_SIMPLE,
     CODES_SCHEMA,
     HVAC_KLASS_BY_VC_PAIR,
     RQ_NO_PAYLOAD,
@@ -67,30 +67,36 @@ def assert_codes_idx_mutex(mutex_list, other_list):
 def test_codes_idx_mutex():
     """Every code should be in one of the three CODE_IDX_* constants."""
 
-    codes_idx_all = CODE_IDX_COMPLEX + CODE_IDX_NONE + CODE_IDX_SIMPLE
+    codes_idx_all = CODE_IDX_ARE_COMPLEX | CODE_IDX_ARE_NONE | CODE_IDX_ARE_SIMPLE
     assert not [c for c in CODES_SCHEMA if c not in codes_idx_all]
 
 
 def test_codes_idx_complex_mutex():
     """The three CODE_IDX_* constants should be mutally exclusive."""
 
-    assert_codes_idx_mutex(CODE_IDX_COMPLEX, CODE_IDX_NONE + CODE_IDX_SIMPLE)
+    assert_codes_idx_mutex(
+        CODE_IDX_ARE_COMPLEX, CODE_IDX_ARE_NONE | CODE_IDX_ARE_SIMPLE
+    )
 
 
 def test_codes_idx_none_mutex():
     """The three CODE_IDX_* constants should be mutally exclusive."""
 
-    assert_codes_idx_mutex(CODE_IDX_NONE, CODE_IDX_SIMPLE + CODE_IDX_COMPLEX)
+    assert_codes_idx_mutex(
+        CODE_IDX_ARE_NONE, CODE_IDX_ARE_SIMPLE | CODE_IDX_ARE_COMPLEX
+    )
 
 
 def test_codes_idx_simple_mutex():
     """The three CODE_IDX_* constants should be mutally exclusive."""
 
-    assert_codes_idx_mutex(CODE_IDX_SIMPLE, CODE_IDX_NONE + CODE_IDX_COMPLEX)
+    assert_codes_idx_mutex(
+        CODE_IDX_ARE_SIMPLE, CODE_IDX_ARE_NONE | CODE_IDX_ARE_COMPLEX
+    )
 
 
 def test_codes_mutex():
-    assert_codes_idx_mutex(RQ_IDX_ONLY, CODE_IDX_NONE)
+    assert_codes_idx_mutex(RQ_IDX_ONLY, CODE_IDX_ARE_NONE)
 
 
 RQ_IDX_NONE = [k for k, v in CODES_SCHEMA.items() if v.get(RQ, "")[:3] == "^00"]
