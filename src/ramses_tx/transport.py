@@ -586,7 +586,10 @@ class _FileTransport(asyncio.ReadTransport):
 
         try:
             pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
-        except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
+        except ValueError as err:  # VE from dt.fromisoformat() or falsey packet
+            _LOGGER.debug("%s < PacketInvalid(%s)", frame, err)
+            return
+        except exc.PacketInvalid as err:  # VE from dt.fromisoformat()
             _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
             return
         self._pkt_received(pkt)
