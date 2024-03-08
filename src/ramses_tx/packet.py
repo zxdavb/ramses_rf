@@ -146,12 +146,16 @@ class Packet(Frame):
     def from_file(cls, dtm: str, pkt_line: str) -> Packet:
         """Create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
+        if not frame:
+            raise ValueError(f"null frame: >>>{frame}<<<")
         return cls(dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
     def from_port(cls, dtm: dt, pkt_line: str, raw_line: bytes | None = None) -> Packet:
         """Create a packet from a USB port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
+        if not frame:
+            raise ValueError(f"null frame: >>>{frame}<<<")
         return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
 
 
