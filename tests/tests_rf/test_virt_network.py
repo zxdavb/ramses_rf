@@ -6,7 +6,7 @@
 
 """Test the Virtual RF library.
 
-    VirtualRF is used for testing.
+VirtualRF is used for testing.
 """
 
 import asyncio

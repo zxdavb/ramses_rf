@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - exceptions within the packet/protocol/transport layer."""
+
 from __future__ import annotations
 
 

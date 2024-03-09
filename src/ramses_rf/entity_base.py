@@ -5,6 +5,7 @@
 
 Entity is the base of all RAMSES-II objects: devices and also system/zone constructs.
 """
+
 from __future__ import annotations
 
 import asyncio

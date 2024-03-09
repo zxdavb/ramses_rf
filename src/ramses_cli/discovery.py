@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - discovery scripts."""
+
 from __future__ import annotations
 
 import asyncio

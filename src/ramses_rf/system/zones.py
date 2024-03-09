@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - The evohome-compatible zones."""
+
 from __future__ import annotations
 
 import logging

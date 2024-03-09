@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - Test the CLI utility."""
+
 import io
 import sys
 

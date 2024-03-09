@@ -5,6 +5,7 @@
 
 Construct a command (packet that is to be sent).
 """
+
 from __future__ import annotations
 
 import logging

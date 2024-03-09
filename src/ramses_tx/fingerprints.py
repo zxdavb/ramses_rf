@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - RAMSES-II compatible Packet processor."""
+
 from __future__ import annotations
 
 __all__ = ["check_signature"]

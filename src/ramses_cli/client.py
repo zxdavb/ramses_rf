@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """A CLI for the ramses_rf library."""
+
 from __future__ import annotations
 
 import asyncio

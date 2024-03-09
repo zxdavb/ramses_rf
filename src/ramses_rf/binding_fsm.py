@@ -5,6 +5,7 @@
 
 Base for all devices.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -49,31 +50,31 @@ SZ_SUPPLICANT: Final = "supplicant"
 SZ_IS_DORMANT: Final = "is_dormant"
 
 
-CONFIRM_RETRY_LIMIT: Final[
-    int
-] = 3  # automatically Bound, from Confirming > this # of sends
-SENDING_RETRY_LIMIT: Final[
-    int
-] = 3  # fail Offering/Accepting if no reponse > this # of sends
+CONFIRM_RETRY_LIMIT: Final[int] = (
+    3  # automatically Bound, from Confirming > this # of sends
+)
+SENDING_RETRY_LIMIT: Final[int] = (
+    3  # fail Offering/Accepting if no reponse > this # of sends
+)
 
-CONFIRM_TIMEOUT_SECS: Final[
-    float
-] = 3  # automatically Bound, from BoundAccepted > this # of seconds
-WAITING_TIMEOUT_SECS: Final[
-    float
-] = 5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+CONFIRM_TIMEOUT_SECS: Final[float] = (
+    3  # automatically Bound, from BoundAccepted > this # of seconds
+)
+WAITING_TIMEOUT_SECS: Final[float] = (
+    5  # fail Listen/Offer/Accept if no pkt rcvd > this # of seconds
+)
 
 # raise a BindTimeoutError if expected Pkt is not received before this number of seconds
 _TENDER_WAIT_TIME: Final[float] = WAITING_TIMEOUT_SECS  # resp. listening for Offer
-_ACCEPT_WAIT_TIME: Final[
-    float
-] = WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
-_AFFIRM_WAIT_TIME: Final[
-    float
-] = CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
-_RATIFY_WAIT_TIME: Final[
-    float
-] = CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
+_ACCEPT_WAIT_TIME: Final[float] = (
+    WAITING_TIMEOUT_SECS  # supp. sent Offer, expecting Accept
+)
+_AFFIRM_WAIT_TIME: Final[float] = (
+    CONFIRM_TIMEOUT_SECS  # resp. sent Accept, expecting Confirm
+)
+_RATIFY_WAIT_TIME: Final[float] = (
+    CONFIRM_TIMEOUT_SECS  # resp. rcvd Confirm, expecting Ratify (10E0)
+)
 
 
 BINDING_QOS = QosParams(
@@ -671,9 +672,9 @@ class RespSendAcceptWaitForConfirm(_DevSendCmdUntilReply, BindStateBase):
 
     _expected_cmd_phase: BindPhase = BindPhase.ACCEPT
     _expected_pkt_phase: BindPhase = BindPhase.AFFIRM
-    _next_ctx_state: type[
-        BindStateBase
-    ] = RespHasBoundAsRespondent  # or: RespIsWaitingForAddenda
+    _next_ctx_state: type[BindStateBase] = (
+        RespHasBoundAsRespondent  # or: RespIsWaitingForAddenda
+    )
 
     def cast_accept_offer(self) -> None:
         """Ignore any received Offer, other than the first."""
@@ -726,9 +727,9 @@ class SuppIsReadyToSendConfirm(
     _attr_role = BindRole.SUPPLICANT
 
     _expected_cmd_phase: BindPhase = BindPhase.AFFIRM
-    _next_ctx_state: type[
-        BindStateBase
-    ] = SuppHasBoundAsSupplicant  # or: SuppIsReadyToSendAddenda
+    _next_ctx_state: type[BindStateBase] = (
+        SuppHasBoundAsSupplicant  # or: SuppIsReadyToSendAddenda
+    )
 
     async def cast_confirm_accept(self, timeout: float | None = None) -> Message:
         return await self._wait_for_fut_result(timeout or _ACCEPT_WAIT_TIME)

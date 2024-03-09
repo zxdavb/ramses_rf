@@ -5,6 +5,7 @@
 
 Schema processor for protocol (lower) layer.
 """
+
 from __future__ import annotations
 
 import logging

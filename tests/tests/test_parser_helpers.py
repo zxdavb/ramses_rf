@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - Test the various helper APIs.
-"""
+"""RAMSES RF - Test the various helper APIs."""
 
 # TODO: add test for ramses_tx.frame.pkt_header()
 

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - The evohome-compatible system."""
+
 from __future__ import annotations
 
 import asyncio

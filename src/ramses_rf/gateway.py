@@ -11,6 +11,7 @@
 
 The serial to RF gateway (HGI80, not RFG100).
 """
+
 from __future__ import annotations
 
 import asyncio

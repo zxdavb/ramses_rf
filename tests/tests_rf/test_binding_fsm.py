@@ -7,8 +7,8 @@
 
 """Test the binding protocol with a virtual RF
 
-    NB: This test will likely fail with pytest-repeat (pytest -n x); maybe because of
-    concurrent access to pty.openpty().
+NB: This test will likely fail with pytest-repeat (pytest -n x); maybe because of
+concurrent access to pty.openpty().
 """
 
 import asyncio

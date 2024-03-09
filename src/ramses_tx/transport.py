@@ -36,7 +36,6 @@ For re-flashing evofw3 via Arduino IDE on *my* atmega32u4 (YMMV):
 # - chase down gwy.config.disable_discovery
 # - chase down / check deprecation
 
-
 from __future__ import annotations
 
 import asyncio

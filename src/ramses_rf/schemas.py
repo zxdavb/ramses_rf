@@ -5,6 +5,7 @@
 
 Schema processor for upper layer.
 """
+
 from __future__ import annotations
 
 import logging

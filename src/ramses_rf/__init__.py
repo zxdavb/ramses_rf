@@ -10,6 +10,7 @@ Works with (amongst others):
 - hometronics (16? zones)
 - vision pro
 """
+
 from __future__ import annotations
 
 import logging

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - Expose an 0404 schedule (is a stateful process).
-"""
+"""RAMSES RF - Expose an 0404 schedule (is a stateful process)."""
 
 # TODO: use schemas from evohome_async
 

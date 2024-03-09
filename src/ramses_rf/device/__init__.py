@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """RAMSES RF - Heating devices (e.g. CTL, OTB, BDR, TRV)."""
+
 from __future__ import annotations
 
 import logging

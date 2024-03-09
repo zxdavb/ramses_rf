@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - Expose an 0418 fault log (is a stateful process).
-"""
+"""RAMSES RF - Expose an 0418 fault log (is a stateful process)."""
+
 from __future__ import annotations
 
 import asyncio

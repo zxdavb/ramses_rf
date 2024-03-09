@@ -6,7 +6,6 @@
 Test the configuration parsers.
 """
 
-
 import pytest
 import voluptuous as vol
 import yaml

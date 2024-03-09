@@ -5,6 +5,7 @@
 
 Base for all devices.
 """
+
 from __future__ import annotations
 
 import logging

@@ -5,6 +5,7 @@
 
 Provide the base class for commands (constructed/sent packets) and packets.
 """
+
 from __future__ import annotations
 
 import logging
