@@ -1,20 +1,24 @@
-# last checked/updated: 2024/01/24 (based on HA 2024.3.0.dev0)
+# last updated 2024-03-09
 #  - to check against pyproject.toml, github workflows
 #
 
 # for development of the library, incl using the CLI
   -r requirements_cli.txt
 
-# used for development
-  mypy>=1.8.0
+# used for typing
+  mypy>=1.9.0
+  types-paho-mqtt>=1.6.0.20240106
+  voluptuous>=0.14.2
+
+# used for linting
   pre-commit>=3.6.2
-  ruff>=0.2.1
+  ruff>=0.3.2
 
 # used for testing
-  pytest>=8.0.1
-  pytest-asyncio>=0.23.5
-  pytest-xdist>=3.3.1
+  pytest>=8.1.1
+  pytest-asyncio>=0.23.5.post1
+  pytest-xdist>=3.5.0
 
 # used for build/deploy
-  hatch>=1.9.3       # is not core HA
-  hatchling>=1.21.1  # is not core HA
+  hatch>=1.9.3       # is not in core HA
+  hatchling>=1.21.1  # is not in core HA

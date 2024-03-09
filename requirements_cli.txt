@@ -1,4 +1,4 @@
-# last updated 2024-02-22, based on HA 2024.03.dev0
+# last updated 2024-03-09
 #  - to check against pyproject.toml, github workflows
 #
 

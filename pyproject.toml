@@ -11,7 +11,8 @@
   authors = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
-    "colorlog>=6.7.0",
+    "colorlog>=6.8.2",
+    "paho-mqtt>=1.6.1,<2.0.0",
     "pyserial-asyncio>=0.6",
     "voluptuous>=0.13.1",
   ]
@@ -27,6 +28,7 @@
     "sundial",
     "chronotherm",
     "hometronics",
+    "airios",
     "itho",
     "nuaire",
     "orcon",

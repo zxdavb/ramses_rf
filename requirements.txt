@@ -2,10 +2,17 @@
 #  - to check against pyproject.toml, github workflows
 #
 
-# for using the library (sans CLI) - required
-  paho-mqtt>=1.6.1,<2.0.0       # breaking change in v2
-  pyserial-asyncio>=0.6         # incl. pyserial==3.5
-  voluptuous>=0.13.2            # 0.14.x has typing support
+# Pre-requisities & install...
+#   deactivate & rm -rf venv
+#   python3.12 -m venv --prompt ramses_rf venv
+#   source venv/bin/activate.fish
+#
 
-# for using the library (sans CLI) - optional
-  colorlog>=6.8.2               # incl. colorama, if Windows
+#   pip install -r requirements_cli.txt  # includes below
+  -e .
+
+# for using the library (sans CLI) - required (see: pyproject.toml)
+  # colorlog>=6.8.2               # in ramses_tx/logger.py
+  # paho-mqtt'>=1.6.1,<2.0.0'     # breaking change in v2
+  # pyserial-asyncio>=0.6         # incl. pyserial==3.5
+  # voluptuous>=0.13.1            # 0.14.x has typing support
