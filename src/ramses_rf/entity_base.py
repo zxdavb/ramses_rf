@@ -130,7 +130,7 @@ class _Entity:
     ) -> None:
         qos = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
         if kwargs:
-            raise RuntimeError("Deprecated kwargs: %s", kwargs)
+            raise RuntimeError(f"Deprecated kwargs: {kwargs} ({code}|{dest_id}|{code})")
 
         self._send_cmd(
             self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs),
@@ -152,7 +152,7 @@ class _Entity:
         if [
             k for k in kwargs if k not in ("priority", "num_repeats")
         ]:  # FIXME: deprecate QoS in kwargs
-            raise RuntimeError("Deprecated kwargs: %s ", kwargs)
+            raise RuntimeError("Deprecated kwargs: %s", kwargs)
 
         # cmd._source_entity = self  # TODO: is needed?
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
