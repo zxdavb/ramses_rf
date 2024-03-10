@@ -9,7 +9,7 @@ import ctypes
 import sys
 import time
 from collections.abc import Iterable, Mapping
-from datetime import datetime as dt
+from datetime import date, datetime as dt
 from typing import TYPE_CHECKING, Final, Literal, TypeAlias
 
 from .const import (
@@ -222,7 +222,7 @@ def hex_to_dtm(value: HexStr12 | HexStr14) -> str | None:  # from parsers
 
 
 def hex_from_dtm(
-    dtm: dt | str | None, is_dst: bool = False, incl_seconds: bool = False
+    dtm: date | dt | str | None, is_dst: bool = False, incl_seconds: bool = False
 ) -> HexStr12 | HexStr14:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
