@@ -1,8 +1,10 @@
+# Setup venv for ramses_rf
+
 # last updated 2024-03-09, based on HA 2024.3.x
 #  - to check against pyproject.toml, github workflows
 #
 
-# Pre-requisities & install...
+# Pre-requisites & install...
 #   deactivate & rm -rf venv
 #   python3.12 -m venv --prompt ramses_rf venv
 #   source venv/bin/activate.fish
