@@ -19,7 +19,6 @@ from .command import Command
 from .const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_NUM_REPEATS,
-    MINIMUM_GAP_DURATION,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
@@ -31,7 +30,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import _MAX_DUTY_CYCLE, limit_duty_cycle, transport_factory
+from .transport import transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -54,9 +53,6 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
 _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
-
-# other constants
-_GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
 
 
 _global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
@@ -350,10 +346,6 @@ class _BaseProtocol(asyncio.Protocol):
 # Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
 # QosTimers last, to start any timers immediately after Tx of Command
 
-# NOTE: The duty cycle limts & minimum gaps between write are in this layer, and not
-# in the Transport layer (as you might expect), because they are best enforced *before*
-# the code that avoids the controller sync cycles
-
 
 # ### Read-Only Protocol for FileTransport, PortTransport #############################
 class ReadProtocol(_BaseProtocol):
@@ -400,18 +392,6 @@ class PortProtocol(_BaseProtocol):
     def __init__(self, msg_handler: MsgHandlerT) -> None:
         super().__init__(msg_handler)
 
-        self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task: None | asyncio.Task = None
-
-    async def _leak_sem(self) -> None:
-        """Used to enforce a minimum time between calls to self._transport.write()."""
-        while True:
-            await asyncio.sleep(_GAP_BETWEEN_WRITES)
-            try:
-                self._leaker_sem.release()
-            except ValueError:
-                pass
-
     def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
     ) -> None:
@@ -429,13 +409,8 @@ class PortProtocol(_BaseProtocol):
 
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
-        if not self._leaker_task:  # Invoke the leaky bucket algorithm
-            self._leaker_task = self._loop.create_task(self._leak_sem())
-
     def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection is lost or closed."""
-        if self._leaker_task:
-            self._leaker_task.cancel()
 
         super().connection_lost(err)
 
@@ -445,10 +420,8 @@ class PortProtocol(_BaseProtocol):
         super().pkt_received(pkt)
 
     @avoid_system_syncs
-    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
-        await self._leaker_sem.acquire()  # asyncio.sleep(_GAP_BETWEEN_WRITES)
 
         await super()._send_frame(frame)
 

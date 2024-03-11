@@ -68,6 +68,7 @@ from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, pkt_addrs
 from .command import Command
 from .const import (
     DEV_TYPE_MAP,
+    MINIMUM_GAP_DURATION,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
@@ -120,9 +121,10 @@ _DBG_FORCE_LOG_FRAMES = False
 
 # other constants
 _MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
-_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
-_CYCLE_DURATION = 60  # seconds
+_MAX_TOKENS = 45  # #     number of Tx per cycle (default 60 secs)
+_CYCLE_DURATION = 60  # # seconds
 
+_GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
 if os.name == "nt":  # sys.platform == 'win32':
@@ -754,6 +756,18 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         self._extra: dict = {} if extra is None else extra
 
+        self._leaker_sem = asyncio.BoundedSemaphore()
+        self._leaker_task = self.loop.create_task(self._leak_sem())
+
+    async def _leak_sem(self) -> None:
+        """Used to enforce a minimum time between calls to self.write()."""
+        while True:
+            await asyncio.sleep(_GAP_BETWEEN_WRITES)
+            try:
+                self._leaker_sem.release()
+            except ValueError:
+                pass
+
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
         return dt_now()
@@ -818,7 +832,11 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     async def write_frame(
         self, frame: str
     ) -> None:  # Protocol usu. calls this, not write()
+        await self._leaker_sem.acquire()  # asyncio.sleep(_GAP_BETWEEN_WRITES)
         await self._write_frame(frame)
+
+    # NOTE: The duty cycle limts & minimum gaps between write are best enforced *before*
+    # the code that avoids the controller sync cycles
 
     @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     async def _write_frame(self, frame: str) -> None:
@@ -844,12 +862,16 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         if self._init_task:
             self._init_task.cancel()
+        if self._leaker_task:
+            self._leaker_task.cancel()
 
     def _close(self, exc: ExceptionT | None = None) -> None:
         super()._close(exc=exc)
 
         if self._init_task:
             self._init_task.cancel()
+        if self._leaker_task:
+            self._leaker_task.cancel()
 
     def close(self) -> None:
         """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
