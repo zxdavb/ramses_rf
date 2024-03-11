@@ -30,6 +30,7 @@ from .virtual_rf import rf_factory
 from .virtual_rf.helpers import ensure_fakeable
 
 # patched constants
+_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.transport
 _DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
 _DBG_DISABLE_QOS = False  # #               ramses_tx.protocol
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
@@ -171,6 +172,10 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
         _DBG_DISABLE_IMPERSONATION_ALERTS,
     )
     monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
+    monkeypatch.setattr(
+        "ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT",
+        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
+    )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):

@@ -820,7 +820,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     ) -> None:  # Protocol usu. calls this, not write()
         await self._write_frame(frame)
 
-    # @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     async def _write_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
