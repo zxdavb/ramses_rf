@@ -46,8 +46,9 @@ import logging
 import os
 import re
 import sys
+from collections import deque
 from collections.abc import Awaitable, Callable, Iterable
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta as td
 from functools import wraps
 from io import TextIOWrapper
 from string import printable
@@ -125,6 +126,7 @@ _MAX_TOKENS = 45  # #     number of Tx per cycle (default 60 secs)
 _CYCLE_DURATION = 60  # # seconds
 
 _GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
+
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
 if os.name == "nt":  # sys.platform == 'win32':
@@ -384,6 +386,90 @@ def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
     return decorator
 
 
+_global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
+
+
+def avoid_system_syncs(fnc: Callable[..., Awaitable]):
+    """Take measures to avoid Tx when any controller is doing a sync cycle."""
+
+    DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
+    DURATION_LONG_PKT = 0.022  # time to tx I|2309|048 (or 30C9, or 000A)
+    DURATION_SYNC_PKT = 0.010  # time to tx I|1F09|003
+
+    SYNC_WAIT_LONG = (DURATION_PKT_GAP + DURATION_LONG_PKT) * 2
+    SYNC_WAIT_SHORT = DURATION_SYNC_PKT
+    SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
+    SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
+
+    times_0 = []  # FIXME: remove
+
+    async def wrapper(*args, **kwargs):
+        global _global_sync_cycles
+
+        def is_imminent(p):
+            """Return True if a sync cycle is imminent."""
+            return (
+                SYNC_WINDOW_LOWER
+                < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
+                < SYNC_WINDOW_UPPER
+            )
+
+        start = perf_counter()  # TODO: remove
+
+        # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
+        while any(is_imminent(p) for p in _global_sync_cycles):
+            await asyncio.sleep(SYNC_WAIT_SHORT)
+
+        # wait for the remainder of sync cycle (I|2309/30C9) to complete
+        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
+            await asyncio.sleep(SYNC_WAIT_LONG)
+            # FIXME: remove this block, and merge both ifs
+            times_0.append(x)
+            _LOGGER.warning(
+                f"*** sync cycle stats: {x:.3f}, "
+                f"avg: {sum(times_0) / len(times_0):.3f}, "
+                f"lower: {min(times_0):.3f}, "
+                f"upper: {max(times_0):.3f}, "
+                f"times: {[f'{t:.3f}' for t in times_0]}"
+            )  # TODO: wrap with if effectiveloglevel
+
+        await fnc(*args, **kwargs)
+
+    return wrapper
+
+
+def track_system_syncs(fnc: Callable[[Any, Packet], None]):
+    """Track/remember the any new/outstanding TCS sync cycle."""
+
+    MAX_SYNCS_TRACKED = 3
+
+    def wrapper(self, pkt: Packet) -> None:
+        global _global_sync_cycles
+
+        def is_pending(p: Packet) -> bool:
+            """Return True if a sync cycle is still pending (ignores drift)."""
+            return bool(p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now())
+
+        if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
+            fnc(self, pkt)
+            return None
+
+        _global_sync_cycles = deque(
+            p for p in _global_sync_cycles if p.src != pkt.src and is_pending(p)
+        )
+        _global_sync_cycles.append(pkt)  # TODO: sort
+
+        if (
+            len(_global_sync_cycles) > MAX_SYNCS_TRACKED
+        ):  # safety net for corrupted payloads
+            _global_sync_cycles.popleft()
+
+        fnc(self, pkt)
+        return None
+
+    return wrapper
+
+
 class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
@@ -549,6 +635,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         return True
 
+    @track_system_syncs
     def _pkt_read(self, pkt: Packet) -> None:
         """Pass any valid/wanted Packets to the protocol's callback.
 
@@ -829,6 +916,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
+    @avoid_system_syncs
     async def write_frame(
         self, frame: str
     ) -> None:  # Protocol usu. calls this, not write()

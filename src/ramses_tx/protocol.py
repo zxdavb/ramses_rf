@@ -7,11 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections import deque
-from collections.abc import Awaitable, Callable
-from datetime import timedelta as td
-from time import perf_counter
-from typing import TYPE_CHECKING, Any, Final
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Final
 
 from . import exceptions as exc
 from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
@@ -24,7 +21,6 @@ from .const import (
     SZ_KNOWN_HGI,
     Priority,
 )
-from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
@@ -53,90 +49,6 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
 _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
-
-
-_global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
-
-
-def avoid_system_syncs(fnc: Callable[..., Awaitable]):
-    """Take measures to avoid Tx when any controller is doing a sync cycle."""
-
-    DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
-    DURATION_LONG_PKT = 0.022  # time to tx I|2309|048 (or 30C9, or 000A)
-    DURATION_SYNC_PKT = 0.010  # time to tx I|1F09|003
-
-    SYNC_WAIT_LONG = (DURATION_PKT_GAP + DURATION_LONG_PKT) * 2
-    SYNC_WAIT_SHORT = DURATION_SYNC_PKT
-    SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
-    SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
-
-    times_0 = []  # FIXME: remove
-
-    async def wrapper(*args, **kwargs):
-        global _global_sync_cycles
-
-        def is_imminent(p):
-            """Return True if a sync cycle is imminent."""
-            return (
-                SYNC_WINDOW_LOWER
-                < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
-                < SYNC_WINDOW_UPPER
-            )
-
-        start = perf_counter()  # TODO: remove
-
-        # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
-        while any(is_imminent(p) for p in _global_sync_cycles):
-            await asyncio.sleep(SYNC_WAIT_SHORT)
-
-        # wait for the remainder of sync cycle (I|2309/30C9) to complete
-        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
-            await asyncio.sleep(SYNC_WAIT_LONG)
-            # FIXME: remove this block, and merge both ifs
-            times_0.append(x)
-            _LOGGER.warning(
-                f"*** sync cycle stats: {x:.3f}, "
-                f"avg: {sum(times_0) / len(times_0):.3f}, "
-                f"lower: {min(times_0):.3f}, "
-                f"upper: {max(times_0):.3f}, "
-                f"times: {[f'{t:.3f}' for t in times_0]}"
-            )  # TODO: wrap with if effectiveloglevel
-
-        await fnc(*args, **kwargs)
-
-    return wrapper
-
-
-def track_system_syncs(fnc: Callable[[Any, Packet], None]):
-    """Track/remember the any new/outstanding TCS sync cycle."""
-
-    MAX_SYNCS_TRACKED = 3
-
-    def wrapper(self, pkt: Packet) -> None:
-        global _global_sync_cycles
-
-        def is_pending(p: Packet) -> bool:
-            """Return True if a sync cycle is still pending (ignores drift)."""
-            return bool(p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now())
-
-        if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
-            fnc(self, pkt)
-            return None
-
-        _global_sync_cycles = deque(
-            p for p in _global_sync_cycles if p.src != pkt.src and is_pending(p)
-        )
-        _global_sync_cycles.append(pkt)  # TODO: sort
-
-        if (
-            len(_global_sync_cycles) > MAX_SYNCS_TRACKED
-        ):  # safety net for corrupted payloads
-            _global_sync_cycles.popleft()
-
-        fnc(self, pkt)
-        return None
-
-    return wrapper
 
 
 # send_cmd(), _send_cmd(), _send_frame()
@@ -414,12 +326,10 @@ class PortProtocol(_BaseProtocol):
 
         super().connection_lost(err)
 
-    @track_system_syncs
     def pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
         super().pkt_received(pkt)
 
-    @avoid_system_syncs
     async def _send_frame(self, frame: str) -> None:
         """Write some data bytes to the transport."""
 
