@@ -35,12 +35,9 @@ from ramses_tx.typing import QosParams
 from .virtual_rf import VirtualRf
 
 # patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DBG_MAINTAIN_STATE_CHAIN = False  # #      ramses_tx.protocol_fsm
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
 DEFAULT_TIMEOUT = 0.05  # #                 ramses_tx.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #                   ramses_tx.protocol
-_GAP_BETWEEN_WRITES = 0  # #                ramses_tx.protocol
 
 # other constants
 CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
@@ -74,19 +71,6 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 
 
 # ### FIXTURES #########################################################################
-
-
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
-    monkeypatch.setattr(
-        "ramses_tx.protocol_fsm._DBG_MAINTAIN_STATE_CHAIN",
-        _DBG_MAINTAIN_STATE_CHAIN,
-    )
 
 
 def prot_factory(disable_qos: bool | None = False):

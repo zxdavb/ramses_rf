@@ -65,7 +65,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> tuple[str, HgiFwTypes
     return hgi_id, fw_type
 
 
-@patch("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
+@patch("ramses_tx.transport._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 async def rf_factory(
     schemas: list[dict | None], start_gwys: bool = True
 ) -> tuple[VirtualRf, list[Gateway]]:

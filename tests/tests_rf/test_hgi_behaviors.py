@@ -21,10 +21,7 @@ from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
-_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
 _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
-_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.transport
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -66,19 +63,6 @@ _global_failed_ports: list[str] = []
 # ### FIXTURES #########################################################################
 
 pytestmark = pytest.mark.asyncio(scope="module")
-
-
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
-    )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):

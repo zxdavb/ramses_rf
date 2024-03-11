@@ -30,13 +30,9 @@ from .virtual_rf import rf_factory
 from .virtual_rf.helpers import ensure_fakeable
 
 # patched constants
-_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.transport
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DBG_DISABLE_QOS = False  # #               ramses_tx.protocol
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
 DEFAULT_TIMEOUT = 0.005  # #                ramses_tx.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #           ramses_tx.protocol_fsm
-_GAP_BETWEEN_WRITES = 0  # #                ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -163,19 +159,6 @@ TEST_SUITE_300 = [
 # TEST_SUITE_300 = [TEST_SUITE_300[-2]]
 
 # ### FIXTURES #########################################################################
-
-
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
-    monkeypatch.setattr(
-        "ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
-    )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):

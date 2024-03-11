@@ -21,12 +21,6 @@ from ramses_tx.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_tx.transport import _str
 from tests_rf.virtual_rf import VirtualRf
 
-# patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DBG_DISABLE_QOS = True  # #                ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.005  # #                  ramses_tx.protocol_fsm
-_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.protocol
-
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.1
@@ -77,12 +71,9 @@ GWY_CONFIG = {
 
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
-    monkeypatch.setattr("ramses_tx.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
+    monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
+    monkeypatch.setattr("ramses_tx.transport._GAP_BETWEEN_WRITES", 0)
+    monkeypatch.setattr("ramses_tx.protocol_fsm.DEFAULT_TIMEOUT", 0.005)
 
 
 async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP):

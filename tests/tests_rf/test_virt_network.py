@@ -17,11 +17,6 @@ import serial
 from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import VirtualRf, rf_factory
 
-# patched constants
-_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.protocol
-
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 1
@@ -44,25 +39,6 @@ SCHEMA_1 = {
     "orphans_hvac": ["41:111111"],
     "known_list": {"41:111111": {"class": "FAN"}},
 }
-
-
-# ### FIXTURES #########################################################################
-
-
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
-    )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._GAP_BETWEEN_WRITES",
-        _GAP_BETWEEN_WRITES,
-    )
 
 
 # ######################################################################################
