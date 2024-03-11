@@ -309,7 +309,7 @@ class _BaseProtocol(asyncio.Protocol):
 
     async def _send_frame(self, frame: str) -> None:  # _send_frame() -> transport
         """Write some bytes to the transport."""
-        self._transport.write_frame(frame)
+        await self._transport.write_frame(frame)
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""

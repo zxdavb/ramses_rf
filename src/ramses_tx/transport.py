@@ -565,11 +565,11 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         except AssertionError as err:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
 
-    def _write_frame(self, frame: str) -> None:
+    async def _write_frame(self, frame: str) -> None:
         src, dst, *_ = pkt_addrs(frame[7:36])
         if not self._is_wanted_addrs(src.id, dst.id, sending=True):
             raise exc.TransportError(f"Packet excluded by device_id filter: {frame}")
-        super()._write_frame(frame)  # type: ignore[misc]
+        await super()._write_frame(frame)  # type: ignore[misc]
 
 
 class _RegHackMixin:
@@ -602,8 +602,8 @@ class _RegHackMixin:
     def _frame_read(self, dtm: str, frame: str) -> None:
         super()._frame_read(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
 
-    def _write_frame(self, frame: str) -> None:
-        super()._write_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
+    async def _write_frame(self, frame: str) -> None:
+        await super()._write_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
 class _FileTransport(asyncio.ReadTransport):
@@ -708,7 +708,7 @@ class _FileTransport(asyncio.ReadTransport):
     def _pkt_read(self, pkt: Packet) -> None:
         raise NotImplementedError
 
-    def write_frame(self, frame: str) -> None:  # NotImplementedError
+    async def write_frame(self, frame: str) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: This Protocol is Read-Only")
 
     def write(self, data: bytes) -> None:  # NotImplementedError
@@ -815,10 +815,13 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
-    def write_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
-        self._write_frame(frame)
+    async def write_frame(
+        self, frame: str
+    ) -> None:  # Protocol usu. calls this, not write()
+        await self._write_frame(frame)
 
-    def _write_frame(self, frame: str) -> None:
+    # @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    async def _write_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # logs: SENT(bytes)
@@ -905,7 +908,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
         def call_make_connection() -> None:
             """Invoke the Protocol.connection_made() callback."""
             # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
-            #     self._write_frame("!V")
+            #     await self._write_frame("!V")  # or self.write()???
 
             self.loop.call_soon_threadsafe(
                 functools.partial(self._protocol.connection_made, self, ramses=True)
@@ -925,7 +928,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             while num_sends < _SIGNATURE_MAX_TRYS:
                 num_sends += 1
 
-                self._write_frame(str(sig))
+                await self._write_frame(str(sig))
                 await asyncio.sleep(_SIGNATURE_GAP_SECS)
 
                 if self._init_fut.done():
@@ -1072,7 +1075,9 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
         )
         assert info
 
-    def write_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
+    async def write_frame(
+        self, frame: str
+    ) -> None:  # Protocol usu. calls this, not write()
         if self._closing:
             return
 
