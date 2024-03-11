@@ -71,7 +71,7 @@ pytestmark = pytest.mark.asyncio(scope="module")
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_DUTY_CYCLE_LIMIT",
+        "ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT",
         _DBG_DISABLE_DUTY_CYCLE_LIMIT,
     )
     monkeypatch.setattr(

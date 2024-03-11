@@ -10,7 +10,6 @@ import logging
 from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import timedelta as td
-from functools import wraps
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Final
 
@@ -32,7 +31,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_PORT_NAME
-from .transport import transport_factory
+from .transport import _MAX_DUTY_CYCLE, limit_duty_cycle, transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -51,18 +50,13 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
 
-# all debug flags should be False for published code
-_DBG_DISABLE_DUTY_CYCLE_LIMIT: Final[bool] = False
+# All debug flags (used for dev/test) should be False for published code
 _DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
 _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
 
 # other constants
 _GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
-
-_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
-_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
-_CYCLE_DURATION = 60  # seconds
 
 
 _global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
@@ -147,110 +141,6 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
         return None
 
     return wrapper
-
-
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
-    """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
-
-    max_duty_cycle: bandwidth available per observation window (%)
-    time_window: duration of the sliding observation window (default 60 seconds)
-    """
-
-    TX_RATE_AVAIL: int = 38400  # bits per second (deemed)
-    FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
-    BUCKET_CAPACITY: float = FILL_RATE * time_window
-
-    def decorator(fnc: Callable[..., Awaitable]):
-        # start with a full bit bucket
-        bits_in_bucket: float = BUCKET_CAPACITY
-        last_time_bit_added = perf_counter()
-
-        @wraps(fnc)
-        async def wrapper(self, frame: str, *args, **kwargs) -> None:
-            nonlocal bits_in_bucket
-            nonlocal last_time_bit_added
-
-            rf_frame_size = 330 + len(frame[46:]) * 10
-
-            # top-up the bit bucket
-            elapsed_time = perf_counter() - last_time_bit_added
-            bits_in_bucket = min(
-                bits_in_bucket + elapsed_time * FILL_RATE, BUCKET_CAPACITY
-            )
-            last_time_bit_added = perf_counter()
-
-            if _DBG_DISABLE_DUTY_CYCLE_LIMIT:
-                bits_in_bucket = BUCKET_CAPACITY
-
-            # if required, wait for the bit bucket to refill (not for SETs/PUTs)
-            if bits_in_bucket < rf_frame_size:
-                await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
-
-            # consume the bits from the bit bucket
-            try:
-                await fnc(self, frame, *args, **kwargs)
-            finally:
-                bits_in_bucket -= rf_frame_size
-
-        @wraps(fnc)
-        async def null_wrapper(self, frame: str, *args, **kwargs) -> None:
-            await fnc(self, frame, *args, **kwargs)
-
-        if 0 < max_duty_cycle <= 1:
-            return wrapper
-
-        return null_wrapper
-
-    return decorator
-
-
-def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
-    """Limit the Tx rate as # packets per period of time.
-
-    Rate-limits the decorated function locally, for one process (Token Bucket).
-
-    max_tokens: maximum number of calls of function in time_window
-    time_window: duration of the sliding observation window (default 60 seconds)
-    """
-    # thanks, kudos to: Thomas Meschede, license: MIT
-    # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
-
-    token_fill_rate: float = max_tokens / time_window
-
-    def decorator(fnc: Callable):
-        token_bucket: float = max_tokens  # initialize with max tokens
-        last_time_token_added = perf_counter()
-
-        @wraps(fnc)
-        async def wrapper(*args, **kwargs):
-            nonlocal token_bucket
-            nonlocal last_time_token_added
-
-            # top-up the bit bucket
-            elapsed = perf_counter() - last_time_token_added
-            token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
-            last_time_token_added = perf_counter()
-
-            # if required, wait for a token (not for SETs/PUTs)
-            if token_bucket < 1.0:
-                await asyncio.sleep((1 - token_bucket) / token_fill_rate)
-
-            # consume one token for every call
-            try:
-                await fnc(*args, **kwargs)
-            finally:
-                token_bucket -= 1.0
-
-        return wrapper
-
-        @wraps(fnc)  # type: ignore[unreachable]
-        async def null_wrapper(*args, **kwargs) -> Any:
-            return await fnc(*args, **kwargs)
-
-        if max_tokens <= 0:
-            return null_wrapper
-
-    return decorator
 
 
 # send_cmd(), _send_cmd(), _send_frame()
