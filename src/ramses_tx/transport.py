@@ -547,7 +547,7 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
 
         return True
 
-    def _pkt_received(self, pkt: Packet) -> None:
+    def _pkt_read(self, pkt: Packet) -> None:
         """Pass any valid/wanted Packets to the protocol's callback.
 
         Also maintain _prev_pkt, _this_pkt attrs.
@@ -565,11 +565,11 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         except AssertionError as err:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
 
-    def _send_frame(self, frame: str) -> None:
+    def _write_frame(self, frame: str) -> None:
         src, dst, *_ = pkt_addrs(frame[7:36])
         if not self._is_wanted_addrs(src.id, dst.id, sending=True):
             raise exc.TransportError(f"Packet excluded by device_id filter: {frame}")
-        super()._send_frame(frame)  # type: ignore[misc]
+        super()._write_frame(frame)  # type: ignore[misc]
 
 
 class _RegHackMixin:
@@ -599,11 +599,11 @@ class _RegHackMixin:
             )
         return result
 
-    def _frame_received(self, dtm: str, frame: str) -> None:
-        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
+    def _frame_read(self, dtm: str, frame: str) -> None:
+        super()._frame_read(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
 
-    def _send_frame(self, frame: str) -> None:
-        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
+    def _write_frame(self, frame: str) -> None:
+        super()._write_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
 class _FileTransport(asyncio.ReadTransport):
@@ -674,7 +674,7 @@ class _FileTransport(asyncio.ReadTransport):
             for dtm_str, pkt_line in self._pkt_source.items():  # assume dtm_str is OK
                 while not self._reading:
                     await asyncio.sleep(0.001)
-                self._frame_received(dtm_str, pkt_line)
+                self._frame_read(dtm_str, pkt_line)
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         elif isinstance(self._pkt_source, TextIOWrapper):
@@ -683,7 +683,7 @@ class _FileTransport(asyncio.ReadTransport):
                     await asyncio.sleep(0.001)
                 # can be blank lines in annotated log files
                 if (dtm_pkt_line := dtm_pkt_line.strip()) and dtm_pkt_line[:1] != "#":
-                    self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27:])
+                    self._frame_read(dtm_pkt_line[:26], dtm_pkt_line[27:])
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
@@ -691,7 +691,7 @@ class _FileTransport(asyncio.ReadTransport):
                 f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
 
-    def _frame_received(self, dtm_str: str, frame: str) -> None:
+    def _frame_read(self, dtm_str: str, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
         self._dtm_str = dtm_str  # HACK: FIXME: remove need for this, somehow
 
@@ -703,12 +703,12 @@ class _FileTransport(asyncio.ReadTransport):
         except exc.PacketInvalid as err:  # VE from dt.fromisoformat()
             _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
             return
-        self._pkt_received(pkt)
+        self._pkt_read(pkt)
 
-    def _pkt_received(self, pkt: Packet) -> None:
+    def _pkt_read(self, pkt: Packet) -> None:
         raise NotImplementedError
 
-    def send_frame(self, frame: str) -> None:  # NotImplementedError
+    def write_frame(self, frame: str) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: This Protocol is Read-Only")
 
     def write(self, data: bytes) -> None:  # NotImplementedError
@@ -759,7 +759,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         return dt_now()
 
     def _read_ready(self) -> None:
-        # data to self._bytes_received() instead of self._protocol.data_received()
+        # data to self._bytes_read() instead of self._protocol.data_received()
         try:
             data: bytes = self._serial.read(self._max_read_size)
         except SerialException as e:
@@ -768,16 +768,16 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             return
 
         if data:
-            self._bytes_received(data)  # was: self._protocol.pkt_received(data)
+            self._bytes_read(data)  # was: self._protocol.pkt_received(data)
 
     def is_reading(self) -> bool:
         """Return True if the transport is receiving."""
         return bool(self._has_reader)
 
-    def _bytes_received(self, data: bytes) -> None:  # logs: RCVD(bytes)
+    def _bytes_read(self, data: bytes) -> None:  # logs: RCVD(bytes)
         """Make a Frame from the data and process it."""
 
-        def bytes_received(data: bytes) -> Iterable[tuple[dt, bytes]]:
+        def bytes_read(data: bytes) -> Iterable[tuple[dt, bytes]]:
             self._recv_buffer += data
             if b"\r\n" in self._recv_buffer:
                 lines = self._recv_buffer.split(b"\r\n")
@@ -785,14 +785,14 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
                 for line in lines[:-1]:
                     yield self._dt_now(), line + b"\r\n"
 
-        for dtm, raw_line in bytes_received(data):
+        for dtm, raw_line in bytes_read(data):
             if _DBG_FORCE_LOG_FRAMES:
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
-            self._frame_received(dtm, _normalise(_str(raw_line)))
+            self._frame_read(dtm, _normalise(_str(raw_line)))
 
-    def _frame_received(self, dtm: dt, frame: str) -> None:
+    def _frame_read(self, dtm: dt, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
 
         try:
@@ -813,12 +813,12 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
             self._set_active_hgi(pkt.src.id)
 
-        self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
+        self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
-    def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
-        self._send_frame(frame)
+    def write_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
+        self._write_frame(frame)
 
-    def _send_frame(self, frame: str) -> None:
+    def _write_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # logs: SENT(bytes)
@@ -905,7 +905,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
         def call_make_connection() -> None:
             """Invoke the Protocol.connection_made() callback."""
             # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
-            #     self._send_frame("!V")
+            #     self._write_frame("!V")
 
             self.loop.call_soon_threadsafe(
                 functools.partial(self._protocol.connection_made, self, ramses=True)
@@ -925,7 +925,7 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             while num_sends < _SIGNATURE_MAX_TRYS:
                 num_sends += 1
 
-                self._send_frame(str(sig))
+                self._write_frame(str(sig))
                 await asyncio.sleep(_SIGNATURE_GAP_SECS)
 
                 if self._init_fut.done():
@@ -1064,7 +1064,7 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
         # elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
         #     self._set_active_hgi(pkt.src.id)
 
-        self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
+        self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
     def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
@@ -1072,7 +1072,7 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
         )
         assert info
 
-    def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
+    def write_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
         if self._closing:
             return
 
