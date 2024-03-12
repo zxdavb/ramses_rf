@@ -832,6 +832,9 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
     _recv_buffer: bytes = b""
 
+    _extra: dict[str, Any]  # mypy
+    _protocol: RamsesProtocolT  # mypy
+
     def __init__(
         self,
         protocol: RamsesProtocolT,
@@ -916,17 +919,17 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
-    @avoid_system_syncs
     async def write_frame(
         self, frame: str
     ) -> None:  # Protocol usu. calls this, not write()
         await self._leaker_sem.acquire()  # asyncio.sleep(_GAP_BETWEEN_WRITES)
         await self._write_frame(frame)
 
-    # NOTE: The duty cycle limts & minimum gaps between write are best enforced *before*
-    # the code that avoids the controller sync cycles
+    # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
+    # then the code that avoids the controller sync cycles
 
     @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @avoid_system_syncs
     async def _write_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
