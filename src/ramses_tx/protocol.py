@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from . import exceptions as exc
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
@@ -19,13 +19,14 @@ from .const import (
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
+    DevType,
     Priority,
 )
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
-from .schemas import SZ_BLOCK_LIST, SZ_KNOWN_LIST, SZ_PORT_NAME
+from .schemas import SZ_BLOCK_LIST, SZ_CLASS, SZ_KNOWN_LIST, SZ_PORT_NAME
 from .transport import transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
@@ -58,8 +59,8 @@ class _BaseProtocol(asyncio.Protocol):
 
     WRITER_TASK = "writer_task"
 
-    _this_msg: None | Message = None
-    _prev_msg: None | Message = None
+    _this_msg: Message | None = None
+    _prev_msg: Message | None = None
 
     def __init__(self, msg_handler: MsgHandlerT) -> None:
         self._msg_handler = msg_handler
@@ -86,7 +87,7 @@ class _BaseProtocol(asyncio.Protocol):
         msg_handler: MsgHandlerT,
         /,
         *,
-        msg_filter: None | MsgFilterT = None,
+        msg_filter: MsgFilterT | None = None,
     ) -> Callable[[], None]:
         """Add a Message handler to the list of such callbacks.
 
@@ -274,6 +275,57 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
+
+        # TODO: maybe this shouldn't be called for read-only transports?
+        self._known_hgi = self._extract_known_hgi(include_list)
+
+    @staticmethod
+    def _extract_known_hgi(include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:
+        """Return the device_id of the gateway specified in the include_list, if any.
+
+        The 'Known' gateway is the predicted Active gateway, given the known_list.
+        The 'Active' gateway is the USB device that is Tx/Rx frames.
+
+        The Known gateway ID should be the Active gateway ID, but does not have to
+        match.
+
+        Send a warning if the include_list is configured incorrectly.
+        """
+
+        known_hgis = [
+            k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
+        ]
+        known_hgis = known_hgis or [
+            k for k, v in include_list.items() if k[:2] == "18" and not v.get(SZ_CLASS)
+        ]
+
+        if not known_hgis:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
+                f"but does not (make sure you specify class: HGI)"
+            )
+            return None
+
+        known_hgi = known_hgis[0]
+
+        if include_list[known_hgi].get(SZ_CLASS) != DevType.HGI:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include a well-configured gateway (HGI), "
+                f"{known_hgi} should specify class: HGI (18: is also used for HVAC)"
+            )
+
+        elif len(known_hgis) > 1:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
+                f"{known_hgi} is the assumed device id (is it/are the others HVAC?)"
+            )
+
+        else:
+            _LOGGER.debug(
+                f"The {SZ_KNOWN_LIST} specifies {known_hgi} as the gateway (HGI)"
+            )
+
+        return known_hgis[0]
 
     # def _is_wanted_addrs(
     #     self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
@@ -670,8 +722,8 @@ async def create_stack(
     msg_handler: MsgHandlerT,
     /,
     *,
-    protocol_factory_: None | Callable = None,
-    transport_factory_: None | Callable = None,
+    protocol_factory_: Callable | None = None,
+    transport_factory_: Callable | None = None,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
     enforce_include_list: bool = False,

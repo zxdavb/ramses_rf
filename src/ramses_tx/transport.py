@@ -73,14 +73,12 @@ from .const import (
     SZ_IS_EVOFW3,
     SZ_KNOWN_HGI,
     SZ_SIGNATURE,
-    DevType,
 )
 from .helpers import dt_now
 from .packet import Packet
 from .schemas import (
     SCH_SERIAL_PORT_CONFIG,
     SZ_BLOCK_LIST,
-    SZ_CLASS,
     SZ_EVOFW_FLAG,
     SZ_INBOUND,
     SZ_KNOWN_LIST,
@@ -503,58 +501,8 @@ class _BaseTransport:  # NOTE: active gwy detection in here
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
             self._extra[key] = None
 
-        # TODO: maybe this shouldn't be called for read-only transports?
-        self._extra[SZ_KNOWN_HGI] = self._get_known_hgi(include_list)
-
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
-
-    def _get_known_hgi(self, include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:
-        """Return the device_id of the gateway specified in the include_list, if any.
-
-        The 'Known' gateway is the predicted Active gateway, given the known_list.
-        The 'Active' gateway is the USB device that is Tx/Rx frames.
-
-        The Known gateway ID should be the Active gateway ID, but does not have to
-        match.
-
-        Send a warning if the include_list is configured incorrectly.
-        """
-
-        known_hgis = [
-            k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
-        ]
-        known_hgis = known_hgis or [
-            k for k, v in include_list.items() if k[:2] == "18" and not v.get(SZ_CLASS)
-        ]
-
-        if not known_hgis:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
-                f"but does not (make sure you specify class: HGI)"
-            )
-            return None
-
-        known_hgi = known_hgis[0]
-
-        if include_list[known_hgi].get(SZ_CLASS) != DevType.HGI:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include a well-configured gateway (HGI), "
-                f"{known_hgi} should specify class: HGI (18: is also used for HVAC)"
-            )
-
-        elif len(known_hgis) > 1:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
-                f"{known_hgi} is the assumed device id (is it/are the others HVAC?)"
-            )
-
-        else:
-            _LOGGER.debug(
-                f"The {SZ_KNOWN_LIST} specifies {known_hgi} as the gateway (HGI)"
-            )
-
-        return known_hgis[0]
 
     def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
         """Set the Active Gateway (HGI) device_if.
