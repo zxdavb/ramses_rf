@@ -483,7 +483,7 @@ class _BaseTransport:  # NOTE: active gwy detection in here
         # NOTE: Thus, excepts need checking
         try:  # below could be a call_soon?
             self._protocol.pkt_received(pkt)
-        except AssertionError as err:  # protect from upper-layer callbacks
+        except (AssertionError, exc.ProtocolError) as err:  # protect from upper layers
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
 
 

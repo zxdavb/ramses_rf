@@ -412,13 +412,13 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         return True
 
     def pkt_received(self, pkt: Packet) -> None:
-        #     if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
-        #         raise exc.TransportError(f"Packet excluded by device_id filter: {pkt}")
+        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
+            raise exc.ProtocolError(f"Packet excluded by device_id filter: {pkt}")
         super().pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
-        # if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
-        #     raise exc.TransportError(f"Command excluded by device_id filter: {cmd}")
+        if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+            raise exc.ProtocolError(f"Command excluded by device_id filter: {cmd}")
         return await super().send_cmd(cmd, *args, **kwargs)
 
 
