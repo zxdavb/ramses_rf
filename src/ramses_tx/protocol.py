@@ -333,6 +333,31 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 
         return known_hgis[0]
 
+    def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
+        """Set the Active Gateway (HGI) device_if.
+
+        Send a warning if the include list is configured incorrectly.
+        """
+
+        assert self._active_hgi is None  # should only be called once
+
+        msg = f"The active gateway {dev_id}: {{ class: HGI }} "
+        msg += "(by signature)" if by_signature else "(by filter)"
+
+        if dev_id not in self._exclude:
+            self._active_hgi = dev_id
+            # else: setting self._active_hgi will not help
+
+        if dev_id in self._exclude:
+            _LOGGER.error(f"{msg} MUST NOT be in the {SZ_BLOCK_LIST}{TIP}")
+        elif dev_id in self._include:
+            pass
+        elif self.enforce_include:
+            _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
+            # self._include.append(dev_id)  # a good idea?
+        else:
+            _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
+
     def _is_wanted_addrs(
         self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
     ) -> bool:
