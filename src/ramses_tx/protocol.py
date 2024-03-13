@@ -334,7 +334,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         return known_hgis[0]
 
     def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
-        """Set the Active Gateway (HGI) device_if.
+        """Set the Active Gateway (HGI) device_id.
 
         Send a warning if the include list is configured incorrectly.
         """
@@ -485,6 +485,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         super().connection_made(transport)
         # TODO: needed? self.resume_writing()
 
+        self._set_active_hgi(self._transport.get_extra_info(SZ_ACTIVE_HGI))
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
     def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
