@@ -151,6 +151,9 @@ class Engine:
             msg_handler,
             disable_sending=self._disable_sending,
             disable_qos=self._kwargs.get(SZ_DISABLE_QOS, False),
+            enforce_include_list=self._enforce_known_list,
+            exclude_list=self._exclude,
+            include_list=self._include,
         )
 
     def add_msg_handler(
@@ -190,9 +193,9 @@ class Engine:
         self._transport = await transport_factory(
             self._protocol,
             disable_sending=self._disable_sending,
-            enforce_include_list=self._enforce_known_list,
-            exclude_list=self._exclude,
-            include_list=self._include,
+            enforce_include_list=self._enforce_known_list,  # FIXME: remove
+            exclude_list=self._exclude,  # FIXME: remove
+            include_list=self._include,  # FIXME: remove
             loop=self._loop,
             **pkt_source,
             **self._kwargs,  # HACK: only accept disable_qos, extra & one other

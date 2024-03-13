@@ -8,7 +8,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Final
+from datetime import datetime as dt
+from typing import TYPE_CHECKING, Final
 
 from . import exceptions as exc
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
@@ -256,8 +257,8 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         self,
         msg_handler: MsgHandlerT,
         enforce_include_list: bool = False,
-        exclude_list: dict[DeviceIdT, str] | None = None,
-        include_list: dict[DeviceIdT, str] | None = None,
+        exclude_list: dict[DeviceIdT, dict] | None = None,
+        include_list: dict[DeviceIdT, dict] | None = None,
     ) -> None:
         super().__init__(msg_handler)
 
@@ -266,9 +267,14 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 
         self.enforce_include = enforce_include_list
         self._exclude = list(exclude_list.keys())
-        self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
+        self._include = list(include_list.keys())
+        self._include += [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
+        self._active_hgi = None  # FIXME
         self._known_hgi = self._extract_known_hgi(include_list)
+
+        self._foreign_gwys_lst: list[DeviceIdT] = []
+        self._foreign_last_run = dt.now().date()
 
     @property
     def hgi_id(self) -> DeviceIdT:
@@ -279,7 +285,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         )
 
     @staticmethod
-    def _extract_known_hgi(include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:
+    def _extract_known_hgi(include_list: dict[DeviceIdT, dict]) -> DeviceIdT | None:
         """Return the device_id of the gateway specified in the include_list, if any.
 
         The 'Known' gateway is the predicted Active gateway, given the known_list.
@@ -350,7 +356,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 
     #         _LOGGER.warning(
     #             f"Device {dev_id} is potentially a Foreign gateway, "
-    #             f"the Active gateway is {self._extra[SZ_ACTIVE_HGI]}, "
+    #             f"the Active gateway is {self._active_hgi}, "
     #             f"alternatively, is it a HVAC device?{TIP}"
     #         )
     #         self._foreign_gwys_lst.append(dev_id)
@@ -359,7 +365,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
     #         if dev_id in self._exclude:  # problems if incl. active gateway
     #             return False
 
-    #         if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
+    #         if dev_id == self._active_hgi:  # is active gwy
     #             continue  # consider: return True
 
     #         if dev_id in self._include:  # incl. 63:262142 & --:------
@@ -374,20 +380,20 @@ class _DeviceIdFilterMixin(_BaseProtocol):
     #         if dev_id[:2] != DEV_TYPE_MAP.HGI:
     #             continue
 
-    #         if self._extra[SZ_ACTIVE_HGI]:  # this 18: is not in known_list
+    #         if self._active_hgi:  # this 18: is not in known_list
     #             warn_foreign_hgi(dev_id)
 
     #     return True
 
-    # def pkt_received(self, pkt: Packet) -> None:
-    #     if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
-    #         raise exc.TransportError(f"Packet excluded by device_id filter: {pkt}")
-    #     super().pkt_received(pkt)
+    def pkt_received(self, pkt: Packet) -> None:
+        #     if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
+        #         raise exc.TransportError(f"Packet excluded by device_id filter: {pkt}")
+        super().pkt_received(pkt)
 
-    # async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
-    #     if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
-    #         raise exc.TransportError(f"Command excluded by device_id filter: {cmd}")
-    #     super().send_cmd(cmd, *args, **kwargs)
+    async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
+        # if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+        #     raise exc.TransportError(f"Command excluded by device_id filter: {cmd}")
+        return await super().send_cmd(cmd, *args, **kwargs)
 
 
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
@@ -678,8 +684,8 @@ def protocol_factory(
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
     enforce_include_list: bool = False,
-    exclude_list: dict[DeviceIdT, str] | None = None,
-    include_list: dict[DeviceIdT, str] | None = None,
+    exclude_list: dict[DeviceIdT, dict] | None = None,
+    include_list: dict[DeviceIdT, dict] | None = None,
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
@@ -726,8 +732,8 @@ async def create_stack(
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
     enforce_include_list: bool = False,
-    exclude_list: dict[DeviceIdT, str] | None = None,
-    include_list: dict[DeviceIdT, str] | None = None,
+    exclude_list: dict[DeviceIdT, dict] | None = None,
+    include_list: dict[DeviceIdT, dict] | None = None,
     **kwargs,  # TODO: these are for the transport_factory
 ) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.

@@ -489,9 +489,6 @@ class _BaseTransport:  # NOTE: active gwy detection in here
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
-        self._foreign_gwys_lst: list[DeviceIdT] = []
-        self._foreign_last_run = dt.now().date()
-
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE):
             self._extra[key] = None
 
