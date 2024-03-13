@@ -54,7 +54,6 @@ _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
 
 
-# send_cmd(), _send_cmd(), _send_frame()
 class _BaseProtocol(asyncio.Protocol):
     """Base class for RAMSES II protocols."""
 
