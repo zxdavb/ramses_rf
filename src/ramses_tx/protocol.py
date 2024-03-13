@@ -17,6 +17,7 @@ from .command import Command
 from .const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_NUM_REPEATS,
+    DEV_TYPE_MAP,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     DevType,
@@ -332,58 +333,58 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 
         return known_hgis[0]
 
-    # def _is_wanted_addrs(
-    #     self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
-    # ) -> bool:
-    #     """Return True if the packet is not to be filtered out.
+    def _is_wanted_addrs(
+        self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
+    ) -> bool:
+        """Return True if the packet is not to be filtered out.
 
-    #     In any one packet, an excluded device_id 'trumps' an included device_id.
+        In any one packet, an excluded device_id 'trumps' an included device_id.
 
-    #     There are two ways to set the Active Gateway (HGI80/evofw3):
-    #     - by signature (evofw3 only), when frame -> packet
-    #     - by known_list (HGI80/evofw3), when filtering packets
-    #     """
+        There are two ways to set the Active Gateway (HGI80/evofw3):
+        - by signature (evofw3 only), when frame -> packet
+        - by known_list (HGI80/evofw3), when filtering packets
+        """
 
-    #     def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
-    #         current_date = dt.now().date()
+        def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
+            current_date = dt.now().date()
 
-    #         if self._foreign_last_run != current_date:
-    #             self._foreign_last_run = current_date
-    #             self._foreign_gwys_lst = []  # reset the list every 24h
+            if self._foreign_last_run != current_date:
+                self._foreign_last_run = current_date
+                self._foreign_gwys_lst = []  # reset the list every 24h
 
-    #         if dev_id in self._foreign_gwys_lst:
-    #             return
+            if dev_id in self._foreign_gwys_lst:
+                return
 
-    #         _LOGGER.warning(
-    #             f"Device {dev_id} is potentially a Foreign gateway, "
-    #             f"the Active gateway is {self._active_hgi}, "
-    #             f"alternatively, is it a HVAC device?{TIP}"
-    #         )
-    #         self._foreign_gwys_lst.append(dev_id)
+            _LOGGER.warning(
+                f"Device {dev_id} is potentially a Foreign gateway, "
+                f"the Active gateway is {self._active_hgi}, "
+                f"alternatively, is it a HVAC device?{TIP}"
+            )
+            self._foreign_gwys_lst.append(dev_id)
 
-    #     for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
-    #         if dev_id in self._exclude:  # problems if incl. active gateway
-    #             return False
+        for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
+            if dev_id in self._exclude:  # problems if incl. active gateway
+                return False
 
-    #         if dev_id == self._active_hgi:  # is active gwy
-    #             continue  # consider: return True
+            if dev_id == self._active_hgi:  # is active gwy
+                continue  # consider: return True
 
-    #         if dev_id in self._include:  # incl. 63:262142 & --:------
-    #             continue
+            if dev_id in self._include:  # incl. 63:262142 & --:------
+                continue
 
-    #         if sending and dev_id == HGI_DEV_ADDR.id:
-    #             continue
+            if sending and dev_id == HGI_DEV_ADDR.id:
+                continue
 
-    #         if self.enforce_include:
-    #             return False
+            if self.enforce_include:
+                return False
 
-    #         if dev_id[:2] != DEV_TYPE_MAP.HGI:
-    #             continue
+            if dev_id[:2] != DEV_TYPE_MAP.HGI:
+                continue
 
-    #         if self._active_hgi:  # this 18: is not in known_list
-    #             warn_foreign_hgi(dev_id)
+            if self._active_hgi:  # this 18: is not in known_list
+                warn_foreign_hgi(dev_id)
 
-    #     return True
+        return True
 
     def pkt_received(self, pkt: Packet) -> None:
         #     if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
