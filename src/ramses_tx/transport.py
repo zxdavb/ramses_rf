@@ -65,19 +65,11 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
-from .address import ALL_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import MINIMUM_GAP_DURATION, SZ_ACTIVE_HGI, SZ_IS_EVOFW3, SZ_SIGNATURE
 from .helpers import dt_now
 from .packet import Packet
-from .schemas import (
-    SCH_SERIAL_PORT_CONFIG,
-    SZ_BLOCK_LIST,
-    SZ_EVOFW_FLAG,
-    SZ_INBOUND,
-    SZ_KNOWN_LIST,
-    SZ_OUTBOUND,
-)
+from .schemas import SCH_SERIAL_PORT_CONFIG, SZ_EVOFW_FLAG, SZ_INBOUND, SZ_OUTBOUND
 from .typing import ExceptionT, SerPortNameT
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -89,14 +81,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
-    from .address import DeviceIdT
     from .protocol import RamsesProtocolT
 
 
 _SIGNATURE_MAX_TRYS = 24
 _SIGNATURE_GAP_SECS = 0.05
-
-TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 
 DEV_MODE = False
@@ -467,17 +456,7 @@ class _BaseTransport:  # NOTE: active gwy detection in here
     _protocol: RamsesProtocolT
     _extra: dict[str, Any]  # mypy
 
-    def __init__(
-        self,
-        *args,
-        enforce_include_list: bool = False,
-        exclude_list: dict[DeviceIdT, str] | None = None,
-        include_list: dict[DeviceIdT, str] | None = None,
-        **kwargs,
-    ) -> None:
-        exclude_list = exclude_list or {}
-        include_list = include_list or {}
-
+    def __init__(self, *args, **kwargs) -> None:
         self._evofw_flag = kwargs.pop(SZ_EVOFW_FLAG, None)  # gwy.config.evofw_flag
 
         super().__init__(*args, **kwargs)
@@ -485,40 +464,11 @@ class _BaseTransport:  # NOTE: active gwy detection in here
         self._this_pkt: Packet | None = None
         self._prev_pkt: Packet | None = None
 
-        self.enforce_include = enforce_include_list
-        self._exclude = list(exclude_list.keys())
-        self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
-
         for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE):
             self._extra[key] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
-
-    def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
-        """Set the Active Gateway (HGI) device_if.
-
-        Send a warning if the include list is configured incorrectly.
-        """
-
-        assert self._extra[SZ_ACTIVE_HGI] is None  # should only be called once
-
-        msg = f"The active gateway {dev_id}: {{ class: HGI }} "
-        msg += "(by signature)" if by_signature else "(by filter)"
-
-        if dev_id not in self._exclude:
-            self._extra[SZ_ACTIVE_HGI] = dev_id
-            # else: setting self._extra[SZ_ACTIVE_HGI] will not help
-
-        if dev_id in self._exclude:
-            _LOGGER.error(f"{msg} MUST NOT be in the {SZ_BLOCK_LIST}{TIP}")
-        elif dev_id in self._include:
-            pass
-        elif self.enforce_include:
-            _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
-            # self._include.append(dev_id)  # a good idea?
-        else:
-            _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
     @track_system_syncs
     def _pkt_read(self, pkt: Packet) -> None:
@@ -787,7 +737,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             and pkt.code == Code._PUZZ
             and pkt.payload == self._extra[SZ_SIGNATURE]
         ):
-            self._set_active_hgi(pkt.src.id, by_signature=True)
+            self._extra[SZ_ACTIVE_HGI] = pkt.src.id  # , by_signature=True)
             self._init_fut.set_result(pkt)
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
@@ -1102,7 +1052,7 @@ async def transport_factory(
     """Create and return a Ramses-specific async packet Transport."""
 
     # kwargs are specific to a transport. The above transports have:
-    # enforce_include_list, exclude_list, include_list, use_regex
+    # evofw3_flag, use_regex
 
     async def poll_until_connection_made(protocol: RamsesProtocolT) -> None:
         """Poll until the Transport is bound to the Protocol."""

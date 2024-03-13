@@ -17,7 +17,6 @@ from datetime import datetime as dt
 import pytest
 import pytest_asyncio
 import serial
-import serial_asyncio
 
 from ramses_rf import Command, Message, Packet
 from ramses_tx.protocol import QosProtocol, protocol_factory
@@ -29,7 +28,7 @@ from ramses_tx.protocol_fsm import (
     WantRply,
     _ProtocolStateT,
 )
-from ramses_tx.transport import transport_factory
+from ramses_tx.transport import QosTransport, transport_factory
 from ramses_tx.typing import QosParams
 
 from .virtual_rf import VirtualRf
@@ -85,17 +84,18 @@ def prot_factory(disable_qos: bool | None = False):
             rf = VirtualRf(2, start=True)
 
             protocol = protocol_factory(
-                kwargs.pop("msg_handler", _msg_handler), disable_qos=disable_qos
-            )
-            await assert_protocol_state(protocol, Inactive, max_sleep=0)
-
-            transport: serial_asyncio.SerialTransport = await transport_factory(
-                protocol,
-                port_name=rf.ports[0],
-                port_config=kwargs.pop("port_config", {}),
+                kwargs.pop("msg_handler", _msg_handler),
+                disable_qos=disable_qos,
                 enforce_include_list=kwargs.pop("enforce_include_list", False),
                 exclude_list=kwargs.pop("exclude_list", {}),
                 include_list=kwargs.pop("include_list", {}),
+            )
+            await assert_protocol_state(protocol, Inactive, max_sleep=0)
+
+            transport: QosTransport = await transport_factory(
+                protocol,
+                port_name=rf.ports[0],
+                port_config=kwargs.pop("port_config", {}),
             )
             transport._extra["virtual_rf"] = rf  # injected to aid any debugging
 

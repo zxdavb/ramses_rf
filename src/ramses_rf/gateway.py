@@ -278,14 +278,17 @@ class Gateway(Engine):
         if _clear_state:  # only intended for test suite use
             clear_state()
 
-        tmp_protocol = protocol_factory(self._msg_handler, disable_sending=True)
+        tmp_protocol = protocol_factory(
+            self._msg_handler,
+            disable_sending=True,
+            enforce_include_list=self._enforce_known_list,
+            exclude_list=self._exclude,
+            include_list=self._include,
+        )
 
         tmp_transport = await transport_factory(
             tmp_protocol,
             packet_dict=packets,
-            enforce_include_list=self._enforce_known_list,
-            exclude_list=self._exclude,
-            include_list=self._include,
         )
 
         await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
