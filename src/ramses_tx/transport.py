@@ -577,7 +577,7 @@ class _FileTransport(asyncio.ReadTransport):
         self._reading = True
         try:
             await self._reader()
-        except KeyboardInterrupt as err:
+        except Exception as err:
             self._protocol.connection_lost(err)  # type: ignore[arg-type]
         else:
             self._protocol.connection_lost(None)
