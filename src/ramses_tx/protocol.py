@@ -252,8 +252,6 @@ class _BaseProtocol(asyncio.Protocol):
 class _DeviceIdFilterMixin(_BaseProtocol):
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
-    pass
-
     def __init__(
         self,
         msg_handler: MsgHandlerT,
