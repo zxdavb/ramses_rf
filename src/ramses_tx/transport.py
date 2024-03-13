@@ -65,10 +65,9 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
-from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, pkt_addrs
+from .address import ALL_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
-    DEV_TYPE_MAP,
     MINIMUM_GAP_DURATION,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
@@ -582,68 +581,12 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         else:
             _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
 
-    def _is_wanted_addrs(
-        self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
-    ) -> bool:
-        """Return True if the packet is not to be filtered out.
-
-        In any one packet, an excluded device_id 'trumps' an included device_id.
-
-        There are two ways to set the Active Gateway (HGI80/evofw3):
-        - by signature (evofw3 only), when frame -> packet
-        - by known_list (HGI80/evofw3), when filtering packets
-        """
-
-        def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
-            current_date = dt.now().date()
-
-            if self._foreign_last_run != current_date:
-                self._foreign_last_run = current_date
-                self._foreign_gwys_lst = []  # reset the list every 24h
-
-            if dev_id in self._foreign_gwys_lst:
-                return
-
-            _LOGGER.warning(
-                f"Device {dev_id} is potentially a Foreign gateway, "
-                f"the Active gateway is {self._extra[SZ_ACTIVE_HGI]}, "
-                f"alternatively, is it a HVAC device?{TIP}"
-            )
-            self._foreign_gwys_lst.append(dev_id)
-
-        for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
-            if dev_id in self._exclude:  # problems if incl. active gateway
-                return False
-
-            if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
-                continue  # consider: return True
-
-            if dev_id in self._include:  # incl. 63:262142 & --:------
-                continue
-
-            if sending and dev_id == HGI_DEV_ADDR.id:
-                continue
-
-            if self.enforce_include:
-                return False
-
-            if dev_id[:2] != DEV_TYPE_MAP.HGI:
-                continue
-
-            if self._extra[SZ_ACTIVE_HGI]:  # this 18: is not in known_list
-                warn_foreign_hgi(dev_id)
-
-        return True
-
     @track_system_syncs
     def _pkt_read(self, pkt: Packet) -> None:
-        """Pass any valid/wanted Packets to the protocol's callback.
+        """Pass any valid Packets to the protocol's callback.
 
         Also maintain _prev_pkt, _this_pkt attrs.
         """
-
-        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
-            return
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
@@ -653,12 +596,6 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
             self._protocol.pkt_received(pkt)
         except AssertionError as err:  # protect from upper-layer callbacks
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
-
-    async def _write_frame(self, frame: str) -> None:
-        src, dst, *_ = pkt_addrs(frame[7:36])
-        if not self._is_wanted_addrs(src.id, dst.id, sending=True):
-            raise exc.TransportError(f"Packet excluded by device_id filter: {frame}")
-        await super()._write_frame(frame)  # type: ignore[misc]
 
 
 class _RegHackMixin:

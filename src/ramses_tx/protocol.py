@@ -11,7 +11,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Final
 
 from . import exceptions as exc
-from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
+from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
     DEFAULT_GAP_DURATION,
@@ -25,7 +25,7 @@ from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
-from .schemas import SZ_PORT_NAME
+from .schemas import SZ_BLOCK_LIST, SZ_KNOWN_LIST, SZ_PORT_NAME
 from .transport import transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from .address import DeviceIdT
     from .transport import RamsesTransportT
 
+TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
@@ -60,7 +61,7 @@ class _BaseProtocol(asyncio.Protocol):
     _this_msg: None | Message = None
     _prev_msg: None | Message = None
 
-    def __init__(self, msg_handler: MsgHandlerT):  # , **kwargs) -> None:
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
         self._msg_handler = msg_handler
         self._msg_handlers: list[MsgHandlerT] = []
 
@@ -253,6 +254,91 @@ class _BaseProtocol(asyncio.Protocol):
             self._loop.call_soon_threadsafe(callback, msg)
 
 
+class _DeviceIdFilterMixin(_BaseProtocol):
+    """Filter out any unwanted (but otherwise valid) packets via device ids."""
+
+    pass
+
+    def __init__(
+        self,
+        msg_handler: MsgHandlerT,
+        enforce_include_list: bool = False,
+        exclude_list: dict[DeviceIdT, str] | None = None,
+        include_list: dict[DeviceIdT, str] | None = None,
+    ) -> None:
+        super().__init__(msg_handler)
+
+        exclude_list = exclude_list or {}
+        include_list = include_list or {}
+
+        self.enforce_include = enforce_include_list
+        self._exclude = list(exclude_list.keys())
+        self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
+
+    # def _is_wanted_addrs(
+    #     self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
+    # ) -> bool:
+    #     """Return True if the packet is not to be filtered out.
+
+    #     In any one packet, an excluded device_id 'trumps' an included device_id.
+
+    #     There are two ways to set the Active Gateway (HGI80/evofw3):
+    #     - by signature (evofw3 only), when frame -> packet
+    #     - by known_list (HGI80/evofw3), when filtering packets
+    #     """
+
+    #     def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
+    #         current_date = dt.now().date()
+
+    #         if self._foreign_last_run != current_date:
+    #             self._foreign_last_run = current_date
+    #             self._foreign_gwys_lst = []  # reset the list every 24h
+
+    #         if dev_id in self._foreign_gwys_lst:
+    #             return
+
+    #         _LOGGER.warning(
+    #             f"Device {dev_id} is potentially a Foreign gateway, "
+    #             f"the Active gateway is {self._extra[SZ_ACTIVE_HGI]}, "
+    #             f"alternatively, is it a HVAC device?{TIP}"
+    #         )
+    #         self._foreign_gwys_lst.append(dev_id)
+
+    #     for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
+    #         if dev_id in self._exclude:  # problems if incl. active gateway
+    #             return False
+
+    #         if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
+    #             continue  # consider: return True
+
+    #         if dev_id in self._include:  # incl. 63:262142 & --:------
+    #             continue
+
+    #         if sending and dev_id == HGI_DEV_ADDR.id:
+    #             continue
+
+    #         if self.enforce_include:
+    #             return False
+
+    #         if dev_id[:2] != DEV_TYPE_MAP.HGI:
+    #             continue
+
+    #         if self._extra[SZ_ACTIVE_HGI]:  # this 18: is not in known_list
+    #             warn_foreign_hgi(dev_id)
+
+    #     return True
+
+    # def pkt_received(self, pkt: Packet) -> None:
+    #     if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
+    #         raise exc.TransportError(f"Packet excluded by device_id filter: {pkt}")
+    #     super().pkt_received(pkt)
+
+    # async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
+    #     if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+    #         raise exc.TransportError(f"Command excluded by device_id filter: {cmd}")
+    #     super().send_cmd(cmd, *args, **kwargs)
+
+
 # NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
 # Impersonate first, as the Puzzle Packet needs to be sent before the Command
 # Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
@@ -260,11 +346,11 @@ class _BaseProtocol(asyncio.Protocol):
 
 
 # ### Read-Only Protocol for FileTransport, PortTransport #############################
-class ReadProtocol(_BaseProtocol):
+class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can only receive Packets."""
 
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
-        super().__init__(msg_handler)
+    def __init__(self, msg_handler: MsgHandlerT, **kwargs) -> None:
+        super().__init__(msg_handler, **kwargs)
 
         self._pause_writing = True
 
@@ -296,13 +382,10 @@ class ReadProtocol(_BaseProtocol):
 
 
 # ### Read-Write (sans QoS) Protocol for PortTransport ################################
-class PortProtocol(_BaseProtocol):
+class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can receive Packets and send Commands."""
 
     _is_evofw3: bool | None = None
-
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
-        super().__init__(msg_handler)
 
     def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
@@ -383,9 +466,11 @@ class PortProtocol(_BaseProtocol):
 class QosProtocol(PortProtocol):
     """A protocol that can receive Packets and send Commands with QoS (using a FSM)."""
 
-    def __init__(self, msg_handler: MsgHandlerT, selective_qos: bool = False) -> None:
+    def __init__(
+        self, msg_handler: MsgHandlerT, selective_qos: bool = False, **kwargs
+    ) -> None:
         """Add a FSM to the Protocol, to provide QoS."""
-        super().__init__(msg_handler)
+        super().__init__(msg_handler, **kwargs)
 
         self._context = ProtocolContext(self)
         self._selective_qos = selective_qos  # QoS for some commands
@@ -481,10 +566,10 @@ class QosProtocol(PortProtocol):
         #     qos = QosParams()
 
         # Should do this check before, or after previous block (of non-QoS sends)?
-        if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
-            raise exc.ProtocolError(
-                f"{self}: Failed to send {cmd._hdr}: excluded by list"
-            )
+        # if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+        #     raise exc.ProtocolError(
+        #         f"{self}: Failed to send {cmd._hdr}: excluded by list"
+        #     )
 
         try:
             return await self._context.send_cmd(send_cmd, cmd, priority, qos)
@@ -541,6 +626,9 @@ def protocol_factory(
     *,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
+    enforce_include_list: bool = False,
+    exclude_list: dict[DeviceIdT, str] | None = None,
+    include_list: dict[DeviceIdT, str] | None = None,
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
@@ -551,15 +639,31 @@ def protocol_factory(
     #               is None,  means QoS is disabled, but enabled by the command
 
     if disable_sending:
-        _LOGGER.debug("ReadProtocol: sending has been disabled")
-        return ReadProtocol(msg_handler)
+        _LOGGER.debug("ReadProtocol: Sending has been disabled")
+        return ReadProtocol(
+            msg_handler,
+            enforce_include_list=enforce_include_list,
+            exclude_list=exclude_list,
+            include_list=include_list,
+        )
 
     if disable_qos or _DBG_DISABLE_QOS:
         _LOGGER.debug("PortProtocol: QoS has been disabled")
-        return PortProtocol(msg_handler)
+        return PortProtocol(
+            msg_handler,
+            enforce_include_list=enforce_include_list,
+            exclude_list=exclude_list,
+            include_list=include_list,
+        )
 
     _LOGGER.debug("QosProtocol: QoS has been enabled")
-    return QosProtocol(msg_handler, selective_qos=disable_qos is None)
+    return QosProtocol(
+        msg_handler,
+        selective_qos=disable_qos is None,
+        enforce_include_list=enforce_include_list,
+        exclude_list=exclude_list,
+        include_list=include_list,
+    )
 
 
 async def create_stack(
@@ -570,6 +674,9 @@ async def create_stack(
     transport_factory_: None | Callable = None,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
+    enforce_include_list: bool = False,
+    exclude_list: dict[DeviceIdT, str] | None = None,
+    include_list: dict[DeviceIdT, str] | None = None,
     **kwargs,  # TODO: these are for the transport_factory
 ) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.
@@ -582,15 +689,14 @@ async def create_stack(
     read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
     disable_sending = disable_sending or read_only
 
-    if protocol_factory_:
-        protocol = protocol_factory_(
-            msg_handler, disable_qos=disable_qos, disable_sending=disable_sending
-        )
-
-    else:
-        protocol = protocol_factory(
-            msg_handler, disable_qos=disable_qos, disable_sending=disable_sending
-        )
+    protocol = (protocol_factory_ or protocol_factory)(
+        msg_handler,
+        disable_qos=disable_qos,
+        disable_sending=disable_sending,
+        enforce_include_list=enforce_include_list,
+        exclude_list=exclude_list,
+        include_list=include_list,
+    )
 
     transport = await (transport_factory_ or transport_factory)(
         protocol, disable_qos=disable_qos, disable_sending=disable_sending, **kwargs
