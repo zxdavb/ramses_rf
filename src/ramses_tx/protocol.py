@@ -18,7 +18,6 @@ from .const import (
     DEFAULT_NUM_REPEATS,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
-    SZ_KNOWN_HGI,
     DevType,
     Priority,
 )
@@ -75,12 +74,7 @@ class _BaseProtocol(asyncio.Protocol):
 
     @property
     def hgi_id(self) -> DeviceIdT:
-        if not self._transport:
-            return HGI_DEV_ADDR.id  # better: known_hgi or HGI_DEV_ADDR.id?
-        hgi_id: DeviceIdT | None = self._transport.get_extra_info(SZ_ACTIVE_HGI)
-        if hgi_id is not None:
-            return hgi_id
-        return self._transport.get_extra_info(SZ_KNOWN_HGI, HGI_DEV_ADDR.id)  # type: ignore[no-any-return]
+        return HGI_DEV_ADDR.id
 
     def add_handler(
         self,
@@ -276,8 +270,15 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         self._exclude = list(exclude_list.keys())
         self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
-        # TODO: maybe this shouldn't be called for read-only transports?
         self._known_hgi = self._extract_known_hgi(include_list)
+
+    @property
+    def hgi_id(self) -> DeviceIdT:
+        if not self._transport:
+            return self._known_hgi or HGI_DEV_ADDR.id
+        return self._transport.get_extra_info(  # type: ignore[no-any-return]
+            SZ_ACTIVE_HGI, self._known_hgi or HGI_DEV_ADDR.id
+        )
 
     @staticmethod
     def _extract_known_hgi(include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:

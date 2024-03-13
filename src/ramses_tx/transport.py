@@ -67,13 +67,7 @@ from serial import (  # type: ignore[import-untyped]
 from . import exceptions as exc
 from .address import ALL_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
-from .const import (
-    MINIMUM_GAP_DURATION,
-    SZ_ACTIVE_HGI,
-    SZ_IS_EVOFW3,
-    SZ_KNOWN_HGI,
-    SZ_SIGNATURE,
-)
+from .const import MINIMUM_GAP_DURATION, SZ_ACTIVE_HGI, SZ_IS_EVOFW3, SZ_SIGNATURE
 from .helpers import dt_now
 from .packet import Packet
 from .schemas import (
@@ -498,7 +492,7 @@ class _BaseTransport:  # NOTE: active gwy detection in here
         self._foreign_gwys_lst: list[DeviceIdT] = []
         self._foreign_last_run = dt.now().date()
 
-        for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
+        for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE):
             self._extra[key] = None
 
     def __repr__(self) -> str:
@@ -798,9 +792,6 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         ):
             self._set_active_hgi(pkt.src.id, by_signature=True)
             self._init_fut.set_result(pkt)
-
-        elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
-            self._set_active_hgi(pkt.src.id)
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 

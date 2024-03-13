@@ -16,7 +16,6 @@ DEV_MODE = __dev_mode__
 # used by transport...
 SZ_ACTIVE_HGI: Final = "active_gwy"
 SZ_SIGNATURE: Final = "signature"
-SZ_KNOWN_HGI: Final = "known_hgi"
 SZ_IS_EVOFW3: Final = "is_evofw3"
 
 # used by protocol QoS...
