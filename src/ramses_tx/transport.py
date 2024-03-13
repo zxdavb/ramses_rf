@@ -469,7 +469,7 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
     return wrapper
 
 
-class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
+class _BaseTransport:  # NOTE: active gwy detection in here
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     _protocol: RamsesProtocolT
@@ -908,7 +908,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
 
 # ### Read-Only Transports for dict / log file ########################################
-class FileTransport(_DeviceIdFilterMixin, _FileTransport):
+class FileTransport(_BaseTransport, _FileTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
     def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
@@ -932,7 +932,7 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
 
 
 # ### Read-Write Transport for serial port ############################################
-class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # type: ignore[misc]
+class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ignore[misc]
     """Poll a serial port for packets, and send (without QoS)."""
 
     _init_fut: asyncio.Future
@@ -1012,7 +1012,7 @@ class QosTransport(PortTransport):
 
 
 # ### Read-Write Transport for MQTT ###################################################
-class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
+class MqttTransport(_BaseTransport, asyncio.Transport):
     READER_TASK = "reader_task"  # only for mypy
 
     def __init__(
@@ -1105,17 +1105,7 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
             _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
             return
 
-        # # NOTE: a signature can override an existing active gateway
-        # if (
-        #     not self._init_fut.done()
-        #     and pkt.code == Code._PUZZ
-        #     and pkt.payload == self._extra[SZ_SIGNATURE]
-        # ):
-        #     self._set_active_hgi(pkt.src.id, by_signature=True)
-        #     self._init_fut.set_result(pkt)
-
-        # elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
-        #     self._set_active_hgi(pkt.src.id)
+        # TODO: dtermine active gateway
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
