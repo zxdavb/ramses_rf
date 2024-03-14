@@ -270,7 +270,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         self._include = list(include_list.keys())
         self._include += [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
-        self._active_hgi = None  # FIXME
+        self._active_hgi: DeviceIdT | None = None
         self._known_hgi = self._extract_known_hgi(include_list)
 
         self._foreign_gwys_lst: list[DeviceIdT] = []

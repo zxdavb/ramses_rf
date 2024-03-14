@@ -381,9 +381,9 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
     SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
     SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
 
-    times_0 = []  # FIXME: remove
+    times_0 = []  # TODO: remove
 
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs) -> None:
         global _global_sync_cycles
 
         def is_imminent(p):
@@ -414,6 +414,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable]):
             )  # TODO: wrap with if effectiveloglevel
 
         await fnc(*args, **kwargs)
+        return None
 
     return wrapper
 
@@ -470,7 +471,6 @@ class _BaseTransport:  # NOTE: active gwy detection in here
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
 
-    @track_system_syncs
     def _pkt_read(self, pkt: Packet) -> None:
         """Pass any valid Packets to the protocol's callback.
 
@@ -751,8 +751,6 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
     # then the code that avoids the controller sync cycles
 
-    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
-    @avoid_system_syncs
     async def _write_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
@@ -838,10 +836,7 @@ class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ign
 
         # signature also serves to discover the HGI's device_id (& for pkt log, if any)
 
-        # Could instead have: connection_made(self, pkt=pkt) *if* pkt is sig. echo, but
-        # would require a re-write or portions of both Transport & Protocol
-
-        def call_make_connection() -> None:
+        def call_make_connection(pkt: Packet | None = None) -> None:
             """Invoke the Protocol.connection_made() callback."""
             # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
             #     await self._write_frame("!V")  # or self.write()???
@@ -868,7 +863,7 @@ class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ign
                 await asyncio.sleep(_SIGNATURE_GAP_SECS)
 
                 if self._init_fut.done():
-                    call_make_connection()
+                    call_make_connection(pkt=self._init_fut.result())
                     return
 
             self._init_fut.set_exception(
@@ -886,13 +881,19 @@ class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ign
             return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
         return self._extra.get(name, default)
 
+    @track_system_syncs
+    def _pkt_read(self, pkt: Packet) -> None:
+        super()._pkt_read(pkt)
+
+    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @avoid_system_syncs
+    async def _write_frame(self, frame: str) -> None:
+        await super()._write_frame(frame)
+
 
 # ### Read-Write Transport *with QoS* for serial port #################################
 class QosTransport(PortTransport):
     """Poll a serial port for packets, and send with QoS."""
-
-    # NOTE: Might normally include code to the limit duty cycle, etc., but see
-    # the note in Protocol layer
 
     pass
 
