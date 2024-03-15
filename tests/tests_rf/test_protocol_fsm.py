@@ -35,7 +35,6 @@ from .virtual_rf import VirtualRf
 
 # patched constants
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.05  # #                 ramses_tx.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #                   ramses_tx.protocol
 
 # other constants

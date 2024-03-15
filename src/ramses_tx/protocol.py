@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Final
 
 from . import exceptions as exc
@@ -28,7 +28,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_BLOCK_LIST, SZ_CLASS, SZ_KNOWN_LIST, SZ_PORT_NAME
-from .transport import transport_factory
+from .transport import MqttTransport, transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -573,6 +573,9 @@ class QosProtocol(PortProtocol):
 
         if not ramses:
             return
+
+        if isinstance(transport, MqttTransport):  # HACK: need to move FSM to transport
+            self._context.echo_timeout = td(seconds=0.5)
 
         super().connection_made(transport, ramses=ramses)
         self._context.connection_made(transport)

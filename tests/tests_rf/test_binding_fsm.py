@@ -31,7 +31,6 @@ from .virtual_rf.helpers import ensure_fakeable
 
 # patched constants
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.005  # #                ramses_tx.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #           ramses_tx.protocol_fsm
 
 # other constants

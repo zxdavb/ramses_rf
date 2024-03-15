@@ -14,19 +14,12 @@ from collections.abc import Callable, Coroutine
 from datetime import datetime as dt, timedelta as td
 from queue import Empty, Full, PriorityQueue
 from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from . import exceptions as exc
 from .address import HGI_DEV_ADDR
 from .command import Command
-from .const import (
-    DEFAULT_ECHO_TIMEOUT,
-    DEFAULT_RPLY_TIMEOUT,
-    DEFAULT_TIMEOUT,
-    MINIMUM_GAP_DURATION,
-    SZ_ACTIVE_HGI,
-    Priority,
-)
+from .const import MINIMUM_GAP_DURATION, SZ_ACTIVE_HGI, Priority
 from .packet import Packet
 from .typing import ExceptionT, QosParams
 
@@ -48,12 +41,11 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
 
 
-_DEFAULT_TIMEOUT = td(seconds=DEFAULT_TIMEOUT)
-_DEFAULT_ECHO_TIMEOUT = td(seconds=DEFAULT_ECHO_TIMEOUT)
-_DEFAULT_RPLY_TIMEOUT = td(seconds=DEFAULT_RPLY_TIMEOUT)
-_MINIMUM_GAP_DURATION = td(seconds=MINIMUM_GAP_DURATION)
+DEFAULT_MAX_BUFFER_SIZE: Final[int] = 32
+DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
+DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 
-_POLLING_INTERVAL = 0.0005
+_POLLING_INTERVAL: Final[float] = 0.0005
 
 
 class _ProtocolWaitFailed(exc.ProtocolSendFailed):
@@ -69,19 +61,32 @@ class _ProtocolRplyFailed(exc.ProtocolSendFailed):
 
 
 class ProtocolContext:
-    """A mixin is to add state to a Protocol."""
-
-    MAX_BUFFER_SIZE: int = 32
+    """To add state to a Protocol."""
 
     _proc_queue_task: None | asyncio.Task = None  # None when not connected to Protocol
     _state: _ProtocolStateT = None  # type: ignore[assignment]
 
-    def __init__(self, protocol: RamsesProtocolT) -> None:
+    def __init__(
+        self,
+        protocol: RamsesProtocolT,
+        /,
+        *,
+        max_buffer_size: int = DEFAULT_MAX_BUFFER_SIZE,
+        echo_timeout: float = DEFAULT_ECHO_TIMEOUT,
+        reply_timeout: float = DEFAULT_RPLY_TIMEOUT,
+        min_gap_duration: float = MINIMUM_GAP_DURATION,
+        max_retry_limit: int = 3,
+    ) -> None:
         # super().__init__(*args, **kwargs)
         self._protocol = protocol
+        self.max_buffer_size = max_buffer_size
+        self.echo_timeout = td(seconds=echo_timeout)
+        self.reply_timeout = td(seconds=reply_timeout)
+        self.min_gap_duration = td(seconds=min_gap_duration)
+        self.max_retry_limit = max_retry_limit
 
         self._loop = asyncio.get_running_loop()
-        self._que: PriorityQueue = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
+        self._que: PriorityQueue = PriorityQueue(maxsize=self.max_buffer_size)
         self._mutex = Lock()
 
         self.set_state(Inactive)  # set initiate state, pre connection_made
@@ -307,7 +312,7 @@ class ProtocolContext:
                 # assert isinstance(self.state, WantEcho)  # This won't work here
                 prev_state, next_state = await self._wait_for_transition(
                     self.state,  # NOTE: is self.state, not next_state
-                    _DEFAULT_ECHO_TIMEOUT + num_retries * _MINIMUM_GAP_DURATION,
+                    self.echo_timeout + num_retries * self.min_gap_duration,
                 )
                 assert prev_state._echo_pkt, f"{self}: Missing echo packet"
 
@@ -338,7 +343,7 @@ class ProtocolContext:
             try:  # receive the reply pkt (if any)
                 prev_state, next_state = await self._wait_for_transition(
                     next_state,  # NOTE: is next_state, not self.state
-                    _DEFAULT_RPLY_TIMEOUT + num_retries * _MINIMUM_GAP_DURATION,
+                    self.reply_timeout + num_retries * self.min_gap_duration,
                 )
                 assert isinstance(next_state, IsInIdle), f"{self}: Expects IsInIdle"
                 assert prev_state._rply_pkt, f"{self}: Missing rply packet"

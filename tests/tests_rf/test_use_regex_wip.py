@@ -73,10 +73,11 @@ GWY_CONFIG = {
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
     monkeypatch.setattr("ramses_tx.transport._GAP_BETWEEN_WRITES", 0)
-    monkeypatch.setattr("ramses_tx.protocol_fsm.DEFAULT_TIMEOUT", 0.005)
 
 
-async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
+async def assert_this_pkt(
+    gwy: Gateway, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP
+):
     """Check, at the gateway layer, that the current packet is as expected."""
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)

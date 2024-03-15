@@ -22,12 +22,9 @@ SZ_IS_EVOFW3: Final = "is_evofw3"
 MINIMUM_GAP_DURATION: Final[float] = 0.02  # seconds
 
 DEFAULT_GAP_DURATION: Final[float] = MINIMUM_GAP_DURATION
+DEFAULT_MAX_RETRIES: Final[int] = 3
 DEFAULT_NUM_REPEATS: Final[int] = 1
 DEFAULT_TIMEOUT: Final[float] = 30.0  # total waiting for successful send: FIXME
-
-DEFAULT_MAX_RETRIES: Final[int] = 3
-DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
-DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 
 SZ_QOS: Final = "qos"
 
