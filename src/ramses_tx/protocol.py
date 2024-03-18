@@ -391,7 +391,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
                 return False
 
             if dev_id == self._active_hgi:  # is active gwy
-                continue  # consider: return True
+                continue  # consider: return True (but what if corrupted dst.id?)
 
             if dev_id in self._include:  # incl. 63:262142 & --:------
                 continue
@@ -413,6 +413,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
     def pkt_received(self, pkt: Packet) -> None:
         if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
             _LOGGER.debug("%s < Packet excluded by device_id filter", pkt)
+            return
         super().pkt_received(pkt)
 
     async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
