@@ -451,7 +451,7 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
     return wrapper
 
 
-class _BaseTransport:  # NOTE: active gwy detection in here
+class _BaseTransport:
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     _protocol: RamsesProtocolT
@@ -981,6 +981,9 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
     ):
+        if self._closing:
+            return
+
         if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Rx: %s", msg.payload)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
@@ -994,7 +997,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
             _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
             return
 
-        # TODO: dtermine active gateway
+        # TODO: determine active gateway
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
