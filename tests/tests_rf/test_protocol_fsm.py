@@ -276,7 +276,7 @@ async def _test_flow_30x(
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
 
-    qos = QosParams()
+    qos = QosParams(wait_for_reply=True)
 
     # STEP 1: Send an I cmd (no reply)...
     task = protocol._loop.create_task(
