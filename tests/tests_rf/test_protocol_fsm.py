@@ -19,6 +19,7 @@ import pytest_asyncio
 import serial
 
 from ramses_rf import Command, Message, Packet
+from ramses_tx import exceptions as exc
 from ramses_tx.protocol import QosProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
@@ -323,62 +324,70 @@ async def _test_flow_30x(
 @prot_factory(disable_qos=False)
 async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
-    # Simple test for an I (does not expect any rx)...
-    cmd = Command.put_sensor_temp("03:333333", 19.5)  # 3C09| I|03:333333
+    # ### Simple test for an I (does not expect any reply)...
 
+    cmd = Command.put_sensor_temp("03:000111", 19.5)
+    pkt = await protocol._send_cmd(cmd)  # qos == QosParams()
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    cmd = Command.put_sensor_temp("03:000222", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=None)  # qos == QosParams()
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    cmd = Command.put_sensor_temp("03:000333", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams())
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    cmd = Command.put_sensor_temp("03:000444", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
+    assert pkt == cmd, "should be echo as there is no wait_for_reply"
+
+    cmd = Command.put_sensor_temp("03:000555", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
+    assert pkt == cmd, "should be echo as there is no wait_for_reply"
+
+    cmd = Command.put_sensor_temp("03:000666", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    # ### Simple test for an RQ (expects an RP)...
+
+    cmd = Command.get_system_time("01:000111")
     pkt = await protocol._send_cmd(cmd)
-    assert pkt is None
+    assert pkt == cmd
 
+    cmd = Command.get_system_time("01:000222")
     pkt = await protocol._send_cmd(cmd, qos=None)
-    assert pkt is None
+    assert pkt == cmd
 
+    cmd = Command.get_system_time("01:000333")
     pkt = await protocol._send_cmd(cmd, qos=QosParams())
     assert pkt == cmd
 
+    cmd = Command.get_system_time("01:000444")
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
     assert pkt == cmd
 
+    cmd = Command.get_system_time("01:000555")
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
     assert pkt == cmd
 
-    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
-    assert pkt == cmd
+    # FIXME: reduce timeouts to speed up test
+    cmd = Command.get_system_time("01:000666")
+    try:
+        _ = await protocol._send_cmd(
+            cmd, qos=QosParams(wait_for_reply=True, timeout=0.05)
+        )
+    except exc.ProtocolSendFailed:
+        pass
+    else:
+        assert False, "Expected ProtocolSendFailed"
 
-    # Simple test for an RQ (expects an RP)...
-    cmd = Command.get_system_time("01:333333")  # 1F09|RQ|01:333333
+    # ### Simple test for an I (does not expect any reply)...
 
+    cmd = Command.put_sensor_temp("03:000999", 19.5)
     pkt = await protocol._send_cmd(cmd)
-    assert pkt is None
-
-    pkt = await protocol._send_cmd(cmd, qos=None)
-    assert pkt is None
-
-    # FIXME: reduce timeouts to speed up test
-    # try:
-    #     pkt = await protocol._send_cmd(cmd, qos=QosParams())
-    # except exc.ProtocolSendFailed:
-    #     pass
-    # else:
-    #     assert False, "Expected ProtocolSendFailed"
-
-    # FIXME: reduce timeouts to speed up test
-    # try:
-    #     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
-    # except exc.ProtocolSendFailed:
-    #     pass
-    # else:
-    #     assert False, "Expected ProtocolSendFailed"
-
-    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
     assert pkt == cmd
-
-    # FIXME: reduce timeouts to speed up test
-    # try:
-    #     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
-    # except exc.ProtocolSendFailed:
-    #     pass
-    # else:
-    #     assert False, "Expected ProtocolSendFailed"
 
 
 @prot_factory()
