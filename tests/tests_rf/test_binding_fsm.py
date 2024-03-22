@@ -227,6 +227,7 @@ async def _test_flow_10x(
 
     pkt = await supplicant._bind_context._make_offer(codes)
     await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
+    assert pkt is not None
 
     await resp_task
     await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
@@ -246,6 +247,7 @@ async def _test_flow_10x(
 
     pkt = await respondent._bind_context._accept_offer(tender, codes)
     await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
+    assert pkt is not None
 
     await supp_task
     await assert_context_state(supplicant, _BindStates.TO_SEND_AFFIRM)
@@ -262,6 +264,7 @@ async def _test_flow_10x(
 
     pkt = await supplicant._bind_context._confirm_accept(accept, confirm_code=codes)
     await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
+    assert pkt is not None
 
     if len(pkt_flow_expected) > _RATIFY:  # FIXME
         supplicant._bind_context.set_state(
@@ -299,6 +302,7 @@ async def _test_flow_10x(
     # # TODO: need to finish this
     # pkt = await supplicant._context._cast_addenda()
     # await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
+    # assert pkt is not None
 
     # await assert_context_state(respondent, _BindStates.HAS_BOUND_RESP)
     # await resp_task
