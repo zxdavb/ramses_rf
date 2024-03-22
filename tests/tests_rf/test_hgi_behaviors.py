@@ -16,6 +16,7 @@ from serial.tools.list_ports import comports
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx import exceptions as exc
+from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.protocol import QosProtocol
 from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
@@ -27,7 +28,7 @@ _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
-HGI_ID_ = "18:000730"  # the sentinel value
+HGI_ID_ = HGI_DEVICE_ID  # the sentinel value
 TST_ID_ = "18:222222"  # a specific ID
 
 GWY_CONFIG = {
@@ -182,7 +183,7 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         # using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
         # latter may swallow the exception we wish to capture (ProtocolSendFailed)
         pkt = await gwy._protocol.send_cmd(
-            cmd, qos=QosParams(max_retries=0, wait_for_reply=False)
+            cmd, qos=QosParams(max_retries=0, wait_for_reply=False, timeout=0.5)
         )  # for this test, we only need the cmd echo
     except exc.ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
