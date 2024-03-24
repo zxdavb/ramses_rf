@@ -37,7 +37,7 @@ DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 MAX_BUFFER_SIZE: Final[int] = 32
 
-MAX_SEND_TIMEOUT: Final[float] = 30.0  # for a command to be sent, incl. retries, etc.
+MAX_SEND_TIMEOUT: Final[float] = 30.0  # for a command to be sent, incl. queuing time
 MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
 
 
@@ -230,7 +230,7 @@ class ProtocolContext:
         if isinstance(self._state, IsInIdle):
             self._loop.call_soon_threadsafe(self._check_buffer_for_cmd)
 
-        timeout = min(qos.timeout, MAX_SEND_TIMEOUT)
+        timeout = min(qos.timeout, MAX_SEND_TIMEOUT)  # incl. time queued in buffer
         try:
             await asyncio.wait_for(fut, timeout=timeout)
         except TimeoutError as err:  # incl. fut.cancel()
