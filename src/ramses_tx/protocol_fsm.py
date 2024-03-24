@@ -29,6 +29,10 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_MAINTAIN_STATE_CHAIN: Final[bool] = False  # maintain Context._prev_state
 _DBG_USE_STRICT_TRANSITIONS: Final[bool] = False
 
+# echo timeout:
+#  - 0.50 for MQTT
+#  - 0.04 for serial (too low?)
+
 DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 MAX_BUFFER_SIZE: Final[int] = 32
@@ -70,7 +74,7 @@ class ProtocolContext:
         self._send_fnc: Callable[[Command], Coroutine[Any, Any, None]] = None  # type: ignore[assignment]
 
         self._cmd: Command | None = None
-        self._qos: QosParams = None
+        self._qos: QosParams | None = None
         self._cmd_tx_count: int | None = None
         self._cmd_tx_limit: int = None  # type: ignore[assignment]
 
@@ -86,6 +90,19 @@ class ProtocolContext:
     def state(self) -> _ProtocolStateT:
         return self._state
 
+    @property
+    def is_sending(self) -> bool:  # TODO: remove asserts
+        if isinstance(self._state, WantEcho | WantRply):
+            assert self._cmd is not None, "Coding error"  # mypy hint
+            assert self._qos is not None, "Coding error"  # mypy hint
+            assert self._fut is not None, "Coding error"  # mypy hint
+            return True
+
+        assert self._cmd is None, "Coding error"  # mypy hint
+        assert self._qos is None, "Coding error"  # mypy hint
+        assert self._fut is None or self._fut.cancelled(), "Coding error"  # mypy hint
+        return False
+
     def set_state(
         self,
         state_class: _ProtocolStateClassT,
@@ -96,10 +113,15 @@ class ProtocolContext:
     ) -> None:
         async def expire_state_on_timeout() -> None:
             # a separate coro, so can be spawned off with create_task()
+
+            assert isinstance(self.is_sending, bool)  # TODO: remove
+
             if isinstance(self._state, WantEcho):
                 await asyncio.sleep(self.echo_timeout)
-            else:
+            else:  # isinstance(self._state, WantRply):
                 await asyncio.sleep(self.reply_timeout)
+
+            assert isinstance(self.is_sending, bool)  # TODO: remove
 
             # Timer has expired, can we retry or are we done?
             assert isinstance(self._cmd_tx_count, int)
@@ -109,16 +131,21 @@ class ProtocolContext:
             else:
                 self.set_state(IsInIdle, expired=True)
 
+            assert isinstance(self.is_sending, bool)  # TODO: remove
+
         def effect_state(timed_out: bool) -> None:
             """Take any actions indicated by state, and optionally set expiry timer."""
             # a separate function, so can be spawned off with call_soon()
+
+            assert isinstance(self.is_sending, bool)  # TODO: remove
+
             if timed_out:
                 self._send_cmd(is_retry=True)
 
             if isinstance(self._state, IsInIdle):
                 self._check_buffer_for_cmd()
 
-            elif isinstance(self._state, WantRply) and not self._qos.wait_for_reply:
+            elif isinstance(self._state, WantRply) and not self._qos.wait_for_reply:  # type: ignore[union-attr]
                 self.set_state(IsInIdle, result=self._state._echo_pkt)
 
             elif isinstance(self._state, WantEcho | WantRply):
@@ -150,16 +177,20 @@ class ProtocolContext:
             # tattr(prev_state, "_next_state", self._state)  # noqa: B010
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
-        if timed_out:
+        if timed_out:  # isinstance(self._state, WantEcho):
             assert isinstance(self._cmd_tx_count, int), "Coding error"  # mypy hint
             self._cmd_tx_count += 1
 
         elif isinstance(self._state, WantEcho):
+            assert self._qos is not None, "Coding error"  # mypy hint
             self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
             self._cmd_tx_count = 1
 
-        elif not isinstance(self._state, WantRply):
+        elif not isinstance(self._state, WantRply):  # IsInIdle, IsInactive
+            self._cmd = self._qos = None
             self._cmd_tx_count = None
+
+        assert isinstance(self.is_sending, bool)  # TODO: remove
 
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
@@ -209,7 +240,7 @@ class ProtocolContext:
             raise exc.ProtocolSendFailed(msg) from err  # make msg *before* state reset
 
         try:
-            return fut.result()
+            return fut.result()  # type: ignore[no-any-return]
         except exc.ProtocolSendFailed:
             raise
         except (exc.ProtocolError, exc.TransportError) as err:  # incl. ProtocolFsmError
@@ -238,7 +269,7 @@ class ProtocolContext:
         finally:
             self._que.task_done()
 
-    def _send_cmd(self, is_retry: bool = False) -> Packet:
+    def _send_cmd(self, is_retry: bool = False) -> None:
         """Wrapper to send a command with retries, until success or exception."""
 
         async def send_fnc_wrapper(cmd: Command) -> None:
@@ -252,13 +283,14 @@ class ProtocolContext:
 
         # TODO: check what happens when exception here - why does it hang?
 
+        assert self._cmd is not None, "Coding error"  # mypy hint
+
         try:  # the wrapped function (actual Tx.write)
             self._state.cmd_sent(self._cmd)
         except exc.ProtocolFsmError as err:
             self.set_state(IsInIdle, exception=err)
-            return
-
-        self._loop.create_task(send_fnc_wrapper(self._cmd))
+        else:
+            self._loop.create_task(send_fnc_wrapper(self._cmd))
 
 
 #######################################################################################
@@ -280,9 +312,19 @@ class ProtocolStateBase:
         """Do nothing, as (except for InActive) we're already connected."""
         pass
 
-    def connection_lost(self) -> None:  # Same for all states (not needed if Inactive)
+    def connection_lost(self) -> None:  # Varies by states (not needed if Inactive)
         """Transition to Inactive, regardless of current state."""
-        self._context.set_state(Inactive)
+
+        if isinstance(self._context._state, Inactive):
+            return
+
+        if isinstance(self._context._state, IsInIdle):
+            self._context.set_state(Inactive)
+            return
+
+        self._context.set_state(
+            Inactive, exception=exc.TransportError("Connection lost")
+        )
 
     def pkt_rcvd(self, pkt: Packet) -> None:  # Different for each state
         """Raise a NotImplementedError."""
