@@ -23,7 +23,6 @@ from ramses_tx import exceptions as exc
 from ramses_tx.protocol import QosProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
-    IsFailed,
     IsInIdle,
     WantEcho,
     WantRply,
@@ -102,7 +101,7 @@ def prot_factory(disable_qos: bool | None = False):
             try:
                 await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
                 await fnc(rf, protocol, *args, **kwargs)
-                await assert_protocol_state(protocol, (IsInIdle, IsFailed))
+                await assert_protocol_state(protocol, IsInIdle)
             except serial.SerialException as err:
                 transport._close(err=err)
                 raise

@@ -9,9 +9,10 @@ import logging
 from collections.abc import Callable, Coroutine
 from datetime import datetime as dt, timedelta as td
 from queue import Empty, Full, PriorityQueue
-from typing import TYPE_CHECKING, Any, Final, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Final, TypeAlias
 
 from . import exceptions as exc
+from .address import HGI_DEVICE_ID
 from .command import Command
 from .const import MINIMUM_GAP_DURATION, Code, Priority
 from .packet import Packet
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from .protocol import RamsesProtocolT
     from .transport import RamsesTransportT
 
-ProtocolStateBase = TypeVar("ProtocolStateBase")
+# ProtocolStateBase = TypeVar("ProtocolStateBase", bound=ProtocolStateBase)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,21 +42,6 @@ MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st se
 #######################################################################################
 
 
-class _ProtocolWaitFailed(exc.ProtocolSendFailed):
-    """The Command timed out when waiting for its turn to send."""
-
-
-class _ProtocolEchoFailed(exc.ProtocolSendFailed):
-    """The Command was sent OK, but failed to elicit its echo."""
-
-
-class _ProtocolRplyFailed(exc.ProtocolSendFailed):
-    """The Command received an echo OK, but failed to elicit the expected reply."""
-
-
-#######################################################################################
-
-
 class ProtocolContext:
     def __init__(
         self,
@@ -69,8 +55,8 @@ class ProtocolContext:
         max_buffer_size: int = MAX_BUFFER_SIZE,
     ) -> None:
         self._protocol = protocol
-        self.echo_timeout = td(seconds=echo_timeout)
-        self.reply_timeout = td(seconds=reply_timeout)
+        self.echo_timeout = echo_timeout
+        self.reply_timeout = reply_timeout
         self.min_gap_duration = td(seconds=min_gap_duration)
         self.max_retry_limit = min(max_retry_limit, MAX_RETRY_LIMIT)
         self.max_buffer_size = min(max_buffer_size, MAX_BUFFER_SIZE)
@@ -79,66 +65,106 @@ class ProtocolContext:
         self._fut: asyncio.Future | None = None
         self._que: PriorityQueue = PriorityQueue(maxsize=self.max_buffer_size)
 
-        self._expiry_timer: asyncio.Task = None  # type: ignore[assignment]
-        self._state: ProtocolStateBase = None  # type: ignore[assignment]
+        self._expiry_timer: asyncio.Task | None = None
+        self._state: _ProtocolStateT = None  # type: ignore[assignment]
 
         # TODO: pass this over as an instance paramater
         self._send_fnc: Callable[[Command], Coroutine[Any, Any, None]] = None  # type: ignore[assignment]
 
-        self._cmd: Command = None  # type: ignore[assignment]
-        self._qos: QosParams = None  # type: ignore[assignment]
-        self._cmd_tx_count: int = 0
-        self._cmd_tx_limit: int = 0
+        self._cmd: Command | None = None
+        self._qos: QosParams = None
+        self._cmd_tx_count: int | None = None
+        self._cmd_tx_limit: int = None  # type: ignore[assignment]
 
         self.set_state(Inactive)
 
+    def __repr__(self) -> str:
+        msg = f"<ProtocolContext state={self._state.__class__.__name__}"
+        if self._cmd is None:
+            return msg + ">"
+        return msg + f", tx_count={self._cmd_tx_count}>"
+
+    @property
+    def state(self) -> _ProtocolStateT:
+        return self._state
+
     def set_state(
         self,
-        state: ProtocolStateBase,
+        state_class: _ProtocolStateClassT,
         expired: bool = False,
         timed_out: bool = False,
         exception: Exception | None = None,
         result: Packet | None = None,
     ) -> None:
         async def expire_state_on_timeout() -> None:
+            # a separate coro, so can be spawned off with create_task()
             if isinstance(self._state, WantEcho):
                 await asyncio.sleep(self.echo_timeout)
             else:
                 await asyncio.sleep(self.reply_timeout)
 
-            # Timer has expired, can we retry?
+            # Timer has expired, can we retry or are we done?
+            assert isinstance(self._cmd_tx_count, int)
+
             if self._cmd_tx_count < self._cmd_tx_limit:
                 self.set_state(WantEcho, timed_out=True)
             else:
                 self.set_state(IsInIdle, expired=True)
 
+        def effect_state(timed_out: bool) -> None:
+            """Take any actions indicated by state, and optionally set expiry timer."""
+            # a separate function, so can be spawned off with call_soon()
+            if timed_out:
+                self._send_cmd(is_retry=True)
+
+            if isinstance(self._state, IsInIdle):
+                self._check_buffer_for_cmd()
+
+            elif isinstance(self._state, WantRply) and not self._qos.wait_for_reply:
+                self.set_state(IsInIdle, result=self._state._echo_pkt)
+
+            elif isinstance(self._state, WantEcho | WantRply):
+                self._expiry_timer = self._loop.create_task(expire_state_on_timeout())
+
         if self._expiry_timer is not None:
             self._expiry_timer.cancel()
             self._expiry_timer = None
 
-        self._state = state(self)
-
         if result:
+            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_result(result)
+
         elif exception:
+            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_exception(exception)
+
         elif expired:
-            self._fut.set_exception(exc.ProtocolSendFailed("Exceeded maximum retries"))
-        elif timed_out:
-            self._send_cmd(is_retry=True)
+            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
+            self._fut.set_exception(
+                exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")  # XXX
+            )
 
-        if isinstance(self._state, IsInIdle):
-            self._check_buffer_for_cmd()
+        prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
 
-        elif isinstance(self._state, WantRply) and not self._qos.wait_for_reply:
-            self.set_state(IsInIdle, result=self._state._echo_pkt)
+        self._state = state_class(self)  # keep atomic with tx_count / tx_limit calcs
 
-        elif isinstance(self._state, WantEcho | WantRply):
-            self._expiry_timer = self._loop.create_task(expire_state_on_timeout())
+        if _DBG_MAINTAIN_STATE_CHAIN:  # for debugging
+            # tattr(prev_state, "_next_state", self._state)  # noqa: B010
+            setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
-    @property
-    def state(self) -> _ProtocolStateT:
-        return self._state
+        if timed_out:
+            assert isinstance(self._cmd_tx_count, int), "Coding error"  # mypy hint
+            self._cmd_tx_count += 1
+
+        elif isinstance(self._state, WantEcho):
+            self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
+            self._cmd_tx_count = 1
+
+        elif not isinstance(self._state, WantRply):
+            self._cmd_tx_count = None
+
+        # remaining code spawned off with a call_soon(), so early return to caller
+        self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -166,33 +192,34 @@ class ProtocolContext:
         self._send_fnc = send_fnc  # TODO: REMOVE: make per Context, not per Command
 
         fut = self._loop.create_future()
-        await self._push_cmd_to_buffer(cmd, priority, qos, fut)
+        try:
+            self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
+        except Full as err:
+            fut.cancel()
+            raise exc.ProtocolSendFailed(f"{self}: Send buffer overflow") from err
 
         if isinstance(self._state, IsInIdle):
             self._loop.call_soon_threadsafe(self._check_buffer_for_cmd)
 
+        timeout = min(qos.timeout, MAX_SEND_TIMEOUT)
         try:
-            await asyncio.wait_for(fut, timeout=min(qos.timeout, MAX_SEND_TIMEOUT))
-        except TimeoutError as err:
-            self.set_state(IsInIdle)
-            raise exc.ProtocolSendFailed("Send timeout has expired") from err
-        return fut.result()  # may raise ProtocolFsmError
+            await asyncio.wait_for(fut, timeout=timeout)
+        except TimeoutError as err:  # incl. fut.cancel()
+            msg = f"{self}: Expired global timer of {timeout} sec"  # XXX
+            if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd
+                self.set_state(IsInIdle)  # set_exception() will cause InvalidStateError
+            raise exc.ProtocolSendFailed(msg) from err  # make msg *before* state reset
 
-    async def _push_cmd_to_buffer(
-        self,
-        cmd: Command,
-        priority: Priority,
-        qos: QosParams,
-        fut: asyncio.Future,
-    ):
         try:
-            self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
-        except Full:
-            fut.set_exception(_ProtocolWaitFailed("Send buffer full, cmd discarded"))
+            return fut.result()
+        except exc.ProtocolSendFailed:
+            raise
+        except (exc.ProtocolError, exc.TransportError) as err:  # incl. ProtocolFsmError
+            raise exc.ProtocolSendFailed(f"{self}: Send failed: {err}") from err
 
     def _check_buffer_for_cmd(self):
         if not isinstance(self._state, IsInIdle):  # TODO: make assert? or remove?
-            raise exc.ProtocolFsmError("Incorrect state to check the buffer")
+            raise exc.ProtocolFsmError("Invalid state to check the buffer")  # XXX
 
         while True:
             try:
@@ -214,13 +241,7 @@ class ProtocolContext:
             self._que.task_done()
 
     def _send_cmd(self, is_retry: bool = False) -> Packet:
-        """Wrapper to send a command with retries, until success or exception.
-
-        Supported Exceptions are limited to:
-         - _ProtocolWaitFailed - issue sending Command
-         - _ProtocolEchoFailed - issue receiving echo Packet
-         - _ProtocolRplyFailed - issue receiving expected reply pPacket
-        """
+        """Wrapper to send a command with retries, until success or exception."""
 
         async def send_fnc_wrapper(cmd: Command) -> None:
             if self._cmd is None:
@@ -231,16 +252,11 @@ class ProtocolContext:
             except exc.TransportError as err:
                 self.set_state(IsInIdle, exception=err)
 
-        if is_retry:
-            self._cmd_tx_count += 1
-        else:
-            # TODO: check what happens when exception here - why does it hang?
-            self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
-            self._cmd_tx_count = 0
+        # TODO: check what happens when exception here - why does it hang?
 
         try:  # the wrapped function (actual Tx.write)
             self._state.cmd_sent(self._cmd)
-        except exc.ProtocolError as err:
+        except exc.ProtocolFsmError as err:
             self.set_state(IsInIdle, exception=err)
             return
 
@@ -268,7 +284,7 @@ class ProtocolStateBase:
 
     def pkt_rcvd(self, pkt: Packet) -> None:  # Different for each state
         """Raise a NotImplementedError."""
-        raise NotImplementedError  # this method should never be called
+        raise NotImplementedError("Invalid state to receive a packet")  # XXX
 
     def writing_paused(self) -> None:  # Currently same for all states (TBD)
         """Do nothing."""
@@ -279,14 +295,7 @@ class ProtocolStateBase:
         pass
 
     def cmd_sent(self, cmd: Command) -> None:  # Same for all states except IsInIdle
-        raise exc.ProtocolFsmError("In the wrong state to send a command")
-
-    def _warn_or_raise(self, error: str) -> None:
-        if _DBG_USE_STRICT_TRANSITIONS:
-            err = exc.ProtocolFsmError(error)
-            self._context.set_state(self.__class__, exception=err)
-        else:
-            _LOGGER.warning(error)
+        raise exc.ProtocolFsmError("Invalid state to send a command")  # XXX
 
 
 class Inactive(ProtocolStateBase):
@@ -296,18 +305,34 @@ class Inactive(ProtocolStateBase):
 
     def pkt_rcvd(self, pkt: Packet) -> None:  # raise ProtocolFsmError
         """Raise an exception, as a packet is not expected in this state."""
+
+        assert self._sent_cmd is None, "Coding error"
+
         if pkt.code != Code._PUZZ:
-            self._warn_or_raise("Not expecting to receive a packet")
+            _LOGGER.warning("%s: Invalid state to receive a packet", self._context)
 
 
 class IsInIdle(ProtocolStateBase):
     def pkt_rcvd(self, pkt: Packet) -> None:  # Do nothing
         """Do nothing as we're not expecting an echo, nor a reply."""
+
+        assert self._sent_cmd is None, "Coding error"
+
         pass
 
     def cmd_sent(self, cmd: Command) -> None:  # Will expect an Echo
         """Transition to WantEcho."""
+
+        assert self._sent_cmd is None, "Coding error"
+
         self._sent_cmd = cmd
+
+        # HACK for headers with sentinel values:
+        #  I --- 18:000730 18:222222 --:------ 30C9 003 000333  # 30C9| I|18:000730,    *but* will be: 30C9| I|18:222222
+        #  I --- --:------ --:------ 18:000730 0008 002 00BB    # 0008| I|18:000730|00, *and* will be unchanged
+
+        if HGI_DEVICE_ID in cmd.tx_header:  # HACK: what do I do about this
+            cmd._hdr_ = cmd._hdr_.replace(HGI_DEVICE_ID, self._context._protocol.hgi_id)
         self._context.set_state(WantEcho)
 
 
@@ -325,15 +350,27 @@ class WantEcho(ProtocolStateBase):
         #  W --- 30:257306 01:096339 --:------ 313F 009 0060002916050B07E7  # 313F| W|01:096339
         #  I --- 01:096339 30:257306 --:------ 313F 009 00FC0029D6050B07E7  # 313F| I|01:096339
 
+        assert self._sent_cmd, "Coding error"  # mypy hint
+
         if (
             self._sent_cmd.rx_header
             and pkt._hdr == self._sent_cmd.rx_header
             and pkt.dst.id == self._sent_cmd.src.id
         ):  # TODO: just skip to idle?
-            self._warn_or_raise("Expecting an echo, but received the reply")
+            _LOGGER.warning(
+                "%s: Invalid state to receive a reply (expecting echo)", self._context
+            )
             return
 
-        if pkt._hdr != self._sent_cmd.tx_header:
+        # HACK for packets with addr sets like (issue is only with sentinel values?):
+        #  I --- --:------ --:------ 18:000730 0008 002 00BB
+
+        if HGI_DEVICE_ID in pkt._hdr:  # HACK: what do I do about this?
+            pkt__hdr = pkt._hdr_.replace(HGI_DEVICE_ID, self._context._protocol.hgi_id)
+        else:
+            pkt__hdr = pkt._hdr
+
+        if pkt__hdr != self._sent_cmd.tx_header:
             return
 
         self._echo_pkt = pkt
@@ -353,8 +390,12 @@ class WantRply(ProtocolStateBase):
     def pkt_rcvd(self, pkt: Packet) -> None:  # Check if pkt is expected Reply
         """If the pkt is the expected reply, transition to IsInIdle."""
 
+        assert self._sent_cmd, "Coding error"  # mypy hint
+
         if pkt == self._sent_cmd:  # pkt._hdr == self._sent_cmd.tx_header and ...
-            self._warn_or_raise("Expecting a reply, but received the echo")
+            _LOGGER.warning(
+                "%s: Invalid state to receive an echo (expecting reply)", self._context
+            )
             return
 
         if pkt._hdr != self._sent_cmd.rx_header:
@@ -364,11 +405,10 @@ class WantRply(ProtocolStateBase):
         self._context.set_state(IsInIdle, result=pkt)
 
 
-class IsFailed(ProtocolStateBase):  # TODO: remove?
-    pass
-
-
 #######################################################################################
 
 
 _ProtocolStateT: TypeAlias = Inactive | IsInIdle | WantEcho | WantRply
+_ProtocolStateClassT: TypeAlias = (
+    type[Inactive] | type[IsInIdle] | type[WantEcho] | type[WantRply]
+)
