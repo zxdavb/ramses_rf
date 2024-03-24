@@ -727,6 +727,9 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     def _frame_read(self, dtm: dt, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
 
+        if not frame:
+            return
+
         try:
             pkt = Packet.from_port(dtm, frame)
         except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
