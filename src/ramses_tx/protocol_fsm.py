@@ -23,19 +23,17 @@ if TYPE_CHECKING:
     from .protocol import RamsesProtocolT
     from .transport import RamsesTransportT
 
-# ProtocolStateBase = TypeVar("ProtocolStateBase", bound=ProtocolStateBase)
-
 _LOGGER = logging.getLogger(__name__)
 
 # All debug flags should be False for end-users
 _DBG_MAINTAIN_STATE_CHAIN: Final[bool] = False  # maintain Context._prev_state
 _DBG_USE_STRICT_TRANSITIONS: Final[bool] = False
 
-MAX_BUFFER_SIZE: Final[int] = 32
 DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
+MAX_BUFFER_SIZE: Final[int] = 32
 
-MAX_SEND_TIMEOUT: Final[float] = 3.0  # for a command to be sent, incl. retries, etc.
+MAX_SEND_TIMEOUT: Final[float] = 30.0  # for a command to be sent, incl. retries, etc.
 MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
 
 
@@ -141,7 +139,7 @@ class ProtocolContext:
         elif expired:
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_exception(
-                exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")  # XXX
+                exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
@@ -205,7 +203,7 @@ class ProtocolContext:
         try:
             await asyncio.wait_for(fut, timeout=timeout)
         except TimeoutError as err:  # incl. fut.cancel()
-            msg = f"{self}: Expired global timer of {timeout} sec"  # XXX
+            msg = f"{self}: Expired global timer of {timeout} sec"
             if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd
                 self.set_state(IsInIdle)  # set_exception() will cause InvalidStateError
             raise exc.ProtocolSendFailed(msg) from err  # make msg *before* state reset
@@ -219,7 +217,7 @@ class ProtocolContext:
 
     def _check_buffer_for_cmd(self):
         if not isinstance(self._state, IsInIdle):  # TODO: make assert? or remove?
-            raise exc.ProtocolFsmError("Invalid state to check the buffer")  # XXX
+            raise exc.ProtocolFsmError("Invalid state to check the buffer")
 
         while True:
             try:
@@ -265,6 +263,10 @@ class ProtocolContext:
 
 #######################################################################################
 
+# NOTE: Because .dst / .src may switch from Address to Device from one pkt to the next:
+#  - use: pkt.dst.id == self._echo_pkt.src.id
+#  - not: pkt.dst    is self._echo_pkt.src
+
 
 class ProtocolStateBase:
     def __init__(self, context: ProtocolContext) -> None:
@@ -284,7 +286,7 @@ class ProtocolStateBase:
 
     def pkt_rcvd(self, pkt: Packet) -> None:  # Different for each state
         """Raise a NotImplementedError."""
-        raise NotImplementedError("Invalid state to receive a packet")  # XXX
+        raise NotImplementedError("Invalid state to receive a packet")
 
     def writing_paused(self) -> None:  # Currently same for all states (TBD)
         """Do nothing."""
@@ -295,10 +297,12 @@ class ProtocolStateBase:
         pass
 
     def cmd_sent(self, cmd: Command) -> None:  # Same for all states except IsInIdle
-        raise exc.ProtocolFsmError("Invalid state to send a command")  # XXX
+        raise exc.ProtocolFsmError("Invalid state to send a command")
 
 
 class Inactive(ProtocolStateBase):
+    """The Protocol is not connected to the transport layer."""
+
     def connection_made(self) -> None:
         """Transition to IsInIdle."""
         self._context.set_state(IsInIdle)
@@ -313,6 +317,8 @@ class Inactive(ProtocolStateBase):
 
 
 class IsInIdle(ProtocolStateBase):
+    """The Protocol is not in the process of sending a Command."""
+
     def pkt_rcvd(self, pkt: Packet) -> None:  # Do nothing
         """Do nothing as we're not expecting an echo, nor a reply."""
 
@@ -337,6 +343,12 @@ class IsInIdle(ProtocolStateBase):
 
 
 class WantEcho(ProtocolStateBase):
+    """The Protocol is waiting to receive an echo Packet."""
+
+    # NOTE: unfortunately, the cmd's src / echo's src can be different:
+    # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+    # RQ --- 18:198151 10:052644 --:------ 3220 005 0000050000  # RQ|10:048122|3220|05
+
     def __init__(self, context: ProtocolContext) -> None:
         super().__init__(context)
 
@@ -356,7 +368,7 @@ class WantEcho(ProtocolStateBase):
             self._sent_cmd.rx_header
             and pkt._hdr == self._sent_cmd.rx_header
             and pkt.dst.id == self._sent_cmd.src.id
-        ):  # TODO: just skip to idle?
+        ):
             _LOGGER.warning(
                 "%s: Invalid state to receive a reply (expecting echo)", self._context
             )
@@ -381,6 +393,16 @@ class WantEcho(ProtocolStateBase):
 
 
 class WantRply(ProtocolStateBase):
+    """The Protocol is waiting to receive an reply Packet."""
+
+    # NOTE: is possible get a false rply (same rx_header), e.g.:
+    # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+    # RP --- 10:048122 01:145038 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
+    # NOTE: unfortunately, the cmd's src / rply's dst can still be different:
+    # RQ --- 18:000730 10:052644 --:------ 3220 005 0000050000  # 3220|RQ|10:048122|05
+    # RP --- 10:048122 18:198151 --:------ 3220 005 00C0050000  # 3220|RP|10:048122|05
+
     def __init__(self, context: ProtocolContext) -> None:
         super().__init__(context)
 
