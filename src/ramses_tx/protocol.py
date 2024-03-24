@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime as dt, timedelta as td
+from datetime import datetime as dt
 from typing import TYPE_CHECKING, Final
 
 from . import exceptions as exc
@@ -205,16 +205,19 @@ class _BaseProtocol(asyncio.Protocol):
         Repeats are distinct from retries (a QoS feature): you wouldn't have both.
         """
 
-        await self._send_frame(str(cmd))
+        await self._send_frame(
+            str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+        )
+        return None  # returns None because no QoS
+
+    async def _send_frame(
+        self, frame: str, num_repeats: int = 0, gap_duration: float = 0.0
+    ) -> None:  # _send_frame() -> transport
+        """Write to the transport."""
+        await self._transport.write_frame(frame)
         for _ in range(num_repeats - 1):
             await asyncio.sleep(gap_duration)
-            await self._send_frame(str(cmd))
-
-        return None
-
-    async def _send_frame(self, frame: str) -> None:  # _send_frame() -> transport
-        """Write some bytes to the transport."""
-        await self._transport.write_frame(frame)
+            await self._transport.write_frame(frame)
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
@@ -497,11 +500,6 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         """Pass any valid/wanted packets to the callback."""
         super().pkt_received(pkt)
 
-    async def _send_frame(self, frame: str) -> None:
-        """Write some data bytes to the transport."""
-
-        await super()._send_frame(frame)
-
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
 
@@ -575,8 +573,8 @@ class QosProtocol(PortProtocol):
         if not ramses:
             return
 
-        if isinstance(transport, MqttTransport):  # HACK: need to move FSM to transport
-            self._context.echo_timeout = td(seconds=0.5)
+        if isinstance(transport, MqttTransport):  # HACK
+            self._context.echo_timeout = 0.5  # HACK: need to move FSM to transport?
 
         super().connection_made(transport, ramses=ramses)
         self._context.connection_made(transport)
@@ -622,6 +620,8 @@ class QosProtocol(PortProtocol):
     ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
+        qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
+
         # Should do the same as super()._send_cmd()
         async def send_cmd(kmd: Command) -> None:
             """Wrapper to for self._send_frame(cmd) with x re-transmits.
@@ -629,28 +629,22 @@ class QosProtocol(PortProtocol):
             Repeats are distinct from retries (a QoS feature): you wouldn't have both.
             """
 
-            assert kmd is cmd  # maybe the FSM is confused
+            assert kmd and kmd is cmd, kmd  # maybe the FSM is confused
 
-            await self._send_frame(str(kmd))
-            for _ in range(num_repeats - 1):
-                await asyncio.sleep(gap_duration)
-                await self._send_frame(str(kmd))
+            await self._send_frame(
+                str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+            )
 
         # if cmd.code == Code._PUZZ:  # NOTE: not as simple as this
         #     priority = Priority.HIGHEST  # FIXME: hack for _7FFF
 
+        # TODO: REMOVE: selective QoS (HACK) or the cmd does not want QoS
         _CODES = (Code._0006, Code._0404, Code._1FC9)  # must have QoS
-
-        # selective QoS (HACK) or the cmd does not want QoS
         if (self._selective_qos and cmd.code not in _CODES) or qos is None:
-            return await send_cmd(cmd)  # type: ignore[func-returns-value]
-
-        # if qos is None and cmd.code in _CODES:
-        #     qos = QosParams(wait_for_reply=True)
-        # if self._selective_qos and qos is None:
-        #     return await send_cmd(cmd)  # type: ignore[func-returns-value]
-        # if qos is None:
-        #     qos = QosParams()
+            await self._send_frame(
+                str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+            )
+            return None
 
         # Should do this check before, or after previous block (of non-QoS sends)?
         # if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
