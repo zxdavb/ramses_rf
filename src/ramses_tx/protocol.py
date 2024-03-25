@@ -629,8 +629,6 @@ class QosProtocol(PortProtocol):
             Repeats are distinct from retries (a QoS feature): you wouldn't have both.
             """
 
-            assert kmd and kmd is cmd, kmd  # maybe the FSM is confused
-
             await self._send_frame(
                 str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
             )
