@@ -9,6 +9,7 @@ import logging
 from collections.abc import Callable, Coroutine
 from datetime import datetime as dt, timedelta as td
 from queue import Empty, Full, PriorityQueue
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Final, TypeAlias
 
 from . import exceptions as exc
@@ -63,6 +64,7 @@ class ProtocolContext:
         self._loop = protocol._loop
         self._fut: asyncio.Future | None = None
         self._que: PriorityQueue = PriorityQueue(maxsize=self.max_buffer_size)
+        self._lock = Lock()
 
         self._expiry_timer: asyncio.Task | None = None
         self._state: _ProtocolStateT = None  # type: ignore[assignment]
@@ -81,6 +83,8 @@ class ProtocolContext:
         msg = f"<ProtocolContext state={self._state.__class__.__name__}"
         if self._cmd is None:
             return msg + ">"
+        if self._cmd_tx_count is None:
+            return msg + ", tx_count=0/None>"
         return msg + f", tx_count={self._cmd_tx_count}/{self._cmd_tx_limit}>"
 
     @property
@@ -137,10 +141,11 @@ class ProtocolContext:
             assert isinstance(self.is_sending, bool)  # TODO: remove
 
             if timed_out:
-                self._send_cmd(is_retry=True)
+                assert self._cmd is not None, "Coding error"  # mypy hint
+                self._send_cmd(self._cmd, is_retry=True)
 
             if isinstance(self._state, IsInIdle):
-                self._check_buffer_for_cmd()
+                self._loop.call_soon_threadsafe(self._check_buffer_for_cmd)
 
             elif isinstance(self._state, WantRply) and not self._qos.wait_for_reply:  # type: ignore[union-attr]
                 self.set_state(IsInIdle, result=self._state._echo_pkt)
@@ -153,18 +158,24 @@ class ProtocolContext:
             self._expiry_timer = None
 
         if result:
+            _LOGGER.debug("BEFORE = %s: result=%s", self, result)
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_result(result)
 
         elif exception:
+            _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_exception(exception)
 
         elif expired:
+            _LOGGER.debug("BEFORE = %s: expired=%s", self, expired)
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_exception(
                 exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
+
+        else:
+            _LOGGER.debug("BEFORE = %s", self)
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
 
@@ -191,6 +202,8 @@ class ProtocolContext:
 
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
+
+        _LOGGER.debug("AFTER  = %s" + (": timed_out=True" if timed_out else ""), self)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -243,17 +256,20 @@ class ProtocolContext:
         except (exc.ProtocolError, exc.TransportError) as err:  # incl. ProtocolFsmError
             raise exc.ProtocolSendFailed(f"{self}: Send failed: {err}") from err
 
-    def _check_buffer_for_cmd(self):
-        if not isinstance(self._state, IsInIdle):  # TODO: make assert? or remove?
-            raise exc.ProtocolFsmError(f"Invalid state to check the buffer: {self}")
-
+    def _check_buffer_for_cmd(self) -> None:
+        self._lock.acquire()
         assert isinstance(self.is_sending, bool), "Coding error"  # mypy hint
+
+        if self._fut is not None and not self._fut.done():
+            self._lock.release()
+            return
 
         while True:
             try:
                 *_, self._cmd, self._qos, self._fut = self._que.get_nowait()
             except Empty:
                 self._cmd = self._qos = self._fut = None
+                self._lock.release()
                 return
 
             assert isinstance(self._fut, asyncio.Future)  # mypy hint
@@ -263,33 +279,32 @@ class ProtocolContext:
 
             break
 
+        self._lock.release()
+
         try:
-            self._send_cmd()
+            assert self._cmd is not None, "Coding error"  # mypy hint
+            self._send_cmd(self._cmd)
         finally:
             self._que.task_done()
 
-    def _send_cmd(self, is_retry: bool = False) -> None:
+    def _send_cmd(self, cmd: Command, is_retry: bool = False) -> None:
         """Wrapper to send a command with retries, until success or exception."""
 
         async def send_fnc_wrapper(cmd: Command) -> None:
-            if self._cmd is None:
-                pass
-
             try:  # the wrapped function (actual Tx.write)
                 await self._send_fnc(cmd)
             except exc.TransportError as err:
                 self.set_state(IsInIdle, exception=err)
 
         # TODO: check what happens when exception here - why does it hang?
-
-        assert self._cmd is not None, "Coding error"  # mypy hint
+        assert cmd is not None, "Coding error"
 
         try:  # the wrapped function (actual Tx.write)
-            self._state.cmd_sent(self._cmd)
+            self._state.cmd_sent(cmd, is_retry=is_retry)
         except exc.ProtocolFsmError as err:
             self.set_state(IsInIdle, exception=err)
         else:
-            self._loop.create_task(send_fnc_wrapper(self._cmd))
+            self._loop.create_task(send_fnc_wrapper(cmd))
 
 
 #######################################################################################
@@ -307,7 +322,7 @@ class ProtocolStateBase:
         self._echo_pkt: Packet | None = None
         self._rply_pkt: Packet | None = None
 
-    def connection_made(self) -> None:  # Same for all states except Inactive
+    def connection_made(self) -> None:  # For all states except Inactive
         """Do nothing, as (except for InActive) we're already connected."""
         pass
 
@@ -337,7 +352,9 @@ class ProtocolStateBase:
         """Do nothing."""
         pass
 
-    def cmd_sent(self, cmd: Command) -> None:  # Same for all states except IsInIdle
+    def cmd_sent(  # For all except IsInIdle, WantEcho
+        self, cmd: Command, is_retry: bool | None = None
+    ) -> None:
         raise exc.ProtocolFsmError(f"Invalid state to send a command: {self._context}")
 
 
@@ -367,10 +384,12 @@ class IsInIdle(ProtocolStateBase):
 
         pass
 
-    def cmd_sent(self, cmd: Command) -> None:  # Will expect an Echo
+    def cmd_sent(  # Will expect an Echo
+        self, cmd: Command, is_retry: bool | None = None
+    ) -> None:
         """Transition to WantEcho."""
 
-        assert self._sent_cmd is None, "Coding error"
+        assert self._sent_cmd is None and is_retry is False, "Coding error"
 
         self._sent_cmd = cmd
 
@@ -426,11 +445,23 @@ class WantEcho(ProtocolStateBase):
         if pkt__hdr != self._sent_cmd.tx_header:
             return
 
+        # # HACK: for testing - drop some packets
+        # import random
+        # if random.random() < 0.2:
+        #     return
+
         self._echo_pkt = pkt
         if self._sent_cmd.rx_header:
             self._context.set_state(WantRply)
         else:
             self._context.set_state(IsInIdle, result=pkt)
+
+    def cmd_sent(self, cmd: Command, is_retry: bool | None = None) -> None:
+        """Transition to WantEcho (i.e. a retransmit)."""
+
+        assert self._sent_cmd is not None and is_retry is True, "Coding error"
+
+        # NOTE: don't self._context.set_state(WantEcho) here - may cause endless loop
 
 
 class WantRply(ProtocolStateBase):
