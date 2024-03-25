@@ -13,18 +13,20 @@ from typing import Final, Literal
 __dev_mode__ = False  # NOTE: this is const.py
 DEV_MODE = __dev_mode__
 
-# used by transport...
-SZ_ACTIVE_HGI: Final = "active_gwy"
-SZ_SIGNATURE: Final = "signature"
-SZ_IS_EVOFW3: Final = "is_evofw3"
+# used by protocol QoS FSM (echo tout is 0.50 for MQTT)...
+DEFAULT_ECHO_TIMEOUT: Final[float] = 0.504  # waiting for echo pkt after cmd sent
+DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
+DEFAULT_BUFFER_SIZE: Final[int] = 32
 
-# used by protocol QoS...
-MINIMUM_GAP_DURATION: Final[float] = 0.02  # seconds
+DEFAULT_SEND_TIMEOUT: Final[float] = 30.0  # total waiting for successful send: FIXME
+MAX_SEND_TIMEOUT: Final[float] = 30.0  # for a command to be sent, incl. queuing time
 
-DEFAULT_GAP_DURATION: Final[float] = MINIMUM_GAP_DURATION
+MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
+
+MINIMUM_WRITE_GAP: Final[float] = 0.02  # seconds
+DEFAULT_GAP_DURATION: Final[float] = MINIMUM_WRITE_GAP
 DEFAULT_MAX_RETRIES: Final[int] = 3
 DEFAULT_NUM_REPEATS: Final[int] = 1
-DEFAULT_TIMEOUT: Final[float] = 30.0  # total waiting for successful send: FIXME
 
 SZ_QOS: Final = "qos"
 
@@ -34,6 +36,15 @@ SZ_MAX_RETRIES: Final = "max_retries"
 SZ_NUM_REPEATS: Final = "num_repeats"
 SZ_PRIORITY: Final = "priority"
 SZ_TIMEOUT: Final = "timeout"
+
+
+# used by transport...
+SZ_ACTIVE_HGI: Final = "active_gwy"
+SZ_SIGNATURE: Final = "signature"
+SZ_IS_EVOFW3: Final = "is_evofw3"
+
+MAX_DUTY_CYCLE_RATE = 0.01  # % bandwidth used per cycle (default 60 secs)
+DUTY_CYCLE_DURATION = 60  # # seconds
 
 
 # used by schedule.py...

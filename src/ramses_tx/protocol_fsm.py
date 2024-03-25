@@ -14,7 +14,16 @@ from typing import TYPE_CHECKING, Any, Final, TypeAlias
 from . import exceptions as exc
 from .address import HGI_DEVICE_ID
 from .command import Command
-from .const import MINIMUM_GAP_DURATION, Code, Priority
+from .const import (
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_ECHO_TIMEOUT,
+    DEFAULT_RPLY_TIMEOUT,
+    MAX_RETRY_LIMIT,
+    MAX_SEND_TIMEOUT,
+    MINIMUM_WRITE_GAP,
+    Code,
+    Priority,
+)
 from .packet import Packet
 from .typing import ExceptionT, QosParams
 
@@ -29,18 +38,6 @@ _LOGGER = logging.getLogger(__name__)
 _DBG_MAINTAIN_STATE_CHAIN: Final[bool] = False  # maintain Context._prev_state
 _DBG_USE_STRICT_TRANSITIONS: Final[bool] = False
 
-# echo timeout:
-#  - 0.50 for MQTT
-#  - 0.04 for serial (too low?)
-
-DEFAULT_ECHO_TIMEOUT: Final[float] = 0.04  # waiting for echo pkt after cmd sent
-DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
-MAX_BUFFER_SIZE: Final[int] = 32
-
-MAX_SEND_TIMEOUT: Final[float] = 30.0  # for a command to be sent, incl. queuing time
-MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
-
-
 #######################################################################################
 
 
@@ -52,16 +49,16 @@ class ProtocolContext:
         *,
         echo_timeout: float = DEFAULT_ECHO_TIMEOUT,
         reply_timeout: float = DEFAULT_RPLY_TIMEOUT,
-        min_gap_duration: float = MINIMUM_GAP_DURATION,
+        min_gap_duration: float = MINIMUM_WRITE_GAP,
         max_retry_limit: int = MAX_RETRY_LIMIT,
-        max_buffer_size: int = MAX_BUFFER_SIZE,
+        max_buffer_size: int = DEFAULT_BUFFER_SIZE,
     ) -> None:
         self._protocol = protocol
         self.echo_timeout = echo_timeout
         self.reply_timeout = reply_timeout
         self.min_gap_duration = td(seconds=min_gap_duration)
         self.max_retry_limit = min(max_retry_limit, MAX_RETRY_LIMIT)
-        self.max_buffer_size = min(max_buffer_size, MAX_BUFFER_SIZE)
+        self.max_buffer_size = min(max_buffer_size, DEFAULT_BUFFER_SIZE)
 
         self._loop = protocol._loop
         self._fut: asyncio.Future | None = None

@@ -16,7 +16,7 @@ from .const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
-    DEFAULT_TIMEOUT,
+    DEFAULT_SEND_TIMEOUT,
     Priority,
 )
 from .message import Message
@@ -35,13 +35,13 @@ class QosParams:
         self,
         *,
         max_retries: int | None = DEFAULT_MAX_RETRIES,
-        timeout: float | None = DEFAULT_TIMEOUT,
+        timeout: float | None = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = None,
     ) -> None:
         """Create a QosParams instance."""
 
         self._max_retries = DEFAULT_MAX_RETRIES if max_retries is None else max_retries
-        self._timeout = timeout or DEFAULT_TIMEOUT
+        self._timeout = timeout or DEFAULT_SEND_TIMEOUT
         self._wait_for_reply = wait_for_reply  # False / None have different meanings
 
         self._echo_pkt: Packet | None = None

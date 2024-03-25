@@ -27,7 +27,7 @@ from .const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
-    DEFAULT_TIMEOUT,
+    DEFAULT_SEND_TIMEOUT,
     Priority,
 )
 from .message import Message
@@ -307,7 +307,7 @@ class Engine:
         max_retries: int = DEFAULT_MAX_RETRIES,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = None,
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet.

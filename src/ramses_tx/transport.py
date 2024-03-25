@@ -66,7 +66,14 @@ from serial import (  # type: ignore[import-untyped]
 
 from . import exceptions as exc
 from .command import Command
-from .const import MINIMUM_GAP_DURATION, SZ_ACTIVE_HGI, SZ_IS_EVOFW3, SZ_SIGNATURE
+from .const import (
+    DUTY_CYCLE_DURATION,
+    MAX_DUTY_CYCLE_RATE,
+    MINIMUM_WRITE_GAP,
+    SZ_ACTIVE_HGI,
+    SZ_IS_EVOFW3,
+    SZ_SIGNATURE,
+)
 from .helpers import dt_now
 from .packet import Packet
 from .schemas import SCH_SERIAL_PORT_CONFIG, SZ_EVOFW_FLAG, SZ_INBOUND, SZ_OUTBOUND
@@ -96,16 +103,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags (used for dev/test) should be False for published code
-_DBG_DISABLE_DUTY_CYCLE_LIMIT: Final[bool] = False
+_DBG_DISABLE_DUTY_CYCLE_LIMIT = False
 _DBG_DISABLE_REGEX_WARNINGS = False
 _DBG_FORCE_LOG_FRAMES = False
-
-# other constants
-_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
-_MAX_TOKENS = 45  # #     number of Tx per cycle (default 60 secs)
-_CYCLE_DURATION = 60  # # seconds
-
-_GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
@@ -262,7 +262,7 @@ def _str(value: bytes) -> str:
     return result
 
 
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATION):
     """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
     max_duty_cycle: bandwidth available per observation window (%)
@@ -317,12 +317,12 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
     return decorator
 
 
-def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
+def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATION):
     """Limit the Tx rate as # packets per period of time.
 
     Rate-limits the decorated function locally, for one process (Token Bucket).
 
-    max_tokens: maximum number of calls of function in time_window
+    max_tokens: maximum number of calls of function in time_window (default 45?)
     time_window: duration of the sliding observation window (default 60 seconds)
     """
     # thanks, kudos to: Thomas Meschede, license: MIT
@@ -680,7 +680,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self.write()."""
         while True:
-            await asyncio.sleep(_GAP_BETWEEN_WRITES)
+            await asyncio.sleep(MINIMUM_WRITE_GAP)
             try:
                 self._leaker_sem.release()
             except ValueError:
@@ -750,7 +750,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     async def write_frame(
         self, frame: str
     ) -> None:  # Protocol usu. calls this, not write()
-        await self._leaker_sem.acquire()  # asyncio.sleep(_GAP_BETWEEN_WRITES)
+        await self._leaker_sem.acquire()  # asyncio.sleep(MINIMUM_WRITE_GAP)
         await self._write_frame(frame)
 
     # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
@@ -890,7 +890,7 @@ class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ign
     def _pkt_read(self, pkt: Packet) -> None:
         super()._pkt_read(pkt)
 
-    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     @avoid_system_syncs
     async def _write_frame(self, frame: str) -> None:
         await super()._write_frame(frame)

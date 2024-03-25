@@ -37,7 +37,7 @@ from ramses_tx.const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
-    DEFAULT_TIMEOUT,
+    DEFAULT_SEND_TIMEOUT,
     SZ_ACTIVE_HGI,
 )
 from ramses_tx.schemas import (
@@ -552,7 +552,7 @@ class Gateway(Engine):
         max_retries: int = DEFAULT_MAX_RETRIES,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = None,
         **kwargs: Any,
     ) -> Packet | None:
