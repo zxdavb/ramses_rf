@@ -14,7 +14,7 @@ __dev_mode__ = False  # NOTE: this is const.py
 DEV_MODE = __dev_mode__
 
 # used by protocol QoS FSM (echo tout is 0.50 for MQTT)...
-DEFAULT_ECHO_TIMEOUT: Final[float] = 0.504  # waiting for echo pkt after cmd sent
+DEFAULT_ECHO_TIMEOUT: Final[float] = 0.50  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 DEFAULT_BUFFER_SIZE: Final[int] = 32
 
