@@ -337,6 +337,10 @@ async def _test_flow_401(
 
     assert await asyncio.gather(*tasks.values())
 
+    for i in numbers:
+        pkt = tasks[i].result()
+        assert pkt == Command.put_sensor_temp("03:123456", i)
+
 
 @prot_factory()
 async def _test_flow_402(
