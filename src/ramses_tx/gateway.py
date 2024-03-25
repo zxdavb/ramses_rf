@@ -154,6 +154,7 @@ class Engine:
             enforce_include_list=self._enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
+            **self._kwargs,  # HACK: odd/misc params
         )
 
     def add_msg_handler(
@@ -195,7 +196,7 @@ class Engine:
             disable_sending=self._disable_sending,
             loop=self._loop,
             **pkt_source,
-            **self._kwargs,  # HACK: only accept disable_qos, extra & one other
+            **self._kwargs,  # HACK: odd/misc params
         )
 
         self._kwargs = {}  # HACK
