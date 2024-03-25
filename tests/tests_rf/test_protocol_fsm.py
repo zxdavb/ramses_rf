@@ -12,6 +12,7 @@ limits.
 
 import asyncio
 import functools
+import random
 from datetime import datetime as dt
 
 import pytest
@@ -320,6 +321,44 @@ async def _test_flow_30x(
     assert await task == RP_PKT_1
 
 
+@prot_factory()
+async def _test_flow_401(
+    rf: VirtualRf,
+    protocol: QosProtocol,
+) -> None:
+    qos = QosParams(wait_for_reply=False)
+
+    numbers = list(range(24))
+    tasks = {}
+
+    for i in numbers:
+        cmd = Command.put_sensor_temp("03:123456", i)
+        tasks[i] = protocol._loop.create_task(protocol._send_cmd(cmd, qos=qos))
+
+    assert await asyncio.gather(*tasks.values())
+
+
+@prot_factory()
+async def _test_flow_402(
+    rf: VirtualRf,
+    protocol: QosProtocol,
+) -> None:
+    qos = QosParams(wait_for_reply=False)
+
+    numbers = list(range(24))
+    tasks = {}
+
+    for i in numbers:
+        cmd = Command.put_sensor_temp("03:123456", i)
+        tasks[i] = protocol._loop.create_task(protocol._send_cmd(cmd, qos=qos))
+
+    random.shuffle(numbers)
+
+    for i in numbers:
+        pkt = await tasks[i]
+        assert pkt == Command.put_sensor_temp("03:123456", i)
+
+
 @prot_factory(disable_qos=False)
 async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
     #
@@ -417,6 +456,18 @@ async def _test_flow_100() -> None:
 async def test_flow_300() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
     await _test_flow_30x()
+
+
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_flow_401() -> None:
+    """Throw a bunch of commands in a random order, and see that all are echo'd."""
+    await _test_flow_401()
+
+
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_flow_402() -> None:
+    """Throw a bunch of commands in a random order, and see that all are echo'd."""
+    await _test_flow_402()
 
 
 @pytest.mark.xdist_group(name="virt_serial")
