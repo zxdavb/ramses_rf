@@ -84,7 +84,7 @@ class ProtocolContext:
         msg = f"<ProtocolContext state={self._state.__class__.__name__}"
         if self._cmd is None:
             return msg + ">"
-        return msg + f", tx_count={self._cmd_tx_count}>"
+        return msg + f", tx_count={self._cmd_tx_count}/{self._cmd_tx_limit}>"
 
     @property
     def state(self) -> _ProtocolStateT:
@@ -100,7 +100,7 @@ class ProtocolContext:
 
         assert self._cmd is None, "Coding error"  # mypy hint
         assert self._qos is None, "Coding error"  # mypy hint
-        assert self._fut is None or self._fut.cancelled(), "Coding error"  # mypy hint
+        assert self._fut is None or self._fut.done(), "Coding error"  # mypy hint
         return False
 
     def set_state(
@@ -248,7 +248,9 @@ class ProtocolContext:
 
     def _check_buffer_for_cmd(self):
         if not isinstance(self._state, IsInIdle):  # TODO: make assert? or remove?
-            raise exc.ProtocolFsmError("Invalid state to check the buffer")
+            raise exc.ProtocolFsmError(f"Invalid state to check the buffer: {self}")
+
+        assert isinstance(self.is_sending, bool), "Coding error"  # mypy hint
 
         while True:
             try:
@@ -339,7 +341,7 @@ class ProtocolStateBase:
         pass
 
     def cmd_sent(self, cmd: Command) -> None:  # Same for all states except IsInIdle
-        raise exc.ProtocolFsmError("Invalid state to send a command")
+        raise exc.ProtocolFsmError(f"Invalid state to send a command: {self._context}")
 
 
 class Inactive(ProtocolStateBase):
