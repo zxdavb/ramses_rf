@@ -630,7 +630,7 @@ class QosProtocol(PortProtocol):
             """
 
             await self._send_frame(
-                str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+                str(kmd), num_repeats=num_repeats, gap_duration=gap_duration
             )
 
         # if cmd.code == Code._PUZZ:  # NOTE: not as simple as this
