@@ -1002,7 +1002,8 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
         # TODO: determine active gateway
 
-        self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
+        # TODO: remove raw_line attr from Packet()
+        self.loop.call_soon_threadsafe(self._pkt_read, pkt)
 
     def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
