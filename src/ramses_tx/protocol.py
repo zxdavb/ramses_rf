@@ -708,6 +708,7 @@ def protocol_factory(
     enforce_include_list: bool = False,
     exclude_list: dict[DeviceIdT, dict] | None = None,
     include_list: dict[DeviceIdT, dict] | None = None,
+    **kwargs,  # HACK: odd/misc params
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 

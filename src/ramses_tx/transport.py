@@ -1057,7 +1057,7 @@ async def transport_factory(
     disable_sending: bool | None = False,
     extra: dict | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
-    **kwargs,
+    **kwargs,  # HACK: odd/misc params
 ) -> RamsesTransportT:
     """Create and return a Ramses-specific async packet Transport."""
 
