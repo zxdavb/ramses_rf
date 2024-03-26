@@ -21,7 +21,7 @@ import serial
 
 from ramses_rf import Command, Message, Packet
 from ramses_tx import exceptions as exc
-from ramses_tx.protocol import QosProtocol, protocol_factory
+from ramses_tx.protocol import PortProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
     IsInIdle,
@@ -125,7 +125,7 @@ def prot_factory(disable_qos: bool | None = False):
 
 
 async def assert_protocol_state(
-    protocol: QosProtocol,
+    protocol: PortProtocol,
     expected_state: _ProtocolStateT,
     max_sleep: int = DEFAULT_MAX_SLEEP,
 ) -> None:
@@ -137,7 +137,7 @@ async def assert_protocol_state(
 
 
 def assert_protocol_state_detail(
-    protocol: QosProtocol, cmd: Command, num_sends: int
+    protocol: PortProtocol, cmd: Command, num_sends: int
 ) -> None:
     assert protocol._context.state.is_active_cmd(cmd)
     assert protocol._context.state.num_sends == num_sends
@@ -145,7 +145,7 @@ def assert_protocol_state_detail(
 
 
 async def async_pkt_received(
-    protocol: QosProtocol,
+    protocol: PortProtocol,
     pkt: Packet,
     method: int = 0,
     ser: None | serial.Serial = None,
@@ -179,7 +179,7 @@ async def async_pkt_received(
 @prot_factory()
 async def _test_flow_10x(
     rf: VirtualRf,
-    protocol: QosProtocol,
+    protocol: PortProtocol,
     rcvd_method: int = 0,
     min_sleeps: bool = None,
 ) -> None:
@@ -269,10 +269,7 @@ async def _test_flow_10x(
 
 
 @prot_factory()
-async def _test_flow_30x(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-) -> None:
+async def _test_flow_30x(rf: VirtualRf, protocol: PortProtocol) -> None:
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
 
@@ -322,10 +319,7 @@ async def _test_flow_30x(
 
 
 @prot_factory()
-async def _test_flow_401(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-) -> None:
+async def _test_flow_401(rf: VirtualRf, protocol: PortProtocol) -> None:
     qos = QosParams(wait_for_reply=False)
 
     numbers = list(range(24))
@@ -343,10 +337,7 @@ async def _test_flow_401(
 
 
 @prot_factory()
-async def _test_flow_402(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-) -> None:
+async def _test_flow_402(rf: VirtualRf, protocol: PortProtocol) -> None:
     qos = QosParams(wait_for_reply=False)
 
     numbers = list(range(24))
@@ -364,7 +355,7 @@ async def _test_flow_402(
 
 
 @prot_factory(disable_qos=False)
-async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
+async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
     #
     # ### Simple test for an I (does not expect any reply)...
 
@@ -433,7 +424,7 @@ async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
 
 
 @prot_factory()
-async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
+async def _test_flow_60x(rf: VirtualRf, protocol: PortProtocol, num_cmds=1) -> None:
     #
     # Setup...
     tasks = []

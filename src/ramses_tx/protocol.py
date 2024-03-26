@@ -28,7 +28,7 @@ from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
 from .schemas import SZ_BLOCK_LIST, SZ_CLASS, SZ_KNOWN_LIST, SZ_PORT_NAME
-from .transport import MqttTransport, transport_factory
+from .transport import transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -425,13 +425,6 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         return await super().send_cmd(cmd, *args, **kwargs)
 
 
-# NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
-# Impersonate first, as the Puzzle Packet needs to be sent before the Command
-# Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
-# QosTimers last, to start any timers immediately after Tx of Command
-
-
-# ### Read-Only Protocol for FileTransport, PortTransport #############################
 class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can only receive Packets."""
 
@@ -467,11 +460,28 @@ class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
 
-# ### Read-Write (sans QoS) Protocol for PortTransport ################################
 class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
-    """A protocol that can receive Packets and send Commands."""
+    """A protocol that can receive Packets and send Commands +/- QoS (using a FSM)."""
 
     _is_evofw3: bool | None = None
+
+    def __init__(
+        self, msg_handler: MsgHandlerT, disable_qos: bool = False, **kwargs
+    ) -> None:
+        """Add a FSM to the Protocol, to provide QoS."""
+        super().__init__(msg_handler, **kwargs)
+
+        self._context: ProtocolContext | None = None
+        self._selective_qos = disable_qos is None  # QoS only for some commands
+
+        if disable_qos is not True:
+            self._context = ProtocolContext(self)
+
+    def __repr__(self) -> str:
+        if not self._context:
+            return super().__repr__()
+        cls = self._context.state.__class__.__name__
+        return f"QosProtocol({cls}, len(queue)={self._context._que.qsize()})"
 
     def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
@@ -485,20 +495,52 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         if not ramses:
             return None
 
+        # if isinstance(transport, MqttTransport):  # HACK
+        #     self._context.echo_timeout = 0.5  # HACK: need to move FSM to transport?
+
         super().connection_made(transport)
         # TODO: needed? self.resume_writing()
 
         self._set_active_hgi(self._transport.get_extra_info(SZ_ACTIVE_HGI))
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
+        if not self._context:
+            return
+
+        self._context.connection_made(transport)
+
+        if self._pause_writing:
+            self._context.pause_writing()
+        else:
+            self._context.resume_writing()
+
     def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
-        """Called when the connection is lost or closed."""
+        """Inform the FSM that the connection with the Transport has been lost."""
 
         super().connection_lost(err)
+        if self._context:
+            self._context.connection_lost(err)  # is this safe, when KeyboardInterrupt?
+
+    def pause_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+
+        super().pause_writing()
+        if self._context:
+            self._context.pause_writing()
+
+    def resume_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+
+        super().resume_writing()
+        if self._context:
+            self._context.resume_writing()
 
     def pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
+
         super().pkt_received(pkt)
+        if self._context:
+            self._context.pkt_received(pkt)
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
@@ -514,100 +556,6 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_cmd(
-        self,
-        cmd: Command,
-        /,
-        *,
-        gap_duration: float = DEFAULT_GAP_DURATION,
-        num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: Priority = Priority.DEFAULT,
-        qos: QosParams | None = None,
-    ) -> Packet | None:
-        """Send a Command without QoS (send an impersonation alert if required)."""
-
-        assert gap_duration == DEFAULT_GAP_DURATION
-        assert DEFAULT_NUM_REPEATS <= num_repeats <= 3
-
-        if qos and not isinstance(self, QosProtocol):
-            raise exc.ProtocolError(f"{cmd} < QoS is not supported by this Protocol")
-
-        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
-            await self._send_impersonation_alert(cmd)
-
-        return await super().send_cmd(
-            cmd,
-            gap_duration=gap_duration,
-            num_repeats=num_repeats,
-            priority=priority,
-            qos=qos,
-        )
-
-
-# ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(PortProtocol):
-    """A protocol that can receive Packets and send Commands with QoS (using a FSM)."""
-
-    def __init__(
-        self, msg_handler: MsgHandlerT, selective_qos: bool = False, **kwargs
-    ) -> None:
-        """Add a FSM to the Protocol, to provide QoS."""
-        super().__init__(msg_handler, **kwargs)
-
-        self._context = ProtocolContext(self)
-        self._selective_qos = selective_qos  # QoS for some commands
-
-    def __repr__(self) -> str:
-        cls = self._context.state.__class__.__name__
-        return f"QosProtocol({cls}, len(queue)={self._context._que.unfinished_tasks})"
-
-    def connection_made(  # type: ignore[override]
-        self, transport: RamsesTransportT, /, *, ramses: bool = False
-    ) -> None:
-        """Consume the callback if invoked by SerialTransport rather than PortTransport.
-
-        Our PortTransport wraps SerialTransport and will wait for the signature echo
-        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
-        """
-
-        if not ramses:
-            return
-
-        if isinstance(transport, MqttTransport):  # HACK
-            self._context.echo_timeout = 0.5  # HACK: need to move FSM to transport?
-
-        super().connection_made(transport, ramses=ramses)
-        self._context.connection_made(transport)
-
-        if self._pause_writing:
-            self._context.pause_writing()
-        else:
-            self._context.resume_writing()
-
-    def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
-        """Inform the FSM that the connection with the Transport has been lost."""
-
-        super().connection_lost(err)
-        self._context.connection_lost(err)  # is this safe, when KeyboardInterrupt?
-
-    def pkt_received(self, pkt: Packet) -> None:
-        """Inform the FSM that a Packet has been received."""
-
-        super().pkt_received(pkt)
-        self._context.pkt_received(pkt)
-
-    def pause_writing(self) -> None:
-        """Inform the FSM that the Protocol has been paused."""
-
-        super().pause_writing()
-        self._context.pause_writing()
-
-    def resume_writing(self) -> None:
-        """Inform the FSM that the Protocol has been paused."""
-
-        super().resume_writing()
-        self._context.resume_writing()
-
     async def _send_cmd(
         self,
         cmd: Command,
@@ -619,6 +567,11 @@ class QosProtocol(PortProtocol):
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
+
+        if not self._context:
+            return await super()._send_cmd(
+                cmd, gap_duration=gap_duration, num_repeats=num_repeats
+            )
 
         qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
 
@@ -685,7 +638,13 @@ class QosProtocol(PortProtocol):
         """
 
         assert gap_duration == DEFAULT_GAP_DURATION
-        assert num_repeats == DEFAULT_NUM_REPEATS
+        assert DEFAULT_NUM_REPEATS <= num_repeats <= 3  # no repeats if QoS
+
+        if qos and not self._context:
+            _LOGGER.warning(f"{cmd} < QoS is currently disabled by this Protocol")
+
+        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
+            await self._send_impersonation_alert(cmd)
 
         return await super().send_cmd(
             cmd,
@@ -696,7 +655,7 @@ class QosProtocol(PortProtocol):
         )
 
 
-RamsesProtocolT = QosProtocol | PortProtocol | ReadProtocol
+RamsesProtocolT = PortProtocol | ReadProtocol
 
 
 def protocol_factory(
@@ -712,12 +671,6 @@ def protocol_factory(
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
-    # The intention is, that once we are read-only, we're always read-only, but
-    # until the QoS state machine is stable:
-    #   disable_qos is True,  means QoS is always disabled
-    #               is False, means QoS is never disabled
-    #               is None,  means QoS is disabled, but enabled by the command
-
     if disable_sending:
         _LOGGER.debug("ReadProtocol: Sending has been disabled")
         return ReadProtocol(
@@ -729,17 +682,10 @@ def protocol_factory(
 
     if disable_qos or _DBG_DISABLE_QOS:
         _LOGGER.debug("PortProtocol: QoS has been disabled")
-        return PortProtocol(
-            msg_handler,
-            enforce_include_list=enforce_include_list,
-            exclude_list=exclude_list,
-            include_list=include_list,
-        )
 
-    _LOGGER.debug("QosProtocol: QoS has been enabled")
-    return QosProtocol(
+    return PortProtocol(
         msg_handler,
-        selective_qos=disable_qos is None,
+        disable_qos=(disable_qos or _DBG_DISABLE_QOS),
         enforce_include_list=enforce_include_list,
         exclude_list=exclude_list,
         include_list=include_list,

@@ -17,7 +17,7 @@ from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx import exceptions as exc
 from ramses_tx.address import HGI_DEVICE_ID
-from ramses_tx.protocol import QosProtocol
+from ramses_tx.protocol import PortProtocol
 from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
@@ -165,7 +165,7 @@ async def real_ti3410():
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
 
-    if not isinstance(gwy._protocol, QosProtocol):
+    if not isinstance(gwy._protocol, PortProtocol) or not gwy._protocol._context:
         assert False, "QoS protocol not enabled"  # use assert, not skip
 
     # we replace the (non-sentinel) gwy_id with the real gwy's actual dev_id
@@ -183,12 +183,14 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         # using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
         # latter may swallow the exception we wish to capture (ProtocolSendFailed)
         pkt = await gwy._protocol.send_cmd(
-            cmd, qos=QosParams(max_retries=0, wait_for_reply=False, timeout=0.5)
+            cmd, qos=QosParams(wait_for_reply=False, timeout=0.1)
         )  # for this test, we only need the cmd echo
     except exc.ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
             return  # should have failed, and has
         raise  # should not have failed, but has!
+
+    assert pkt is not None
 
     if is_hgi80 and cmd_str[7:16] != HGI_ID_:
         assert False, pkt  # should have failed, but has not!

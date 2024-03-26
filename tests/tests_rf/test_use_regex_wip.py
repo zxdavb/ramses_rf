@@ -16,7 +16,7 @@ import pytest
 import serial
 
 from ramses_rf import Command, Gateway, Packet
-from ramses_tx.protocol import QosProtocol
+from ramses_tx.protocol import PortProtocol
 from ramses_tx.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_tx.transport import _str
 from tests_rf.virtual_rf import VirtualRf
@@ -165,7 +165,7 @@ async def test_regex_with_qos():
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
 
-    if not isinstance(gwy_0._protocol, QosProtocol):
+    if not isinstance(gwy_0._protocol, PortProtocol) or not gwy_0._protocol._context:
         await rf.stop()
         pytest.skip("QoS protocol not enabled")
 
