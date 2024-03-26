@@ -503,6 +503,7 @@ class WantRply(ProtocolStateBase):
 
 
 _ProtocolStateT: TypeAlias = Inactive | IsInIdle | WantEcho | WantRply
+
 _ProtocolStateClassT: TypeAlias = (
     type[Inactive] | type[IsInIdle] | type[WantEcho] | type[WantRply]
 )

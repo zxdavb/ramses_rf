@@ -9,7 +9,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import datetime as dt
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, TypeAlias
 
 from . import exceptions as exc
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
@@ -655,7 +655,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         )
 
 
-RamsesProtocolT = PortProtocol | ReadProtocol
+RamsesProtocolT: TypeAlias = PortProtocol | ReadProtocol
 
 
 def protocol_factory(
