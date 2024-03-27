@@ -17,11 +17,6 @@ import serial
 from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import VirtualRf, rf_factory
 
-# patched constants
-_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.protocol
-
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 1
@@ -44,25 +39,6 @@ SCHEMA_1 = {
     "orphans_hvac": ["41:111111"],
     "known_list": {"41:111111": {"class": "FAN"}},
 }
-
-
-# ### FIXTURES #########################################################################
-
-
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
-    )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._GAP_BETWEEN_WRITES",
-        _GAP_BETWEEN_WRITES,
-    )
 
 
 # ######################################################################################
@@ -142,21 +118,21 @@ async def test_virtual_rf_dev_disc():
     await assert_devices(gwy_1, ["18:111111"])
 
     # TEST 1: Tx to all from GWY /dev/pty/0 (NB: no RSSI)
-    cmd = Command("RP --- 01:010000 --:------ 01:010000 1F09 003 0004B5")
+    cmd = Command(" I --- 01:010000 --:------ 01:010000 1F09 003 0004B5")
     gwy_0.send_cmd(cmd)
 
     await assert_devices(gwy_0, ["01:010000", "18:000000", "18:111111"])
     await assert_devices(gwy_1, ["01:010000", "18:111111"])
 
     # TEST 2: Tx to all from non-GWY /dev/pty/2 (NB: no RSSI)
-    cmd = Command("RP --- 01:011111 --:------ 01:011111 1F09 003 0004B5")
+    cmd = Command(" I --- 01:011111 --:------ 01:011111 1F09 003 0004B5")
     ser_2.write(bytes(f"{cmd}\r\n".encode("ascii")))
 
     await assert_devices(gwy_0, ["01:010000", "01:011111", "18:000000", "18:111111"])
     await assert_devices(gwy_1, ["01:010000", "01:011111", "18:111111"])
 
     # TEST 3: Rx only by *only one* GWY (NB: needs RSSI)
-    cmd = Command("RP --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
+    cmd = Command(" I --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
     list(rf._port_to_object.values())[1].write(bytes(f"000 {cmd}\r\n".encode("ascii")))
 
     await assert_devices(gwy_0, ["01:010000", "01:011111", "18:000000", "18:111111"])
@@ -188,7 +164,7 @@ async def test_virtual_rf_pkt_flow():
         gwy_0, "01:022222", Code._1F09, max_sleep=0, test_not=True
     )  # device wont exist
 
-    cmd = Command("RP --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
+    cmd = Command(" I --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
     gwy_0.send_cmd(cmd, num_repeats=1)
 
     await assert_devices(gwy_0, ["01:022222", "18:000000", "18:111111", "40:000000"])

@@ -80,7 +80,7 @@ _RATIFY_WAIT_TIME: Final[float] = (
 BINDING_QOS = QosParams(
     max_retries=SENDING_RETRY_LIMIT,
     timeout=WAITING_TIMEOUT_SECS * 2,
-    wait_for_reply=True,
+    wait_for_reply=False,
 )
 
 
@@ -274,7 +274,7 @@ class BindContextRespondent(BindContextBase):
         """Resp sends an Accept on the basis of a rcvd Offer & returns the Confirm."""
 
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
-        if DEV_MODE:
+        if DEV_MODE:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
 
         pkt: Packet = await self._dev._async_send_cmd(  # Tx accept/accept
@@ -356,7 +356,7 @@ class BindContextSupplicant(BindContextBase):
         cmd = Command.put_bind(
             I_, self._dev.id, codes, dst_id=self._dev.id, oem_code=oem_code
         )
-        if DEV_MODE:
+        if DEV_MODE:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
 
         pkt: Packet = await self._dev._async_send_cmd(  # Tx tender/offer
@@ -382,7 +382,7 @@ class BindContextSupplicant(BindContextBase):
         cmd = Command.put_bind(
             I_, self._dev.id, confirm_code, dst_id=accept.src.id, idx=idx
         )
-        if DEV_MODE:
+        if DEV_MODE:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
 
         pkt: Packet = await self._dev._async_send_cmd(  # Tx affirm/confirm

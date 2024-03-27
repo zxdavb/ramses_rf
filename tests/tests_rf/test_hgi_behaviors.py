@@ -16,21 +16,19 @@ from serial.tools.list_ports import comports
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx import exceptions as exc
-from ramses_tx.protocol import QosProtocol
+from ramses_tx.address import HGI_DEVICE_ID
+from ramses_tx.protocol import PortProtocol
 from ramses_tx.typing import QosParams
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 # patched constants
-_DBG_DISABLE_DUTY_CYCLE_LIMIT = True  # #   ramses_tx.protocol
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
 _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
-_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.transport
 
 # other constants
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
-HGI_ID_ = "18:000730"  # the sentinel value
+HGI_ID_ = HGI_DEVICE_ID  # the sentinel value
 TST_ID_ = "18:222222"  # a specific ID
 
 GWY_CONFIG = {
@@ -66,19 +64,6 @@ _global_failed_ports: list[str] = []
 # ### FIXTURES #########################################################################
 
 pytestmark = pytest.mark.asyncio(scope="module")
-
-
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_DUTY_CYCLE_LIMIT",
-        _DBG_DISABLE_DUTY_CYCLE_LIMIT,
-    )
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
@@ -180,7 +165,7 @@ async def real_ti3410():
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
 
-    if not isinstance(gwy._protocol, QosProtocol):
+    if not isinstance(gwy._protocol, PortProtocol) or not gwy._protocol._context:
         assert False, "QoS protocol not enabled"  # use assert, not skip
 
     # we replace the (non-sentinel) gwy_id with the real gwy's actual dev_id
@@ -198,12 +183,14 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         # using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
         # latter may swallow the exception we wish to capture (ProtocolSendFailed)
         pkt = await gwy._protocol.send_cmd(
-            cmd, qos=QosParams(max_retries=0, wait_for_reply=False)
+            cmd, qos=QosParams(wait_for_reply=False, timeout=0.1)
         )  # for this test, we only need the cmd echo
     except exc.ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_ID_:
             return  # should have failed, and has
         raise  # should not have failed, but has!
+
+    assert pkt is not None
 
     if is_hgi80 and cmd_str[7:16] != HGI_ID_:
         assert False, pkt  # should have failed, but has not!

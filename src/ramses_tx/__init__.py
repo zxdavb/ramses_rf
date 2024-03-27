@@ -24,7 +24,6 @@ from .message import Message  # noqa: F401
 from .packet import PKT_LOGGER, Packet  # noqa: F401
 from .protocol import (  # noqa: F401, pylint: disable=unused-import
     PortProtocol,
-    QosProtocol,
     ReadProtocol,
     protocol_factory,
 )

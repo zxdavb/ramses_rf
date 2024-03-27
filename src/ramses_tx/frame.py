@@ -166,6 +166,11 @@ class Frame:
         except AttributeError as err:
             return f"{self!r} < {err}"
 
+    def __eq__(self, other) -> bool:
+        if not hasattr(other, "_frame"):
+            return NotImplemented
+        return self._frame[4:] == other._frame[4:]  # type: ignore[no-any-return]
+
     @property
     def _has_array(self) -> None | bool:  # TODO: a mess - has false negatives
         """Return the True if the payload is an array, False otherwise.

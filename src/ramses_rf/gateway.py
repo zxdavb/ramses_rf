@@ -37,7 +37,7 @@ from ramses_tx.const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
-    DEFAULT_TIMEOUT,
+    DEFAULT_SEND_TIMEOUT,
     SZ_ACTIVE_HGI,
 )
 from ramses_tx.schemas import (
@@ -278,14 +278,17 @@ class Gateway(Engine):
         if _clear_state:  # only intended for test suite use
             clear_state()
 
-        tmp_protocol = protocol_factory(self._msg_handler, disable_sending=True)
+        tmp_protocol = protocol_factory(
+            self._msg_handler,
+            disable_sending=True,
+            enforce_include_list=self._enforce_known_list,
+            exclude_list=self._exclude,
+            include_list=self._include,
+        )
 
         tmp_transport = await transport_factory(
             tmp_protocol,
             packet_dict=packets,
-            enforce_include_list=self._enforce_known_list,
-            exclude_list=self._exclude,
-            include_list=self._include,
         )
 
         await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
@@ -549,7 +552,7 @@ class Gateway(Engine):
         max_retries: int = DEFAULT_MAX_RETRIES,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = None,
         **kwargs: Any,
     ) -> Packet | None:

@@ -24,18 +24,14 @@ from ramses_rf.binding_fsm import (
     _BindStates,
 )
 from ramses_rf.device import Fakeable
-from ramses_tx.protocol import QosProtocol
+from ramses_tx.protocol import PortProtocol
 
 from .virtual_rf import rf_factory
 from .virtual_rf.helpers import ensure_fakeable
 
 # patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DBG_DISABLE_QOS = False  # #               ramses_tx.protocol
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.005  # #                ramses_tx.protocol_fsm
 MAINTAIN_STATE_CHAIN = False  # #           ramses_tx.protocol_fsm
-_GAP_BETWEEN_WRITES = 0  # #                ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -164,15 +160,6 @@ TEST_SUITE_300 = [
 # ### FIXTURES #########################################################################
 
 
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
-
-
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     def id_fnc(test_set):
         r_class = list(test_set[SZ_RESPONDENT].values())[0]["class"]
@@ -240,11 +227,12 @@ async def _test_flow_10x(
 
     pkt = await supplicant._bind_context._make_offer(codes)
     await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
+    assert pkt is not None
 
     await resp_task
     await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
 
-    if not isinstance(gwy_r._protocol, QosProtocol):
+    if not isinstance(gwy_r._protocol, PortProtocol) or not gwy_r._protocol._context:
         assert False, "QoS protocol not enabled"  # use assert, not skip
 
     tender = resp_task.result()
@@ -259,6 +247,7 @@ async def _test_flow_10x(
 
     pkt = await respondent._bind_context._accept_offer(tender, codes)
     await assert_context_state(respondent, _BindStates.NEEDING_AFFIRM)
+    assert pkt is not None
 
     await supp_task
     await assert_context_state(supplicant, _BindStates.TO_SEND_AFFIRM)
@@ -275,6 +264,7 @@ async def _test_flow_10x(
 
     pkt = await supplicant._bind_context._confirm_accept(accept, confirm_code=codes)
     await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
+    assert pkt is not None
 
     if len(pkt_flow_expected) > _RATIFY:  # FIXME
         supplicant._bind_context.set_state(
@@ -312,6 +302,7 @@ async def _test_flow_10x(
     # # TODO: need to finish this
     # pkt = await supplicant._context._cast_addenda()
     # await assert_context_state(supplicant, _BindStates.HAS_BOUND_SUPP)
+    # assert pkt is not None
 
     # await assert_context_state(respondent, _BindStates.HAS_BOUND_RESP)
     # await resp_task

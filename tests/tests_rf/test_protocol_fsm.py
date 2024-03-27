@@ -12,35 +12,31 @@ limits.
 
 import asyncio
 import functools
+import random
 from datetime import datetime as dt
 
 import pytest
 import pytest_asyncio
 import serial
-import serial_asyncio
 
 from ramses_rf import Command, Message, Packet
-from ramses_tx.protocol import QosProtocol, protocol_factory
+from ramses_tx import exceptions as exc
+from ramses_tx.protocol import PortProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
-    IsFailed,
     IsInIdle,
     WantEcho,
     WantRply,
     _ProtocolStateT,
 )
-from ramses_tx.transport import transport_factory
+from ramses_tx.transport import QosTransport, transport_factory
 from ramses_tx.typing import QosParams
 
 from .virtual_rf import VirtualRf
 
 # patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DBG_MAINTAIN_STATE_CHAIN = False  # #      ramses_tx.protocol_fsm
 DEFAULT_MAX_RETRIES = 0  # #                ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.05  # #                 ramses_tx.protocol_fsm
 MAX_DUTY_CYCLE = 1.0  # #                   ramses_tx.protocol
-_GAP_BETWEEN_WRITES = 0  # #                ramses_tx.protocol
 
 # other constants
 CALL_LATER_DELAY = 0.001  # FIXME: this is hardware-specific
@@ -76,19 +72,6 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 # ### FIXTURES #########################################################################
 
 
-@pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
-    monkeypatch.setattr(
-        "ramses_tx.protocol_fsm._DBG_MAINTAIN_STATE_CHAIN",
-        _DBG_MAINTAIN_STATE_CHAIN,
-    )
-
-
 def prot_factory(disable_qos: bool | None = False):
     def prot_decorator(fnc):  # TODO: make a fixture
         """Create a virtual RF network with a protocol stack (i.e. without a gateway)."""
@@ -101,24 +84,25 @@ def prot_factory(disable_qos: bool | None = False):
             rf = VirtualRf(2, start=True)
 
             protocol = protocol_factory(
-                kwargs.pop("msg_handler", _msg_handler), disable_qos=disable_qos
-            )
-            await assert_protocol_state(protocol, Inactive, max_sleep=0)
-
-            transport: serial_asyncio.SerialTransport = await transport_factory(
-                protocol,
-                port_name=rf.ports[0],
-                port_config=kwargs.pop("port_config", {}),
+                kwargs.pop("msg_handler", _msg_handler),
+                disable_qos=disable_qos,
                 enforce_include_list=kwargs.pop("enforce_include_list", False),
                 exclude_list=kwargs.pop("exclude_list", {}),
                 include_list=kwargs.pop("include_list", {}),
+            )
+            await assert_protocol_state(protocol, Inactive, max_sleep=0)
+
+            transport: QosTransport = await transport_factory(
+                protocol,
+                port_name=rf.ports[0],
+                port_config=kwargs.pop("port_config", {}),
             )
             transport._extra["virtual_rf"] = rf  # injected to aid any debugging
 
             try:
                 await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
                 await fnc(rf, protocol, *args, **kwargs)
-                await assert_protocol_state(protocol, (IsInIdle, IsFailed))
+                await assert_protocol_state(protocol, IsInIdle)
             except serial.SerialException as err:
                 transport._close(err=err)
                 raise
@@ -141,7 +125,7 @@ def prot_factory(disable_qos: bool | None = False):
 
 
 async def assert_protocol_state(
-    protocol: QosProtocol,
+    protocol: PortProtocol,
     expected_state: _ProtocolStateT,
     max_sleep: int = DEFAULT_MAX_SLEEP,
 ) -> None:
@@ -153,7 +137,7 @@ async def assert_protocol_state(
 
 
 def assert_protocol_state_detail(
-    protocol: QosProtocol, cmd: Command, num_sends: int
+    protocol: PortProtocol, cmd: Command, num_sends: int
 ) -> None:
     assert protocol._context.state.is_active_cmd(cmd)
     assert protocol._context.state.num_sends == num_sends
@@ -161,7 +145,7 @@ def assert_protocol_state_detail(
 
 
 async def async_pkt_received(
-    protocol: QosProtocol,
+    protocol: PortProtocol,
     pkt: Packet,
     method: int = 0,
     ser: None | serial.Serial = None,
@@ -195,7 +179,7 @@ async def async_pkt_received(
 @prot_factory()
 async def _test_flow_10x(
     rf: VirtualRf,
-    protocol: QosProtocol,
+    protocol: PortProtocol,
     rcvd_method: int = 0,
     min_sleeps: bool = None,
 ) -> None:
@@ -285,14 +269,11 @@ async def _test_flow_10x(
 
 
 @prot_factory()
-async def _test_flow_30x(
-    rf: VirtualRf,
-    protocol: QosProtocol,
-) -> None:
+async def _test_flow_30x(rf: VirtualRf, protocol: PortProtocol) -> None:
     # STEP 0: Setup...
     ser = serial.Serial(rf.ports[1])
 
-    qos = QosParams()
+    qos = QosParams(wait_for_reply=True)
 
     # STEP 1: Send an I cmd (no reply)...
     task = protocol._loop.create_task(
@@ -337,69 +318,113 @@ async def _test_flow_30x(
     assert await task == RP_PKT_1
 
 
-@prot_factory(disable_qos=False)
-async def _test_flow_qos(rf: VirtualRf, protocol: QosProtocol) -> None:
-    #
-    # Simple test for an I (does not expect any rx)...
-    cmd = Command.put_sensor_temp("03:333333", 19.5)  # 3C09| I|03:333333
+@prot_factory()
+async def _test_flow_401(rf: VirtualRf, protocol: PortProtocol) -> None:
+    qos = QosParams(wait_for_reply=False)
 
-    pkt = await protocol._send_cmd(cmd)
-    assert pkt is None
+    numbers = list(range(24))
+    tasks = {}
 
-    pkt = await protocol._send_cmd(cmd, qos=None)
-    assert pkt is None
+    for i in numbers:
+        cmd = Command.put_sensor_temp("03:123456", i)
+        tasks[i] = protocol._loop.create_task(protocol._send_cmd(cmd, qos=qos))
 
-    pkt = await protocol._send_cmd(cmd, qos=QosParams())
-    assert pkt == cmd
+    assert await asyncio.gather(*tasks.values())
 
-    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
-    assert pkt == cmd
-
-    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
-    assert pkt == cmd
-
-    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
-    assert pkt == cmd
-
-    # Simple test for an RQ (expects an RP)...
-    cmd = Command.get_system_time("01:333333")  # 1F09|RQ|01:333333
-
-    pkt = await protocol._send_cmd(cmd)
-    assert pkt is None
-
-    pkt = await protocol._send_cmd(cmd, qos=None)
-    assert pkt is None
-
-    # FIXME: reduce timeouts to speed up test
-    # try:
-    #     pkt = await protocol._send_cmd(cmd, qos=QosParams())
-    # except exc.ProtocolSendFailed:
-    #     pass
-    # else:
-    #     assert False, "Expected ProtocolSendFailed"
-
-    # FIXME: reduce timeouts to speed up test
-    # try:
-    #     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
-    # except exc.ProtocolSendFailed:
-    #     pass
-    # else:
-    #     assert False, "Expected ProtocolSendFailed"
-
-    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
-    assert pkt == cmd
-
-    # FIXME: reduce timeouts to speed up test
-    # try:
-    #     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
-    # except exc.ProtocolSendFailed:
-    #     pass
-    # else:
-    #     assert False, "Expected ProtocolSendFailed"
+    for i in numbers:
+        pkt = tasks[i].result()
+        assert pkt == Command.put_sensor_temp("03:123456", i)
 
 
 @prot_factory()
-async def _test_flow_60x(rf: VirtualRf, protocol: QosProtocol, num_cmds=1) -> None:
+async def _test_flow_402(rf: VirtualRf, protocol: PortProtocol) -> None:
+    qos = QosParams(wait_for_reply=False)
+
+    numbers = list(range(24))
+    tasks = {}
+
+    for i in numbers:
+        cmd = Command.put_sensor_temp("03:123456", i)
+        tasks[i] = protocol._loop.create_task(protocol._send_cmd(cmd, qos=qos))
+
+    random.shuffle(numbers)
+
+    for i in numbers:
+        pkt = await tasks[i]
+        assert pkt == Command.put_sensor_temp("03:123456", i)
+
+
+@prot_factory(disable_qos=False)
+async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
+    #
+    # ### Simple test for an I (does not expect any reply)...
+
+    cmd = Command.put_sensor_temp("03:000111", 19.5)
+    pkt = await protocol._send_cmd(cmd)  # qos == QosParams()
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    cmd = Command.put_sensor_temp("03:000222", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=None)  # qos == QosParams()
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    cmd = Command.put_sensor_temp("03:000333", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams())
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    cmd = Command.put_sensor_temp("03:000444", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
+    assert pkt == cmd, "should be echo as there is no wait_for_reply"
+
+    cmd = Command.put_sensor_temp("03:000555", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
+    assert pkt == cmd, "should be echo as there is no wait_for_reply"
+
+    cmd = Command.put_sensor_temp("03:000666", 19.5)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
+
+    # ### Simple test for an RQ (expects an RP)...
+
+    cmd = Command.get_system_time("01:000111")
+    pkt = await protocol._send_cmd(cmd)
+    assert pkt == cmd
+
+    cmd = Command.get_system_time("01:000222")
+    pkt = await protocol._send_cmd(cmd, qos=None)
+    assert pkt == cmd
+
+    cmd = Command.get_system_time("01:000333")
+    pkt = await protocol._send_cmd(cmd, qos=QosParams())
+    assert pkt == cmd
+
+    cmd = Command.get_system_time("01:000444")
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
+    assert pkt == cmd
+
+    cmd = Command.get_system_time("01:000555")
+    pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
+    assert pkt == cmd
+
+    # FIXME: reduce timeouts to speed up test
+    cmd = Command.get_system_time("01:000666")
+    try:
+        _ = await protocol._send_cmd(
+            cmd, qos=QosParams(wait_for_reply=True, timeout=0.05)
+        )
+    except exc.ProtocolSendFailed:
+        pass
+    else:
+        assert False, "Expected ProtocolSendFailed"
+
+    # ### Simple test for an I (does not expect any reply)...
+
+    cmd = Command.put_sensor_temp("03:000999", 19.5)
+    pkt = await protocol._send_cmd(cmd)
+    assert pkt == cmd
+
+
+@prot_factory()
+async def _test_flow_60x(rf: VirtualRf, protocol: PortProtocol, num_cmds=1) -> None:
     #
     # Setup...
     tasks = []
@@ -426,6 +451,18 @@ async def _test_flow_100() -> None:
 async def test_flow_300() -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
     await _test_flow_30x()
+
+
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_flow_401() -> None:
+    """Throw a bunch of commands in a random order, and see that all are echo'd."""
+    await _test_flow_401()
+
+
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_flow_402() -> None:
+    """Throw a bunch of commands in a random order, and see that all are echo'd."""
+    await _test_flow_402()
 
 
 @pytest.mark.xdist_group(name="virt_serial")

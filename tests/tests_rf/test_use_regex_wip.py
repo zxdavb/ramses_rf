@@ -16,16 +16,10 @@ import pytest
 import serial
 
 from ramses_rf import Command, Gateway, Packet
-from ramses_tx.protocol import QosProtocol
+from ramses_tx.protocol import PortProtocol
 from ramses_tx.schemas import SZ_INBOUND, SZ_OUTBOUND, SZ_USE_REGEX
 from ramses_tx.transport import _str
 from tests_rf.virtual_rf import VirtualRf
-
-# patched constants
-_DBG_DISABLE_IMPERSONATION_ALERTS = True  # ramses_tx.protocol
-_DBG_DISABLE_QOS = True  # #                ramses_tx.protocol
-DEFAULT_TIMEOUT = 0.005  # #                  ramses_tx.protocol_fsm
-_GAP_BETWEEN_WRITES = 0  # #          ramses_tx.protocol
 
 # other constants
 ASSERT_CYCLE_TIME = 0.0005  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
@@ -77,15 +71,13 @@ GWY_CONFIG = {
 
 @pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS",
-        _DBG_DISABLE_IMPERSONATION_ALERTS,
-    )
-    monkeypatch.setattr("ramses_tx.protocol._GAP_BETWEEN_WRITES", _GAP_BETWEEN_WRITES)
-    monkeypatch.setattr("ramses_tx.protocol_fsm.DEFAULT_TIMEOUT", DEFAULT_TIMEOUT)
+    monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
+    monkeypatch.setattr("ramses_tx.transport.MINIMUM_WRITE_GAP", 0)
 
 
-async def assert_this_pkt(gwy, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
+async def assert_this_pkt(
+    gwy: Gateway, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP
+):
     """Check, at the gateway layer, that the current packet is as expected."""
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -173,7 +165,7 @@ async def test_regex_with_qos():
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
 
-    if not isinstance(gwy_0._protocol, QosProtocol):
+    if not isinstance(gwy_0._protocol, PortProtocol) or not gwy_0._protocol._context:
         await rf.stop()
         pytest.skip("QoS protocol not enabled")
 

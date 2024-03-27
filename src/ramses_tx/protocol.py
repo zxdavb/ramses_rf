@@ -7,31 +7,27 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections import deque
-from collections.abc import Awaitable, Callable
-from datetime import timedelta as td
-from functools import wraps
-from time import perf_counter
-from typing import TYPE_CHECKING, Any, Final
+from collections.abc import Callable
+from datetime import datetime as dt
+from typing import TYPE_CHECKING, Final, TypeAlias
 
 from . import exceptions as exc
-from .address import HGI_DEV_ADDR  # , NON_DEV_ADDR, NUL_DEV_ADDR
+from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
     DEFAULT_GAP_DURATION,
     DEFAULT_NUM_REPEATS,
-    MINIMUM_GAP_DURATION,
+    DEV_TYPE_MAP,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
-    SZ_KNOWN_HGI,
+    DevType,
     Priority,
 )
-from .helpers import dt_now
 from .logger import set_logger_timesource
 from .message import Message
 from .packet import Packet
 from .protocol_fsm import ProtocolContext
-from .schemas import SZ_PORT_NAME
+from .schemas import SZ_BLOCK_LIST, SZ_CLASS, SZ_KNOWN_LIST, SZ_PORT_NAME
 from .transport import transport_factory
 from .typing import ExceptionT, MsgFilterT, MsgHandlerT, QosParams
 
@@ -47,222 +43,26 @@ if TYPE_CHECKING:
     from .address import DeviceIdT
     from .transport import RamsesTransportT
 
+TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)
 
-# all debug flags should be False for published code
-_DBG_DISABLE_DUTY_CYCLE_LIMIT: Final[bool] = False
+# All debug flags (used for dev/test) should be False for published code
 _DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
 _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
 
-# other constants
-_GAP_BETWEEN_WRITES: Final[float] = MINIMUM_GAP_DURATION
 
-_MAX_DUTY_CYCLE = 0.01  # % bandwidth used per cycle (default 60 secs)
-_MAX_TOKENS = 45  # number of Tx per cycle (default 60 secs)
-_CYCLE_DURATION = 60  # seconds
-
-
-_global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
-
-
-def avoid_system_syncs(fnc: Callable[..., Awaitable]):
-    """Take measures to avoid Tx when any controller is doing a sync cycle."""
-
-    DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
-    DURATION_LONG_PKT = 0.022  # time to tx I|2309|048 (or 30C9, or 000A)
-    DURATION_SYNC_PKT = 0.010  # time to tx I|1F09|003
-
-    SYNC_WAIT_LONG = (DURATION_PKT_GAP + DURATION_LONG_PKT) * 2
-    SYNC_WAIT_SHORT = DURATION_SYNC_PKT
-    SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
-    SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
-
-    times_0 = []  # FIXME: remove
-
-    async def wrapper(*args, **kwargs):
-        global _global_sync_cycles
-
-        def is_imminent(p):
-            """Return True if a sync cycle is imminent."""
-            return (
-                SYNC_WINDOW_LOWER
-                < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
-                < SYNC_WINDOW_UPPER
-            )
-
-        start = perf_counter()  # TODO: remove
-
-        # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
-        while any(is_imminent(p) for p in _global_sync_cycles):
-            await asyncio.sleep(SYNC_WAIT_SHORT)
-
-        # wait for the remainder of sync cycle (I|2309/30C9) to complete
-        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
-            await asyncio.sleep(SYNC_WAIT_LONG)
-            # FIXME: remove this block, and merge both ifs
-            times_0.append(x)
-            _LOGGER.warning(
-                f"*** sync cycle stats: {x:.3f}, "
-                f"avg: {sum(times_0) / len(times_0):.3f}, "
-                f"lower: {min(times_0):.3f}, "
-                f"upper: {max(times_0):.3f}, "
-                f"times: {[f'{t:.3f}' for t in times_0]}"
-            )  # TODO: wrap with if effectiveloglevel
-
-        await fnc(*args, **kwargs)
-
-    return wrapper
-
-
-def track_system_syncs(fnc: Callable[[Any, Packet], None]):
-    """Track/remember the any new/outstanding TCS sync cycle."""
-
-    MAX_SYNCS_TRACKED = 3
-
-    def wrapper(self, pkt: Packet) -> None:
-        global _global_sync_cycles
-
-        def is_pending(p: Packet) -> bool:
-            """Return True if a sync cycle is still pending (ignores drift)."""
-            return bool(p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now())
-
-        if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
-            fnc(self, pkt)
-            return None
-
-        _global_sync_cycles = deque(
-            p for p in _global_sync_cycles if p.src != pkt.src and is_pending(p)
-        )
-        _global_sync_cycles.append(pkt)  # TODO: sort
-
-        if (
-            len(_global_sync_cycles) > MAX_SYNCS_TRACKED
-        ):  # safety net for corrupted payloads
-            _global_sync_cycles.popleft()
-
-        fnc(self, pkt)
-        return None
-
-    return wrapper
-
-
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = _CYCLE_DURATION):
-    """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
-
-    max_duty_cycle: bandwidth available per observation window (%)
-    time_window: duration of the sliding observation window (default 60 seconds)
-    """
-
-    TX_RATE_AVAIL: int = 38400  # bits per second (deemed)
-    FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
-    BUCKET_CAPACITY: float = FILL_RATE * time_window
-
-    def decorator(fnc: Callable[..., Awaitable]):
-        # start with a full bit bucket
-        bits_in_bucket: float = BUCKET_CAPACITY
-        last_time_bit_added = perf_counter()
-
-        @wraps(fnc)
-        async def wrapper(self, frame: str, *args, **kwargs) -> None:
-            nonlocal bits_in_bucket
-            nonlocal last_time_bit_added
-
-            rf_frame_size = 330 + len(frame[46:]) * 10
-
-            # top-up the bit bucket
-            elapsed_time = perf_counter() - last_time_bit_added
-            bits_in_bucket = min(
-                bits_in_bucket + elapsed_time * FILL_RATE, BUCKET_CAPACITY
-            )
-            last_time_bit_added = perf_counter()
-
-            if _DBG_DISABLE_DUTY_CYCLE_LIMIT:
-                bits_in_bucket = BUCKET_CAPACITY
-
-            # if required, wait for the bit bucket to refill (not for SETs/PUTs)
-            if bits_in_bucket < rf_frame_size:
-                await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
-
-            # consume the bits from the bit bucket
-            try:
-                await fnc(self, frame, *args, **kwargs)
-            finally:
-                bits_in_bucket -= rf_frame_size
-
-        @wraps(fnc)
-        async def null_wrapper(self, frame: str, *args, **kwargs) -> None:
-            await fnc(self, frame, *args, **kwargs)
-
-        if 0 < max_duty_cycle <= 1:
-            return wrapper
-
-        return null_wrapper
-
-    return decorator
-
-
-def limit_transmit_rate(max_tokens: float, time_window: int = _CYCLE_DURATION):
-    """Limit the Tx rate as # packets per period of time.
-
-    Rate-limits the decorated function locally, for one process (Token Bucket).
-
-    max_tokens: maximum number of calls of function in time_window
-    time_window: duration of the sliding observation window (default 60 seconds)
-    """
-    # thanks, kudos to: Thomas Meschede, license: MIT
-    # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
-
-    token_fill_rate: float = max_tokens / time_window
-
-    def decorator(fnc: Callable):
-        token_bucket: float = max_tokens  # initialize with max tokens
-        last_time_token_added = perf_counter()
-
-        @wraps(fnc)
-        async def wrapper(*args, **kwargs):
-            nonlocal token_bucket
-            nonlocal last_time_token_added
-
-            # top-up the bit bucket
-            elapsed = perf_counter() - last_time_token_added
-            token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
-            last_time_token_added = perf_counter()
-
-            # if required, wait for a token (not for SETs/PUTs)
-            if token_bucket < 1.0:
-                await asyncio.sleep((1 - token_bucket) / token_fill_rate)
-
-            # consume one token for every call
-            try:
-                await fnc(*args, **kwargs)
-            finally:
-                token_bucket -= 1.0
-
-        return wrapper
-
-        @wraps(fnc)  # type: ignore[unreachable]
-        async def null_wrapper(*args, **kwargs) -> Any:
-            return await fnc(*args, **kwargs)
-
-        if max_tokens <= 0:
-            return null_wrapper
-
-    return decorator
-
-
-# send_cmd(), _send_cmd(), _send_frame()
 class _BaseProtocol(asyncio.Protocol):
     """Base class for RAMSES II protocols."""
 
     WRITER_TASK = "writer_task"
 
-    _this_msg: None | Message = None
-    _prev_msg: None | Message = None
+    _this_msg: Message | None = None
+    _prev_msg: Message | None = None
 
-    def __init__(self, msg_handler: MsgHandlerT):  # , **kwargs) -> None:
+    def __init__(self, msg_handler: MsgHandlerT) -> None:
         self._msg_handler = msg_handler
         self._msg_handlers: list[MsgHandlerT] = []
 
@@ -275,19 +75,14 @@ class _BaseProtocol(asyncio.Protocol):
 
     @property
     def hgi_id(self) -> DeviceIdT:
-        if not self._transport:
-            return HGI_DEV_ADDR.id  # better: known_hgi or HGI_DEV_ADDR.id?
-        hgi_id: DeviceIdT | None = self._transport.get_extra_info(SZ_ACTIVE_HGI)
-        if hgi_id is not None:
-            return hgi_id
-        return self._transport.get_extra_info(SZ_KNOWN_HGI, HGI_DEV_ADDR.id)  # type: ignore[no-any-return]
+        return HGI_DEV_ADDR.id
 
     def add_handler(
         self,
         msg_handler: MsgHandlerT,
         /,
         *,
-        msg_filter: None | MsgFilterT = None,
+        msg_filter: MsgFilterT | None = None,
     ) -> Callable[[], None]:
         """Add a Message handler to the list of such callbacks.
 
@@ -410,16 +205,19 @@ class _BaseProtocol(asyncio.Protocol):
         Repeats are distinct from retries (a QoS feature): you wouldn't have both.
         """
 
-        await self._send_frame(str(cmd))
+        await self._send_frame(
+            str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+        )
+        return None  # returns None because no QoS
+
+    async def _send_frame(
+        self, frame: str, num_repeats: int = 0, gap_duration: float = 0.0
+    ) -> None:  # _send_frame() -> transport
+        """Write to the transport."""
+        await self._transport.write_frame(frame)
         for _ in range(num_repeats - 1):
             await asyncio.sleep(gap_duration)
-            await self._send_frame(str(cmd))
-
-        return None
-
-    async def _send_frame(self, frame: str) -> None:  # _send_frame() -> transport
-        """Write some bytes to the transport."""
-        self._transport.send_frame(frame)
+            await self._transport.write_frame(frame)
 
     def pkt_received(self, pkt: Packet) -> None:
         """A wrapper for self._pkt_received(pkt)."""
@@ -455,22 +253,183 @@ class _BaseProtocol(asyncio.Protocol):
             self._loop.call_soon_threadsafe(callback, msg)
 
 
-# NOTE: MRO: Impersonate -> Gapped/DutyCycle -> SyncCycle -> Qos/Context -> Base
-# Impersonate first, as the Puzzle Packet needs to be sent before the Command
-# Order of DutyCycle/Gapped doesn't matter, but both before SyncCycle
-# QosTimers last, to start any timers immediately after Tx of Command
+class _DeviceIdFilterMixin(_BaseProtocol):
+    """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
-# NOTE: The duty cycle limts & minimum gaps between write are in this layer, and not
-# in the Transport layer (as you might expect), because they are best enforced *before*
-# the code that avoids the controller sync cycles
+    def __init__(
+        self,
+        msg_handler: MsgHandlerT,
+        enforce_include_list: bool = False,
+        exclude_list: dict[DeviceIdT, dict] | None = None,
+        include_list: dict[DeviceIdT, dict] | None = None,
+    ) -> None:
+        super().__init__(msg_handler)
+
+        exclude_list = exclude_list or {}
+        include_list = include_list or {}
+
+        self.enforce_include = enforce_include_list
+        self._exclude = list(exclude_list.keys())
+        self._include = list(include_list.keys())
+        self._include += [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
+
+        self._active_hgi: DeviceIdT | None = None
+        self._known_hgi = self._extract_known_hgi(include_list)
+
+        self._foreign_gwys_lst: list[DeviceIdT] = []
+        self._foreign_last_run = dt.now().date()
+
+    @property
+    def hgi_id(self) -> DeviceIdT:
+        if not self._transport:
+            return self._known_hgi or HGI_DEV_ADDR.id
+        return self._transport.get_extra_info(  # type: ignore[no-any-return]
+            SZ_ACTIVE_HGI, self._known_hgi or HGI_DEV_ADDR.id
+        )
+
+    @staticmethod
+    def _extract_known_hgi(include_list: dict[DeviceIdT, dict]) -> DeviceIdT | None:
+        """Return the device_id of the gateway specified in the include_list, if any.
+
+        The 'Known' gateway is the predicted Active gateway, given the known_list.
+        The 'Active' gateway is the USB device that is Tx/Rx frames.
+
+        The Known gateway ID should be the Active gateway ID, but does not have to
+        match.
+
+        Send a warning if the include_list is configured incorrectly.
+        """
+
+        known_hgis = [
+            k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
+        ]
+        known_hgis = known_hgis or [
+            k for k, v in include_list.items() if k[:2] == "18" and not v.get(SZ_CLASS)
+        ]
+
+        if not known_hgis:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
+                f"but does not (make sure you specify class: HGI)"
+            )
+            return None
+
+        known_hgi = known_hgis[0]
+
+        if include_list[known_hgi].get(SZ_CLASS) != DevType.HGI:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include a well-configured gateway (HGI), "
+                f"{known_hgi} should specify class: HGI (18: is also used for HVAC)"
+            )
+
+        elif len(known_hgis) > 1:
+            _LOGGER.info(
+                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
+                f"{known_hgi} is the assumed device id (is it/are the others HVAC?)"
+            )
+
+        else:
+            _LOGGER.debug(
+                f"The {SZ_KNOWN_LIST} specifies {known_hgi} as the gateway (HGI)"
+            )
+
+        return known_hgis[0]
+
+    def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
+        """Set the Active Gateway (HGI) device_id.
+
+        Send a warning if the include list is configured incorrectly.
+        """
+
+        assert self._active_hgi is None  # should only be called once
+
+        msg = f"The active gateway {dev_id}: {{ class: HGI }} "
+        msg += "(by signature)" if by_signature else "(by filter)"
+
+        if dev_id not in self._exclude:
+            self._active_hgi = dev_id
+            # else: setting self._active_hgi will not help
+
+        if dev_id in self._exclude:
+            _LOGGER.error(f"{msg} MUST NOT be in the {SZ_BLOCK_LIST}{TIP}")
+        elif dev_id in self._include:
+            pass
+        elif self.enforce_include:
+            _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
+            # self._include.append(dev_id)  # a good idea?
+        else:
+            _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
+
+    def _is_wanted_addrs(
+        self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
+    ) -> bool:
+        """Return True if the packet is not to be filtered out.
+
+        In any one packet, an excluded device_id 'trumps' an included device_id.
+
+        There are two ways to set the Active Gateway (HGI80/evofw3):
+        - by signature (evofw3 only), when frame -> packet
+        - by known_list (HGI80/evofw3), when filtering packets
+        """
+
+        def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
+            current_date = dt.now().date()
+
+            if self._foreign_last_run != current_date:
+                self._foreign_last_run = current_date
+                self._foreign_gwys_lst = []  # reset the list every 24h
+
+            if dev_id in self._foreign_gwys_lst:
+                return
+
+            _LOGGER.warning(
+                f"Device {dev_id} is potentially a Foreign gateway, "
+                f"the Active gateway is {self._active_hgi}, "
+                f"alternatively, is it a HVAC device?{TIP}"
+            )
+            self._foreign_gwys_lst.append(dev_id)
+
+        for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
+            if dev_id in self._exclude:  # problems if incl. active gateway
+                return False
+
+            if dev_id == self._active_hgi:  # is active gwy
+                continue  # consider: return True (but what if corrupted dst.id?)
+
+            if dev_id in self._include:  # incl. 63:262142 & --:------
+                continue
+
+            if sending and dev_id == HGI_DEV_ADDR.id:
+                continue
+
+            if self.enforce_include:
+                return False
+
+            if dev_id[:2] != DEV_TYPE_MAP.HGI:
+                continue
+
+            if self._active_hgi:  # this 18: is not in known_list
+                warn_foreign_hgi(dev_id)
+
+        return True
+
+    def pkt_received(self, pkt: Packet) -> None:
+        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
+            _LOGGER.debug("%s < Packet excluded by device_id filter", pkt)
+            return
+        super().pkt_received(pkt)
+
+    async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
+        if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+            raise exc.ProtocolError(f"Command excluded by device_id filter: {cmd}")
+        return await super().send_cmd(cmd, *args, **kwargs)
 
 
-# ### Read-Only Protocol for FileTransport, PortTransport #############################
-class ReadProtocol(_BaseProtocol):
+class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can only receive Packets."""
 
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
-        super().__init__(msg_handler)
+    def __init__(self, msg_handler: MsgHandlerT, **kwargs) -> None:
+        super().__init__(msg_handler, **kwargs)
 
         self._pause_writing = True
 
@@ -501,26 +460,28 @@ class ReadProtocol(_BaseProtocol):
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
 
-# ### Read-Write (sans QoS) Protocol for PortTransport ################################
-class PortProtocol(_BaseProtocol):
-    """A protocol that can receive Packets and send Commands."""
+class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
+    """A protocol that can receive Packets and send Commands +/- QoS (using a FSM)."""
 
     _is_evofw3: bool | None = None
 
-    def __init__(self, msg_handler: MsgHandlerT) -> None:
-        super().__init__(msg_handler)
+    def __init__(
+        self, msg_handler: MsgHandlerT, disable_qos: bool = False, **kwargs
+    ) -> None:
+        """Add a FSM to the Protocol, to provide QoS."""
+        super().__init__(msg_handler, **kwargs)
 
-        self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task: None | asyncio.Task = None
+        self._context: ProtocolContext | None = None
+        self._selective_qos = disable_qos is None  # QoS only for some commands
 
-    async def _leak_sem(self) -> None:
-        """Used to enforce a minimum time between calls to self._transport.write()."""
-        while True:
-            await asyncio.sleep(_GAP_BETWEEN_WRITES)
-            try:
-                self._leaker_sem.release()
-            except ValueError:
-                pass
+        if disable_qos is not True:
+            self._context = ProtocolContext(self)
+
+    def __repr__(self) -> str:
+        if not self._context:
+            return super().__repr__()
+        cls = self._context.state.__class__.__name__
+        return f"QosProtocol({cls}, len(queue)={self._context._que.qsize()})"
 
     def connection_made(  # type: ignore[override]
         self, transport: RamsesTransportT, /, *, ramses: bool = False
@@ -534,33 +495,52 @@ class PortProtocol(_BaseProtocol):
         if not ramses:
             return None
 
+        # if isinstance(transport, MqttTransport):  # HACK
+        #     self._context.echo_timeout = 0.5  # HACK: need to move FSM to transport?
+
         super().connection_made(transport)
         # TODO: needed? self.resume_writing()
 
+        self._set_active_hgi(self._transport.get_extra_info(SZ_ACTIVE_HGI))
         self._is_evofw3 = self._transport.get_extra_info(SZ_IS_EVOFW3)
 
-        if not self._leaker_task:  # Invoke the leaky bucket algorithm
-            self._leaker_task = self._loop.create_task(self._leak_sem())
+        if not self._context:
+            return
+
+        self._context.connection_made(transport)
+
+        if self._pause_writing:
+            self._context.pause_writing()
+        else:
+            self._context.resume_writing()
 
     def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
-        """Called when the connection is lost or closed."""
-        if self._leaker_task:
-            self._leaker_task.cancel()
+        """Inform the FSM that the connection with the Transport has been lost."""
 
         super().connection_lost(err)
+        if self._context:
+            self._context.connection_lost(err)  # is this safe, when KeyboardInterrupt?
 
-    @track_system_syncs
+    def pause_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+
+        super().pause_writing()
+        if self._context:
+            self._context.pause_writing()
+
+    def resume_writing(self) -> None:
+        """Inform the FSM that the Protocol has been paused."""
+
+        super().resume_writing()
+        if self._context:
+            self._context.resume_writing()
+
     def pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
+
         super().pkt_received(pkt)
-
-    @avoid_system_syncs
-    @limit_duty_cycle(_MAX_DUTY_CYCLE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
-    async def _send_frame(self, frame: str) -> None:
-        """Write some data bytes to the transport."""
-        await self._leaker_sem.acquire()  # asyncio.sleep(_GAP_BETWEEN_WRITES)
-
-        await super()._send_frame(frame)
+        if self._context:
+            self._context.pkt_received(pkt)
 
     async def _send_impersonation_alert(self, cmd: Command) -> None:
         """Send an puzzle packet warning that impersonation is occurring."""
@@ -576,95 +556,6 @@ class PortProtocol(_BaseProtocol):
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def send_cmd(
-        self,
-        cmd: Command,
-        /,
-        *,
-        gap_duration: float = DEFAULT_GAP_DURATION,
-        num_repeats: int = DEFAULT_NUM_REPEATS,
-        priority: Priority = Priority.DEFAULT,
-        qos: QosParams | None = None,
-    ) -> Packet | None:
-        """Send a Command without QoS (send an impersonation alert if required)."""
-
-        assert gap_duration == DEFAULT_GAP_DURATION
-        assert DEFAULT_NUM_REPEATS <= num_repeats <= 3
-
-        if qos and not isinstance(self, QosProtocol):
-            raise exc.ProtocolError(f"{cmd} < QoS is not supported by this Protocol")
-
-        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
-            await self._send_impersonation_alert(cmd)
-
-        return await super().send_cmd(
-            cmd,
-            gap_duration=gap_duration,
-            num_repeats=num_repeats,
-            priority=priority,
-            qos=qos,
-        )
-
-
-# ### Read-Write Protocol for QosTransport ############################################
-class QosProtocol(PortProtocol):
-    """A protocol that can receive Packets and send Commands with QoS (using a FSM)."""
-
-    def __init__(self, msg_handler: MsgHandlerT, selective_qos: bool = False) -> None:
-        """Add a FSM to the Protocol, to provide QoS."""
-        super().__init__(msg_handler)
-
-        self._context = ProtocolContext(self)
-        self._selective_qos = selective_qos  # QoS for some commands
-
-    def __repr__(self) -> str:
-        cls = self._context.state.__class__.__name__
-        return f"QosProtocol({cls}, len(queue)={self._context._que.unfinished_tasks})"
-
-    def connection_made(  # type: ignore[override]
-        self, transport: RamsesTransportT, /, *, ramses: bool = False
-    ) -> None:
-        """Consume the callback if invoked by SerialTransport rather than PortTransport.
-
-        Our PortTransport wraps SerialTransport and will wait for the signature echo
-        to be received (c.f. FileTransport) before calling connection_made(ramses=True).
-        """
-
-        if not ramses:
-            return
-
-        super().connection_made(transport, ramses=ramses)
-        self._context.connection_made(transport)
-
-        if self._pause_writing:
-            self._context.pause_writing()
-        else:
-            self._context.resume_writing()
-
-    def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
-        """Inform the FSM that the connection with the Transport has been lost."""
-
-        super().connection_lost(err)
-        self._context.connection_lost(err)  # is this safe, when KeyboardInterrupt?
-
-    def pkt_received(self, pkt: Packet) -> None:
-        """Inform the FSM that a Packet has been received."""
-
-        super().pkt_received(pkt)
-        self._context.pkt_received(pkt)
-
-    def pause_writing(self) -> None:
-        """Inform the FSM that the Protocol has been paused."""
-
-        super().pause_writing()
-        self._context.pause_writing()
-
-    def resume_writing(self) -> None:
-        """Inform the FSM that the Protocol has been paused."""
-
-        super().resume_writing()
-        self._context.resume_writing()
-
     async def _send_cmd(
         self,
         cmd: Command,
@@ -677,6 +568,13 @@ class QosProtocol(PortProtocol):
     ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
+        if not self._context:
+            return await super()._send_cmd(
+                cmd, gap_duration=gap_duration, num_repeats=num_repeats
+            )
+
+        qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
+
         # Should do the same as super()._send_cmd()
         async def send_cmd(kmd: Command) -> None:
             """Wrapper to for self._send_frame(cmd) with x re-transmits.
@@ -684,34 +582,26 @@ class QosProtocol(PortProtocol):
             Repeats are distinct from retries (a QoS feature): you wouldn't have both.
             """
 
-            assert kmd is cmd  # maybe the FSM is confused
-
-            await self._send_frame(str(kmd))
-            for _ in range(num_repeats - 1):
-                await asyncio.sleep(gap_duration)
-                await self._send_frame(str(kmd))
+            await self._send_frame(
+                str(kmd), num_repeats=num_repeats, gap_duration=gap_duration
+            )
 
         # if cmd.code == Code._PUZZ:  # NOTE: not as simple as this
         #     priority = Priority.HIGHEST  # FIXME: hack for _7FFF
 
+        # TODO: REMOVE: selective QoS (HACK) or the cmd does not want QoS
         _CODES = (Code._0006, Code._0404, Code._1FC9)  # must have QoS
-
-        # selective QoS (HACK) or the cmd does not want QoS
         if (self._selective_qos and cmd.code not in _CODES) or qos is None:
-            return await send_cmd(cmd)  # type: ignore[func-returns-value]
-
-        # if qos is None and cmd.code in _CODES:
-        #     qos = QosParams(wait_for_reply=True)
-        # if self._selective_qos and qos is None:
-        #     return await send_cmd(cmd)  # type: ignore[func-returns-value]
-        # if qos is None:
-        #     qos = QosParams()
+            await self._send_frame(
+                str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+            )
+            return None
 
         # Should do this check before, or after previous block (of non-QoS sends)?
-        if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
-            raise exc.ProtocolError(
-                f"{self}: Failed to send {cmd._hdr}: excluded by list"
-            )
+        # if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
+        #     raise exc.ProtocolError(
+        #         f"{self}: Failed to send {cmd._hdr}: excluded by list"
+        #     )
 
         try:
             return await self._context.send_cmd(send_cmd, cmd, priority, qos)
@@ -748,7 +638,13 @@ class QosProtocol(PortProtocol):
         """
 
         assert gap_duration == DEFAULT_GAP_DURATION
-        assert num_repeats == DEFAULT_NUM_REPEATS
+        assert DEFAULT_NUM_REPEATS <= num_repeats <= 3  # no repeats if QoS
+
+        if qos and not self._context:
+            _LOGGER.warning(f"{cmd} < QoS is currently disabled by this Protocol")
+
+        if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
+            await self._send_impersonation_alert(cmd)
 
         return await super().send_cmd(
             cmd,
@@ -759,7 +655,7 @@ class QosProtocol(PortProtocol):
         )
 
 
-RamsesProtocolT = QosProtocol | PortProtocol | ReadProtocol
+RamsesProtocolT: TypeAlias = PortProtocol | ReadProtocol
 
 
 def protocol_factory(
@@ -768,35 +664,45 @@ def protocol_factory(
     *,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
+    enforce_include_list: bool = False,
+    exclude_list: dict[DeviceIdT, dict] | None = None,
+    include_list: dict[DeviceIdT, dict] | None = None,
+    **kwargs,  # HACK: odd/misc params
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
-    # The intention is, that once we are read-only, we're always read-only, but
-    # until the QoS state machine is stable:
-    #   disable_qos is True,  means QoS is always disabled
-    #               is False, means QoS is never disabled
-    #               is None,  means QoS is disabled, but enabled by the command
-
     if disable_sending:
-        _LOGGER.debug("ReadProtocol: sending has been disabled")
-        return ReadProtocol(msg_handler)
+        _LOGGER.debug("ReadProtocol: Sending has been disabled")
+        return ReadProtocol(
+            msg_handler,
+            enforce_include_list=enforce_include_list,
+            exclude_list=exclude_list,
+            include_list=include_list,
+        )
 
     if disable_qos or _DBG_DISABLE_QOS:
         _LOGGER.debug("PortProtocol: QoS has been disabled")
-        return PortProtocol(msg_handler)
 
-    _LOGGER.debug("QosProtocol: QoS has been enabled")
-    return QosProtocol(msg_handler, selective_qos=disable_qos is None)
+    return PortProtocol(
+        msg_handler,
+        disable_qos=(disable_qos or _DBG_DISABLE_QOS),
+        enforce_include_list=enforce_include_list,
+        exclude_list=exclude_list,
+        include_list=include_list,
+    )
 
 
 async def create_stack(
     msg_handler: MsgHandlerT,
     /,
     *,
-    protocol_factory_: None | Callable = None,
-    transport_factory_: None | Callable = None,
+    protocol_factory_: Callable | None = None,
+    transport_factory_: Callable | None = None,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
+    enforce_include_list: bool = False,
+    exclude_list: dict[DeviceIdT, dict] | None = None,
+    include_list: dict[DeviceIdT, dict] | None = None,
     **kwargs,  # TODO: these are for the transport_factory
 ) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.
@@ -809,15 +715,14 @@ async def create_stack(
     read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
     disable_sending = disable_sending or read_only
 
-    if protocol_factory_:
-        protocol = protocol_factory_(
-            msg_handler, disable_qos=disable_qos, disable_sending=disable_sending
-        )
-
-    else:
-        protocol = protocol_factory(
-            msg_handler, disable_qos=disable_qos, disable_sending=disable_sending
-        )
+    protocol = (protocol_factory_ or protocol_factory)(
+        msg_handler,
+        disable_qos=disable_qos,
+        disable_sending=disable_sending,
+        enforce_include_list=enforce_include_list,
+        exclude_list=exclude_list,
+        include_list=include_list,
+    )
 
     transport = await (transport_factory_ or transport_factory)(
         protocol, disable_qos=disable_qos, disable_sending=disable_sending, **kwargs

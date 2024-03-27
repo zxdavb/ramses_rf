@@ -13,7 +13,15 @@ from typing import TYPE_CHECKING, Final
 
 import voluptuous as vol
 
-from .const import DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
+from .const import (
+    DEFAULT_ECHO_TIMEOUT,
+    DEFAULT_RPLY_TIMEOUT,
+    DEV_TYPE_MAP,
+    DEVICE_ID_REGEX,
+    MAX_DUTY_CYCLE_RATE,
+    MINIMUM_WRITE_GAP,
+    DevType,
+)
 
 if TYPE_CHECKING:
     from .frame import DeviceIdT
@@ -24,12 +32,38 @@ _LOGGER = logging.getLogger(__name__)
 
 #
 # 0/5: Packet source configuration
+SZ_COMMS_PARAMS: Final = "comms_params"
+SZ_DUTY_CYCLE_LIMIT: Final = "duty_cycle_limit"
+SZ_GAP_BETWEEN_WRITES: Final = "gap_between_writes"
+SZ_ECHO_TIMEOUT: Final = "echo_timeout"
+SZ_RPLY_TIMEOUT: Final = "reply_timeout"
+
+SCH_COMMS_PARAMS = vol.Schema(
+    {
+        vol.Required(SZ_DUTY_CYCLE_LIMIT, default=MAX_DUTY_CYCLE_RATE): vol.All(
+            float, vol.Range(min=0.005, max=0.2)
+        ),
+        vol.Required(SZ_GAP_BETWEEN_WRITES, default=MINIMUM_WRITE_GAP): vol.All(
+            float, vol.Range(min=0.05, max=1.0)
+        ),
+        vol.Required(SZ_ECHO_TIMEOUT, default=DEFAULT_ECHO_TIMEOUT): vol.All(
+            float, vol.Range(min=0.01, max=1.0)
+        ),
+        vol.Required(SZ_RPLY_TIMEOUT, default=DEFAULT_RPLY_TIMEOUT): vol.All(
+            float, vol.Range(min=0.01, max=1.0)
+        ),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+
+#
+# 1/5: Packet source configuration
 SZ_INPUT_FILE: Final = "input_file"
 SZ_PACKET_SOURCE: Final = "packet_source"
 
 
 #
-# 1/5: Packet log configuration
+# 2/5: Packet log configuration
 SZ_FILE_NAME: Final = "file_name"
 SZ_PACKET_LOG: Final = "packet_log"
 SZ_ROTATE_BACKUPS: Final = "rotate_backups"
@@ -85,7 +119,7 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any
 
 
 #
-# 2/5: Serial port configuration
+# 3/5: Serial port configuration
 SZ_PORT_CONFIG: Final = "port_config"
 SZ_PORT_NAME: Final = "port_name"
 SZ_SERIAL_PORT: Final = "serial_port"
@@ -152,7 +186,7 @@ def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict[str, bool | int]
 
 
 #
-# 3/5: Traits (of devices) configuraion (basic)
+# 4/5: Traits (of devices) configuraion (basic)
 def ConvertNullToDict():
     def convert_null_to_dict(node_value) -> dict:
         if node_value is None:
@@ -299,8 +333,10 @@ def select_device_filter_mode(
     ]
     if len(hgi_list) != 1:
         _LOGGER.warning(
-            f"Best practice is exactly one gateway (HGI) in the {SZ_KNOWN_LIST}: %s",
+            f"Best practice is exactly one gateway (HGI) in the {SZ_KNOWN_LIST}: "
+            "but, len(%s) = %s",
             hgi_list,
+            len(hgi_list),
         )
 
     if enforce_known_list and not known_list:
@@ -341,7 +377,7 @@ def select_device_filter_mode(
 
 
 #
-# 4/5: Gateway (engine) configuration
+# 5/5: Gateway (engine) configuration
 SZ_DISABLE_SENDING: Final = "disable_sending"
 SZ_DISABLE_QOS: Final = "disable_qos"
 SZ_ENFORCE_KNOWN_LIST: Final[str] = f"enforce_{SZ_KNOWN_LIST}"
@@ -358,6 +394,7 @@ SCH_ENGINE_DICT = {
     vol.Optional(SZ_EVOFW_FLAG): vol.Any(None, str),
     # vol.Optional(SZ_PORT_CONFIG): SCH_SERIAL_PORT_CONFIG,
     vol.Optional(SZ_USE_REGEX): dict,  # vol.All(ConvertNullToDict(), dict),
+    vol.Optional(SZ_COMMS_PARAMS): SCH_COMMS_PARAMS,
 }
 SCH_ENGINE_CONFIG = vol.Schema(SCH_ENGINE_DICT, extra=vol.REMOVE_EXTRA)
 

@@ -46,10 +46,13 @@ import logging
 import os
 import re
 import sys
-from collections.abc import Iterable
-from datetime import datetime as dt
+from collections import deque
+from collections.abc import Awaitable, Callable, Iterable
+from datetime import datetime as dt, timedelta as td
+from functools import wraps
 from io import TextIOWrapper
 from string import printable
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, Final, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -62,27 +65,18 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
-from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, pkt_addrs
 from .command import Command
 from .const import (
-    DEV_TYPE_MAP,
+    DUTY_CYCLE_DURATION,
+    MAX_DUTY_CYCLE_RATE,
+    MINIMUM_WRITE_GAP,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
-    SZ_KNOWN_HGI,
     SZ_SIGNATURE,
-    DevType,
 )
 from .helpers import dt_now
 from .packet import Packet
-from .schemas import (
-    SCH_SERIAL_PORT_CONFIG,
-    SZ_BLOCK_LIST,
-    SZ_CLASS,
-    SZ_EVOFW_FLAG,
-    SZ_INBOUND,
-    SZ_KNOWN_LIST,
-    SZ_OUTBOUND,
-)
+from .schemas import SCH_SERIAL_PORT_CONFIG, SZ_EVOFW_FLAG, SZ_INBOUND, SZ_OUTBOUND
 from .typing import ExceptionT, SerPortNameT
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -94,14 +88,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
-    from .address import DeviceIdT
     from .protocol import RamsesProtocolT
 
 
 _SIGNATURE_MAX_TRYS = 24
 _SIGNATURE_GAP_SECS = 0.05
-
-TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 
 DEV_MODE = False
@@ -111,7 +102,8 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-# All debug flags (used for dev/test) should be False for end-users
+# All debug flags (used for dev/test) should be False for published code
+_DBG_DISABLE_DUTY_CYCLE_LIMIT = False
 _DBG_DISABLE_REGEX_WARNINGS = False
 _DBG_FORCE_LOG_FRAMES = False
 
@@ -270,23 +262,202 @@ def _str(value: bytes) -> str:
     return result
 
 
-class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATION):
+    """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
+
+    max_duty_cycle: bandwidth available per observation window (%)
+    time_window: duration of the sliding observation window (default 60 seconds)
+    """
+
+    TX_RATE_AVAIL: int = 38400  # bits per second (deemed)
+    FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
+    BUCKET_CAPACITY: float = FILL_RATE * time_window
+
+    def decorator(fnc: Callable[..., Awaitable]):
+        # start with a full bit bucket
+        bits_in_bucket: float = BUCKET_CAPACITY
+        last_time_bit_added = perf_counter()
+
+        @wraps(fnc)
+        async def wrapper(self, frame: str, *args, **kwargs) -> None:
+            nonlocal bits_in_bucket
+            nonlocal last_time_bit_added
+
+            rf_frame_size = 330 + len(frame[46:]) * 10
+
+            # top-up the bit bucket
+            elapsed_time = perf_counter() - last_time_bit_added
+            bits_in_bucket = min(
+                bits_in_bucket + elapsed_time * FILL_RATE, BUCKET_CAPACITY
+            )
+            last_time_bit_added = perf_counter()
+
+            if _DBG_DISABLE_DUTY_CYCLE_LIMIT:
+                bits_in_bucket = BUCKET_CAPACITY
+
+            # if required, wait for the bit bucket to refill (not for SETs/PUTs)
+            if bits_in_bucket < rf_frame_size:
+                await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
+
+            # consume the bits from the bit bucket
+            try:
+                await fnc(self, frame, *args, **kwargs)
+            finally:
+                bits_in_bucket -= rf_frame_size
+
+        @wraps(fnc)
+        async def null_wrapper(self, frame: str, *args, **kwargs) -> None:
+            await fnc(self, frame, *args, **kwargs)
+
+        if 0 < max_duty_cycle <= 1:
+            return wrapper
+
+        return null_wrapper
+
+    return decorator
+
+
+def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATION):
+    """Limit the Tx rate as # packets per period of time.
+
+    Rate-limits the decorated function locally, for one process (Token Bucket).
+
+    max_tokens: maximum number of calls of function in time_window (default 45?)
+    time_window: duration of the sliding observation window (default 60 seconds)
+    """
+    # thanks, kudos to: Thomas Meschede, license: MIT
+    # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
+
+    token_fill_rate: float = max_tokens / time_window
+
+    def decorator(fnc: Callable):
+        token_bucket: float = max_tokens  # initialize with max tokens
+        last_time_token_added = perf_counter()
+
+        @wraps(fnc)
+        async def wrapper(*args, **kwargs):
+            nonlocal token_bucket
+            nonlocal last_time_token_added
+
+            # top-up the bit bucket
+            elapsed = perf_counter() - last_time_token_added
+            token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
+            last_time_token_added = perf_counter()
+
+            # if required, wait for a token (not for SETs/PUTs)
+            if token_bucket < 1.0:
+                await asyncio.sleep((1 - token_bucket) / token_fill_rate)
+
+            # consume one token for every call
+            try:
+                await fnc(*args, **kwargs)
+            finally:
+                token_bucket -= 1.0
+
+        return wrapper
+
+        @wraps(fnc)  # type: ignore[unreachable]
+        async def null_wrapper(*args, **kwargs) -> Any:
+            return await fnc(*args, **kwargs)
+
+        if max_tokens <= 0:
+            return null_wrapper
+
+    return decorator
+
+
+_global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
+
+
+def avoid_system_syncs(fnc: Callable[..., Awaitable]):
+    """Take measures to avoid Tx when any controller is doing a sync cycle."""
+
+    DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
+    DURATION_LONG_PKT = 0.022  # time to tx I|2309|048 (or 30C9, or 000A)
+    DURATION_SYNC_PKT = 0.010  # time to tx I|1F09|003
+
+    SYNC_WAIT_LONG = (DURATION_PKT_GAP + DURATION_LONG_PKT) * 2
+    SYNC_WAIT_SHORT = DURATION_SYNC_PKT
+    SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
+    SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
+
+    times_0 = []  # TODO: remove
+
+    async def wrapper(*args, **kwargs) -> None:
+        global _global_sync_cycles
+
+        def is_imminent(p):
+            """Return True if a sync cycle is imminent."""
+            return (
+                SYNC_WINDOW_LOWER
+                < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
+                < SYNC_WINDOW_UPPER
+            )
+
+        start = perf_counter()  # TODO: remove
+
+        # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
+        while any(is_imminent(p) for p in _global_sync_cycles):
+            await asyncio.sleep(SYNC_WAIT_SHORT)
+
+        # wait for the remainder of sync cycle (I|2309/30C9) to complete
+        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
+            await asyncio.sleep(SYNC_WAIT_LONG)
+            # FIXME: remove this block, and merge both ifs
+            times_0.append(x)
+            _LOGGER.warning(
+                f"*** sync cycle stats: {x:.3f}, "
+                f"avg: {sum(times_0) / len(times_0):.3f}, "
+                f"lower: {min(times_0):.3f}, "
+                f"upper: {max(times_0):.3f}, "
+                f"times: {[f'{t:.3f}' for t in times_0]}"
+            )  # TODO: wrap with if effectiveloglevel
+
+        await fnc(*args, **kwargs)
+        return None
+
+    return wrapper
+
+
+def track_system_syncs(fnc: Callable[[Any, Packet], None]):
+    """Track/remember the any new/outstanding TCS sync cycle."""
+
+    MAX_SYNCS_TRACKED = 3
+
+    def wrapper(self, pkt: Packet) -> None:
+        global _global_sync_cycles
+
+        def is_pending(p: Packet) -> bool:
+            """Return True if a sync cycle is still pending (ignores drift)."""
+            return bool(p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now())
+
+        if pkt.code != Code._1F09 or pkt.verb != I_ or pkt._len != 3:
+            fnc(self, pkt)
+            return None
+
+        _global_sync_cycles = deque(
+            p for p in _global_sync_cycles if p.src != pkt.src and is_pending(p)
+        )
+        _global_sync_cycles.append(pkt)  # TODO: sort
+
+        if (
+            len(_global_sync_cycles) > MAX_SYNCS_TRACKED
+        ):  # safety net for corrupted payloads
+            _global_sync_cycles.popleft()
+
+        fnc(self, pkt)
+        return None
+
+    return wrapper
+
+
+class _BaseTransport:
     """Filter out any unwanted (but otherwise valid) packets via device ids."""
 
     _protocol: RamsesProtocolT
     _extra: dict[str, Any]  # mypy
 
-    def __init__(
-        self,
-        *args,
-        enforce_include_list: bool = False,
-        exclude_list: dict[DeviceIdT, str] | None = None,
-        include_list: dict[DeviceIdT, str] | None = None,
-        **kwargs,
-    ) -> None:
-        exclude_list = exclude_list or {}
-        include_list = include_list or {}
-
+    def __init__(self, *args, **kwargs) -> None:
         self._evofw_flag = kwargs.pop(SZ_EVOFW_FLAG, None)  # gwy.config.evofw_flag
 
         super().__init__(*args, **kwargs)
@@ -294,155 +465,17 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         self._this_pkt: Packet | None = None
         self._prev_pkt: Packet | None = None
 
-        self.enforce_include = enforce_include_list
-        self._exclude = list(exclude_list.keys())
-        self._include = list(include_list.keys()) + [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
-
-        self._foreign_gwys_lst: list[DeviceIdT] = []
-        self._foreign_last_run = dt.now().date()
-
-        for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE, SZ_KNOWN_HGI):
+        for key in (SZ_ACTIVE_HGI, SZ_SIGNATURE):
             self._extra[key] = None
-
-        # TODO: maybe this shouldn't be called for read-only transports?
-        self._extra[SZ_KNOWN_HGI] = self._get_known_hgi(include_list)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
 
-    def _get_known_hgi(self, include_list: dict[DeviceIdT, Any]) -> DeviceIdT | None:
-        """Return the device_id of the gateway specified in the include_list, if any.
-
-        The 'Known' gateway is the predicted Active gateway, given the known_list.
-        The 'Active' gateway is the USB device that is Tx/Rx frames.
-
-        The Known gateway ID should be the Active gateway ID, but does not have to
-        match.
-
-        Send a warning if the include_list is configured incorrectly.
-        """
-
-        known_hgis = [
-            k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
-        ]
-        known_hgis = known_hgis or [
-            k for k, v in include_list.items() if k[:2] == "18" and not v.get(SZ_CLASS)
-        ]
-
-        if not known_hgis:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
-                f"but does not (make sure you specify class: HGI)"
-            )
-            return None
-
-        known_hgi = known_hgis[0]
-
-        if include_list[known_hgi].get(SZ_CLASS) != DevType.HGI:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include a well-configured gateway (HGI), "
-                f"{known_hgi} should specify class: HGI (18: is also used for HVAC)"
-            )
-
-        elif len(known_hgis) > 1:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
-                f"{known_hgi} is the assumed device id (is it/are the others HVAC?)"
-            )
-
-        else:
-            _LOGGER.debug(
-                f"The {SZ_KNOWN_LIST} specifies {known_hgi} as the gateway (HGI)"
-            )
-
-        return known_hgis[0]
-
-    def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
-        """Set the Active Gateway (HGI) device_if.
-
-        Send a warning if the include list is configured incorrectly.
-        """
-
-        assert self._extra[SZ_ACTIVE_HGI] is None  # should only be called once
-
-        msg = f"The active gateway {dev_id}: {{ class: HGI }} "
-        msg += "(by signature)" if by_signature else "(by filter)"
-
-        if dev_id not in self._exclude:
-            self._extra[SZ_ACTIVE_HGI] = dev_id
-            # else: setting self._extra[SZ_ACTIVE_HGI] will not help
-
-        if dev_id in self._exclude:
-            _LOGGER.error(f"{msg} MUST NOT be in the {SZ_BLOCK_LIST}{TIP}")
-        elif dev_id in self._include:
-            pass
-        elif self.enforce_include:
-            _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
-            # self._include.append(dev_id)  # a good idea?
-        else:
-            _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
-
-    def _is_wanted_addrs(
-        self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
-    ) -> bool:
-        """Return True if the packet is not to be filtered out.
-
-        In any one packet, an excluded device_id 'trumps' an included device_id.
-
-        There are two ways to set the Active Gateway (HGI80/evofw3):
-        - by signature (evofw3 only), when frame -> packet
-        - by known_list (HGI80/evofw3), when filtering packets
-        """
-
-        def warn_foreign_hgi(dev_id: DeviceIdT) -> None:
-            current_date = dt.now().date()
-
-            if self._foreign_last_run != current_date:
-                self._foreign_last_run = current_date
-                self._foreign_gwys_lst = []  # reset the list every 24h
-
-            if dev_id in self._foreign_gwys_lst:
-                return
-
-            _LOGGER.warning(
-                f"Device {dev_id} is potentially a Foreign gateway, "
-                f"the Active gateway is {self._extra[SZ_ACTIVE_HGI]}, "
-                f"alternatively, is it a HVAC device?{TIP}"
-            )
-            self._foreign_gwys_lst.append(dev_id)
-
-        for dev_id in dict.fromkeys((src_id, dst_id)):  # removes duplicates
-            if dev_id in self._exclude:  # problems if incl. active gateway
-                return False
-
-            if dev_id == self._extra[SZ_ACTIVE_HGI]:  # is active gwy
-                continue  # consider: return True
-
-            if dev_id in self._include:  # incl. 63:262142 & --:------
-                continue
-
-            if sending and dev_id == HGI_DEV_ADDR.id:
-                continue
-
-            if self.enforce_include:
-                return False
-
-            if dev_id[:2] != DEV_TYPE_MAP.HGI:
-                continue
-
-            if self._extra[SZ_ACTIVE_HGI]:  # this 18: is not in known_list
-                warn_foreign_hgi(dev_id)
-
-        return True
-
-    def _pkt_received(self, pkt: Packet) -> None:
-        """Pass any valid/wanted Packets to the protocol's callback.
+    def _pkt_read(self, pkt: Packet) -> None:
+        """Pass any valid Packets to the protocol's callback.
 
         Also maintain _prev_pkt, _this_pkt attrs.
         """
-
-        if not self._is_wanted_addrs(pkt.src.id, pkt.dst.id):
-            return
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
@@ -450,14 +483,10 @@ class _DeviceIdFilterMixin:  # NOTE: active gwy detection in here
         # NOTE: Thus, excepts need checking
         try:  # below could be a call_soon?
             self._protocol.pkt_received(pkt)
-        except AssertionError as err:  # protect from upper-layer callbacks
+        except AssertionError as err:  # protect from upper layers
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
-
-    def _send_frame(self, frame: str) -> None:
-        src, dst, *_ = pkt_addrs(frame[7:36])
-        if not self._is_wanted_addrs(src.id, dst.id, sending=True):
-            raise exc.TransportError(f"Packet excluded by device_id filter: {frame}")
-        super()._send_frame(frame)  # type: ignore[misc]
+        except exc.ProtocolError as err:  # protect from upper layers
+            _LOGGER.error("%s < exception from msg layer: %s", pkt, err)
 
 
 class _RegHackMixin:
@@ -487,11 +516,11 @@ class _RegHackMixin:
             )
         return result
 
-    def _frame_received(self, dtm: str, frame: str) -> None:
-        super()._frame_received(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
+    def _frame_read(self, dtm: str, frame: str) -> None:
+        super()._frame_read(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
 
-    def _send_frame(self, frame: str) -> None:
-        super()._send_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
+    async def _write_frame(self, frame: str) -> None:
+        await super()._write_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
 class _FileTransport(asyncio.ReadTransport):
@@ -550,7 +579,7 @@ class _FileTransport(asyncio.ReadTransport):
         self._reading = True
         try:
             await self._reader()
-        except KeyboardInterrupt as err:
+        except Exception as err:
             self._protocol.connection_lost(err)  # type: ignore[arg-type]
         else:
             self._protocol.connection_lost(None)
@@ -562,7 +591,7 @@ class _FileTransport(asyncio.ReadTransport):
             for dtm_str, pkt_line in self._pkt_source.items():  # assume dtm_str is OK
                 while not self._reading:
                     await asyncio.sleep(0.001)
-                self._frame_received(dtm_str, pkt_line)
+                self._frame_read(dtm_str, pkt_line)
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         elif isinstance(self._pkt_source, TextIOWrapper):
@@ -571,7 +600,7 @@ class _FileTransport(asyncio.ReadTransport):
                     await asyncio.sleep(0.001)
                 # can be blank lines in annotated log files
                 if (dtm_pkt_line := dtm_pkt_line.strip()) and dtm_pkt_line[:1] != "#":
-                    self._frame_received(dtm_pkt_line[:26], dtm_pkt_line[27:])
+                    self._frame_read(dtm_pkt_line[:26], dtm_pkt_line[27:])
                 await asyncio.sleep(0)  # NOTE: big performance penalty if delay >0
 
         else:
@@ -579,7 +608,7 @@ class _FileTransport(asyncio.ReadTransport):
                 f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
             )
 
-    def _frame_received(self, dtm_str: str, frame: str) -> None:
+    def _frame_read(self, dtm_str: str, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
         self._dtm_str = dtm_str  # HACK: FIXME: remove need for this, somehow
 
@@ -591,12 +620,12 @@ class _FileTransport(asyncio.ReadTransport):
         except exc.PacketInvalid as err:  # VE from dt.fromisoformat()
             _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
             return
-        self._pkt_received(pkt)
+        self._pkt_read(pkt)
 
-    def _pkt_received(self, pkt: Packet) -> None:
+    def _pkt_read(self, pkt: Packet) -> None:
         raise NotImplementedError
 
-    def send_frame(self, frame: str) -> None:  # NotImplementedError
+    async def write_frame(self, frame: str) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: This Protocol is Read-Only")
 
     def write(self, data: bytes) -> None:  # NotImplementedError
@@ -631,6 +660,9 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
     _recv_buffer: bytes = b""
 
+    _extra: dict[str, Any]  # mypy
+    _protocol: RamsesProtocolT  # mypy
+
     def __init__(
         self,
         protocol: RamsesProtocolT,
@@ -642,12 +674,24 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         self._extra: dict = {} if extra is None else extra
 
+        self._leaker_sem = asyncio.BoundedSemaphore()
+        self._leaker_task = self.loop.create_task(self._leak_sem())
+
+    async def _leak_sem(self) -> None:
+        """Used to enforce a minimum time between calls to self.write()."""
+        while True:
+            await asyncio.sleep(MINIMUM_WRITE_GAP)
+            try:
+                self._leaker_sem.release()
+            except ValueError:
+                pass
+
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
         return dt_now()
 
     def _read_ready(self) -> None:
-        # data to self._bytes_received() instead of self._protocol.data_received()
+        # data to self._bytes_read() instead of self._protocol.data_received()
         try:
             data: bytes = self._serial.read(self._max_read_size)
         except SerialException as e:
@@ -656,16 +700,16 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             return
 
         if data:
-            self._bytes_received(data)  # was: self._protocol.pkt_received(data)
+            self._bytes_read(data)  # was: self._protocol.pkt_received(data)
 
     def is_reading(self) -> bool:
         """Return True if the transport is receiving."""
         return bool(self._has_reader)
 
-    def _bytes_received(self, data: bytes) -> None:  # logs: RCVD(bytes)
+    def _bytes_read(self, data: bytes) -> None:  # logs: RCVD(bytes)
         """Make a Frame from the data and process it."""
 
-        def bytes_received(data: bytes) -> Iterable[tuple[dt, bytes]]:
+        def bytes_read(data: bytes) -> Iterable[tuple[dt, bytes]]:
             self._recv_buffer += data
             if b"\r\n" in self._recv_buffer:
                 lines = self._recv_buffer.split(b"\r\n")
@@ -673,15 +717,18 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
                 for line in lines[:-1]:
                     yield self._dt_now(), line + b"\r\n"
 
-        for dtm, raw_line in bytes_received(data):
+        for dtm, raw_line in bytes_read(data):
             if _DBG_FORCE_LOG_FRAMES:
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
-            self._frame_received(dtm, _normalise(_str(raw_line)))
+            self._frame_read(dtm, _normalise(_str(raw_line)))
 
-    def _frame_received(self, dtm: dt, frame: str) -> None:
+    def _frame_read(self, dtm: dt, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
+
+        if not frame:
+            return
 
         try:
             pkt = Packet.from_port(dtm, frame)
@@ -695,18 +742,21 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             and pkt.code == Code._PUZZ
             and pkt.payload == self._extra[SZ_SIGNATURE]
         ):
-            self._set_active_hgi(pkt.src.id, by_signature=True)
+            self._extra[SZ_ACTIVE_HGI] = pkt.src.id  # , by_signature=True)
             self._init_fut.set_result(pkt)
 
-        elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
-            self._set_active_hgi(pkt.src.id)
+        self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
-        self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
+    async def write_frame(
+        self, frame: str
+    ) -> None:  # Protocol usu. calls this, not write()
+        await self._leaker_sem.acquire()  # asyncio.sleep(MINIMUM_WRITE_GAP)
+        await self._write_frame(frame)
 
-    def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
-        self._send_frame(frame)
+    # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
+    # then the code that avoids the controller sync cycles
 
-    def _send_frame(self, frame: str) -> None:
+    async def _write_frame(self, frame: str) -> None:
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # logs: SENT(bytes)
@@ -729,12 +779,16 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         if self._init_task:
             self._init_task.cancel()
+        if self._leaker_task:
+            self._leaker_task.cancel()
 
     def _close(self, exc: ExceptionT | None = None) -> None:
         super()._close(exc=exc)
 
         if self._init_task:
             self._init_task.cancel()
+        if self._leaker_task:
+            self._leaker_task.cancel()
 
     def close(self) -> None:
         """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
@@ -743,7 +797,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
 
 # ### Read-Only Transports for dict / log file ########################################
-class FileTransport(_DeviceIdFilterMixin, _FileTransport):
+class FileTransport(_BaseTransport, _FileTransport):
     """Parse a file (or a dict) for packets, and never send."""
 
     def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
@@ -767,7 +821,7 @@ class FileTransport(_DeviceIdFilterMixin, _FileTransport):
 
 
 # ### Read-Write Transport for serial port ############################################
-class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # type: ignore[misc]
+class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ignore[misc]
     """Poll a serial port for packets, and send (without QoS)."""
 
     _init_fut: asyncio.Future
@@ -787,13 +841,10 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
 
         # signature also serves to discover the HGI's device_id (& for pkt log, if any)
 
-        # Could instead have: connection_made(self, pkt=pkt) *if* pkt is sig. echo, but
-        # would require a re-write or portions of both Transport & Protocol
-
-        def call_make_connection() -> None:
+        def call_make_connection(pkt: Packet | None = None) -> None:
             """Invoke the Protocol.connection_made() callback."""
             # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
-            #     self._send_frame("!V")
+            #     await self._write_frame("!V")  # or self.write()???
 
             self.loop.call_soon_threadsafe(
                 functools.partial(self._protocol.connection_made, self, ramses=True)
@@ -813,11 +864,11 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             while num_sends < _SIGNATURE_MAX_TRYS:
                 num_sends += 1
 
-                self._send_frame(str(sig))
+                await self._write_frame(str(sig))
                 await asyncio.sleep(_SIGNATURE_GAP_SECS)
 
                 if self._init_fut.done():
-                    call_make_connection()
+                    call_make_connection(pkt=self._init_fut.result())
                     return
 
             self._init_fut.set_exception(
@@ -835,19 +886,25 @@ class PortTransport(_RegHackMixin, _DeviceIdFilterMixin, _PortTransport):  # typ
             return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
         return self._extra.get(name, default)
 
+    @track_system_syncs
+    def _pkt_read(self, pkt: Packet) -> None:
+        super()._pkt_read(pkt)
+
+    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @avoid_system_syncs
+    async def _write_frame(self, frame: str) -> None:
+        await super()._write_frame(frame)
+
 
 # ### Read-Write Transport *with QoS* for serial port #################################
 class QosTransport(PortTransport):
     """Poll a serial port for packets, and send with QoS."""
 
-    # NOTE: Might normally include code to the limit duty cycle, etc., but see
-    # the note in Protocol layer
-
     pass
 
 
 # ### Read-Write Transport for MQTT ###################################################
-class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
+class MqttTransport(_BaseTransport, asyncio.Transport):
     READER_TASK = "reader_task"  # only for mypy
 
     def __init__(
@@ -927,6 +984,9 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
     ):
+        if self._closing:
+            return
+
         if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Rx: %s", msg.payload)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
@@ -940,19 +1000,10 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
             _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
             return
 
-        # # NOTE: a signature can override an existing active gateway
-        # if (
-        #     not self._init_fut.done()
-        #     and pkt.code == Code._PUZZ
-        #     and pkt.payload == self._extra[SZ_SIGNATURE]
-        # ):
-        #     self._set_active_hgi(pkt.src.id, by_signature=True)
-        #     self._init_fut.set_result(pkt)
+        # TODO: determine active gateway
 
-        # elif not self._extra[SZ_ACTIVE_HGI] and pkt.src.id == self._extra[SZ_KNOWN_HGI]:
-        #     self._set_active_hgi(pkt.src.id)
-
-        self._pkt_received(pkt)  # TODO: remove raw_line attr from Packet()
+        # TODO: remove raw_line attr from Packet()
+        self.loop.call_soon_threadsafe(self._pkt_read, pkt)
 
     def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
@@ -960,7 +1011,9 @@ class MqttTransport(_DeviceIdFilterMixin, asyncio.Transport):
         )
         assert info
 
-    def send_frame(self, frame: str) -> None:  # Protocol usu. calls this, not write()
+    async def write_frame(
+        self, frame: str
+    ) -> None:  # Protocol usu. calls this, not write()
         if self._closing:
             return
 
@@ -1004,12 +1057,12 @@ async def transport_factory(
     disable_sending: bool | None = False,
     extra: dict | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
-    **kwargs,
+    **kwargs,  # HACK: odd/misc params
 ) -> RamsesTransportT:
     """Create and return a Ramses-specific async packet Transport."""
 
     # kwargs are specific to a transport. The above transports have:
-    # enforce_include_list, exclude_list, include_list, use_regex
+    # evofw3_flag, use_regex
 
     async def poll_until_connection_made(protocol: RamsesProtocolT) -> None:
         """Poll until the Transport is bound to the Protocol."""

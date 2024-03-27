@@ -113,11 +113,6 @@ class Packet(Frame):
     def dtm(self) -> dt:
         return self._dtm
 
-    def __eq__(self, other) -> bool:
-        if not hasattr(other, "_frame"):
-            return NotImplemented
-        return self._frame[4:] == other._frame[4:]  # type: ignore[no-any-return]
-
     @staticmethod
     def _partition(pkt_line: str) -> tuple[str, str, str]:  # map[str]
         """Partition a packet line into its three parts.
