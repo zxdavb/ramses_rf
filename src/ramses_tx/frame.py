@@ -142,10 +142,9 @@ class Frame:
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
-        # repr(self) == repr(cls(repr(self)))
 
         if self._repr is None:
-            self._repr = " ".join(
+            self._repr = " ".join(  # type: ignore[unreachable]
                 (
                     self.verb,
                     self.seqn,
@@ -190,7 +189,7 @@ class Frame:
         # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
         # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
         # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
-        if self.code == Code._1FC9:
+        if self.code == Code._1FC9:  # type: ignore[unreachable]
             self._has_array_ = self.verb != RQ  # safe to treat all as array, even len=1
             return self._has_array_  # don't do any checks for 1FC9 (they will fail)
 
@@ -257,7 +256,7 @@ class Frame:
 
         # TODO: handle RQ/RP to/from HGI/RFG, handle HVAC
 
-        if {self.src.type, self.dst.type} & {
+        if {self.src.type, self.dst.type} & {  # type: ignore[unreachable]
             DEV_TYPE_MAP.CTL,
             DEV_TYPE_MAP.UFC,
             DEV_TYPE_MAP.PRG,
@@ -337,7 +336,7 @@ class Frame:
         if self._has_payload_ is not None:
             return self._has_payload_
 
-        self._has_payload_ = not any(
+        self._has_payload_ = not any(  # type: ignore[unreachable]
             (
                 self._len == 1,
                 self.verb == RQ and self.code in RQ_NO_PAYLOAD,
@@ -375,16 +374,18 @@ class Frame:
         Used to store packets in the entity's message DB. It is a superset of _idx.
         """
 
-        if self._ctx_ is None:
-            if self.code in (
-                Code._0005,
-                Code._000C,
-            ):  # zone_idx, zone_type (device_role)
-                self._ctx_ = self.payload[:4]
-            elif self.code == Code._0404:  # zone_idx, frag_idx
-                self._ctx_ = self._idx + self.payload[10:12]
-            else:
-                self._ctx_ = self._idx
+        if self._ctx_ is not None:
+            return self._ctx_
+
+        if self.code in (  # type: ignore[unreachable]
+            Code._0005,
+            Code._000C,
+        ):  # zone_idx, zone_type (device_role)
+            self._ctx_ = self.payload[:4]
+        elif self.code == Code._0404:  # zone_idx, frag_idx
+            self._ctx_ = self._idx + self.payload[10:12]
+        else:
+            self._ctx_ = self._idx
         return self._ctx_
 
     @property
@@ -394,9 +395,12 @@ class Frame:
         Used for QoS (timeouts, retries), callbacks, etc.
         """
 
-        if self._hdr_ is None:
-            self._hdr_ = "|".join((self.code, self.verb))  # HACK: RecursionError
-            self._hdr_ = pkt_header(self)
+        if self._hdr_ is not None:
+            return self._hdr_
+
+        # FIXME: HACK: sometimes RecursionError
+        self._hdr_ = "|".join((self.code, self.verb))  # type: ignore[unreachable]
+        self._hdr_ = pkt_header(self)
         return self._hdr_
 
     @property
@@ -406,8 +410,10 @@ class Frame:
         Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.
         """
 
-        if self._idx_ is None:
-            self._idx_ = _pkt_idx(self) or False
+        if self._idx_ is not None:
+            return self._idx_
+
+        self._idx_ = _pkt_idx(self) or False  # type: ignore[unreachable]
         return self._idx_
 
 
@@ -434,14 +440,14 @@ def _pkt_idx(pkt: Frame) -> None | bool | str:  # _has_array, _has_ctl
 
     if pkt.code == Code._000C:  # zone_idx/domain_id (complex, payload[0:4])
         if pkt.payload[2:4] == DEV_ROLE_MAP.APP:  # "000F"
-            return FC
+            return str(FC)  # mypy
         if pkt.payload[0:4] == f"01{DEV_ROLE_MAP.HTG}":  # "010E"
-            return F9
+            return str(F9)  # mypy
         if pkt.payload[2:4] in (
             DEV_ROLE_MAP.DHW,
             DEV_ROLE_MAP.HTG,
         ):  # "000D", "000E"
-            return FA
+            return str(FA)  # mypy
         return pkt.payload[:2]
 
     if pkt.code == Code._0404:  # assumes only 1 DHW zone (can be 2, but never seen)

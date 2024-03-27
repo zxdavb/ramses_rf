@@ -98,7 +98,7 @@ class SendParams:
         return self._priority
 
 
-class RamsesTransportT(Protocol):
+class xRamsesTransportT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Transport."""
 
     _is_closing: bool
@@ -107,7 +107,7 @@ class RamsesTransportT(Protocol):
     def __init__(
         self,
         protocol: asyncio.Protocol,
-        pkt_source: Serial | dict | TextIOWrapper,
+        pkt_source: Serial | dict[str, str] | TextIOWrapper,
         loop: asyncio.AbstractEventLoop | None = None,
         extra: dict[str, Any] | None = None,
         **kwargs,
@@ -146,12 +146,12 @@ class RamsesTransportT(Protocol):
     def write(self, data: bytes) -> None: ...
 
 
-class RamsesProtocolT(Protocol):
+class xRamsesProtocolT(Protocol):
     """A typing.Protocol (i.e. a structural type) of asyncio.Protocol."""
 
     _msg_handler: MsgHandlerT
     _pause_writing: bool
-    _transport: RamsesTransportT
+    _transport: xRamsesTransportT
 
     def __init__(self, msg_handler: MsgHandlerT) -> None: ...
 
@@ -162,9 +162,9 @@ class RamsesProtocolT(Protocol):
     def connection_lost(self, err: ExceptionT | None) -> None: ...
 
     @property
-    def wait_connection_lost(self) -> asyncio.Future: ...
+    def wait_connection_lost(self) -> asyncio.Future[ExceptionT | None]: ...
 
-    def connection_made(self, transport: RamsesTransportT) -> None: ...
+    def connection_made(self, transport: xRamsesTransportT) -> None: ...
 
     def pause_writing(self) -> None: ...
 

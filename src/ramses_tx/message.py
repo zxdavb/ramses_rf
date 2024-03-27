@@ -153,7 +153,7 @@ class MessageBase:
         return bool(self._pkt._has_array)
 
     @property
-    def _idx(self) -> dict:
+    def _idx(self) -> dict[str, str]:
         """Return the domain_id/zone_idx/other_idx of a message payload, if any.
 
         Used to identify the zone/domain that a message applies to. Returns an empty
@@ -177,6 +177,7 @@ class MessageBase:
         }  # ALSO: SZ_DOMAIN_ID, SZ_ZONE_IDX
 
         if self.code in (Code._31D9, Code._31DA):  # shouldn't be needed?
+            assert isinstance(self._pkt._idx, str)  # mypy hint
             return {"hvac_id": self._pkt._idx}
 
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_ARE_COMPLEX:
@@ -235,6 +236,7 @@ class MessageBase:
         # TODO: also 000C (but is a complex idx)
         # TODO: also 3150 (when not domain, and will be array if so)
         if self.code in (Code._000A, Code._2309) and self.src.type == DEV_TYPE_MAP.UFC:
+            assert isinstance(self._pkt._idx, str)  # mypy hint
             return {IDX_NAMES[Code._22C9]: self._pkt._idx}
 
         assert isinstance(self._pkt._idx, str)  # mypy check
@@ -243,7 +245,8 @@ class MessageBase:
 
         return {index_name: self._pkt._idx}
 
-    def _validate(self, raw_payload: str) -> dict | list[dict]:  # TODO: needs work
+    # TODO: needs work...
+    def _validate(self, raw_payload: str) -> dict | list[dict]:  # type: ignore[type-arg]
         """Validate the message, and parse the payload if so.
 
         Raise an exception (InvalidPacketError) if it is not valid.

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from datetime import timedelta as td
-from typing import Any
+from typing import Any, Final
 
 from .const import SZ_NAME, DevType
 
@@ -18,10 +18,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RQ,
     W_,
     Code,
+    VerbT,
 )
 
 
-SZ_LIFESPAN = "lifespan"  # WIP
+SZ_LIFESPAN: Final = "lifespan"  # WIP
 
 
 #
@@ -661,7 +662,7 @@ for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
         code[RP] = code[I_]
 #
 # .I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
-CODES_WITH_ARRAYS: dict[Code, list] = {  # 000C/1FC9 are special
+CODES_WITH_ARRAYS: dict[Code, list[int | tuple[str, ...]]] = {  # 000C/1FC9 are special
     Code._0005: [4, ("34",)],
     Code._0009: [3, ("01", "12", "22")],
     Code._000A: [6, ("01", "12", "22")],  # single element I after a W
@@ -754,7 +755,7 @@ CODE_IDX_DOMAIN: dict[Code, str] = {
 ########################################################################################
 # CODES_BY_DEV_SLUG - HEAT (CH/DHW) vs HVAC (ventilation)
 # TODO: 34: can 3220 - split out RND from THM/STA
-_DEV_KLASSES_HEAT: dict[str, dict] = {
+_DEV_KLASSES_HEAT: dict[str, dict[Code, dict[VerbT, Any]]] = {
     DevType.RFG: {  # RFG100: RF to Internet gateway (and others)
         Code._0002: {RQ: {}},
         Code._0004: {I_: {}, RQ: {}},
@@ -1016,7 +1017,7 @@ _DEV_KLASSES_HEAT: dict[str, dict] = {
     # },
 }
 # TODO: add 1FC9 everywhere?
-_DEV_KLASSES_HVAC: dict[str, dict] = {
+_DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
     DevType.DIS: {  # Orcon RF15 Display: ?a superset of a REM
         Code._0001: {RQ: {}},
         Code._042F: {I_: {}},
@@ -1108,7 +1109,7 @@ _DEV_KLASSES_HVAC: dict[str, dict] = {
     # },
 }
 
-CODES_BY_DEV_SLUG: dict[str, dict] = {
+CODES_BY_DEV_SLUG: dict[str, dict[Code, dict[VerbT, Any]]] = {
     DevType.HGI: {  # HGI80: RF to (USB) serial gateway interface
         Code._PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
@@ -1140,7 +1141,7 @@ _CODES_OF_NO_DOMAIN: tuple[Code, ...] = tuple(
     c for c in CODES_SCHEMA if c not in _CODES_OF_EITHER_DOMAIN
 )
 
-_CODE_FROM_NON_CTL: tuple[Code] = tuple(
+_CODE_FROM_NON_CTL: tuple[Code, ...] = tuple(
     dict.fromkeys(
         c
         for k, v1 in CODES_BY_DEV_SLUG.items()
@@ -1150,7 +1151,7 @@ _CODE_FROM_NON_CTL: tuple[Code] = tuple(
 )
 _CODE_FROM_CTL = _DEV_KLASSES_HEAT[DevType.CTL].keys()
 
-_CODE_ONLY_FROM_CTL: tuple[Code] = tuple(
+_CODE_ONLY_FROM_CTL: tuple[Code, ...] = tuple(
     c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL
 )
 CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
@@ -1183,22 +1184,22 @@ CODES_ONLY_FROM_CTL: tuple[Code, ...] = (
 # }
 
 
-_HVAC_VC_PAIR_BY_CLASS: dict[str, tuple] = {
+_HVAC_VC_PAIR_BY_CLASS: dict[DevType, tuple[tuple[VerbT, Code], ...]] = {
     DevType.CO2: ((I_, Code._1298),),
     DevType.FAN: ((I_, Code._31D9), (I_, Code._31DA), (RP, Code._31DA)),
     DevType.HUM: ((I_, Code._12A0),),
     DevType.REM: ((I_, Code._22F1), (I_, Code._22F3)),
 }
-HVAC_KLASS_BY_VC_PAIR: dict[tuple, str] = {
+HVAC_KLASS_BY_VC_PAIR: dict[tuple[VerbT, Code], DevType] = {
     t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v
 }
 
 
-SZ_DESCRIPTION = "description"
-SZ_MIN_VALUE = "min_value"
-SZ_MAX_VALUE = "max_value"
-SZ_PRECISION = "precision"
-SZ_DATA_TYPE = "data_type"
+SZ_DESCRIPTION: Final = "description"
+SZ_MIN_VALUE: Final = "min_value"
+SZ_MAX_VALUE: Final = "max_value"
+SZ_PRECISION: Final = "precision"
+SZ_DATA_TYPE: Final = "data_type"
 
 _22F1_MODE_ITHO: dict[str, str] = {
     "00": "off",  # not seen
@@ -1226,13 +1227,14 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
-_22F1_SCHEMES: dict[str, dict] = {
+_22F1_SCHEMES: dict[str, dict[str, str]] = {
     "itho": _22F1_MODE_ITHO,
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
 }
 
-_2411_PARAMS_SCHEMA: dict[str, dict] = {  # unclear if true for only Orcon/*all* models
+# unclear if true for only Orcon/*all* models
+_2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
     "31": {  # slot 09
         SZ_DESCRIPTION: "Time to change filter (days)",
         SZ_MIN_VALUE: 0,

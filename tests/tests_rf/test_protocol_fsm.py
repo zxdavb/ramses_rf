@@ -29,7 +29,7 @@ from ramses_tx.protocol_fsm import (
     WantRply,
     _ProtocolStateT,
 )
-from ramses_tx.transport import QosTransport, transport_factory
+from ramses_tx.transport import PortTransport, transport_factory
 from ramses_tx.typing import QosParams
 
 from .virtual_rf import VirtualRf
@@ -92,7 +92,7 @@ def prot_factory(disable_qos: bool | None = False):
             )
             await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
-            transport: QosTransport = await transport_factory(
+            transport: PortTransport = await transport_factory(
                 protocol,
                 port_name=rf.ports[0],
                 port_config=kwargs.pop("port_config", {}),

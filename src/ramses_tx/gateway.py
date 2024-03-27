@@ -19,7 +19,7 @@ from collections.abc import Callable
 from datetime import datetime as dt
 from io import TextIOWrapper
 from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Never
 
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
@@ -40,6 +40,8 @@ from .schemas import (
     SZ_PACKET_LOG,
     SZ_PORT_CONFIG,
     SZ_PORT_NAME,
+    PktLogConfigT,
+    PortConfigT,
     select_device_filter_mode,
 )
 from .transport import SZ_ACTIVE_HGI, is_hgi80, transport_factory
@@ -54,8 +56,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from .const import VerbT
-    from .frame import DeviceIdT, PayloadT
+    from .frame import PayloadT
     from .protocol import RamsesProtocolT, RamsesTransportT
+    from .schemas import DeviceIdT, DeviceListT
 
 _MsgHandlerT = Callable[[Message], None]
 
@@ -72,10 +75,10 @@ class Engine:
         self,
         port_name: str | None,
         input_file: TextIOWrapper | None = None,
-        port_config: dict | None = None,
-        packet_log: dict | None = None,
-        block_list: dict | None = None,
-        known_list: dict | None = None,
+        port_config: PortConfigT | None = None,
+        packet_log: PktLogConfigT | None = None,
+        block_list: DeviceListT | None = None,
+        known_list: DeviceListT | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
         **kwargs,
     ) -> None:
@@ -98,12 +101,12 @@ class Engine:
         self.ser_name = port_name
         self._input_file = input_file
 
-        self._port_config = port_config or {}
-        self._packet_log = packet_log or {}
+        self._port_config: PortConfigT | dict[Never, Never] = port_config or {}
+        self._packet_log: PktLogConfigT | dict[Never, Never] = packet_log or {}
         self._loop = loop or asyncio.get_running_loop()
 
-        self._exclude: dict[DeviceIdT, dict] = block_list or {}
-        self._include: dict[DeviceIdT, dict] = known_list or {}
+        self._exclude: DeviceListT = block_list or {}
+        self._include: DeviceListT = known_list or {}
         self._unwanted: list[DeviceIdT] = [
             NON_DEV_ADDR.id,
             ALL_DEV_ADDR.id,
@@ -117,7 +120,9 @@ class Engine:
         self._kwargs: dict[str, Any] = kwargs  # HACK
 
         self._engine_lock = Lock()
-        self._engine_state: tuple[Callable | None, tuple] | None = None
+        self._engine_state: (
+            tuple[_MsgHandlerT | None, bool | None, *tuple[Any, ...]] | None
+        ) = None
 
         self._protocol: RamsesProtocolT = None  # type: ignore[assignment]
         self._transport: RamsesTransportT | None = None  # None until self.start()
@@ -125,7 +130,7 @@ class Engine:
         self._prev_msg: Message | None = None
         self._this_msg: Message | None = None
 
-        self._tasks: list[asyncio.Task] = []
+        self._tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
 
         self._set_msg_handler(self._msg_handler)  # sets self._protocol
 
@@ -221,7 +226,7 @@ class Engine:
             self._transport.close()
         elif (
             self._protocol.wait_connection_lost
-            and not self._protocol.wait_connection_lost.done()
+            and not self._protocol.wait_connection_lost.done()  # type: ignore[attr-defined]
         ):
             # the transport was never started
             self._protocol.connection_lost(None)
@@ -245,7 +250,7 @@ class Engine:
             self._engine_lock.release()
             raise RuntimeError("Unable to pause engine, it is already paused")
 
-        self._engine_state = (None, tuple())  # aka not None
+        self._engine_state = (None, None, tuple())  # aka not None
         self._engine_lock.release()  # is ok to release now
 
         self._protocol.pause_writing()  # TODO: call_soon()?
@@ -257,10 +262,10 @@ class Engine:
 
         self._engine_state = (handler, read_only, *args)
 
-    def _resume(self) -> tuple:  # FIXME: not atomic
+    def _resume(self) -> tuple[Any]:  # FIXME: not atomic
         """Resume the (paused) engine or raise a RuntimeError."""
 
-        args: tuple  # mypy
+        args: tuple[Any]  # mypy
 
         if not self._engine_lock.acquire(timeout=0.1):
             raise RuntimeError("Unable to resume engine, failed to acquire lock")
@@ -281,7 +286,7 @@ class Engine:
 
         return args
 
-    def add_task(self, task: asyncio.Task) -> None:  # TODO: needs a lock?
+    def add_task(self, task: asyncio.Task[Any]) -> None:  # TODO: needs a lock?
         # keep a track of tasks, so we can tidy-up
         self._tasks = [t for t in self._tasks if not t.done()]
         self._tasks.append(task)

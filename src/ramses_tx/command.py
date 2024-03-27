@@ -56,9 +56,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 if TYPE_CHECKING:
-    from .address import DeviceIdT
     from .const import VerbT
     from .frame import HeaderT, PayloadT
+    from .schemas import DeviceIdT
 
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
@@ -228,11 +228,6 @@ def _normalise_until(
     return until, duration
 
 
-def _qos_params(verb: VerbT, code: str | Code, qos: dict) -> Qos:
-    """Class constructor wrapped to prevent cyclic reference."""
-    return Qos.verb_code(verb, code, **qos)
-
-
 class Command(Frame):
     """The Command class (packets to be transmitted).
 
@@ -259,9 +254,6 @@ class Command(Frame):
 
         self._rx_header: str | None = None
         # self._source_entity: Entity | None = None  # TODO: is needed?
-
-        # used by pkt layer: qos (transport.py: backoff, priority, retries, timeout)
-        self._qos = _qos_params(self.verb, self.code, {})  # TODO: deprecated
 
     @classmethod  # convenience constructor
     def from_attrs(

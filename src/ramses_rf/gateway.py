@@ -45,6 +45,8 @@ from ramses_tx.schemas import (
     SZ_BLOCK_LIST,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_KNOWN_LIST,
+    PktLogConfigT,
+    PortConfigT,
 )
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
@@ -75,8 +77,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
-    from ramses_tx.frame import DeviceIdT
     from ramses_tx.protocol import RamsesTransportT
+    from ramses_tx.schemas import DeviceIdT, DeviceListT
 
     from .device import Device
 
@@ -93,10 +95,10 @@ class Gateway(Engine):
         self,
         port_name: str | None,
         input_file: TextIOWrapper | None = None,
-        port_config: dict | None = None,
-        packet_log: dict | None = None,
-        block_list: dict | None = None,
-        known_list: dict | None = None,
+        port_config: PortConfigT | None = None,
+        packet_log: PktLogConfigT | None = None,
+        block_list: DeviceListT | None = None,
+        known_list: DeviceListT | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
         **kwargs,
     ) -> None:
@@ -104,7 +106,7 @@ class Gateway(Engine):
             _LOGGER.setLevel(logging.DEBUG)
 
         kwargs = {k: v for k, v in kwargs.items() if k[:1] != "_"}  # anachronism
-        config = kwargs.pop(SZ_CONFIG, {})
+        config: dict = kwargs.pop(SZ_CONFIG, {})
 
         super().__init__(
             port_name,
@@ -128,7 +130,7 @@ class Gateway(Engine):
         self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
         self._schema: dict = SCH_GLOBAL_SCHEMAS(kwargs)
 
-        set_pkt_logging_config(
+        set_pkt_logging_config(  # type: ignore[arg-type]
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self._packet_log,
         )
@@ -207,16 +209,18 @@ class Gateway(Engine):
             self.config.disable_discovery = disc_flag
             raise
 
-    def _resume(self) -> tuple:
+    def _resume(self) -> tuple[Any]:
         """Resume the (paused) gateway (enables sending/discovery, if applicable).
 
         Will restore other objects, as *args.
         """
+        args: tuple[Any]
+
         _LOGGER.debug("Gateway: Resuming engine...")
 
-        self.config.disable_discovery, *args = super()._resume()
+        self.config.disable_discovery, *args = super()._resume()  # type: ignore[assignment]
 
-        return args  # type: ignore[return-value]
+        return args
 
     def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
         """Return the current schema & state (may include expired packets)."""

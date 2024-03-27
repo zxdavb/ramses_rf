@@ -76,7 +76,13 @@ from .const import (
 )
 from .helpers import dt_now
 from .packet import Packet
-from .schemas import SCH_SERIAL_PORT_CONFIG, SZ_EVOFW_FLAG, SZ_INBOUND, SZ_OUTBOUND
+from .schemas import (
+    SCH_SERIAL_PORT_CONFIG,
+    SZ_EVOFW_FLAG,
+    SZ_INBOUND,
+    SZ_OUTBOUND,
+    PortConfigT,
+)
 from .typing import ExceptionT, SerPortNameT
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -273,7 +279,7 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATI
     FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
     BUCKET_CAPACITY: float = FILL_RATE * time_window
 
-    def decorator(fnc: Callable[..., Awaitable]):
+    def decorator(fnc: Callable[..., Awaitable[None]]):
         # start with a full bit bucket
         bits_in_bucket: float = BUCKET_CAPACITY
         last_time_bit_added = perf_counter()
@@ -330,7 +336,7 @@ def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATIO
 
     token_fill_rate: float = max_tokens / time_window
 
-    def decorator(fnc: Callable):
+    def decorator(fnc: Callable[..., Awaitable[None]]):
         token_bucket: float = max_tokens  # initialize with max tokens
         last_time_token_added = perf_counter()
 
@@ -366,10 +372,12 @@ def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATIO
     return decorator
 
 
-_global_sync_cycles: deque = deque()  # used by @avoid_system_syncs/@track_system_syncs
+_global_sync_cycles: deque[Packet] = (
+    deque()
+)  # used by @avoid_system_syncs/@track_system_syncs
 
 
-def avoid_system_syncs(fnc: Callable[..., Awaitable]):
+def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]):
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
     DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
@@ -452,8 +460,6 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
 
 
 class _BaseTransport:
-    """Filter out any unwanted (but otherwise valid) packets via device ids."""
-
     _protocol: RamsesProtocolT
     _extra: dict[str, Any]  # mypy
 
@@ -489,17 +495,22 @@ class _BaseTransport:
             _LOGGER.error("%s < exception from msg layer: %s", pkt, err)
 
 
+_RegexRuleT: TypeAlias = dict[str, str]
+
+
 class _RegHackMixin:
-    def __init__(self, *args, use_regex: dict | None = None, **kwargs) -> None:
+    def __init__(
+        self, *args, use_regex: dict[str, _RegexRuleT] | None = None, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         use_regex = use_regex or {}
 
-        self.__inbound_rule = use_regex.get(SZ_INBOUND, {})
-        self.__outbound_rule = use_regex.get(SZ_OUTBOUND, {})
+        self.__inbound_rule: _RegexRuleT = use_regex.get(SZ_INBOUND, {})
+        self.__outbound_rule: _RegexRuleT = use_regex.get(SZ_OUTBOUND, {})
 
     @staticmethod
-    def __regex_hack(pkt_line: str, regex_rules: dict) -> str:
+    def __regex_hack(pkt_line: str, regex_rules: _RegexRuleT) -> str:
         if not regex_rules:
             return pkt_line
 
@@ -534,9 +545,9 @@ class _FileTransport(asyncio.ReadTransport):
     def __init__(
         self,
         protocol: RamsesProtocolT,
-        pkt_source: dict | TextIOWrapper,
+        pkt_source: dict[str, str] | TextIOWrapper,
         loop: asyncio.AbstractEventLoop | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(extra=extra)
 
@@ -655,12 +666,11 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     loop: asyncio.AbstractEventLoop
     serial: Serial
 
-    _init_fut: asyncio.Future
-    _init_task: asyncio.Task
+    _init_fut: asyncio.Future[Packet | None]
+    _init_task: asyncio.Task[None]
 
     _recv_buffer: bytes = b""
 
-    _extra: dict[str, Any]  # mypy
     _protocol: RamsesProtocolT  # mypy
 
     def __init__(
@@ -668,11 +678,11 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         protocol: RamsesProtocolT,
         pkt_source: Serial,
         loop: asyncio.AbstractEventLoop | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
 
-        self._extra: dict = {} if extra is None else extra
+        self._extra: dict[str, Any] = {} if extra is None else extra
 
         self._leaker_sem = asyncio.BoundedSemaphore()
         self._leaker_task = self.loop.create_task(self._leak_sem())
@@ -824,9 +834,6 @@ class FileTransport(_BaseTransport, _FileTransport):
 class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ignore[misc]
     """Poll a serial port for packets, and send (without QoS)."""
 
-    _init_fut: asyncio.Future
-    _init_task: asyncio.Task
-
     def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -896,13 +903,6 @@ class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ign
         await super()._write_frame(frame)
 
 
-# ### Read-Write Transport *with QoS* for serial port #################################
-class QosTransport(PortTransport):
-    """Poll a serial port for packets, and send with QoS."""
-
-    pass
-
-
 # ### Read-Write Transport for MQTT ###################################################
 class MqttTransport(_BaseTransport, asyncio.Transport):
     READER_TASK = "reader_task"  # only for mypy
@@ -912,14 +912,14 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
         protocol: RamsesProtocolT,
         broker_url: str,
         loop: asyncio.AbstractEventLoop | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
 
         self._protocol = protocol
         self.loop = loop or asyncio.get_event_loop()
-        self._extra: dict = {} if extra is None else extra
+        self._extra: dict[str, Any] = {} if extra is None else extra
 
         self.broker_url = urlparse(broker_url)
 
@@ -930,7 +930,9 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
         self._TOPIC_PUB: Final = f"{self.broker_url.path}/tx"[1:]
         self._TOPIC_SUB: Final = f"{self.broker_url.path}/rx"[1:]
-        self._qos: Final = int(parse_qs(self.broker_url.query).get("qos", ["0"])[0])
+        self._mqtt_qos: Final = int(
+            parse_qs(self.broker_url.query).get("qos", ["0"])[0]
+        )
 
         self._closing = False
         self._reading = True
@@ -979,7 +981,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
             functools.partial(self._protocol.connection_made, self, ramses=True)
         )  # was: self._protocol.connection_made(self, ramses=True)
 
-        client.subscribe(self._TOPIC_SUB, qos=self._qos)
+        client.subscribe(self._TOPIC_SUB, qos=self._mqtt_qos)
 
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
@@ -1007,7 +1009,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
     def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
-            self._TOPIC_PUB, payload=message, qos=self._qos
+            self._TOPIC_PUB, payload=message, qos=self._mqtt_qos
         )
         assert info
 
@@ -1040,9 +1042,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
             self._close()
 
 
-RamsesTransportT: TypeAlias = (
-    QosTransport | PortTransport | FileTransport | MqttTransport
-)
+RamsesTransportT: TypeAlias = FileTransport | MqttTransport | PortTransport
 
 
 async def transport_factory(
@@ -1050,12 +1050,12 @@ async def transport_factory(
     /,
     *,
     port_name: SerPortNameT | None = None,
-    port_config: dict | None = None,
+    port_config: PortConfigT | None = None,
     packet_log: TextIOWrapper | None = None,
-    packet_dict: dict | None = None,
+    packet_dict: dict[str, str] | None = None,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
-    extra: dict | None = None,
+    extra: dict[str, Any] | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
     **kwargs,  # HACK: odd/misc params
 ) -> RamsesTransportT:
@@ -1069,7 +1069,9 @@ async def transport_factory(
         while protocol._transport is None:
             await asyncio.sleep(0.005)  # type: ignore[unreachable]
 
-    def get_serial_instance(ser_name: SerPortNameT, ser_config: dict) -> Serial:
+    def get_serial_instance(
+        ser_name: SerPortNameT, ser_config: PortConfigT | None
+    ) -> Serial:
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
@@ -1136,7 +1138,7 @@ async def transport_factory(
             **kwargs,
         )
     else:  # disable_qos could  be False, None
-        transport = QosTransport(
+        transport = PortTransport(
             protocol, ser_instance, extra=extra, loop=loop, **kwargs
         )
 

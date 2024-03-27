@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime as dt
 from typing import TYPE_CHECKING, Final, TypeAlias
 
@@ -40,8 +40,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
-    from .address import DeviceIdT
+    from .schemas import DeviceIdT, DeviceListT
     from .transport import RamsesTransportT
+
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
@@ -124,7 +125,7 @@ class _BaseProtocol(asyncio.Protocol):
             self._wait_connection_lost.set_result(None)
 
     @property
-    def wait_connection_lost(self) -> asyncio.Future:
+    def wait_connection_lost(self) -> asyncio.Future[ExceptionT | None]:
         """Return a future that will block until connection_lost() has been invoked.
 
         Can call fut.result() to check for result/any exception.
@@ -260,8 +261,8 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         self,
         msg_handler: MsgHandlerT,
         enforce_include_list: bool = False,
-        exclude_list: dict[DeviceIdT, dict] | None = None,
-        include_list: dict[DeviceIdT, dict] | None = None,
+        exclude_list: DeviceListT | None = None,
+        include_list: DeviceListT | None = None,
     ) -> None:
         super().__init__(msg_handler)
 
@@ -288,7 +289,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         )
 
     @staticmethod
-    def _extract_known_hgi(include_list: dict[DeviceIdT, dict]) -> DeviceIdT | None:
+    def _extract_known_hgi(include_list: DeviceListT) -> DeviceIdT | None:
         """Return the device_id of the gateway specified in the include_list, if any.
 
         The 'Known' gateway is the predicted Active gateway, given the known_list.
@@ -665,8 +666,8 @@ def protocol_factory(
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
     enforce_include_list: bool = False,
-    exclude_list: dict[DeviceIdT, dict] | None = None,
-    include_list: dict[DeviceIdT, dict] | None = None,
+    exclude_list: DeviceListT | None = None,
+    include_list: DeviceListT | None = None,
     **kwargs,  # HACK: odd/misc params
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
@@ -696,13 +697,13 @@ async def create_stack(
     msg_handler: MsgHandlerT,
     /,
     *,
-    protocol_factory_: Callable | None = None,
-    transport_factory_: Callable | None = None,
+    protocol_factory_: Callable[..., RamsesProtocolT] | None = None,
+    transport_factory_: Awaitable[RamsesTransportT] | None = None,
     disable_qos: bool | None = False,
     disable_sending: bool | None = False,
     enforce_include_list: bool = False,
-    exclude_list: dict[DeviceIdT, dict] | None = None,
-    include_list: dict[DeviceIdT, dict] | None = None,
+    exclude_list: DeviceListT | None = None,
+    include_list: DeviceListT | None = None,
     **kwargs,  # TODO: these are for the transport_factory
 ) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.
@@ -715,7 +716,7 @@ async def create_stack(
     read_only = kwargs.get("packet_dict") or kwargs.get("packet_log")
     disable_sending = disable_sending or read_only
 
-    protocol = (protocol_factory_ or protocol_factory)(
+    protocol: RamsesProtocolT = (protocol_factory_ or protocol_factory)(
         msg_handler,
         disable_qos=disable_qos,
         disable_sending=disable_sending,
@@ -724,7 +725,7 @@ async def create_stack(
         include_list=include_list,
     )
 
-    transport = await (transport_factory_ or transport_factory)(
+    transport: RamsesTransportT = await (transport_factory_ or transport_factory)(  # type: ignore[operator]
         protocol, disable_qos=disable_qos, disable_sending=disable_sending, **kwargs
     )
 
