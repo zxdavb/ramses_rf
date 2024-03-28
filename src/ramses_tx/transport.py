@@ -975,11 +975,14 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
     def _on_connect(
         self, client: mqtt.Client, userdata: Any | None, flags: dict[str, Any], rc: int
     ):
-        # print(f"Connected with result code {rc}")
+        self._closing = False
+        # _LOGGER.debug(f"Connected with result code {rc}")
 
         self.loop.call_soon_threadsafe(
             functools.partial(self._protocol.connection_made, self, ramses=True)
         )  # was: self._protocol.connection_made(self, ramses=True)
+
+        # TODO: determine active gateway
 
         client.subscribe(self._TOPIC_SUB, qos=self._mqtt_qos)
 
@@ -1002,10 +1005,26 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
             _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
             return
 
-        # TODO: determine active gateway
-
         # TODO: remove raw_line attr from Packet()
-        self.loop.call_soon_threadsafe(self._pkt_read, pkt)
+        try:
+            self.loop.call_soon_threadsafe(self._pkt_read, pkt)
+        except RuntimeError:
+            if self.loop.is_closed() or not self.loop.is_running():
+                self._closing = True
+            else:
+                raise
+
+        # Traceback (most recent call last):
+        # ...
+        #   File "/home/dbonnes/clients/hass/venv/lib/python3.12/site-packages/paho/mqtt/client.py", line 3570, in _handle_on_message
+        #     on_message(self, self._userdata, message)
+        #   File "/home/dbonnes/clients/ramses_rf/src/ramses_tx/transport.py", line 1008, in _on_message
+        #     self.loop.call_soon_threadsafe(self._pkt_read, pkt)
+        #   File "/usr/lib/python3.12/asyncio/base_events.py", line 837, in call_soon_threadsafe
+        #     self._check_closed()
+        #   File "/usr/lib/python3.12/asyncio/base_events.py", line 539, in _check_closed
+        #     raise RuntimeError('Event loop is closed')
+        # RuntimeError: Event loop is closed
 
     def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
