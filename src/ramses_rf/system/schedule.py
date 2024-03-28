@@ -232,9 +232,8 @@ class Schedule:  # 0404
             cmd = Command.get_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_set_size
             )
-            msg: Message = await self._gwy.async_send_cmd(cmd)
-            if isinstance(msg, Packet):  # HACK: async_send_cmd shoudl return Msg
-                msg = Message(msg)
+            pkt: Packet = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
+            msg = Message(pkt)
             assert isinstance(msg.payload, dict)  # mypy check
             return msg.payload  # may: TimeoutError?
 
