@@ -41,6 +41,9 @@ _DBG_USE_STRICT_TRANSITIONS: Final[bool] = False
 
 #######################################################################################
 
+_FutureT: TypeAlias = asyncio.Future[Packet | Exception]
+_QueueEntryT: TypeAlias = tuple[Priority, dt, Command, QosParams, _FutureT]
+
 
 class ProtocolContext:
     def __init__(
@@ -62,11 +65,13 @@ class ProtocolContext:
         self.max_buffer_size = min(max_buffer_size, DEFAULT_BUFFER_SIZE)
 
         self._loop = protocol._loop
-        self._fut: asyncio.Future | None = None
-        self._que: PriorityQueue = PriorityQueue(maxsize=self.max_buffer_size)
         self._lock = Lock()
+        self._fut: _FutureT | None = None
+        self._que: PriorityQueue[_QueueEntryT] = PriorityQueue(
+            maxsize=self.max_buffer_size
+        )
 
-        self._expiry_timer: asyncio.Task | None = None
+        self._expiry_timer: asyncio.Task[None] | None = None
         self._state: _ProtocolStateT = None  # type: ignore[assignment]
 
         # TODO: pass this over as an instance paramater
@@ -115,14 +120,14 @@ class ProtocolContext:
         async def expire_state_on_timeout() -> None:
             # a separate coro, so can be spawned off with create_task()
 
-            assert isinstance(self.is_sending, bool)  # TODO: remove
+            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
 
             if isinstance(self._state, WantEcho):
                 await asyncio.sleep(self.echo_timeout)
             else:  # isinstance(self._state, WantRply):
                 await asyncio.sleep(self.reply_timeout)
 
-            assert isinstance(self.is_sending, bool)  # TODO: remove
+            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
 
             # Timer has expired, can we retry or are we done?
             assert isinstance(self._cmd_tx_count, int)
@@ -132,13 +137,13 @@ class ProtocolContext:
             else:
                 self.set_state(IsInIdle, expired=True)
 
-            assert isinstance(self.is_sending, bool)  # TODO: remove
+            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
 
         def effect_state(timed_out: bool) -> None:
             """Take any actions indicated by state, and optionally set expiry timer."""
             # a separate function, so can be spawned off with call_soon()
 
-            assert isinstance(self.is_sending, bool)  # TODO: remove
+            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
 
             if timed_out:
                 assert self._cmd is not None, "Coding error"  # mypy hint

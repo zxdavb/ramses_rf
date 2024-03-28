@@ -143,7 +143,7 @@ def slug(string: str) -> str:
 
 
 # TODO: FIXME: This is a mess - needs converting to StrEnum
-class AttrDict(dict):
+class AttrDict(dict):  # type: ignore[type-arg]
     _SZ_AKA_SLUG: Final = "_root_slug"
     _SZ_DEFAULT: Final = "_default"
     _SZ_SLUGS: Final = "SLUGS"
@@ -162,12 +162,12 @@ class AttrDict(dict):
 
     del __readonly
 
-    def __init__(self, main_table: dict, attr_table: dict):
+    def __init__(self, main_table: dict[str, dict], attr_table: dict):  # type: ignore[type-arg]
         self._main_table = main_table
         self._attr_table = attr_table
         self._attr_table[self._SZ_SLUGS] = tuple(sorted(main_table.keys()))
 
-        self._slug_lookup: dict = {
+        self._slug_lookup: dict = {  # type: ignore[type-arg]
             None: slug  # noqa: B035
             for slug, table in main_table.items()
             for k in table.values()
@@ -253,12 +253,15 @@ class AttrDict(dict):
         #     return self._attr_table["_TRANSFORMS"][slug_]
         return slug_  # type: ignore[no-any-return]
 
-    def slugs(self) -> tuple:
+    def slugs(self) -> tuple[str]:
         """Return the slugs from the main table."""
         return self._attr_table[self._SZ_SLUGS]  # type: ignore[no-any-return]
 
 
-def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAttrDict
+def attr_dict_factory(
+    main_table: dict[str, dict],  # type: ignore[type-arg]
+    attr_table: dict | None = None,  # type: ignore[type-arg]
+) -> AttrDict:  # is: SlottedAttrDict
     if attr_table is None:
         attr_table = {}
 
@@ -575,7 +578,16 @@ DEVICE_ID_REGEX = SimpleNamespace(
 )
 
 # Domains
-F6, F7, F8, F9, FA, FB, FC, FD, FE, FF = (f"{x:02X}" for x in range(0xF6, 0x100))
+F6: Final = "F6"
+F7: Final = "F7"
+F8: Final = "F8"
+F9: Final = "F9"
+FA: Final = "FA"
+FB: Final = "FB"
+FC: Final = "FC"
+FD: Final = "FD"
+FE: Final = "FE"
+FF: Final = "FF"
 
 DOMAIN_TYPE_MAP: dict[str, str] = {
     F6: "cooling_valve",  # cooling

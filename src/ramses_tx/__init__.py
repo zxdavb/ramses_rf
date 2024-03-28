@@ -19,7 +19,7 @@ from .const import (  # noqa: F401
     Priority,
 )
 from .gateway import Engine  # noqa: F401
-from .logger import set_logger_timesource, set_pkt_logging  # noqa: F401
+from .logger import set_pkt_logging  # noqa: F401
 from .message import Message  # noqa: F401
 from .packet import PKT_LOGGER, Packet  # noqa: F401
 from .protocol import (  # noqa: F401, pylint: disable=unused-import
@@ -33,7 +33,6 @@ from .transport import (  # noqa: F401, pylint: disable=unused-import
     SZ_ACTIVE_HGI,
     FileTransport,
     PortTransport,
-    QosTransport,
     is_hgi80,
     transport_factory,
 )

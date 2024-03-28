@@ -17,7 +17,6 @@ from collections.abc import Callable
 from datetime import datetime as dt
 from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
 
-from .schemas import SZ_FILE_NAME, SZ_ROTATE_BACKUPS, SZ_ROTATE_BYTES
 from .version import VERSION
 
 DEV_MODE = False
@@ -200,7 +199,9 @@ class TimedRotatingFileHandler(_TimedRotatingFileHandler):
         return result
 
 
-def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
+def getLogger(  # permits a bespoke Logger class
+    name: str | None = None, pkt_log: bool = False
+):
     """Return a logger with the specified name, creating it if necessary.
 
     Used to set record timestamps to its packet timestamp instead of the current time.
@@ -221,7 +222,7 @@ def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
     return logger
 
 
-def set_logger_timesource(dtm_now: Callable):
+def set_logger_timesource(dtm_now: Callable[[], dt]):
     """Set a custom record factory, with a bespoke source of timestamps.
 
     Used to have records with the same datetime as the most recent packet log record.
@@ -242,7 +243,11 @@ def set_logger_timesource(dtm_now: Callable):
 
 
 def set_pkt_logging(
-    logger: logging.Logger, dt_now=None, cc_console: bool = False, **kwargs
+    logger: logging.Logger,
+    cc_console: bool = False,
+    file_name: str | None = None,
+    rotate_backups: int = 0,
+    rotate_bytes: int | None = None,
 ) -> None:
     """Create/configure handlers, formatters, etc.
 
@@ -258,18 +263,15 @@ def set_pkt_logging(
     for handler in logger.handlers:  # dont use logger.hasHandlers() as not propagating
         logger.removeHandler(handler)
 
-    if file_name := kwargs.get(SZ_FILE_NAME):
-        bkp_count = kwargs.get(SZ_ROTATE_BACKUPS, 0)
-        max_bytes = kwargs.get(SZ_ROTATE_BYTES)
-
-        if max_bytes:
-            bkp_count = bkp_count or 2
+    if file_name:
+        if rotate_bytes:
+            rotate_backups = rotate_backups or 2
             handler = logging.handlers.RotatingFileHandler(
-                file_name, maxBytes=max_bytes, backupCount=bkp_count
+                file_name, maxBytes=rotate_bytes, backupCount=rotate_backups
             )
-        elif bkp_count:
+        elif rotate_backups:
             handler = TimedRotatingFileHandler(
-                file_name, when="MIDNIGHT", backupCount=bkp_count
+                file_name, when="MIDNIGHT", backupCount=rotate_backups
             )
         else:
             handler = logging.FileHandler(file_name)
@@ -288,7 +290,7 @@ def set_pkt_logging(
         logger.setLevel(logging.CRITICAL)
         return
 
-    if cc_console:
+    if cc_console:  # CC: output to stdout/stderr
         console_fmt: ColoredFormatter | Formatter
         if _use_color_:
             console_fmt = ColoredFormatter(

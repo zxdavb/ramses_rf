@@ -6,14 +6,16 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from . import exceptions as exc
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
 
+if TYPE_CHECKING:
+    from .schemas import DeviceIdT
+
 # Test/Dev & Debug flags
 DEV_HVAC = True  #
-
-DeviceIdT = str
 
 DEVICE_LOOKUP: dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)

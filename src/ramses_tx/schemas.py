@@ -9,7 +9,7 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Final
+from typing import Any, Final, Never, TypeAlias, TypedDict, TypeVar
 
 import voluptuous as vol
 
@@ -22,10 +22,6 @@ from .const import (
     MINIMUM_WRITE_GAP,
     DevType,
 )
-
-if TYPE_CHECKING:
-    from .frame import DeviceIdT
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +66,12 @@ SZ_ROTATE_BACKUPS: Final = "rotate_backups"
 SZ_ROTATE_BYTES: Final = "rotate_bytes"
 
 
+class PktLogConfigT(TypedDict):
+    file_name: str
+    rotate_backups: int
+    rotate_bytes: int | None
+
+
 def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any]:
     """Return a packet log dict with a configurable default rotation policy.
 
@@ -92,8 +94,8 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any
 
     SCH_PACKET_LOG_NAME = str
 
-    def NormalisePacketLog(rotate_backups=0):
-        def normalise_packet_log(node_value: str | dict) -> dict:
+    def NormalisePacketLog(rotate_backups: int = 0):
+        def normalise_packet_log(node_value: str | PktLogConfigT) -> PktLogConfigT:
             if isinstance(node_value, str):
                 return {
                     SZ_FILE_NAME: node_value,
@@ -145,6 +147,14 @@ SCH_SERIAL_PORT_CONFIG = vol.Schema(
 )
 
 
+class PortConfigT(TypedDict):
+    baudrate: int  # 57600, 115200
+    dsrdtr: bool
+    rtscts: bool
+    timeout: int
+    xonxoff: bool
+
+
 def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     """Return a serial port dict.
 
@@ -158,7 +168,7 @@ def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     SCH_SERIAL_PORT_NAME = str
 
     def NormaliseSerialPort():
-        def normalise_serial_port(node_value: str | dict) -> dict:
+        def normalise_serial_port(node_value: str | PortConfigT) -> PortConfigT:
             if isinstance(node_value, str):
                 return {SZ_PORT_NAME: node_value} | SCH_SERIAL_PORT_CONFIG({})  # type: ignore[no-any-return]
             return node_value
@@ -178,20 +188,24 @@ def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     }
 
 
-def extract_serial_port(ser_port_dict: dict) -> tuple[str, dict[str, bool | int]]:
+def extract_serial_port(ser_port_dict: dict[str, Any]) -> tuple[str, PortConfigT]:
     """Extract a serial port, port_config_dict tuple from a sch_serial_port_dict."""
     port_name: str = ser_port_dict.get(SZ_PORT_NAME)  # type: ignore[assignment]
     port_config = {k: v for k, v in ser_port_dict.items() if k != SZ_PORT_NAME}
-    return port_name, port_config
+    return port_name, port_config  # type: ignore[return-value]
 
 
 #
 # 4/5: Traits (of devices) configuraion (basic)
+
+_T = TypeVar("_T")
+
+
 def ConvertNullToDict():
-    def convert_null_to_dict(node_value) -> dict:
+    def convert_null_to_dict(node_value: _T | None) -> _T | dict[Never, Never]:
         if node_value is None:
             return {}
-        return node_value  # type: ignore[no-any-return]
+        return node_value
 
     return convert_null_to_dict
 
@@ -215,6 +229,16 @@ SCH_DEVICE_ID_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
 
 _SCH_TRAITS_DOMAINS = ("heat", "hvac")
 _SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
+
+
+DeviceTraitsT = TypedDict(  # noqa: UP013
+    "DeviceTraitsT",
+    {
+        "alias": str | None,
+        "faked": bool | None,
+        "class": str | None,
+    },
+)
 
 
 def sch_global_traits_dict_factory(
@@ -308,10 +332,14 @@ SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 # Device lists (Engine configuration)
 
 
+DeviceIdT: TypeAlias = str
+DeviceListT: TypeAlias = dict[DeviceIdT, DeviceTraitsT]
+
+
 def select_device_filter_mode(
     enforce_known_list: bool,
-    known_list: dict[DeviceIdT, dict],
-    block_list: dict[DeviceIdT, dict],
+    known_list: DeviceListT,
+    block_list: DeviceListT,
 ) -> bool:
     """Determine which device filter to use, if any.
 

@@ -7,7 +7,7 @@
 
 # used for testing
   pytest>=8.1.1
-  pytest-asyncio>=0.23.5.post1
+  pytest-asyncio>=0.23.6
   pytest-xdist>=3.5.0
 
 # used for linting
@@ -16,9 +16,9 @@
 
 # used for typing
   mypy>=1.9.0
-  types-paho-mqtt>=1.6.0.20240106
+  types-paho-mqtt>=1.6.0.20240321
   voluptuous>=0.14.2
 
 # used for build/deploy
-  hatch>=1.9.3       # is not in core HA
-  hatchling>=1.21.1  # is not in core HA
+  hatch>=1.9.4       # is not in core HA
+  hatchling>=1.21.4  # is not in core HA

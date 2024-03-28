@@ -13,7 +13,7 @@ from enum import EnumCheck, IntEnum, StrEnum, verify
 from typing import Any, Final, TypeAlias
 
 _DataIdT: TypeAlias = int  # aka msg id
-_DataValueT: TypeAlias = float | int | list | str | None
+_DataValueT: TypeAlias = float | int | list[int] | str | None
 _FrameT: TypeAlias = str
 _MsgStrT: TypeAlias = str
 
@@ -1010,7 +1010,7 @@ def _msg_value(val_seqx: str, val_type: str) -> _DataValueT:
 
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
 
-    def flag8(byte: str, *args) -> list:
+    def flag8(byte: str, *args) -> list[int]:
         """Split a byte (as a str) into a list of 8 bits.
 
         In the original payload (the OT specification), the lsb is bit 0 (the last bit),
@@ -1051,7 +1051,7 @@ def _msg_value(val_seqx: str, val_type: str) -> _DataValueT:
         buf = struct.pack(">bB", s8(high_byte), u8(low_byte))
         return int(struct.unpack(">h", buf)[0])
 
-    DATA_TYPES: dict[str, Callable] = {
+    DATA_TYPES: dict[str, Callable[..., _DataValueT]] = {
         FLAG8: flag8,
         U8: u8,
         S8: s8,
@@ -1074,7 +1074,7 @@ def _msg_value(val_seqx: str, val_type: str) -> _DataValueT:
         return val_seqx
 
     try:
-        result: float | int | list = fnc(val_seqx[:2], val_seqx[2:])
+        result: _DataValueT = fnc(val_seqx[:2], val_seqx[2:])
         return result
     except ValueError:
         return None

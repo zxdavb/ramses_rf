@@ -50,9 +50,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from ramses_tx import Command, Message, Packet
-    from ramses_tx.address import DeviceIdT
     from ramses_tx.const import VerbT
     from ramses_tx.frame import HeaderT
+    from ramses_tx.schemas import DeviceIdT
 
     from .device import Controller
     from .gateway import Gateway
@@ -424,8 +424,6 @@ class _Discovery(_MessageDB):
         Both `timeout` and `delay` are in seconds.
         """
 
-        cmd._qos.retry_limit = 0  # disable QoS for these: equivalent functionality here
-
         if cmd.rx_header is None:  # TODO: raise TypeError
             _LOGGER.warning(f"cmd({cmd}): invalid (null) header not added to discovery")
             return
@@ -436,9 +434,6 @@ class _Discovery(_MessageDB):
 
         if delay:
             delay += random.uniform(0.05, 0.45)
-        timeout = (
-            timeout or (cmd._qos.retry_limit + 1) * cmd._qos.rx_timeout.total_seconds()
-        )
 
         self.discovery_cmds[cmd.rx_header] = {
             _SZ_COMMAND: cmd,

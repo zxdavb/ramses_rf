@@ -59,7 +59,6 @@ from .const import (
     DevRole,
     DevType,
     SystemType,
-    __dev_mode__,
 )
 
 if TYPE_CHECKING:
@@ -67,11 +66,7 @@ if TYPE_CHECKING:
     from .system import Evohome
 
 
-DEV_MODE = __dev_mode__ and False
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
 
 
 #
