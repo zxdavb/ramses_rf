@@ -960,7 +960,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
         """Resume the receiving end."""
         self._reading = True
 
-    def _connect(self):
+    def _connect(self) -> None:
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.username_pw_set(self._username, self._password)
@@ -974,7 +974,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
     def _on_connect(
         self, client: mqtt.Client, userdata: Any | None, flags: dict[str, Any], rc: int
-    ):
+    ) -> None:
         self._closing = False
         # _LOGGER.debug(f"Connected with result code {rc}")
 
@@ -988,7 +988,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
-    ):
+    ) -> None:
         if self._closing:
             return
 
