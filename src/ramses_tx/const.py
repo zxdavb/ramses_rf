@@ -578,13 +578,13 @@ DEVICE_ID_REGEX = SimpleNamespace(
 )
 
 # Domains
-F6: Final[str] = "F6"
+F6: Final = "F6"
 F7: Final = "F7"
 F8: Final = "F8"
 F9: Final = "F9"
 FA: Final = "FA"
 FB: Final = "FB"
-FC: Final[str] = "FC"
+FC: Final = "FC"
 FD: Final = "FD"
 FE: Final = "FE"
 FF: Final = "FF"
