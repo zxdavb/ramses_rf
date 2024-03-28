@@ -9,7 +9,7 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from typing import Final, Never, TypeAlias, TypedDict, TypeVar
+from typing import Any, Final, Never, TypeAlias, TypedDict, TypeVar
 
 import voluptuous as vol
 
@@ -188,11 +188,11 @@ def sch_serial_port_dict_factory() -> dict[vol.Required, vol.Any]:
     }
 
 
-# def extract_serial_port(ser_port_dict: dict) -> tuple[str, PortConfigT]:
-#     """Extract a serial port, port_config_dict tuple from a sch_serial_port_dict."""
-#     port_name: str = ser_port_dict.get(SZ_PORT_NAME)  # type: ignore[assignment]
-#     port_config = {k: v for k, v in ser_port_dict.items() if k != SZ_PORT_NAME}
-#     return port_name, port_config
+def extract_serial_port(ser_port_dict: dict[str, Any]) -> tuple[str, PortConfigT]:
+    """Extract a serial port, port_config_dict tuple from a sch_serial_port_dict."""
+    port_name: str = ser_port_dict.get(SZ_PORT_NAME)  # type: ignore[assignment]
+    port_config = {k: v for k, v in ser_port_dict.items() if k != SZ_PORT_NAME}
+    return port_name, port_config  # type: ignore[return-value]
 
 
 #

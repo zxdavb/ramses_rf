@@ -246,8 +246,8 @@ def set_pkt_logging(
     logger: logging.Logger,
     cc_console: bool = False,
     file_name: str | None = None,
-    backup_count: int = 0,
-    max_bytes: int | None = None,
+    rotate_backups: int = 0,
+    rotate_bytes: int | None = None,
 ) -> None:
     """Create/configure handlers, formatters, etc.
 
@@ -264,14 +264,14 @@ def set_pkt_logging(
         logger.removeHandler(handler)
 
     if file_name:
-        if max_bytes:
-            backup_count = backup_count or 2
+        if rotate_bytes:
+            rotate_backups = rotate_backups or 2
             handler = logging.handlers.RotatingFileHandler(
-                file_name, maxBytes=max_bytes, backupCount=backup_count
+                file_name, maxBytes=rotate_bytes, backupCount=rotate_backups
             )
-        elif backup_count:
+        elif rotate_backups:
             handler = TimedRotatingFileHandler(
-                file_name, when="MIDNIGHT", backupCount=backup_count
+                file_name, when="MIDNIGHT", backupCount=rotate_backups
             )
         else:
             handler = logging.FileHandler(file_name)
