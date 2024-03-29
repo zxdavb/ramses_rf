@@ -235,6 +235,9 @@ class ProtocolContext:
     ) -> Packet:
         self._send_fnc = send_fnc  # TODO: REMOVE: make per Context, not per Command
 
+        if isinstance(self._state, Inactive):
+            raise exc.ProtocolSendFailed(f"{self}: Send failed (no transport?)")
+
         fut = self._loop.create_future()
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
