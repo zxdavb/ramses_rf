@@ -18,8 +18,8 @@ DEFAULT_ECHO_TIMEOUT: Final[float] = 0.50  # waiting for echo pkt after cmd sent
 DEFAULT_RPLY_TIMEOUT: Final[float] = 0.20  # waiting for reply pkt after echo pkt rcvd
 DEFAULT_BUFFER_SIZE: Final[int] = 32
 
-DEFAULT_SEND_TIMEOUT: Final[float] = 30.0  # total waiting for successful send: FIXME
-MAX_SEND_TIMEOUT: Final[float] = 30.0  # for a command to be sent, incl. queuing time
+DEFAULT_SEND_TIMEOUT: Final[float] = 15.0  # total waiting for successful send: FIXME
+MAX_SEND_TIMEOUT: Final[float] = 15.0  # for a command to be sent, incl. queuing time
 
 MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
 
