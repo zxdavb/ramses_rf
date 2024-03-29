@@ -20,5 +20,5 @@
   voluptuous>=0.14.2
 
 # used for build/deploy
-  hatch>=1.9.0       # is not in core HA
-  hatchling>=1.20.0  # is not in core HA
+  hatch>=1.9.4       # is not in core HA
+  hatchling<=1.22    # is not in core HA
