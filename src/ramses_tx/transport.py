@@ -243,10 +243,12 @@ def _normalise(pkt_line: str) -> str:
     - handle 'strange' packets (e.g. I|08:|0008)
     """
 
-    # ramses-esp bugs, see: https://github.com/IndaloTech/ramses_esp/issues/1
+    # ramses_esp-specific bugs, see: https://github.com/IndaloTech/ramses_esp/issues/1
     pkt_line = re.sub("\r\r", "\r", pkt_line)
-    for s in (I_, RQ, RP, W_, "000", "\r\n"):
-        pkt_line = re.sub(f"^ {s}", s, pkt_line)
+    if pkt_line[:4] == " 000":
+        pkt_line = pkt_line[1:]
+    elif pkt_line[:2] in (I_, RQ, RP, W_):
+        pkt_line = ""
 
     # psuedo-RAMSES-II packets (encrypted payload?)...
     if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
@@ -737,7 +739,7 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
     def _frame_read(self, dtm: dt, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
 
-        if not frame:
+        if not frame.strip():
             return
 
         try:
