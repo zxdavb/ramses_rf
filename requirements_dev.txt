@@ -21,4 +21,4 @@
 
 # used for build/deploy
   hatch>=1.9.4       # is not in core HA
-  hatchling>=1.22.1  # is not in core HA
+  hatchling>=1.21.1  # is not in core HA
