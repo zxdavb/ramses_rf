@@ -31,7 +31,9 @@ from ramses_tx.schemas import (
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
     SZ_EVOFW_FLAG,
+    SZ_FILE_NAME,
     SZ_KNOWN_LIST,
+    SZ_PACKET_LOG,
     SZ_SERIAL_PORT,
 )
 
@@ -95,6 +97,12 @@ def normalise_config(lib_config: dict) -> tuple[str, dict]:
     """Convert a HA config dict into the client library's own format."""
 
     serial_port = lib_config.pop(SZ_SERIAL_PORT, None)
+
+    # fix for: https://github.com/zxdavb/ramses_rf/issues/96
+    packet_log = lib_config.get(SZ_PACKET_LOG)
+    if isinstance(packet_log, str):
+        packet_log = {SZ_FILE_NAME: packet_log}
+    lib_config[SZ_PACKET_LOG] = packet_log
 
     return serial_port, lib_config
 
