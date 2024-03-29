@@ -469,6 +469,8 @@ class _BaseTransport:
     def __init__(self, *args, **kwargs) -> None:
         self._evofw_flag = kwargs.pop(SZ_EVOFW_FLAG, None)  # gwy.config.evofw_flag
 
+        kwargs.pop("comms_params", None)  # FiXME: remove this
+
         super().__init__(*args, **kwargs)
 
         self._this_pkt: Packet | None = None
