@@ -173,15 +173,16 @@ class _BaseProtocol(asyncio.Protocol):
     ) -> Packet | None:
         """This is the wrapper for self._send_cmd(cmd)."""
 
+        # if not self._transport:
+        #     raise exc.ProtocolSendFailed("There is no connected Transport")
+
         if _DBG_FORCE_LOG_PACKETS:
             _LOGGER.warning(f"QUEUED:     {cmd}")
         else:
             _LOGGER.debug(f"QUEUED:     {cmd}")
 
-        # if not self._transport:
-        #     raise exc.ProtocolSendFailed("There is no connected Transport")
         if self._pause_writing:
-            raise exc.ProtocolSendFailed("The Protocol is currently read-only")
+            raise exc.ProtocolSendFailed("The Protocol is currently read-only/paused")
 
         return await self._send_cmd(
             cmd,

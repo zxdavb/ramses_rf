@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine
-from datetime import datetime as dt, timedelta as td
+from datetime import datetime as dt
 from queue import Empty, Full, PriorityQueue
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Final, TypeAlias
@@ -21,7 +21,6 @@ from .const import (
     DEFAULT_RPLY_TIMEOUT,
     MAX_RETRY_LIMIT,
     MAX_SEND_TIMEOUT,
-    MINIMUM_WRITE_GAP,
     Code,
     Priority,
 )
@@ -46,6 +45,8 @@ _QueueEntryT: TypeAlias = tuple[Priority, dt, Command, QosParams, _FutureT]
 
 
 class ProtocolContext:
+    SEND_TIMEOUT_LIMIT = MAX_SEND_TIMEOUT
+
     def __init__(
         self,
         protocol: RamsesProtocolT,
@@ -53,14 +54,12 @@ class ProtocolContext:
         *,
         echo_timeout: float = DEFAULT_ECHO_TIMEOUT,
         reply_timeout: float = DEFAULT_RPLY_TIMEOUT,
-        min_gap_duration: float = MINIMUM_WRITE_GAP,
         max_retry_limit: int = MAX_RETRY_LIMIT,
         max_buffer_size: int = DEFAULT_BUFFER_SIZE,
     ) -> None:
         self._protocol = protocol
         self.echo_timeout = echo_timeout
         self.reply_timeout = reply_timeout
-        self.min_gap_duration = td(seconds=min_gap_duration)
         self.max_retry_limit = min(max_retry_limit, MAX_RETRY_LIMIT)
         self.max_buffer_size = min(max_buffer_size, DEFAULT_BUFFER_SIZE)
 
@@ -235,6 +234,9 @@ class ProtocolContext:
     ) -> Packet:
         self._send_fnc = send_fnc  # TODO: REMOVE: make per Context, not per Command
 
+        if isinstance(self._state, Inactive):
+            raise exc.ProtocolSendFailed(f"{self}: Send failed (no transport?)")
+
         fut = self._loop.create_future()
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
@@ -245,7 +247,9 @@ class ProtocolContext:
         if isinstance(self._state, IsInIdle):
             self._loop.call_soon_threadsafe(self._check_buffer_for_cmd)
 
-        timeout = min(qos.timeout, MAX_SEND_TIMEOUT)  # incl. time queued in buffer
+        timeout = min(
+            qos.timeout, self.SEND_TIMEOUT_LIMIT
+        )  # incl. time queued in buffer
         try:
             await asyncio.wait_for(fut, timeout=timeout)
         except TimeoutError as err:  # incl. fut.cancel()

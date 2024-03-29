@@ -623,16 +623,10 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
                 False,
             )  # global_ver, did_io
 
-        self._msg_0006 = await self._gwy.async_send_cmd(
-            Command.get_schedule_version(self.ctl.id)
+        pkt: Packet = await self._gwy.async_send_cmd(
+            Command.get_schedule_version(self.ctl.id), wait_for_reply=True
         )
-
-        if isinstance(self._msg_0006, Packet):  # HACK
-            self._msg_0006 = Message(self._msg_0006)
-
-        assert isinstance(  # TODO: remove me
-            self._msg_0006, Message
-        ), f"_schedule_version(): {self._msg_0006} (is not a message)"
+        self._msg_0006 = Message(pkt)
 
         return self._msg_0006.payload[SZ_CHANGE_COUNTER], True  # global_ver, did_io
 

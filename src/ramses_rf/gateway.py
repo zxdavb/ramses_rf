@@ -580,7 +580,7 @@ class Gateway(Engine):
             )
         except exc.ProtocolSendFailed as err:
             _LOGGER.error(f"Failed to send {cmd._hdr}: {err}")
-            return None
+            return None  # FIXME: should really raise
 
         if callback:
             self.add_task(self._loop.create_task(callback(pkt)))

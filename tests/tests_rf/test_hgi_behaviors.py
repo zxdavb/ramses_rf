@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 import pytest
 import serial as ser
-from serial.tools.list_ports import comports
 
 from ramses_rf import Command, Gateway
 from ramses_rf.device import HgiGateway
@@ -19,7 +18,7 @@ from ramses_tx import exceptions as exc
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.protocol import PortProtocol
 from ramses_tx.typing import QosParams
-from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
+from tests_rf.virtual_rf import VirtualRf
 
 # patched constants
 _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
@@ -63,22 +62,19 @@ _global_failed_ports: list[str] = []
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio(scope="module")
+pytestmark = pytest.mark.asyncio(scope="session")
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_idx", TEST_CMDS)
 
 
-@pytest.fixture(scope="module")
-async def fake_evofw3():
+@pytest.fixture(scope="session")
+async def fake_evofw3(fake_evofw3_port, rf: VirtualRf):
     """Utilize a virtual evofw3-compatible gateway."""
 
-    rf = VirtualRf(1)
-    rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.EVOFW3)
-
     with patch("ramses_tx.transport.comports", rf.comports):
-        gwy = Gateway(rf.ports[0], **GWY_CONFIG)
+        gwy = Gateway(fake_evofw3_port, **GWY_CONFIG)
         assert gwy.hgi is None and gwy.devices == []
 
         await gwy.start()
@@ -89,18 +85,14 @@ async def fake_evofw3():
             yield gwy
         finally:
             await gwy.stop()
-            await rf.stop()
 
 
-@pytest.fixture(scope="module")
-async def fake_ti3410():
+@pytest.fixture(scope="session")
+async def fake_ti3410(fake_ti3410_port, rf: VirtualRf):
     """Utilize a virtual HGI80-compatible gateway."""
 
-    rf = VirtualRf(1)
-    rf.set_gateway(rf.ports[0], TST_ID_, fw_type=HgiFwTypes.HGI_80)
-
     with patch("ramses_tx.transport.comports", rf.comports):
-        gwy = Gateway(rf.ports[0], **GWY_CONFIG)
+        gwy = Gateway(fake_ti3410_port, **GWY_CONFIG)
         assert gwy.hgi is None and gwy.devices == []
 
         await gwy.start()
@@ -111,17 +103,20 @@ async def fake_ti3410():
             yield gwy
         finally:
             await gwy.stop()
-            await rf.stop()
 
 
-@pytest.fixture(scope="module")  # TODO: remove HACK, below
-async def real_evofw3():
+@pytest.fixture(scope="session")
+async def real_evofw3(real_evofw3_port):
     """Utilize an actual evofw3-compatible gateway."""
 
-    port_names = [p.device for p in comports() if p.product and "evofw3" in p.product]
-    port_names = port_names or ["/dev/ttyUSB1"]  # HACK: FIXME (should not be needed)
+    global _global_failed_ports
 
-    gwy = Gateway(port_names[0], **GWY_CONFIG)
+    try:
+        gwy = Gateway(real_evofw3_port, **GWY_CONFIG)
+    except (ser.SerialException, exc.TransportSerialError) as err:
+        _global_failed_ports.append(real_evofw3_port)
+        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
+
     assert gwy.hgi is None and gwy.devices == []
 
     await gwy.start()
@@ -134,14 +129,18 @@ async def real_evofw3():
         await gwy.stop()
 
 
-@pytest.fixture(scope="module")  # TODO: remove HACK, below
-async def real_ti3410():
+@pytest.fixture(scope="session")
+async def real_ti3410(real_ti3410_port):
     """Utilize an actual HGI80-compatible gateway."""
 
-    port_names = [p.device for p in comports() if p.product and "TUSB3410" in p.product]
-    port_names = port_names or ["/dev/ttyUSB0"]  # HACK: FIXME (should not be needed)
+    global _global_failed_ports
 
-    gwy = Gateway(port_names[0], **GWY_CONFIG)
+    try:
+        gwy = Gateway(real_ti3410_port, **GWY_CONFIG)
+    except (ser.SerialException, exc.TransportSerialError) as err:
+        _global_failed_ports.append(real_ti3410_port)
+        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
+
     assert gwy.hgi is None and gwy.devices == []
 
     await gwy.start()
@@ -206,47 +205,17 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
 
 
 @pytest.mark.xdist_group(name="real_serial")
-@pytest.mark.skipif(
-    not [p for p in comports() if p.product and "evofw3" in p.product],
-    reason="No evofw3 devices found",
-)
 async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
     """Validate the GWY test against a real (physical) evofw3."""
 
-    global _global_failed_ports
-
-    gwy = real_evofw3
-
-    if gwy.ser_name in _global_failed_ports:
-        pytest.skip(f"previous SerialException on: {gwy.ser_name}")
-
-    try:
-        await _test_gwy_device(gwy, test_idx)
-    except (ser.SerialException, exc.TransportSerialError) as err:
-        _global_failed_ports.append(gwy.ser_name)
-        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
+    await _test_gwy_device(real_evofw3, test_idx)
 
 
 @pytest.mark.xdist_group(name="real_serial")
-@pytest.mark.skipif(
-    not [p for p in comports() if p.product and "TUSB3410" in p.product],
-    reason="No ti3410 devices found",
-)
 async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
     """Validate the GWY test against a real (physical) HGI80."""
 
-    global _global_failed_ports
-
-    gwy = real_ti3410
-
-    if gwy.ser_name in _global_failed_ports:
-        pytest.skip(f"previous SerialException on: {gwy.ser_name}")
-
-    try:
-        await _test_gwy_device(gwy, test_idx)
-    except (ser.SerialException, exc.TransportSerialError) as err:
-        _global_failed_ports.append(gwy.ser_name)
-        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
+    await _test_gwy_device(real_ti3410, test_idx)
 
 
 @pytest.mark.xdist_group(name="virt_serial")
