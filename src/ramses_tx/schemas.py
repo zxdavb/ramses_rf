@@ -120,6 +120,10 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any
     }
 
 
+SCH_PACKET_LOG = vol.Schema(
+    sch_packet_log_dict_factory(default_backups=7), extra=vol.PREVENT_EXTRA
+)
+
 #
 # 3/5: Serial port configuration
 SZ_PORT_CONFIG: Final = "port_config"
