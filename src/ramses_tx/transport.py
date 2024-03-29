@@ -243,6 +243,7 @@ def _normalise(pkt_line: str) -> str:
     - handle 'strange' packets (e.g. I|08:|0008)
     """
 
+    # TODO: deprecate as only for ramses_esp <0.4.0
     # ramses_esp-specific bugs, see: https://github.com/IndaloTech/ramses_esp/issues/1
     pkt_line = re.sub("\r\r", "\r", pkt_line)
     if pkt_line[:4] == " 000":
