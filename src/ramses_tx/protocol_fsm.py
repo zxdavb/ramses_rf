@@ -84,7 +84,7 @@ class ProtocolContext:
         self.set_state(Inactive)
 
     def __repr__(self) -> str:
-        msg = f"<ProtocolContext state={self._state.__class__.__name__}"
+        msg = f"<ProtocolContext state={repr(self._state)[21:-1]}"
         if self._cmd is None:
             return msg + ">"
         if self._cmd_tx_count is None:
@@ -174,15 +174,9 @@ class ProtocolContext:
             )
 
         elif result:
-            _LOGGER.debug("BEFORE = %s: resp=%s", self, result)
+            _LOGGER.debug("BEFORE = %s: result=%s", self, result._hdr)
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_result(result)
-
-        elif state_class is WantEcho:  # logging only
-            _LOGGER.debug("BEFORE = %s: cmd_=%s", self, self._state._sent_cmd)
-
-        elif state_class is WantRply:  # logging only
-            _LOGGER.debug("BEFORE = %s: echo=%s", self, self._state._echo_pkt)
 
         else:  # logging only - IsInIdle, Inactive, etc.
             _LOGGER.debug("BEFORE = %s", self)
@@ -213,13 +207,7 @@ class ProtocolContext:
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
 
-        # No logic here, only logging...
-        if isinstance(self._state, WantEcho):
-            _LOGGER.debug("AFTER  = %s: cmd_=%s", self, self._state._sent_cmd)
-        elif isinstance(self._state, WantRply):
-            _LOGGER.debug("AFTER  = %s: echo=%s", self, self._state._echo_pkt)
-        else:
-            _LOGGER.debug("AFTER  = %s", self)
+        _LOGGER.debug("AFTER. = %s", self)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -331,6 +319,26 @@ class ProtocolContext:
             self._loop.create_task(send_fnc_wrapper(cmd))
 
 
+#
+# AFTER. = <ProtocolContext state=IsInIdle>
+# BEFORE = <ProtocolContext state=IsInIdle cmd_=2349|RQ|01:145038|08, tx_count=0/4>
+# AFTER. = <ProtocolContext state=WantEcho cmd_=2349|RQ|01:145038|08, tx_count=1/4>
+# BEFORE = <ProtocolContext state=WantEcho echo=2349|RQ|01:145038|08, tx_count=1/4>
+# AFTER. = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>
+#
+# BEFORE = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>: result=2349|RQ|01:145038|08
+# AFTER. = <ProtocolContext state=IsInIdle>
+
+#
+# AFTER. = <ProtocolContext state=IsInIdle>
+# BEFORE = <ProtocolContext state=IsInIdle cmd_=0004|RQ|01:145038|05, tx_count=0/4>
+# AFTER. = <ProtocolContext state=WantEcho cmd_=0004|RQ|01:145038|05, tx_count=1/4>
+# BEFORE = <ProtocolContext state=WantEcho echo=0004|RQ|01:145038|05, tx_count=1/4>
+# AFTER. = <ProtocolContext state=WantRply echo=0004|RQ|01:145038|05, tx_count=1/4>
+#
+# BEFORE = <ProtocolContext state=WantRply rply=0004|RP|01:145038|05, tx_count=1/4>: result=0004|RP|01:145038|05
+# AFTER. = <ProtocolContext state=IsInIdle>
+
 #######################################################################################
 
 # NOTE: Because .dst / .src may switch from Address to Device from one pkt to the next:
@@ -345,6 +353,16 @@ class ProtocolStateBase:
         self._sent_cmd: Command | None = None
         self._echo_pkt: Packet | None = None
         self._rply_pkt: Packet | None = None
+
+    def __repr__(self) -> str:
+        msg = f"<ProtocolState state={self.__class__.__name__}"
+        if self._rply_pkt:
+            return msg + f" rply={self._rply_pkt._hdr}>"
+        if self._echo_pkt:
+            return msg + f" echo={self._echo_pkt._hdr}>"
+        if self._sent_cmd:
+            return msg + f" cmd_={self._sent_cmd._hdr}>"
+        return msg + ">"
 
     def connection_made(self) -> None:  # For all states except Inactive
         """Do nothing, as (except for InActive) we're already connected."""
