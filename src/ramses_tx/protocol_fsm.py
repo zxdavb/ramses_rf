@@ -207,7 +207,13 @@ class ProtocolContext:
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
 
-        _LOGGER.debug("AFTER. = %s", self)
+        if isinstance(self._state, WantRply):
+            assert self._qos is not None, "Coding error"  # mypy hint
+            _LOGGER.debug(
+                "AFTER. = %s: wait_for_reply=%s", self, self._qos.wait_for_reply
+            )
+        else:
+            _LOGGER.debug("AFTER. = %s", self)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -319,22 +325,22 @@ class ProtocolContext:
             self._loop.create_task(send_fnc_wrapper(cmd))
 
 
-#
+# With wait_for_reply=False
 # AFTER. = <ProtocolContext state=IsInIdle>
 # BEFORE = <ProtocolContext state=IsInIdle cmd_=2349|RQ|01:145038|08, tx_count=0/4>
 # AFTER. = <ProtocolContext state=WantEcho cmd_=2349|RQ|01:145038|08, tx_count=1/4>
 # BEFORE = <ProtocolContext state=WantEcho echo=2349|RQ|01:145038|08, tx_count=1/4>
-# AFTER. = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>
+# AFTER. = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>: wait_for_reply=False
 #
 # BEFORE = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>: result=2349|RQ|01:145038|08
 # AFTER. = <ProtocolContext state=IsInIdle>
 
-#
+# With wait_for_reply=True
 # AFTER. = <ProtocolContext state=IsInIdle>
 # BEFORE = <ProtocolContext state=IsInIdle cmd_=0004|RQ|01:145038|05, tx_count=0/4>
 # AFTER. = <ProtocolContext state=WantEcho cmd_=0004|RQ|01:145038|05, tx_count=1/4>
 # BEFORE = <ProtocolContext state=WantEcho echo=0004|RQ|01:145038|05, tx_count=1/4>
-# AFTER. = <ProtocolContext state=WantRply echo=0004|RQ|01:145038|05, tx_count=1/4>
+# AFTER. = <ProtocolContext state=WantRply echo=0004|RQ|01:145038|05, tx_count=1/4>: wait_for_reply=True
 #
 # BEFORE = <ProtocolContext state=WantRply rply=0004|RP|01:145038|05, tx_count=1/4>: result=0004|RP|01:145038|05
 # AFTER. = <ProtocolContext state=IsInIdle>
