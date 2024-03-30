@@ -156,7 +156,7 @@ class BindContextBase:
     def __init__(self, dev: Fakeable) -> None:
         self._dev = dev
         self._loop = asyncio.get_running_loop()  # use self.gwy.loop?
-        self._fut: asyncio.Future | None = None
+        self._fut: asyncio.Future[Message] | None = None
 
         self.set_state(DevIsNotBinding)
 
@@ -167,15 +167,15 @@ class BindContextBase:
         return f"{self._dev.id}: {self.state}"
 
     def set_state(
-        self, state: type[BindStateBase], result: asyncio.Future | None = None
+        self, state: type[BindStateBase], result: asyncio.Future[Message] | None = None
     ) -> None:
         """Transition the State of the Context, and process the result, if any."""
 
-        if False and result:
-            try:
-                self._fut.set_result(result.result())
-            except exc.BindingError as err:
-                self._fut.set_result(err)
+        # if False and result:
+        #     try:
+        #         self._fut.set_result(result.result())
+        #     except exc.BindingError as err:
+        #         self._fut.set_result(err)
 
         if _DBG_MAINTAIN_STATE_CHAIN:  # HACK for debugging
             # if prev_state in (None, )
@@ -493,9 +493,8 @@ class BindStateBase:
             return cmd.verb == I_ and cmd.dst in (cmd.src, ALL_DEV_ADDR)
         if phase == BindPhase.ACCEPT:
             return cmd.verb == W_ and cmd.dst is not cmd.src
-        if phase == BindPhase.AFFIRM:
-            return cmd.verb == I_ and cmd.dst not in (cmd.src, ALL_DEV_ADDR)
-        return False
+        # if phase == BindPhase.AFFIRM:
+        return cmd.verb == I_ and cmd.dst not in (cmd.src, ALL_DEV_ADDR)
 
     # Respondent State APIs...
     async def wait_for_offer(self, timeout: float | None = None) -> Message:
