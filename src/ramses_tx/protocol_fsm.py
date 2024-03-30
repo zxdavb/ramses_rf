@@ -79,7 +79,7 @@ class ProtocolContext:
         self._cmd: Command | None = None
         self._qos: QosParams | None = None
         self._cmd_tx_count: int | None = None
-        self._cmd_tx_limit: int = None  # type: ignore[assignment]
+        self._cmd_tx_limit: int = 0
 
         self.set_state(Inactive)
 
@@ -88,7 +88,7 @@ class ProtocolContext:
         if self._cmd is None:
             return msg + ">"
         if self._cmd_tx_count is None:
-            return msg + ", tx_count=0/None>"
+            return msg + ", tx_count=0/0>"
         return msg + f", tx_count={self._cmd_tx_count}/{self._cmd_tx_limit}>"
 
     @property
@@ -161,12 +161,7 @@ class ProtocolContext:
             self._expiry_timer.cancel()
             self._expiry_timer = None
 
-        if result:
-            _LOGGER.debug("BEFORE = %s: result=%s", self, result)
-            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
-            self._fut.set_result(result)
-
-        elif exception:
+        if exception:
             _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_exception(exception)
@@ -178,7 +173,18 @@ class ProtocolContext:
                 exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
 
-        else:
+        elif result:
+            _LOGGER.debug("BEFORE = %s: resp=%s", self, result)
+            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
+            self._fut.set_result(result)
+
+        elif state_class is WantEcho:  # logging only
+            _LOGGER.debug("BEFORE = %s: cmd_=%s", self, self._state._sent_cmd)
+
+        elif state_class is WantRply:  # logging only
+            _LOGGER.debug("BEFORE = %s: echo=%s", self, self._state._echo_pkt)
+
+        else:  # logging only - IsInIdle, Inactive, etc.
             _LOGGER.debug("BEFORE = %s", self)
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
@@ -195,7 +201,7 @@ class ProtocolContext:
 
         elif isinstance(self._state, WantEcho):
             assert self._qos is not None, "Coding error"  # mypy hint
-            self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
+            # self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
             self._cmd_tx_count = 1
 
         elif not isinstance(self._state, WantRply):  # IsInIdle, IsInactive
@@ -207,7 +213,13 @@ class ProtocolContext:
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
 
-        _LOGGER.debug("AFTER  = %s" + (": timed_out=True" if timed_out else ""), self)
+        # No logic here, only logging...
+        if isinstance(self._state, WantEcho):
+            _LOGGER.debug("AFTER  = %s: cmd_=%s", self, self._state._sent_cmd)
+        elif isinstance(self._state, WantRply):
+            _LOGGER.debug("AFTER  = %s: echo=%s", self, self._state._echo_pkt)
+        else:
+            _LOGGER.debug("AFTER  = %s", self)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -280,6 +292,9 @@ class ProtocolContext:
                 self._cmd = self._qos = self._fut = None
                 self._lock.release()
                 return
+
+            self._cmd_tx_count = 0
+            self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
 
             assert isinstance(self._fut, asyncio.Future)  # mypy hint
             if self._fut.done():  # e.g. TimeoutError
