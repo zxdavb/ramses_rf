@@ -243,6 +243,8 @@ class ProtocolContext:
         if isinstance(self._state, Inactive):
             raise exc.ProtocolSendFailed(f"{self}: Send failed (no transport?)")
 
+        assert self._loop is asyncio.get_running_loop()  # BUG is here
+
         fut = self._loop.create_future()
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
@@ -257,7 +259,9 @@ class ProtocolContext:
             qos.timeout, self.SEND_TIMEOUT_LIMIT
         )  # incl. time queued in buffer
         try:
-            await asyncio.wait_for(fut, timeout=timeout)
+            await asyncio.wait_for(
+                fut, timeout=timeout
+            )  # RuntimeError: ... Future <Future pending> attached to a different loop
         except TimeoutError as err:  # incl. fut.cancel()
             msg = f"{self}: Expired global timer of {timeout} sec"
             if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd

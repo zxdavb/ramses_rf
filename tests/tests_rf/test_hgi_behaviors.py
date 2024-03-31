@@ -6,6 +6,7 @@
 
 """RAMSES RF - Check GWY address/type detection and its treatment of addr0."""
 
+import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -80,6 +81,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
 )
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
+
+    assert gwy._loop is asyncio.get_running_loop()  # BUG is here
 
     if not isinstance(gwy._protocol, PortProtocol) or not gwy._protocol._context:
         assert False, "QoS protocol not enabled"  # use assert, not skip
