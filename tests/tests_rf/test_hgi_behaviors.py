@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 
 # TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
