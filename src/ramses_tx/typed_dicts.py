@@ -29,6 +29,12 @@ class _0100(TypedDict):
     _unknown_0: str
 
 
+class _0418(TypedDict):
+    log_idx: str  # "00" to ?"3F"
+    # TODO: = namedtuple("Fault", "timestamp fault_state ...")
+    log_entry: tuple[str, ...] | None
+
+
 class _1060(TypedDict):
     battery_low: bool
     battery_level: float | None
@@ -207,6 +213,7 @@ class PayDictT:
     _0006: TypeAlias = _0006
     _0008: TypeAlias = _0008
     _0100: TypeAlias = _0100
+    _0418: TypeAlias = _0418
     _1060: TypeAlias = _1060
     _1081: TypeAlias = _Setpoint
     _1090: TypeAlias = _1090

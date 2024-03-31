@@ -724,11 +724,11 @@ def parser_0404(payload: str, msg: Message) -> dict:
 
 
 # system_fault
-def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
+def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
     # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
     if hex_to_dts(payload[18:30]) is None:  # a null log entry
-        return {"log_entry": None}
+        return {"log_idx": payload[4:6], "log_entry": None}
 
     try:
         assert payload[2:4] in FAULT_STATE, f"fault state: {payload[2:4]}"
@@ -773,7 +773,11 @@ def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
         }
     )
 
-    return {"log_entry": tuple(v for k, v in result.items() if k != "log_idx")}  # type: ignore[dict-item]
+    # NOTE: log_idx also from wrapper
+    return {
+        "log_idx": payload[4:6],
+        "log_entry": tuple(v for k, v in result.items() if k != "log_idx"),
+    }
 
 
 # unknown_042f, from STA, VMS
