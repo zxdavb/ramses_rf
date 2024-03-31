@@ -43,7 +43,7 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
 #######################################################################################
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # )  # scope="module")
 async def rf(request: pytest.FixtureRequest) -> AsyncGenerator[VirtualRf, None]:
     """Utilize a virtual evofw3-compatible gateway."""
 
@@ -55,7 +55,7 @@ async def rf(request: pytest.FixtureRequest) -> AsyncGenerator[VirtualRf, None]:
         await rf.stop()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 def fake_evofw3_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT | None:
     """Utilize a virtual evofw3-compatible gateway."""
 
@@ -67,7 +67,7 @@ def fake_evofw3_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
     return rf.ports[0]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT | None:
     """Utilize a virtual HGI80-compatible gateway."""
 
@@ -79,7 +79,7 @@ def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
     return rf.ports[0]
 
 
-@pytest.fixture(scope="session")  # TODO: remove HACK, below
+@pytest.fixture()  # scope="session")  # TODO: remove HACK, below
 async def real_evofw3_port() -> PortStrT | None:  # type: ignore[return]
     """Utilize an actual evofw3-compatible gateway."""
 
@@ -95,7 +95,7 @@ async def real_evofw3_port() -> PortStrT | None:  # type: ignore[return]
     pytest.skip("No evofw3-based gateway device found")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()  # scope="session")
 async def real_ti3410_port() -> PortStrT | None:  # type: ignore[return]
     """Utilize an actual HGI80-compatible gateway."""
 
@@ -110,7 +110,7 @@ async def real_ti3410_port() -> PortStrT | None:  # type: ignore[return]
 #######################################################################################
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 async def fake_evofw3(
     fake_evofw3_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
 ):
@@ -133,7 +133,7 @@ async def fake_evofw3(
             await gwy.stop()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 async def fake_ti3410(
     fake_ti3410_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
 ):
@@ -156,7 +156,7 @@ async def fake_ti3410(
             await gwy.stop()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 async def real_evofw3(real_evofw3_port: PortStrT, request: pytest.FixtureRequest):
     """Utilize an actual evofw3-compatible gateway."""
 
@@ -182,7 +182,7 @@ async def real_evofw3(real_evofw3_port: PortStrT, request: pytest.FixtureRequest
         await gwy.stop()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 async def real_ti3410(real_ti3410_port: PortStrT, request: pytest.FixtureRequest):
     """Utilize an actual HGI80-compatible gateway."""
 

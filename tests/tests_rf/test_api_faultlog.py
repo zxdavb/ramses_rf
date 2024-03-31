@@ -14,10 +14,10 @@ from ramses_tx.schemas import DeviceIdT
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio(scope="module")
+pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 def gwy_config():
     return {
         "config": {
@@ -35,7 +35,7 @@ def gwy_config():
 async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT):
     """Test obtaining the fault log."""
 
-    assert gwy._loop is asyncio.get_running_loop()  # BUG is here
+    assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
 
     # TODO: These values should be asserted in protocol FSM tests
     assert gwy._protocol._context.echo_timeout == 0.5

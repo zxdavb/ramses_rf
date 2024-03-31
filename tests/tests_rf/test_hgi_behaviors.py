@@ -48,10 +48,10 @@ TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio(scope="module")
+pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 def gwy_config():
     return {
         "config": {
@@ -63,7 +63,7 @@ def gwy_config():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # scope="module")
 def gwy_dev_id():
     return TST_ID_
 
@@ -82,7 +82,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
 async def _test_gwy_device(gwy: Gateway, test_idx: str):
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
 
-    assert gwy._loop is asyncio.get_running_loop()  # BUG is here
+    assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
 
     if not isinstance(gwy._protocol, PortProtocol) or not gwy._protocol._context:
         assert False, "QoS protocol not enabled"  # use assert, not skip
