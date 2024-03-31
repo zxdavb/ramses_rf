@@ -1,19 +1,23 @@
 """Fixtures for testing."""
 
 import logging
+from collections.abc import AsyncGenerator
+from typing import TypeAlias
 from unittest.mock import patch
 
 import pytest
-import serial as ser
-from serial.tools.list_ports import comports
+import serial as ser  # type: ignore[import-untyped]
+from serial.tools.list_ports import comports  # type: ignore[import-untyped]
 
 from ramses_rf import Gateway
 from ramses_rf.device import HgiGateway
 from ramses_tx import exceptions as exc
-from ramses_tx.address import HGI_DEVICE_ID
+from ramses_tx.address import HGI_DEVICE_ID, DeviceIdT
 from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 #
+PortStrT: TypeAlias = str
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -37,7 +41,7 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(scope="session")
-async def rf():
+async def rf() -> AsyncGenerator[VirtualRf, None]:
     """Utilize a virtual evofw3-compatible gateway."""
 
     rf = VirtualRf(2)
@@ -49,31 +53,31 @@ async def rf():
 
 
 @pytest.fixture(scope="session")
-async def fake_evofw3_port(request: pytest.FixtureRequest, rf: VirtualRf):
+def fake_evofw3_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT | None:
     """Utilize a virtual evofw3-compatible gateway."""
 
-    gwy_dev_id = request.getfixturevalue("gwy_dev_id")
+    gwy_dev_id: DeviceIdT = request.getfixturevalue("gwy_dev_id")
 
     rf.set_gateway(rf.ports[0], gwy_dev_id, fw_type=HgiFwTypes.EVOFW3)
 
     # with patch("ramses_tx.transport.comports", rf.comports):
-    yield rf.ports[0]
+    return rf.ports[0]
 
 
 @pytest.fixture(scope="session")
-async def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf):
+def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT | None:
     """Utilize a virtual HGI80-compatible gateway."""
 
-    gwy_dev_id = request.getfixturevalue("gwy_dev_id")
+    gwy_dev_id: DeviceIdT = request.getfixturevalue("gwy_dev_id")
 
     rf.set_gateway(rf.ports[0], gwy_dev_id, fw_type=HgiFwTypes.HGI_80)
 
     # with patch("ramses_tx.transport.comports", rf.comports):
-    yield rf.ports[0]
+    return rf.ports[0]
 
 
 @pytest.fixture(scope="session")  # TODO: remove HACK, below
-async def real_evofw3_port():
+async def real_evofw3_port() -> PortStrT | None:  # type: ignore[return]
     """Utilize an actual evofw3-compatible gateway."""
 
     port_names = [p.device for p in comports() if p.product and "evofw3" in p.product]
@@ -89,7 +93,7 @@ async def real_evofw3_port():
 
 
 @pytest.fixture(scope="session")
-async def real_ti3410_port():
+async def real_ti3410_port() -> PortStrT | None:  # type: ignore[return]
     """Utilize an actual HGI80-compatible gateway."""
 
     port_names = [p.device for p in comports() if p.product and "TUSB3410" in p.product]
@@ -104,10 +108,12 @@ async def real_ti3410_port():
 
 
 @pytest.fixture(scope="session")
-async def fake_evofw3(fake_evofw3_port, request: pytest.FixtureRequest, rf: VirtualRf):
+async def fake_evofw3(
+    fake_evofw3_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
+):
     """Utilize a virtual evofw3-compatible gateway."""
 
-    gwy_config = request.getfixturevalue("gwy_config")
+    gwy_config: dict = request.getfixturevalue("gwy_config")
     gwy_dev_id = request.getfixturevalue("gwy_dev_id")
 
     with patch("ramses_tx.transport.comports", rf.comports):
@@ -125,10 +131,12 @@ async def fake_evofw3(fake_evofw3_port, request: pytest.FixtureRequest, rf: Virt
 
 
 @pytest.fixture(scope="session")
-async def fake_ti3410(fake_ti3410_port, request: pytest.FixtureRequest, rf: VirtualRf):
+async def fake_ti3410(
+    fake_ti3410_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
+):
     """Utilize a virtual HGI80-compatible gateway."""
 
-    gwy_config = request.getfixturevalue("gwy_config")
+    gwy_config: dict = request.getfixturevalue("gwy_config")
     gwy_dev_id = request.getfixturevalue("gwy_dev_id")
 
     with patch("ramses_tx.transport.comports", rf.comports):
@@ -146,12 +154,12 @@ async def fake_ti3410(fake_ti3410_port, request: pytest.FixtureRequest, rf: Virt
 
 
 @pytest.fixture(scope="session")
-async def real_evofw3(real_evofw3_port, request: pytest.FixtureRequest):
+async def real_evofw3(real_evofw3_port: PortStrT, request: pytest.FixtureRequest):
     """Utilize an actual evofw3-compatible gateway."""
 
     global _global_failed_ports
 
-    gwy_config = request.getfixturevalue("gwy_config")
+    gwy_config: dict = request.getfixturevalue("gwy_config")
 
     try:
         gwy = Gateway(real_evofw3_port, **gwy_config)
@@ -172,12 +180,12 @@ async def real_evofw3(real_evofw3_port, request: pytest.FixtureRequest):
 
 
 @pytest.fixture(scope="session")
-async def real_ti3410(real_ti3410_port, request: pytest.FixtureRequest):
+async def real_ti3410(real_ti3410_port: PortStrT, request: pytest.FixtureRequest):
     """Utilize an actual HGI80-compatible gateway."""
 
     global _global_failed_ports
 
-    gwy_config = request.getfixturevalue("gwy_config")
+    gwy_config: dict = request.getfixturevalue("gwy_config")
 
     try:
         gwy = Gateway(real_ti3410_port, **gwy_config)
