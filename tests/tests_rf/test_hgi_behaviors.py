@@ -10,15 +10,12 @@
 from unittest.mock import patch
 
 import pytest
-import serial as ser
 
 from ramses_rf import Command, Gateway
-from ramses_rf.device import HgiGateway
 from ramses_tx import exceptions as exc
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.protocol import PortProtocol
 from ramses_tx.typing import QosParams
-from tests_rf.virtual_rf import VirtualRf
 
 # patched constants
 _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
@@ -28,7 +25,7 @@ ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TI
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
 HGI_ID_ = HGI_DEVICE_ID  # the sentinel value
-TST_ID_ = "18:222222"  # a specific ID
+TST_ID_ = "18:222222"  # the id of the test HGI80-compatible device
 
 GWY_CONFIG = {
     "config": {
@@ -57,101 +54,23 @@ TEST_CMDS = {  # test command strings (no impersonation)
 TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_]
 
 
-_global_failed_ports: list[str] = []
-
-
 # ### FIXTURES #########################################################################
 
 pytestmark = pytest.mark.asyncio(scope="session")
 
 
+@pytest.fixture(scope="session")
+def gwy_config():
+    return GWY_CONFIG
+
+
+@pytest.fixture(scope="session")
+def gwy_dev_id():
+    return TST_ID_
+
+
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("test_idx", TEST_CMDS)
-
-
-@pytest.fixture(scope="session")
-async def fake_evofw3(fake_evofw3_port, rf: VirtualRf):
-    """Utilize a virtual evofw3-compatible gateway."""
-
-    with patch("ramses_tx.transport.comports", rf.comports):
-        gwy = Gateway(fake_evofw3_port, **GWY_CONFIG)
-        assert gwy.hgi is None and gwy.devices == []
-
-        await gwy.start()
-        assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id == TST_ID_
-        assert gwy._protocol._is_evofw3 is True
-
-        try:
-            yield gwy
-        finally:
-            await gwy.stop()
-
-
-@pytest.fixture(scope="session")
-async def fake_ti3410(fake_ti3410_port, rf: VirtualRf):
-    """Utilize a virtual HGI80-compatible gateway."""
-
-    with patch("ramses_tx.transport.comports", rf.comports):
-        gwy = Gateway(fake_ti3410_port, **GWY_CONFIG)
-        assert gwy.hgi is None and gwy.devices == []
-
-        await gwy.start()
-        assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id == TST_ID_
-        assert gwy._protocol._is_evofw3 is False
-
-        try:
-            yield gwy
-        finally:
-            await gwy.stop()
-
-
-@pytest.fixture(scope="session")
-async def real_evofw3(real_evofw3_port):
-    """Utilize an actual evofw3-compatible gateway."""
-
-    global _global_failed_ports
-
-    try:
-        gwy = Gateway(real_evofw3_port, **GWY_CONFIG)
-    except (ser.SerialException, exc.TransportSerialError) as err:
-        _global_failed_ports.append(real_evofw3_port)
-        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
-
-    assert gwy.hgi is None and gwy.devices == []
-
-    await gwy.start()
-    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
-    assert gwy._protocol._is_evofw3 is True
-
-    try:
-        yield gwy
-    finally:
-        await gwy.stop()
-
-
-@pytest.fixture(scope="session")
-async def real_ti3410(real_ti3410_port):
-    """Utilize an actual HGI80-compatible gateway."""
-
-    global _global_failed_ports
-
-    try:
-        gwy = Gateway(real_ti3410_port, **GWY_CONFIG)
-    except (ser.SerialException, exc.TransportSerialError) as err:
-        _global_failed_ports.append(real_ti3410_port)
-        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
-
-    assert gwy.hgi is None and gwy.devices == []
-
-    await gwy.start()
-    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_ID_)
-    gwy._protocol._is_evofw3 = False  # HACK: FIXME (should not be needed)
-    assert gwy._protocol._is_evofw3 is False
-
-    try:
-        yield gwy
-    finally:
-        await gwy.stop()
 
 
 # ### TESTS ############################################################################
@@ -202,6 +121,9 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
         pkt_str = cmd_str
 
     assert pkt._frame == pkt_str
+
+
+# ### TESTS ############################################################################
 
 
 @pytest.mark.xdist_group(name="real_serial")
