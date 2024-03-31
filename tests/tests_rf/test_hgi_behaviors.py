@@ -48,10 +48,10 @@ TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio(scope="module")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def gwy_config():
     return {
         "config": {
@@ -63,7 +63,7 @@ def gwy_config():
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def gwy_dev_id():
     return TST_ID_
 

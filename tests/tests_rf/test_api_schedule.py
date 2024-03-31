@@ -15,10 +15,10 @@ from ramses_tx.schemas import DeviceIdT
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio(scope="module")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def gwy_config():
     return {
         "config": {
