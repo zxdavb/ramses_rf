@@ -23,7 +23,7 @@ MAX_SEND_TIMEOUT: Final[float] = 15.0  # for a command to be sent, incl. queuing
 
 MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
 
-MINIMUM_WRITE_GAP: Final[float] = 0.02  # seconds
+MINIMUM_WRITE_GAP: Final[float] = 0.05  # seconds
 DEFAULT_GAP_DURATION: Final[float] = MINIMUM_WRITE_GAP
 DEFAULT_MAX_RETRIES: Final[int] = 3
 DEFAULT_NUM_REPEATS: Final[int] = 1
@@ -44,7 +44,7 @@ SZ_SIGNATURE: Final = "signature"
 SZ_IS_EVOFW3: Final = "is_evofw3"
 
 MAX_DUTY_CYCLE_RATE = 0.01  # % bandwidth used per cycle (default 60 secs)
-DUTY_CYCLE_DURATION = 60  # # seconds
+DUTY_CYCLE_DURATION = 30  # # seconds
 
 
 # used by schedule.py...
