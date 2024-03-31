@@ -24,17 +24,9 @@ _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
 ASSERT_CYCLE_TIME = 0.001  # max_cycles_per_assert = max_sleep / ASSERT_CYCLE_TIME
 DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
+
 HGI_ID_ = HGI_DEVICE_ID  # the sentinel value
 TST_ID_ = "18:222222"  # the id of the test HGI80-compatible device
-
-GWY_CONFIG = {
-    "config": {
-        "disable_discovery": True,
-        "disable_qos": False,  # this is required for this test
-        "enforce_known_list": False,
-    },
-    "known_list": {"18:000730": {}},  # required to thwart foreign HGI blacklisting
-}
 
 TEST_CMDS = {  # test command strings (no impersonation)
     10: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
@@ -61,7 +53,14 @@ pytestmark = pytest.mark.asyncio(scope="session")
 
 @pytest.fixture(scope="session")
 def gwy_config():
-    return GWY_CONFIG
+    return {
+        "config": {
+            "disable_discovery": True,
+            "disable_qos": False,  # this is required for this test
+            "enforce_known_list": False,
+        },
+        "known_list": {HGI_DEVICE_ID: {}},  # req'd to thwart foreign HGI blacklisting
+    }
 
 
 @pytest.fixture(scope="session")
@@ -104,18 +103,18 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
             cmd, qos=QosParams(wait_for_reply=False, timeout=0.1)
         )  # for this test, we only need the cmd echo
     except exc.ProtocolSendFailed:
-        if is_hgi80 and cmd_str[7:16] != HGI_ID_:
+        if is_hgi80 and cmd_str[7:16] != HGI_DEVICE_ID:
             return  # should have failed, and has
         raise  # should not have failed, but has!
 
     assert pkt is not None
 
-    if is_hgi80 and cmd_str[7:16] != HGI_ID_:
+    if is_hgi80 and cmd_str[7:16] != HGI_DEVICE_ID:
         assert False, pkt  # should have failed, but has not!
 
     # NOTE: both HGI80/evofw3 will swap out addr0 (only) for its own device_id
 
-    if cmd_str[7:16] == HGI_ID_:
+    if cmd_str[7:16] == HGI_DEVICE_ID:
         pkt_str = cmd_str[:7] + gwy.hgi.id + cmd_str[16:]
     else:
         pkt_str = cmd_str
