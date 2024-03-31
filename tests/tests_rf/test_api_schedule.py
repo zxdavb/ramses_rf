@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 """RAMSES RF - Check get/set of zone/DHW schedules."""
 
@@ -11,6 +10,7 @@ from ramses_rf import Gateway
 from ramses_rf.device import Controller
 from ramses_rf.system import Evohome, Zone
 from ramses_tx.address import HGI_DEVICE_ID
+from ramses_tx.schemas import DeviceIdT
 
 # ### FIXTURES #########################################################################
 
@@ -33,8 +33,8 @@ def gwy_config():
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def _test_get_schedule(gwy: Gateway, ctl_id: str, idx: str):
-    """Test obtaining the schedule version."""
+async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str):
+    """Test obtaining the version and schedule."""
 
     # TODO: These values should be asserted in protocol FSM tests
     assert gwy._protocol._context.echo_timeout == 0.5
@@ -57,6 +57,6 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: str, idx: str):
 
 @pytest.mark.xdist_group(name="real_serial")
 async def test_get_schedule_real(real_evofw3: Gateway):
-    """Test obtaining the schedule version from a real controller."""
+    """Test obtaining the schedule from a real controller."""
 
     await _test_get_schedule(real_evofw3, "01:145038", "01")
