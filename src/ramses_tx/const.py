@@ -512,7 +512,6 @@ SZ_ACTUATORS: Final = "actuators"
 SZ_BINDINGS: Final = "bindings"
 SZ_DATETIME: Final = "datetime"
 SZ_DEMAND: Final = "demand"
-SZ_DEVICE_CLASS: Final = "device_class"  # used in 0418 only?
 SZ_DEVICE_ID: Final = "device_id"
 SZ_DEVICE_ROLE: Final = "device_role"
 SZ_DEVICES: Final = "devices"
@@ -523,7 +522,6 @@ SZ_HEAT_DEMAND: Final = "heat_demand"
 SZ_IS_DST: Final = "is_dst"
 SZ_LANGUAGE: Final = "language"
 SZ_LOCAL_OVERRIDE: Final = "local_override"
-SZ_LOG_IDX: Final = "log_idx"
 SZ_MAX_TEMP: Final = "max_temp"
 SZ_MIN_TEMP: Final = "min_temp"
 SZ_MODE: Final = "mode"
@@ -552,6 +550,16 @@ SZ_ZONE_IDX: Final = "zone_idx"
 SZ_ZONE_MASK: Final = "zone_mask"
 SZ_ZONE_TYPE: Final = "zone_type"
 SZ_ZONES: Final = "zones"
+
+# used in 0418 only?
+SZ_DEVICE_CLASS: Final = "device_class"
+# _DEVICE_ID: Final = "device_id"
+SZ_DOMAIN_IDX: Final = "domain_idx"
+SZ_FAULT_STATE: Final = "fault_state"
+SZ_FAULT_TYPE: Final = "fault_type"
+SZ_LOG_ENTRY: Final = "log_entry"
+SZ_LOG_IDX: Final = "log_idx"
+SZ_TIMESTAMP: Final = "timestamp"
 
 # used in 1FC9
 SZ_OFFER: Final = "offer"
@@ -625,28 +633,60 @@ MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
 
 # Used by 0418/system_fault parser
-FAULT_DEVICE_CLASS: Final[dict[str, str]] = {
-    "00": "controller",
-    "01": "sensor",
-    "02": "setpoint",
-    "04": "actuator",  # if domain is FC, then "boiler_relay"
-    "05": "dhw_sensor",
-    "06": "rf_gateway",
+class FaultDeviceClass(StrEnum):
+    CONTROLLER = "controller"
+    SENSOR = "sensor"
+    SETPOINT = "setpoint"
+    ACTUATOR = "actuator"  # if domain is FC, then "boiler_relay"
+    DHW_ACTUATOR = "dhw_sensor"
+    RF_GATEWAY = "rf_gateway"
+    BOILER_RELAY = "boiler_relay"
+    UNKNOWN = "uknown"
+
+
+FAULT_DEVICE_CLASS: Final[dict[str, FaultDeviceClass]] = {
+    "00": FaultDeviceClass.CONTROLLER,
+    "01": FaultDeviceClass.SENSOR,
+    "02": FaultDeviceClass.SETPOINT,
+    "04": FaultDeviceClass.ACTUATOR,  # if domain is FC, then BOILER_RELAY
+    "05": FaultDeviceClass.DHW_ACTUATOR,
+    "06": FaultDeviceClass.RF_GATEWAY,
 }
-FAULT_STATE: Final[dict[str, str]] = {
-    "00": "fault",
-    "40": "restore",
-    "C0": "unknown_c0",  # C0s do not appear in the evohome UI
+
+
+class FaultState(StrEnum):
+    FAULT = "fault"
+    RESTORE = "restore"
+    UNKNOWN = "unknown"
+
+
+FAULT_STATE: Final[dict[str, FaultState]] = {
+    "00": FaultState.FAULT,
+    "40": FaultState.RESTORE,
+    "C0": FaultState.UNKNOWN,  # C0s do not appear in the evohome UI
 }
-FAULT_TYPE: Final[dict[str, str]] = {
-    "01": "system_fault",
-    "03": "mains_low",
-    "04": "battery_low",
-    "05": "battery_error",  # actually: 'evotouch_battery_error'
-    "06": "comms_fault",
-    "07": "sensor_fault",  # seen with zone sensor
-    "0A": "sensor_error",
-    "??": "bad_value",
+
+
+class FaultType(StrEnum):
+    SYSTEM_FAULT = "system_fault"
+    MAINS_LOW = "mains_low"
+    BATTERY_LOW = "battery_low"
+    BATTERY_ERROR = "battery_error"  # actually: 'evotouch_battery_error'
+    COMMS_FAULT = "comms_fault"
+    SENSOR_FAULT = "sensor_fault"  # seen with zone sensor
+    SENSOR_ERROR = "sensor_error"
+    BAD_VALUE = "bad_value"
+    UNKNOWN = "unknown"
+
+
+FAULT_TYPE: Final[dict[str, FaultType]] = {
+    "01": FaultType.SYSTEM_FAULT,
+    "03": FaultType.MAINS_LOW,
+    "04": FaultType.BATTERY_LOW,
+    "05": FaultType.BATTERY_ERROR,  # actually: 'evotouch_battery_error'
+    "06": FaultType.COMMS_FAULT,
+    "07": FaultType.SENSOR_FAULT,  # seen with zone sensor
+    "0A": FaultType.SENSOR_ERROR,
 }
 
 

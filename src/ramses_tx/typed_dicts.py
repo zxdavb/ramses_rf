@@ -2,6 +2,9 @@
 
 from typing import NotRequired, TypeAlias, TypedDict
 
+from ramses_tx.const import FaultDeviceClass, FaultState, FaultType
+from ramses_tx.schemas import DeviceIdT
+
 _HexToTempT: TypeAlias = float | None
 
 
@@ -29,7 +32,7 @@ class _0100(TypedDict):
     _unknown_0: str
 
 
-class _0418(TypedDict):
+class _0418(TypedDict):  # NOTE: not identical to FaultLogEntry
     log_idx: str  # "00" to ?"3F"
     # TODO: = namedtuple("Fault", "timestamp fault_state ...")
     log_entry: tuple[str, ...] | None
@@ -100,6 +103,19 @@ class _Setpoint(TypedDict):
 
 class _Temperature(TypedDict):
     temperature: _HexToTempT
+
+
+class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
+    log_idx: str  # "00" to ?"3F"
+    timestamp: str
+    fault_state: FaultState
+    fault_type: FaultType
+    domain_idx: str | None
+    device_class: FaultDeviceClass
+    device_id: DeviceIdT | None
+    _unknown_3: str
+    _unknown_7: str
+    _unknown_15: str
 
 
 # These are from 31DA...
@@ -239,6 +255,7 @@ class PayDictT:
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
 
+    FAULT_LOG_ENTRY: TypeAlias = FaultLogEntry
     TEMPERATURE: TypeAlias = _Temperature
 
     # 31DA primitives
