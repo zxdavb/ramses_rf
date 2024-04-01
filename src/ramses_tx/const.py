@@ -657,7 +657,7 @@ FAULT_DEVICE_CLASS: Final[dict[str, FaultDeviceClass]] = {
 class FaultState(StrEnum):
     FAULT = "fault"
     RESTORE = "restore"
-    UNKNOWN = "unknown"
+    UNKNOWN = "unknown_c0"
 
 
 FAULT_STATE: Final[dict[str, FaultState]] = {
