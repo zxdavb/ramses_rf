@@ -23,7 +23,7 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("f_name", sorted(Path(WORK_DIR).glob("*.log")), ids=id_fnc)
 
 
-def _proc_log_line(pkt_line):  # noqa: F811
+def _proc_log_line(pkt_line):
     pkt_line, pkt_dict, *_ = list(
         map(str.strip, pkt_line.split("#", maxsplit=1) + [""])
     )
@@ -54,7 +54,7 @@ def _proc_log_line(pkt_line):  # noqa: F811
         return
 
 
-def test_parsers_from_log_files(f_name):  # noqa: F811
+def test_parsers_from_log_files(f_name):
     with open(f_name) as f:
         while line := (f.readline()):
             _proc_log_line(line)

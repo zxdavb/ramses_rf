@@ -235,7 +235,7 @@ _SCH_TRAITS_DOMAINS = ("heat", "hvac")
 _SCH_TRAITS_HVAC_SCHEMES = ("itho", "nuaire", "orcon")
 
 
-DeviceTraitsT = TypedDict(  # noqa: UP013
+DeviceTraitsT = TypedDict(
     "DeviceTraitsT",
     {
         "alias": str | None,

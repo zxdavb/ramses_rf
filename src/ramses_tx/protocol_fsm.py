@@ -186,7 +186,7 @@ class ProtocolContext:
         self._state = state_class(self)  # keep atomic with tx_count / tx_limit calcs
 
         if _DBG_MAINTAIN_STATE_CHAIN:  # for debugging
-            # tattr(prev_state, "_next_state", self._state)  # noqa: B010
+            # tattr(prev_state, "_next_state", self._state)
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
         if timed_out:  # isinstance(self._state, WantEcho):

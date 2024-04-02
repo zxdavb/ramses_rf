@@ -15,7 +15,7 @@ from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 
 
-def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+def _test_api_good(api, packets):  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
@@ -28,7 +28,7 @@ def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _assert_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
+def _assert_pkt_from_frame(pkt_line) -> Packet:
     """Create a pkt from a pkt_line and assert their frames match."""
 
     pkt = Packet.from_port(dt.now(), pkt_line)
@@ -36,7 +36,7 @@ def _assert_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
     return pkt
 
 
-def _assert_cmd_from_msg(api, msg) -> None:  # noqa: F811
+def _assert_cmd_from_msg(api, msg) -> None:
     cmd = api(
         msg.src.id,
         **{k: v for k, v in msg.payload.items() if k[:1] != "_"},
@@ -52,7 +52,7 @@ def _assert_cmd_from_msg(api, msg) -> None:  # noqa: F811
     return cmd
 
 
-def test_pet_0005():  # noqa: F811
+def test_pet_0005():
     _test_api_good(Command.put_system_zones, PUT_0005_GOOD)
 
 

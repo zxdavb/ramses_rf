@@ -13,7 +13,7 @@ from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 
 
-def _test_api(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+def _test_api(api, packets):  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line, kwargs in packets.items():
@@ -25,7 +25,7 @@ def _test_api(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
         _test_api_from_msg(api, msg)
 
 
-def _create_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
+def _create_pkt_from_frame(pkt_line) -> Packet:
     """Create a pkt from a pkt_line and assert their frames match."""
 
     pkt = Packet.from_port(dt.now(), pkt_line)
@@ -33,7 +33,7 @@ def _create_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
     return pkt
 
 
-def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
+def _test_api_from_msg(api, msg) -> Command:
     """Create a cmd from a msg and assert they're equal (*also* asserts payload)."""
 
     cmd = api(
@@ -53,7 +53,7 @@ def _test_api_from_kwargs(api, pkt, **kwargs):
     assert str(cmd) == str(pkt)
 
 
-def test_set():  # noqa: F811
+def test_set():
     for test_pkts in (SET_22F1_KWARGS, SET_22F7_KWARGS):
         pkt = list(test_pkts)[0]
         api = CODE_API_MAP[f"{pkt[4:6]}|{pkt[41:45]}"]

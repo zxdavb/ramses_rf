@@ -16,8 +16,8 @@ except ModuleNotFoundError as err:
     pytest.skip(f"{err}", allow_module_level=True)  # No module named 'colorama'
 
 
-from ramses_cli import _DBG_CLI  # noqa: E402, I001
-from ramses_cli.client import PARSE, cli  # noqa: E402, I001
+from ramses_cli import _DBG_CLI  # noqa: E402
+from ramses_cli.client import PARSE, cli  # noqa: E402
 
 # TODO: add tests for:
 # client execute /dev/ttyACM0 -x "RQ 01:145038 1F09 00"

@@ -1022,7 +1022,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 Code._1100,
                 Code._3B00,
             ):
-                assert False, f"Unexpected code with a domain_id: {msg.code}"  # noqa: B011
+                assert False, f"Unexpected code with a domain_id: {msg.code}"
 
     @property
     def heat_demands(self) -> dict | None:  # 3150

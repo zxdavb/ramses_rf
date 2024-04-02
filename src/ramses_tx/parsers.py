@@ -1924,7 +1924,7 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
 
     else:
         # msg.len in (8, 16)  # evohome 8, hometronics 16
-        assert False, f"Packet length is {msg.len} (expecting 8, 16)"  # noqa: B011
+        assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     result: PayDictT._2E04 = {SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]]}
     if payload[:2] not in (
