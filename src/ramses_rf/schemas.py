@@ -44,6 +44,7 @@ from ramses_tx.schemas import (  # noqa: F401
     SZ_KNOWN_LIST,
     SZ_PACKET_LOG,
     SZ_SCHEME,
+    DeviceIdT,
     sch_packet_log_dict_factory,
     select_device_filter_mode,
 )
@@ -313,13 +314,13 @@ SCH_RESTORE_CACHE_DICT = {
 
 #
 # 6/5: Other stuff
-def _get_device(gwy: Gateway, dev_id: str, **kwargs: Any) -> Device:  # , **traits
+def _get_device(gwy: Gateway, dev_id: DeviceIdT, **kwargs: Any) -> Device:  # , **traits
     """Raise an LookupError if a device_id is filtered out by a list.
 
     The underlying method is wrapped only to provide a better error message.
     """
 
-    def check_filter_lists(dev_id: str) -> None:
+    def check_filter_lists(dev_id: DeviceIdT) -> None:
         """Raise an LookupError if a device_id is filtered out by a list."""
 
         err_msg = None
@@ -338,7 +339,9 @@ def _get_device(gwy: Gateway, dev_id: str, **kwargs: Any) -> Device:  # , **trai
     return gwy.get_device(dev_id, **kwargs)
 
 
-def load_schema(gwy: Gateway, known_list: dict | None = None, **schema) -> None:
+def load_schema(
+    gwy: Gateway, known_list: dict[DeviceIdT, Any] | None = None, **schema
+) -> None:
     """Instantiate all entities in the schema, and faked devices in the known_list."""
 
     known_list = known_list or {}
@@ -346,14 +349,14 @@ def load_schema(gwy: Gateway, known_list: dict | None = None, **schema) -> None:
     # schema: dict = SCH_GLOBAL_SCHEMAS_DICT(schema)
 
     [
-        load_tcs(gwy, ctl_id, schema)
+        load_tcs(gwy, ctl_id, schema)  # type: ignore[arg-type]
         for ctl_id, schema in schema.items()
         if re.match(DEVICE_ID_REGEX.ANY, ctl_id) and SZ_REMOTES not in schema
     ]
     if schema.get(SZ_MAIN_TCS):
         gwy._tcs = gwy.system_by_id.get(schema[SZ_MAIN_TCS])
     [
-        load_fan(gwy, fan_id, schema)
+        load_fan(gwy, fan_id, schema)  # type: ignore[arg-type]
         for fan_id, schema in schema.items()
         if re.match(DEVICE_ID_REGEX.ANY, fan_id) and SZ_REMOTES in schema
     ]
@@ -371,7 +374,7 @@ def load_schema(gwy: Gateway, known_list: dict | None = None, **schema) -> None:
                 dev._make_fake()
 
 
-def load_fan(gwy: Gateway, fan_id: str, schema: dict) -> Device:
+def load_fan(gwy: Gateway, fan_id: DeviceIdT, schema: dict) -> Device:
     """Create a FAN using its schema (i.e. with remotes, sensors)."""
 
     fan = _get_device(gwy, fan_id)
@@ -380,7 +383,7 @@ def load_fan(gwy: Gateway, fan_id: str, schema: dict) -> Device:
     return fan
 
 
-def load_tcs(gwy: Gateway, ctl_id: str, schema: dict) -> Evohome:
+def load_tcs(gwy: Gateway, ctl_id: DeviceIdT, schema: dict) -> Evohome:
     """Create a TCS using its schema."""
     # print(schema)
     # schema = SCH_TCS_ZONES_ZON(schema)

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Final
 from ramses_rf import exceptions as exc
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_tx import CODES_SCHEMA, Command, Priority
+from ramses_tx.address import DeviceIdT
 from ramses_tx.opentherm import OTB_MSG_IDS
 
 # Beware, none of this is reliable - it is all subject to random change
@@ -103,14 +104,16 @@ async def exec_cmd(gwy: Gateway, **kwargs):
 
 
 # @script_decorator
-# async def script_scan_001(gwy: Gateway, dev_id: str):
+# async def script_scan_001(gwy: Gateway, dev_id: DeviceIdT):
 #     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 #     for idx in range(0x10):
 #         gwy.send_cmd(Command.from_attrs(W_, dev_id, Code._000E, f"{idx:02X}0050"))
 #         gwy.send_cmd(Command.from_attrs(RQ, dev_id, Code._000E, f"{idx:02X}00C8"))
 
 
-async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3F):
+async def get_faults(
+    gwy: Gateway, ctl_id: DeviceIdT, start: int = 0, limit: int = 0x3F
+):
     ctl = gwy.get_device(ctl_id)
 
     try:
@@ -119,7 +122,7 @@ async def get_faults(gwy: Gateway, ctl_id: str, start: int = 0, limit: int = 0x3
         _LOGGER.error("get_faults(): Function timed out: %s", err)
 
 
-async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
+async def get_schedule(gwy: Gateway, ctl_id: DeviceIdT, zone_idx: str) -> None:
     zone = gwy.get_device(ctl_id).tcs.get_htg_zone(zone_idx)
 
     try:
@@ -128,7 +131,7 @@ async def get_schedule(gwy: Gateway, ctl_id: str, zone_idx: str) -> None:
         _LOGGER.error("get_schedule(): Function timed out: %s", err)
 
 
-async def set_schedule(gwy: Gateway, ctl_id: str, schedule) -> None:
+async def set_schedule(gwy: Gateway, ctl_id: DeviceIdT, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule[SZ_ZONE_IDX]
 
@@ -140,17 +143,17 @@ async def set_schedule(gwy: Gateway, ctl_id: str, schedule) -> None:
         _LOGGER.error("set_schedule(): Function timed out: %s", err)
 
 
-async def script_bind_req(gwy: Gateway, dev_id: str):
+async def script_bind_req(gwy: Gateway, dev_id: DeviceIdT):
     gwy.get_device(dev_id)._make_fake(bind=True)
 
 
 async def script_bind_wait(
-    gwy: Gateway, dev_id: str, code: Code = Code._2309, idx: IndexT = "00"
+    gwy: Gateway, dev_id: DeviceIdT, code: Code = Code._2309, idx: IndexT = "00"
 ):
     gwy.get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
-def script_poll_device(gwy: Gateway, dev_id: str) -> list:
+def script_poll_device(gwy: Gateway, dev_id: DeviceIdT) -> list:
     async def periodic_send(
         gwy: Gateway,
         cmd: Command,
@@ -184,14 +187,14 @@ def script_poll_device(gwy: Gateway, dev_id: str) -> list:
 
 
 @script_decorator
-async def script_scan_disc(gwy: Gateway, dev_id: str):
+async def script_scan_disc(gwy: Gateway, dev_id: DeviceIdT):
     _LOGGER.warning("scan_disc() invoked...")
 
     await gwy.get_device(dev_id).discover()  # discover_flag=Discover.DEFAULT)
 
 
 @script_decorator
-async def script_scan_full(gwy: Gateway, dev_id: str):
+async def script_scan_full(gwy: Gateway, dev_id: DeviceIdT):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     gwy.send_cmd(Command.from_attrs(RQ, dev_id, Code._0016, "0000"), num_repeats=3)
@@ -250,7 +253,9 @@ async def script_scan_full(gwy: Gateway, dev_id: str):
 
 
 @script_decorator
-async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int = None):
+async def script_scan_hard(
+    gwy: Gateway, dev_id: DeviceIdT, *, start_code: None | int = None
+):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
     start_code = start_code or 0
@@ -263,7 +268,7 @@ async def script_scan_hard(gwy: Gateway, dev_id: str, *, start_code: None | int 
 
 
 @script_decorator
-async def script_scan_fan(gwy: Gateway, dev_id: str):
+async def script_scan_fan(gwy: Gateway, dev_id: DeviceIdT):
     _LOGGER.warning("scan_fan() invoked - expect a lot of nonsense")
 
     from ramses_tx.ramses import _DEV_KLASSES_HVAC
@@ -310,7 +315,7 @@ async def script_scan_fan(gwy: Gateway, dev_id: str):
 
 
 @script_decorator
-async def script_scan_otb(gwy: Gateway, dev_id: str):
+async def script_scan_otb(gwy: Gateway, dev_id: DeviceIdT):
     _LOGGER.warning("script_scan_otb_full invoked - expect a lot of nonsense")
 
     for msg_id in OTB_MSG_IDS:
@@ -318,7 +323,7 @@ async def script_scan_otb(gwy: Gateway, dev_id: str):
 
 
 @script_decorator
-async def script_scan_otb_hard(gwy: Gateway, dev_id: str):
+async def script_scan_otb_hard(gwy: Gateway, dev_id: DeviceIdT):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     for msg_id in range(0x80):
@@ -326,7 +331,9 @@ async def script_scan_otb_hard(gwy: Gateway, dev_id: str):
 
 
 @script_decorator
-async def script_scan_otb_map(gwy: Gateway, dev_id: str):  # Tested only upon a R8820A
+async def script_scan_otb_map(
+    gwy: Gateway, dev_id: DeviceIdT
+):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_map invoked - expect a lot of nonsense")
 
     RAMSES_TO_OPENTHERM = {
@@ -349,7 +356,7 @@ async def script_scan_otb_map(gwy: Gateway, dev_id: str):  # Tested only upon a 
 
 @script_decorator
 async def script_scan_otb_ramses(
-    gwy: Gateway, dev_id: str
+    gwy: Gateway, dev_id: DeviceIdT
 ):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_ramses invoked - expect a lot of nonsense")
 

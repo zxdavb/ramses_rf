@@ -65,6 +65,7 @@ from ramses_tx import (
     Message,
     Packet,
 )
+from ramses_tx.address import DeviceIdT
 
 from .faultlog import FaultLog
 from .zones import DhwZone, Zone
@@ -116,7 +117,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         super().__init__(ctl._gwy)
 
-        self.id: str = ctl.id
+        self.id: DeviceIdT = ctl.id
 
         self.ctl = ctl
         self.tcs = self

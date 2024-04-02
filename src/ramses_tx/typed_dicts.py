@@ -55,7 +55,7 @@ class _10d0(TypedDict):
 
 
 class _10e1(TypedDict):
-    device_id: str
+    device_id: DeviceIdT
 
 
 class _12b0(TypedDict):

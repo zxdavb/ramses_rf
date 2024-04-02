@@ -9,7 +9,7 @@ Schema processor for protocol (lower) layer.
 from __future__ import annotations
 
 import logging
-from typing import Any, Final, Never, TypeAlias, TypedDict, TypeVar
+from typing import Any, Final, Never, NewType, TypeAlias, TypedDict, TypeVar
 
 import voluptuous as vol
 
@@ -336,7 +336,7 @@ SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 # Device lists (Engine configuration)
 
 
-DeviceIdT: TypeAlias = str
+DeviceIdT = NewType("DeviceIdT", str)
 DeviceListT: TypeAlias = dict[DeviceIdT, DeviceTraitsT]
 
 

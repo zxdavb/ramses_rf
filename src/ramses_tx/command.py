@@ -353,31 +353,33 @@ class Command(Frame):
             ' W 123 30:045960 -:- 32:054173 22F1 001374'
         """
 
-        cmd = cmd_str.upper().split()
-        if len(cmd) < 4:
+        parts = cmd_str.upper().split()
+        if len(parts) < 4:
             raise exc.CommandInvalid(
                 f"Command string is not parseable: '{cmd_str}'"
                 ", format is: verb [seqn] addr0 [addr1 [addr2]] code payload"
             )
 
-        verb = cmd.pop(0)
-        seqn = "---" if DEVICE_ID_REGEX.ANY.match(cmd[0]) else cmd.pop(0)
-        payload = cmd.pop()[:48]
-        code = cmd.pop()
+        verb = parts.pop(0)
+        seqn = "---" if DEVICE_ID_REGEX.ANY.match(parts[0]) else parts.pop(0)
+        payload = parts.pop()[:48]
+        code = parts.pop()
 
-        if not 0 < len(cmd) < 4:
+        addrs: tuple[DeviceIdT, DeviceIdT, DeviceIdT]
+
+        if not 0 < len(parts) < 4:
             raise exc.CommandInvalid(f"Command is invalid: '{cmd_str}'")
-        elif len(cmd) == 1 and verb == I_:
+        elif len(parts) == 1 and verb == I_:
             # drs = (cmd[0],          NON_DEV_ADDR.id, cmd[0])
-            addrs = (NON_DEV_ADDR.id, NON_DEV_ADDR.id, cmd[0])
-        elif len(cmd) == 1:
-            addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
-        elif len(cmd) == 2 and cmd[0] == cmd[1]:
-            addrs = (cmd[0], NON_DEV_ADDR.id, cmd[1])
-        elif len(cmd) == 2:
-            addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
+            addrs = (NON_DEV_ADDR.id, NON_DEV_ADDR.id, parts[0])  # type: ignore[assignment]
+        elif len(parts) == 1:
+            addrs = (HGI_DEV_ADDR.id, parts[0], NON_DEV_ADDR.id)  # type: ignore[assignment]
+        elif len(parts) == 2 and parts[0] == parts[1]:
+            addrs = (parts[0], NON_DEV_ADDR.id, parts[1])  # type: ignore[assignment]
+        elif len(parts) == 2:
+            addrs = (parts[0], parts[1], NON_DEV_ADDR.id)  # type: ignore[assignment]
         else:
-            addrs = (cmd[0], cmd[1], cmd[2])
+            addrs = (parts[0], parts[1], parts[2])  # type: ignore[assignment]
 
         return cls._from_attrs(
             verb,
@@ -1193,7 +1195,7 @@ class Command(Frame):
         param_id: str,
         value: str,
         *,
-        src_id: DeviceIdT = None,
+        src_id: DeviceIdT | None = None,
     ) -> Command:
         """Constructor to set a configurable fan parameter (c.f. parser_2411)."""
 

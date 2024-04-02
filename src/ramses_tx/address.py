@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from . import exceptions as exc
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
+from .schemas import DeviceIdT
 
 if TYPE_CHECKING:
     from .schemas import DeviceIdT
@@ -26,9 +27,9 @@ DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
 DEV_TYPE_MAP: dict[str, str] = {v: k for k, v in DEVICE_LOOKUP.items()}
 
 
-HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
-NON_DEVICE_ID = "--:------"
-ALL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
+HGI_DEVICE_ID: DeviceIdT = "18:000730"  # type: ignore[assignment]
+NON_DEVICE_ID: DeviceIdT = "--:------"  # type: ignore[assignment]
+ALL_DEVICE_ID: DeviceIdT = "63:262142"  # type: ignore[assignment]  # aka 'FFFFFE'
 
 # All debug flags should be False for end-users
 _DBG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
@@ -101,7 +102,7 @@ class Address:
             return f"{'':10}" if friendly_id else NON_DEVICE_ID
 
         _tmp = int(device_hex, 16)
-        device_id = f"{(_tmp & 0xFC0000) >> 18:02d}:{_tmp & 0x03FFFF:06d}"
+        device_id: DeviceIdT = f"{(_tmp & 0xFC0000) >> 18:02d}:{_tmp & 0x03FFFF:06d}"  # type: ignore[assignment]
 
         return cls._friendly(device_id) if friendly_id else device_id
 
@@ -121,7 +122,7 @@ class Address:
         return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
 
     # @classmethod
-    # def from_hex(cls, hex_id: str):
+    # def from_hex(cls, hex_id: DeviceIdT):
     #     """Call as: d = Address.from_hex('06368E')."""
 
     #     return cls(cls.convert_from_hex(hex_id))
@@ -153,13 +154,13 @@ def dev_id_to_hex_id(device_id: DeviceIdT) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"
 
 
-def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
+def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> DeviceIdT:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
     if device_hex == "FFFFFE":  # aka '63:262142'
-        return "NUL:262142" if friendly_id else ALL_DEVICE_ID
+        return "NUL:262142" if friendly_id else ALL_DEVICE_ID  # type: ignore[return-value]
 
     if not device_hex.strip():  # aka '--:------'
-        return f"{'':10}" if friendly_id else NON_DEVICE_ID
+        return f"{'':10}" if friendly_id else NON_DEVICE_ID  # type: ignore[return-value]
 
     _tmp = int(device_hex, 16)
     dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
@@ -167,7 +168,7 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
     if friendly_id:
         dev_type = DEV_TYPE_MAP.get(dev_type, f"{dev_type:<3}")
 
-    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
+    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"  # type: ignore[return-value]
 
 
 @lru_cache(maxsize=128)
