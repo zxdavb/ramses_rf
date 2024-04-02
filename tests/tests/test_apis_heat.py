@@ -12,10 +12,13 @@ from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.helpers import shrink
 from ramses_tx.address import HGI_DEV_ADDR
 from ramses_tx.command import Command
+from ramses_tx.helpers import parse_fault_log_entry
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
+from ramses_tx.typed_dicts import PayDictT
 
 
+# NOTE: not used for 0418
 def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
@@ -108,6 +111,27 @@ GET_0404_GOOD = {
 
 def test_get_0404():  # noqa: F811
     _test_api_good(Command.get_schedule_fragment, GET_0404_GOOD)
+
+
+GET_0418_GOOD = {  # NOTE: this constructor is used only for testing
+    "...  I --- 01:145038 --:------ 01:145038 0418 022 000000B0000000000000000000007FFFFF7000000000": "{'log_idx': '00', 'log_entry': None}",
+    "...  I --- 01:145038 --:------ 01:145038 0418 022 000000B0060804000000B897A0697FFFFF70001003B6": "{'log_idx': '00', 'log_entry': ('23-11-17T20:03:18', 'fault',      'comms_fault',   'actuator',   '08', '04:000950', 'B0', '0000', 'FFFF7000')}",
+}
+
+
+# NOTE: does not use _test_api_good() as main payload is not a dict
+def test_put_0418():  # noqa: F811
+    for pkt_line in GET_0418_GOOD:
+        pkt = _create_pkt_from_frame(pkt_line.split("#")[0].rstrip())
+        log_pkt: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(pkt.payload)
+
+        if log_pkt is None:
+            continue
+
+        cmd = Command._put_system_log_entry(pkt.src.id, **log_pkt)
+        log_cmd: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(cmd.payload)
+
+        assert log_pkt == log_cmd
 
 
 SET_1030_GOOD = {  # NOTE: no W|1030 seen in the wild

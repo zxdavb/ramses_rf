@@ -657,13 +657,14 @@ FAULT_DEVICE_CLASS: Final[dict[str, FaultDeviceClass]] = {
 class FaultState(StrEnum):
     FAULT = "fault"
     RESTORE = "restore"
-    UNKNOWN = "unknown_c0"
+    UNKNOWN_C0 = "unknown_c0"
+    UNKNOWN = "unknown"
 
 
-FAULT_STATE: Final[dict[str, FaultState]] = {
+FAULT_STATE: Final[dict[str, FaultState]] = {  # a bitmap?
     "00": FaultState.FAULT,
     "40": FaultState.RESTORE,
-    "C0": FaultState.UNKNOWN,  # C0s do not appear in the evohome UI
+    "C0": FaultState.UNKNOWN_C0,  # C0s do not appear in the evohome UI
 }
 
 

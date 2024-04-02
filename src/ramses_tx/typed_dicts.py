@@ -106,13 +106,15 @@ class _Temperature(TypedDict):
 
 
 class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
-    log_idx: str  # "00" to ?"3F"
+    _log_idx: str  # "00" to ?"3F"
+
     timestamp: str
     fault_state: FaultState
     fault_type: FaultType
-    domain_idx: str | None
+    domain_idx: str
     device_class: FaultDeviceClass
     device_id: DeviceIdT | None
+
     _unknown_3: str
     _unknown_7: str
     _unknown_15: str

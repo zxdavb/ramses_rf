@@ -14,16 +14,29 @@ from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from . import exceptions as exc
-from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR, Address, pkt_addrs
+from .address import (
+    ALL_DEV_ADDR,
+    HGI_DEV_ADDR,
+    NON_DEV_ADDR,
+    Address,
+    dev_id_to_hex_id,
+    pkt_addrs,
+)
 from .const import (
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
+    FAULT_DEVICE_CLASS,
+    FAULT_STATE,
+    FAULT_TYPE,
     SYS_MODE_MAP,
     SZ_DHW_IDX,
     SZ_MAX_RETRIES,
     SZ_PRIORITY,
     SZ_TIMEOUT,
     ZON_MODE_MAP,
+    FaultDeviceClass,
+    FaultState,
+    FaultType,
     Priority,
 )
 from .frame import Frame, pkt_header
@@ -31,6 +44,7 @@ from .helpers import (
     hex_from_bool,
     hex_from_double,
     hex_from_dtm,
+    hex_from_dts,
     hex_from_str,
     hex_from_temp,
     timestamp,
@@ -579,6 +593,63 @@ class Command(Frame):
 
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls.from_attrs(RQ, ctl_id, Code._0418, f"{log_idx:06X}")
+
+    @classmethod  # constructor for I|0418 (used for testing only)
+    def _put_system_log_entry(
+        cls,
+        ctl_id: DeviceIdT,
+        fault_state: FaultState | str,
+        fault_type: FaultType | str,
+        domain_idx: str,
+        device_class: FaultDeviceClass | str,
+        device_id: DeviceIdT,
+        _log_idx: int | str | None = None,
+        timestamp: dt | str | None = None,
+        **kwargs,
+    ) -> Command:
+        """Constructor to get a log entry from a system (c.f. parser_0418)."""
+
+        if isinstance(device_class, FaultDeviceClass):
+            device_class = {v: k for k, v in FAULT_DEVICE_CLASS.items()}[device_class]
+        assert device_class in FAULT_DEVICE_CLASS
+
+        if isinstance(fault_state, FaultState):
+            fault_state = {v: k for k, v in FAULT_STATE.items()}[fault_state]
+        assert fault_state in FAULT_STATE
+
+        if isinstance(fault_type, FaultType):
+            fault_type = {v: k for k, v in FAULT_TYPE.items()}[fault_type]
+        assert fault_type in FAULT_TYPE
+
+        assert isinstance(domain_idx, str) and len(domain_idx) == 2
+
+        if _log_idx is None:
+            _log_idx = 0
+        if not isinstance(_log_idx, str):
+            _log_idx = f"{_log_idx:02X}"
+        assert 0 <= int(_log_idx, 16) <= 0x3E
+
+        if timestamp is None:
+            timestamp = dt.now()  #
+        timestamp = hex_from_dts(timestamp)
+
+        payload = "".join(
+            (
+                "00",
+                fault_state,
+                _log_idx,
+                "B0",
+                fault_type,
+                domain_idx,
+                device_class,
+                "0000",
+                timestamp,
+                "FFFF7000",
+                dev_id_to_hex_id(device_id),
+            )
+        )
+
+        return cls.from_attrs(I_, ctl_id, Code._0418, payload)
 
     @classmethod  # constructor for RQ|1030
     def get_mix_valve_params(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:

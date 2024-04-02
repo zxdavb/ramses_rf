@@ -751,6 +751,8 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
         )
 
     log_entry: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(payload)  # type: ignore[assignment]
+    # log_idx is not intrinsic to the fault & increments as the fault moves down the log
+    log_entry.pop(f"_{SZ_LOG_IDX}")  # type: ignore[misc]
 
     _KEYS = (SZ_TIMESTAMP, SZ_FAULT_STATE, SZ_FAULT_TYPE)
     result = [v for k, v in log_entry.items() if k in _KEYS]
@@ -766,10 +768,12 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
     else:
         result.append(FaultDeviceClass.ACTUATOR)
 
+    # TODO: remove the qualifier (the assert is false)
     if log_entry[SZ_DEVICE_CLASS] != FaultDeviceClass.CONTROLLER:
+        # assert log_entry[SZ_DOMAIN_IDX] == "00", log_entry[SZ_DOMAIN_IDX]
         # key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID
         # log_entry.update({key_name: payload[10:12]})
-        result.append(payload[10:12])
+        result.append(log_entry[SZ_DOMAIN_IDX])
 
     if log_entry[SZ_DEVICE_ID] not in ("00:000000", "00:000001", "00:000002"):
         # "00:000001 for Controller? "00:000002 for Unknown?

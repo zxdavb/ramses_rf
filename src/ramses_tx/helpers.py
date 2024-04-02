@@ -279,7 +279,11 @@ def hex_from_dts(dtm: dt | str | None) -> HexStr12:  # TODO: WIP
     if dtm is None:
         return "00000000007F"
     if isinstance(dtm, str):
-        dtm = dt.fromisoformat(dtm)  # TODO: YY-MM-DD, not YYYY-MM-DD
+        try:
+            dtm = dt.strptime(dtm, "%y-%m-%dT%H:%M:%S")
+        except ValueError:
+            dtm = dt.fromisoformat(dtm)  # type: ignore[arg-type]
+
     (tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *_) = dtm.timetuple()
     result = sum(
         (
@@ -397,15 +401,16 @@ def parse_fault_log_entry(payload: str) -> PayDictT.FAULT_LOG_ENTRY | None:
     if (timestamp := hex_to_dts(payload[18:30])) is None:
         return None  # {SZ_LOG_IDX: payload[4:6]}
 
+    # NOTE: the log_idx will increment as the entry moves down the log, so '_log_idx'
     result: PayDictT.FAULT_LOG_ENTRY = {
-        SZ_LOG_IDX: payload[4:6],
+        f"_{SZ_LOG_IDX}": payload[4:6],  # type: ignore[misc]
         SZ_TIMESTAMP: timestamp,
         SZ_FAULT_STATE: FAULT_STATE.get(payload[2:4], FaultState.UNKNOWN),
         SZ_FAULT_TYPE: FAULT_TYPE.get(payload[8:10], FaultType.UNKNOWN),
+        SZ_DOMAIN_IDX: payload[10:12],
         SZ_DEVICE_CLASS: FAULT_DEVICE_CLASS.get(
             payload[12:14], FaultDeviceClass.UNKNOWN
         ),
-        SZ_DOMAIN_IDX: payload[10:12],
         SZ_DEVICE_ID: hex_id_to_dev_id(payload[38:]),
         "_unknown_3": payload[6:8],  # B0 ?priority
         "_unknown_7": payload[14:18],  # 0000
