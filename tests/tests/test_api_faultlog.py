@@ -2,10 +2,13 @@
 #
 """RAMSES RF - Test the Faultlog functions."""
 
-from ramses_rf import Message, Packet
-from ramses_rf.system.faultlog_new import FaultLog, FaultLogEntry
+import random
+from datetime import datetime as dt
+
+from ramses_rf import Address, Command, Message, Packet
+from ramses_rf.system.faultlog_new import FaultLog, FaultLogEntry, FaultLogIdxT
 from ramses_tx.address import HGI_DEVICE_ID
-from ramses_tx.const import SZ_LOG_ENTRY, Code
+from ramses_tx.const import SZ_LOG_ENTRY, Code, FaultDeviceClass, FaultState, FaultType
 from ramses_tx.schemas import DeviceIdT
 from tests.helpers import TEST_DIR
 
@@ -14,21 +17,89 @@ WORK_DIR = f"{TEST_DIR}/parsers"
 
 # ### TEST DATA #######################################################################
 
-CTL_ID = "01:145038"
+CTL_ID = Address("01:145038").id
 HGI_ID = HGI_DEVICE_ID
 
-TESTS = {}
 
-TESTS["00"] = (
-    f" I --- {CTL_ID} {HGI_ID} --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000",  # {'log_idx': '00', 'log_entry': None}
+def _fault_log_entry(*args, timestamp: str | None = None, **kwargs) -> FaultLogEntry:
+    if timestamp is None:
+        timestamp = dt.strftime(dt.now(), "%y-%m-%dT%H:%M:%S")
+
+    return FaultLogEntry(
+        timestamp=timestamp,
+        fault_state=args[0],
+        fault_type=args[1],
+        domain_idx=kwargs.get("domain_idx", "00"),
+        device_class=args[2],
+        device_id=kwargs.get("device_id"),
+    )
+
+
+# Keys corresponding to order in the faultlog
+TEST_FAULTS: dict[FaultLogIdxT:FaultLogEntry] = {}  # type: ignore[assignment
+
+TEST_FAULTS["00"] = _fault_log_entry(
+    FaultState.RESTORE,
+    FaultType.BATTERY_ERROR,
+    FaultDeviceClass.CONTROLLER,
+    timestamp="21-12-23T00:59:00",
+)
+TEST_FAULTS["01"] = _fault_log_entry(
+    FaultState.FAULT,
+    FaultType.BATTERY_ERROR,
+    FaultDeviceClass.CONTROLLER,
+    timestamp="21-12-23T00:58:00",
+)
+TEST_FAULTS["02"] = _fault_log_entry(
+    FaultState.RESTORE,
+    FaultType.BATTERY_LOW,
+    FaultDeviceClass.ACTUATOR,
+    timestamp="21-12-23T00:57:00",
+    device_id="04:111111",
+    domain_idx="03",
+)
+TEST_FAULTS["03"] = _fault_log_entry(
+    FaultState.RESTORE,
+    FaultType.COMMS_FAULT,
+    FaultDeviceClass.SETPOINT,
+    timestamp="21-12-23T00:56:00",
+    device_id="03:123456",
+    domain_idx="06",
+)
+TEST_FAULTS["04"] = _fault_log_entry(
+    FaultState.FAULT,
+    FaultType.BATTERY_LOW,
+    FaultDeviceClass.ACTUATOR,
+    timestamp="21-12-23T00:55:00",
+    device_id="04:111111",
+    domain_idx="03",
+)
+TEST_FAULTS["05"] = _fault_log_entry(
+    FaultState.FAULT,
+    FaultType.COMMS_FAULT,
+    FaultDeviceClass.SETPOINT,
+    timestamp="21-12-23T00:54:00",
+    device_id="03:123456",
+    domain_idx="06",
 )
 
-TESTS["01"] = (
-    f"RP --- {CTL_ID} {HGI_ID} --:------ 0418 022 004000B0040004000000CB955F71FFFFFF70001283B3",  # {'log_idx': '00', 'log_entry': ('21-12-23T11:59:35', 'restore',    'battery_low', 'actuator',     '00', '04:164787', 'B0', '0000', 'FFFF7000')}
-    f" I --- {CTL_ID} {HGI_ID} --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000",  # {'log_idx': '00', 'log_entry': None}
-)
+EXPECTED_MAP = {
+    0: "21-12-23T00:59:00",
+    1: "21-12-23T00:58:00",
+    2: "21-12-23T00:57:00",
+    3: "21-12-23T00:56:00",
+    4: "21-12-23T00:55:00",
+    5: "21-12-23T00:54:00",
+}
 
-# ### TESTS ###########################################################################
+
+# ### FIXTURES, ETC ###################################################################
+
+
+class Controller:
+    def __init__(self, ctl_id: DeviceIdT) -> None:
+        self.id = ctl_id
+        self._gwy = None
 
 
 def _proc_log_line(pkt_line):
@@ -45,13 +116,27 @@ def _proc_log_line(pkt_line):
     assert entry
 
 
-#######################################################################################
+def _proc_fault_entry(
+    fault_log: FaultLog, text_idx: FaultLogIdxT, _log_idx: FaultLogIdxT = "00"
+):
+    entry: FaultLogEntry = TEST_FAULTS[text_idx]
+
+    cmd = Command._put_system_log_entry(
+        CTL_ID,
+        entry.fault_state,
+        entry.fault_type,
+        entry.device_class,
+        device_id=entry.device_id,
+        domain_idx=entry.domain_idx,
+        _log_idx=_log_idx,
+        timestamp=entry.timestamp,
+    )
+    msg = Message(Packet._from_cmd(cmd))
+
+    fault_log._handle_msg(msg)
 
 
-class Controller:
-    def __init__(self, ctl_id: DeviceIdT) -> None:
-        self.id = ctl_id
-        self._gwy = None
+# ### TESTS ###########################################################################
 
 
 def test_faultlog_entries():
@@ -62,24 +147,43 @@ def test_faultlog_entries():
             _proc_log_line(line)
 
 
-def test_faultlog_instantiation():
+def test_faultlog_instantiation_0():
     """Test instantiation of a faultlog."""
 
-    fault_log = FaultLog(Controller("01:026398"))
+    fault_log = FaultLog(Controller(CTL_ID))
 
-    pkt = Packet.from_file(
-        "2021-12-23T00:00:00.000000",
-        "...  I --- 01:026398 18:000730 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000",
-    )
-    msg = Message(pkt)
+    # log entries arrive in order of timestamp (i.e. as they'd occur)
+    for i in reversed(range(len(TEST_FAULTS))):
+        _proc_fault_entry(fault_log, f"{i:02}")  # _log_idx="00")
 
-    fault_log._handle_msg(msg)
+    # assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
+    assert fault_log._map == EXPECTED_MAP
 
-    pkt = Packet.from_file(
-        "2021-12-23T11:59:35.999999",
-        "... RP --- 01:026398 18:000730 --:------ 0418 022 004000B0040004000000CB955F71FFFFFF70001283B3",
-    )
-    msg = Message(pkt)
 
-    fault_log._handle_msg(msg)
-    pass
+def test_faultlog_instantiation_1():
+    """Test instantiation of a faultlog."""
+
+    fault_log = FaultLog(Controller(CTL_ID))
+
+    # log entries arrive in order of log_idx (e.g. enumerating the log with RQs)
+    for i in reversed(range(len(TEST_FAULTS))):
+        _proc_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
+
+    assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
+    assert fault_log._map == EXPECTED_MAP
+
+
+def test_faultlog_instantiation_2():
+    """Test instantiation of a faultlog."""
+
+    fault_log = FaultLog(Controller(CTL_ID))
+
+    # log entries arrive in random order by log_idx
+    numbers = list(range(len(TEST_FAULTS)))
+    random.shuffle(numbers)
+
+    for i in numbers:
+        _proc_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
+
+    assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
+    assert fault_log._map == EXPECTED_MAP

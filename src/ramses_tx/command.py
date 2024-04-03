@@ -602,9 +602,9 @@ class Command(Frame):
         ctl_id: DeviceIdT,
         fault_state: FaultState | str,
         fault_type: FaultType | str,
-        domain_idx: str,
         device_class: FaultDeviceClass | str,
-        device_id: DeviceIdT,
+        device_id: DeviceIdT | None = None,
+        domain_idx: int | str = "00",
         _log_idx: int | str | None = None,
         timestamp: dt | str | None = None,
         **kwargs,
@@ -635,6 +635,8 @@ class Command(Frame):
             timestamp = dt.now()  #
         timestamp = hex_from_dts(timestamp)
 
+        dev_id = dev_id_to_hex_id(device_id) if device_id else "000000"
+
         payload = "".join(
             (
                 "00",
@@ -647,7 +649,7 @@ class Command(Frame):
                 "0000",
                 timestamp,
                 "FFFF7000",
-                dev_id_to_hex_id(device_id),
+                dev_id,
             )
         )
 
