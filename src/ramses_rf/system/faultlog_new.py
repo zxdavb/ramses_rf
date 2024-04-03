@@ -119,15 +119,24 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         # if self._map[idx] == dtm:  # i.e. No evidence anything has changed
         #     return
 
-        new_map = OrderedDict()
+        new_map: OrderedDict[FaultIdxT, FaultDtmT] = OrderedDict()
 
         # usu. idx == 0, but could be > 0
-        new_map |= {k: v for k, v in self._map.items() if k < idx and v > dtm}
+        new_map |= {
+            k: v for k, v in self._map.items() if k < idx and (dtm is None or v > dtm)
+        }
 
         if dtm is not None:  # if dtm is None, there are no subsequent log entries
             new_map |= {idx: dtm}
 
-            diff = 1 if self._map.get(idx) else 0
+            if idxs := [k for k, v in self._map.items() if v < dtm]:
+                if (next_idx := min(idxs)) > idx:
+                    diff = 0
+                elif next_idx == idx:
+                    diff = 1  # next - idx + 1
+                else:
+                    diff = idx + 1  # 1 if self._map.get(idx) else 0
+
             # if the entry (timestamp) exists, then its idx has changed (otherwise this
             # method would not have been called), so push down existing entries
 

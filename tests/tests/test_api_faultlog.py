@@ -253,7 +253,7 @@ def test_faultlog_instantiation_3():
     }
 
 
-def _test_faultlog_instantiation_4():
+def test_faultlog_instantiation_4():
     """Log entries arrive in an order set to confuse."""
 
     fault_log = FaultLog(Controller(CTL_ID))
@@ -276,7 +276,7 @@ def _test_faultlog_instantiation_4():
         5: "21-12-23T00:54:05",  # 3
     }
 
-    # _proc_fault_entry(fault_log, "01")  # pushes others down
+    _proc_fault_entry(fault_log, "01")  # pushes others down
 
     # assert fault_log._map == {
     #     0: "21-12-23T00:58:01",
