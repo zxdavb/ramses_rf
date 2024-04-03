@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Literal, Never, NewType, TypeAlias
 
 from ramses_tx import Message, Packet
@@ -71,8 +72,8 @@ class FaultLogEntry:
 FaultDtmT = NewType("FaultDtmT", str)
 FaultIdxT = NewType("FaultIdxT", int)
 
-FaultLogT: TypeAlias = dict[Never, Never] | dict[FaultDtmT, FaultLogEntry]
-FaultMapT: TypeAlias = dict[Never, Never] | dict[FaultIdxT, FaultDtmT]
+FaultLogT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultDtmT, FaultLogEntry]
+FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxT, FaultDtmT]
 
 
 class FaultLog:  # 0418  # TODO: use a NamedTuple
@@ -96,8 +97,8 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         self.id = ctl.id
         self._gwy = ctl._gwy
 
-        self._log: FaultLogT = {}
-        self._map: FaultMapT = {}
+        self._log: FaultLogT = OrderedDict()
+        self._map: FaultMapT = OrderedDict()
         self._log_done: bool | None = None
 
         self._is_current: bool = True  # if we now our log is out of date
@@ -114,8 +115,9 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         return default
 
     def _insert_into_map(self, idx: FaultIdxT, dtm: FaultDtmT | None) -> None:
+        new_map = OrderedDict()
         # usu. idx == 0, but could be > 0
-        new_map = {k: v for k, v in self._map.items() if k < idx and v > dtm}
+        new_map |= {k: v for k, v in self._map.items() if k < idx and v > dtm}
 
         if dtm is not None:
             diff = 1 if self._map.get(idx) else 0
