@@ -48,48 +48,48 @@ TEST_FAULTS["01"] = _fault_log_entry(
     FaultState.FAULT,
     FaultType.BATTERY_ERROR,
     FaultDeviceClass.CONTROLLER,
-    timestamp="21-12-23T00:58:00",
+    timestamp="21-12-23T00:58:01",
 )
 TEST_FAULTS["02"] = _fault_log_entry(
     FaultState.RESTORE,
     FaultType.BATTERY_LOW,
     FaultDeviceClass.ACTUATOR,
-    timestamp="21-12-23T00:57:00",
+    timestamp="21-12-23T00:57:02",
     device_id="04:111111",
     domain_idx="03",
 )
 TEST_FAULTS["03"] = _fault_log_entry(
-    FaultState.RESTORE,
-    FaultType.COMMS_FAULT,
-    FaultDeviceClass.SETPOINT,
-    timestamp="21-12-23T00:56:00",
-    device_id="03:123456",
-    domain_idx="06",
-)
-TEST_FAULTS["04"] = _fault_log_entry(
     FaultState.FAULT,
     FaultType.BATTERY_LOW,
     FaultDeviceClass.ACTUATOR,
-    timestamp="21-12-23T00:55:00",
+    timestamp="21-12-23T00:56:03",
     device_id="04:111111",
     domain_idx="03",
+)
+TEST_FAULTS["04"] = _fault_log_entry(
+    FaultState.RESTORE,
+    FaultType.COMMS_FAULT,
+    FaultDeviceClass.SETPOINT,
+    timestamp="21-12-23T00:55:04",
+    device_id="03:123456",
+    domain_idx="06",
 )
 TEST_FAULTS["05"] = _fault_log_entry(
     FaultState.FAULT,
     FaultType.COMMS_FAULT,
     FaultDeviceClass.SETPOINT,
-    timestamp="21-12-23T00:54:00",
+    timestamp="21-12-23T00:54:05",
     device_id="03:123456",
     domain_idx="06",
 )
 
 EXPECTED_MAP = {
     0: "21-12-23T00:59:00",
-    1: "21-12-23T00:58:00",
-    2: "21-12-23T00:57:00",
-    3: "21-12-23T00:56:00",
-    4: "21-12-23T00:55:00",
-    5: "21-12-23T00:54:00",
+    1: "21-12-23T00:58:01",
+    2: "21-12-23T00:57:02",
+    3: "21-12-23T00:56:03",
+    4: "21-12-23T00:55:04",
+    5: "21-12-23T00:54:05",
 }
 
 
@@ -148,7 +148,7 @@ def test_faultlog_entries():
 
 
 def test_faultlog_instantiation_0():
-    """Test instantiation of a faultlog."""
+    """Log entries arrive in order of timestamp (i.e. as they'd occur)."""
 
     fault_log = FaultLog(Controller(CTL_ID))
 
@@ -161,11 +161,11 @@ def test_faultlog_instantiation_0():
 
 
 def test_faultlog_instantiation_1():
-    """Test instantiation of a faultlog."""
+    """Log entries arrive in order of log_idx (e.g. enumerating the log via RQs)."""
 
     fault_log = FaultLog(Controller(CTL_ID))
 
-    # log entries arrive in order of log_idx (e.g. enumerating the log with RQs)
+    # log entries arrive in order of log_idx (e.g. enumerating the log via RQs)
     for i in reversed(range(len(TEST_FAULTS))):
         _proc_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
 
@@ -174,11 +174,11 @@ def test_faultlog_instantiation_1():
 
 
 def test_faultlog_instantiation_2():
-    """Test instantiation of a faultlog."""
+    """Log entries arrive in random order albeit with their correct log_idx."""
 
     fault_log = FaultLog(Controller(CTL_ID))
 
-    # log entries arrive in random order by log_idx
+    # log entries arrive in random order albeit with their correct log_idx
     numbers = list(range(len(TEST_FAULTS)))
     random.shuffle(numbers)
 
@@ -187,3 +187,114 @@ def test_faultlog_instantiation_2():
 
     assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
     assert fault_log._map == EXPECTED_MAP
+
+
+def test_faultlog_instantiation_3():
+    """Log entries arrive in an order set to confuse."""
+
+    fault_log = FaultLog(Controller(CTL_ID))
+
+    # a log with two entries arrives in order
+    _proc_fault_entry(fault_log, "05")
+    _proc_fault_entry(fault_log, "04")
+
+    assert fault_log._map == {
+        0: "21-12-23T00:55:04",
+        1: "21-12-23T00:54:05",
+    }
+
+    # the two entries arrives out of order
+    _proc_fault_entry(fault_log, "05", _log_idx="01")
+    _proc_fault_entry(fault_log, "04", _log_idx="00")
+
+    assert fault_log._map == {
+        0: "21-12-23T00:55:04",
+        1: "21-12-23T00:54:05",
+    }
+
+    # the log is cleared
+    fault_log._insert_into_map(0, None)
+
+    assert fault_log._map == {}
+
+    # a log with three entries is enumerated, kinda
+    _proc_fault_entry(fault_log, "03", _log_idx="00")
+    # roc_fault_entry(fault_log, "04", _log_idx="01")  # went missing
+    _proc_fault_entry(fault_log, "05", _log_idx="02")
+
+    assert fault_log._map == {
+        0: "21-12-23T00:56:03",
+        2: "21-12-23T00:54:05",
+    }
+
+    # the missing entry arrives, only after a new entry
+    _proc_fault_entry(fault_log, "02")  # pushes others down
+    _proc_fault_entry(fault_log, "01")  # pushes others down
+    _proc_fault_entry(fault_log, "04", _log_idx="03")  # _log_idx was 01, above
+
+    assert fault_log._map == {
+        0: "21-12-23T00:58:01",
+        1: "21-12-23T00:57:02",
+        2: "21-12-23T00:56:03",
+        3: "21-12-23T00:55:04",
+        4: "21-12-23T00:54:05",
+    }
+
+    # a new entry
+    _proc_fault_entry(fault_log, "00")  # pushes others down
+
+    assert fault_log._map == {
+        0: "21-12-23T00:59:00",
+        1: "21-12-23T00:58:01",
+        2: "21-12-23T00:57:02",
+        3: "21-12-23T00:56:03",
+        4: "21-12-23T00:55:04",
+        5: "21-12-23T00:54:05",
+    }
+
+
+def _test_faultlog_instantiation_4():
+    """Log entries arrive in an order set to confuse."""
+
+    fault_log = FaultLog(Controller(CTL_ID))
+
+    # a log with three entries is enumerated, kinda
+    _proc_fault_entry(fault_log, "03", _log_idx="00")
+    # roc_fault_entry(fault_log, "04", _log_idx="01")  # went missing
+    _proc_fault_entry(fault_log, "05", _log_idx="02")
+
+    assert fault_log._map == {
+        0: "21-12-23T00:56:03",
+        2: "21-12-23T00:54:05",
+    }
+
+    _proc_fault_entry(fault_log, "02", _log_idx="02")  # pushes others down
+
+    assert fault_log._map == {
+        2: "21-12-23T00:57:02",  # 2
+        3: "21-12-23T00:56:03",  # 1
+        5: "21-12-23T00:54:05",  # 3
+    }
+
+    # _proc_fault_entry(fault_log, "01")  # pushes others down
+
+    # assert fault_log._map == {
+    #     0: "21-12-23T00:58:01",
+    #     2: "21-12-23T00:57:02",
+    #     3: "21-12-23T00:56:03",
+    #     5: "21-12-23T00:54:05",
+    # }
+
+    # _proc_fault_entry(fault_log, "04", _log_idx="04")  # _log_idx was 01, above
+
+    # assert fault_log._map == {
+    #     0: "21-12-23T00:59:00",
+    #     1: "21-12-23T00:58:01",
+    #     2: "21-12-23T00:57:02",
+    #     3: "21-12-23T00:56:03",
+    #     4: "21-12-23T00:55:04",
+    #     5: "21-12-23T00:54:05",
+    # }
+
+    # assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
+    # assert fault_log._map == EXPECTED_MAP
