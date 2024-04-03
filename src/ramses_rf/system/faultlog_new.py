@@ -125,17 +125,16 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         new_map |= {k: v for k, v in self._map.items() if k < idx and v > dtm}
 
         if dtm is not None:  # if dtm is None, there are no subsequent log entries
+            new_map |= {idx: dtm}
+
             diff = 1 if self._map.get(idx) else 0
             # if the entry (timestamp) exists, then its idx has changed (otherwise this
             # method would not have been called), so push down existing entries
 
-            # actually, we should push down everything with a greater timestamp
-
-            new_map |= {idx: dtm}
             new_map |= {
                 k + diff: v  # type: ignore[misc]
                 for k, v in self._map.items()
-                if (k >= idx or v < dtm) and k <= self._MAX_LOG_IDX
+                if (k >= idx or v < dtm) and k + diff <= self._MAX_LOG_IDX
             }
 
         self._map = new_map
