@@ -6,7 +6,7 @@ import random
 from datetime import datetime as dt
 
 from ramses_rf import Address, Command, Message, Packet
-from ramses_rf.system.faultlog_new import FaultLog, FaultLogEntry, FaultLogIdxStrT
+from ramses_rf.system.faultlog_new import FaultIdxStrT, FaultLog, FaultLogEntry
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.const import SZ_LOG_ENTRY, FaultDeviceClass, FaultState, FaultType
 from ramses_tx.schemas import DeviceIdT
@@ -44,7 +44,7 @@ def _fault_log_entry(*args, timestamp: str | None = None, **kwargs) -> FaultLogE
 
 
 # Keys corresponding to order in the faultlog
-TEST_FAULTS: dict[FaultLogIdxStrT:FaultLogEntry] = {}  # type: ignore[assignment
+TEST_FAULTS: dict[FaultIdxStrT:FaultLogEntry] = {}  # type: ignore[assignment
 
 TEST_FAULTS["00"] = _fault_log_entry(
     FaultState.RESTORE,
@@ -125,7 +125,7 @@ def _proc_log_line(pkt_line):
 
 
 def _proc_null_fault_entry(
-    fault_log: FaultLog, _log_idx: FaultLogIdxStrT = "00"
+    fault_log: FaultLog, _log_idx: FaultIdxStrT = "00"
 ) -> Command:
     """Return a 0418 packet with no entry."""
     cmd = Command.from_attrs(
@@ -135,7 +135,7 @@ def _proc_null_fault_entry(
 
 
 def _proc_test_fault_entry(
-    fault_log: FaultLog, text_idx: FaultLogIdxStrT, _log_idx: FaultLogIdxStrT = "00"
+    fault_log: FaultLog, text_idx: FaultIdxStrT, _log_idx: FaultIdxStrT = "00"
 ):
     entry: FaultLogEntry = TEST_FAULTS[text_idx]
 
