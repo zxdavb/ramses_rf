@@ -143,17 +143,9 @@
   disallow_any_generics = false
 #
 [[tool.mypy.overrides]]
-  module = [
-    "ramses_rf/entity_base",
-    "ramses_rf/system/faultlog",
-  ]
-
-  disable_error_code = ["unreachable"]
-#
-[[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
-  disable_error_code = ["arg-type", "attr-defined"]
+  disable_error_code = ["arg-type", "attr-defined", "unreachable"]
 
 
 #
