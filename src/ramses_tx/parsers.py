@@ -741,10 +741,10 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
     # RP --- 01:145038 18:017804 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # log_idx=None (00)
 
     if msg.verb == RQ:  # have a ctx: log_idx
-        return {SZ_LOG_IDX: payload[4:6]}
+        return {SZ_LOG_IDX: payload[4:6]}  # type: ignore[typeddict-item]
 
     if hex_to_dts(payload[18:30]) is None:  # NOTE: null log entries have no idx
-        return {SZ_LOG_ENTRY: None}
+        return {SZ_LOG_ENTRY: None}  # type: ignore[typeddict-item]
 
     try:
         assert payload[2:4] in FAULT_STATE, f"fault state: {payload[2:4]}"
@@ -791,7 +791,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
     result.extend((payload[6:8], payload[14:18], payload[30:38]))  # TODO: remove?
 
     return {
-        SZ_LOG_IDX: payload[4:6],
+        SZ_LOG_IDX: payload[4:6],  # type: ignore[typeddict-item]
         SZ_LOG_ENTRY: tuple([str(r) for r in result]),
     }
 

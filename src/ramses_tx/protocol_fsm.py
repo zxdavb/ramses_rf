@@ -548,15 +548,15 @@ class WantRply(ProtocolStateBase):
         # rx_hdr will be 0418|RP|01:145038|00, and not 0418|RP|01:145038|nn
         # NOTE: this hack wont affect 0418| I|01:145038|nn (they are not stateful)
         if (
-            self._sent_cmd.rx_header[:8] == "0418|RP|"
-            and self._sent_cmd.rx_header[:-2] == pkt._hdr[:-2]
+            self._sent_cmd.rx_header[:8] == "0418|RP|"  # type: ignore[index]
+            and self._sent_cmd.rx_header[:-2] == pkt._hdr[:-2]  # type: ignore[index]
             and pkt.payload == "000000B0000000000000000000007FFFFF7000000000"
         ):
-            idx = self._sent_cmd.rx_header[-2:]
+            idx = self._sent_cmd.rx_header[-2:]  # type: ignore[index]
             pkt.payload = f"0000{idx}B0000000000000000000007FFFFF7000000000"
 
             # NOTE: must now reset pkt header
-            pkt._hdr_ = pkt._ctx_ = pkt._idx_ = None
+            pkt._hdr_ = pkt._ctx_ = pkt._idx_ = None  # type: ignore[assignment]
 
             assert pkt._hdr == self._sent_cmd.rx_header, "Coding error"
 
