@@ -6,7 +6,7 @@ import random
 from datetime import datetime as dt
 
 from ramses_rf import Address, Command, Message, Packet
-from ramses_rf.system.faultlog_new import FaultLog, FaultLogEntry, FaultLogIdxT
+from ramses_rf.system.faultlog_new import FaultLog, FaultLogEntry, FaultLogIdxStrT
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.const import SZ_LOG_ENTRY, Code, FaultDeviceClass, FaultState, FaultType
 from ramses_tx.schemas import DeviceIdT
@@ -36,7 +36,7 @@ def _fault_log_entry(*args, timestamp: str | None = None, **kwargs) -> FaultLogE
 
 
 # Keys corresponding to order in the faultlog
-TEST_FAULTS: dict[FaultLogIdxT:FaultLogEntry] = {}  # type: ignore[assignment
+TEST_FAULTS: dict[FaultLogIdxStrT:FaultLogEntry] = {}  # type: ignore[assignment
 
 TEST_FAULTS["00"] = _fault_log_entry(
     FaultState.RESTORE,
@@ -117,7 +117,7 @@ def _proc_log_line(pkt_line):
 
 
 def _proc_fault_entry(
-    fault_log: FaultLog, text_idx: FaultLogIdxT, _log_idx: FaultLogIdxT = "00"
+    fault_log: FaultLog, text_idx: FaultLogIdxStrT, _log_idx: FaultLogIdxStrT = "00"
 ):
     entry: FaultLogEntry = TEST_FAULTS[text_idx]
 
@@ -271,30 +271,35 @@ def test_faultlog_instantiation_4():
     _proc_fault_entry(fault_log, "02", _log_idx="02")  # pushes others down
 
     assert fault_log._map == {
-        2: "21-12-23T00:57:02",  # 2
-        3: "21-12-23T00:56:03",  # 1
-        5: "21-12-23T00:54:05",  # 3
+        2: "21-12-23T00:57:02",
+        3: "21-12-23T00:56:03",
+        5: "21-12-23T00:54:05",
     }
 
-    _proc_fault_entry(fault_log, "01")  # pushes others down
+    _proc_fault_entry(fault_log, "01")
 
-    # assert fault_log._map == {
-    #     0: "21-12-23T00:58:01",
-    #     2: "21-12-23T00:57:02",
-    #     3: "21-12-23T00:56:03",
-    #     5: "21-12-23T00:54:05",
-    # }
+    assert fault_log._map == {
+        0: "21-12-23T00:58:01",
+        2: "21-12-23T00:57:02",
+        3: "21-12-23T00:56:03",
+        5: "21-12-23T00:54:05",
+    }
 
-    # _proc_fault_entry(fault_log, "04", _log_idx="04")  # _log_idx was 01, above
+    _proc_fault_entry(fault_log, "01", _log_idx="01")
 
-    # assert fault_log._map == {
-    #     0: "21-12-23T00:59:00",
-    #     1: "21-12-23T00:58:01",
-    #     2: "21-12-23T00:57:02",
-    #     3: "21-12-23T00:56:03",
-    #     4: "21-12-23T00:55:04",
-    #     5: "21-12-23T00:54:05",
-    # }
+    assert fault_log._map == {
+        1: "21-12-23T00:58:01",
+        2: "21-12-23T00:57:02",
+        3: "21-12-23T00:56:03",
+        5: "21-12-23T00:54:05",
+    }
 
-    # assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
-    # assert fault_log._map == EXPECTED_MAP
+    _proc_fault_entry(fault_log, "04", _log_idx="04")  # _log_idx was 01, above
+
+    assert fault_log._map == {
+        1: "21-12-23T00:58:01",
+        2: "21-12-23T00:57:02",
+        3: "21-12-23T00:56:03",
+        4: "21-12-23T00:55:04",
+        5: "21-12-23T00:54:05",
+    }

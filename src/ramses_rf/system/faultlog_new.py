@@ -70,10 +70,10 @@ class FaultLogEntry:
 
 
 FaultDtmT = NewType("FaultDtmT", str)
-FaultIdxT = NewType("FaultIdxT", int)
+FaultIdxIntT = NewType("FaultIdxIntT", int)
 
 FaultLogT: TypeAlias = dict[Never, Never] | dict[FaultDtmT, FaultLogEntry]
-FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxT, FaultDtmT]
+FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxIntT, FaultDtmT]
 
 
 class FaultLog:  # 0418  # TODO: use a NamedTuple
@@ -104,9 +104,9 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         self._is_current: bool = True  # if we now our log is out of date
 
     def _get_idx_from_map(
-        self, dtm: FaultDtmT, /, *, default: FaultIdxT | None = None
-    ) -> FaultIdxT | None:
-        idx_: FaultIdxT
+        self, dtm: FaultDtmT, /, *, default: FaultIdxIntT | None = None
+    ) -> FaultIdxIntT | None:
+        idx_: FaultIdxIntT
         dtm_: FaultDtmT
 
         for idx_, dtm_ in self._map.items():
@@ -114,40 +114,41 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
                 return idx_
         return default
 
-    def _insert_into_map(self, idx: FaultIdxT, dtm: FaultDtmT | None) -> None:
-        # # This guard (is invalid here, and) was implemented in caller
-        # if self._map[idx] == dtm:  # i.e. No evidence anything has changed
-        #     return
+    def _insert_into_map(self, idx: FaultIdxIntT, dtm: FaultDtmT | None) -> None:
+        """Rebuild the map, given the new log entry data."""
 
-        new_map: OrderedDict[FaultIdxT, FaultDtmT] = OrderedDict()
+        new_map: OrderedDict[FaultIdxIntT, FaultDtmT] = OrderedDict()
 
         # usu. idx == 0, but could be > 0
         new_map |= {
             k: v for k, v in self._map.items() if k < idx and (dtm is None or v > dtm)
         }
 
-        if dtm is not None:  # if dtm is None, there are no subsequent log entries
-            new_map |= {idx: dtm}
+        if dtm is None:  # there are no subsequent log entries
+            self._map = new_map
+            return
 
-            if idxs := [k for k, v in self._map.items() if v < dtm]:
-                if (next_idx := min(idxs)) > idx:
-                    diff = 0
-                elif next_idx == idx:
-                    diff = 1  # next - idx + 1
-                else:
-                    diff = idx + 1  # 1 if self._map.get(idx) else 0
+        new_map |= {idx: dtm}
 
-            # if the entry (timestamp) exists, then its idx has changed (otherwise this
-            # method would not have been called), so push down existing entries
+        if not (idxs := [k for k, v in self._map.items() if v < dtm]):
+            self._map = new_map
+            return
 
-            new_map |= {
-                k + diff: v  # type: ignore[misc]
-                for k, v in self._map.items()
-                if (k >= idx or v < dtm) and k + diff <= self._MAX_LOG_IDX
-            }
+        if (next_idx := min(idxs)) > idx:
+            diff = 0
+        elif next_idx == idx:
+            diff = 1  # next - idx + 1
+        else:
+            diff = idx + 1  # 1 if self._map.get(idx) else 0
+
+        new_map |= {
+            k + diff: v  # type: ignore[misc]
+            for k, v in self._map.items()
+            if (k >= idx or v < dtm) and k + diff <= self._MAX_LOG_IDX
+        }
 
         self._map = new_map
-        self._log = {k: v for k, v in self._log.items() if k in new_map.values()}
+        return
 
     def _handle_msg(self, msg: Message) -> None:
         """Handle a fault log message."""
@@ -156,7 +157,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
             return
 
         # parse_fault_log_entry() uses _log_idx
-        idx: FaultIdxT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
+        idx: FaultIdxIntT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
 
         if msg.payload[SZ_LOG_ENTRY] is None:  # NOTE: Subsequent entries will be empty
             self._insert_into_map(idx, None)
@@ -167,10 +168,11 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         if dtm not in self._log:
             self._log |= {dtm: entry}  # must add entry before _insert_into_map()
-        elif self._map[idx] == dtm:  # i.e. No evidence anything has changed
-            return
+        elif self._map.get(idx) == dtm:  # type: ignore[call-overload]
+            return  # i.e. No evidence anything has changed
 
-        self._insert_into_map(idx, dtm)  # updates self._map, self._log
+        self._insert_into_map(idx, dtm)  # updates self._map
+        self._log = {k: v for k, v in self._log.items() if k in self._map.values()}
 
         # if idx != 0:  # there's other (new/changed) entries above this one?
         #     pass
@@ -202,7 +204,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
 
 # fmt: off
-FaultLogIdxT = Literal[
+FaultLogIdxStrT = Literal[
     '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
     '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
     '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
