@@ -110,7 +110,7 @@ class Engine:
         self._unwanted: list[DeviceIdT] = [
             NON_DEV_ADDR.id,
             ALL_DEV_ADDR.id,
-            "01:000001",  # why this one?
+            "01:000001",  # type: ignore[list-item]  # why this one?
         ]
         self._enforce_known_list = select_device_filter_mode(
             kwargs.pop(SZ_ENFORCE_KNOWN_LIST, None),

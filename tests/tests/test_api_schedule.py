@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Schedule functions.
-"""
+"""RAMSES RF - Test the Schedule functions."""
 
 import json
 from copy import deepcopy
@@ -41,7 +37,7 @@ async def test_schedule_get(dir_name):
     with open(f"{dir_name}/schedule.json") as f:
         schedule = json.load(f)
 
-    gwy: Gateway = await load_test_gwy(dir_name)  # noqa: F811
+    gwy: Gateway = await load_test_gwy(dir_name)
 
     zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
     assert zone.schedule == schedule[SZ_SCHEDULE]

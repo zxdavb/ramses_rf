@@ -79,16 +79,16 @@ class ProtocolContext:
         self._cmd: Command | None = None
         self._qos: QosParams | None = None
         self._cmd_tx_count: int | None = None
-        self._cmd_tx_limit: int = None  # type: ignore[assignment]
+        self._cmd_tx_limit: int = 0
 
         self.set_state(Inactive)
 
     def __repr__(self) -> str:
-        msg = f"<ProtocolContext state={self._state.__class__.__name__}"
+        msg = f"<ProtocolContext state={repr(self._state)[21:-1]}"
         if self._cmd is None:
             return msg + ">"
         if self._cmd_tx_count is None:
-            return msg + ", tx_count=0/None>"
+            return msg + ", tx_count=0/0>"
         return msg + f", tx_count={self._cmd_tx_count}/{self._cmd_tx_limit}>"
 
     @property
@@ -161,12 +161,7 @@ class ProtocolContext:
             self._expiry_timer.cancel()
             self._expiry_timer = None
 
-        if result:
-            _LOGGER.debug("BEFORE = %s: result=%s", self, result)
-            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
-            self._fut.set_result(result)
-
-        elif exception:
+        if exception:
             _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
             assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
             self._fut.set_exception(exception)
@@ -178,7 +173,12 @@ class ProtocolContext:
                 exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
 
-        else:
+        elif result:
+            _LOGGER.debug("BEFORE = %s: result=%s", self, result._hdr)
+            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
+            self._fut.set_result(result)
+
+        else:  # logging only - IsInIdle, Inactive, etc.
             _LOGGER.debug("BEFORE = %s", self)
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
@@ -186,7 +186,7 @@ class ProtocolContext:
         self._state = state_class(self)  # keep atomic with tx_count / tx_limit calcs
 
         if _DBG_MAINTAIN_STATE_CHAIN:  # for debugging
-            # tattr(prev_state, "_next_state", self._state)  # noqa: B010
+            # tattr(prev_state, "_next_state", self._state)
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
         if timed_out:  # isinstance(self._state, WantEcho):
@@ -195,7 +195,7 @@ class ProtocolContext:
 
         elif isinstance(self._state, WantEcho):
             assert self._qos is not None, "Coding error"  # mypy hint
-            self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
+            # self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
             self._cmd_tx_count = 1
 
         elif not isinstance(self._state, WantRply):  # IsInIdle, IsInactive
@@ -207,7 +207,13 @@ class ProtocolContext:
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
 
-        _LOGGER.debug("AFTER  = %s" + (": timed_out=True" if timed_out else ""), self)
+        if isinstance(self._state, WantRply):
+            assert self._qos is not None, "Coding error"  # mypy hint
+            _LOGGER.debug(
+                "AFTER. = %s: wait_for_reply=%s", self, self._qos.wait_for_reply
+            )
+        else:
+            _LOGGER.debug("AFTER. = %s", self)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -237,6 +243,8 @@ class ProtocolContext:
         if isinstance(self._state, Inactive):
             raise exc.ProtocolSendFailed(f"{self}: Send failed (no transport?)")
 
+        assert self._loop is asyncio.get_running_loop()  # BUG is here
+
         fut = self._loop.create_future()
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
@@ -251,7 +259,9 @@ class ProtocolContext:
             qos.timeout, self.SEND_TIMEOUT_LIMIT
         )  # incl. time queued in buffer
         try:
-            await asyncio.wait_for(fut, timeout=timeout)
+            await asyncio.wait_for(
+                fut, timeout=timeout
+            )  # RuntimeError: ... Future <Future pending> attached to a different loop
         except TimeoutError as err:  # incl. fut.cancel()
             msg = f"{self}: Expired global timer of {timeout} sec"
             if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd
@@ -280,6 +290,9 @@ class ProtocolContext:
                 self._cmd = self._qos = self._fut = None
                 self._lock.release()
                 return
+
+            self._cmd_tx_count = 0
+            self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
 
             assert isinstance(self._fut, asyncio.Future)  # mypy hint
             if self._fut.done():  # e.g. TimeoutError
@@ -316,6 +329,26 @@ class ProtocolContext:
             self._loop.create_task(send_fnc_wrapper(cmd))
 
 
+# With wait_for_reply=False
+# AFTER. = <ProtocolContext state=IsInIdle>
+# BEFORE = <ProtocolContext state=IsInIdle cmd_=2349|RQ|01:145038|08, tx_count=0/4>
+# AFTER. = <ProtocolContext state=WantEcho cmd_=2349|RQ|01:145038|08, tx_count=1/4>
+# BEFORE = <ProtocolContext state=WantEcho echo=2349|RQ|01:145038|08, tx_count=1/4>
+# AFTER. = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>: wait_for_reply=False
+#
+# BEFORE = <ProtocolContext state=WantRply echo=2349|RQ|01:145038|08, tx_count=1/4>: result=2349|RQ|01:145038|08
+# AFTER. = <ProtocolContext state=IsInIdle>
+
+# With wait_for_reply=True
+# AFTER. = <ProtocolContext state=IsInIdle>
+# BEFORE = <ProtocolContext state=IsInIdle cmd_=0004|RQ|01:145038|05, tx_count=0/4>
+# AFTER. = <ProtocolContext state=WantEcho cmd_=0004|RQ|01:145038|05, tx_count=1/4>
+# BEFORE = <ProtocolContext state=WantEcho echo=0004|RQ|01:145038|05, tx_count=1/4>
+# AFTER. = <ProtocolContext state=WantRply echo=0004|RQ|01:145038|05, tx_count=1/4>: wait_for_reply=True
+#
+# BEFORE = <ProtocolContext state=WantRply rply=0004|RP|01:145038|05, tx_count=1/4>: result=0004|RP|01:145038|05
+# AFTER. = <ProtocolContext state=IsInIdle>
+
 #######################################################################################
 
 # NOTE: Because .dst / .src may switch from Address to Device from one pkt to the next:
@@ -330,6 +363,16 @@ class ProtocolStateBase:
         self._sent_cmd: Command | None = None
         self._echo_pkt: Packet | None = None
         self._rply_pkt: Packet | None = None
+
+    def __repr__(self) -> str:
+        msg = f"<ProtocolState state={self.__class__.__name__}"
+        if self._rply_pkt:
+            return msg + f" rply={self._rply_pkt._hdr}>"
+        if self._echo_pkt:
+            return msg + f" echo={self._echo_pkt._hdr}>"
+        if self._sent_cmd:
+            return msg + f" cmd_={self._sent_cmd._hdr}>"
+        return msg + ">"
 
     def connection_made(self) -> None:  # For all states except Inactive
         """Do nothing, as (except for InActive) we're already connected."""
@@ -501,7 +544,23 @@ class WantRply(ProtocolStateBase):
             )
             return
 
-        if pkt._hdr != self._sent_cmd.rx_header:
+        # HACK: special case: if null log entry for log_idx=nn, then
+        # rx_hdr will be 0418|RP|01:145038|00, and not 0418|RP|01:145038|nn
+        # NOTE: this hack wont affect 0418| I|01:145038|nn (they are not stateful)
+        if (
+            self._sent_cmd.rx_header[:8] == "0418|RP|"  # type: ignore[index]
+            and self._sent_cmd.rx_header[:-2] == pkt._hdr[:-2]  # type: ignore[index]
+            and pkt.payload == "000000B0000000000000000000007FFFFF7000000000"
+        ):
+            idx = self._sent_cmd.rx_header[-2:]  # type: ignore[index]
+            pkt.payload = f"0000{idx}B0000000000000000000007FFFFF7000000000"
+
+            # NOTE: must now reset pkt header
+            pkt._hdr_ = pkt._ctx_ = pkt._idx_ = None  # type: ignore[assignment]
+
+            assert pkt._hdr == self._sent_cmd.rx_header, "Coding error"
+
+        elif pkt._hdr != self._sent_cmd.rx_header:
             return
 
         self._rply_pkt = pkt

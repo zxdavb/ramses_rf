@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
     from ramses_rf import Gateway
     from ramses_tx import Address, Message
+    from ramses_tx.address import DeviceIdT
     from ramses_tx.const import IndexT
 
 
@@ -71,7 +72,7 @@ class DeviceBase(Entity):
 
         super().__init__(gwy)
 
-        self.id: str = dev_addr.id
+        self.id: DeviceIdT = dev_addr.id
 
         # self.tcs = None  # NOTE: Heat (CH/DHW) devices only
         # self.ctl = None

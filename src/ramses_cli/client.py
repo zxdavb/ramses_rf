@@ -24,7 +24,7 @@ from ramses_rf.schemas import (
     SZ_ENABLE_EAVESDROP,
     SZ_REDUCE_PROCESSING,
 )
-from ramses_tx import is_valid_dev_id  # noqa: F401
+from ramses_tx import is_valid_dev_id
 from ramses_tx.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_tx.schemas import (
     SZ_DISABLE_QOS,
@@ -87,7 +87,7 @@ COLORS = {
     W_: Style.BRIGHT + Fore.MAGENTA,
 }
 
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 LIB_KEYS = tuple(SCH_GLOBAL_CONFIG({}).keys()) + (SZ_SERIAL_PORT,)
 LIB_CFG_KEYS = tuple(SCH_GLOBAL_CONFIG({})[SZ_CONFIG].keys()) + (SZ_EVOFW_FLAG,)
@@ -477,7 +477,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
             print(f"{Style.BRIGHT}{Fore.YELLOW}{dtm} {msg}"[:con_cols])
         elif msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
-        elif msg.code == Code._1F09 and msg.verb == I_:  # noqa: SIM114
+        elif msg.code == Code._1F09 and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
         elif msg.code in (Code._000A, Code._2309, Code._30C9) and msg._has_array:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])

@@ -404,7 +404,7 @@ class Frame:
         return self._hdr_
 
     @property
-    def _idx(self) -> bool | str:
+    def _idx(self) -> bool | str:  # FIXME: a mess
         """Return the payload's index, if any (e.g. zone_idx, domain_id  or log_idx).
 
         Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.

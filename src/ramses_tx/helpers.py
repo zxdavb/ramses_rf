@@ -12,19 +12,29 @@ from collections.abc import Iterable, Mapping
 from datetime import date, datetime as dt
 from typing import TYPE_CHECKING, Final, Literal, TypeAlias
 
+from .address import hex_id_to_dev_id
 from .const import (
+    FAULT_DEVICE_CLASS,
+    FAULT_STATE,
+    FAULT_TYPE,
     SZ_AIR_QUALITY,
     SZ_AIR_QUALITY_BASIS,
     SZ_BYPASS_POSITION,
     SZ_CO2_LEVEL,
+    SZ_DEVICE_CLASS,
+    SZ_DEVICE_ID,
     SZ_DEWPOINT_TEMP,
+    SZ_DOMAIN_IDX,
     SZ_EXHAUST_FAN_SPEED,
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
     SZ_FAN_INFO,
+    SZ_FAULT_STATE,
+    SZ_FAULT_TYPE,
     SZ_HEAT_DEMAND,
     SZ_INDOOR_HUMIDITY,
     SZ_INDOOR_TEMP,
+    SZ_LOG_IDX,
     SZ_OUTDOOR_HUMIDITY,
     SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
@@ -35,6 +45,10 @@ from .const import (
     SZ_SUPPLY_FLOW,
     SZ_SUPPLY_TEMP,
     SZ_TEMPERATURE,
+    SZ_TIMESTAMP,
+    FaultDeviceClass,
+    FaultState,
+    FaultType,
 )
 from .ramses import _31DA_FAN_INFO
 
@@ -265,7 +279,11 @@ def hex_from_dts(dtm: dt | str | None) -> HexStr12:  # TODO: WIP
     if dtm is None:
         return "00000000007F"
     if isinstance(dtm, str):
-        dtm = dt.fromisoformat(dtm)  # TODO: YY-MM-DD, not YYYY-MM-DD
+        try:
+            dtm = dt.strptime(dtm, "%y-%m-%dT%H:%M:%S")
+        except ValueError:
+            dtm = dt.fromisoformat(dtm)  # type: ignore[arg-type]
+
     (tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *_) = dtm.timetuple()
     result = sum(
         (
@@ -373,6 +391,33 @@ def hex_from_temp(value: bool | float | None) -> HexStr4:
 
 
 ########################################################################################
+
+
+def parse_fault_log_entry(payload: str) -> PayDictT.FAULT_LOG_ENTRY | None:
+    """Return the fault log entry."""
+
+    assert len(payload) == 44
+
+    if (timestamp := hex_to_dts(payload[18:30])) is None:
+        return None  # {SZ_LOG_IDX: payload[4:6]}
+
+    # NOTE: the log_idx will increment as the entry moves down the log, so '_log_idx'
+    result: PayDictT.FAULT_LOG_ENTRY = {
+        f"_{SZ_LOG_IDX}": payload[4:6],  # type: ignore[misc]
+        SZ_TIMESTAMP: timestamp,
+        SZ_FAULT_STATE: FAULT_STATE.get(payload[2:4], FaultState.UNKNOWN),
+        SZ_FAULT_TYPE: FAULT_TYPE.get(payload[8:10], FaultType.UNKNOWN),
+        SZ_DOMAIN_IDX: payload[10:12],
+        SZ_DEVICE_CLASS: FAULT_DEVICE_CLASS.get(
+            payload[12:14], FaultDeviceClass.UNKNOWN
+        ),
+        SZ_DEVICE_ID: hex_id_to_dev_id(payload[38:]),
+        "_unknown_3": payload[6:8],  # B0 ?priority
+        "_unknown_7": payload[14:18],  # 0000
+        "_unknown_15": payload[30:38],  # FFFF7000/1/2
+    }
+
+    return result
 
 
 def _faulted_common(param_name: str, value: str) -> dict[str, str]:

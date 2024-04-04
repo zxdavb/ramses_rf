@@ -24,7 +24,7 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-async def test_packets_from_log_file(dir_name):  # noqa: F811
+async def test_packets_from_log_file(dir_name):
     """Check eavesdropping of a src device _SLUG (from each packet line)."""
 
     def proc_log_line(msg):

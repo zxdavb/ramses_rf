@@ -132,21 +132,20 @@
   disallow_any_generics = false
 #
 [[tool.mypy.overrides]]
-  module = ["ramses_rf.*"]
+  module = [
+    "ramses_rf/entity_base",
+    "ramses_rf/gateway",
+    "ramses_rf/helpers",
+    "ramses_tx.parsers",
+    "ramses_rf/schemas",
+  ]
 
-  disable_error_code = ["unreachable"]
   disallow_any_generics = false
 #
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
-  disable_error_code = ["arg-type", "attr-defined"]
-#
-[[tool.mypy.overrides]]
-  module = ["ramses_tx.parsers"]
-
-  disallow_any_generics = false
-
+  disable_error_code = ["arg-type", "attr-defined", "unreachable"]
 
 
 #

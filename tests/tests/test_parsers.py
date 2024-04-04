@@ -28,7 +28,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     metafunc.parametrize("f_name", sorted(Path(WORK_DIR).glob("*.log")), ids=id_fnc)
 
 
-def _proc_log_line(pkt_line):  # noqa: F811
+def _proc_log_line(pkt_line):
     pkt_line, pkt_dict, *_ = list(
         map(str.strip, pkt_line.split("#", maxsplit=1) + [""])
     )
@@ -61,7 +61,7 @@ def _proc_log_line(pkt_line):  # noqa: F811
     assert IS_FRAGMENT not in pkt_dict or pkt._is_fragment == pkt_dict[IS_FRAGMENT]
 
 
-def _proc_log_line_pair_4e15(pkt_line, prev_msg: Message):  # noqa: F811
+def _proc_log_line_pair_4e15(pkt_line, prev_msg: Message):
     pkt_line, *_ = list(map(str.strip, pkt_line.split("#", maxsplit=1) + [""]))
 
     if not pkt_line:
@@ -83,13 +83,13 @@ def _proc_log_line_pair_4e15(pkt_line, prev_msg: Message):  # noqa: F811
     return this_msg
 
 
-def test_parsers_from_log_files(f_name):  # noqa: F811
+def test_parsers_from_log_files(f_name):
     with open(f_name) as f:
         while line := (f.readline()):
             _proc_log_line(line)
 
 
-def _test_parser_31da(f_name):  # noqa: F811
+def _test_parser_31da(f_name):
     # assert _31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F] in (
     #     speed_capabilities(payload[30:34])["speed_capabilities"]
     # ) or (
@@ -107,11 +107,11 @@ def _test_parser_31da(f_name):  # noqa: F811
     pass
 
 
-def _test_parser_pairs_31d9_31da(f_name):  # noqa: F811
+def _test_parser_pairs_31d9_31da(f_name):
     pass
 
 
-def _test_parser_pairs_4e15_3ef0(f_name):  # noqa: F811
+def _test_parser_pairs_4e15_3ef0(f_name):
     if "4e15" in str(f_name):
         with open(f_name) as f:
             msg = None

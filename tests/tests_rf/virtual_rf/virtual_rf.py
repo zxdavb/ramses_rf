@@ -25,7 +25,7 @@ _PN: TypeAlias = str  # port name
 
 # _FILEOBJ: TypeAlias = int | Any  # int | HasFileno
 
-_GwyAttrsT = TypedDict(  # noqa: UP013
+_GwyAttrsT = TypedDict(
     "_GwyAttrsT",
     {
         "manufacturer": str,

@@ -12,11 +12,14 @@ from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.helpers import shrink
 from ramses_tx.address import HGI_DEV_ADDR
 from ramses_tx.command import Command
+from ramses_tx.helpers import parse_fault_log_entry
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
+from ramses_tx.typed_dicts import PayDictT
 
 
-def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+# NOTE: not used for 0418
+def _test_api_good(api, packets):  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
@@ -30,7 +33,7 @@ def _test_api_good(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _test_api_fail(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
+def _test_api_fail(api, packets):  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
@@ -48,7 +51,7 @@ def _test_api_fail(api, packets):  # noqa: F811  # NOTE: incl. addr_set check
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _create_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
+def _create_pkt_from_frame(pkt_line) -> Packet:
     """Create a pkt from a pkt_line and assert their frames match."""
 
     pkt = Packet.from_port(dt.now(), pkt_line)
@@ -56,7 +59,7 @@ def _create_pkt_from_frame(pkt_line) -> Packet:  # noqa: F811
     return pkt
 
 
-def _test_api_from_msg(api, msg) -> Command:  # noqa: F811
+def _test_api_from_msg(api, msg) -> Command:
     """Create a cmd from a msg and assert their meta-data (doesn"t assert payload.)."""
 
     cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
@@ -81,7 +84,7 @@ SET_0004_GOOD = (
 )
 
 
-def test_set_0004():  # noqa: F811
+def test_set_0004():
     _test_api_good(Command.set_zone_name, SET_0004_GOOD)
     _test_api_fail(Command.set_zone_name, SET_0004_FAIL)
 
@@ -93,7 +96,7 @@ SET_000A_GOOD = (
 )
 
 
-def test_set_000a():  # noqa: F811
+def test_set_000a():
     _test_api_good(Command.set_zone_config, SET_000A_GOOD)
 
 
@@ -106,8 +109,29 @@ GET_0404_GOOD = {
 }
 
 
-def test_get_0404():  # noqa: F811
+def test_get_0404():
     _test_api_good(Command.get_schedule_fragment, GET_0404_GOOD)
+
+
+GET_0418_GOOD = {  # NOTE: this constructor is used only for testing
+    "...  I --- 01:145038 --:------ 01:145038 0418 022 000000B0000000000000000000007FFFFF7000000000": "{'log_idx': '00', 'log_entry': None}",
+    "...  I --- 01:145038 --:------ 01:145038 0418 022 000000B0060804000000B897A0697FFFFF70001003B6": "{'log_idx': '00', 'log_entry': ('23-11-17T20:03:18', 'fault',      'comms_fault',   'actuator',   '08', '04:000950', 'B0', '0000', 'FFFF7000')}",
+}
+
+
+# NOTE: does not use _test_api_good() as main payload is a tuple, and not a dict
+def test_put_0418():
+    for pkt_line in GET_0418_GOOD:
+        pkt = _create_pkt_from_frame(pkt_line.split("#")[0].rstrip())
+        log_pkt: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(pkt.payload)
+
+        if log_pkt is None:
+            continue
+
+        cmd = Command._put_system_log_entry(pkt.src.id, **log_pkt)
+        log_cmd: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(cmd.payload)
+
+        assert log_pkt == log_cmd
 
 
 SET_1030_GOOD = {  # NOTE: no W|1030 seen in the wild
@@ -115,7 +139,7 @@ SET_1030_GOOD = {  # NOTE: no W|1030 seen in the wild
 }
 
 
-def test_set_1030():  # noqa: F811
+def test_set_1030():
     _test_api_good(Command.set_mix_valve_params, SET_1030_GOOD)
 
 
@@ -132,7 +156,7 @@ SET_10A0_GOOD = {  # NOTE: no W|10A0 seen in the wild
 }
 
 
-def test_set_10a0():  # noqa: F811
+def test_set_10a0():
     _test_api_good(Command.set_dhw_params, SET_10A0_GOOD)
 
 
@@ -153,7 +177,7 @@ SET_1100_GOOD = {
 }
 
 
-def test_set_1100():  # noqa: F811  # NOTE: bespoke: params
+def test_set_1100():  # NOTE: bespoke: params
     packets = SET_1100_GOOD
 
     for pkt_line in packets:
@@ -172,7 +196,7 @@ def test_set_1100():  # noqa: F811  # NOTE: bespoke: params
 PUT_1260_GOOD = {}  # TODO: add soem tests
 
 
-def test_set_1260():  # noqa: F811
+def test_set_1260():
     _test_api_good(Command.put_dhw_temp, PUT_1260_GOOD)
 
 
@@ -198,7 +222,7 @@ SET_1F41_FAIL = (
 )
 
 
-def test_set_1f41():  # noqa: F811
+def test_set_1f41():
     _test_api_good(Command.set_dhw_mode, SET_1F41_GOOD)
 
 
@@ -211,7 +235,7 @@ SET_2309_GOOD = (
 )
 
 
-def test_set_2309():  # noqa: F811
+def test_set_2309():
     _test_api_good(Command.set_zone_setpoint, SET_2309_GOOD)
 
 
@@ -225,7 +249,7 @@ SET_2349_GOOD = (
 )
 
 
-def test_set_2349():  # noqa: F811
+def test_set_2349():
     _test_api_good(Command.set_zone_mode, SET_2349_GOOD)
 
 
@@ -248,7 +272,7 @@ SET_2E04_GOOD = {
 }
 
 
-def test_set_2e04():  # noqa: F811
+def test_set_2e04():
     _test_api_good(Command.set_system_mode, SET_2E04_GOOD)
 
 
@@ -265,7 +289,7 @@ PUT_30C9_GOOD = (
 )
 
 
-def test_put_30c9():  # noqa: F811
+def test_put_30c9():
     _test_api_good(Command.put_sensor_temp, PUT_30C9_GOOD)
 
 
@@ -278,7 +302,7 @@ SET_313F_GOOD = (
 )
 
 
-def test_set_313f():  # noqa: F811  # NOTE: bespoke: payload
+def test_set_313f():  # NOTE: bespoke: payload
     packets = SET_313F_GOOD
 
     for pkt_line in packets:
@@ -303,7 +327,7 @@ PUT_3EF0_GOOD = (
 )
 
 
-def test_put_3ef0():  # noqa: F811
+def test_put_3ef0():
     _test_api_good(Command.put_actuator_state, PUT_3EF0_GOOD)
 
 
@@ -313,7 +337,7 @@ PUT_3EF1_GOOD = (  # TODO: needs checking
 )
 
 
-def test_put_3ef1():  # noqa: F811  # NOTE: bespoke: params, ?payload
+def test_put_3ef1():  # NOTE: bespoke: params, ?payload
     packets = PUT_3EF1_GOOD
 
     for pkt_line in packets:

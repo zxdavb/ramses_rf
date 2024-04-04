@@ -67,7 +67,7 @@ def test_helper_field_parsers() -> None:
         assert val == hex_to_temp(hex_from_temp(val))
 
 
-def _test_pkt_dev_class() -> None:  # noqa: F811
+def _test_pkt_dev_class() -> None:
     """Check that the device class is correctly inferred from the packet.
 
     Some packets (not all) can be used to determine the domain (Heat vs HVAC) and
@@ -93,7 +93,7 @@ def _test_pkt_dev_class() -> None:  # noqa: F811
                 proc_log_line(line)
 
 
-def test_pkt_addr_sets() -> None:  # noqa: F811
+def test_pkt_addr_sets() -> None:
     """Check that the address set is correctly inferred from the packet."""
 
     def proc_log_line(pkt_line):

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 
 # TODO: Add assert_protocol_ready to VirtualRF factory (or in library?)

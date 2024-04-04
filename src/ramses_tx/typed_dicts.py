@@ -1,6 +1,9 @@
 # We use typed dicts rather than data classes because we migrated from dicts
 
-from typing import NotRequired, TypeAlias, TypedDict
+from typing import Literal, NotRequired, TypeAlias, TypedDict
+
+from ramses_tx.const import FaultDeviceClass, FaultState, FaultType
+from ramses_tx.schemas import DeviceIdT
 
 _HexToTempT: TypeAlias = float | None
 
@@ -29,6 +32,23 @@ class _0100(TypedDict):
     _unknown_0: str
 
 
+# fmt: off
+LogIdxT = Literal[
+    '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
+    '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
+    '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
+    '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3A', '3B', '3C', '3D', '3E', '3F',
+]
+# fmt: on
+
+
+# NOTE: can have only log_idx, only log_entry, both
+class _0418(TypedDict):  # NOTE: not identical to FaultLogEntry
+    log_idx: LogIdxT  # "00" to ?"3F"
+    # TODO: = namedtuple("Fault", "timestamp fault_state ...")
+    log_entry: NotRequired[tuple[str, ...] | None]
+
+
 class _1060(TypedDict):
     battery_low: bool
     battery_level: float | None
@@ -46,7 +66,7 @@ class _10d0(TypedDict):
 
 
 class _10e1(TypedDict):
-    device_id: str
+    device_id: DeviceIdT
 
 
 class _12b0(TypedDict):
@@ -94,6 +114,21 @@ class _Setpoint(TypedDict):
 
 class _Temperature(TypedDict):
     temperature: _HexToTempT
+
+
+class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
+    _log_idx: LogIdxT  # "00" to ?"3F"
+
+    timestamp: str
+    fault_state: FaultState
+    fault_type: FaultType
+    domain_idx: str
+    device_class: FaultDeviceClass
+    device_id: DeviceIdT | None
+
+    _unknown_3: str
+    _unknown_7: str
+    _unknown_15: str
 
 
 # These are from 31DA...
@@ -207,6 +242,7 @@ class PayDictT:
     _0006: TypeAlias = _0006
     _0008: TypeAlias = _0008
     _0100: TypeAlias = _0100
+    _0418: TypeAlias = _0418
     _1060: TypeAlias = _1060
     _1081: TypeAlias = _Setpoint
     _1090: TypeAlias = _1090
@@ -232,6 +268,7 @@ class PayDictT:
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
 
+    FAULT_LOG_ENTRY: TypeAlias = FaultLogEntry
     TEMPERATURE: TypeAlias = _Temperature
 
     # 31DA primitives

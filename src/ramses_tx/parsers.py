@@ -33,7 +33,6 @@ from .const import (
     SYS_MODE_MAP,
     SZ_ACCEPT,
     SZ_ACTIVE,
-    SZ_ACTUATOR,
     SZ_BINDINGS,
     SZ_CHANGE_COUNTER,
     SZ_CONFIRM,
@@ -45,14 +44,19 @@ from .const import (
     SZ_DEVICES,
     SZ_DHW_FLOW_RATE,
     SZ_DOMAIN_ID,
+    SZ_DOMAIN_IDX,
     SZ_DURATION,
     SZ_FAN_MODE,
+    SZ_FAULT_STATE,
+    SZ_FAULT_TYPE,
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
     SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_LOCAL_OVERRIDE,
+    SZ_LOG_ENTRY,
+    SZ_LOG_IDX,
     SZ_MAX_TEMP,
     SZ_MIN_TEMP,
     SZ_MODE,
@@ -70,6 +74,7 @@ from .const import (
     SZ_SETPOINT_BOUNDS,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
+    SZ_TIMESTAMP,
     SZ_TOTAL_FRAGS,
     SZ_UFH_IDX,
     SZ_UNTIL,
@@ -82,6 +87,7 @@ from .const import (
     ZON_MODE_MAP,
     ZON_ROLE_MAP,
     DevRole,
+    FaultDeviceClass,
 )
 from .fingerprints import check_signature
 from .helpers import (
@@ -101,6 +107,7 @@ from .helpers import (
     parse_exhaust_flow,
     parse_exhaust_temp,
     parse_fan_info,
+    parse_fault_log_entry,
     parse_indoor_humidity,
     parse_indoor_temp,
     parse_outdoor_humidity,
@@ -723,12 +730,21 @@ def parser_0404(payload: str, msg: Message) -> dict:
     }
 
 
-# system_fault
-def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
+# system_fault (fault_log_entry) - needs refactoring
+def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
     # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
-    if hex_to_dts(payload[18:30]) is None:  # a null log entry
-        return {"log_entry": None}
+    # RQ --- 18:017804 01:145038 --:------ 0418 003 000005                                        # log_idx=0x05
+    # RP --- 01:145038 18:017804 --:------ 0418 022 000005B0040000000000CD17B5AE7FFFFF7000000001  # log_idx=0x05
+
+    # RQ --- 18:017804 01:145038 --:------ 0418 003 000006                                        # log_idx=0x06
+    # RP --- 01:145038 18:017804 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # log_idx=None (00)
+
+    if msg.verb == RQ:  # have a ctx: log_idx
+        return {SZ_LOG_IDX: payload[4:6]}  # type: ignore[typeddict-item]
+
+    if hex_to_dts(payload[18:30]) is None:  # NOTE: null log entries have no idx
+        return {SZ_LOG_ENTRY: None}  # type: ignore[typeddict-item]
 
     try:
         assert payload[2:4] in FAULT_STATE, f"fault state: {payload[2:4]}"
@@ -743,37 +759,41 @@ def parser_0418(payload: str, msg: Message) -> dict[str, tuple[str] | None]:
             f"{msg!r} < {_INFORM_DEV_MSG} ({err}), with a photo of your fault log"
         )
 
-    result: dict[str, str] = {
-        "timestamp": hex_to_dts(payload[18:30]),  # type: ignore[dict-item]
-        "state": FAULT_STATE.get(payload[2:4], payload[2:4]),
-        "type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        SZ_DEVICE_CLASS: FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
-    }
+    log_entry: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(payload)  # type: ignore[assignment]
+    # log_idx is not intrinsic to the fault & increments as the fault moves down the log
+    log_entry.pop(f"_{SZ_LOG_IDX}")  # type: ignore[misc]
 
-    if payload[10:12] == FC and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DevRole.APP]  # actual evohome UI
-    elif payload[10:12] == FA and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DevRole.HTG]  # speculative
-    elif payload[10:12] == F9 and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DevRole.HT1]  # speculative
+    _KEYS = (SZ_TIMESTAMP, SZ_FAULT_STATE, SZ_FAULT_TYPE)
+    result = [v for k, v in log_entry.items() if k in _KEYS]
 
-    if payload[12:14] != "00":  # TODO: Controller
-        key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID
-        result.update({key_name: payload[10:12]})
+    if log_entry[SZ_DEVICE_CLASS] != FaultDeviceClass.ACTUATOR:
+        result.append(log_entry[SZ_DEVICE_CLASS])
+    elif log_entry[SZ_DOMAIN_IDX] == FC:
+        result.append(DEV_ROLE_MAP[DevRole.APP])  # actual evohome UI
+    elif log_entry[SZ_DOMAIN_IDX] == FA:
+        result.append(DEV_ROLE_MAP[DevRole.HTG])  # speculative
+    elif log_entry[SZ_DOMAIN_IDX] == F9:
+        result.append(DEV_ROLE_MAP[DevRole.HT1])  # speculative
+    else:
+        result.append(FaultDeviceClass.ACTUATOR)
 
-    if payload[38:] not in ("000000", "000001", "000002"):
+    # TODO: remove the qualifier (the assert is false)
+    if log_entry[SZ_DEVICE_CLASS] != FaultDeviceClass.CONTROLLER:
+        # assert log_entry[SZ_DOMAIN_IDX] == "00", log_entry[SZ_DOMAIN_IDX]
+        # key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID
+        # log_entry.update({key_name: payload[10:12]})
+        result.append(log_entry[SZ_DOMAIN_IDX])
+
+    if log_entry[SZ_DEVICE_ID] not in ("00:000000", "00:000001", "00:000002"):
         # "00:000001 for Controller? "00:000002 for Unknown?
-        result.update({SZ_DEVICE_ID: hex_id_to_dev_id(payload[38:])})
+        result.append(log_entry[SZ_DEVICE_ID])
 
-    result.update(
-        {
-            "_unknown_3": payload[6:8],  # B0 ?priority
-            "_unknown_7": payload[14:18],  # 0000
-            "_unknown_15": payload[30:38],  # FFFF7000/1/2
-        }
-    )
+    result.extend((payload[6:8], payload[14:18], payload[30:38]))  # TODO: remove?
 
-    return {"log_entry": tuple(v for k, v in result.items() if k != "log_idx")}  # type: ignore[dict-item]
+    return {
+        SZ_LOG_IDX: payload[4:6],  # type: ignore[typeddict-item]
+        SZ_LOG_ENTRY: tuple([str(r) for r in result]),
+    }
 
 
 # unknown_042f, from STA, VMS
@@ -1913,7 +1933,7 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
 
     else:
         # msg.len in (8, 16)  # evohome 8, hometronics 16
-        assert False, f"Packet length is {msg.len} (expecting 8, 16)"  # noqa: B011
+        assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     result: PayDictT._2E04 = {SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]]}
     if payload[:2] not in (

@@ -293,7 +293,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
         The I/1260 is not to/from a controller, so is not useful.
-        """  # noqa: D402
+        """
 
         schema = shrink(SCH_TCS_DHW(schema))
 
