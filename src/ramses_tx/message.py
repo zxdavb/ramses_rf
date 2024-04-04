@@ -14,14 +14,7 @@ from typing import TYPE_CHECKING
 from . import exceptions as exc
 from .address import Address
 from .command import Command
-from .const import (
-    DEV_TYPE_MAP,
-    SZ_DHW_IDX,
-    SZ_DOMAIN_ID,
-    SZ_LOG_IDX,
-    SZ_UFH_IDX,
-    SZ_ZONE_IDX,
-)
+from .const import DEV_TYPE_MAP, SZ_DHW_IDX, SZ_DOMAIN_ID, SZ_UFH_IDX, SZ_ZONE_IDX
 from .packet import Packet
 from .parsers import parse_payload
 from .ramses import CODE_IDX_ARE_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
@@ -164,7 +157,6 @@ class MessageBase:
 
         IDX_NAMES = {
             Code._0002: "other_idx",  # non-evohome: hometronics
-            Code._0418: SZ_LOG_IDX,
             Code._10A0: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
             Code._1260: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual
             Code._1F41: SZ_DHW_IDX,  # can be 2 DHW zones per system, albeit unusual

@@ -6,7 +6,7 @@ import random
 from datetime import datetime as dt
 
 from ramses_rf import Address, Command, Message, Packet
-from ramses_rf.system.faultlog_new import FaultIdxStrT, FaultLog, FaultLogEntry
+from ramses_rf.system.faultlog import FaultIdxStrT, FaultLog, FaultLogEntry
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.const import SZ_LOG_ENTRY, FaultDeviceClass, FaultState, FaultType
 from ramses_tx.schemas import DeviceIdT

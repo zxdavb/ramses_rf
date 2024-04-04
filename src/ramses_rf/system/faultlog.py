@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 """RAMSES RF - Expose an 0418 fault log (is a stateful process)."""
 
 from __future__ import annotations
 
-import asyncio
-import json
+import dataclasses
 import logging
-from datetime import datetime as dt, timedelta as td
-from typing import TYPE_CHECKING
+from collections import OrderedDict
+from typing import TYPE_CHECKING, Any, Literal, Never, NewType, TypeAlias
 
-from ramses_rf import exceptions as exc
 from ramses_tx import Command, Message, Packet
+from ramses_tx.const import (
+    SZ_LOG_ENTRY,
+    SZ_LOG_IDX,
+    FaultDeviceClass,
+    FaultState,
+    FaultType,
+)
+from ramses_tx.helpers import parse_fault_log_entry
+from ramses_tx.schemas import DeviceIdT
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -29,121 +35,203 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-TIMER_SHORT_SLEEP = 0.05
-TIMER_LONG_TIMEOUT = td(seconds=60)
+#  {'log_idx': '00', 'log_entry': ('21-12-23T11:59:35', 'restore', 'battery_low', 'actuator', '00', '04:164787', 'B0', '0000', 'FFFF7000')}
 
 
-# TODO: make stateful (a la binding)
-class FaultLog:  # 0418  # TODO: used a NamedTuple
-    """The fault log of a system."""
+@dataclasses.dataclass(frozen=True, kw_only=True, order=True)
+class FaultLogEntry:
+    """A fault log entry of an evohome fault log.
 
-    _MIN_IDX = 0x00
-    _MAX_IDX = 0x3E
+    Fault log entries do have a log_idx attr, but this is merely their current location
+    in the system's fault log.
+    """
 
-    def __init__(self, ctl: Evohome) -> None:
-        _LOGGER.debug("FaultLog(ctl=%s).__init__()", ctl)
+    timestamp: str  # #               # 21-12-23T11:59:35 - assume is unique
+    fault_state: FaultState  # #      # fault, restore, unknown_c0
+    fault_type: FaultType  # #        # system_fault, battery_low, sensor_fault, etc.
+    domain_idx: str  # #              # 00-0F, FC, etc. ? only if dev_class is/not CTL?
+    device_class: FaultDeviceClass  # # controller, actuator, sensor, etc.
+    device_id: DeviceIdT | None  # #  # 04:164787
 
-        self._loop = ctl._gwy._loop
+    @classmethod
+    def from_msg(cls, msg: Message) -> FaultLogEntry:
+        """Create a fault log entry from a message's packet."""
+        return cls.from_pkt(msg._pkt)
 
-        self.id = ctl.id
-        self.ctl = ctl
-        # self.tcs = ctl.tcs
-        self._gwy = ctl._gwy
+    @classmethod
+    def from_pkt(cls, pkt: Packet) -> FaultLogEntry:
+        """Create a fault log entry from a packet's payload."""
 
-        self._faultlog: dict = {}
-        self._faultlog_done: bool | None = None
+        log_entry = parse_fault_log_entry(pkt.payload)
+        if log_entry is None:
+            raise TypeError("Null fault log entry")
 
-        self.outdated: bool = True  # if we now our log is out of date
+        return cls(**{k: v for k, v in log_entry.items() if k[:1] != "_"})  # type: ignore[arg-type]
 
-        self._limit = 0x06
 
-    def __repr__(self) -> str:
-        return json.dumps(self._faultlog) if self._faultlog_done else "{}"  # TODO:
+FaultDtmT = NewType("FaultDtmT", str)
+FaultIdxIntT = NewType("FaultIdxIntT", int)
 
-    def __str__(self) -> str:
-        return f"{self.ctl} (fault log)"
+FaultLogT: TypeAlias = dict[Never, Never] | dict[FaultDtmT, FaultLogEntry]
+FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxIntT, FaultDtmT]
 
-    async def get_faultlog(
-        self, start: int = 0, limit: int = 6, force_refresh: bool | None = None
-    ) -> dict | None:
-        """Get the fault log of a system."""
-        _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
 
-        self._limit = 6 if limit is None else limit
+class FaultLog:  # 0418  # TODO: use a NamedTuple
+    """The fault log of an evohome system.
 
-        self._faultlog = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
-        self._faultlog_done = None
+    This code assumes that the `timestamp` attr of each log entry is a unique identifer.
 
-        self._rq_log_entry(log_idx=self._MIN_IDX if start is None else start)
+    Null entries do not have a timestamp. All subsequent entries will also be null.
 
-        time_start = dt.now()
-        while not self._faultlog_done:
-            await asyncio.sleep(TIMER_SHORT_SLEEP)
-            if dt.now() > time_start + TIMER_LONG_TIMEOUT * 2:
-                raise exc.ExpiredCallbackError("failed to obtain log entry (long)")
+    The `log_idx` is not an identifier: it is merely the current position of a log entry
+    in the system log.
 
-        return self.faultlog
+    New entries are added to the top of the log (log_idx=0), and the log_idx is
+    incremented for all exisiting log enties.
+    """
 
-    def _rq_log_entry(self, log_idx: int):
-        """Request the next log entry."""
-        _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
+    _MAX_LOG_IDX = 0x3E
 
-        def rq_callback(msg: Message) -> None:
-            _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
+    def __init__(self, tcs: Evohome) -> None:
+        self._ctl = tcs
+        self.id = tcs.id
+        self._gwy = tcs._gwy
 
-            if isinstance(msg, Packet):  # HACK: until QoS returns msgs
-                msg = Message._from_pkt(msg)
+        self._log: FaultLogT = dict()
+        self._map: FaultMapT = OrderedDict()
+        self._log_done: bool | None = None
 
-            if not msg:
-                self._faultlog_done = True
-                # raise exc.ExpiredCallbackError("failed to obtain log entry (short)")
-                return
+        self._is_current: bool = False  # if we now our log is out of date
+        self._is_getting: bool = False
 
-            log = dict(msg.payload)
-            log_idx = int(log.pop("log_idx", "00"), 16)
-            if not log:  # null response (no payload)
-                # TODO: delete other callbacks rather than waiting for them to expire
-                self._faultlog_done = True
-                return
+    def _insert_into_map(self, idx: FaultIdxIntT, dtm: FaultDtmT | None) -> FaultMapT:
+        """Rebuild the map, given the new log entry data."""
 
-            self._faultlog[log_idx] = log  # TODO: make a named tuple
-            if log_idx < self._limit:
-                self._rq_log_entry(log_idx + 1)
-            else:
-                self._faultlog_done = True
+        new_map: FaultMapT = OrderedDict()
 
-        # # FIXME: refactoring protocol stack
-        # # FIXME: make a better way of creating these callbacks
-        # # register callback for null response, which has no ctx (no frag_id),
-        # # and so a different header
-        # null_header = "|".join((RP, self.id, Code._0418))
-        # if null_header not in self._gwy._transport._callbacks:
-        #     self._gwy.msg_transport._callbacks[null_header] = {
-        #         SZ_FUNC: rq_callback,  # deprecated
-        #         SZ_DAEMON: True,  # deprecated
-        #     }
+        # usu. idx == 0, but could be > 0
+        new_map |= {
+            k: v for k, v in self._map.items() if k < idx and (dtm is None or v > dtm)
+        }
 
-        self._gwy.send_cmd(
-            Command.get_system_log_entry(self.ctl.id, log_idx), callback=rq_callback
-        )
+        if dtm is None:  # there are no subsequent log entries
+            return new_map
 
-    def _handle_msg(self, msg: Message) -> None:  # NOTE: active
+        new_map |= {idx: dtm}
+
+        if not (idxs := [k for k, v in self._map.items() if v < dtm]):
+            return new_map
+
+        if (next_idx := min(idxs)) > idx:
+            diff = 0
+        elif next_idx == idx:
+            diff = 1  # next - idx + 1
+        else:
+            diff = idx + 1  # 1 if self._map.get(idx) else 0
+
+        new_map |= {
+            k + diff: v  # type: ignore[misc]
+            for k, v in self._map.items()
+            if (k >= idx or v < dtm) and k + diff <= self._MAX_LOG_IDX
+        }
+
+        return new_map
+
+    def _handle_msg(self, msg: Message) -> None:
+        """Handle a fault log message."""
+
         if msg.code != Code._0418:
             return
 
+        if msg.verb == I_:
+            self._is_current = False
+
+        if SZ_LOG_IDX in msg.payload:
+            idx: FaultIdxIntT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
+        elif msg._pkt._idx:
+            idx = int(msg._pkt._idx, 16)  # idx was hacked in my protocol FSM
+        else:
+            return  # we can't do anything useful with this message
+
+        if msg.payload[SZ_LOG_ENTRY] is None:  # NOTE: Subsequent entries will be empty
+            self._map = self._insert_into_map(idx, None)
+            self._log = {k: v for k, v in self._log.items() if k in self._map.values()}
+            return  # If idx != 0, should we also check from idx = 0?
+
+        entry = FaultLogEntry.from_msg(msg)  # if msg.payload[SZ_LOG_ENTRY] else None
+        dtm: FaultDtmT = entry.timestamp  # type: ignore[assignment]
+
+        if self._map.get(idx) == dtm:  # type: ignore[call-overload]
+            return  # i.e. No evidence anything has changed
+
+        if dtm not in self._log:
+            self._log |= {dtm: entry}  # must add entry before _insert_into_map()
+        self._map = self._insert_into_map(idx, dtm)  # updates self._map
+        self._log = {k: v for k, v in self._log.items() if k in self._map.values()}
+
+        # if idx != 0:  # there's other (new/changed) entries above this one?
+        #     pass
+
+    async def get_faultlog(
+        self,
+        /,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+        force_refresh: bool = False,
+    ) -> None:
+        """Retrieve the fault log from the controller."""
+        if limit is None:
+            limit = self._MAX_LOG_IDX + 1
+
+        self._is_getting = True
+
+        for i in range(start, limit):
+            cmd = Command.get_system_log_entry(self.id, i)
+            pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
+
+            if pkt is None:
+                break
+
+            try:
+                _ = FaultLogEntry.from_pkt(pkt)
+            except TypeError:  # Null fault log entry
+                self._handle_msg(Message(pkt))
+                break
+            except AttributeError:
+                break
+
+        self._is_current = False
+        self._is_getting = False
+
+        return self.faultlog
+
     @property
-    def faultlog(self) -> dict | None:
+    def faultlog(self) -> dict[int, Any] | None:
         """Return the fault log of a system."""
-        if not self._faultlog_done:
-            return None
 
-        result = {
-            x: {k: v for k, v in y.items() if k[:1] != "_"}
-            for x, y in self._faultlog.items()
-        }
+        # if self._faultlog:
+        #     return self._faultlog
 
-        return {k: list(v.values()) for k, v in result.items()}
+        return {idx: self._log[dtm] for idx, dtm in self._map.items()}
 
-    @property
-    def _faultlog_outdated(self) -> bool:
-        return bool(self._faultlog_done and len(self._faultlog))
+    def is_current(self, force_io: bool | None = None) -> bool:
+        """Return True if the local fault log is identical to the controllers.
+
+        If force_io, retrieve the 0th log entry and check it is identical to the local
+        copy.
+        """
+
+        if not self._is_current:
+            return False
+        return True
+
+
+# fmt: off
+FaultIdxStrT = Literal[
+    '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
+    '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
+    '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
+    '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3A', '3B', '3C', '3D', '3E', '3F',
+]
+# fmt: on
