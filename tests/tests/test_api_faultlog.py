@@ -8,9 +8,17 @@ from datetime import datetime as dt
 from ramses_rf import Address, Command, Message, Packet
 from ramses_rf.system.faultlog_new import FaultLog, FaultLogEntry, FaultLogIdxStrT
 from ramses_tx.address import HGI_DEVICE_ID
-from ramses_tx.const import SZ_LOG_ENTRY, Code, FaultDeviceClass, FaultState, FaultType
+from ramses_tx.const import SZ_LOG_ENTRY, FaultDeviceClass, FaultState, FaultType
 from ramses_tx.schemas import DeviceIdT
 from tests.helpers import TEST_DIR
+
+from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
 
 WORK_DIR = f"{TEST_DIR}/parsers"
 
@@ -116,7 +124,17 @@ def _proc_log_line(pkt_line):
     assert entry
 
 
-def _proc_fault_entry(
+def _proc_null_fault_entry(
+    fault_log: FaultLog, _log_idx: FaultLogIdxStrT = "00"
+) -> Command:
+    """Return a 0418 packet with no entry."""
+    cmd = Command.from_attrs(
+        I_, CTL_ID, Code._0418, f"0000{_log_idx}B0000000000000000000007FFFFF7000000000"
+    )
+    fault_log._handle_msg(Message(Packet._from_cmd(cmd)))
+
+
+def _proc_test_fault_entry(
     fault_log: FaultLog, text_idx: FaultLogIdxStrT, _log_idx: FaultLogIdxStrT = "00"
 ):
     entry: FaultLogEntry = TEST_FAULTS[text_idx]
@@ -131,9 +149,7 @@ def _proc_fault_entry(
         _log_idx=_log_idx,
         timestamp=entry.timestamp,
     )
-    msg = Message(Packet._from_cmd(cmd))
-
-    fault_log._handle_msg(msg)
+    fault_log._handle_msg(Message(Packet._from_cmd(cmd)))
 
 
 # ### TESTS ###########################################################################
@@ -154,7 +170,7 @@ def test_faultlog_instantiation_0():
 
     # log entries arrive in order of timestamp (i.e. as they'd occur)
     for i in reversed(range(len(TEST_FAULTS))):
-        _proc_fault_entry(fault_log, f"{i:02}")  # _log_idx="00")
+        _proc_test_fault_entry(fault_log, f"{i:02}")  # _log_idx="00")
 
     # assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
     assert fault_log._map == EXPECTED_MAP
@@ -167,7 +183,7 @@ def test_faultlog_instantiation_1():
 
     # log entries arrive in order of log_idx (e.g. enumerating the log via RQs)
     for i in reversed(range(len(TEST_FAULTS))):
-        _proc_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
+        _proc_test_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
 
     assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
     assert fault_log._map == EXPECTED_MAP
@@ -183,7 +199,7 @@ def test_faultlog_instantiation_2():
     random.shuffle(numbers)
 
     for i in numbers:
-        _proc_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
+        _proc_test_fault_entry(fault_log, f"{i:02}", _log_idx=f"{i:02}")
 
     assert sorted(fault_log._log.keys(), reverse=True) == list(EXPECTED_MAP.values())
     assert fault_log._map == EXPECTED_MAP
@@ -195,8 +211,8 @@ def test_faultlog_instantiation_3():
     fault_log = FaultLog(Controller(CTL_ID))
 
     # a log with two entries arrives in order
-    _proc_fault_entry(fault_log, "05")
-    _proc_fault_entry(fault_log, "04")
+    _proc_test_fault_entry(fault_log, "05")
+    _proc_test_fault_entry(fault_log, "04")
 
     assert fault_log._map == {
         0: "21-12-23T00:55:04",
@@ -204,8 +220,8 @@ def test_faultlog_instantiation_3():
     }
 
     # the two entries arrives out of order
-    _proc_fault_entry(fault_log, "05", _log_idx="01")
-    _proc_fault_entry(fault_log, "04", _log_idx="00")
+    _proc_test_fault_entry(fault_log, "05", _log_idx="01")
+    _proc_test_fault_entry(fault_log, "04", _log_idx="00")
 
     assert fault_log._map == {
         0: "21-12-23T00:55:04",
@@ -213,14 +229,14 @@ def test_faultlog_instantiation_3():
     }
 
     # the log is cleared
-    fault_log._insert_into_map(0, None)
+    _proc_null_fault_entry(fault_log)
 
     assert fault_log._map == {}
 
     # a log with three entries is enumerated, kinda
-    _proc_fault_entry(fault_log, "03", _log_idx="00")
+    _proc_test_fault_entry(fault_log, "03", _log_idx="00")
     # roc_fault_entry(fault_log, "04", _log_idx="01")  # went missing
-    _proc_fault_entry(fault_log, "05", _log_idx="02")
+    _proc_test_fault_entry(fault_log, "05", _log_idx="02")
 
     assert fault_log._map == {
         0: "21-12-23T00:56:03",
@@ -228,9 +244,9 @@ def test_faultlog_instantiation_3():
     }
 
     # the missing entry arrives, only after a new entry
-    _proc_fault_entry(fault_log, "02")  # pushes others down
-    _proc_fault_entry(fault_log, "01")  # pushes others down
-    _proc_fault_entry(fault_log, "04", _log_idx="03")  # _log_idx was 01, above
+    _proc_test_fault_entry(fault_log, "02")  # pushes others down
+    _proc_test_fault_entry(fault_log, "01")  # pushes others down
+    _proc_test_fault_entry(fault_log, "04", _log_idx="03")  # _log_idx was 01, above
 
     assert fault_log._map == {
         0: "21-12-23T00:58:01",
@@ -241,7 +257,7 @@ def test_faultlog_instantiation_3():
     }
 
     # a new entry
-    _proc_fault_entry(fault_log, "00")  # pushes others down
+    _proc_test_fault_entry(fault_log, "00")  # pushes others down
 
     assert fault_log._map == {
         0: "21-12-23T00:59:00",
@@ -259,16 +275,16 @@ def test_faultlog_instantiation_4():
     fault_log = FaultLog(Controller(CTL_ID))
 
     # a log with three entries is enumerated, kinda
-    _proc_fault_entry(fault_log, "03", _log_idx="00")
+    _proc_test_fault_entry(fault_log, "03", _log_idx="00")
     # roc_fault_entry(fault_log, "04", _log_idx="01")  # went missing
-    _proc_fault_entry(fault_log, "05", _log_idx="02")
+    _proc_test_fault_entry(fault_log, "05", _log_idx="02")
 
     assert fault_log._map == {
         0: "21-12-23T00:56:03",
         2: "21-12-23T00:54:05",
     }
 
-    _proc_fault_entry(fault_log, "02", _log_idx="02")  # pushes others down
+    _proc_test_fault_entry(fault_log, "02", _log_idx="02")  # pushes others down
 
     assert fault_log._map == {
         2: "21-12-23T00:57:02",
@@ -276,7 +292,7 @@ def test_faultlog_instantiation_4():
         5: "21-12-23T00:54:05",
     }
 
-    _proc_fault_entry(fault_log, "01")
+    _proc_test_fault_entry(fault_log, "01")
 
     assert fault_log._map == {
         0: "21-12-23T00:58:01",
@@ -285,7 +301,7 @@ def test_faultlog_instantiation_4():
         5: "21-12-23T00:54:05",
     }
 
-    _proc_fault_entry(fault_log, "01", _log_idx="01")
+    _proc_test_fault_entry(fault_log, "01", _log_idx="01")
 
     assert fault_log._map == {
         1: "21-12-23T00:58:01",
@@ -294,7 +310,7 @@ def test_faultlog_instantiation_4():
         5: "21-12-23T00:54:05",
     }
 
-    _proc_fault_entry(fault_log, "04", _log_idx="04")  # _log_idx was 01, above
+    _proc_test_fault_entry(fault_log, "04", _log_idx="04")  # _log_idx was 01, above
 
     assert fault_log._map == {
         1: "21-12-23T00:58:01",
