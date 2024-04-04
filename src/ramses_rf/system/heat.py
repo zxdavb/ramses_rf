@@ -704,9 +704,7 @@ class Logbook(SystemBase):  # 0418
         self._prev_fault: Message = None  # type: ignore[assignment]
         self._this_fault: Message = None  # type: ignore[assignment]
 
-        self._faultlog: FaultLog = (
-            None  # FIXME: FaultLog(self)  # type: ignore[assignment]
-        )
+        self._faultlog: FaultLog = FaultLog(self)
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -719,38 +717,12 @@ class Logbook(SystemBase):  # 0418
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
-        return  # FIXME
-
-        if msg.code != Code._0418:
-            return
-
-        # if msg.code == Code._0418:
-        #     self._faultlog._handle_msg(msg)
-
-        if msg.payload["log_idx"] == "00":
-            if not self._this_event or (
-                msg.payload["log_entry"] != self._this_event.payload["log_entry"]
-            ):
-                self._this_event, self._prev_event = msg, self._this_event
-            # TODO: self._faultlog_outdated = msg.verb == I_ or self._prev_event and (
-            #     msg.payload["log_entry"] != self._prev_event.payload["log_entry"]
-            # )
-
-        if msg.payload["log_entry"] and msg.payload["log_entry"][1] == "fault":
-            if not self._this_fault or (
-                msg.payload["log_entry"] != self._this_fault.payload["log_entry"]
-            ):
-                self._this_fault, self._prev_fault = msg, self._this_fault
-
-        # if msg.payload["log_entry"][1] == "restore" and not self._this_fault:
-        #     self._send_cmd(Command.get_system_log_entry(self.ctl.id, 1))
-
-        # TODO: if self._faultlog.outdated:
-        #     if not self._gwy._read_only:
-        #         self._loop.create_task(self.get_faultlog(force_refresh=True))
+        if msg.code == Code._0418:
+            self._faultlog._handle_msg(msg)
 
     async def get_faultlog(
         self,
+        /,
         *,
         start: int = 0,
         limit: int | None = None,
@@ -762,16 +734,6 @@ class Logbook(SystemBase):  # 0418
             )
         except (exc.ExpiredCallbackError, RuntimeError):
             return None
-
-    # @property
-    # def faultlog_outdated(self) -> bool:
-    #     return self._this_event.verb == I_ or self._prev_event and (
-    #         self._this_event.payload != self._prev_event.payload
-    #     )
-
-    # @property
-    # def faultlog(self) -> dict:
-    #     return self._faultlog.faultlog
 
     @property
     def active_fault(self) -> tuple[str] | None:
@@ -794,8 +756,9 @@ class Logbook(SystemBase):  # 0418
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            "latest_event": self.latest_event,
             "active_fault": self.active_fault,
+            "latest_event": self.latest_event,
+            "latest_fault": self.latest_fault,
             # "faultlog": self.faultlog,
         }
 

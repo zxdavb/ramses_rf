@@ -7,7 +7,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Never, NewType, TypeAlias
+from typing import TYPE_CHECKING, Never, NewType, TypeAlias
 
 from ramses_tx import Command, Message, Packet
 from ramses_tx.const import (
@@ -70,10 +70,10 @@ class FaultLogEntry:
 
 
 FaultDtmT = NewType("FaultDtmT", str)
-FaultIdxIntT = NewType("FaultIdxIntT", int)
+FaultIdxT = NewType("FaultIdxT", int)
 
 FaultLogT: TypeAlias = dict[Never, Never] | dict[FaultDtmT, FaultLogEntry]
-FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxIntT, FaultDtmT]
+FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxT, FaultDtmT]
 
 
 class FaultLog:  # 0418  # TODO: use a NamedTuple
@@ -104,7 +104,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         self._is_current: bool = False  # if we now our log is out of date
         self._is_getting: bool = False
 
-    def _insert_into_map(self, idx: FaultIdxIntT, dtm: FaultDtmT | None) -> FaultMapT:
+    def _insert_into_map(self, idx: FaultIdxT, dtm: FaultDtmT | None) -> FaultMapT:
         """Rebuild the map, given the new log entry data."""
 
         new_map: FaultMapT = OrderedDict()
@@ -147,9 +147,9 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
             self._is_current = False
 
         if SZ_LOG_IDX in msg.payload:
-            idx: FaultIdxIntT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
-        elif msg._pkt._idx:
-            idx = int(msg._pkt._idx, 16)  # idx was hacked in my protocol FSM
+            idx: FaultIdxT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
+        elif msg._pkt._idx:  # then idx was hacked in by protocol FSM
+            idx = int(msg._pkt._idx, 16)  # type: ignore[assignment, arg-type]
         else:
             return  # we can't do anything useful with this message
 
@@ -179,7 +179,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         start: int = 0,
         limit: int | None = None,
         force_refresh: bool = False,
-    ) -> None:
+    ) -> dict[FaultIdxT, FaultLogEntry]:
         """Retrieve the fault log from the controller."""
         if limit is None:
             limit = self._MAX_LOG_IDX + 1
@@ -207,13 +207,13 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         return self.faultlog
 
     @property
-    def faultlog(self) -> dict[int, Any] | None:
+    def faultlog(self) -> dict[FaultIdxT, FaultLogEntry]:
         """Return the fault log of a system."""
 
         # if self._faultlog:
         #     return self._faultlog
 
-        return {idx: self._log[dtm] for idx, dtm in self._map.items()}
+        return {idx: self._log[dtm] for idx, dtm in self._map.items()}  # type: ignore[index]
 
     def is_current(self, force_io: bool | None = None) -> bool:
         """Return True if the local fault log is identical to the controllers.
