@@ -138,7 +138,6 @@
     "ramses_rf/helpers",
     "ramses_tx.parsers",
     "ramses_rf/schemas",
-    # "ramses_rf/system/faultlog",
   ]
 
   disallow_any_generics = false
