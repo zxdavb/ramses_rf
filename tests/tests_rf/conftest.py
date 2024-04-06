@@ -80,6 +80,13 @@ def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
 
 
 @pytest.fixture()  # scope="session")  # TODO: remove HACK, below
+async def mqtt_evofw3_port() -> PortStrT | None:  # type: ignore[return]
+    """Utilize an actual evofw3-compatible gateway."""
+
+    return "mqtt://mqtt_username:mqtt_passw0rd@127.0.0.1"
+
+
+@pytest.fixture()  # scope="session")  # TODO: remove HACK, below
 async def real_evofw3_port() -> PortStrT | None:  # type: ignore[return]
     """Utilize an actual evofw3-compatible gateway."""
 
@@ -209,3 +216,32 @@ async def real_ti3410(real_ti3410_port: PortStrT, request: pytest.FixtureRequest
         yield gwy
     finally:
         await gwy.stop()
+
+
+@pytest.fixture()  # scope="module")
+async def mqtt_evofw3(mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest):
+    """Utilize an actual evofw3-compatible gateway."""
+
+    global _global_failed_ports
+
+    gwy_config: dict = request.getfixturevalue("gwy_config")
+
+    try:
+        gwy = Gateway(mqtt_evofw3_port, **gwy_config)
+    except (ser.SerialException, exc.TransportSerialError) as err:
+        _global_failed_ports.append(real_evofw3_port)
+        pytest.xfail(str(err))  # not skip, as we'd determined port exists, above
+
+    assert gwy.hgi is None and gwy.devices == []
+
+    await gwy.start()
+    gwy.get_device(gwy._protocol.hgi_id)  # HACK: not instantiated: no puzzle pkts sent
+    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_DEVICE_ID)
+    assert gwy._protocol._is_evofw3 is True
+
+    try:
+        yield gwy
+    finally:
+        await gwy.stop()
+
+    pass
