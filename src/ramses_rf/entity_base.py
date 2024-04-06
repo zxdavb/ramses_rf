@@ -524,13 +524,15 @@ class _Discovery(_MessageDB):
 
             return td(seconds=secs)
 
-        async def send_disc_cmd(hdr: HeaderT, task: dict) -> Packet | None:
+        async def send_disc_cmd(
+            hdr: HeaderT, task: dict, timeout: float = 15
+        ) -> Packet | None:  # TODO: use constant instead of 15
             """Send a scheduled command and wait for/return the reponse."""
 
             try:
                 pkt: Packet | None = await asyncio.wait_for(
                     self._gwy.async_send_cmd(task[_SZ_COMMAND]),
-                    timeout=60,  # self.MAX_CYCLE_SECS?
+                    timeout=timeout,  # self.MAX_CYCLE_SECS?
                 )
 
             # TODO: except: handle no QoS
@@ -539,7 +541,9 @@ class _Discovery(_MessageDB):
                 _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
 
             except TimeoutError as err:  # safety valve timeout
-                _LOGGER.warning(f"{self}: Failed to send discovery cmd: {hdr}: {err}")
+                _LOGGER.warning(
+                    f"{self}: Failed to send discovery cmd: {hdr} within {timeout} secs: {err}"
+                )
 
             else:
                 return pkt

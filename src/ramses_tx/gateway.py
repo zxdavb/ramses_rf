@@ -235,10 +235,11 @@ class Engine:
 
         return None
 
-    async def _wait_for_protocol_to_stop(self) -> None:
-        await self._protocol.wait_connection_lost
-        self._protocol.wait_connection_lost.result()  # may raise an exception
-        return
+    async def _wait_for_protocol_to_stop(self, timeout: float = 1) -> None:
+        try:
+            return await asyncio.wait_for(self._protocol.wait_connection_lost, timeout)
+        except TimeoutError:
+            _LOGGER.warning(f"Failed to stop Transport within {timeout} seconds")
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""

@@ -263,7 +263,7 @@ class ProtocolContext:
                 fut, timeout=timeout
             )  # RuntimeError: ... Future <Future pending> attached to a different loop
         except TimeoutError as err:  # incl. fut.cancel()
-            msg = f"{self}: Expired global timer of {timeout} sec"
+            msg = f"{self}: Expired global timer after {timeout} sec"
             if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd
                 self.set_state(IsInIdle)  # set_exception() will cause InvalidStateError
             raise exc.ProtocolSendFailed(msg) from err  # make msg *before* state reset
