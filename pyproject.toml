@@ -136,7 +136,7 @@
     "ramses_rf/entity_base",
     "ramses_rf/gateway",
     "ramses_rf/helpers",
-    "ramses_tx.parsers",
+    "ramses_tx.parsers",  # will be lots of work
     "ramses_rf/schemas",
   ]
 

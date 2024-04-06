@@ -59,7 +59,14 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str):
 
 
 @pytest.mark.xdist_group(name="real_serial")
+async def test_get_schedule_mqtt(mqtt_evofw3: Gateway):
+    """Test obtaining the schedule from a real controller via MQTT."""
+
+    await _test_get_schedule(mqtt_evofw3, "01:145038", "01")
+
+
+@pytest.mark.xdist_group(name="real_serial")
 async def test_get_schedule_real(real_evofw3: Gateway):
-    """Test obtaining the schedule from a real controller."""
+    """Test obtaining the schedule from a real controller via RF."""
 
     await _test_get_schedule(real_evofw3, "01:145038", "01")

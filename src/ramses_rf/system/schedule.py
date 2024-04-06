@@ -206,7 +206,9 @@ class Schedule:  # 0404
 
         return self._global_ver > self._sched_ver, did_io  # is_dated, did_io
 
-    async def get_schedule(self, *, force_io: bool = False) -> _ScheduleT | None:
+    async def get_schedule(
+        self, *, force_io: bool = False, timeout: float = 15
+    ) -> _ScheduleT | None:
         """Retrieve/return the brief schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
@@ -217,9 +219,14 @@ class Schedule:  # 0404
         """
 
         try:
-            await asyncio.wait_for(self._get_schedule(force_io=force_io), timeout=15)
-        except TimeoutError:
-            raise  # TODO: raise a more parochial exception
+            await asyncio.wait_for(
+                self._get_schedule(force_io=force_io), timeout=timeout
+            )
+        except TimeoutError as err:
+            raise TimeoutError(
+                f"Failed to obtain schedule within {timeout} secs"
+            ) from err
+        # TODO: raise a more parochial exception
         return self.schedule
 
     async def _get_schedule(self, *, force_io: bool = False) -> None:

@@ -53,7 +53,7 @@ from functools import wraps
 from io import TextIOWrapper
 from string import printable
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Final, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 import serial_asyncio  # type: ignore[import-untyped]
@@ -908,6 +908,35 @@ class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ign
         await super()._write_frame(frame)
 
 
+SZ_RAMSES_GATEWAY = "RAMSES/GATEWAY"
+
+
+def validate_path(path: str) -> str:
+    """Test the topic path."""
+
+    # The user can supply the following paths:
+    # - ""
+    # - "/RAMSES/GATEWAY"
+    # - "/RAMSES/GATEWAY/+" (the previous two are equivalent to this one)
+    # - "/RAMSES/GATEWAY/18:123456"
+
+    # "RAMSES/GATEWAY/+"                -> online, online, ...
+    # "RAMSES/GATEWAY/18:017804"        -> online
+    # "RAMSES/GATEWAY/18:017804/info/+" -> ramses_esp/0.4.0
+    # "RAMSES/GATEWAY/+/rx"             -> pkts from all gateways
+
+    new_path = path or SZ_RAMSES_GATEWAY
+    if new_path.startswith("/"):
+        new_path = new_path[1:]
+    if not new_path.startswith(SZ_RAMSES_GATEWAY):
+        raise ValueError(f"Invalid topic path: {path}")
+    if new_path == SZ_RAMSES_GATEWAY:
+        new_path += "/+"
+    if len(new_path.split("/")) != 3:
+        raise ValueError(f"Invalid topic path: {path}")
+    return new_path
+
+
 # ### Read-Write Transport for MQTT ###################################################
 class MqttTransport(_BaseTransport, asyncio.Transport):
     READER_TASK = "reader_task"  # only for mypy
@@ -928,19 +957,18 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
         self.broker_url = urlparse(broker_url)
 
-        # TODO: check this GWY exists, and is online
-        self._extra[SZ_ACTIVE_HGI] = self.broker_url.path[-9:]  # "18:017804"  # HACK
         self._username = unquote(self.broker_url.username or "")
         self._password = unquote(self.broker_url.password or "")
 
-        self._TOPIC_PUB: Final = f"{self.broker_url.path}/tx"[1:]
-        self._TOPIC_SUB: Final = f"{self.broker_url.path}/rx"[1:]
-        self._mqtt_qos: Final = int(
-            parse_qs(self.broker_url.query).get("qos", ["0"])[0]
-        )
+        self._topic_base = validate_path(self.broker_url.path)
+        self._topic_pub = ""
+        self._topic_sub = ""
+
+        self._mqtt_qos = int(parse_qs(self.broker_url.query).get("qos", ["0"])[0])
 
         self._closing = False
         self._reading = True
+        self._hgi_connected = False
 
         self.client = mqtt.Client()
         self.loop.call_soon(self._connect)
@@ -948,6 +976,11 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
         return dt_now()
+
+    def get_extra_info(self, name: str, default: Any = None):
+        if name == SZ_IS_EVOFW3:
+            return True
+        return self._extra.get(name, default)  # self._extra[SZ_ACTIVE_HGI]
 
     def is_closing(self) -> bool:
         """Return True if the transport is closing or closed."""
@@ -967,6 +1000,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
     def _connect(self) -> None:
         self.client.on_connect = self._on_connect
+        self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
         self.client.username_pw_set(self._username, self._password)
         self.client.connect_async(
@@ -980,20 +1014,55 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
     def _on_connect(
         self, client: mqtt.Client, userdata: Any | None, flags: dict[str, Any], rc: int
     ) -> None:
+        _LOGGER.error(f"Connected with result code {rc}")
+
         self._closing = False
-        # _LOGGER.debug(f"Connected with result code {rc}")
+        self.client.subscribe(self._topic_base)  # hope for 'online' message
+
+    def _on_disconnect(
+        self, client: mqtt.Client, userdata: Any | None, rc: int
+    ) -> None:
+        _LOGGER.error(f"Disconnected with result code {rc}")
+
+        self._closing = False
+        # self._connection_lost(rc)
+
+    def _connection_lost(self, err: Exception | None = None) -> None:
+        # assert msg.payload == b"offline", "Coding error"
+
+        if not self._hgi_connected:
+            return
+        self._hgi_connected = False
+
+        self.client.unsubscribe(self._topic_sub)
 
         self.loop.call_soon_threadsafe(
+            functools.partial(self._protocol.connection_lost, err)
+        )
+
+    def _connection_made(self, msg: mqtt.MQTTMessage) -> None:
+        assert msg.payload == b"online", "Coding error"
+
+        if self._hgi_connected:
+            return
+        self._hgi_connected = True
+
+        self._extra[SZ_ACTIVE_HGI] = msg.topic[-9:]
+
+        self._topic_pub = msg.topic + "/tx"
+        self._topic_sub = msg.topic + "/rx"
+
+        self.client.subscribe(self._topic_sub, qos=self._mqtt_qos)
+
+        self.loop.call_soon_threadsafe(  # don't call this until we have HGI-ID
             functools.partial(self._protocol.connection_made, self, ramses=True)
         )  # was: self._protocol.connection_made(self, ramses=True)
-
-        # TODO: determine active gateway
-
-        client.subscribe(self._TOPIC_SUB, qos=self._mqtt_qos)
 
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
     ) -> None:
+        _LOGGER.error(f"Message from {msg.topic} with payload {msg.payload!r}")
+
         if self._closing:
             return
 
@@ -1002,7 +1071,24 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Rx: %s", msg.payload)
 
-        payload = json.loads(msg.payload)
+        if self._topic_sub.startswith(msg.topic):
+            pass
+
+        if msg.topic[-3:] != "/rx":  # then, e.g. 'RAMSES/GATEWAY/18:017804'
+            if msg.payload == b"offline" and self._topic_sub.startswith(msg.topic):
+                err = exc.TransportError(
+                    f"the MQTT topic is offline: {self._topic_sub[:-3]}"
+                )
+                self._connection_lost(err)
+            if msg.payload == b"online":
+                self._connection_made(msg)
+            return
+
+        try:
+            payload = json.loads(msg.payload)
+        except json.JSONDecodeError as err:
+            _LOGGER.warning("%s < PacketInvalid(%s)", msg.payload, err)
+            return
 
         try:
             pkt = Packet.from_dict(payload["ts"], _normalise(payload["msg"]))
@@ -1033,7 +1119,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
     def _publish(self, message: str) -> None:
         info: mqtt.MQTTMessageInfo = self.client.publish(
-            self._TOPIC_PUB, payload=message, qos=self._mqtt_qos
+            self._topic_pub, payload=message, qos=self._mqtt_qos
         )
         assert info
 
@@ -1059,6 +1145,10 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
         self._closing = True
         self.client.disconnect()
         self.client.loop_stop()
+
+        self.loop.call_soon_threadsafe(
+            functools.partial(self._protocol.connection_lost, None)
+        )
 
     def close(self) -> None:
         """Close the transport gracefully."""
@@ -1088,10 +1178,19 @@ async def transport_factory(
     # kwargs are specific to a transport. The above transports have:
     # evofw3_flag, use_regex
 
-    async def poll_until_connection_made(protocol: RamsesProtocolT) -> None:
-        """Poll until the Transport is bound to the Protocol."""
-        while protocol._transport is None:
-            await asyncio.sleep(0.005)  # type: ignore[unreachable]
+    async def wait_for_connection_made(
+        protocol: RamsesProtocolT, timeout: float = 3
+    ) -> None:
+        """Wait for the Protocol to receive connection_made(transport)."""
+
+        try:
+            await asyncio.wait_for(protocol._wait_connection_made, timeout=timeout)
+        except TimeoutError as err:
+            raise exc.TransportSerialError(
+                f"Transport did not bind to Protocol within {timeout} secs"
+            ) from err
+
+        pass
 
     def get_serial_instance(
         ser_name: SerPortNameT, ser_config: PortConfigT | None
@@ -1141,16 +1240,17 @@ async def transport_factory(
     assert port_name is not None  # mypy check
     assert port_config is not None  # mypy check
 
-    if port_name[:4] == "mqtt":
-        return MqttTransport(protocol, port_name, extra=extra, loop=loop, **kwargs)
+    if port_name[:4] == "mqtt":  # TODO: handle disable_sending
+        transport = MqttTransport(protocol, port_name, extra=extra, loop=loop, **kwargs)
+
+        await wait_for_connection_made(protocol, timeout=3)  # FIXME: patch for tests
+        return transport
 
     # may: raise TransportSerialError("Unable to open serial port...")
     ser_instance = get_serial_instance(port_name, port_config)
 
-    # TODO: test these...
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
-        issue_warning()
-        # return PortTransport(protocol, ser_instance, **kwargs)
+        issue_warning()  # TODO: add tests for these...
 
     if disable_sending or disable_qos:
         transport = PortTransport(
@@ -1166,18 +1266,14 @@ async def transport_factory(
             protocol, ser_instance, extra=extra, loop=loop, **kwargs
         )
 
-    # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
-    try:
-        await asyncio.wait_for(transport._init_fut, timeout=3)  # signature echo
+    # TODO: put this into transport class
+    timeout = 3
+    try:  # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
+        await asyncio.wait_for(transport._init_fut, timeout=timeout)  # signature echo
     except TimeoutError as err:
         raise exc.TransportSerialError(
-            "Transport did not initialise successfully"
+            f"Failed to initialise Transport within {timeout} secs"
         ) from err
 
-    # wait for protocol to receive connection_made(transport) (i.e. is quiesced)
-    try:
-        await asyncio.wait_for(poll_until_connection_made(protocol), timeout=3)
-    except TimeoutError as err:
-        raise exc.TransportSerialError("Transport did not bind to Protocol") from err
-
+    await wait_for_connection_made(protocol)
     return transport

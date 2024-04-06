@@ -279,7 +279,7 @@ SCH_GLOBAL_CONFIG = (
 
 #
 # 6/5: External Schemas, to be used by clients of this library
-def NormaliseRestoreCache() -> Callable:
+def NormaliseRestoreCache() -> Callable[[bool | dict[str, bool]], dict[str, bool]]:
     """Convert a short-hand restore_cache bool to a dict.
 
     restore_cache: bool ->  restore_cache:
@@ -287,7 +287,7 @@ def NormaliseRestoreCache() -> Callable:
                               restore_state: bool
     """
 
-    def normalise_restore_cache(node_value) -> dict[str, bool]:
+    def normalise_restore_cache(node_value: bool | dict[str, bool]) -> dict[str, bool]:
         if isinstance(node_value, dict):
             return node_value
         return {SZ_RESTORE_SCHEMA: node_value, SZ_RESTORE_STATE: node_value}
