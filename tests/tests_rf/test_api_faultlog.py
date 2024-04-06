@@ -53,7 +53,14 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT):
 
 
 @pytest.mark.xdist_group(name="real_serial")
+async def test_get_faultlog_mqtt(mqtt_evofw3: Gateway):
+    """Test obtaining the fault log from a real controller via MQTT."""
+
+    await _test_get_faultlog(mqtt_evofw3, "01:145038")
+
+
+@pytest.mark.xdist_group(name="real_serial")
 async def test_get_faultlog_real(real_evofw3: Gateway):
-    """Test obtaining the fault log from a real controller."""
+    """Test obtaining the fault log from a real controller via RF."""
 
     await _test_get_faultlog(real_evofw3, "01:145038")
