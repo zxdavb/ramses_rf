@@ -70,9 +70,9 @@ class _BaseProtocol(asyncio.Protocol):
         self._transport: RamsesTransportT = None  # type: ignore[assignment]
         self._loop = asyncio.get_running_loop()
 
-        # FIXME: Should start in read-only mode as no connection yet
-        self._pause_writing = False
+        self._pause_writing = False  # FIXME: Start in R/O mode as no connection yet?
         self._wait_connection_lost = self._loop.create_future()
+        self._wait_connection_made = self._loop.create_future()
 
     @property
     def hgi_id(self) -> DeviceIdT:
@@ -107,6 +107,8 @@ class _BaseProtocol(asyncio.Protocol):
         is called.
         """
 
+        if not self._wait_connection_made.done():
+            self._wait_connection_made.set_result(transport)
         self._transport = transport
 
     def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
