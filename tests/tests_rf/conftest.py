@@ -139,7 +139,10 @@ async def _fake_gateway(gwy_port: PortStrT, gwy_config: dict, rf: VirtualRf) -> 
     """Wrapper to instantiate a virtual gateway."""
 
     with patch("ramses_tx.transport.comports", rf.comports):
-        return await _gateway(gwy_port, gwy_config)
+        gwy = await _gateway(gwy_port, gwy_config)
+
+    gwy._transport._extra["rf"] = rf
+    return gwy
 
 
 async def _real_gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:

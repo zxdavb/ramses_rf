@@ -15,6 +15,7 @@ from ramses_rf import Command, Gateway
 from ramses_tx import exceptions as exc
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.protocol import PortProtocol
+from ramses_tx.transport import MqttTransport
 from ramses_tx.typing import QosParams
 
 # patched constants
@@ -94,15 +95,22 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     cmd = Command(cmd_str)
     assert str(cmd) == cmd_str  # sanity check
 
+    # a HGI80 (ti4310) will silently discard all frames that have addr0 != 18:000730
     is_hgi80 = not gwy._protocol._is_evofw3  # TODO: is_hgi80?
 
-    # NOTE: HGI80 will silently discard all frames that have addr0 != 18:000730
+    # NOTE: timeout values are empirical, and may need to be adjusted
+    if isinstance(gwy._transport, MqttTransport):  # MQTT
+        timeout = 0.375 * 2  # intesting, fail: 0.370 work: 0.375
+    elif gwy._transport.get_extra_info("rf"):  #   # fake
+        timeout = 0.003 * 2  # in testing, fail: 0.002 work: 0.003
+    else:  #                                        # real
+        timeout = 0.355 * 2  # intesting, fail: 0.350 work: 0.355
 
     try:
         # using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
         # latter may swallow the exception we wish to capture (ProtocolSendFailed)
         pkt = await gwy._protocol.send_cmd(
-            cmd, qos=QosParams(wait_for_reply=False, timeout=0.1)
+            cmd, qos=QosParams(wait_for_reply=False, timeout=timeout)
         )  # for this test, we only need the cmd echo
     except exc.ProtocolSendFailed:
         if is_hgi80 and cmd_str[7:16] != HGI_DEVICE_ID:
@@ -125,6 +133,13 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
 
 
 # ### TESTS ############################################################################
+
+
+@pytest.mark.xdist_group(name="real_serial")
+async def test_mqtt_evofw3(mqtt_evofw3: Gateway, test_idx: str):
+    """Validate the GWY test against a real (physical) evofw3."""
+
+    await _test_gwy_device(mqtt_evofw3, test_idx)
 
 
 @pytest.mark.xdist_group(name="real_serial")
