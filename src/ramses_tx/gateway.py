@@ -237,7 +237,7 @@ class Engine:
 
     async def _wait_for_protocol_to_stop(self, timeout: float = 1) -> None:
         try:
-            return await asyncio.wait_for(self._protocol.wait_connection_lost, timeout)
+            return await asyncio.wait_for(self._protocol.wait_connection_lost, timeout)  # type: ignore[arg-type]
         except TimeoutError:
             _LOGGER.warning(f"Failed to stop Transport within {timeout} seconds")
 
