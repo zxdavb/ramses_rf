@@ -29,7 +29,8 @@ WORK_DIR = f"{TEST_DIR}/schemas"
 async def test_schema_discover_from_log(f_name):
     with open(f"{WORK_DIR}/log_files/{f_name}.log") as f:
         gwy = Gateway(None, input_file=f, config={})  # noqa: F811
-        await gwy.start()
+        await gwy.start()  # this is what we're testing
+        await gwy.stop()
 
     with open(f"{WORK_DIR}/log_files/{f_name}.json") as f:
         schema = json.load(f)

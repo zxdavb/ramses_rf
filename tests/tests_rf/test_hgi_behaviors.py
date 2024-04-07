@@ -135,6 +135,20 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
 # ### TESTS ############################################################################
 
 
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: str):
+    """Check the behaviour of the fake (virtual) evofw3 against the GWY test."""
+
+    await _test_gwy_device(fake_evofw3, test_idx)
+
+
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: str):
+    """Check the behaviour of the fake (virtual) HGI80 against the GWY test."""
+
+    await _test_gwy_device(fake_ti3410, test_idx)
+
+
 @pytest.mark.xdist_group(name="real_serial")
 async def test_mqtt_evofw3(mqtt_evofw3: Gateway, test_idx: str):
     """Validate the GWY test against a real (physical) evofw3."""
@@ -154,17 +168,3 @@ async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
     """Validate the GWY test against a real (physical) HGI80."""
 
     await _test_gwy_device(real_ti3410, test_idx)
-
-
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: str):
-    """Check the behaviour of the fake (virtual) evofw3 against the GWY test."""
-
-    await _test_gwy_device(fake_evofw3, test_idx)
-
-
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: str):
-    """Check the behaviour of the fake (virtual) HGI80 against the GWY test."""
-
-    await _test_gwy_device(fake_ti3410, test_idx)

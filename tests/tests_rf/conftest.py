@@ -201,6 +201,25 @@ async def fake_ti3410(
 
 
 @pytest.fixture()  # scope="module")
+async def mqtt_evofw3(mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest):
+    """Utilize an actual evofw3-compatible gateway (discovered by mqtt_evofw3_port)."""
+
+    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
+
+    gwy = await _real_gateway(mqtt_evofw3_port, gwy_config)
+
+    gwy.get_device(gwy._protocol.hgi_id)  # HACK: not instantiated: no puzzle pkts sent
+
+    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_DEVICE_ID)
+    assert gwy._protocol._is_evofw3 is True
+
+    try:
+        yield gwy
+    finally:
+        await gwy.stop()
+
+
+@pytest.fixture()  # scope="module")
 async def real_evofw3(real_evofw3_port: PortStrT, request: pytest.FixtureRequest):
     """Utilize an actual evofw3-compatible gateway (discovered by real_evofw3_port)."""
 
@@ -227,25 +246,6 @@ async def real_ti3410(real_ti3410_port: PortStrT, request: pytest.FixtureRequest
 
     assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_DEVICE_ID)
     assert gwy._protocol._is_evofw3 is False
-
-    try:
-        yield gwy
-    finally:
-        await gwy.stop()
-
-
-@pytest.fixture()  # scope="module")
-async def mqtt_evofw3(mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest):
-    """Utilize an actual evofw3-compatible gateway (discovered by mqtt_evofw3_port)."""
-
-    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
-
-    gwy = await _real_gateway(mqtt_evofw3_port, gwy_config)
-
-    gwy.get_device(gwy._protocol.hgi_id)  # HACK: not instantiated: no puzzle pkts sent
-
-    assert isinstance(gwy.hgi, HgiGateway) and gwy.hgi.id not in (None, HGI_DEVICE_ID)
-    assert gwy._protocol._is_evofw3 is True
 
     try:
         yield gwy
