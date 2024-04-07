@@ -76,6 +76,8 @@ async def test_schemax_with_log_file(dir_name):
         shrink(expected["schema"]),
     )
 
+    await gwy.stop()
+
 
 async def test_systems_from_log_file(dir_name):
     """Compare the system built from a log file with the expected results."""
@@ -84,6 +86,8 @@ async def test_systems_from_log_file(dir_name):
     gwy: Gateway = await load_test_gwy(dir_name)
 
     assert_expected_set(gwy, expected)
+
+    await gwy.stop()
 
 
 async def test_restore_from_log_file(dir_name):
@@ -97,6 +101,8 @@ async def test_restore_from_log_file(dir_name):
     await gwy._restore_cached_packets(packets)
     assert_expected_set(gwy, expected)
     # assert shrink(gwy.schema) == shrink(schema)
+
+    await gwy.stop()
 
 
 async def test_shuffle_from_log_file(dir_name):
@@ -118,3 +124,5 @@ async def test_shuffle_from_log_file(dir_name):
     await gwy._restore_cached_packets(packets)
     assert_expected_set(gwy, expected)
     # assert shrink(gwy.schema) == shrink(schema)
+
+    await gwy.stop()

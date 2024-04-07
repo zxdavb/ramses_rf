@@ -50,6 +50,7 @@ from ramses_tx.schemas import (
 )
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
+from .database import MessageIndex
 from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
 from .schemas import (
@@ -81,9 +82,6 @@ if TYPE_CHECKING:
     from ramses_tx.schemas import DeviceIdT, DeviceListT
 
     from .device import Device
-
-_MsgHandlerT = Callable[[Message], None]
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,6 +139,8 @@ class Gateway(Engine):
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
+        self._zzz = MessageIndex()
+
     def __repr__(self) -> str:
         if not self.ser_name:
             return f"Gateway(input_file={self._input_file})"
@@ -193,6 +193,12 @@ class Gateway(Engine):
             and start_discovery
         ):
             initiate_discovery(self.devices, self.systems)
+
+    async def stop(self) -> None:
+        """Stop the Gateway and tidy up."""
+
+        self._zzz.stop()
+        await super().stop()
 
     def _pause(self, *args) -> None:
         """Pause the (unpaused) gateway (disables sending/discovery).

@@ -6,6 +6,7 @@
 import json
 import logging
 import warnings
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from random import shuffle
 
@@ -40,11 +41,14 @@ def shuffle_dict(old_dict) -> dict:
 
 
 @pytest.fixture
-async def gwy() -> Gateway:  # NOTE: async to get running loop
+async def gwy() -> AsyncGenerator[Gateway, None]:  # NOTE: async to get running loop
     """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})
     gwy._disable_sending = True
-    return gwy
+    try:
+        yield gwy
+    finally:
+        await gwy.stop()
 
 
 def assert_expected(actual, expected: dict = None) -> None:
