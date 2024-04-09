@@ -36,7 +36,7 @@ class QosParams:
         *,
         max_retries: int | None = DEFAULT_MAX_RETRIES,
         timeout: float | None = DEFAULT_SEND_TIMEOUT,
-        wait_for_reply: bool | None = None,
+        wait_for_reply: bool | None = True,
     ) -> None:
         """Create a QosParams instance."""
 
