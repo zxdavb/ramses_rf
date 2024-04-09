@@ -12,6 +12,7 @@ limits.
 import asyncio
 import functools
 import random
+from collections.abc import Awaitable
 from datetime import datetime as dt
 
 import pytest
@@ -358,8 +359,21 @@ async def _test_flow_402(rf: VirtualRf, protocol: PortProtocol) -> None:
         assert pkt == Command.put_sensor_temp("03:123456", i)
 
 
+async def _test_flow_qos_helper(send_cmd_coro: Awaitable) -> None:
+    try:
+        _ = await send_cmd_coro
+    except exc.ProtocolSendFailed:
+        pass
+    else:
+        assert False, f"Had expected {exc.ProtocolSendFailed}"
+
+
 @prot_factory(disable_qos=False)
 async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
+    # HACK: to reduce test time
+    protocol._context.SEND_TIMEOUT_LIMIT = 0.01
+    protocol._context.max_retry_limit = 0
+
     #
     # ### Simple test for an I (does not expect any reply)...
 
@@ -387,19 +401,19 @@ async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True))
     assert pkt == cmd, "Should be echo as there's no reply to wait for"
 
-    # ### Simple test for an RQ (expects an RP)...
+    # # ### Simple test for an RQ (expects an RP)...
 
     cmd = Command.get_system_time("01:000111")
-    pkt = await protocol._send_cmd(cmd)
-    assert pkt == cmd
+    coro = protocol._send_cmd(cmd)
+    await _test_flow_qos_helper(coro)
 
     cmd = Command.get_system_time("01:000222")
-    pkt = await protocol._send_cmd(cmd, qos=None)
-    assert pkt == cmd
+    coro = protocol._send_cmd(cmd, qos=None)
+    await _test_flow_qos_helper(coro)
 
     cmd = Command.get_system_time("01:000333")
-    pkt = await protocol._send_cmd(cmd, qos=QosParams())
-    assert pkt == cmd
+    coro = protocol._send_cmd(cmd, qos=QosParams())
+    await _test_flow_qos_helper(coro)
 
     cmd = Command.get_system_time("01:000444")
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
@@ -409,18 +423,11 @@ async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
     assert pkt == cmd
 
-    # FIXME: reduce timeouts to speed up test
     cmd = Command.get_system_time("01:000666")
-    try:
-        _ = await protocol._send_cmd(
-            cmd, qos=QosParams(wait_for_reply=True, timeout=0.05)
-        )
-    except exc.ProtocolSendFailed:
-        pass
-    else:
-        assert False, "Expected ProtocolSendFailed"
+    coro = protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True, timeout=0.05))
+    await _test_flow_qos_helper(coro)
 
-    # ### Simple test for an I (does not expect any reply)...
+    # # ### Simple test for an I (does not expect any reply)...
 
     cmd = Command.put_sensor_temp("03:000999", 19.5)
     pkt = await protocol._send_cmd(cmd)
