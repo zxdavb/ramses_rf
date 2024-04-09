@@ -563,7 +563,7 @@ class Gateway(Engine):
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
-        wait_for_reply: bool | None = None,
+        wait_for_reply: bool | None = True,
         **kwargs: Any,
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
