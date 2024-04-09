@@ -63,8 +63,8 @@ def test_helper_field_parsers() -> None:
     for val in ("7FFF", "7EFF", "0000", "0010", "0200", "D000"):
         assert val == hex_from_temp(hex_to_temp(val))
 
-    for val in (None, False, -127.99, -100, -22.5, -1.53, 0, 1.53, 22.5, 100, 127.98):
-        assert val == hex_to_temp(hex_from_temp(val))
+    for tmp in (None, False, -127.99, -100, -22.5, -1.53, 0, 1.53, 22.5, 100, 127.98):
+        assert tmp == hex_to_temp(hex_from_temp(tmp))
 
 
 def _test_pkt_dev_class() -> None:
@@ -78,14 +78,14 @@ def _test_pkt_dev_class() -> None:
         if "#" not in pkt_line:
             return
 
-        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+        pkt_line, pkt_eval = pkt_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return
 
         pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
 
-        assert pkt.src.type == eval(pkt_dict)  # TODO: finish this test
+        assert pkt.src.type == eval(pkt_eval)  # TODO: finish this test
 
     with open(f"{WORK_DIR}/pkt_dev_class.log") as f:
         while line := (f.readline()):
@@ -99,11 +99,11 @@ def test_pkt_addr_sets() -> None:
     def proc_log_line(pkt_line):
         if "#" not in pkt_line:
             return
-        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+        pkt_line, pkt_eval = pkt_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return
-        expected = eval(pkt_dict)
+        expected = eval(pkt_eval)
 
         try:
             cmd = Command(pkt_line[31:].rstrip())

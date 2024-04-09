@@ -82,7 +82,7 @@ def assert_raises(exception, fnc, *args):
 async def load_test_gwy(dir_name, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
-    kwargs: dict = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
+    kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
 
     try:
         with open(f"{dir_name}/config.json") as f:

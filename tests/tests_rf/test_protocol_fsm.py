@@ -20,6 +20,7 @@ import serial
 
 from ramses_rf import Command, Message, Packet
 from ramses_tx import exceptions as exc
+from ramses_tx.const import Priority
 from ramses_tx.protocol import PortProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
@@ -28,7 +29,7 @@ from ramses_tx.protocol_fsm import (
     WantRply,
     _ProtocolStateT,
 )
-from ramses_tx.transport import PortTransport, transport_factory
+from ramses_tx.transport import RamsesTransportT, transport_factory
 from ramses_tx.typing import QosParams
 
 from .virtual_rf import VirtualRf
@@ -91,7 +92,7 @@ def prot_factory(disable_qos: bool | None = False):
             )
             await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
-            transport: PortTransport = await transport_factory(
+            transport: RamsesTransportT = await transport_factory(
                 protocol,
                 port_name=rf.ports[0],
                 port_config=kwargs.pop("port_config", {}),
@@ -103,7 +104,7 @@ def prot_factory(disable_qos: bool | None = False):
                 await fnc(rf, protocol, *args, **kwargs)
                 await assert_protocol_state(protocol, IsInIdle)
             except serial.SerialException as err:
-                transport._close(err=err)
+                transport._close(exc=err)
                 raise
             except (AssertionError, asyncio.InvalidStateError, TimeoutError):
                 transport.close()
@@ -126,7 +127,7 @@ def prot_factory(disable_qos: bool | None = False):
 async def assert_protocol_state(
     protocol: PortProtocol,
     expected_state: _ProtocolStateT,
-    max_sleep: int = DEFAULT_MAX_SLEEP,
+    max_sleep: float = DEFAULT_MAX_SLEEP,
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -153,20 +154,22 @@ async def async_pkt_received(
     # assert_state_temp(protocol, None, 0)
 
     if method == 0:
-        return protocol.pkt_received(pkt)
-    elif method == 1:
-        return protocol._loop.call_soon(protocol.pkt_received, pkt)
+        protocol.pkt_received(pkt)
+        return
 
+    if method == 1:
+        protocol._loop.call_soon(protocol.pkt_received, pkt)
+        return
+
+    assert ser is not None
+    frame = bytes(str(pkt).encode("ascii")) + b"\r\n"
+
+    if method == 2:
+        ser.write(frame)
+    elif method == 3:
+        protocol._loop.call_soon(ser.write, frame)
     else:
-        assert ser is not None
-        frame = bytes(str(pkt).encode("ascii")) + b"\r\n"
-
-        if method == 2:
-            ser.write(frame)
-        elif method == 3:
-            protocol._loop.call_soon(ser.write, frame)
-        else:
-            protocol._loop.call_later(0.001, ser.write, frame)
+        protocol._loop.call_later(0.001, ser.write, frame)
 
     # await assert_protocol_state(protocol, ProtocolState.IDLE, max_sleep=0)
     # assert_state_temp(protocol, None, 0)
@@ -188,7 +191,9 @@ async def _test_flow_10x(
             pass
 
         # BUG: To make this work after the refactor, would have to create_task
-        return await protocol._context.send_cmd(_send_cmd, cmd)
+        return await protocol._context.send_cmd(
+            _send_cmd, cmd, Priority.HIGH, QosParams(wait_for_reply=False)
+        )
 
     # STEP 0: Setup...
     # ser = serial.Serial(rf.ports[1])

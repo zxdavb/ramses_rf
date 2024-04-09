@@ -28,12 +28,12 @@ def id_fnc(param):
     return PurePath(param).name
 
 
-def pytest_generate_tests(metafunc):
+def pytest_generate_tests(metafunc) -> None:
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_payloads_from_log_file(dir_name):
+def test_payloads_from_log_file(dir_name: Path) -> None:
     """Assert that each message payload is as expected."""
     # RP --- 02:044328 18:200214 --:------ 2309 003 0007D0       # {'ufh_idx': '00', 'setpoint': 20.0}
 
@@ -41,7 +41,7 @@ def test_payloads_from_log_file(dir_name):
         if "#" not in pkt_line:
             return
 
-        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+        pkt_line, pkt_eval = pkt_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return
@@ -49,7 +49,7 @@ def test_payloads_from_log_file(dir_name):
         pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
         msg = Message(pkt)
 
-        assert msg.payload == eval(pkt_dict)
+        assert msg.payload == eval(pkt_eval)
 
     with open(f"{dir_name}/packet.log") as f:
         while line := (f.readline()):
@@ -57,7 +57,7 @@ def test_payloads_from_log_file(dir_name):
                 proc_log_line(line)
 
 
-async def test_schemax_with_log_file(dir_name):
+async def test_schemax_with_log_file(dir_name: Path) -> None:
     """Compare the schema built from a log file with the expected results."""
 
     expected: dict = load_expected_results(dir_name) or {}
@@ -79,7 +79,7 @@ async def test_schemax_with_log_file(dir_name):
     await gwy.stop()
 
 
-async def test_systems_from_log_file(dir_name):
+async def test_systems_from_log_file(dir_name: Path) -> None:
     """Compare the system built from a log file with the expected results."""
 
     expected: dict = load_expected_results(dir_name) or {}
@@ -90,7 +90,7 @@ async def test_systems_from_log_file(dir_name):
     await gwy.stop()
 
 
-async def test_restore_from_log_file(dir_name):
+async def test_restore_from_log_file(dir_name: Path) -> None:
     """Compare the system built from a get_state log file with the expected results."""
 
     expected: dict = load_expected_results(dir_name) or {}
@@ -105,7 +105,7 @@ async def test_restore_from_log_file(dir_name):
     await gwy.stop()
 
 
-async def test_shuffle_from_log_file(dir_name):
+async def test_shuffle_from_log_file(dir_name: Path) -> None:
     """Compare the system built from a shuffled log file with the expected results."""
 
     expected: dict = load_expected_results(dir_name) or {}

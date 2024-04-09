@@ -76,7 +76,7 @@ async def _test_create_stack(
     try:
         await assert_stack_state(protocol, transport)
     except serial.SerialException as err:
-        transport._close(err=err)
+        transport._close(exc=err)
         raise
     except (AssertionError, asyncio.InvalidStateError, TimeoutError):
         transport.close()
@@ -115,7 +115,7 @@ async def _test_factories(
     try:
         await assert_stack_state(protocol, transport)
     except serial.SerialException as err:
-        transport._close(err=err)
+        transport._close(exc=err)
         raise
     except (AssertionError, asyncio.InvalidStateError, TimeoutError):
         transport.close()

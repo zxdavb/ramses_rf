@@ -69,14 +69,14 @@ GWY_CONFIG = {
 
 
 @pytest.fixture(autouse=True)
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
     monkeypatch.setattr("ramses_tx.transport.MINIMUM_WRITE_GAP", 0)
 
 
 async def assert_this_pkt(
-    gwy: Gateway, expected: Command, max_sleep: int = DEFAULT_MAX_SLEEP
-):
+    gwy: Gateway, expected: Command, max_sleep: float = DEFAULT_MAX_SLEEP
+) -> None:
     """Check, at the gateway layer, that the current packet is as expected."""
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -89,7 +89,7 @@ async def assert_this_pkt(
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_regex_inbound_():
+async def test_regex_inbound_() -> None:
     """Check the regex filters work as expected."""
 
     rf = VirtualRf(2)
@@ -118,7 +118,7 @@ async def test_regex_inbound_():
 # TODO: get tests working with QoS enabled
 @pytest.mark.xdist_group(name="virt_serial")
 @patch("ramses_tx.protocol._DBG_DISABLE_QOS", False)
-async def _test_regex_outbound():
+async def _test_regex_outbound() -> None:
     """Check the regex filters work as expected."""
 
     rf = VirtualRf(2)
@@ -150,7 +150,7 @@ async def _test_regex_outbound():
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_regex_with_qos():
+async def test_regex_with_qos() -> None:
     """Check the regex filters work as expected."""
 
     rf = VirtualRf(2)

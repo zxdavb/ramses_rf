@@ -23,9 +23,9 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("f_name", sorted(Path(WORK_DIR).glob("*.log")), ids=id_fnc)
 
 
-def _proc_log_line(pkt_line):
-    pkt_line, pkt_dict, *_ = list(
-        map(str.strip, pkt_line.split("#", maxsplit=1) + [""])
+def _proc_log_line(log_line: str):
+    pkt_line, pkt_eval, *_ = list(
+        map(str.strip, log_line.split("#", maxsplit=1) + [""])
     )
 
     if not pkt_line:
@@ -44,12 +44,12 @@ def _proc_log_line(pkt_line):
     # assert bool(msg._is_fragment) == pkt._is_fragment
     # assert bool(msg._idx): dict == pkt._idx: Optional[bool | str]  # not useful
 
-    if not pkt_dict:
+    if not pkt_eval:
         return
     try:
-        pkt_dict = eval(pkt_dict)
+        _ = eval(pkt_eval)
     except SyntaxError:
-        if "{" in pkt_dict:
+        if "{" in pkt_eval:
             raise
         return
 

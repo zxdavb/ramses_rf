@@ -647,7 +647,7 @@ class _FileTransport(asyncio.ReadTransport):
     def write(self, data: bytes) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: This Protocol is Read-Only")
 
-    def _abort(self, exc: ExceptionT | None = None) -> None:  # NotImplementedError
+    def _abort(self, exc: ExceptionT) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: Not implemented")
 
     def _close(self, exc: ExceptionT | None = None) -> None:

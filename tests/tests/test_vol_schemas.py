@@ -6,6 +6,8 @@
 Test the configuration parsers.
 """
 
+from typing import Any
+
 import pytest
 import voluptuous as vol
 import yaml
@@ -58,7 +60,7 @@ _PASS_BUT_INVALID = (
 
 def no_duplicates_constructor(loader, node, deep=False):
     """Check for duplicate keys."""
-    mapping = {}
+    mapping: dict[str, Any] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
         if key in mapping:

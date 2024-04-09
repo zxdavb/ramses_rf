@@ -7,6 +7,7 @@
 """RAMSES RF - Check GWY address/type detection and its treatment of addr0."""
 
 import asyncio
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -53,7 +54,7 @@ pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
 @pytest.fixture()  # scope="module")
-def gwy_config():
+def gwy_config() -> dict[str, Any]:
     return {
         "config": {
             "disable_discovery": True,
@@ -65,11 +66,11 @@ def gwy_config():
 
 
 @pytest.fixture()  # scope="module")
-def gwy_dev_id():
+def gwy_dev_id() -> str:
     return TST_ID_
 
 
-def pytest_generate_tests(metafunc: pytest.Metafunc):
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     metafunc.parametrize("test_idx", TEST_CMDS)
 
 
@@ -80,7 +81,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     "ramses_tx.address._DBG_DISABLE_STRICT_CHECKING",
     _DBG_DISABLE_STRICT_CHECKING,
 )
-async def _test_gwy_device(gwy: Gateway, test_idx: str):
+async def _test_gwy_device(gwy: Gateway, test_idx: int) -> None:
     """Check GWY address/type detection, and behaviour of its treatment of addr0."""
 
     assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
@@ -101,7 +102,7 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
     # NOTE: timeout values are empirical, and may need to be adjusted
     if isinstance(gwy._transport, MqttTransport):  # MQTT
         timeout = 0.375 * 2  # intesting, fail: 0.370 work: 0.375
-    elif gwy._transport.get_extra_info("rf"):  #   # fake
+    elif gwy._transport.get_extra_info("virtual_rf"):  #   # fake
         timeout = 0.003 * 2  # in testing, fail: 0.002 work: 0.003
     else:  #                                        # real
         timeout = 0.355 * 2  # intesting, fail: 0.350 work: 0.355
@@ -136,35 +137,35 @@ async def _test_gwy_device(gwy: Gateway, test_idx: str):
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: str):
+async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: int) -> None:
     """Check the behaviour of the fake (virtual) evofw3 against the GWY test."""
 
     await _test_gwy_device(fake_evofw3, test_idx)
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: str):
+async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: int) -> None:
     """Check the behaviour of the fake (virtual) HGI80 against the GWY test."""
 
     await _test_gwy_device(fake_ti3410, test_idx)
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_mqtt_evofw3(mqtt_evofw3: Gateway, test_idx: str):
+async def test_mqtt_evofw3(mqtt_evofw3: Gateway, test_idx: int) -> None:
     """Validate the GWY test against a real (physical) evofw3."""
 
     await _test_gwy_device(mqtt_evofw3, test_idx)
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_real_evofw3(real_evofw3: Gateway, test_idx: str):
+async def test_real_evofw3(real_evofw3: Gateway, test_idx: int) -> None:
     """Validate the GWY test against a real (physical) evofw3."""
 
     await _test_gwy_device(real_evofw3, test_idx)
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_real_ti3410(real_ti3410: Gateway, test_idx: str):
+async def test_real_ti3410(real_ti3410: Gateway, test_idx: int) -> None:
     """Validate the GWY test against a real (physical) HGI80."""
 
     await _test_gwy_device(real_ti3410, test_idx)

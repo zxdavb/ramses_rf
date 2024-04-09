@@ -172,7 +172,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
 
 
 async def assert_context_state(
-    device: Fakeable, state: type[BindStateBase], max_sleep: int = DEFAULT_MAX_SLEEP
+    device: Fakeable, state: type[BindStateBase], max_sleep: float = DEFAULT_MAX_SLEEP
 ) -> None:
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -370,7 +370,7 @@ async def _test_flow_20x(
 
 # TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_100(test_set: dict[str:dict]) -> None:
+async def test_flow_100(test_set: dict[str, dict]) -> None:
     """Check packet flow / state change of a binding at context layer."""
 
     config = {}
@@ -399,7 +399,7 @@ async def test_flow_100(test_set: dict[str:dict]) -> None:
 
 # TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_200(test_set: dict[str:dict]) -> None:
+async def test_flow_200(test_set: dict[str, dict]) -> None:
     """Check packet flow / state change of a binding at device layer."""
 
     config = {}

@@ -6,7 +6,7 @@
 Test the Schema processor.
 """
 
-import voluptuous as vol  # type: ignore[import]
+import voluptuous as vol
 
 from ramses_rf.schemas import (
     SCH_TCS_DHW,
@@ -20,7 +20,7 @@ from ramses_rf.schemas import (
 from tests.helpers import assert_raises
 
 
-def test_dhw_schema():
+def test_dhw_schema() -> None:
     """Test the DHW schema.
 
     dhw:
@@ -44,7 +44,7 @@ def test_dhw_schema():
         }
 
 
-def test_zone_schema():
+def test_zone_schema() -> None:
     """Test the zone schema.
 
     '01':
@@ -88,9 +88,9 @@ def test_zone_schema():
     ):  # NOTE: should be a *list* of device_ids
         assert_raises(vol.error.MultipleInvalid, SCH_TCS_ZONES_ZON, {SZ_ACTUATORS: val})
 
-    for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
-        assert SCH_TCS_ZONES_ZON({SZ_ACTUATORS: val}) == {
+    for xxx in ([], ["13:111111"], ["13:222222", "13:111111"]):
+        assert SCH_TCS_ZONES_ZON({SZ_ACTUATORS: xxx}) == {
             SZ_CLASS: None,
-            SZ_ACTUATORS: val,
+            SZ_ACTUATORS: xxx,
             SZ_SENSOR: None,
         }

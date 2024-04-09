@@ -78,13 +78,18 @@
 ### mypy #############################################################################
 
 [tool.mypy]
-  files = ["client.py", "src"]
+  files = [
+    "client.py",
+    "src",
+    "tests"
+  ]
   exclude = [
     "src/ramses_cli/client.py",
     "src/ramses_cli/utils",
     "src/ramses_rf/device",
     "src/ramses_rf/system/heat.py",
     "src/ramses_rf/system/zones.py",
+    "tests/deprecated",
   ]
 
   follow_imports = "skip"  # TODO: don't use this feature
@@ -146,6 +151,21 @@
   module = "ramses_rf.entity_base.*"
 
   disable_error_code = ["arg-type", "attr-defined", "unreachable"]
+#
+[[tool.mypy.overrides]]
+  module = ["tests.*", "tests_rf.*"]
+
+  disable_error_code = [
+    "arg-type",
+    "dict-item",
+    "import-untyped",
+    "misc",
+    "no-any-return",
+    "return",
+    "type-arg",
+    "union-attr",
+    "unreachable",
+  ]
 
 
 #

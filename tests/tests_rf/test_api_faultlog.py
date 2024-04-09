@@ -3,6 +3,7 @@
 """RAMSES RF - Check get of TCS fault logs."""
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
 @pytest.fixture()  # scope="module")
-def gwy_config():
+def gwy_config() -> dict[str, Any]:
     return {
         "config": {
             "disable_discovery": True,
@@ -32,7 +33,7 @@ def gwy_config():
 #######################################################################################
 
 
-async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT):
+async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
     """Test obtaining the fault log."""
 
     assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
@@ -53,14 +54,14 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT):
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_get_faultlog_mqtt(mqtt_evofw3: Gateway):
+async def test_get_faultlog_mqtt(mqtt_evofw3: Gateway) -> None:
     """Test obtaining the fault log from a real controller via MQTT."""
 
     await _test_get_faultlog(mqtt_evofw3, "01:145038")
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_get_faultlog_real(real_evofw3: Gateway):
+async def test_get_faultlog_real(real_evofw3: Gateway) -> None:
     """Test obtaining the fault log from a real controller via RF."""
 
     await _test_get_faultlog(real_evofw3, "01:145038")

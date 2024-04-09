@@ -4,7 +4,7 @@
 
 import logging
 from collections.abc import AsyncGenerator
-from typing import Final, TypeAlias
+from typing import Final, NoReturn, TypeAlias
 from unittest.mock import patch
 
 import pytest
@@ -83,7 +83,7 @@ def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
 
 
 @pytest.fixture()  # scope="session")  # TODO: remove HACK, below
-async def mqtt_evofw3_port() -> PortStrT | None:  # type: ignore[return]
+async def mqtt_evofw3_port() -> PortStrT:
     """Utilize an actual evofw3-compatible gateway."""
 
     # TODO: add a test & pytest.skip() if no MQTT broker is available
@@ -92,7 +92,7 @@ async def mqtt_evofw3_port() -> PortStrT | None:  # type: ignore[return]
 
 
 @pytest.fixture()  # scope="session")  # TODO: remove HACK, below
-async def real_evofw3_port() -> PortStrT | None:  # type: ignore[return]
+async def real_evofw3_port() -> PortStrT | NoReturn:
     """Utilize an actual evofw3-compatible gateway."""
 
     port_names = [p.device for p in comports() if p.product and "evofw3" in p.product]
@@ -110,7 +110,7 @@ async def real_evofw3_port() -> PortStrT | None:  # type: ignore[return]
 
 
 @pytest.fixture()  # scope="session")
-async def real_ti3410_port() -> PortStrT | None:  # type: ignore[return]
+async def real_ti3410_port() -> PortStrT | NoReturn:
     """Utilize an actual HGI80-compatible gateway."""
 
     port_names = [p.device for p in comports() if p.product and "TUSB3410" in p.product]
@@ -141,11 +141,11 @@ async def _fake_gateway(gwy_port: PortStrT, gwy_config: dict, rf: VirtualRf) -> 
     with patch("ramses_tx.transport.comports", rf.comports):
         gwy = await _gateway(gwy_port, gwy_config)
 
-    gwy._transport._extra["rf"] = rf
+    gwy._transport._extra["virtual_rf"] = rf
     return gwy
 
 
-async def _real_gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:
+async def _real_gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway | NoReturn:  # type: ignore[return]
     """Wrapper to instantiate a physical gateway."""
 
     global _global_failed_ports
@@ -163,7 +163,7 @@ async def _real_gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:
 @pytest.fixture()  # scope="module")
 async def fake_evofw3(
     fake_evofw3_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
-):
+) -> AsyncGenerator[Gateway, None]:
     """Utilize a virtual evofw3-compatible gateway (discovered by fake_evofw3_port)."""
 
     gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
@@ -183,7 +183,7 @@ async def fake_evofw3(
 @pytest.fixture()  # scope="module")
 async def fake_ti3410(
     fake_ti3410_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
-):
+) -> AsyncGenerator[Gateway, None]:
     """Utilize a virtual HGI80-compatible gateway (discovered by fake_ti3410_port)."""
 
     gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
@@ -201,7 +201,9 @@ async def fake_ti3410(
 
 
 @pytest.fixture()  # scope="module")
-async def mqtt_evofw3(mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest):
+async def mqtt_evofw3(
+    mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest
+) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual evofw3-compatible gateway (discovered by mqtt_evofw3_port)."""
 
     gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
@@ -220,7 +222,9 @@ async def mqtt_evofw3(mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest
 
 
 @pytest.fixture()  # scope="module")
-async def real_evofw3(real_evofw3_port: PortStrT, request: pytest.FixtureRequest):
+async def real_evofw3(
+    real_evofw3_port: PortStrT, request: pytest.FixtureRequest
+) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual evofw3-compatible gateway (discovered by real_evofw3_port)."""
 
     gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
@@ -237,7 +241,9 @@ async def real_evofw3(real_evofw3_port: PortStrT, request: pytest.FixtureRequest
 
 
 @pytest.fixture()  # scope="module")
-async def real_ti3410(real_ti3410_port: PortStrT, request: pytest.FixtureRequest):
+async def real_ti3410(
+    real_ti3410_port: PortStrT, request: pytest.FixtureRequest
+) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual HGI80-compatible gateway (discovered by real_ti3410_port)."""
 
     gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)

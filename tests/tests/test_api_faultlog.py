@@ -45,7 +45,7 @@ def _fault_log_entry(*args, timestamp: str | None = None, **kwargs) -> FaultLogE
 
 
 # Keys corresponding to order in the faultlog
-TEST_FAULTS: dict[LogIdxT:FaultLogEntry] = {}  # type: ignore[assignment
+TEST_FAULTS: dict[LogIdxT, FaultLogEntry] = {}
 
 TEST_FAULTS["00"] = _fault_log_entry(
     FaultState.RESTORE,
@@ -111,9 +111,9 @@ class Controller:
         self._gwy = None
 
 
-def _proc_log_line(pkt_line):
+def _proc_log_line(log_line: str):
     try:
-        pkt = Packet.from_file(pkt_line[:26], pkt_line[27:])
+        pkt = Packet.from_file(log_line[:26], log_line[27:])
     except ValueError:
         return
 

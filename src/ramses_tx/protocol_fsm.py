@@ -163,8 +163,8 @@ class ProtocolContext:
 
         if exception:
             _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
-            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
-            self._fut.set_exception(exception)
+            if self._fut and not self._fut.done():
+                self._fut.set_exception(exception)  # apoligise to the sender
 
         elif expired:
             _LOGGER.debug("BEFORE = %s: expired=%s", self, expired)
@@ -219,6 +219,7 @@ class ProtocolContext:
         # may want to set some instance variables, according to type of transport
         self._state.connection_made()
 
+    # TODO: Should we clear the buffer if connection is lost (and apoligise to senders?
     def connection_lost(self, err: ExceptionT | None) -> None:
         self._state.connection_lost()
 

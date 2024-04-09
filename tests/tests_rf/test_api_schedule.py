@@ -19,7 +19,7 @@ pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
 @pytest.fixture()  # scope="module")
-def gwy_config():
+def gwy_config() -> dict[str, Any]:
     return {
         "config": {
             "disable_discovery": True,
@@ -34,7 +34,7 @@ def gwy_config():
 
 
 @pytest.mark.xdist_group(name="virt_serial")
-async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str):
+async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
     """Test obtaining the version and schedule."""
 
     assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
@@ -59,14 +59,14 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str):
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_get_schedule_mqtt(mqtt_evofw3: Gateway):
+async def test_get_schedule_mqtt(mqtt_evofw3: Gateway) -> None:
     """Test obtaining the schedule from a real controller via MQTT."""
 
     await _test_get_schedule(mqtt_evofw3, "01:145038", "01")
 
 
 @pytest.mark.xdist_group(name="real_serial")
-async def test_get_schedule_real(real_evofw3: Gateway):
+async def test_get_schedule_real(real_evofw3: Gateway) -> None:
     """Test obtaining the schedule from a real controller via RF."""
 
     await _test_get_schedule(real_evofw3, "01:145038", "01")
