@@ -74,35 +74,64 @@ class MessageIndex:
         sqlite3.register_converter("dtm", convert_datetime)
 
     def add(self, msg: Message) -> Message | None:
-        """Add a message to the index.
+        """Add a single message to the index.
 
         Returns any message that was removed because it had the same header.
+
+        Throws a warning is there is a duplicate dtm.
         """  # TODO: eventually, may be better to use SqlAlchemy
 
-        msgs = self.rem(hdr=msg._pkt._hdr)
+        def insert_msg(msg: Message) -> None:
+            self._cu.execute(
+                """
+                INSERT INTO messages (dtm, verb, src, dst, code, ctx, hdr)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    msg.dtm,
+                    msg.verb,
+                    msg.src.id,
+                    msg.dst.id,
+                    msg.code,
+                    msg._pkt._ctx,
+                    msg._pkt._hdr,
+                ),
+            )
 
-        # may: sqlite3.IntegrityError: UNIQUE constraint failed: messages.dtm
-        self._cu.execute(
-            """
-            INSERT INTO messages (dtm, verb, src, dst, code, ctx, hdr)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                msg.dtm,
-                msg.verb,
-                msg.src.id,
-                msg.dst.id,
-                msg.code,
-                msg._pkt._ctx,
-                msg._pkt._hdr,
-            ),
-        )
-        self._cx.commit()
+        old = self.rem(hdr=msg._pkt._hdr)
+
+        try:  # TODO: remove, or use only when source is a packet log?
+            insert_msg(msg)
+        except sqlite3.IntegrityError:
+            dups = self.rem(dtm=msg.dtm)
+            if not dups:  # UNIQUE constraint failed: messages.dtm?
+                raise
+            _LOGGER.warning(
+                "Overwrote dtm in index for %s: %s", msg._pkt._hdr, dups[0]._pkt
+            )
+            insert_msg(msg)
 
         dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
         self._msgs[dtm] = msg
 
-        return msgs[0] if msgs else None
+        self._cx.commit()
+        return old[0] if old else None
+
+    def _rem(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
+        """Remove a set of message(s) from the index."""
+
+        msgs = self.get(msg=msg, **kwargs)
+
+        query = "DELETE FROM messages WHERE "
+        query += " AND ".join(f"{k} = ?" for k in kwargs)
+
+        self._cu.execute(query, tuple(kwargs.values()))
+
+        for msg in msgs:
+            dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
+            self._msgs.pop(dtm)
+
+        return msgs
 
     def rem(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
         """Remove a set of message(s) from the index.
@@ -117,18 +146,9 @@ class MessageIndex:
         if not kwargs:
             raise ValueError("No Message or kwargs provided")
 
-        msgs = self.get(**kwargs)
+        msgs = self._rem(msg, **kwargs)
 
-        query = "DELETE FROM messages WHERE "
-        query += " AND ".join(f"{k} = ?" for k in kwargs)
-
-        self._cu.execute(query, tuple(kwargs.values()))
         self._cx.commit()
-
-        for msg in msgs:
-            dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
-            self._msgs.pop(dtm)
-
         return msgs
 
     def get(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
