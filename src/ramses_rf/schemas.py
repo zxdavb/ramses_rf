@@ -17,6 +17,7 @@ import voluptuous as vol
 
 from ramses_tx.const import (
     SZ_ACTUATORS,
+    SZ_CONFIG,
     SZ_DEVICES,
     SZ_NAME,
     SZ_SENSOR,
@@ -261,8 +262,6 @@ SCH_GATEWAY_CONFIG = vol.Schema(SCH_GATEWAY_DICT, extra=vol.REMOVE_EXTRA)
 
 #
 # 5/5: the Global (gateway) Schema
-SZ_CONFIG: Final = "config"
-
 SCH_GLOBAL_CONFIG = (
     vol.Schema(
         {
