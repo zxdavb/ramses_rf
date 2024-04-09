@@ -17,6 +17,7 @@ from ramses_rf.const import (
     DEV_TYPE_MAP,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
+    SZ_MODE,
     SZ_NAME,
     SZ_RELAY_DEMAND,
     SZ_RELAY_FAILSAFE,
@@ -51,7 +52,7 @@ from ramses_rf.schemas import (
     SZ_SENSOR,
 )
 from ramses_tx import Address, Command, Message
-from ramses_tx.const import SZ_PAYLOAD
+from ramses_tx.const import SZ_CONFIG, SZ_MIX_CONFIG, SZ_PAYLOAD
 
 from .schedule import Schedule
 
@@ -86,6 +87,10 @@ class ZoneBase(Child, Parent, Entity):
     _SLUG: str = None  # type: ignore[assignment]
     _ROLE_ACTUATORS: str = None  # type: ignore[assignment]
     _ROLE_SENSORS: str = None  # type: ignore[assignment]
+
+    _ATTRS = {}
+    _PARAMS = []
+    _STATUS = []
 
     def __init__(self, tcs, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
@@ -136,7 +141,7 @@ class ZoneBase(Child, Parent, Entity):
         return self._child_id
 
 
-class ZoneSchedule:  # 0404
+class ZoneSchedule(ZoneBase):  # 0404
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -178,6 +183,18 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
     _SLUG: str = ZoneRole.DHW
+
+    _ATTRS = {  # attr: (code, key)
+        SZ_CONFIG: (Code._10A0, None),  # set_config()
+        SZ_MODE: (Code._1F41, None),  # set_mode()
+        SZ_SETPOINT: (Code._10A0, SZ_SETPOINT),  # has a setter via set_config
+        SZ_TEMPERATURE: (Code._1260, SZ_TEMPERATURE),  # fakeable
+        SZ_HEAT_DEMAND: (Code._3150, SZ_HEAT_DEMAND),  # idx = ?
+        SZ_RELAY_DEMAND: (Code._0008, SZ_RELAY_DEMAND),
+        SZ_RELAY_FAILSAFE: (Code._0009, SZ_RELAY_FAILSAFE),
+    }
+    _PARAMS = [SZ_CONFIG, SZ_MODE]
+    _STATUS = [SZ_TEMPERATURE, SZ_HEAT_DEMAND]
 
     def __init__(self, tcs, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
@@ -421,7 +438,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     @property
     def params(self) -> dict[str, Any]:
         """Return the DHW's configuration (excl. schedule)."""
-        return {a: getattr(self, a) for a in ("config", "mode")}
+        return {a: getattr(self, a) for a in (SZ_CONFIG, SZ_MODE)}
 
     @property
     def status(self) -> dict[str, Any]:
@@ -429,11 +446,26 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return {a: getattr(self, a) for a in (SZ_TEMPERATURE, SZ_HEAT_DEMAND)}
 
 
-class Zone(ZoneSchedule, ZoneBase):
+class Zone(ZoneSchedule, ZoneBase):  # NOTE: is promotable
     """The Zone class for all zone types (but not DHW)."""
 
     _SLUG: str = None  # type: ignore[assignment]
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
+
+    _ATTRS = {  # attr: (code, key)
+        SZ_CONFIG: (Code._000A, None),  # set_config()
+        SZ_MODE: (Code._2349, None),  # set_mode()
+        SZ_NAME: (Code._0004, SZ_NAME),  # has a setter, and set_name()
+        SZ_HEAT_DEMAND: (Code._3150, SZ_HEAT_DEMAND),  # aggregate value
+        SZ_SETPOINT: (
+            (Code._2309, Code._2349),
+            SZ_SETPOINT,
+        ),  # best of two/array, has setter
+        SZ_TEMPERATURE: (Code._30C9, SZ_TEMPERATURE),  # array?
+        SZ_WINDOW_OPEN: (Code._12B0, SZ_WINDOW_OPEN),  # only for RadZone?
+    }
+    _PARAMS = [SZ_CONFIG, SZ_MODE, SZ_NAME]
+    _STATUS = [SZ_HEAT_DEMAND, SZ_SETPOINT, SZ_TEMPERATURE, SZ_WINDOW_OPEN]
 
     def __init__(self, tcs, zone_idx: str) -> None:
         """Create a heating zone.
@@ -776,7 +808,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @property  # TODO: setpoint
     def params(self) -> dict[str, Any]:
         """Return the zone's configuration (excl. schedule)."""
-        return {a: getattr(self, a) for a in ("config", "mode", "name")}
+        return {a: getattr(self, a) for a in (SZ_CONFIG, SZ_MODE, SZ_NAME)}
 
     @property
     def status(self) -> dict[str, Any]:
@@ -793,6 +825,11 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     _SLUG: str = ZoneRole.ELE
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ELE
+
+    _ATTRS = Zone._ATTRS | {  # attr: (code, key)
+        SZ_RELAY_DEMAND: (Code._0008, SZ_RELAY_DEMAND),  # only for RadZone?
+    }
+    _STATUS = Zone._STATUS + [SZ_RELAY_DEMAND]
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -829,10 +866,15 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
-    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
-
     _SLUG: str = ZoneRole.MIX
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.MIX
+
+    _ATTRS = Zone._ATTRS | {  # attr: (code, key)
+        SZ_MIX_CONFIG: (Code._1030, None),  # only for RadZone?
+    }
+    _PARAMS = Zone._PARAMS + [SZ_MIX_CONFIG]
+
+    # def __init__(self,...  # NOTE: since zones are promotable, we can't use this here
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -840,6 +882,11 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
         self._add_discovery_cmd(
             Command.get_mix_valve_params(self.ctl.id, self.idx), 60 * 60 * 6
         )
+
+    @property
+    def heat_demand(self) -> float | None:
+        """Return the zone's heat demand."""
+        return None
 
     @property
     def mix_config(self) -> dict:  # 1030
@@ -860,6 +907,20 @@ class RadZone(Zone):  # HR92/HR80
 
     _SLUG: str = ZoneRole.RAD
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.RAD
+
+    _ATTRS = Zone._ATTRS | {  # attr: (code, key)
+        SZ_HEAT_DEMAND: (Code._3150, SZ_HEAT_DEMAND),  # aggregate value
+    }
+
+    @property
+    def heat_demand(self) -> float | None:  # 3150
+        """Return the zone's heat demand, estimated from its devices' heat demand."""
+        demands = [
+            d.heat_demand
+            for d in self.actuators  # TODO: actuators
+            if hasattr(d, SZ_HEAT_DEMAND) and d.heat_demand is not None
+        ]
+        return _transform(max(demands + [0])) if demands else None
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
@@ -886,9 +947,13 @@ class ValZone(EleZone):  # BDR91A/T
     _SLUG: str = ZoneRole.VAL
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.VAL
 
+    _ATTRS = EleZone._ATTRS | {  # attr: (code, key)
+        SZ_HEAT_DEMAND: (Code._0008, SZ_RELAY_DEMAND),  # NOTE: relay demand ?transform
+    }
+
     @property
-    def heat_demand(self) -> float | None:  # 0008 (NOTE: not 3150)
-        """Return the zone's heat demand, using relay demand as a proxy."""
+    def heat_demand(self) -> float | None:  # 3150
+        """Return the zone's heat demand, estimated from its devices' heat demand."""
         return self.relay_demand
 
 
