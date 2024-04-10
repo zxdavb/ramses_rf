@@ -85,20 +85,8 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
 # ### TESTS ############################################################################
 
 
-# NOTE: does not use factory
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_virtual_rf_dev_disc():
+async def _test_virtual_rf_dev_disc(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway):
     """Check the virtual RF network behaves as expected (device discovery)."""
-
-    rf = VirtualRf(3)
-
-    rf.set_gateway(rf.ports[0], "18:000000")
-    gwy_0 = Gateway(rf.ports[0], **GWY_CONFIG)
-    await assert_devices(gwy_0, [])
-
-    rf.set_gateway(rf.ports[1], "18:111111")
-    gwy_1 = Gateway(rf.ports[1], **GWY_CONFIG)
-    await assert_devices(gwy_1, [])
 
     ser_2 = serial.Serial(rf.ports[2])
 
@@ -137,26 +125,9 @@ async def test_virtual_rf_dev_disc():
     await assert_devices(gwy_0, ["01:010000", "01:011111", "18:000000", "18:111111"])
     await assert_devices(gwy_1, ["01:010000", "01:011111", "01:022222", "18:111111"])
 
-    await gwy_0.stop()
-    await gwy_1.stop()
-    await rf.stop()
 
-
-# NOTE: uses factory
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_virtual_rf_pkt_flow():
+async def _test_virtual_rf_pkt_flow(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway):
     """Check the virtual RF network behaves as expected (packet flow)."""
-
-    rf, (gwy_0, gwy_1) = await rf_factory(
-        [GWY_CONFIG | SCHEMA_0, GWY_CONFIG | SCHEMA_1]
-    )
-
-    assert gwy_0._protocol._transport
-    # NOTE: will pick up gwy 18:111111, since Foreign gwy detect has been removed
-    await assert_devices(gwy_0, ["18:000000", "18:111111", "40:000000"])
-
-    assert gwy_1._protocol._transport
-    await assert_devices(gwy_1, ["18:111111", "41:111111"])
 
     # TEST 1:
     await assert_code_in_device_msgz(
@@ -188,6 +159,59 @@ async def test_virtual_rf_pkt_flow():
     await assert_devices(gwy_0, ["01:022222", "18:000000", "18:111111", "40:000000"])
     await assert_devices(gwy_1, ["01:022222", "18:111111", "40:000000", "41:111111"])
 
-    await gwy_0.stop()
-    await gwy_1.stop()
-    await rf.stop()
+
+# NOTE: does not use factory
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_virtual_rf_dev_disc():
+    """Check the virtual RF network behaves as expected (device discovery)."""
+
+    rf = VirtualRf(3)
+
+    gwy_0: Gateway = None  # type: ignore[assignment]
+    gwy_1: Gateway = None  # type: ignore[assignment]
+
+    try:
+        rf.set_gateway(rf.ports[0], "18:000000")
+        gwy_0 = Gateway(rf.ports[0], **GWY_CONFIG)
+        await assert_devices(gwy_0, [])
+
+        rf.set_gateway(rf.ports[1], "18:111111")
+        gwy_1 = Gateway(rf.ports[1], **GWY_CONFIG)
+        await assert_devices(gwy_1, [])
+
+        await _test_virtual_rf_dev_disc(rf, gwy_0, gwy_1)
+
+    finally:
+        if gwy_0:
+            await gwy_0.stop()
+        if gwy_1:
+            await gwy_1.stop()
+        await rf.stop()
+
+
+# NOTE: uses factory
+@pytest.mark.xdist_group(name="virt_serial")
+async def test_virtual_rf_pkt_flow():
+    """Check the virtual RF network behaves as expected (packet flow)."""
+
+    rf: VirtualRf = None  # type: ignore[assignment]
+
+    try:
+        rf, (gwy_0, gwy_1) = await rf_factory(
+            [GWY_CONFIG | SCHEMA_0, GWY_CONFIG | SCHEMA_1]
+        )
+
+        assert gwy_0._protocol._transport
+        # NOTE: will pick up gwy 18:111111, since Foreign gwy detect has been removed
+        await assert_devices(gwy_0, ["18:000000", "18:111111", "40:000000"])
+
+        assert gwy_1._protocol._transport
+        await assert_devices(gwy_1, ["18:111111", "41:111111"])
+
+        await _test_virtual_rf_pkt_flow(rf, gwy_0, gwy_1)
+
+    finally:
+        if rf:
+            await gwy_0.stop()
+            await gwy_1.stop()
+            await rf.stop()

@@ -37,13 +37,15 @@ async def test_schedule_get(dir_name):
     with open(f"{dir_name}/schedule.json") as f:
         schedule = json.load(f)
 
-    gwy: Gateway = await load_test_gwy(dir_name)
+    try:
+        gwy: Gateway = await load_test_gwy(dir_name)
 
-    zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
-    assert zone.schedule == schedule[SZ_SCHEDULE]
-    assert zone._schedule._full_schedule == schedule
+        zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
+        assert zone.schedule == schedule[SZ_SCHEDULE]
+        assert zone._schedule._full_schedule == schedule
 
-    await gwy.stop()
+    finally:
+        await gwy.stop()
 
 
 async def test_schedule_helpers(dir_name):

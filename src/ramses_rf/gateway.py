@@ -48,6 +48,7 @@ from ramses_tx.schemas import (
     PktLogConfigT,
     PortConfigT,
 )
+from ramses_tx.transport import SZ_READER_TASK
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
 from .database import MessageIndex
@@ -301,7 +302,7 @@ class Gateway(Engine):
             packet_dict=packets,
         )
 
-        await tmp_transport.get_extra_info(tmp_transport.READER_TASK)
+        await tmp_transport.get_extra_info(SZ_READER_TASK)
 
         _LOGGER.warning("GATEWAY: Restored, resuming")
         self._resume()

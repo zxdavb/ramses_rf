@@ -53,7 +53,7 @@ from functools import wraps
 from io import TextIOWrapper
 from string import printable
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, Final, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 import serial_asyncio  # type: ignore[import-untyped]
@@ -65,6 +65,7 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
+from .address import DeviceIdT
 from .command import Command
 from .const import (
     DUTY_CYCLE_DURATION,
@@ -112,6 +113,10 @@ if DEV_MODE:
 _DBG_DISABLE_DUTY_CYCLE_LIMIT = False
 _DBG_DISABLE_REGEX_WARNINGS = False
 _DBG_FORCE_LOG_FRAMES = False
+
+
+SZ_RAMSES_GATEWAY: Final = "RAMSES/GATEWAY"
+SZ_READER_TASK: Final = "reader_task"
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
@@ -462,16 +467,90 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
     return wrapper
 
 
+# ### Abstractors #####################################################################
+# ### Do the bare minimum to abstract each transport from its underlying class
+
+
 class _BaseTransport:
-    _protocol: RamsesProtocolT
-    _extra: dict[str, Any]  # mypy
-
     def __init__(self, *args, **kwargs) -> None:
-        self._evofw_flag = kwargs.pop(SZ_EVOFW_FLAG, None)  # gwy.config.evofw_flag
-
-        kwargs.pop("comms_params", None)  # FiXME: remove this
-
         super().__init__(*args, **kwargs)
+
+
+class _FileTransportAbstractor:
+    """Do the bare minimum to abstract a transport from its underlying class."""
+
+    def __init__(
+        self,
+        pkt_source: dict[str, str] | TextIOWrapper,
+        protocol: RamsesProtocolT,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
+        # per().__init__(extra=extra)  # done in _BaseTransport
+
+        self._pkt_source = pkt_source
+
+        self._protocol = protocol
+        self._loop = loop or asyncio.get_event_loop()
+
+
+class _PortTransportAbstractor(serial_asyncio.SerialTransport):  # type: ignore[misc]
+    """Do the bare minimum to abstract a transport from its underlying class."""
+
+    serial: Serial  # serial_asyncio.SerialTransport does not have typing
+
+    def __init__(
+        self,
+        serial_instance: Serial,
+        protocol: RamsesProtocolT,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
+        super().__init__(loop or asyncio.get_event_loop(), protocol, serial_instance)
+
+        # lf._serial = serial_instance
+
+        # lf._protocol = protocol
+        # lf._loop = loop or asyncio.get_event_loop()
+
+
+class _MqttTransportAbstractor:
+    """Do the bare minimum to abstract a transport from its underlying class."""
+
+    def __init__(
+        self,
+        broker_url: str,
+        protocol: RamsesProtocolT,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
+        # per().__init__(extra=extra)  # done in _BaseTransport
+
+        self._broker_url = urlparse(broker_url)
+
+        self._protocol = protocol
+        self._loop = loop or asyncio.get_event_loop()
+
+
+# ### Base classes (common to all Transports) #########################################
+# ### Code shared by all R/O, R/W transport types (File/dict, Serial, MQTT)
+
+
+class _ReadTransport(_BaseTransport):
+    """Interface for read-only transports."""
+
+    _protocol: RamsesProtocolT = None  # type: ignore[assignment]
+    _loop: asyncio.AbstractEventLoop
+
+    #  __slots__ = ('_extra',)
+
+    def __init__(self, *args, extra: dict[str, Any] | None = None, **kwargs) -> None:
+        super().__init__(*args, loop=kwargs.pop("loop", None))
+
+        self._extra: dict[str, Any] = {} if extra is None else extra
+
+        self._evofw_flag = kwargs.pop(SZ_EVOFW_FLAG, None)  # gwy.config.evofw_flag
+        # kwargs.pop("comms_params", None)  # FiXME: remove this
+
+        self._closing: bool = False
+        self._reading: bool = False
 
         self._this_pkt: Packet | None = None
         self._prev_pkt: Packet | None = None
@@ -481,6 +560,54 @@ class _BaseTransport:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._protocol})"
+
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using last packet's dtm field."""
+
+        try:
+            return self._this_pkt.dtm  # type: ignore[union-attr]
+        except AttributeError:
+            return dt(1970, 1, 1, 1, 0)
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        """The asyncio event loop as declared by SerialTransport."""
+        return self._loop
+
+    def get_extra_info(self, name: str, default: Any = None):
+        return self._extra.get(name, default)
+
+    def is_closing(self) -> bool:
+        """Return True if the transport is closing or has closed."""
+        return self._closing
+
+    def _close(self, exc: exc.RamsesException | None = None) -> None:
+        """Inform the protocol that this transport has closed."""
+
+        self.loop.call_soon_threadsafe(
+            functools.partial(self._protocol.connection_lost, exc)
+        )
+
+    def close(self) -> None:
+        """Close the transport gracefully."""
+
+        if self._closing:
+            return
+        self._closing = True
+
+        self._close()
+
+    def is_reading(self) -> bool:
+        """Return True if the transport is receiving."""
+        return self._reading
+
+    def pause_reading(self) -> None:
+        """Pause the receiving end (no data to protocol.pkt_received())."""
+        self._reading = False
+
+    def resume_reading(self) -> None:
+        """Resume the receiving end."""
+        self._reading = True
 
     def _pkt_read(self, pkt: Packet) -> None:
         """Pass any valid Packets to the protocol's callback.
@@ -498,6 +625,35 @@ class _BaseTransport:
             _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
         except exc.ProtocolError as err:  # protect from upper layers
             _LOGGER.error("%s < exception from msg layer: %s", pkt, err)
+
+    def _make_connection(self, gwy_id: DeviceIdT | None) -> None:
+        self._extra[SZ_ACTIVE_HGI] = gwy_id  # or HGI_DEV_ADDR.id
+
+        self.loop.call_soon_threadsafe(  # shouldn't call this until we have HGI-ID
+            functools.partial(self._protocol.connection_made, self, ramses=True)
+        )
+
+
+class _FullTransport(_ReadTransport):  # asyncio.Transport
+    """Interface representing a bidirectional transport."""
+
+    def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._disable_sending = disable_sending
+
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using the curent dtm."""
+        return dt_now()
+
+    def write(self, data: bytes) -> None:
+        """Write some data bytes to the transport."""
+
+        raise exc.TransportError("write() not implemented, use write_frame() instead")
+
+    # def abort(self) -> None:  # no need to support this method
+    #     """Close the transport immediately."""
+    #     self._close(exc.TransportError("Transport aborted"))
 
 
 _RegexRuleT: TypeAlias = dict[str, str]
@@ -532,64 +688,31 @@ class _RegHackMixin:
             )
         return result
 
-    def _frame_read(self, dtm: str, frame: str) -> None:
-        super()._frame_read(dtm, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
+    def _frame_read(self, dtm_str: str, frame: str) -> None:
+        super()._frame_read(dtm_str, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
 
     async def _write_frame(self, frame: str) -> None:
         await super()._write_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
 
 
-class _FileTransport(asyncio.ReadTransport):
-    """Parse a file (or a dict) for packets, and never send."""
+# ### Transports ######################################################################
+# ### Implement the transports for File/dict (R/O), Serial, MQTT
 
-    READER_TASK = "reader_task"
-    _protocol: RamsesProtocolT
 
-    _dtm_str: str = None  # type: ignore[assignment]  # FIXME: remove this somehow
+class FileTransport(_ReadTransport, _FileTransportAbstractor):
+    """Receive packets from a read-only source such as packet log or a dict."""
 
-    def __init__(
-        self,
-        protocol: RamsesProtocolT,
-        pkt_source: dict[str, str] | TextIOWrapper,
-        loop: asyncio.AbstractEventLoop | None = None,
-        extra: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(extra=extra)
+    def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
-        self._pkt_source = pkt_source
-        self._protocol = protocol
-        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
+        if bool(disable_sending) is False:
+            raise exc.TransportSourceInvalid("This Transport cannot send packets")
 
-        self._closing: bool = False
-        self._reading: bool = False
+        self._extra[SZ_READER_TASK] = self._reader_task = self._loop.create_task(
+            self._start_reader(), name="FileTransport._start_reader()"
+        )
 
-        self._reader_task = self._loop.create_task(self._start_reader())
-
-    @property
-    def loop(self) -> asyncio.AbstractEventLoop:
-        """The asyncio event loop as used by SerialTransport."""
-        return self._loop
-
-    def get_extra_info(self, name, default=None) -> Any:
-        if name == self.READER_TASK:
-            return self._reader_task
-        return super().get_extra_info(name, default)
-
-    def is_closing(self) -> bool:
-        """Return True if the transport is closing or closed."""
-        return self._closing
-
-    def is_reading(self) -> bool:
-        """Return True if the transport is receiving."""
-        return self._reading
-
-    def pause_reading(self) -> None:
-        """Pause the receiving end (no data to protocol.pkt_received())."""
-        self._reading = False
-
-    def resume_reading(self) -> None:
-        """Resume the receiving end."""
-        self._reading = True
+        self.loop.call_soon(self._make_connection, None)
 
     async def _start_reader(self) -> None:  # TODO
         self._reading = True
@@ -626,7 +749,6 @@ class _FileTransport(asyncio.ReadTransport):
 
     def _frame_read(self, dtm_str: str, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
-        self._dtm_str = dtm_str  # HACK: FIXME: remove need for this, somehow
 
         try:
             pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
@@ -638,9 +760,6 @@ class _FileTransport(asyncio.ReadTransport):
             return
         self._pkt_read(pkt)
 
-    def _pkt_read(self, pkt: Packet) -> None:
-        raise NotImplementedError
-
     async def write_frame(self, frame: str) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: This Protocol is Read-Only")
 
@@ -650,47 +769,91 @@ class _FileTransport(asyncio.ReadTransport):
     def _abort(self, exc: ExceptionT) -> None:  # NotImplementedError
         raise NotImplementedError(f"{self}: Not implemented")
 
-    def _close(self, exc: ExceptionT | None = None) -> None:
-        if self._closing:
-            return
-        self._closing = True
+    def _close(self, exc: exc.RamsesException | None = None) -> None:
+        """Close the transport (cancel any outstanding tasks)."""
+
+        super()._close(exc)
 
         if self._reader_task:
             self._reader_task.cancel()
 
-        self._loop.call_soon(self._protocol.connection_lost, exc)
 
-    def close(self) -> None:
-        """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
-        self._close()
-
-
-class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
-    """Poll a serial port for packets, and send (without QoS)."""
-
-    loop: asyncio.AbstractEventLoop
-    serial: Serial
+class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
+    """Send/receive packets to/from evofw3/HGI80 via serial port."""
 
     _init_fut: asyncio.Future[Packet | None]
     _init_task: asyncio.Task[None]
 
     _recv_buffer: bytes = b""
 
-    _protocol: RamsesProtocolT  # mypy
-
-    def __init__(
-        self,
-        protocol: RamsesProtocolT,
-        pkt_source: Serial,
-        loop: asyncio.AbstractEventLoop | None = None,
-        extra: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(loop or asyncio.get_running_loop(), protocol, pkt_source)
-
-        self._extra: dict[str, Any] = {} if extra is None else extra
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
         self._leaker_task = self.loop.create_task(self._leak_sem())
+
+        self._is_hgi80 = is_hgi80(self.serial.name)
+
+        asyncio.create_task(
+            self._create_connection(), name="PortTransport._create_connection()"
+        )
+
+    def get_extra_info(self, name: str, default: Any = None):
+        if name == SZ_IS_EVOFW3:
+            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
+        return self._extra.get(name, default)
+
+    async def _create_connection(self) -> None:
+        """Invoke the Protocols's connection_made() callback after HGI80 discovery."""
+
+        # HGI80s (and also VMs) take longer to send signature packets as they have long
+        # initialisation times, so we must wait until they send OK
+
+        # signature also serves to discover the HGI's device_id (& for pkt log, if any)
+
+        async def connect_sans_signature() -> None:
+            """Call connection_made() without sending/waiting for a signature."""
+
+            self._init_fut.set_result(None)
+            self._make_connection(gwy_id=None)
+
+        async def connect_with_signature() -> None:
+            """Poll port with signatures, call connection_made() after first echo."""
+
+            sig = Command._puzzle()
+            self._extra[SZ_SIGNATURE] = sig.payload
+
+            num_sends = 0
+            while num_sends < _SIGNATURE_MAX_TRYS:
+                num_sends += 1
+
+                await self._write_frame(str(sig))
+                await asyncio.sleep(_SIGNATURE_GAP_SECS)
+
+                if self._init_fut.done():
+                    pkt = self._init_fut.result()
+                    self._make_connection(gwy_id=pkt.src.id if pkt else None)
+                    return
+
+            if not self._init_fut.done():
+                self._init_fut.set_result(None)
+
+            self._make_connection(gwy_id=None)
+            return
+
+        self._init_fut = asyncio.Future()
+        if self._disable_sending:
+            self._init_task = asyncio.create_task(connect_sans_signature())
+        else:  # incl. disable_qos
+            self._init_task = asyncio.create_task(connect_with_signature())
+
+        timeout = 3
+        try:  # wait to get (1st) signature echo from evofw3/HGI80 (even if disable_sending)
+            await asyncio.wait_for(self._init_fut, timeout=timeout)  # signature echo
+        except TimeoutError as err:
+            raise exc.TransportSerialError(
+                f"Failed to initialise Transport within {timeout} secs"
+            ) from err
 
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self.write()."""
@@ -700,10 +863,6 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
                 self._leaker_sem.release()
             except ValueError:
                 pass
-
-    def _dt_now(self) -> dt:
-        """Return a precise datetime, using the curent dtm."""
-        return dt_now()
 
     def _read_ready(self) -> None:
         # data to self._bytes_read() instead of self._protocol.data_received()
@@ -716,10 +875,6 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         if data:
             self._bytes_read(data)  # was: self._protocol.pkt_received(data)
-
-    def is_reading(self) -> bool:
-        """Return True if the transport is receiving."""
-        return bool(self._has_reader)
 
     def _bytes_read(self, data: bytes) -> None:  # logs: RCVD(bytes)
         """Make a Frame from the data and process it."""
@@ -737,13 +892,17 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
-            self._frame_read(dtm, _normalise(_str(raw_line)))
+            self._frame_read(
+                dtm.isoformat(timespec="milliseconds"), _normalise(_str(raw_line))
+            )
 
-    def _frame_read(self, dtm: dt, frame: str) -> None:
+    def _frame_read(self, dtm_str: str, frame: str) -> None:
         """Make a Packet from the Frame and process it."""
 
         if not frame.strip():
             return
+
+        dtm = dt.fromisoformat(dtm_str)  # FIXME: was dt, then str, now dt again!
 
         try:
             pkt = Packet.from_port(dtm, frame)
@@ -762,6 +921,12 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
 
         self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
 
+    @track_system_syncs
+    def _pkt_read(self, pkt: Packet) -> None:
+        super()._pkt_read(pkt)
+
+    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @avoid_system_syncs
     async def write_frame(
         self, frame: str
     ) -> None:  # Protocol usu. calls this, not write()
@@ -775,6 +940,10 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         self.write(bytes(frame, "ascii") + b"\r\n")
 
     def write(self, data: bytes) -> None:  # logs: SENT(bytes)
+        """Write some data bytes to the transport."""
+
+        if self._disable_sending is True:
+            raise exc.TransportError("Sending has been disabled")
         if self._closing:
             return
 
@@ -784,9 +953,9 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
             _LOGGER.info("Tx:     %s", data)
 
         try:
-            super().write(data)
-        except SerialException as exc:
-            self._abort(exc)
+            self._serial.write(data)
+        except SerialException as err:
+            self._abort(err)
             return
 
     def _abort(self, exc: ExceptionT) -> None:
@@ -797,218 +966,48 @@ class _PortTransport(serial_asyncio.SerialTransport):  # type: ignore[misc]
         if self._leaker_task:
             self._leaker_task.cancel()
 
-    def _close(self, exc: ExceptionT | None = None) -> None:
-        super()._close(exc=exc)
+    def _close(self, exc: exc.RamsesException | None = None) -> None:
+        """Close the transport (cancel any outstanding tasks)."""
+
+        super()._close(exc)
 
         if self._init_task:
             self._init_task.cancel()
+
         if self._leaker_task:
             self._leaker_task.cancel()
 
-    def close(self) -> None:
-        """Close the transport gracefully (calls `self._protocol.connection_lost()`)."""
-        if not self._closing:
-            self._close()
 
+class MqttTransport(_FullTransport, _MqttTransportAbstractor):
+    """Send/receive packets to/from ESP_evofw3 via MQTT."""
 
-# ### Read-Only Transports for dict / log file ########################################
-class FileTransport(_BaseTransport, _FileTransport):
-    """Parse a file (or a dict) for packets, and never send."""
-
-    def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
-        if disable_sending is False:
-            raise exc.TransportSourceInvalid("This Transport cannot send packets")
-        super().__init__(*args, **kwargs)
-        self.loop.call_soon(self._protocol.connection_made, self)
-
-    def _dt_now(self) -> dt:
-        """Return a precise datetime, using a packet's dtm field."""
-
-        try:
-            return dt.fromisoformat(self._dtm_str)  # always current pkt's dtm
-        except (TypeError, ValueError):
-            pass
-
-        try:
-            return self._this_pkt.dtm  # type: ignore[union-attr]
-        except AttributeError:
-            return dt(1970, 1, 1, 1, 0)
-
-
-# ### Read-Write Transport for serial port ############################################
-class PortTransport(_RegHackMixin, _BaseTransport, _PortTransport):  # type: ignore[misc]
-    """Poll a serial port for packets, and send (without QoS)."""
-
-    def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._is_hgi80 = is_hgi80(self.serial.name)
-        self._make_connection(disable_sending)
+        self._username = unquote(self._broker_url.username or "")
+        self._password = unquote(self._broker_url.password or "")
 
-    def _make_connection(self, sending_disabled: bool) -> None:
-        """Call connection_made() after housekeeping functions are completed."""
-
-        # HGI80s (and also VMs) take longer to send signature packets as they have long
-        # initialisation times, so we must wait until they send OK
-
-        # signature also serves to discover the HGI's device_id (& for pkt log, if any)
-
-        def call_make_connection(pkt: Packet | None = None) -> None:
-            """Invoke the Protocol.connection_made() callback."""
-            # if self._is_hgi80 is not True:  # TODO: !V doesn't work, why?
-            #     await self._write_frame("!V")  # or self.write()???
-
-            self.loop.call_soon_threadsafe(
-                functools.partial(self._protocol.connection_made, self, ramses=True)
-            )  # was: self._protocol.connection_made(self, ramses=True)
-
-        async def connect_without_signature() -> None:
-            """Call connection_made() without sending/waiting for a signature."""
-            self._init_fut.set_result(None)
-            call_make_connection()
-
-        async def connect_after_signature() -> None:
-            """Poll port with signatures, call connection_made() after first echo."""
-            sig = Command._puzzle()
-            self._extra[SZ_SIGNATURE] = sig.payload
-
-            num_sends = 0
-            while num_sends < _SIGNATURE_MAX_TRYS:
-                num_sends += 1
-
-                await self._write_frame(str(sig))
-                await asyncio.sleep(_SIGNATURE_GAP_SECS)
-
-                if self._init_fut.done():
-                    call_make_connection(pkt=self._init_fut.result())
-                    return
-
-            self._init_fut.set_exception(
-                exc.TransportSerialError("Never received an echo signature")
-            )
-
-        self._init_fut = asyncio.Future()
-        if sending_disabled:
-            self._init_task = asyncio.create_task(connect_without_signature())
-        else:  # incl. disable_qos
-            self._init_task = asyncio.create_task(connect_after_signature())
-
-    def get_extra_info(self, name: str, default: Any = None):
-        if name == SZ_IS_EVOFW3:
-            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
-        return self._extra.get(name, default)
-
-    @track_system_syncs
-    def _pkt_read(self, pkt: Packet) -> None:
-        super()._pkt_read(pkt)
-
-    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
-    @avoid_system_syncs
-    async def _write_frame(self, frame: str) -> None:
-        await super()._write_frame(frame)
-
-
-SZ_RAMSES_GATEWAY = "RAMSES/GATEWAY"
-
-
-def validate_path(path: str) -> str:
-    """Test the topic path."""
-
-    # The user can supply the following paths:
-    # - ""
-    # - "/RAMSES/GATEWAY"
-    # - "/RAMSES/GATEWAY/+" (the previous two are equivalent to this one)
-    # - "/RAMSES/GATEWAY/18:123456"
-
-    # "RAMSES/GATEWAY/+"                -> online, online, ...
-    # "RAMSES/GATEWAY/18:017804"        -> online
-    # "RAMSES/GATEWAY/18:017804/info/+" -> ramses_esp/0.4.0
-    # "RAMSES/GATEWAY/+/rx"             -> pkts from all gateways
-
-    new_path = path or SZ_RAMSES_GATEWAY
-    if new_path.startswith("/"):
-        new_path = new_path[1:]
-    if not new_path.startswith(SZ_RAMSES_GATEWAY):
-        raise ValueError(f"Invalid topic path: {path}")
-    if new_path == SZ_RAMSES_GATEWAY:
-        new_path += "/+"
-    if len(new_path.split("/")) != 3:
-        raise ValueError(f"Invalid topic path: {path}")
-    return new_path
-
-
-# ### Read-Write Transport for MQTT ###################################################
-class MqttTransport(_BaseTransport, asyncio.Transport):
-    READER_TASK = "reader_task"  # only for mypy
-
-    def __init__(
-        self,
-        protocol: RamsesProtocolT,
-        broker_url: str,
-        loop: asyncio.AbstractEventLoop | None = None,
-        extra: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> None:
-        super().__init__()
-
-        self._protocol = protocol
-        self.loop = loop or asyncio.get_event_loop()
-        self._extra: dict[str, Any] = {} if extra is None else extra
-
-        self.broker_url = urlparse(broker_url)
-
-        self._username = unquote(self.broker_url.username or "")
-        self._password = unquote(self.broker_url.password or "")
-
-        self._topic_base = validate_path(self.broker_url.path)
+        self._topic_base = validate_topic_path(self._broker_url.path)
         self._topic_pub = ""
         self._topic_sub = ""
 
-        self._mqtt_qos = int(parse_qs(self.broker_url.query).get("qos", ["0"])[0])
+        self._mqtt_qos = int(parse_qs(self._broker_url.query).get("qos", ["0"])[0])
 
-        self._closing = False
-        self._reading = True
-        self._hgi_connected = False
+        self._connected = False
+        self._extra[SZ_IS_EVOFW3] = True
 
         self.client = mqtt.Client()
-        self.loop.call_soon(self._connect)
 
-    def _dt_now(self) -> dt:
-        """Return a precise datetime, using the curent dtm."""
-        return dt_now()
-
-    def get_extra_info(self, name: str, default: Any = None):
-        if name == SZ_IS_EVOFW3:
-            return True
-        return self._extra.get(name, default)  # self._extra[SZ_ACTIVE_HGI]
-
-    def is_closing(self) -> bool:
-        """Return True if the transport is closing or closed."""
-        return self._closing
-
-    def is_reading(self) -> bool:
-        """Return True if the transport is receiving."""
-        return self._reading
-
-    def pause_reading(self) -> None:
-        """Pause the receiving end (no data to protocol.pkt_received())."""
-        self._reading = False
-
-    def resume_reading(self) -> None:
-        """Resume the receiving end."""
-        self._reading = True
-
-    def _connect(self) -> None:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
+
         self.client.username_pw_set(self._username, self._password)
         self.client.connect_async(
-            self.broker_url.hostname,  # type: ignore[arg-type]
-            self.broker_url.port or 1883,
+            self._broker_url.hostname,  # type: ignore[arg-type]
+            self._broker_url.port or 1883,
             60,
         )
-
         self.client.loop_start()
 
     def _on_connect(
@@ -1016,7 +1015,6 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
     ) -> None:
         _LOGGER.error(f"Connected with result code {rc}")
 
-        self._closing = False
         self.client.subscribe(self._topic_base)  # hope for 'online' message
 
     def _on_disconnect(
@@ -1027,25 +1025,14 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
         self._closing = False
         # self._connection_lost(rc)
 
-    def _connection_lost(self, err: Exception | None = None) -> None:
-        # assert msg.payload == b"offline", "Coding error"
+    async def _create_connection(self, msg: mqtt.MQTTMessage) -> None:
+        """Invoke the Protocols's connection_made() callback MQTT is established."""
 
-        if not self._hgi_connected:
-            return
-        self._hgi_connected = False
-
-        self.client.unsubscribe(self._topic_sub)
-
-        self.loop.call_soon_threadsafe(
-            functools.partial(self._protocol.connection_lost, err)
-        )
-
-    def _connection_made(self, msg: mqtt.MQTTMessage) -> None:
         assert msg.payload == b"online", "Coding error"
 
-        if self._hgi_connected:
+        if self._connected:
             return
-        self._hgi_connected = True
+        self._connected = True
 
         self._extra[SZ_ACTIVE_HGI] = msg.topic[-9:]
 
@@ -1054,9 +1041,7 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
         self.client.subscribe(self._topic_sub, qos=self._mqtt_qos)
 
-        self.loop.call_soon_threadsafe(  # don't call this until we have HGI-ID
-            functools.partial(self._protocol.connection_made, self, ramses=True)
-        )  # was: self._protocol.connection_made(self, ramses=True)
+        self._make_connection(gwy_id=msg.topic[-9:])  # type: ignore[arg-type]
 
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
@@ -1071,17 +1056,19 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Rx: %s", msg.payload)
 
-        if self._topic_sub.startswith(msg.topic):
-            pass
-
         if msg.topic[-3:] != "/rx":  # then, e.g. 'RAMSES/GATEWAY/18:017804'
             if msg.payload == b"offline" and self._topic_sub.startswith(msg.topic):
                 err = exc.TransportError(
                     f"the MQTT topic is offline: {self._topic_sub[:-3]}"
                 )
-                self._connection_lost(err)
-            if msg.payload == b"online":
-                self._connection_made(msg)
+                self._close(err)
+
+            elif msg.payload == b"online":
+                asyncio.create_task(
+                    self._create_connection(msg),
+                    name="MqttTrans._create_connection()",
+                )
+
             return
 
         try:
@@ -1136,24 +1123,48 @@ class MqttTransport(_BaseTransport, asyncio.Transport):
 
         try:
             self._publish(frame)
-        except MQTTException as exc:
-            self._close(exc)
+        except MQTTException as err:
+            self._close(exc.TransportError(err))
             return
 
-    def _close(self, exc: ExceptionT | MQTTException | None = None) -> None:
-        """Disconnect from the broker and stop the poller"""
-        self._closing = True
+    def _close(self, exc: exc.RamsesException | None = None) -> None:
+        """Close the transport (disconnect from the broker and stop its poller)."""
+
+        super()._close(exc)
+
+        if not self._connected:
+            return
+        self._connected = False
+
+        self.client.unsubscribe(self._topic_sub)
         self.client.disconnect()
         self.client.loop_stop()
 
-        self.loop.call_soon_threadsafe(
-            functools.partial(self._protocol.connection_lost, None)
-        )
 
-    def close(self) -> None:
-        """Close the transport gracefully."""
-        if not self._closing:
-            self._close()
+def validate_topic_path(path: str) -> str:
+    """Test the topic path."""
+
+    # The user can supply the following paths:
+    # - ""
+    # - "/RAMSES/GATEWAY"
+    # - "/RAMSES/GATEWAY/+" (the previous two are equivalent to this one)
+    # - "/RAMSES/GATEWAY/18:123456"
+
+    # "RAMSES/GATEWAY/+"                -> online, online, ...
+    # "RAMSES/GATEWAY/18:017804"        -> online
+    # "RAMSES/GATEWAY/18:017804/info/+" -> ramses_esp/0.4.0
+    # "RAMSES/GATEWAY/+/rx"             -> pkts from all gateways
+
+    new_path = path or SZ_RAMSES_GATEWAY
+    if new_path.startswith("/"):
+        new_path = new_path[1:]
+    if not new_path.startswith(SZ_RAMSES_GATEWAY):
+        raise ValueError(f"Invalid topic path: {path}")
+    if new_path == SZ_RAMSES_GATEWAY:
+        new_path += "/+"
+    if len(new_path.split("/")) != 3:
+        raise ValueError(f"Invalid topic path: {path}")
+    return new_path
 
 
 RamsesTransportT: TypeAlias = FileTransport | MqttTransport | PortTransport
@@ -1179,7 +1190,7 @@ async def transport_factory(
     # evofw3_flag, use_regex
 
     async def wait_for_connection_made(
-        protocol: RamsesProtocolT, timeout: float = 3
+        protocol: RamsesProtocolT, timeout: float = 3.1
     ) -> None:
         """Wait for the Protocol to receive connection_made(transport)."""
 
@@ -1189,8 +1200,6 @@ async def transport_factory(
             raise exc.TransportSerialError(
                 f"Transport did not bind to Protocol within {timeout} secs"
             ) from err
-
-        pass
 
     def get_serial_instance(
         ser_name: SerPortNameT, ser_config: PortConfigT | None
@@ -1207,7 +1216,7 @@ async def transport_factory(
             _LOGGER.error(
                 "Failed to open %s (config: %s): %s", ser_name, ser_config, err
             )
-            raise exc.TransportSerialError(
+            raise exc.TransportSourceInvalid(
                 f"Unable to open the serial port: {ser_name}"
             ) from err
 
@@ -1235,45 +1244,36 @@ async def transport_factory(
         )
 
     if (pkt_source := packet_log or packet_dict) is not None:
-        return FileTransport(protocol, pkt_source, extra=extra, loop=loop, **kwargs)
+        return FileTransport(pkt_source, protocol, extra=extra, loop=loop, **kwargs)
 
     assert port_name is not None  # mypy check
     assert port_config is not None  # mypy check
 
     if port_name[:4] == "mqtt":  # TODO: handle disable_sending
-        transport = MqttTransport(protocol, port_name, extra=extra, loop=loop, **kwargs)
+        transport = MqttTransport(port_name, protocol, extra=extra, loop=loop, **kwargs)
 
         await wait_for_connection_made(protocol, timeout=3)  # FIXME: patch for tests
         return transport
 
-    # may: raise TransportSerialError("Unable to open serial port...")
+    # may: raise TransportSourceInvalid("Unable to open serial port...")
     ser_instance = get_serial_instance(port_name, port_config)
 
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()  # TODO: add tests for these...
 
-    if disable_sending or disable_qos:
+    if disable_sending or disable_qos:  # TODO: can we still disable QoS?
         transport = PortTransport(
-            protocol,
             ser_instance,
+            protocol,
             disable_sending=bool(disable_sending),
             extra=extra,
             loop=loop,
             **kwargs,
         )
-    else:  # disable_qos could  be False, None
+    else:
         transport = PortTransport(
-            protocol, ser_instance, extra=extra, loop=loop, **kwargs
+            ser_instance, protocol, extra=extra, loop=loop, **kwargs
         )
 
-    # TODO: put this into transport class
-    timeout = 3
-    try:  # wait to get (first) signature echo from evofw3/HGI80 (even if disable_sending)
-        await asyncio.wait_for(transport._init_fut, timeout=timeout)  # signature echo
-    except TimeoutError as err:
-        raise exc.TransportSerialError(
-            f"Failed to initialise Transport within {timeout} secs"
-        ) from err
-
-    await wait_for_connection_made(protocol)
+    await wait_for_connection_made(protocol)  # FIXME: patch for tests
     return transport
