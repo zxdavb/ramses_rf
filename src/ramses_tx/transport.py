@@ -708,7 +708,7 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
         if bool(disable_sending) is False:
             raise exc.TransportSourceInvalid("This Transport cannot send packets")
 
-        self._extra[SZ_READER_TASK] = self._reader_task = self._loop.create_task(
+        self._extra[SZ_READER_TASK] = self._reader_task = asyncio.create_task(
             self._start_reader(), name="FileTransport._start_reader()"
         )
 
@@ -790,7 +790,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
         super().__init__(*args, **kwargs)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task = self.loop.create_task(self._leak_sem())
+        self._leaker_task = asyncio.create_task(self._leak_sem())
 
         self._is_hgi80 = is_hgi80(self.serial.name)
 
@@ -1083,14 +1083,16 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
             _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
             return
 
-        # TODO: remove raw_line attr from Packet()
-        try:
-            self.loop.call_soon_threadsafe(self._pkt_read, pkt)
-        except RuntimeError:
-            if self.loop.is_closed() or not self.loop.is_running():
-                self._closing = True
-            else:
-                raise
+        self.loop.call_soon_threadsafe(self._pkt_read, pkt)
+
+        # # TODO: remove raw_line attr from Packet()
+        # try:
+        #     self.loop.call_soon_threadsafe(self._pkt_read, pkt)
+        # except RuntimeError:
+        #     if self.loop.is_closed() or not self.loop.is_running():
+        #         self._closing = True
+        #     else:
+        #         raise
 
         # Traceback (most recent call last):
         # ...

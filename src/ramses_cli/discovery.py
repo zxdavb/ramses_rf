@@ -75,16 +75,16 @@ def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task]:
     tasks = []
 
     if kwargs.get(EXEC_CMD):
-        tasks += [gwy._loop.create_task(exec_cmd(gwy, **kwargs))]
+        tasks += [asyncio.create_task(exec_cmd(gwy, **kwargs))]
 
     if kwargs.get(GET_FAULTS):
-        tasks += [gwy._loop.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
+        tasks += [asyncio.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
 
     elif kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
-        tasks += [gwy._loop.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
+        tasks += [asyncio.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
 
     elif kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
-        tasks += [gwy._loop.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
+        tasks += [asyncio.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
 
     elif kwargs.get(EXEC_SCR):
         script = SCRIPTS.get(f"{kwargs[EXEC_SCR][0]}")
@@ -92,7 +92,7 @@ def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task]:
             _LOGGER.warning(f"Script: {kwargs[EXEC_SCR][0]}() - unknown script")
         else:
             _LOGGER.info(f"Script: {kwargs[EXEC_SCR][0]}().- starts...")
-            tasks += [gwy._loop.create_task(script(gwy, kwargs[EXEC_SCR][1]))]
+            tasks += [asyncio.create_task(script(gwy, kwargs[EXEC_SCR][1]))]
 
     gwy._tasks.extend(tasks)
     return tasks
@@ -180,7 +180,7 @@ def script_poll_device(gwy: Gateway, dev_id: DeviceIdT) -> list:
 
     for code in (Code._0016, Code._1FC9):
         cmd = Command.from_attrs(RQ, dev_id, code, "00")
-        tasks.append(gwy._loop.create_task(periodic_send(gwy, cmd, count=0)))
+        tasks.append(asyncio.create_task(periodic_send(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
     return tasks

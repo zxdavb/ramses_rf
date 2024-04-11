@@ -191,8 +191,6 @@ async def _test_flow_10x(
     """Check the change of state during a binding at context layer."""
 
     # STEP 0: Setup...
-    loop = asyncio.get_running_loop()
-
     respondent: Fakeable = gwy_r.devices[0]
     supplicant: Fakeable = gwy_s.devices[0]
     ensure_fakeable(respondent)
@@ -217,7 +215,7 @@ async def _test_flow_10x(
 
     #
     # Step R1: Respondent expects an Offer
-    resp_task = loop.create_task(respondent._bind_context._wait_for_offer())
+    resp_task = asyncio.create_task(respondent._bind_context._wait_for_offer())
 
     #
     # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
@@ -237,7 +235,7 @@ async def _test_flow_10x(
     tender = resp_task.result()
     assert tender._pkt == pkt, "Resp's Msg doesn't match Supp's Offer cmd"
 
-    supp_task = loop.create_task(supplicant._bind_context._wait_for_accept(tender))
+    supp_task = asyncio.create_task(supplicant._bind_context._wait_for_accept(tender))
 
     #
     # Step R2: Respondent expects a Confirm after sending an Accept (accepts Offer)
@@ -254,7 +252,7 @@ async def _test_flow_10x(
     accept = supp_task.result()
     assert accept._pkt == pkt, "Supp's Msg doesn't match Resp's Accept cmd"
 
-    resp_task = loop.create_task(respondent._bind_context._wait_for_confirm(accept))
+    resp_task = asyncio.create_task(respondent._bind_context._wait_for_confirm(accept))
 
     #
     # Step S2: Supplicant sends a Confirm (confirms Accept)
@@ -290,7 +288,7 @@ async def _test_flow_10x(
     await assert_context_state(supplicant, _BindStates.TO_SEND_RATIFY)
 
     # # Step R3: Respondent expects an Addenda (optional)
-    # resp_task = loop.create_task(
+    # resp_task = asyncio.create_task(
     #     respondent._context._wait_for_addenda(accept, timeout=0.05)
     # )
 
@@ -317,8 +315,6 @@ async def _test_flow_20x(
     """Check the change of state during a binding at device layer."""
 
     # STEP 0: Setup...
-    loop = asyncio.get_running_loop()
-
     respondent: Fakeable = gwy_r.devices[0]
     supplicant: Fakeable = gwy_s.devices[0]
     ensure_fakeable(respondent)
@@ -336,7 +332,7 @@ async def _test_flow_20x(
     resp_coro = respondent._wait_for_binding_request(
         accept_codes, idx=idx, require_ratify=require_ratify
     )
-    resp_task = loop.create_task(resp_coro)
+    resp_task = asyncio.create_task(resp_coro)
 
     # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
     payload = pkt_flow_expected[_TENDER][46:]
@@ -352,7 +348,7 @@ async def _test_flow_20x(
     supp_coro = supplicant._initiate_binding_process(
         offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
     )
-    supp_task = loop.create_task(supp_coro)
+    supp_task = asyncio.create_task(supp_coro)
 
     # Step 2: Wait until flow is completed (or timeout)
     await asyncio.gather(resp_task, supp_task)

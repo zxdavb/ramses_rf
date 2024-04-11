@@ -637,9 +637,9 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
         # schedules based upon 'active' (not most recent) 0006 pkt
         for zone in getattr(self, SZ_ZONES, []):
-            self._gwy._loop.create_task(zone.get_schedule(force_io=True))
+            asyncio.create_task(zone.get_schedule(force_io=True))
         if dhw := getattr(self, "dhw", None):
-            self._gwy._loop.create_task(dhw.get_schedule(force_io=True))
+            asyncio.create_task(dhw.get_schedule(force_io=True))
 
     async def _obtain_lock(self, zone_idx) -> None:
         timeout_dtm = dt.now() + td(minutes=3)
@@ -712,7 +712,7 @@ class Logbook(SystemBase):  # 0418
         self._add_discovery_cmd(
             Command.get_system_log_entry(self.ctl.id, 0), 60 * 5, delay=5
         )
-        # self._gwy.add_task(self._loop.create_task(self.get_faultlog()))
+        # self._gwy.add_task(asyncio.create_task(self.get_faultlog()))
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)

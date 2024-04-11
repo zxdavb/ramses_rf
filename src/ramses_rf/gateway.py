@@ -550,7 +550,7 @@ class Gateway(Engine):
             callback=callback,
         )
 
-        task = self._loop.create_task(coro)
+        task = asyncio.create_task(coro)
         self.add_task(task)
         return task
 
@@ -590,6 +590,6 @@ class Gateway(Engine):
             return None  # FIXME: should really raise
 
         if callback:
-            self.add_task(self._loop.create_task(callback(pkt)))
+            self.add_task(asyncio.create_task(callback(pkt)))
 
         return pkt

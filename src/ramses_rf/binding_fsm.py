@@ -155,7 +155,7 @@ class BindContextBase:
 
     def __init__(self, dev: Fakeable) -> None:
         self._dev = dev
-        self._loop = asyncio.get_running_loop()  # use self.gwy.loop?
+        self._loop = asyncio.get_running_loop()
         self._fut: asyncio.Future[Message] | None = None
 
         self.set_state(DevIsNotBinding)
