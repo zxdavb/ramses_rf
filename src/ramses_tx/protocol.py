@@ -476,7 +476,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         super().__init__(msg_handler, **kwargs)
 
         self._context: ProtocolContext | None = None
-        self._selective_qos = disable_qos is None  # QoS only for some commands
+        self._disable_qos = disable_qos
 
         if disable_qos is not True:
             self._context = ProtocolContext(self)
@@ -595,7 +595,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
 
         # TODO: REMOVE: selective QoS (HACK) or the cmd does not want QoS
         _CODES = (Code._0006, Code._0404, Code._1FC9)  # must have QoS
-        if (self._selective_qos and cmd.code not in _CODES) or qos is None:
+        if _DBG_DISABLE_QOS or (self._disable_qos and cmd.code not in _CODES):
             await self._send_frame(
                 str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
             )
@@ -684,12 +684,12 @@ def protocol_factory(
             include_list=include_list,
         )
 
-    if disable_qos or _DBG_DISABLE_QOS:
-        _LOGGER.debug("PortProtocol: QoS has been disabled")
+    if disable_qos:
+        _LOGGER.debug("QoS has been disabled (will still QoS echos)")
 
     return PortProtocol(
         msg_handler,
-        disable_qos=(disable_qos or _DBG_DISABLE_QOS),
+        disable_qos=bool(disable_qos),
         enforce_include_list=enforce_include_list,
         exclude_list=exclude_list,
         include_list=include_list,
