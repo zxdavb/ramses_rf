@@ -38,6 +38,8 @@ RULES_OUTBOUND = {
     "01:215819 --:------ 01:215819": "--:------ --:------ 12:215819",
 }
 
+RULES_COMBINED = {SZ_INBOUND: RULES_INBOUND, SZ_OUTBOUND: RULES_OUTBOUND}
+
 TESTS_OUTBOUND = {  # sent, received by other
     " I 003 01:215819 --:------ 01:215819 0009 003 0000FF": " I 003 --:------ --:------ 12:215819 0009 003 0000FF",
     " I --- 04:262143 --:------ 04:262143 30C9 003 000713": " I --- 63:262143 --:------ 63:262143 30C9 003 000713",
@@ -50,7 +52,7 @@ TESTS_INBOUND = {  # sent by other, received
     " I 003 --:------ --:------ 12:215819 0009 003 0000FF": " I 003 01:215819 --:------ 01:215819 0009 003 0000FF",
     " I --- 63:262143 --:------ 63:262143 30C9 003 000713": " I --- 04:262143 --:------ 04:262143 30C9 003 000713",
     " I --- 63:262143 --:------ 01:182924 2309 003 0205DC": " I --- 04:262143 --:------ 01:182924 2309 003 0205DC",
-    # NOTE: the below won't work with QoS
+    # NOTE: the below won't work with QoS - why? - still the case with refactored QoS
     " W --- 30:098165 32:206251 --:------ 1FC9 006 2131DA797F75": " W --- 30:098165 32:206251 --:------ 1FC9 006 0031DA797F75",
     "RP --- 01:182924 30:068640 --:------ 000C 006 020400FFFFFF": "RP --- 01:182924 30:068640 --:------ 000C 006 02040013FFFF",
     "RP --- 01:182924 30:068640 --:------ 000C 006 020800FFFFFF": "RP --- 01:182924 30:068640 --:------ 000C 006 02080013FFFF",
@@ -60,7 +62,6 @@ GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
         "enforce_known_list": False,
-        SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND, SZ_OUTBOUND: RULES_OUTBOUND},
     }
 }
 
@@ -90,7 +91,7 @@ async def assert_this_pkt(
 
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_regex_inbound_() -> None:
-    """Check the regex filters work as expected."""
+    """Check the inbound filters work as expected (this test works with QoS)."""
 
     rf = VirtualRf(2)
 
@@ -101,10 +102,10 @@ async def test_regex_inbound_() -> None:
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
 
-    await gwy_0.start()
-    assert gwy_0._protocol._transport
-
     try:
+        await gwy_0.start()
+        assert gwy_0._protocol._transport
+
         for cmd, pkt in TESTS_INBOUND.items():
             ser_1.write(bytes(cmd.encode("ascii")) + b"\r\n")
 
@@ -115,30 +116,28 @@ async def test_regex_inbound_() -> None:
         await rf.stop()
 
 
-# TODO: get tests working with QoS enabled
 @pytest.mark.xdist_group(name="virt_serial")
-@patch("ramses_tx.protocol._DBG_DISABLE_QOS", False)
-async def _test_regex_outbound() -> None:
-    """Check the regex filters work as expected."""
+@patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
+async def test_regex_outbound() -> None:
+    """Check the outbound filters work (this test does not work with QoS)."""
 
     rf = VirtualRf(2)
 
     # NOTE: the absence of reciprocal inbound tests is intentional
     config = GWY_CONFIG
     config["config"].update({SZ_USE_REGEX: {SZ_OUTBOUND: RULES_OUTBOUND}})
-    config["config"]["disable_qos"] = False
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
 
-    await gwy_0.start()
-    assert gwy_0._protocol._transport
-
     try:
+        await gwy_0.start()
+        assert gwy_0._protocol._transport
+
         _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
 
         for cmd, pkt in TESTS_OUTBOUND.items():
-            await gwy_0.async_send_cmd(Command(cmd))
+            await gwy_0.async_send_cmd(Command(cmd), wait_for_reply=False)
             await assert_this_pkt(gwy_0, Command(pkt))  # no reciprocal rules for echo
 
             pkt = ser_1.read(ser_1.in_waiting)
@@ -151,15 +150,12 @@ async def _test_regex_outbound() -> None:
 
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_regex_with_qos() -> None:
-    """Check the regex filters work as expected."""
+    """Check the in/outbound regex filters work as expected with QoS."""
 
     rf = VirtualRf(2)
 
     config = GWY_CONFIG
-    config["config"].update({"disable_qos": False})  # currently, default is None
-    config["config"].update(
-        {SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND, SZ_OUTBOUND: RULES_OUTBOUND}}
-    )
+    config["config"].update({SZ_USE_REGEX: RULES_COMBINED})
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
@@ -168,10 +164,10 @@ async def test_regex_with_qos() -> None:
         await rf.stop()
         pytest.skip("QoS protocol not enabled")
 
-    await gwy_0.start()
-    assert gwy_0._protocol._transport
-
     try:
+        await gwy_0.start()
+        assert gwy_0._protocol._transport
+
         _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
 
         for before, after in TESTS_OUTBOUND.items():
