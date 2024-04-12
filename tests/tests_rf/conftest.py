@@ -3,6 +3,7 @@
 """Fixtures for testing."""
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from typing import Final, NoReturn, TypeAlias
 from unittest.mock import patch
@@ -27,11 +28,12 @@ SZ_GWY_DEV_ID: Final = "gwy_dev_id"
 _LOGGER = logging.getLogger(__name__)
 
 
+IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
+
 _global_failed_ports: list[str] = []
 
 
 #######################################################################################
-
 
 # pytestmark = pytest.mark.asyncio(scope="function")  # needed?
 
@@ -85,6 +87,9 @@ def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
 @pytest.fixture()  # scope="session")  # TODO: remove HACK, below
 async def mqtt_evofw3_port() -> PortStrT:
     """Utilize an actual evofw3-compatible gateway."""
+
+    if IN_GITHUB_ACTIONS:  # replace with your condition
+        pytest.skip("Test doesn't work without H/W")
 
     # TODO: add a test & pytest.skip() if no MQTT broker is available
 
