@@ -10,27 +10,26 @@ limits.
 """
 
 import asyncio
-import functools
 import random
-from collections.abc import Awaitable
+from collections.abc import AsyncGenerator, Awaitable
 from datetime import datetime as dt
 
 import pytest
 import pytest_asyncio
-import serial
+import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Command, Message, Packet
 from ramses_tx import exceptions as exc
-from ramses_tx.const import Priority
-from ramses_tx.protocol import PortProtocol, protocol_factory
+from ramses_tx.protocol import PortProtocol, ReadProtocol, protocol_factory
 from ramses_tx.protocol_fsm import (
     Inactive,
     IsInIdle,
+    ProtocolContext,
     WantEcho,
     WantRply,
     _ProtocolStateT,
 )
-from ramses_tx.transport import RamsesTransportT, transport_factory
+from ramses_tx.transport import transport_factory
 from ramses_tx.typing import QosParams
 
 from .virtual_rf import VirtualRf
@@ -73,63 +72,59 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 # ### FIXTURES #########################################################################
 
 
-def prot_factory(disable_qos: bool | None = False):
-    def prot_decorator(fnc):  # TODO: make a fixture
-        """Create a virtual RF network with a protocol stack (i.e. without a gateway)."""
+@pytest.fixture()  # scope="function")
+async def protocol(rf: VirtualRf) -> AsyncGenerator[PortProtocol, None]:
+    def _msg_handler(msg: Message) -> None:
+        pass
 
-        @functools.wraps(fnc)
-        async def prot_wrapper(*args, **kwargs):
-            def _msg_handler(msg: Message) -> None:
-                pass
+    protocol = protocol_factory(_msg_handler)
 
-            rf = VirtualRf(2, start=True)
+    assert isinstance(protocol, PortProtocol)  # mypy
+    assert isinstance(protocol._context, ProtocolContext)  # mypy
 
-            protocol = protocol_factory(
-                kwargs.pop("msg_handler", _msg_handler),
-                disable_qos=disable_qos,
-                enforce_include_list=kwargs.pop("enforce_include_list", False),
-                exclude_list=kwargs.pop("exclude_list", {}),
-                include_list=kwargs.pop("include_list", {}),
-            )
-            await assert_protocol_state(protocol, Inactive, max_sleep=0)
+    # TODO: These values should be asserted in protocol FSM tests
+    assert protocol._context.echo_timeout == 0.5
+    assert protocol._context.reply_timeout == 0.2
+    assert protocol._context.SEND_TIMEOUT_LIMIT == 15.0
 
-            transport: RamsesTransportT = await transport_factory(
-                protocol,
-                port_name=rf.ports[0],
-                port_config=kwargs.pop("port_config", {}),
-            )
-            transport._extra["virtual_rf"] = rf  # injected to aid any debugging
+    await assert_protocol_state(protocol, Inactive, max_sleep=0)
 
-            try:
-                await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
-                await fnc(rf, protocol, *args, **kwargs)
-                await assert_protocol_state(protocol, IsInIdle)
-            except serial.SerialException as err:
-                transport._close(exc=err)
-                raise
-            except (AssertionError, asyncio.InvalidStateError, TimeoutError):
-                transport.close()
-                raise
-            else:
-                transport.close()
-            finally:
-                await rf.stop()
+    transport = await transport_factory(protocol, port_name=rf.ports[0], port_config={})
+    transport._extra["virtual_rf"] = rf  # injected to aid any debugging
 
-            await assert_protocol_state(protocol, Inactive, max_sleep=0)
+    await assert_protocol_state(protocol, IsInIdle, max_sleep=0)
 
-        return prot_wrapper
+    try:
+        yield protocol
 
-    return prot_decorator
+    except serial.SerialException as err:
+        transport._close(exc=err)
+        raise
+
+    except (AssertionError, asyncio.InvalidStateError, TimeoutError):
+        transport.close()
+        raise
+
+    else:
+        await assert_protocol_state(protocol, IsInIdle)
+        transport.close()
+
+    finally:
+        await assert_protocol_state(protocol, Inactive, max_sleep=0.1)
+        await rf.stop()
 
 
 # ######################################################################################
 
 
 async def assert_protocol_state(
-    protocol: PortProtocol,
-    expected_state: _ProtocolStateT,
+    protocol: PortProtocol | ReadProtocol,
+    expected_state: type[_ProtocolStateT],
     max_sleep: float = DEFAULT_MAX_SLEEP,
 ) -> None:
+    assert isinstance(protocol, PortProtocol)  # mypy
+    assert isinstance(protocol._context, ProtocolContext)  # mypy
+
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if isinstance(protocol._context.state, expected_state):
@@ -138,10 +133,12 @@ async def assert_protocol_state(
 
 
 def assert_protocol_state_detail(
-    protocol: PortProtocol, cmd: Command, num_sends: int
+    protocol: PortProtocol, cmd: Command | None, num_sends: int
 ) -> None:
-    assert protocol._context.state.is_active_cmd(cmd)
-    assert protocol._context.state.num_sends == num_sends
+    assert isinstance(protocol._context, ProtocolContext)  # mypy
+
+    assert protocol._context.state.cmd_sent == cmd
+    assert protocol._context._cmd_tx_count == num_sends
     assert bool(cmd) is isinstance(protocol._context.state, WantEcho | WantRply)
 
 
@@ -179,103 +176,9 @@ async def async_pkt_received(
 # ### TESTS ############################################################################
 
 
-@prot_factory()
-async def _test_flow_10x(
-    rf: VirtualRf,
-    protocol: PortProtocol,
-    rcvd_method: int = 0,
-    min_sleeps: bool = None,
-) -> None:
-    async def send_cmd_wrapper(cmd: Command) -> Packet:
-        async def _send_cmd(cmd) -> None:
-            # await protocol._send_frame(str(cmd))
-            pass
-
-        # BUG: To make this work after the refactor, would have to create_task
-        return await protocol._context.send_cmd(
-            _send_cmd, cmd, Priority.HIGH, QosParams(wait_for_reply=False)
-        )
-
+async def _test_flow_30x(protocol: PortProtocol) -> None:
     # STEP 0: Setup...
-    # ser = serial.Serial(rf.ports[1])
-    max_sleep = 0 if rcvd_method == 0 else DEFAULT_MAX_SLEEP
-
-    # STEP 1: Send an I cmd (no reply)...
-    await send_cmd_wrapper(II_CMD_0)  # sent 1st time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantEcho, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, II_CMD_0, 1)
-
-    await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
-    if not min_sleeps:  # these waits not needed for rcvd_method != 0
-        await assert_protocol_state(protocol, IsInIdle, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # gather
-
-    # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
-    await send_cmd_wrapper(RQ_CMD_0)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantEcho, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
-
-    await async_pkt_received(protocol, RQ_PKT_0, method=rcvd_method)  # receive the echo
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantRply, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_0, 1)
-
-    await async_pkt_received(protocol, RP_PKT_0, method=rcvd_method)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, IsInIdle, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # gather
-
-    # STEP 3: Send an I cmd (no reply) *twice* (TODO: with no intervening echo)...
-    await send_cmd_wrapper(II_CMD_0)  # sent 1st time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantEcho, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, II_CMD_0, 1)
-
-    await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
-    if not min_sleeps:  # these waits not needed for rcvd_method != 0
-        await assert_protocol_state(protocol, IsInIdle, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    await send_cmd_wrapper(II_CMD_0)  # sent 2nd time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantEcho, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, II_CMD_0, 1)  # would be 2, if no echo
-
-    await async_pkt_received(protocol, II_PKT_0, method=rcvd_method)  # receive the echo
-    if not min_sleeps:
-        await assert_protocol_state(protocol, IsInIdle, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # gather
-
-    # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
-    await send_cmd_wrapper(RQ_CMD_1)  # sent 1st time
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantEcho, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    await async_pkt_received(protocol, RQ_PKT_1, method=rcvd_method)  # receive the echo
-    if not min_sleeps:
-        await assert_protocol_state(protocol, WantRply, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, RQ_CMD_1, 1)
-
-    await async_pkt_received(protocol, RP_PKT_1, method=rcvd_method)
-    if not min_sleeps:
-        await assert_protocol_state(protocol, IsInIdle, max_sleep=max_sleep)
-        assert_protocol_state_detail(protocol, None, 0)
-
-    # gather
-
-
-@prot_factory()
-async def _test_flow_30x(rf: VirtualRf, protocol: PortProtocol) -> None:
-    # STEP 0: Setup...
+    rf: VirtualRf = protocol._transport._extra["virtual_rf"]
     ser = serial.Serial(rf.ports[1])
 
     qos = QosParams(wait_for_reply=True)
@@ -313,8 +216,7 @@ async def _test_flow_30x(rf: VirtualRf, protocol: PortProtocol) -> None:
     assert await task == RP_PKT_1
 
 
-@prot_factory()
-async def _test_flow_401(rf: VirtualRf, protocol: PortProtocol) -> None:
+async def _test_flow_401(protocol: PortProtocol) -> None:
     qos = QosParams(wait_for_reply=False)
 
     numbers = list(range(24))
@@ -331,8 +233,7 @@ async def _test_flow_401(rf: VirtualRf, protocol: PortProtocol) -> None:
         assert pkt == Command.put_sensor_temp("03:123456", i)
 
 
-@prot_factory()
-async def _test_flow_402(rf: VirtualRf, protocol: PortProtocol) -> None:
+async def _test_flow_402(protocol: PortProtocol) -> None:
     qos = QosParams(wait_for_reply=False)
 
     numbers = list(range(24))
@@ -358,8 +259,21 @@ async def _test_flow_qos_helper(send_cmd_coro: Awaitable) -> None:
         assert False, f"Had expected {exc.ProtocolSendFailed}"
 
 
-@prot_factory(disable_qos=False)
-async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
+async def _test_flow_60x(protocol: PortProtocol, num_cmds=1) -> None:
+    #
+    # Setup...
+    tasks = []
+    for idx in range(num_cmds):
+        cmd = Command.get_zone_temp("01:123456", f"{idx:02X}")
+        coro = protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
+        tasks.append(asyncio.create_task(coro, name=f"cmd_{idx:02X}"))
+
+    assert await asyncio.gather(*tasks)
+
+
+async def _test_flow_qos(protocol: PortProtocol) -> None:
+    assert isinstance(protocol._context, ProtocolContext)  # mypy
+
     # HACK: to reduce test time
     protocol._context.SEND_TIMEOUT_LIMIT = 0.01
     protocol._context.max_retry_limit = 0
@@ -424,64 +338,43 @@ async def _test_flow_qos(rf: VirtualRf, protocol: PortProtocol) -> None:
     assert pkt == cmd
 
 
-@prot_factory()
-async def _test_flow_60x(rf: VirtualRf, protocol: PortProtocol, num_cmds=1) -> None:
-    #
-    # Setup...
-    tasks = []
-    for idx in range(num_cmds):
-        cmd = Command.get_zone_temp("01:123456", f"{idx:02X}")
-        coro = protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
-        tasks.append(asyncio.create_task(coro, name=f"cmd_{idx:02X}"))
-
-    assert await asyncio.gather(*tasks)
-
-
 # ######################################################################################
 
 
-# TODO: needs work after refactor, see BUG, above
-@pytest.mark.xdist_group(name="virt_serial")
-async def _test_flow_100() -> None:
-    """Check state change of RQ/I/RQ cmds using context primitives."""
-    await _test_flow_10x(rcvd_method=0)  # try 0, 1
-    await _test_flow_10x(rcvd_method=0, min_sleeps=True)
-
-
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_300() -> None:
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+async def test_flow_300(protocol: PortProtocol) -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
-    await _test_flow_30x()
+    await _test_flow_30x(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_401() -> None:
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+async def test_flow_401(protocol: PortProtocol) -> None:
     """Throw a bunch of commands in a random order, and see that all are echo'd."""
-    await _test_flow_401()
+    await _test_flow_401(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_402() -> None:
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+async def test_flow_402(protocol: PortProtocol) -> None:
     """Throw a bunch of commands in a random order, and see that all are echo'd."""
-    await _test_flow_402()
+    await _test_flow_402(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_qos() -> None:
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+async def test_flow_601(protocol: PortProtocol) -> None:
     """Check the wait_for_reply kwarg."""
-    await _test_flow_qos()
+    await _test_flow_60x(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")
-async def test_flow_601() -> None:
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+async def test_flow_602(protocol: PortProtocol) -> None:
     """Check the wait_for_reply kwarg."""
-    await _test_flow_60x()
+    await _test_flow_60x(protocol, num_cmds=2)
 
 
-@pytest.mark.xdist_group(name="virt_serial")
-async def _test_flow_602() -> None:
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+async def test_flow_qos(protocol: PortProtocol) -> None:
     """Check the wait_for_reply kwarg."""
-    await _test_flow_60x(num_cmds=2)
+    await _test_flow_qos(protocol)
 
 
 @pytest_asyncio.fixture

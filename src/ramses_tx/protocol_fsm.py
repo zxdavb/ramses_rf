@@ -78,7 +78,7 @@ class ProtocolContext:
 
         self._cmd: Command | None = None
         self._qos: QosParams | None = None
-        self._cmd_tx_count: int | None = None
+        self._cmd_tx_count: int = 0  # was: None
         self._cmd_tx_limit: int = 0
 
         self.set_state(Inactive)
@@ -87,7 +87,7 @@ class ProtocolContext:
         msg = f"<ProtocolContext state={repr(self._state)[21:-1]}"
         if self._cmd is None:
             return msg + ">"
-        if self._cmd_tx_count is None:
+        if self._cmd_tx_count == 0:  # was: is None
             return msg + ", tx_count=0/0>"
         return msg + f", tx_count={self._cmd_tx_count}/{self._cmd_tx_limit}>"
 
@@ -120,6 +120,7 @@ class ProtocolContext:
             # a separate coro, so can be spawned off with create_task()
 
             assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
+            assert self._cmd_tx_count > 0, "Coding error"  # TODO: remove
 
             if isinstance(self._state, WantEcho):
                 await asyncio.sleep(self.echo_timeout)
@@ -200,7 +201,7 @@ class ProtocolContext:
 
         elif not isinstance(self._state, WantRply):  # IsInIdle, IsInactive
             self._cmd = self._qos = None
-            self._cmd_tx_count = None
+            self._cmd_tx_count = 0  # was: = None
 
         assert isinstance(self.is_sending, bool)  # TODO: remove
 
