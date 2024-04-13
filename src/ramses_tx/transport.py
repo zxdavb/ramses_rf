@@ -260,15 +260,14 @@ def _normalise(pkt_line: str) -> str:
     if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
 
-    return pkt_line
+    # remove any "/r/n" (leading whitespeace is a problem for commands, but not packets)
+    return pkt_line.strip()
 
 
 def _str(value: bytes) -> str:
     try:
         result = "".join(
-            c
-            for c in value.decode("ascii", errors="strict")  # was: .strip()
-            if c in printable
+            c for c in value.decode("ascii", errors="strict") if c in printable
         )
     except UnicodeDecodeError:
         _LOGGER.warning("%s < Cant decode bytestream (ignoring)", value)
@@ -506,7 +505,7 @@ class _PortTransportAbstractor(serial_asyncio.SerialTransport):  # type: ignore[
     ) -> None:
         super().__init__(loop or asyncio.get_event_loop(), protocol, serial_instance)
 
-        # lf._serial = serial_instance
+        # lf._serial = serial_instance  # ._serial, not .serial
 
         # lf._protocol = protocol
         # lf._loop = loop or asyncio.get_event_loop()
@@ -584,17 +583,16 @@ class _ReadTransport(_BaseTransport):
     def _close(self, exc: exc.RamsesException | None = None) -> None:
         """Inform the protocol that this transport has closed."""
 
+        if self._closing:
+            return
+        self._closing = True
+
         self.loop.call_soon_threadsafe(
             functools.partial(self._protocol.connection_lost, exc)
         )
 
     def close(self) -> None:
         """Close the transport gracefully."""
-
-        if self._closing:
-            return
-        self._closing = True
-
         self._close()
 
     def is_reading(self) -> bool:
@@ -609,29 +607,57 @@ class _ReadTransport(_BaseTransport):
         """Resume the receiving end."""
         self._reading = True
 
-    def _pkt_read(self, pkt: Packet) -> None:
-        """Pass any valid Packets to the protocol's callback.
-
-        Also maintain _prev_pkt, _this_pkt attrs.
-        """
-
-        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
-
-        # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
-        # NOTE: Thus, excepts need checking
-        try:  # below could be a call_soon?
-            self._protocol.pkt_received(pkt)
-        except AssertionError as err:  # protect from upper layers
-            _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
-        except exc.ProtocolError as err:  # protect from upper layers
-            _LOGGER.error("%s < exception from msg layer: %s", pkt, err)
-
     def _make_connection(self, gwy_id: DeviceIdT | None) -> None:
         self._extra[SZ_ACTIVE_HGI] = gwy_id  # or HGI_DEV_ADDR.id
 
         self.loop.call_soon_threadsafe(  # shouldn't call this until we have HGI-ID
             functools.partial(self._protocol.connection_made, self, ramses=True)
         )
+
+    # NOTE: all transport should call this method when they receive data
+    def _frame_read(self, dtm_str: str, frame: str) -> None:
+        """Make a Packet from the Frame and process it (called by each specific Tx)."""
+
+        if not frame.strip():
+            return
+
+        try:
+            pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
+
+        except ValueError as err:  # VE from dt.fromisoformat() or falsey packet
+            _LOGGER.debug("%s < PacketInvalid(%s)", frame, err)
+            return
+
+        except exc.PacketInvalid as err:  # VE from dt.fromisoformat()
+            _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
+            return
+
+        self._pkt_read(pkt)
+
+    # NOTE: all protocol callbacks should be invoked from here
+    def _pkt_read(self, pkt: Packet) -> None:
+        """Pass any valid Packets to the protocol's callback (_prev_pkt, _this_pkt)."""
+
+        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
+
+        # if self._reading is False:  # raise, or warn & return?
+        #     raise exc.TransportError("Reading has been paused")
+        if self._closing is True:  # raise, or warn & return?
+            raise exc.TransportError("Transport is closing or has closed")
+
+        # TODO: can we switch to call_sson now QoS has been refactored?
+        # NOTE: No need to use call_soon() here, and they may break Qos/Callbacks
+        # NOTE: Thus, excepts need checking
+        try:  # below could be a call_soon?
+            self.loop.call_soon_threadsafe(self._protocol.pkt_received, pkt)
+        except AssertionError as err:  # protect from upper layers
+            _LOGGER.exception("%s < exception from msg layer: %s", pkt, err)
+        except exc.ProtocolError as err:  # protect from upper layers
+            _LOGGER.error("%s < exception from msg layer: %s", pkt, err)
+
+    async def write_frame(self, frame: str) -> None:
+        """Transmit the frame via the underlying handler."""
+        raise exc.TransportSerialError("This transport is read only")
 
 
 class _FullTransport(_ReadTransport):  # asyncio.Transport
@@ -644,16 +670,33 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
+        # _LOGGER.error("Full._dt_now()")
+
         return dt_now()
 
+    # NOTE: Protocols call write_frame(), not write()
     def write(self, data: bytes) -> None:
-        """Write some data bytes to the transport."""
+        """Write the data to the underlying handler."""
+        # _LOGGER.error("Full.write(%s)", data)
 
         raise exc.TransportError("write() not implemented, use write_frame() instead")
 
-    # def abort(self) -> None:  # no need to support this method
-    #     """Close the transport immediately."""
-    #     self._close(exc.TransportError("Transport aborted"))
+    async def write_frame(self, frame: str) -> None:
+        """Transmit the frame via the underlying handler."""
+        # _LOGGER.error("Full.write_frame(%s)", frame)
+
+        if self._disable_sending is True:
+            raise exc.TransportError("Sending has been disabled")
+        if self._closing is True:
+            raise exc.TransportError("Transport is closing or has closed")
+
+        await self._write_frame(frame)
+
+    async def _write_frame(self, frame: str) -> None:
+        """Write some data bytes to the underlying transport."""
+        # _LOGGER.error("Full._write_frame(%s)", frame)
+
+        raise NotImplementedError("_write_frame() not implemented here")
 
 
 _RegexRuleT: TypeAlias = dict[str, str]
@@ -667,11 +710,11 @@ class _RegHackMixin:
 
         use_regex = use_regex or {}
 
-        self.__inbound_rule: _RegexRuleT = use_regex.get(SZ_INBOUND, {})
-        self.__outbound_rule: _RegexRuleT = use_regex.get(SZ_OUTBOUND, {})
+        self._inbound_rule: _RegexRuleT = use_regex.get(SZ_INBOUND, {})
+        self._outbound_rule: _RegexRuleT = use_regex.get(SZ_OUTBOUND, {})
 
     @staticmethod
-    def __regex_hack(pkt_line: str, regex_rules: _RegexRuleT) -> str:
+    def _regex_hack(pkt_line: str, regex_rules: _RegexRuleT) -> str:
         if not regex_rules:
             return pkt_line
 
@@ -689,10 +732,10 @@ class _RegHackMixin:
         return result
 
     def _frame_read(self, dtm_str: str, frame: str) -> None:
-        super()._frame_read(dtm_str, self.__regex_hack(frame, self.__inbound_rule))  # type: ignore[misc]
+        super()._frame_read(dtm_str, self._regex_hack(frame, self._inbound_rule))  # type: ignore[misc]
 
-    async def _write_frame(self, frame: str) -> None:
-        await super()._write_frame(self.__regex_hack(frame, self.__outbound_rule))  # type: ignore[misc]
+    async def write_frame(self, frame: str) -> None:
+        await super().write_frame(self._regex_hack(frame, self._outbound_rule))  # type: ignore[misc]
 
 
 # ### Transports ######################################################################
@@ -712,17 +755,22 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
             self._start_reader(), name="FileTransport._start_reader()"
         )
 
-        self.loop.call_soon(self._make_connection, None)
+        self._make_connection(None)
 
     async def _start_reader(self) -> None:  # TODO
         self._reading = True
         try:
             await self._reader()
         except Exception as err:
-            self._protocol.connection_lost(err)  # type: ignore[arg-type]
+            self.loop.call_soon_threadsafe(
+                functools.partial(self._protocol.connection_lost, err)
+            )
         else:
-            self._protocol.connection_lost(None)
+            self.loop.call_soon_threadsafe(
+                functools.partial(self._protocol.connection_lost, None)
+            )
 
+    # NOTE: self._frame_read() invoked from here
     async def _reader(self) -> None:  # TODO
         """Loop through the packet source for Frames and process them."""
 
@@ -744,30 +792,8 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
 
         else:
             raise exc.TransportSourceInvalid(
-                f"Packet source is not dict or TextIOWrapper: {self._pkt_source:!r}"
+                f"Packet source is not dict or file: {self._pkt_source:!r}"
             )
-
-    def _frame_read(self, dtm_str: str, frame: str) -> None:
-        """Make a Packet from the Frame and process it."""
-
-        try:
-            pkt = Packet.from_file(dtm_str, frame)  # is OK for when src is dict
-        except ValueError as err:  # VE from dt.fromisoformat() or falsey packet
-            _LOGGER.debug("%s < PacketInvalid(%s)", frame, err)
-            return
-        except exc.PacketInvalid as err:  # VE from dt.fromisoformat()
-            _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
-            return
-        self._pkt_read(pkt)
-
-    async def write_frame(self, frame: str) -> None:  # NotImplementedError
-        raise NotImplementedError(f"{self}: This Protocol is Read-Only")
-
-    def write(self, data: bytes) -> None:  # NotImplementedError
-        raise NotImplementedError(f"{self}: This Protocol is Read-Only")
-
-    def _abort(self, exc: ExceptionT) -> None:  # NotImplementedError
-        raise NotImplementedError(f"{self}: Not implemented")
 
     def _close(self, exc: exc.RamsesException | None = None) -> None:
         """Close the transport (cancel any outstanding tasks)."""
@@ -794,9 +820,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         self._is_hgi80 = is_hgi80(self.serial.name)
 
-        asyncio.create_task(
-            self._create_connection(), name="PortTransport._create_connection()"
-        )
+        asyncio.create_task(self._create_connection(), name="Port._create_connection")
 
     def get_extra_info(self, name: str, default: Any = None):
         if name == SZ_IS_EVOFW3:
@@ -843,12 +867,16 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         self._init_fut = asyncio.Future()
         if self._disable_sending:
-            self._init_task = asyncio.create_task(connect_sans_signature())
+            self._init_task = asyncio.create_task(
+                connect_sans_signature(), name="Port.connect_sans_signature"
+            )
         else:  # incl. disable_qos
-            self._init_task = asyncio.create_task(connect_with_signature())
+            self._init_task = asyncio.create_task(
+                connect_with_signature(), name="Port.connect_with_signature"
+            )
 
         timeout = 3
-        try:  # wait to get (1st) signature echo from evofw3/HGI80 (even if disable_sending)
+        try:  # wait to get (1st) signature echo from evofw3/HGI80, if any
             await asyncio.wait_for(self._init_fut, timeout=timeout)  # signature echo
         except TimeoutError as err:
             raise exc.TransportSerialError(
@@ -864,20 +892,9 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             except ValueError:
                 pass
 
+    # NOTE: self._frame_read() invoked from here
     def _read_ready(self) -> None:
-        # data to self._bytes_read() instead of self._protocol.data_received()
-        try:
-            data: bytes = self._serial.read(self._max_read_size)
-        except SerialException as e:
-            if not self._closing:
-                self._close(exc=e)
-            return
-
-        if data:
-            self._bytes_read(data)  # was: self._protocol.pkt_received(data)
-
-    def _bytes_read(self, data: bytes) -> None:  # logs: RCVD(bytes)
-        """Make a Frame from the data and process it."""
+        """Make Frames from the read data and process them."""
 
         def bytes_read(data: bytes) -> Iterable[tuple[dt, bytes]]:
             self._recv_buffer += data
@@ -887,29 +904,28 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
                 for line in lines[:-1]:
                     yield self._dt_now(), line + b"\r\n"
 
+        try:
+            data: bytes = self.serial.read(self._max_read_size)
+        except SerialException as err:
+            if not self._closing:
+                self._close(exc=err)  # have to use _close() to pass in exception
+            return
+
+        if not data:
+            return
+
         for dtm, raw_line in bytes_read(data):
             if _DBG_FORCE_LOG_FRAMES:
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
+
             self._frame_read(
                 dtm.isoformat(timespec="milliseconds"), _normalise(_str(raw_line))
             )
 
-    def _frame_read(self, dtm_str: str, frame: str) -> None:
-        """Make a Packet from the Frame and process it."""
-
-        if not frame.strip():
-            return
-
-        dtm = dt.fromisoformat(dtm_str)  # FIXME: was dt, then str, now dt again!
-
-        try:
-            pkt = Packet.from_port(dtm, frame)
-        except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
-            _LOGGER.warning("%s < PacketInvalid(%s)", frame, err)
-            return
-
+    @track_system_syncs
+    def _pkt_read(self, pkt: Packet) -> None:
         # NOTE: a signature can override an existing active gateway
         if (
             not self._init_fut.done()
@@ -919,33 +935,23 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             self._extra[SZ_ACTIVE_HGI] = pkt.src.id  # , by_signature=True)
             self._init_fut.set_result(pkt)
 
-        self._pkt_read(pkt)  # TODO: remove raw_line attr from Packet()
-
-    @track_system_syncs
-    def _pkt_read(self, pkt: Packet) -> None:
         super()._pkt_read(pkt)
 
     @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
     @avoid_system_syncs
-    async def write_frame(
-        self, frame: str
-    ) -> None:  # Protocol usu. calls this, not write()
+    async def write_frame(self, frame: str) -> None:  # Protocols call this, not write()
+        """Transmit the frame via the underlying handler."""
+
         await self._leaker_sem.acquire()  # asyncio.sleep(MINIMUM_WRITE_GAP)
-        await self._write_frame(frame)
+        await super().write_frame(frame)
 
     # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
     # then the code that avoids the controller sync cycles
 
     async def _write_frame(self, frame: str) -> None:
-        self.write(bytes(frame, "ascii") + b"\r\n")
+        """Write some data bytes to the underlying transport."""
 
-    def write(self, data: bytes) -> None:  # logs: SENT(bytes)
-        """Write some data bytes to the transport."""
-
-        if self._disable_sending is True:
-            raise exc.TransportError("Sending has been disabled")
-        if self._closing:
-            return
+        data = bytes(frame, "ascii") + b"\r\n"
 
         if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Tx:     %s", data)
@@ -953,12 +959,15 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             _LOGGER.info("Tx:     %s", data)
 
         try:
-            self._serial.write(data)
+            self._write(data)
         except SerialException as err:
             self._abort(err)
             return
 
-    def _abort(self, exc: ExceptionT) -> None:
+    def _write(self, data: bytes) -> None:
+        self.serial.write(data)
+
+    def _abort(self, exc: ExceptionT) -> None:  # used by serial_asyncio.SerialTransport
         super()._abort(exc)
 
         if self._init_task:
@@ -982,6 +991,8 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
     """Send/receive packets to/from ESP_evofw3 via MQTT."""
 
     def __init__(self, *args, **kwargs) -> None:
+        # _LOGGER.error("__init__(%s, %s)", args, kwargs)
+
         super().__init__(*args, **kwargs)
 
         self._username = unquote(self._broker_url.username or "")
@@ -1013,7 +1024,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
     def _on_connect(
         self, client: mqtt.Client, userdata: Any | None, flags: dict[str, Any], rc: int
     ) -> None:
-        _LOGGER.error(f"Connected with result code {rc}")
+        # _LOGGER.error("Mqtt._on_connect(%s, %s, %s, %s)", client, userdata, flags, rc)
 
         self.client.subscribe(self._topic_base)  # hope for 'online' message
 
@@ -1022,11 +1033,12 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
     ) -> None:
         _LOGGER.error(f"Disconnected with result code {rc}")
 
-        self._closing = False
+        # self._closing = False  # FIXME
         # self._connection_lost(rc)
 
-    async def _create_connection(self, msg: mqtt.MQTTMessage) -> None:
+    def _create_connection(self, msg: mqtt.MQTTMessage) -> None:
         """Invoke the Protocols's connection_made() callback MQTT is established."""
+        # _LOGGER.error("Mqtt._create_connection(%s)", msg)
 
         assert msg.payload == b"online", "Coding error"
 
@@ -1043,18 +1055,22 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
 
         self._make_connection(gwy_id=msg.topic[-9:])  # type: ignore[arg-type]
 
+    # NOTE: self._frame_read() invoked from here
     def _on_message(
         self, client: mqtt.Client, userdata: Any | None, msg: mqtt.MQTTMessage
     ) -> None:
-        _LOGGER.error(f"Message from {msg.topic} with payload {msg.payload!r}")
-
-        if self._closing:
-            return
+        """Make a Frame from the MQTT message and process it."""
+        # _LOGGER.error(
+        #     "Mqtt._on_message(%s, %s, %s)",
+        #     client,
+        #     userdata,
+        #     (msg.timestamp, msg.topic, msg.payload),
+        # )
 
         if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Rx: %s", msg.payload)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-            _LOGGER.info("Rx: %s", msg.payload)
+            _LOGGER.warning("Rx: %s", msg.payload)
 
         if msg.topic[-3:] != "/rx":  # then, e.g. 'RAMSES/GATEWAY/18:017804'
             if msg.payload == b"offline" and self._topic_sub.startswith(msg.topic):
@@ -1063,74 +1079,50 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
                 )
                 self._close(err)
 
+            # BUG: using create task (self._loop.ct() & asyncio.ct()) causes the
+            # BUG: event look to close early
             elif msg.payload == b"online":
-                asyncio.create_task(
-                    self._create_connection(msg),
-                    name="MqttTrans._create_connection()",
-                )
+                # self._loop.create_task( ... name="Mqtt._create_connection"
+                self._create_connection(msg)
 
             return
 
         try:
             payload = json.loads(msg.payload)
-        except json.JSONDecodeError as err:
-            _LOGGER.warning("%s < PacketInvalid(%s)", msg.payload, err)
+        except json.JSONDecodeError:
+            _LOGGER.warning("%s < Cant decode JSON (ignoring)", msg.payload)
             return
+
+        self._frame_read(payload["ts"], _normalise(payload["msg"]))
+
+    async def _write_frame(self, frame: str) -> None:
+        """Write some data bytes to the underlying transport."""
+        # _LOGGER.error("Mqtt._write_frame(%s)", frame)
+
+        data = frame  # later, will be JSON
+
+        if _DBG_FORCE_LOG_FRAMES:
+            _LOGGER.warning("Tx: %s", data)
+        elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+            _LOGGER.info("Tx: %s", data)
 
         try:
-            pkt = Packet.from_dict(payload["ts"], _normalise(payload["msg"]))
-        except (exc.PacketInvalid, ValueError) as err:  # VE from dt.fromisoformat()
-            _LOGGER.warning("%s < PacketInvalid(%s)", _normalise(payload["msg"]), err)
+            self._publish(data)
+        except MQTTException as err:
+            self._close(exc.TransportError(err))
             return
 
-        self.loop.call_soon_threadsafe(self._pkt_read, pkt)
-
-        # # TODO: remove raw_line attr from Packet()
-        # try:
-        #     self.loop.call_soon_threadsafe(self._pkt_read, pkt)
-        # except RuntimeError:
-        #     if self.loop.is_closed() or not self.loop.is_running():
-        #         self._closing = True
-        #     else:
-        #         raise
-
-        # Traceback (most recent call last):
-        # ...
-        #   File "/home/dbonnes/clients/hass/venv/lib/python3.12/site-packages/paho/mqtt/client.py", line 3570, in _handle_on_message
-        #     on_message(self, self._userdata, message)
-        #   File "/home/dbonnes/clients/ramses_rf/src/ramses_tx/transport.py", line 1008, in _on_message
-        #     self.loop.call_soon_threadsafe(self._pkt_read, pkt)
-        #   File "/usr/lib/python3.12/asyncio/base_events.py", line 837, in call_soon_threadsafe
-        #     self._check_closed()
-        #   File "/usr/lib/python3.12/asyncio/base_events.py", line 539, in _check_closed
-        #     raise RuntimeError('Event loop is closed')
-        # RuntimeError: Event loop is closed
-
     def _publish(self, message: str) -> None:
+        # _LOGGER.error("Mqtt._publish(%s)", message)
+
         info: mqtt.MQTTMessageInfo = self.client.publish(
             self._topic_pub, payload=message, qos=self._mqtt_qos
         )
         assert info
 
-    async def write_frame(
-        self, frame: str
-    ) -> None:  # Protocol usu. calls this, not write()
-        if self._closing:
-            return
-
-        if _DBG_FORCE_LOG_FRAMES:
-            _LOGGER.warning("Tx: %s", frame)
-        elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-            _LOGGER.info("Tx: %s", frame)
-
-        try:
-            self._publish(frame)
-        except MQTTException as err:
-            self._close(exc.TransportError(err))
-            return
-
     def _close(self, exc: exc.RamsesException | None = None) -> None:
         """Close the transport (disconnect from the broker and stop its poller)."""
+        # _LOGGER.error("Mqtt._close(%s)", exc)
 
         super()._close(exc)
 
@@ -1191,21 +1183,13 @@ async def transport_factory(
     # kwargs are specific to a transport. The above transports have:
     # evofw3_flag, use_regex
 
-    async def wait_for_connection_made(
-        protocol: RamsesProtocolT, timeout: float = 3.1
-    ) -> None:
-        """Wait for the Protocol to receive connection_made(transport)."""
-
-        try:
-            await asyncio.wait_for(protocol._wait_connection_made, timeout=timeout)
-        except TimeoutError as err:
-            raise exc.TransportSerialError(
-                f"Transport did not bind to Protocol within {timeout} secs"
-            ) from err
-
     def get_serial_instance(
         ser_name: SerPortNameT, ser_config: PortConfigT | None
     ) -> Serial:
+        """Return a Serial instance for the given port name and config.
+
+        May: raise TransportSourceInvalid("Unable to open serial port...")
+        """
         # For example:
         # - python client.py monitor 'rfc2217://localhost:5001'
         # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
@@ -1254,10 +1238,9 @@ async def transport_factory(
     if port_name[:4] == "mqtt":  # TODO: handle disable_sending
         transport = MqttTransport(port_name, protocol, extra=extra, loop=loop, **kwargs)
 
-        await wait_for_connection_made(protocol, timeout=3)  # FIXME: patch for tests
+        await protocol.wait_for_connection_made(timeout=10)  # TODO: remove this
         return transport
 
-    # may: raise TransportSourceInvalid("Unable to open serial port...")
     ser_instance = get_serial_instance(port_name, port_config)
 
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
@@ -1277,5 +1260,5 @@ async def transport_factory(
             ser_instance, protocol, extra=extra, loop=loop, **kwargs
         )
 
-    await wait_for_connection_made(protocol)  # FIXME: patch for tests
+    await protocol.wait_for_connection_made(timeout=5)  # TODO: remove this
     return transport
