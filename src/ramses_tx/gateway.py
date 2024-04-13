@@ -196,6 +196,7 @@ class Engine:
         else:  # if self._input_file:
             pkt_source[SZ_PACKET_LOG] = self._input_file  # io.TextIOWrapper
 
+        # incl. await protocol.wait_for_connection_made(timeout=5)
         self._transport = await transport_factory(
             self._protocol,
             disable_sending=self._disable_sending,
@@ -206,8 +207,9 @@ class Engine:
 
         self._kwargs = {}  # HACK
 
+        await self._protocol.wait_for_connection_made()
         if self._input_file:
-            await self._wait_for_protocol_to_stop()
+            await self._protocol.wait_for_connection_lost()
 
     async def stop(self) -> None:
         """Close the transport (will stop the protocol)."""
@@ -224,22 +226,9 @@ class Engine:
 
         if self._transport:
             self._transport.close()
-        elif (
-            self._protocol.wait_connection_lost
-            and not self._protocol.wait_connection_lost.done()  # type: ignore[attr-defined]
-        ):
-            # the transport was never started
-            self._protocol.connection_lost(None)
-
-        await self._wait_for_protocol_to_stop()
+            await self._protocol.wait_for_connection_lost()
 
         return None
-
-    async def _wait_for_protocol_to_stop(self, timeout: float = 1) -> None:
-        try:
-            return await asyncio.wait_for(self._protocol.wait_connection_lost, timeout)  # type: ignore[arg-type]
-        except TimeoutError:
-            _LOGGER.warning(f"Failed to stop Transport within {timeout} seconds")
 
     def _pause(self, *args) -> None:
         """Pause the (active) engine or raise a RuntimeError."""

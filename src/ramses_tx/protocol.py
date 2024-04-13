@@ -71,7 +71,7 @@ class _BaseProtocol(asyncio.Protocol):
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False  # FIXME: Start in R/O mode as no connection yet?
-        self._wait_connection_lost = self._loop.create_future()
+        self._wait_connection_lost: asyncio.Future[Exception | None] | None = None
         self._wait_connection_made = self._loop.create_future()
 
     @property
@@ -107,9 +107,25 @@ class _BaseProtocol(asyncio.Protocol):
         is called.
         """
 
-        if not self._wait_connection_made.done():
-            self._wait_connection_made.set_result(transport)
+        if self._wait_connection_made.done():
+            return
+
+        self._wait_connection_lost = self._loop.create_future()
+        self._wait_connection_made.set_result(transport)
         self._transport = transport
+
+    async def wait_for_connection_made(self, timeout: float = 1) -> RamsesTransportT:
+        """A courtesy function to wait until connection_made() has been invoked.
+
+        Will raise TransportError if isn't connected within timeout seconds.
+        """
+
+        try:
+            return await asyncio.wait_for(self._wait_connection_made, timeout)
+        except TimeoutError as err:
+            raise exc.TransportError(
+                f"Transport did not bind to Protocol within {timeout} secs"
+            ) from err
 
     def connection_lost(self, err: ExceptionT | None) -> None:  # type: ignore[override]
         """Called when the connection to the Transport is lost or closed.
@@ -118,21 +134,35 @@ class _BaseProtocol(asyncio.Protocol):
         received or the connection was aborted or closed).
         """
 
+        assert self._wait_connection_lost  # mypy
+
         if self._wait_connection_lost.done():  # BUG: why is callback invoked twice?
             return
 
+        self._wait_connection_made = self._loop.create_future()
         if err:
             self._wait_connection_lost.set_exception(err)
         else:
             self._wait_connection_lost.set_result(None)
 
-    @property
-    def wait_connection_lost(self) -> asyncio.Future[ExceptionT | None]:
-        """Return a future that will block until connection_lost() has been invoked.
+    async def wait_for_connection_lost(self, timeout: float = 1) -> ExceptionT | None:
+        """A courtesy function to wait until connection_lost() has been invoked.
 
-        Can call fut.result() to check for result/any exception.
+        Includes scenarios where neither connection_made() nor connection_lost() were
+        invoked.
+
+        Will raise TransportError if isn't disconnect within timeout seconds.
         """
-        return self._wait_connection_lost
+
+        if not self._wait_connection_lost:
+            return
+
+        try:
+            return await asyncio.wait_for(self._wait_connection_lost, timeout)  # type: ignore[arg-type]
+        except TimeoutError as err:
+            raise exc.TransportError(
+                f"Transport did not unbind from Protocol within {timeout} secs"
+            ) from err
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark.
