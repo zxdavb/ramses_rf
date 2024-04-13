@@ -6,6 +6,7 @@
 Test the Command.put_*, Command.set_* APIs.
 """
 
+from collections.abc import Callable, Iterable
 from datetime import datetime as dt
 
 from ramses_rf.const import SZ_DOMAIN_ID
@@ -19,7 +20,9 @@ from ramses_tx.typed_dicts import PayDictT
 
 
 # NOTE: not used for 0418
-def _test_api_good(api, packets) -> None:  # NOTE: incl. addr_set check
+def _test_api_good(
+    api: Callable, packets: Iterable[str]
+) -> None:  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
@@ -33,7 +36,9 @@ def _test_api_good(api, packets) -> None:  # NOTE: incl. addr_set check
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _test_api_fail(api, packets) -> None:  # NOTE: incl. addr_set check
+def _test_api_fail(
+    api: Callable, packets: Iterable[str]
+) -> None:  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line in packets:
@@ -51,7 +56,7 @@ def _test_api_fail(api, packets) -> None:  # NOTE: incl. addr_set check
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _create_pkt_from_frame(pkt_line) -> Packet:
+def _create_pkt_from_frame(pkt_line: str) -> Packet:
     """Create a pkt from a pkt_line and assert their frames match."""
 
     pkt = Packet.from_port(dt.now(), pkt_line)
@@ -59,10 +64,12 @@ def _create_pkt_from_frame(pkt_line) -> Packet:
     return pkt
 
 
-def _test_api_from_msg(api, msg) -> Command:
+def _test_api_from_msg(api: Callable, msg: Message) -> Command:
     """Create a cmd from a msg and assert their meta-data (doesn"t assert payload.)."""
 
-    cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
+    cmd: Command = api(
+        msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
+    )
 
     if msg.src.id == HGI_DEV_ADDR.id:
         assert cmd == msg._pkt  # assert str(cmd) == str(pkt)
@@ -312,9 +319,7 @@ SET_313F_GOOD = (
 
 
 def test_set_313f() -> None:  # NOTE: bespoke: payload
-    packets = SET_313F_GOOD
-
-    for pkt_line in packets:
+    for pkt_line in SET_313F_GOOD:
         pkt = Packet.from_port(dt.now(), pkt_line)
         assert str(pkt)[:4] == pkt_line[4:8]
         assert str(pkt)[6:] == pkt_line[10:]
@@ -324,9 +329,6 @@ def test_set_313f() -> None:  # NOTE: bespoke: payload
         cmd = _test_api_from_msg(Command.set_system_time, msg)
         assert cmd.payload[:4] == msg._pkt.payload[:4]
         assert cmd.payload[6:] == msg._pkt.payload[6:]
-
-        if isinstance(packets, dict) and (payload := packets[pkt_line]):
-            assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
 PUT_3EF0_FAIL = ("...  I --- 13:123456 --:------ 13:123456 3EF0 003 00AAFF",)
@@ -347,9 +349,7 @@ PUT_3EF1_GOOD = (  # TODO: needs checking
 
 
 def test_put_3ef1() -> None:  # NOTE: bespoke: params, ?payload
-    packets = PUT_3EF1_GOOD
-
-    for pkt_line in packets:
+    for pkt_line in PUT_3EF1_GOOD:
         pkt = _create_pkt_from_frame(pkt_line)
         msg = Message(pkt)
 
@@ -372,6 +372,3 @@ def test_put_3ef1() -> None:  # NOTE: bespoke: params, ?payload
         assert cmd.code == pkt.code
 
         assert cmd.payload[:-2] == pkt.payload[:-2]
-
-        if isinstance(packets, dict) and (payload := packets[pkt_line]):
-            assert shrink(msg.payload, keep_falsys=True) == eval(payload)

@@ -8,6 +8,8 @@ Test the various helper APIs.
 
 # TODO: add test for ramses_tx.frame.pkt_header()
 
+from typing import Any
+
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.helpers import deep_merge
 from ramses_tx.const import attr_dict_factory
@@ -16,6 +18,10 @@ from tests.helpers import assert_raises
 
 def test_merge_dicts() -> None:
     """Deep merge a src dict (precident) into a dst dict and return the result."""
+
+    src: dict[str, Any]
+    dst: dict[str, Any]
+    out: dict[str, Any]
 
     src = {"top": {"deep": {"in_both": "1", "in_src": "dog"}}}
     dst = {"top": {"deep": {"in_both": "9", "in_dst": "cat"}}}

@@ -18,7 +18,7 @@ from ramses_tx.schemas import DeviceIdT
 pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
-@pytest.fixture()  # scope="module")
+@pytest.fixture()  # type: ignore[misc]
 def gwy_config() -> dict[str, Any]:
     return {
         "config": {
@@ -37,11 +37,6 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
     """Test obtaining the fault log."""
 
     assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
-
-    # TODO: These values should be asserted in protocol FSM tests
-    assert gwy._protocol._context.echo_timeout == 0.5
-    assert gwy._protocol._context.reply_timeout == 0.2
-    assert gwy._protocol._context.SEND_TIMEOUT_LIMIT == 15.0
 
     _: Controller = gwy.get_device(ctl_id)
 

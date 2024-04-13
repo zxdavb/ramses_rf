@@ -13,7 +13,7 @@ import asyncio
 from collections.abc import Callable
 
 import pytest
-import serial
+import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Message
 from ramses_tx.const import SZ_ACTIVE_HGI, SZ_IS_EVOFW3, Code

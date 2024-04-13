@@ -273,16 +273,18 @@ class Command(Frame):
     def from_attrs(
         cls,
         verb: VerbT,
-        dest_id: DeviceIdT,
+        dest_id: DeviceIdT | str,
         code: Code,
         payload: PayloadT,
         *,
-        from_id: DeviceIdT | None = None,
+        from_id: DeviceIdT | str | None = None,
         seqn=None,
     ) -> Command:
         """Create a command from its attrs using a destination device_id."""
 
         from_id = from_id or HGI_DEV_ADDR.id
+
+        addrs: tuple[DeviceIdT | str, DeviceIdT | str, DeviceIdT | str]
 
         # if dest_id == NUL_DEV_ADDR.id:
         #     addrs = (from_id, dest_id, NON_DEV_ADDR.id)
@@ -308,9 +310,9 @@ class Command(Frame):
         code: str | Code,
         payload: PayloadT,
         *,
-        addr0: DeviceIdT | None = None,
-        addr1: DeviceIdT | None = None,
-        addr2: DeviceIdT | None = None,
+        addr0: DeviceIdT | str | None = None,
+        addr1: DeviceIdT | str | None = None,
+        addr2: DeviceIdT | str | None = None,
         seqn=None,
     ) -> Command:
         """Create a command from its attrs using an address set."""
@@ -365,21 +367,21 @@ class Command(Frame):
         payload = parts.pop()[:48]
         code = parts.pop()
 
-        addrs: tuple[DeviceIdT, DeviceIdT, DeviceIdT]
+        addrs: tuple[DeviceIdT | str, DeviceIdT | str, DeviceIdT | str]
 
         if not 0 < len(parts) < 4:
             raise exc.CommandInvalid(f"Command is invalid: '{cmd_str}'")
         elif len(parts) == 1 and verb == I_:
             # drs = (cmd[0],          NON_DEV_ADDR.id, cmd[0])
-            addrs = (NON_DEV_ADDR.id, NON_DEV_ADDR.id, parts[0])  # type: ignore[assignment]
+            addrs = (NON_DEV_ADDR.id, NON_DEV_ADDR.id, parts[0])
         elif len(parts) == 1:
-            addrs = (HGI_DEV_ADDR.id, parts[0], NON_DEV_ADDR.id)  # type: ignore[assignment]
+            addrs = (HGI_DEV_ADDR.id, parts[0], NON_DEV_ADDR.id)
         elif len(parts) == 2 and parts[0] == parts[1]:
-            addrs = (parts[0], NON_DEV_ADDR.id, parts[1])  # type: ignore[assignment]
+            addrs = (parts[0], NON_DEV_ADDR.id, parts[1])
         elif len(parts) == 2:
-            addrs = (parts[0], parts[1], NON_DEV_ADDR.id)  # type: ignore[assignment]
+            addrs = (parts[0], parts[1], NON_DEV_ADDR.id)
         else:
-            addrs = (parts[0], parts[1], parts[2])  # type: ignore[assignment]
+            addrs = (parts[0], parts[1], parts[2])
 
         return cls._from_attrs(
             verb,
@@ -415,7 +417,7 @@ class Command(Frame):
         return self._rx_header
 
     @classmethod  # constructor for I|0002  # TODO: trap corrupt temps?
-    def put_weather_temp(cls, dev_id: DeviceIdT, temperature: float) -> Command:
+    def put_weather_temp(cls, dev_id: DeviceIdT | str, temperature: float) -> Command:
         """Constructor to announce the current temperature of a weather sensor (0002).
 
         This is for use by a faked HB85 or similar.
@@ -431,14 +433,14 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._0002, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for RQ|0004
-    def get_zone_name(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_zone_name(cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT) -> Command:
         """Constructor to get the name of a zone (c.f. parser_0004)."""
 
         return cls.from_attrs(RQ, ctl_id, Code._0004, f"{_check_idx(zone_idx)}00")
 
     @classmethod  # constructor for W|0004
     def set_zone_name(
-        cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT, name: str
+        cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT, name: str
     ) -> Command:
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
@@ -446,7 +448,7 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._0004, payload)
 
     @classmethod  # constructor for RQ|0006
-    def get_schedule_version(cls, ctl_id: DeviceIdT) -> Command:
+    def get_schedule_version(cls, ctl_id: DeviceIdT | str) -> Command:
         """Constructor to get the current version (change counter) of the schedules.
 
         This number is increased whenever any zone's schedule is changed (incl. the DHW
@@ -458,7 +460,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|0008
     def get_relay_demand(
-        cls, dev_id: DeviceIdT, zone_idx: _ZoneIdxT | None = None
+        cls, dev_id: DeviceIdT | str, zone_idx: _ZoneIdxT | None = None
     ) -> Command:
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
 
@@ -466,7 +468,7 @@ class Command(Frame):
         return cls.from_attrs(RQ, dev_id, Code._0008, payload)
 
     @classmethod  # constructor for RQ|000A
-    def get_zone_config(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_zone_config(cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT) -> Command:
         """Constructor to get the config of a zone (c.f. parser_000a)."""
 
         zon_idx = _check_idx(zone_idx)
@@ -476,7 +478,7 @@ class Command(Frame):
     @classmethod  # constructor for W|000A
     def set_zone_config(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         zone_idx: _ZoneIdxT,
         *,
         min_temp: float = 5,
@@ -513,7 +515,7 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._000A, payload)
 
     @classmethod  # constructor for RQ|0100
-    def get_system_language(cls, ctl_id: DeviceIdT, **kwargs) -> Command:
+    def get_system_language(cls, ctl_id: DeviceIdT | str, **kwargs) -> Command:
         """Constructor to get the language of a system (c.f. parser_0100)."""
 
         assert not kwargs, kwargs
@@ -522,7 +524,7 @@ class Command(Frame):
     @classmethod  # constructor for RQ|0404
     def get_schedule_fragment(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         zone_idx: _ZoneIdxT,
         frag_number: int,
         total_frags: int | None,
@@ -562,7 +564,7 @@ class Command(Frame):
     @classmethod  # constructor for W|0404
     def set_schedule_fragment(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         zone_idx: _ZoneIdxT,
         frag_num: int,
         frag_cnt: int,
@@ -590,7 +592,9 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._0404, payload)
 
     @classmethod  # constructor for RQ|0418
-    def get_system_log_entry(cls, ctl_id: DeviceIdT, log_idx: int | str) -> Command:
+    def get_system_log_entry(
+        cls, ctl_id: DeviceIdT | str, log_idx: int | str
+    ) -> Command:
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
 
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
@@ -599,11 +603,11 @@ class Command(Frame):
     @classmethod  # constructor for I|0418 (used for testing only)
     def _put_system_log_entry(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         fault_state: FaultState | str,
         fault_type: FaultType | str,
         device_class: FaultDeviceClass | str,
-        device_id: DeviceIdT | None = None,
+        device_id: DeviceIdT | str | None = None,
         domain_idx: int | str = "00",
         _log_idx: int | str | None = None,
         timestamp: dt | str | None = None,
@@ -635,7 +639,7 @@ class Command(Frame):
             timestamp = dt.now()  #
         timestamp = hex_from_dts(timestamp)
 
-        dev_id = dev_id_to_hex_id(device_id) if device_id else "000000"
+        dev_id = dev_id_to_hex_id(device_id) if device_id else "000000"  # type: ignore[arg-type]
 
         payload = "".join(
             (
@@ -656,7 +660,9 @@ class Command(Frame):
         return cls.from_attrs(I_, ctl_id, Code._0418, payload)
 
     @classmethod  # constructor for RQ|1030
-    def get_mix_valve_params(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_mix_valve_params(
+        cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT
+    ) -> Command:
         """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
 
         zon_idx = _check_idx(zone_idx)
@@ -666,7 +672,7 @@ class Command(Frame):
     @classmethod  # constructor for W|1030 - TODO: sort out kwargs for HVAC
     def set_mix_valve_params(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         zone_idx: _ZoneIdxT,
         *,
         max_flow_setpoint=55,
@@ -712,7 +718,7 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._1030, payload, **kwargs)
 
     @classmethod  # constructor for RQ|10A0
-    def get_dhw_params(cls, ctl_id: DeviceIdT, **kwargs) -> Command:
+    def get_dhw_params(cls, ctl_id: DeviceIdT | str, **kwargs) -> Command:
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
 
         dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
@@ -723,7 +729,7 @@ class Command(Frame):
     @classmethod  # constructor for W|10A0
     def set_dhw_params(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         *,
         setpoint: float = 50.0,
         overrun: int = 5,
@@ -759,7 +765,7 @@ class Command(Frame):
 
     @classmethod  # constructor for RQ|1100
     def get_tpi_params(
-        cls, dev_id: DeviceIdT, *, domain_id: int | str | None = None
+        cls, dev_id: DeviceIdT | str, *, domain_id: int | str | None = None
     ) -> Command:
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
 
@@ -771,7 +777,7 @@ class Command(Frame):
     @classmethod  # constructor for W|1100
     def set_tpi_params(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         domain_id: int | str | None,
         *,
         cycle_rate: int = 3,  # TODO: check
@@ -804,7 +810,7 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._1100, payload)
 
     @classmethod  # constructor for RQ|1260
-    def get_dhw_temp(cls, ctl_id: DeviceIdT, **kwargs) -> Command:
+    def get_dhw_temp(cls, ctl_id: DeviceIdT | str, **kwargs) -> Command:
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
 
         dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
@@ -814,7 +820,7 @@ class Command(Frame):
 
     @classmethod  # constructor for I|1260  # TODO: trap corrupt temps?
     def put_dhw_temp(
-        cls, dev_id: DeviceIdT, temperature: float | None, **kwargs
+        cls, dev_id: DeviceIdT | str, temperature: float | None, **kwargs
     ) -> Command:
         """Constructor to announce the current temperature of an DHW sensor (1260).
 
@@ -834,7 +840,9 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._1260, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for I|1290  # TODO: trap corrupt temps?
-    def put_outdoor_temp(cls, dev_id: DeviceIdT, temperature: float | None) -> Command:
+    def put_outdoor_temp(
+        cls, dev_id: DeviceIdT | str, temperature: float | None
+    ) -> Command:
         """Constructor to announce the current outdoor temperature (1290).
 
         This is for use by a faked HVAC sensor or similar.
@@ -844,7 +852,7 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._1290, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for I|1298
-    def put_co2_level(cls, dev_id: DeviceIdT, co2_level: float | None) -> Command:
+    def put_co2_level(cls, dev_id: DeviceIdT | str, co2_level: float | None) -> Command:
         """Constructor to announce the current co2 level of a sensor (1298)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
@@ -852,7 +860,9 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._1298, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for I|12A0
-    def put_indoor_humidity(cls, dev_id: DeviceIdT, indoor_humidity: float) -> Command:
+    def put_indoor_humidity(
+        cls, dev_id: DeviceIdT | str, indoor_humidity: float
+    ) -> Command:
         """Constructor to announce the current humidity of a sensor (12A0)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
@@ -860,13 +870,15 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for RQ|12B0
-    def get_zone_window_state(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_zone_window_state(
+        cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT
+    ) -> Command:
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
 
         return cls.from_attrs(RQ, ctl_id, Code._12B0, _check_idx(zone_idx))
 
     @classmethod  # constructor for RQ|1F41
-    def get_dhw_mode(cls, ctl_id: DeviceIdT, **kwargs) -> Command:
+    def get_dhw_mode(cls, ctl_id: DeviceIdT | str, **kwargs) -> Command:
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
 
         dhw_idx = _check_idx(kwargs.pop(SZ_DHW_IDX, 0))  # 00 or 01 (rare)
@@ -877,7 +889,7 @@ class Command(Frame):
     @classmethod  # constructor for W|1F41
     def set_dhw_mode(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         *,
         mode: int | str | None = None,
         active: bool | None = None,
@@ -917,9 +929,9 @@ class Command(Frame):
     def put_bind(
         cls,
         verb: VerbT,
-        src_id: DeviceIdT,
+        src_id: DeviceIdT | str,
         codes: Code | Iterable[Code] | None,
-        dst_id: DeviceIdT | None = None,
+        dst_id: DeviceIdT | str | None = None,
         **kwargs,
     ) -> Command:
         """Constructor for RF bind commands (1FC9), for use by faked devices.
@@ -965,8 +977,8 @@ class Command(Frame):
     @classmethod  # constructor for 1FC9 (rf_bind) offer
     def _put_bind_offer(
         cls,
-        src_id: DeviceIdT,
-        dst_id: DeviceIdT | None,
+        src_id: DeviceIdT | str,
+        dst_id: DeviceIdT | str | None,
         codes: list[Code],
         *,
         oem_code: str | None = None,
@@ -976,7 +988,7 @@ class Command(Frame):
         if not kodes:  # might be []
             raise exc.CommandInvalid(f"Invalid codes for a bind offer: {codes}")
 
-        hex_id = Address.convert_to_hex(src_id)
+        hex_id = Address.convert_to_hex(src_id)  # type: ignore[arg-type]
         payload = "".join(f"00{c}{hex_id}" for c in kodes)
 
         if oem_code:  # 01, 67, 6C
@@ -990,8 +1002,8 @@ class Command(Frame):
     @classmethod  # constructor for 1FC9 (rf_bind) accept - mainly used for test suite
     def _put_bind_accept(
         cls,
-        src_id: DeviceIdT,
-        dst_id: DeviceIdT,
+        src_id: DeviceIdT | str,
+        dst_id: DeviceIdT | str,
         codes: list[Code],
         *,
         idx: str | None = "00",
@@ -999,7 +1011,7 @@ class Command(Frame):
         if not codes:  # might be
             raise exc.CommandInvalid(f"Invalid codes for a bind accept: {codes}")
 
-        hex_id = Address.convert_to_hex(src_id)
+        hex_id = Address.convert_to_hex(src_id)  # type: ignore[arg-type]
         payload = "".join(f"{idx or '00'}{c}{hex_id}" for c in codes)
 
         return cls.from_attrs(W_, dst_id, Code._1FC9, payload, from_id=src_id)
@@ -1007,8 +1019,8 @@ class Command(Frame):
     @classmethod  # constructor for 1FC9 (rf_bind) confirm
     def _put_bind_confirm(
         cls,
-        src_id: DeviceIdT,
-        dst_id: DeviceIdT,
+        src_id: DeviceIdT | str,
+        dst_id: DeviceIdT | str,
         codes: list[Code],
         *,
         idx: str | None = "00",
@@ -1016,7 +1028,7 @@ class Command(Frame):
         if not codes:  # if not payload
             payload = idx or "00"  # e.g. Nuaire 4-way switch uses 21!
         else:
-            hex_id = Address.convert_to_hex(src_id)
+            hex_id = Address.convert_to_hex(src_id)  # type: ignore[arg-type]
             payload = f"{idx or '00'}{codes[0]}{hex_id}"
 
         return cls.from_attrs(I_, dst_id, Code._1FC9, payload, from_id=src_id)
@@ -1024,11 +1036,11 @@ class Command(Frame):
     @classmethod  # constructor for I|22F1
     def set_fan_mode(
         cls,
-        fan_id: DeviceIdT,
+        fan_id: DeviceIdT | str,
         fan_mode,
         *,
         seqn: int | None = None,
-        src_id: DeviceIdT | None = None,
+        src_id: DeviceIdT | str | None = None,
         idx: str = "00",  # could be e.g. "63"
     ) -> Command:
         """Constructor to get the fan speed (and heater?) (c.f. parser_22f1).
@@ -1082,10 +1094,10 @@ class Command(Frame):
     @classmethod  # constructor for I|22F7
     def set_bypass_position(
         cls,
-        fan_id: DeviceIdT,
+        fan_id: DeviceIdT | str,
         *,
         bypass_position: float | None = None,
-        src_id: DeviceIdT | None = None,
+        src_id: DeviceIdT | str | None = None,
         **kwargs,
     ) -> Command:
         """Constructor to set the position of the bypass valve (c.f. parser_22f7).
@@ -1121,14 +1133,14 @@ class Command(Frame):
         )  # trailing EF not required
 
     @classmethod  # constructor for RQ|2309
-    def get_zone_setpoint(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_zone_setpoint(cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT) -> Command:
         """Constructor to get the setpoint of a zone (c.f. parser_2309)."""
 
         return cls.from_attrs(W_, ctl_id, Code._2309, _check_idx(zone_idx))
 
     @classmethod  # constructor for W|2309
     def set_zone_setpoint(
-        cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT, setpoint: float
+        cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT, setpoint: float
     ) -> Command:
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         # .W --- 34:092243 01:145038 --:------ 2309 003 0107D0
@@ -1137,7 +1149,7 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._2309, payload)
 
     @classmethod  # constructor for RQ|2349
-    def get_zone_mode(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_zone_mode(cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT) -> Command:
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
 
         return cls.from_attrs(RQ, ctl_id, Code._2349, _check_idx(zone_idx))
@@ -1145,7 +1157,7 @@ class Command(Frame):
     @classmethod  # constructor for W|2349
     def set_zone_mode(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         zone_idx: _ZoneIdxT,
         *,
         mode: int | str | None = None,
@@ -1193,11 +1205,11 @@ class Command(Frame):
     @classmethod  # constructor for W|2411
     def set_fan_param(
         cls,
-        fan_id: DeviceIdT,
+        fan_id: DeviceIdT | str,
         param_id: str,
         value: str,
         *,
-        src_id: DeviceIdT | None = None,
+        src_id: DeviceIdT | str | None = None,
     ) -> Command:
         """Constructor to set a configurable fan parameter (c.f. parser_2411)."""
 
@@ -1211,7 +1223,7 @@ class Command(Frame):
         return cls._from_attrs(W_, Code._2411, payload, addr0=src_id, addr1=fan_id)
 
     @classmethod  # constructor for RQ|2E04
-    def get_system_mode(cls, ctl_id: DeviceIdT) -> Command:
+    def get_system_mode(cls, ctl_id: DeviceIdT | str) -> Command:
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
 
         return cls.from_attrs(RQ, ctl_id, Code._2E04, FF)
@@ -1219,7 +1231,7 @@ class Command(Frame):
     @classmethod  # constructor for W|2E04
     def set_system_mode(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         system_mode: int | str | None,
         *,
         until: dt | str | None = None,
@@ -1257,7 +1269,7 @@ class Command(Frame):
 
     @classmethod  # constructor for I|2E10
     def put_presence_detected(
-        cls, dev_id: DeviceIdT, presence_detected: bool | None
+        cls, dev_id: DeviceIdT | str, presence_detected: bool | None
     ) -> Command:
         """Constructor to announce the current presence state of a sensor (2E10)."""
         # .I --- ...
@@ -1266,13 +1278,15 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._2E10, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for RQ|30C9
-    def get_zone_temp(cls, ctl_id: DeviceIdT, zone_idx: _ZoneIdxT) -> Command:
+    def get_zone_temp(cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT) -> Command:
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
 
         return cls.from_attrs(RQ, ctl_id, Code._30C9, _check_idx(zone_idx))
 
     @classmethod  # constructor for I|30C9  # TODO: trap corrupt temps?
-    def put_sensor_temp(cls, dev_id: DeviceIdT, temperature: float | None) -> Command:
+    def put_sensor_temp(
+        cls, dev_id: DeviceIdT | str, temperature: float | None
+    ) -> Command:
         """Constructor to announce the current temperature of a thermostat (3C09).
 
         This is for use by a faked DTS92(E) or similar.
@@ -1296,7 +1310,7 @@ class Command(Frame):
         return cls._from_attrs(I_, Code._30C9, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for RQ|313F
-    def get_system_time(cls, ctl_id: DeviceIdT) -> Command:
+    def get_system_time(cls, ctl_id: DeviceIdT | str) -> Command:
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
 
         return cls.from_attrs(RQ, ctl_id, Code._313F, "00")
@@ -1304,7 +1318,7 @@ class Command(Frame):
     @classmethod  # constructor for W|313F
     def set_system_time(
         cls,
-        ctl_id: DeviceIdT,
+        ctl_id: DeviceIdT | str,
         datetime: dt | str,
         is_dst: bool = False,
     ) -> Command:
@@ -1315,7 +1329,7 @@ class Command(Frame):
         return cls.from_attrs(W_, ctl_id, Code._313F, f"0060{dt_str}")
 
     @classmethod  # constructor for RQ|3220
-    def get_opentherm_data(cls, otb_id: DeviceIdT, msg_id: int | str) -> Command:
+    def get_opentherm_data(cls, otb_id: DeviceIdT | str, msg_id: int | str) -> Command:
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
 
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
@@ -1323,7 +1337,9 @@ class Command(Frame):
         return cls.from_attrs(RQ, otb_id, Code._3220, payload)
 
     @classmethod  # constructor for I|3EF0  # TODO: trap corrupt states?
-    def put_actuator_state(cls, dev_id: DeviceIdT, modulation_level: float) -> Command:
+    def put_actuator_state(
+        cls, dev_id: DeviceIdT | str, modulation_level: float
+    ) -> Command:
         """Constructor to announce the modulation level of an actuator (3EF0).
 
         This is for use by a faked BDR91A or similar.
@@ -1347,8 +1363,8 @@ class Command(Frame):
     @classmethod  # constructor for RP|3EF1 (I|3EF1?)  # TODO: trap corrupt values?
     def put_actuator_cycle(
         cls,
-        src_id: DeviceIdT,
-        dst_id: DeviceIdT,
+        src_id: DeviceIdT | str,
+        dst_id: DeviceIdT | str,
         modulation_level: float,
         actuator_countdown: int,
         *,

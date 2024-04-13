@@ -18,6 +18,7 @@
   mypy>=1.9.0
   types-colorama>=0.4.15
   types-paho-mqtt>=1.6.0.20240321
+  types-PyYAML>=6.0.12.20240311
   voluptuous>=0.14.2
 
 # used for build/deploy

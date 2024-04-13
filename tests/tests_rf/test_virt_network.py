@@ -11,7 +11,7 @@ VirtualRF is used for testing.
 import asyncio
 
 import pytest
-import serial
+import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Code, Command, Device, Gateway
 from tests_rf.virtual_rf import VirtualRf, rf_factory
@@ -172,11 +172,11 @@ async def test_virtual_rf_dev_disc():
 
     try:
         rf.set_gateway(rf.ports[0], "18:000000")
-        gwy_0 = Gateway(rf.ports[0], **GWY_CONFIG)
+        gwy_0 = Gateway(rf.ports[0], **GWY_CONFIG)  # type: ignore[arg-type]
         await assert_devices(gwy_0, [])
 
         rf.set_gateway(rf.ports[1], "18:111111")
-        gwy_1 = Gateway(rf.ports[1], **GWY_CONFIG)
+        gwy_1 = Gateway(rf.ports[1], **GWY_CONFIG)  # type: ignore[arg-type]
         await assert_devices(gwy_1, [])
 
         await _test_virtual_rf_dev_disc(rf, gwy_0, gwy_1)

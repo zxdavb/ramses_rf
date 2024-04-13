@@ -336,7 +336,7 @@ SCH_GLOBAL_TRAITS_DICT, SCH_TRAITS = sch_global_traits_dict_factory()
 # Device lists (Engine configuration)
 
 
-DeviceIdT = NewType("DeviceIdT", str)
+DeviceIdT = NewType("DeviceIdT", str)  # TypeVar('DeviceIdT', bound=str)  #
 DeviceListT: TypeAlias = dict[DeviceIdT, DeviceTraitsT]
 
 

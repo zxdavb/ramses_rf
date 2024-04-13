@@ -6,6 +6,7 @@
 Test the Command.put_*, Command.set_* APIs.
 """
 
+from collections.abc import Callable
 from datetime import datetime as dt
 
 from ramses_tx.command import CODE_API_MAP, Command
@@ -13,7 +14,7 @@ from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 
 
-def _test_api(api, packets):  # NOTE: incl. addr_set check
+def _test_api(api: Callable, packets: dict[str]):  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line, kwargs in packets.items():
@@ -33,10 +34,10 @@ def _create_pkt_from_frame(pkt_line) -> Packet:
     return pkt
 
 
-def _test_api_from_msg(api, msg) -> Command:
+def _test_api_from_msg(api: Callable, msg: Message) -> Command:
     """Create a cmd from a msg and assert they're equal (*also* asserts payload)."""
 
-    cmd = api(
+    cmd: Command = api(
         msg.dst.id,
         src_id=msg.src.id,
         **{k: v for k, v in msg.payload.items() if k[:1] != "_"},
@@ -47,7 +48,7 @@ def _test_api_from_msg(api, msg) -> Command:
     return cmd
 
 
-def _test_api_from_kwargs(api, pkt, **kwargs):
+def _test_api_from_kwargs(api: Callable, pkt: Packet, **kwargs) -> None:
     cmd = api(HRU, src_id=REM, **kwargs)
 
     assert str(cmd) == str(pkt)

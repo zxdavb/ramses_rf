@@ -125,7 +125,7 @@ def _proc_log_line(log_line: str):
     assert entry
 
 
-def _proc_null_fault_entry(fault_log: FaultLog, _log_idx: LogIdxT = "00") -> Command:
+def _proc_null_fault_entry(fault_log: FaultLog, _log_idx: LogIdxT = "00") -> None:
     """Return a 0418 packet with no entry."""
     cmd = Command.from_attrs(
         I_, CTL_ID, Code._0418, f"0000{_log_idx}B0000000000000000000007FFFFF7000000000"
@@ -135,7 +135,7 @@ def _proc_null_fault_entry(fault_log: FaultLog, _log_idx: LogIdxT = "00") -> Com
 
 def _proc_test_fault_entry(
     fault_log: FaultLog, text_idx: LogIdxT, _log_idx: LogIdxT = "00"
-):
+) -> None:
     entry: FaultLogEntry = TEST_FAULTS[text_idx]
 
     cmd = Command._put_system_log_entry(

@@ -101,6 +101,7 @@ async def rf_factory(
 
         if start_gwys:
             await gwy.start()
+            assert gwy._transport is not None  # mypy
             gwy._transport._extra["virtual_rf"] = rf
 
     return rf, gwys

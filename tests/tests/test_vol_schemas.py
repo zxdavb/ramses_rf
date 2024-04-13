@@ -84,7 +84,7 @@ CheckForDuplicatesLoader.add_constructor(
 
 
 def _test_schema(validator: vol.Schema, schema: str) -> dict:
-    return validator(yaml.load(schema, CheckForDuplicatesLoader))
+    return validator(yaml.load(schema, CheckForDuplicatesLoader))  # type: ignore[no-any-return]
     # return validator(yaml.safe_load(schema))  # PyYAML silently swallows duplicate keys!
 
 
@@ -102,7 +102,7 @@ def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
 def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
     global test_schemas_good_failed
     try:
-        _test_schema(validator, schema)
+        return _test_schema(validator, schema)
     except vol.MultipleInvalid as err:
         test_schemas_good_failed = True
         raise TypeError(

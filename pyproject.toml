@@ -156,15 +156,10 @@
   module = ["tests.*", "tests_rf.*"]
 
   disable_error_code = [
-    "arg-type",
-    "dict-item",
-    "import-untyped",
-    "misc",
-    "no-any-return",
-    "return",
-    "type-arg",
-    "union-attr",
-    "unreachable",
+    "arg-type",  #       59
+    "misc",  #           22
+    "type-arg",  #       44
+    "union-attr",  #     10
   ]
 
 

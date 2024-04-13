@@ -63,6 +63,8 @@ class _BaseProtocol(asyncio.Protocol):
     _this_msg: Message | None = None
     _prev_msg: Message | None = None
 
+    _is_evofw3: bool | None = None
+
     def __init__(self, msg_handler: MsgHandlerT) -> None:
         self._msg_handler = msg_handler
         self._msg_handlers: list[MsgHandlerT] = []
@@ -155,7 +157,7 @@ class _BaseProtocol(asyncio.Protocol):
         """
 
         if not self._wait_connection_lost:
-            return
+            return None
 
         try:
             return await asyncio.wait_for(self._wait_connection_lost, timeout)  # type: ignore[arg-type]
@@ -496,8 +498,6 @@ class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
 
 class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can receive Packets and send Commands +/- QoS (using a FSM)."""
-
-    _is_evofw3: bool | None = None
 
     def __init__(
         self, msg_handler: MsgHandlerT, disable_qos: bool = False, **kwargs

@@ -12,7 +12,7 @@ from datetime import datetime as dt
 from unittest.mock import patch
 
 import pytest
-import serial
+import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Command, Gateway, Packet
 from ramses_tx.protocol import PortProtocol
@@ -97,7 +97,7 @@ async def test_regex_inbound_() -> None:
 
     # NOTE: the absence of reciprocal outbound tests is intentional
     config = GWY_CONFIG
-    config["config"].update({SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND}})
+    config["config"].update({SZ_USE_REGEX: {SZ_INBOUND: RULES_INBOUND}})  # type: ignore[dict-item]
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
@@ -125,7 +125,7 @@ async def test_regex_outbound() -> None:
 
     # NOTE: the absence of reciprocal inbound tests is intentional
     config = GWY_CONFIG
-    config["config"].update({SZ_USE_REGEX: {SZ_OUTBOUND: RULES_OUTBOUND}})
+    config["config"].update({SZ_USE_REGEX: {SZ_OUTBOUND: RULES_OUTBOUND}})  # type: ignore[dict-item]
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
@@ -155,7 +155,7 @@ async def test_regex_with_qos() -> None:
     rf = VirtualRf(2)
 
     config = GWY_CONFIG
-    config["config"].update({SZ_USE_REGEX: RULES_COMBINED})
+    config["config"].update({SZ_USE_REGEX: RULES_COMBINED})  # type: ignore[dict-item]
 
     gwy_0 = Gateway(rf.ports[0], **config)
     ser_1 = serial.Serial(rf.ports[1])
