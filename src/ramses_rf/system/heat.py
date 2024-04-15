@@ -632,14 +632,17 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         return self._msg_0006.payload[SZ_CHANGE_COUNTER], True  # global_ver, did_io
 
     def _refresh_schedules(self) -> None:
+        zone: Zone
+        dhw: DhwZone
+
         if self._gwy._disable_sending:
             raise RuntimeError("Sending is disabled")
 
         # schedules based upon 'active' (not most recent) 0006 pkt
         for zone in getattr(self, SZ_ZONES, []):
-            asyncio.create_task(zone.get_schedule(force_io=True))
+            self._gwy._loop.create_task(zone.get_schedule(force_io=True))
         if dhw := getattr(self, "dhw", None):
-            asyncio.create_task(dhw.get_schedule(force_io=True))
+            self._gwy._loop.create_task(dhw.get_schedule(force_io=True))
 
     async def _obtain_lock(self, zone_idx) -> None:
         timeout_dtm = dt.now() + td(minutes=3)
@@ -712,7 +715,9 @@ class Logbook(SystemBase):  # 0418
         self._add_discovery_cmd(
             Command.get_system_log_entry(self.ctl.id, 0), 60 * 5, delay=5
         )
-        # self._gwy.add_task(asyncio.create_task(self.get_faultlog()))
+        # self._gwy.add_task(
+        #     self._gwy._loop.create_task(self.get_faultlog())
+        # )
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)

@@ -216,7 +216,7 @@ class VirtualRfBase:
     def start(self) -> asyncio.Task:
         """Start polling ports and distributing data, calls `pull_data_from_port()`."""
 
-        self._task = asyncio.create_task(self._poll_ports_for_data())
+        self._task = self._loop.create_task(self._poll_ports_for_data())
         return self._task
 
     async def _poll_ports_for_data(self) -> None:
@@ -290,7 +290,7 @@ class VirtualRfBase:
         if os.name == "posix":  # signal.SIGKILL people?
             for sig in (signal.SIGABRT, signal.SIGINT, signal.SIGTERM):
                 self._loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
+                    sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
                 )
         else:  # unsupported OS
             raise RuntimeError(f"Unsupported OS for this module: {os.name} (termios)")

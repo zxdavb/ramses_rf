@@ -751,7 +751,7 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
         if bool(disable_sending) is False:
             raise exc.TransportSourceInvalid("This Transport cannot send packets")
 
-        self._extra[SZ_READER_TASK] = self._reader_task = asyncio.create_task(
+        self._extra[SZ_READER_TASK] = self._reader_task = self._loop.create_task(
             self._start_reader(), name="FileTransport._start_reader()"
         )
 
@@ -816,11 +816,15 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
         super().__init__(*args, **kwargs)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
-        self._leaker_task = asyncio.create_task(self._leak_sem())
+        self._leaker_task = self._loop.create_task(
+            self._leak_sem(), name="PortTransport._leak_sem()"
+        )
 
         self._is_hgi80 = is_hgi80(self.serial.name)
 
-        asyncio.create_task(self._create_connection(), name="Port._create_connection")
+        self._loop.create_task(
+            self._create_connection(), name="PortTransport._create_connection()"
+        )
 
     def get_extra_info(self, name: str, default: Any = None):
         if name == SZ_IS_EVOFW3:
@@ -867,12 +871,12 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         self._init_fut = asyncio.Future()
         if self._disable_sending:
-            self._init_task = asyncio.create_task(
-                connect_sans_signature(), name="Port.connect_sans_signature"
+            self._init_task = self._loop.create_task(
+                connect_sans_signature(), name="PortTransport.connect_sans_signature()"
             )
         else:  # incl. disable_qos
-            self._init_task = asyncio.create_task(
-                connect_with_signature(), name="Port.connect_with_signature"
+            self._init_task = self._loop.create_task(
+                connect_with_signature(), name="PortTransport.connect_with_signature()"
             )
 
         timeout = 3
@@ -1082,7 +1086,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
             # BUG: using create task (self._loop.ct() & asyncio.ct()) causes the
             # BUG: event look to close early
             elif msg.payload == b"online":
-                # self._loop.create_task( ... name="Mqtt._create_connection"
+                # self._loop.create_task(... name="MqttTransport._create_connection()")
                 self._create_connection(msg)
 
             return

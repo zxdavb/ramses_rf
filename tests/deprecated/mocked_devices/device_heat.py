@@ -463,9 +463,9 @@ class MockDeviceCtl(MockDeviceBase):
         # Finally, 'start' the controller
         self._is_running = True
         self._tasks = [
-            asyncio.create_task(self.tx_1f09_cycle()),
-            asyncio.create_task(self.tx_3150_cycle()),
-            asyncio.create_task(self.tx_3b00_cycle()),
+            gwy._loop.create_task(self.tx_1f09_cycle()),
+            gwy._loop.create_task(self.tx_3150_cycle()),
+            gwy._loop.create_task(self.tx_3b00_cycle()),
         ]
 
     @property

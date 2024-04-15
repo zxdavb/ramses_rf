@@ -184,26 +184,26 @@ async def _test_flow_30x(protocol: PortProtocol) -> None:
     qos = QosParams(wait_for_reply=True)
 
     # STEP 1: Send an I cmd (no reply)...
-    task = asyncio.create_task(protocol._send_cmd(II_CMD_0, qos=qos), name="send_1")
+    task = rf._loop.create_task(protocol._send_cmd(II_CMD_0, qos=qos), name="send_1")
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 2: Send an RQ cmd, then receive the corresponding RP pkt...
-    task = asyncio.create_task(protocol._send_cmd(RQ_CMD_0, qos=qos), name="send_2")
+    task = rf._loop.create_task(protocol._send_cmd(RQ_CMD_0, qos=qos), name="send_2")
     protocol._loop.call_later(
         CALL_LATER_DELAY, ser.write, bytes(str(RP_PKT_0).encode("ascii")) + b"\r\n"
     )
     assert await task == RP_PKT_0
 
     # STEP 3: Send an I cmd (no reply) *twice*...
-    task = asyncio.create_task(protocol._send_cmd(II_CMD_0, qos=qos), name="send_3A")
+    task = rf._loop.create_task(protocol._send_cmd(II_CMD_0, qos=qos), name="send_3A")
     assert await task == II_CMD_0  # no reply pkt expected
 
-    task = asyncio.create_task(protocol._send_cmd(II_CMD_0, qos=qos), name="send_3B")
+    task = rf._loop.create_task(protocol._send_cmd(II_CMD_0, qos=qos), name="send_3B")
     assert await task == II_CMD_0  # no reply pkt expected
 
     # STEP 4: Send an RQ cmd, then receive the corresponding RP pkt...
-    task = asyncio.create_task(protocol._send_cmd(RQ_CMD_1, qos=qos), name="send_4A")
-    # sk = asyncio.create_task(protocol._send_cmd(RQ_CMD_1, qos=qos), name="send_4B")
+    task = rf._loop.create_task(protocol._send_cmd(RQ_CMD_1, qos=qos), name="send_4A")
+    # sk = rf._loop.create_task(protocol._send_cmd(RQ_CMD_1, qos=qos), name="send_4B")
 
     # TODO: make these deterministic so ser replies *only after* it receives cmd
     protocol._loop.call_later(
@@ -224,7 +224,7 @@ async def _test_flow_401(protocol: PortProtocol) -> None:
 
     for i in numbers:
         cmd = Command.put_sensor_temp("03:123456", i)
-        tasks[i] = asyncio.create_task(protocol._send_cmd(cmd, qos=qos))
+        tasks[i] = protocol._loop.create_task(protocol._send_cmd(cmd, qos=qos))
 
     assert await asyncio.gather(*tasks.values())
 
@@ -241,7 +241,7 @@ async def _test_flow_402(protocol: PortProtocol) -> None:
 
     for i in numbers:
         cmd = Command.put_sensor_temp("03:123456", i)
-        tasks[i] = asyncio.create_task(protocol._send_cmd(cmd, qos=qos))
+        tasks[i] = protocol._loop.create_task(protocol._send_cmd(cmd, qos=qos))
 
     random.shuffle(numbers)
 
@@ -266,7 +266,7 @@ async def _test_flow_60x(protocol: PortProtocol, num_cmds=1) -> None:
     for idx in range(num_cmds):
         cmd = Command.get_zone_temp("01:123456", f"{idx:02X}")
         coro = protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
-        tasks.append(asyncio.create_task(coro, name=f"cmd_{idx:02X}"))
+        tasks.append(protocol._loop.create_task(coro, name=f"cmd_{idx:02X}"))
 
     assert await asyncio.gather(*tasks)
 

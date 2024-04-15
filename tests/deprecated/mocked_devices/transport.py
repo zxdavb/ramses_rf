@@ -69,7 +69,7 @@ class MockSerial:  # most of the RF 'mocking' is done in here
         self.mock_devices: list = []  # list[MockDeviceBase]
 
         self._que: PriorityQueue = PriorityQueue(maxsize=24)
-        self._rx_bytes_from_ether_task = asyncio.create_task(
+        self._rx_bytes_from_ether_task = self._loop.create_task(
             self._rx_bytes_from_ether()
         )
 

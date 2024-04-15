@@ -190,6 +190,8 @@ async def _test_flow_10x(
 ) -> None:
     """Check the change of state during a binding at context layer."""
 
+    # asyncio.create_task() should be OK (no need to pass in an event loop)
+
     # STEP 0: Setup...
     respondent: Fakeable = gwy_r.devices[0]
     supplicant: Fakeable = gwy_s.devices[0]

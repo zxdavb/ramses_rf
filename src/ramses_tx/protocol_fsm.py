@@ -156,7 +156,7 @@ class ProtocolContext:
                 self.set_state(IsInIdle, result=self._state._echo_pkt)
 
             elif isinstance(self._state, WantEcho | WantRply):
-                self._expiry_timer = asyncio.create_task(expire_state_on_timeout())
+                self._expiry_timer = self._loop.create_task(expire_state_on_timeout())
 
         if self._expiry_timer is not None:
             self._expiry_timer.cancel()
@@ -328,7 +328,7 @@ class ProtocolContext:
         except exc.ProtocolFsmError as err:
             self.set_state(IsInIdle, exception=err)
         else:
-            asyncio.create_task(send_fnc_wrapper(cmd))
+            self._loop.create_task(send_fnc_wrapper(cmd))
 
 
 # With wait_for_reply=False

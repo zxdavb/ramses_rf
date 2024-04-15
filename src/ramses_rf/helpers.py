@@ -121,6 +121,6 @@ def schedule_task(
             await execute_fnc(fnc, *args, **kwargs)
             await asyncio.sleep(period)
 
-    return asyncio.create_task(
+    return asyncio.create_task(  # do we need to pass in an event loop?
         schedule_fnc(fnc, delay, period, *args, **kwargs), name=str(fnc)
     )
