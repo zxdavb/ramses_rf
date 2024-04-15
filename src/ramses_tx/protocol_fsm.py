@@ -537,14 +537,23 @@ class WantEcho(ProtocolStateBase):
 
         assert self._sent_cmd, f"{self}: Coding error"  # mypy hint
 
+        # _LOGGER.error("pkt=%s", pkt._hdr)
+        # if self._sent_cmd.rx_header:
+        #     _LOGGER.error("hdr=%s", self._sent_cmd.rx_header)
+        #     _LOGGER.error("src=%s", self._sent_cmd.src.id)
+        #     _LOGGER.error("dst=%s", pkt.dst.id)
+
         if (
             self._sent_cmd.rx_header
             and pkt._hdr == self._sent_cmd.rx_header
-            and pkt.dst.id == self._sent_cmd.src.id
+            and pkt.dst.id[:3] == self._sent_cmd.src.id[:3]  # 18:146440 == 18:000730
         ):
             _LOGGER.warning(
                 "%s: Invalid state to receive a reply (expecting echo)", self._context
             )
+
+            self._rply_pkt = pkt
+            self._context.set_state(IsInIdle, result=pkt)
             return
 
         # HACK for packets with addr sets like (issue is only with sentinel values?):
