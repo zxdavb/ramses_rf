@@ -98,14 +98,16 @@ class ProtocolContext:
     @property
     def is_sending(self) -> bool:  # TODO: remove asserts
         if isinstance(self._state, WantEcho | WantRply):
-            assert self._cmd is not None, "Coding error"  # mypy hint
-            assert self._qos is not None, "Coding error"  # mypy hint
-            assert self._fut is not None, "Coding error"  # mypy hint
+            assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
+            assert self._qos is not None, f"{self}: Coding error"  # mypy hint
+            assert self._fut is not None, f"{self}: Coding error"  # mypy hint
             return True
 
-        assert self._cmd is None, "Coding error"  # mypy hint
-        assert self._qos is None, "Coding error"  # mypy hint
-        assert self._fut is None or self._fut.done(), "Coding error"  # mypy hint
+        assert self._cmd is None, f"{self}: Coding error"  # mypy hint
+        assert self._qos is None, f"{self}: Coding error"  # mypy hint
+        assert (
+            self._fut is None or self._fut.done()
+        ), f"{self}: Coding error"  # mypy hint
         return False
 
     def set_state(
@@ -119,8 +121,10 @@ class ProtocolContext:
         async def expire_state_on_timeout() -> None:
             # a separate coro, so can be spawned off with create_task()
 
-            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
-            assert self._cmd_tx_count > 0, "Coding error"  # TODO: remove
+            assert isinstance(
+                self.is_sending, bool
+            ), f"{self}: Coding error"  # TODO: remove
+            assert self._cmd_tx_count > 0, f"{self}: Coding error"  # TODO: remove
 
             if isinstance(self._state, WantEcho):
                 delay = self.echo_timeout * 2 ** (self._cmd_tx_count - 1)
@@ -131,7 +135,9 @@ class ProtocolContext:
                 await asyncio.sleep(delay)
                 _LOGGER.warning("TOUT = %s: reply_timeout=%s", self, delay)
 
-            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
+            assert isinstance(
+                self.is_sending, bool
+            ), f"{self}: Coding error"  # TODO: remove
 
             # Timer has expired, can we retry or are we done?
             assert isinstance(self._cmd_tx_count, int)
@@ -141,16 +147,20 @@ class ProtocolContext:
             else:
                 self.set_state(IsInIdle, expired=True)
 
-            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
+            assert isinstance(
+                self.is_sending, bool
+            ), f"{self}: Coding error"  # TODO: remove
 
         def effect_state(timed_out: bool) -> None:
             """Take any actions indicated by state, and optionally set expiry timer."""
             # a separate function, so can be spawned off with call_soon()
 
-            assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
+            assert isinstance(
+                self.is_sending, bool
+            ), f"{self}: Coding error"  # TODO: remove
 
             if timed_out:
-                assert self._cmd is not None, "Coding error"  # mypy hint
+                assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
                 self._send_cmd(self._cmd, is_retry=True)
 
             if isinstance(self._state, IsInIdle):
@@ -174,17 +184,17 @@ class ProtocolContext:
         # Changing the order of the following is fraught with danger
         if self._fut is None:  # logging only - IsInIdle, Inactive
             _LOGGER.debug("BEFORE = %s", self)
-            assert self._cmd is None, "Coding error"  # mypy hint
+            assert self._cmd is None, f"{self}: Coding error"  # mypy hint
             assert isinstance(
                 self._state, IsInIdle | Inactive | None
-            ), "Coding error"  # mypy hint
+            ), f"{self}: Coding error"  # mypy hint
 
         elif self._fut.cancelled():  # by send_cmd(qos.timeout)
             _LOGGER.debug("BEFORE = %s: expired=%s (global)", self, expired)
-            assert self._cmd is not None, "Coding error"  # mypy hint
+            assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
             assert isinstance(
                 self._state, WantEcho | WantRply
-            ), "Coding error"  # mypy hint
+            ), f"{self}: Coding error"  # mypy hint
 
         elif exception:
             _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
@@ -193,7 +203,7 @@ class ProtocolContext:
             ), f"{self}: Coding error ({self._fut})"  # mypy hint
             assert isinstance(
                 self._state, WantEcho | WantRply
-            ), "Coding error"  # mypy hint
+            ), f"{self}: Coding error"  # mypy hint
             self._fut.set_exception(exception)  # apoligise to the sender  # ZZZZ
 
         elif result:
@@ -203,7 +213,7 @@ class ProtocolContext:
             ), f"{self}: Coding error ({self._fut})"  # mypy hint
             assert isinstance(
                 self._state, WantEcho | WantRply
-            ), "Coding error"  # mypy hint
+            ), f"{self}: Coding error"  # mypy hint
             self._fut.set_result(result)  # ZZZZ
 
         elif expired:  # by expire_state_on_timeout(echo_timeout/reply_timeout)
@@ -213,7 +223,7 @@ class ProtocolContext:
             ), f"{self}: Coding error ({self._fut})"  # mypy hint
             assert isinstance(
                 self._state, WantEcho | WantRply
-            ), "Coding error"  # mypy hint
+            ), f"{self}: Coding error"  # mypy hint
             self._fut.set_exception(  # ZZZZ
                 exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
@@ -223,7 +233,7 @@ class ProtocolContext:
             assert (
                 self._fut is None or self._fut.cancelled() or not self._fut.done()
             ), f"{self}: Coding error ({self._fut})"  # mypy hint
-            # sert isinstance(self._state, WantEcho | WantRply), "Coding error"  # mypy hint
+            # sert isinstance(self._state, WantEcho | WantRply), f"{self}: Coding error"  # mypy hint
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
 
@@ -234,11 +244,13 @@ class ProtocolContext:
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
         if timed_out:  # isinstance(self._state, WantEcho):
-            assert isinstance(self._cmd_tx_count, int), "Coding error"  # mypy hint
+            assert isinstance(
+                self._cmd_tx_count, int
+            ), f"{self}: Coding error"  # mypy hint
             self._cmd_tx_count += 1
 
         elif isinstance(self._state, WantEcho):
-            assert self._qos is not None, "Coding error"  # mypy hint
+            assert self._qos is not None, f"{self}: Coding error"  # mypy hint
             # self._cmd_tx_limit = min(self._qos.max_retries, self.max_retry_limit) + 1
             self._cmd_tx_count = 1
 
@@ -255,7 +267,7 @@ class ProtocolContext:
             _LOGGER.debug("AFTER. = %s", self)
             return
 
-        assert self._qos is not None, "Coding error"  # mypy hint
+        assert self._qos is not None, f"{self}: Coding error"  # mypy hint
         _LOGGER.debug("AFTER. = %s: wait_for_reply=%s", self, self._qos.wait_for_reply)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
@@ -326,7 +338,7 @@ class ProtocolContext:
 
     def _check_buffer_for_cmd(self) -> None:
         self._lock.acquire()
-        assert isinstance(self.is_sending, bool), "Coding error"  # mypy hint
+        assert isinstance(self.is_sending, bool), f"{self}: Coding error"  # mypy hint
 
         if self._fut is not None and not self._fut.done():
             self._lock.release()
@@ -353,7 +365,7 @@ class ProtocolContext:
         self._lock.release()
 
         try:
-            assert self._cmd is not None, "Coding error"  # mypy hint
+            assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
             self._send_cmd(self._cmd)
         finally:
             self._que.task_done()
@@ -368,7 +380,7 @@ class ProtocolContext:
                 self.set_state(IsInIdle, exception=err)
 
         # TODO: check what happens when exception here - why does it hang?
-        assert cmd is not None, "Coding error"
+        assert cmd is not None, f"{self}: Coding error"
 
         try:  # the wrapped function (actual Tx.write)
             self._state.cmd_sent(cmd, is_retry=is_retry)
@@ -469,7 +481,7 @@ class Inactive(ProtocolStateBase):
     def pkt_rcvd(self, pkt: Packet) -> None:  # raise ProtocolFsmError
         """Raise an exception, as a packet is not expected in this state."""
 
-        assert self._sent_cmd is None, "Coding error"
+        assert self._sent_cmd is None, f"{self}: Coding error"
 
         if pkt.code != Code._PUZZ:
             _LOGGER.warning("%s: Invalid state to receive a packet", self._context)
@@ -481,7 +493,7 @@ class IsInIdle(ProtocolStateBase):
     def pkt_rcvd(self, pkt: Packet) -> None:  # Do nothing
         """Do nothing as we're not expecting an echo, nor a reply."""
 
-        assert self._sent_cmd is None, "Coding error"
+        assert self._sent_cmd is None, f"{self}: Coding error"
 
         pass
 
@@ -490,7 +502,7 @@ class IsInIdle(ProtocolStateBase):
     ) -> None:
         """Transition to WantEcho."""
 
-        assert self._sent_cmd is None and is_retry is False, "Coding error"
+        assert self._sent_cmd is None and is_retry is False, f"{self}: Coding error"
 
         self._sent_cmd = cmd
 
@@ -523,7 +535,7 @@ class WantEcho(ProtocolStateBase):
         #  W --- 30:257306 01:096339 --:------ 313F 009 0060002916050B07E7  # 313F| W|01:096339
         #  I --- 01:096339 30:257306 --:------ 313F 009 00FC0029D6050B07E7  # 313F| I|01:096339
 
-        assert self._sent_cmd, "Coding error"  # mypy hint
+        assert self._sent_cmd, f"{self}: Coding error"  # mypy hint
 
         if (
             self._sent_cmd.rx_header
@@ -560,7 +572,7 @@ class WantEcho(ProtocolStateBase):
     def cmd_sent(self, cmd: Command, is_retry: bool | None = None) -> None:
         """Transition to WantEcho (i.e. a retransmit)."""
 
-        assert self._sent_cmd is not None and is_retry is True, "Coding error"
+        assert self._sent_cmd is not None and is_retry is True, f"{self}: Coding error"
 
         # NOTE: don't self._context.set_state(WantEcho) here - may cause endless loop
 
@@ -585,7 +597,7 @@ class WantRply(ProtocolStateBase):
     def pkt_rcvd(self, pkt: Packet) -> None:  # Check if pkt is expected Reply
         """If the pkt is the expected reply, transition to IsInIdle."""
 
-        assert self._sent_cmd, "Coding error"  # mypy hint
+        assert self._sent_cmd, f"{self}: Coding error"  # mypy hint
 
         if pkt == self._sent_cmd:  # pkt._hdr == self._sent_cmd.tx_header and ...
             _LOGGER.warning(
@@ -607,7 +619,7 @@ class WantRply(ProtocolStateBase):
             # NOTE: must now reset pkt header
             pkt._hdr_ = pkt._ctx_ = pkt._idx_ = None  # type: ignore[assignment]
 
-            assert pkt._hdr == self._sent_cmd.rx_header, "Coding error"
+            assert pkt._hdr == self._sent_cmd.rx_header, f"{self}: Coding error"
 
         elif pkt._hdr != self._sent_cmd.rx_header:
             return
