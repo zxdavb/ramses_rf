@@ -447,11 +447,11 @@ class _Discovery(_MessageDB):
     def supported_cmds_ot(self) -> dict:
         """Return the current list of pollable OT msg_ids."""
         return {
-            f"0x{msg_id}": OPENTHERM_MESSAGES[msg_id].get("var")
-            for msg_id in sorted(self._msgz[Code._3220].get(RP, []))
+            f"0x{msg_id}": OPENTHERM_MESSAGES[int(msg_id, 16)].get("en")
+            for msg_id in sorted(self._msgz[Code._3220].get(RP, []))  # type: ignore[type-var]
             if (
                 self.is_not_deprecated_cmd(Code._3220, ctx=msg_id)
-                and msg_id in OPENTHERM_MESSAGES
+                and int(msg_id, 16) in OPENTHERM_MESSAGES
             )
         }
 
