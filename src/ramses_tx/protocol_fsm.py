@@ -123,9 +123,13 @@ class ProtocolContext:
             assert self._cmd_tx_count > 0, "Coding error"  # TODO: remove
 
             if isinstance(self._state, WantEcho):
-                await asyncio.sleep(self.echo_timeout)
+                delay = self.echo_timeout * 2 ** (self._cmd_tx_count - 1)
+                await asyncio.sleep(delay)
+                _LOGGER.warning("TOUT = %s: echo_timeout=%s", self, delay)
             else:  # isinstance(self._state, WantRply):
-                await asyncio.sleep(self.reply_timeout)
+                delay = self.reply_timeout * 2 ** (self._cmd_tx_count - 1)
+                await asyncio.sleep(delay)
+                _LOGGER.warning("TOUT = %s: reply_timeout=%s", self, delay)
 
             assert isinstance(self.is_sending, bool), "Coding error"  # TODO: remove
 
@@ -162,25 +166,64 @@ class ProtocolContext:
             self._expiry_timer.cancel()
             self._expiry_timer = None
 
-        if exception:
-            _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
-            if self._fut and not self._fut.done():
-                self._fut.set_exception(exception)  # apoligise to the sender
+        # when _fut.done(), three possibilities:
+        #  _fut.set_result()
+        #  _fut.set_exception()
+        #  _fut.cancel() (via a wait_for())
 
-        elif expired:
-            _LOGGER.debug("BEFORE = %s: expired=%s", self, expired)
-            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
-            self._fut.set_exception(
-                exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
-            )
+        # Changing the order of the following is fraught with danger
+        if self._fut is None:  # logging only - IsInIdle, Inactive
+            _LOGGER.debug("BEFORE = %s", self)
+            assert self._cmd is None, "Coding error"  # mypy hint
+            assert isinstance(
+                self._state, IsInIdle | Inactive | None
+            ), "Coding error"  # mypy hint
+
+        elif self._fut.cancelled():  # by send_cmd(qos.timeout)
+            _LOGGER.debug("BEFORE = %s: expired=%s (global)", self, expired)
+            assert self._cmd is not None, "Coding error"  # mypy hint
+            assert isinstance(
+                self._state, WantEcho | WantRply
+            ), "Coding error"  # mypy hint
+
+        elif exception:
+            _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
+            assert (
+                not self._fut.done()
+            ), f"{self}: Coding error ({self._fut})"  # mypy hint
+            assert isinstance(
+                self._state, WantEcho | WantRply
+            ), "Coding error"  # mypy hint
+            self._fut.set_exception(exception)  # apoligise to the sender  # ZZZZ
 
         elif result:
             _LOGGER.debug("BEFORE = %s: result=%s", self, result._hdr)
-            assert self._fut and not self._fut.cancelled(), "Coding error"  # mypy hint
-            self._fut.set_result(result)
+            assert (
+                not self._fut.done()
+            ), f"{self}: Coding error ({self._fut})"  # mypy hint
+            assert isinstance(
+                self._state, WantEcho | WantRply
+            ), "Coding error"  # mypy hint
+            self._fut.set_result(result)  # ZZZZ
 
-        else:  # logging only - IsInIdle, Inactive, etc.
+        elif expired:  # by expire_state_on_timeout(echo_timeout/reply_timeout)
+            _LOGGER.debug("BEFORE = %s: expired=%s", self, expired)
+            assert (
+                not self._fut.done()
+            ), f"{self}: Coding error ({self._fut})"  # mypy hint
+            assert isinstance(
+                self._state, WantEcho | WantRply
+            ), "Coding error"  # mypy hint
+            self._fut.set_exception(  # ZZZZ
+                exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
+            )
+
+        else:  # logging only - WantEcho, WantRply
             _LOGGER.debug("BEFORE = %s", self)
+            assert (
+                self._fut is None or self._fut.cancelled() or not self._fut.done()
+            ), f"{self}: Coding error ({self._fut})"  # mypy hint
+            # sert isinstance(self._state, WantEcho | WantRply), "Coding error"  # mypy hint
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
 
@@ -208,13 +251,12 @@ class ProtocolContext:
         # remaining code spawned off with a call_soon(), so early return to caller
         self._loop.call_soon_threadsafe(effect_state, timed_out)  # calls expire_state
 
-        if isinstance(self._state, WantRply):
-            assert self._qos is not None, "Coding error"  # mypy hint
-            _LOGGER.debug(
-                "AFTER. = %s: wait_for_reply=%s", self, self._qos.wait_for_reply
-            )
-        else:
+        if not isinstance(self._state, WantRply):
             _LOGGER.debug("AFTER. = %s", self)
+            return
+
+        assert self._qos is not None, "Coding error"  # mypy hint
+        _LOGGER.debug("AFTER. = %s: wait_for_reply=%s", self, self._qos.wait_for_reply)
 
     def connection_made(self, transport: RamsesTransportT) -> None:
         # may want to set some instance variables, according to type of transport
@@ -247,7 +289,7 @@ class ProtocolContext:
 
         assert self._loop is asyncio.get_running_loop()  # BUG is here
 
-        fut = self._loop.create_future()
+        fut = self._loop.create_future()  # label: ZZZ
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
         except Full as err:
@@ -257,17 +299,22 @@ class ProtocolContext:
         if isinstance(self._state, IsInIdle):
             self._loop.call_soon_threadsafe(self._check_buffer_for_cmd)
 
-        timeout = min(
+        timeout = min(  # needs to be greater than worse-case via set_state engine
             qos.timeout, self.SEND_TIMEOUT_LIMIT
         )  # incl. time queued in buffer
         try:
-            await asyncio.wait_for(
+            await asyncio.wait_for(  # ZZZZ
                 fut, timeout=timeout
-            )  # RuntimeError: ... Future <Future pending> attached to a different loop
+            )
         except TimeoutError as err:  # incl. fut.cancel()
             msg = f"{self}: Expired global timer after {timeout} sec"
+            _LOGGER.warning(
+                "TOUT = %s: send_timeout=%s (%s)", self, timeout, self._cmd is cmd
+            )
             if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd
-                self.set_state(IsInIdle)  # set_exception() will cause InvalidStateError
+                self.set_state(
+                    IsInIdle, expired=True
+                )  # set_exception() will cause InvalidStateError
             raise exc.ProtocolSendFailed(msg) from err  # make msg *before* state reset
 
         try:
@@ -287,9 +334,9 @@ class ProtocolContext:
 
         while True:
             try:
-                *_, self._cmd, self._qos, self._fut = self._que.get_nowait()
+                *_, self._cmd, self._qos, self._fut = self._que.get_nowait()  # ZZZ
             except Empty:
-                self._cmd = self._qos = self._fut = None
+                self._cmd = self._qos = self._fut = None  # ZZZ
                 self._lock.release()
                 return
 
