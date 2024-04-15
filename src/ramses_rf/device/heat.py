@@ -610,7 +610,7 @@ class OutSensor(Weather, Fakeable):  # OUT: 17
     _STATE_ATTR = SZ_TEMPERATURE
 
 
-# NOTE: config.use_native_ot should enforces sends, but not reads from ._msgz DB
+# NOTE: config.use_native_ot should enforces sends, but not reads from _msgz DB
 class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
@@ -644,7 +644,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         self._child_id = FC  # NOTE: domain_id
 
-        self._msgz[str(Code._3220)] = {RP: {}}  # self._msgz[Code._3220][RP][msg_id]
+        self._msgz[str(Code._3220)] = {RP: {}}  # _msgz[Code._3220][RP][msg_id]
 
         # lf._use_ot = self._gwy.config.use_native_ot
         self._msgs_ot: dict[str, Message] = {}
@@ -1294,10 +1294,10 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         elif self._parent:
             return self._parent.heating_type  # TODO: only applies to zones
 
-        # if Code._3B00 in self._msgs and self._msgs[Code._3B00].verb == I_:
+        # if Code._3B00 in _msgs and _msgs[Code._3B00].verb == I_:
         #     self._is_tpi = True
-        # if Code._1FC9 in self._msgs and self._msgs[Code._1FC9].verb == RP:
-        #     if Code._3B00 in self._msgs[Code._1FC9].raw_payload:
+        # if Code._1FC9 in _msgs and _msgs[Code._1FC9].verb == RP:
+        #     if Code._3B00 in _msgs[Code._1FC9].raw_payload:
         #         self._is_tpi = True
 
         return None

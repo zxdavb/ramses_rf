@@ -140,7 +140,7 @@ class Gateway(Engine):
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
-        self._zzz = MessageIndex()
+        self._zzz: MessageIndex | None = None
 
     def __repr__(self) -> str:
         if not self.ser_name:
@@ -198,7 +198,8 @@ class Gateway(Engine):
     async def stop(self) -> None:
         """Stop the Gateway and tidy up."""
 
-        self._zzz.stop()
+        if self._zzz is not None:
+            self._zzz.stop()
         await super().stop()
 
     def _pause(self, *args) -> None:
@@ -254,11 +255,19 @@ class Gateway(Engine):
             msgs.extend([m for z in system.zones for m in z._msgs.values()])
             # msgs.extend([m for z in system.dhw for m in z._msgs.values()])  # TODO
 
-        pkts = {  # BUG: assumes pkts have unique dtms: may be untrue for contrived logs
-            f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
-            for msg in msgs
-            if wanted_msg(msg, include_expired=include_expired)
-        }
+        if self._zzz is None:
+            pkts = {  # BUG: assumes pkts have unique dtms: may be untrue for contrived logs
+                f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
+                for msg in msgs
+                if wanted_msg(msg, include_expired=include_expired)
+            }
+
+        else:
+            pkts = {
+                f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
+                for msg in self._zzz.all(include_expired=True)
+                if wanted_msg(msg, include_expired=include_expired)
+            }
 
         self._resume()
 

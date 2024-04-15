@@ -156,7 +156,7 @@ class _Entity:
             raise RuntimeError("Deprecated kwargs: %s", kwargs)
 
         # cmd._source_entity = self  # TODO: is needed?
-        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
+        # _msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
         return self._gwy.send_cmd(
             cmd,
             **kwargs,
@@ -202,24 +202,26 @@ class _MessageDB(_Entity):
     def __init__(self, gwy: Gateway) -> None:
         super().__init__(gwy)
 
-        self._msgs: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
-        self._msgz: dict[Code, Any] = {}  # code/verb/ctx, should be code/ctx/verb?
+        self._msgs_: dict[Code, Message] = {}  # code, should be code/ctx? ?deprecate
+        self._msgz_: dict[
+            Code, dict[VerbT, dict[bool | str | None, Message]]
+        ] = {}  # code/verb/ctx, should be code/ctx/verb?
 
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
-        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
+        """Store a msg in the DBs."""
 
         if msg.verb in (I_, RP):
-            self._msgs[msg.code] = msg
+            self._msgs_[msg.code] = msg
 
-        if msg.code not in self._msgz:
-            self._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
+        if msg.code not in self._msgz_:
+            self._msgz_[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
         elif msg.verb not in self._msgz[msg.code]:
-            self._msgz[msg.code][msg.verb] = {msg._pkt._ctx: msg}
+            self._msgz_[msg.code][msg.verb] = {msg._pkt._ctx: msg}
         else:
-            self._msgz[msg.code][msg.verb][msg._pkt._ctx] = msg
+            self._msgz_[msg.code][msg.verb][msg._pkt._ctx] = msg
 
     @property
-    def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
+    def _msg_db(self) -> list[Message]:  # flattened version of _msgz[code][verb][indx]
         """Return a flattened version of _msgz[code][verb][index].
 
         The idx is one of:
@@ -230,6 +232,30 @@ class _MessageDB(_Entity):
          - None (not deteminable, rare)
         """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
+
+    def _delete_msg(self, msg: Message) -> None:  # FIXME: this is a mess
+        """Remove the msg from all state databases."""
+
+        obj: _MessageDB
+
+        if self._gwy._zzz is not None:
+            self._gwy._zzz.rem(msg)
+
+        entities = [msg.src] if isinstance(msg.src, _MessageDB) else []
+        if getattr(msg.src, "tcs", None):
+            entities.append(msg.src.tcs)
+            if msg.src.tcs.dhw:
+                entities.append(msg.src.tcs.dhw)
+            entities.extend(msg.src.tcs.zones)
+
+        # remove the msg from all the state DBs
+        for obj in entities:
+            if msg in obj._msgs_.values():
+                del obj._msgs_[msg.code]
+            try:
+                del obj._msgz_[msg.code][msg.verb][msg._pkt._ctx]
+            except KeyError:
+                pass
 
     def _get_msg_by_hdr(self, hdr: HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
@@ -305,7 +331,7 @@ class _MessageDB(_Entity):
         if msg is None:
             return None
         elif msg._expired:
-            self._gwy._loop.call_soon(_delete_msg, msg)  # HA bugs without deferred call
+            self._gwy._loop.call_soon(self._delete_msg, msg)  # HA bugs without defer
 
         if msg.code == Code._1FC9:  # NOTE: list of lists/tuples
             return [x[1] for x in msg.payload]
@@ -352,6 +378,34 @@ class _MessageDB(_Entity):
         }
 
         return {"_sent": list(codes.keys())}
+
+    @property
+    def _msgs(self) -> dict[Code, Message]:
+        if self._gwy._zzz is None:
+            return self._msgs_
+
+        sql = """
+            SELECT dtm from messages WHERE verb in (' I', 'RP') AND (src = ? OR dst = ?)
+        """
+        return {m.code: m for m in self._gwy._zzz.qry(sql, (self.id, self.id))}
+
+    @property
+    def _msgz(self) -> dict[Code, dict[VerbT, dict[bool | str | None, Message]]]:
+        if self._gwy._zzz is None:
+            return self._msgz_
+
+        msgs_1: dict[Code, dict[VerbT, dict[bool | str | None, Message]]] = {}
+        msg: Message
+
+        for msg in self._msgs.values():
+            if msg.code not in msgs_1:
+                msgs_1[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
+            elif msg.verb not in msgs_1[msg.code]:
+                msgs_1[msg.code][msg.verb] = {msg._pkt._ctx: msg}
+            else:
+                msgs_1[msg.code][msg.verb][msg._pkt._ctx] = msg
+
+        return msgs_1
 
 
 class _Discovery(_MessageDB):
@@ -621,26 +675,6 @@ class _Discovery(_MessageDB):
 
 class Entity(_Discovery):
     """The base class for Devices/Zones/Systems."""
-
-
-def _delete_msg(msg: Message) -> None:  # FIXME: this is a mess
-    """Remove the msg from all state databases."""
-
-    entities = [msg.src]
-    if getattr(msg.src, "tcs", None):
-        entities.append(msg.src.tcs)
-        if msg.src.tcs.dhw:
-            entities.append(msg.src.tcs.dhw)
-        entities.extend(msg.src.tcs.zones)
-
-    # remove the msg from all the state DBs
-    for obj in entities:
-        if msg in obj._msgs.values():
-            del obj._msgs[msg.code]
-        try:
-            del obj._msgz[msg.code][msg.verb][msg._pkt._ctx]
-        except KeyError:
-            pass
 
 
 class Parent(Entity):  # A System, Zone, DhwZone or a UfhController

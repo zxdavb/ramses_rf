@@ -811,8 +811,6 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     @property
     def relay_demand(self) -> float | None:  # 0008 (NOTE: CTLs wont RP|0008)
-        # if Code._0008 in self._msgs:
-        #     return self._msgs[Code._0008].payload[SZ_RELAY_DEMAND]
         return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
 
     @property

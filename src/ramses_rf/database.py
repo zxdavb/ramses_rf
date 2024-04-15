@@ -60,6 +60,10 @@ class MessageIndex:
     def __repr__(self) -> str:
         return f"MessageIndex({len(self._msgs)} messages, housekeeping={self._timer.is_alive()})"
 
+    # def _msgs(self, device_id: DeviceIdT) -> tuple[Message, ...]:
+    #     msgs = [msg for msg in self._megs.values() if msg.src.id == device_id]
+    #     return msgs
+
     def _setup_adapter_converters(self) -> None:
         def adapt_datetime_iso(val: dt):
             """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
@@ -122,10 +126,10 @@ class MessageIndex:
 
         msgs = self.get(msg=msg, **kwargs)
 
-        query = "DELETE FROM messages WHERE "
-        query += " AND ".join(f"{k} = ?" for k in kwargs)
+        sql = "DELETE FROM messages WHERE "
+        sql += " AND ".join(f"{k} = ?" for k in kwargs)
 
-        self._cu.execute(query, tuple(kwargs.values()))
+        self._cu.execute(sql, tuple(kwargs.values()))
 
         for msg in msgs:
             dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
@@ -151,6 +155,16 @@ class MessageIndex:
         self._cx.commit()
         return msgs
 
+    def all(self, include_expired: bool = False) -> tuple[Message, ...]:
+        """Return all messages from the index."""
+
+        # self.cursor.execute("SELECT * FROM messages")
+        # return [self._megs[row[0]] for row in self.cursor.fetchall()]
+
+        return tuple(
+            m for m in self._msgs.values() if include_expired or not m._expired
+        )
+
     def get(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
         """Return a set of message(s) from the index."""
 
@@ -161,19 +175,19 @@ class MessageIndex:
         if not kwargs:
             raise ValueError("No Message or kwargs provided")
 
-        query = "SELECT dtm FROM messages WHERE "
-        query += " AND ".join(f"{k} = ?" for k in kwargs)
+        sql = "SELECT dtm FROM messages WHERE "
+        sql += " AND ".join(f"{k} = ?" for k in kwargs)
 
-        self._cu.execute(query, tuple(kwargs.values()))
+        if len(self._msgs) > 8:
+            pass
+
+        return self.qry(sql, tuple(kwargs.values()))
+
+    def qry(self, sql: str, parameters: tuple[str, ...]) -> tuple[Message, ...]:
+        """Return a set of message(s) from the index, given a sql and parameters."""
+
+        self._cu.execute(sql, parameters)
         return tuple(self._msgs[row[0]] for row in self._cu.fetchall())
-
-    def all(self) -> tuple[Message, ...]:
-        """Return all messages from the index."""
-
-        # self.cursor.execute("SELECT * FROM messages")
-        # return [self._msgs[row[0]] for row in self.cursor.fetchall()]
-
-        return tuple(self._msgs.values())
 
     def clr(self) -> None:
         """Clear the message index (remove all messages)."""
@@ -189,8 +203,8 @@ class MessageIndex:
             self._timer.name = "MessageIndex.housekeeping"
 
     def stop(self) -> None:
-        self._timer.cancel()
-        self._cx.close()
+        self._timer.cancel()  # stop the housekeeping thread
+        # self._cx.close()  #    may still need to do queries after engine has stopped
 
     def _housekeeping(self) -> None:
         """Perform housekeeping on the message index.
