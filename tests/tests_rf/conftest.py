@@ -29,6 +29,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
+# set -x GITHUB_ACTIONS true
+# set -u GITHUB_ACTIONS
 
 _global_failed_ports: list[str] = []
 
