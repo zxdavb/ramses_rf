@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the payload parsers on a per-device basis.
-"""
+"""RAMSES RF - Test the payload parsers on a per-device basis."""
 
 from pathlib import Path, PurePath
+
+import pytest
 
 from ramses_tx import exceptions as exc
 from ramses_tx.message import Message
@@ -16,14 +14,14 @@ from tests.helpers import TEST_DIR
 WORK_DIR = f"{TEST_DIR}/devices"
 
 
-def pytest_generate_tests(metafunc):
-    def id_fnc(param):
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    def id_fnc(param: Path) -> str:
         return PurePath(param).name
 
     metafunc.parametrize("f_name", sorted(Path(WORK_DIR).glob("*.log")), ids=id_fnc)
 
 
-def _proc_log_line(log_line: str):
+def _proc_log_line(log_line: str) -> None:
     pkt_line, pkt_eval, *_ = list(
         map(str.strip, log_line.split("#", maxsplit=1) + [""])
     )
@@ -54,7 +52,7 @@ def _proc_log_line(log_line: str):
         return
 
 
-def test_parsers_from_log_files(f_name):
+def test_parsers_from_log_files(f_name: Path) -> None:
     with open(f_name) as f:
         while line := (f.readline()):
             _proc_log_line(line)

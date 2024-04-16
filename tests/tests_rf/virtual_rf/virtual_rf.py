@@ -269,7 +269,7 @@ class VirtualRfBase:
         return frame
 
     def _setup_event_handlers(self) -> None:
-        def handle_exception(loop, context: dict):
+        def handle_exception(loop: asyncio.BaseEventLoop, context: dict) -> None:
             """Handle exceptions on any platform."""
             _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
             self._cleanup()

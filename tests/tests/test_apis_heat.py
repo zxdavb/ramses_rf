@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Command.put_*, Command.set_* APIs.
-"""
+"""RAMSES RF - Test the Command.put_*, Command.set_* APIs."""
 
 from collections.abc import Callable, Iterable
 from datetime import datetime as dt
@@ -50,7 +46,7 @@ def _test_api_fail(
         except (AssertionError, TypeError, ValueError):
             cmd = None
         else:
-            assert cmd.payload == msg._pkt.payload  # aka pkt.payload
+            assert cmd and cmd.payload == msg._pkt.payload  # aka pkt.payload
 
         if isinstance(packets, dict) and (payload := packets[pkt_line]):
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)

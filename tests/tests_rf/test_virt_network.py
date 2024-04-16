@@ -73,7 +73,9 @@ async def assert_devices(
     assert sorted(d.id for d in gwy.devices) == sorted(devices)
 
 
-async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP):
+async def assert_this_pkt(
+    transport, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP
+) -> None:
     """Check, at the transport layer, that the current packet is as expected."""
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
@@ -85,7 +87,9 @@ async def assert_this_pkt(transport, cmd: Command, max_sleep: int = DEFAULT_MAX_
 # ### TESTS ############################################################################
 
 
-async def _test_virtual_rf_dev_disc(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway):
+async def _test_virtual_rf_dev_disc(
+    rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway
+) -> None:
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     ser_2 = serial.Serial(rf.ports[2])
@@ -126,7 +130,9 @@ async def _test_virtual_rf_dev_disc(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gatewa
     await assert_devices(gwy_1, ["01:010000", "01:011111", "01:022222", "18:111111"])
 
 
-async def _test_virtual_rf_pkt_flow(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway):
+async def _test_virtual_rf_pkt_flow(
+    rf: VirtualRf, gwy_0: Gateway, gwy_1: Gateway
+) -> None:
     """Check the virtual RF network behaves as expected (packet flow)."""
 
     # TEST 1:
@@ -162,7 +168,7 @@ async def _test_virtual_rf_pkt_flow(rf: VirtualRf, gwy_0: Gateway, gwy_1: Gatewa
 
 # NOTE: does not use factory
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_virtual_rf_dev_disc():
+async def test_virtual_rf_dev_disc() -> None:
     """Check the virtual RF network behaves as expected (device discovery)."""
 
     rf = VirtualRf(3)
@@ -191,7 +197,7 @@ async def test_virtual_rf_dev_disc():
 
 # NOTE: uses factory
 @pytest.mark.xdist_group(name="virt_serial")
-async def test_virtual_rf_pkt_flow():
+async def test_virtual_rf_pkt_flow() -> None:
     """Check the virtual RF network behaves as expected (packet flow)."""
 
     rf: VirtualRf = None  # type: ignore[assignment]

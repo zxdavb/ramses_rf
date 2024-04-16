@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Command.put_*, Command.set_* APIs.
-"""
+"""RAMSES RF - Test the Command.put_*, Command.set_* APIs."""
 
 from ramses_tx import exceptions as exc
 from ramses_tx.command import CODE_API_MAP, Command
@@ -13,7 +9,7 @@ EXCLUDED_APIS = ("from_attrs", "_from_attrs", "from_cli")
 EXCLUDED_APIS += ()  # APIs not added to the CODE_API_MAP, should be an empty tuple
 
 
-def test_all_apis_in_map():
+def test_all_apis_in_map() -> None:
     """Check that all Command constructors are in CODE_API_MAP."""
 
     cls_apis = set(
@@ -27,7 +23,7 @@ def test_all_apis_in_map():
     assert not map_apis.symmetric_difference(cls_apis)
 
 
-def test_1fc9_constructors_fail():
+def test_1fc9_constructors_fail() -> None:
     """Check the 1FC9 Command constructors behave as expected when given bad params."""
 
     try:
@@ -38,7 +34,7 @@ def test_1fc9_constructors_fail():
         assert False
 
 
-def test_1fc9_constructors_good():
+def test_1fc9_constructors_good() -> None:
     """Check the 1FC9 Command constructors behave as expected when give good params."""
 
     #

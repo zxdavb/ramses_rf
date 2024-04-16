@@ -89,6 +89,8 @@ async def _test_gwy_device(gwy: Gateway, test_idx: int) -> None:
     if not isinstance(gwy._protocol, PortProtocol) or not gwy._protocol._context:
         assert False, "QoS protocol not enabled"  # use assert, not skip
 
+    assert gwy.hgi  # mypy
+
     # we replace the (non-sentinel) gwy_id with the real gwy's actual dev_id
     cmd_str = TEST_CMDS[test_idx].replace(TST_ID_, gwy.hgi.id)
     # this is irrevelent for fake (virtual) gwys, as they been assigned this id
@@ -98,6 +100,8 @@ async def _test_gwy_device(gwy: Gateway, test_idx: int) -> None:
 
     # a HGI80 (ti4310) will silently discard all frames that have addr0 != 18:000730
     is_hgi80 = not gwy._protocol._is_evofw3  # TODO: is_hgi80?
+
+    assert gwy._transport  # mypy
 
     # NOTE: timeout values are empirical, and may need to be adjusted
     if isinstance(gwy._transport, MqttTransport):  # MQTT

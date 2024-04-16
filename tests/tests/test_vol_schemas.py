@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the configuration parsers.
-"""
+"""RAMSES RF - Test the configuration parsers."""
 
 from typing import Any
 
@@ -58,7 +54,9 @@ _PASS_BUT_INVALID = (
 )
 
 
-def no_duplicates_constructor(loader, node, deep=False):
+def no_duplicates_constructor(
+    loader: yaml.Loader, node: yaml.Node, deep: bool = False
+) -> Any:
     """Check for duplicate keys."""
     mapping: dict[str, Any] = {}
     for key_node, value_node in node.value:
@@ -177,12 +175,12 @@ GATEWAY_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(GATEWAY_BAD)))
-def test_gateway_bad(index, schemas=GATEWAY_BAD):
+def test_gateway_bad(index, schemas=GATEWAY_BAD) -> None:
     _test_schema_bad(SCH_GATEWAY, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(GATEWAY_GOOD)))
-def test_gateway_good(index, schemas=GATEWAY_GOOD):
+def test_gateway_good(index, schemas=GATEWAY_GOOD) -> None:
     _test_schema_good(SCH_GATEWAY, schemas[index])
 
 
@@ -276,12 +274,12 @@ KNOWN_LIST_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(KNOWN_LIST_BAD)))
-def test_known_list_bad(index, schemas=KNOWN_LIST_BAD):
+def test_known_list_bad(index, schemas=KNOWN_LIST_BAD) -> None:
     _test_schema_bad(SCH_GLOBAL_TRAITS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(KNOWN_LIST_GOOD)))
-def test_known_list_good(index, schemas=KNOWN_LIST_GOOD):
+def test_known_list_good(index, schemas=KNOWN_LIST_GOOD) -> None:
     _test_schema_good(SCH_GLOBAL_TRAITS, schemas[index])
 
 
@@ -336,12 +334,12 @@ PACKET_LOG_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(PACKET_LOG_BAD)))
-def test_packet_log_bad(index, schemas=PACKET_LOG_BAD):
+def test_packet_log_bad(index, schemas=PACKET_LOG_BAD) -> None:
     _test_schema_bad(SCH_PACKET_LOG, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(PACKET_LOG_GOOD)))
-def test_packet_log_good(index, schemas=PACKET_LOG_GOOD):
+def test_packet_log_good(index, schemas=PACKET_LOG_GOOD) -> None:
     _test_schema_good(SCH_PACKET_LOG, schemas[index])
 
 
@@ -398,12 +396,12 @@ RESTORE_CACHE_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(RESTORE_CACHE_BAD)))
-def test_restore_cache_bad(index, schemas=RESTORE_CACHE_BAD):
+def test_restore_cache_bad(index, schemas=RESTORE_CACHE_BAD) -> None:
     _test_schema_bad(SCH_RESTORE_CACHE, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(RESTORE_CACHE_GOOD)))
-def test_restore_cache_good(index, schemas=RESTORE_CACHE_GOOD):
+def test_restore_cache_good(index, schemas=RESTORE_CACHE_GOOD) -> None:
     _test_schema_good(SCH_RESTORE_CACHE, schemas[index])
 
 
@@ -471,12 +469,12 @@ SERIAL_PORT_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(SERIAL_PORT_BAD)))
-def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD):
+def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD) -> None:
     _test_schema_bad(SCH_SERIAL_PORT, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SERIAL_PORT_GOOD)))
-def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD):
+def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD) -> None:
     _test_schema_good(SCH_SERIAL_PORT, schemas[index])
 
 
@@ -596,12 +594,12 @@ SCHEMAS_TCS_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_TCS_BAD)))
-def test_schemas_tcs_bad(index, schemas=SCHEMAS_TCS_BAD):
+def test_schemas_tcs_bad(index, schemas=SCHEMAS_TCS_BAD) -> None:
     _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_TCS_GOOD)))
-def test_schemas_tcs_good(index, schemas=SCHEMAS_TCS_GOOD):
+def test_schemas_tcs_good(index, schemas=SCHEMAS_TCS_GOOD) -> None:
     _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
@@ -663,12 +661,12 @@ SCHEMAS_VCS_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_VCS_BAD)))
-def test_schemas_vcs_bad(index, schemas=SCHEMAS_VCS_BAD):
+def test_schemas_vcs_bad(index, schemas=SCHEMAS_VCS_BAD) -> None:
     _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_VCS_GOOD)))
-def test_schemas_vcs_good(index, schemas=SCHEMAS_VCS_GOOD):
+def test_schemas_vcs_good(index, schemas=SCHEMAS_VCS_GOOD) -> None:
     _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
@@ -686,14 +684,14 @@ test_schemas_good_failed = False
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_BAD)))
-def test_schemas_mixed_bad(index, schemas=SCHEMAS_MIXED_BAD):
+def test_schemas_mixed_bad(index, schemas=SCHEMAS_MIXED_BAD) -> None:
     global test_schemas_bad_failed
     if not test_schemas_bad_failed:
         _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_GOOD)))
-def test_schemas_mixed_good(index, schemas=SCHEMAS_MIXED_GOOD):
+def test_schemas_mixed_good(index, schemas=SCHEMAS_MIXED_GOOD) -> None:
     global test_schemas_good_failed
     if not test_schemas_good_failed:
         _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
@@ -844,10 +842,10 @@ SCH_GLOBAL_HASS = vol.Schema(
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_BAD)))
-def test_schemas_hass_bad(index, schemas=SCHEMAS_HASS_BAD):
+def test_schemas_hass_bad(index, schemas=SCHEMAS_HASS_BAD) -> None:
     _test_schema_bad(SCH_GLOBAL_HASS, schemas[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_GOOD)))
-def test_schemas_hass_good(index, schemas=SCHEMAS_HASS_GOOD):
+def test_schemas_hass_good(index, schemas=SCHEMAS_HASS_GOOD) -> None:
     _test_schema_good(SCH_GLOBAL_HASS, schemas[index])

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 """RAMSES RF - Test the various helper APIs."""
 
@@ -74,11 +73,10 @@ def _test_pkt_dev_class() -> None:
     class (e.g. BDR, CTL, FAN, etc)of the source device.
     """
 
-    def proc_log_line(pkt_line):
-        if "#" not in pkt_line:
+    def proc_log_line(log_line: str) -> None:
+        if "#" not in log_line:
             return
-
-        pkt_line, pkt_eval = pkt_line.split("#", maxsplit=1)
+        pkt_line, pkt_eval = log_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return
@@ -96,10 +94,10 @@ def _test_pkt_dev_class() -> None:
 def test_pkt_addr_sets() -> None:
     """Check that the address set is correctly inferred from the packet."""
 
-    def proc_log_line(pkt_line):
-        if "#" not in pkt_line:
+    def proc_log_line(log_line: str) -> None:
+        if "#" not in log_line:
             return
-        pkt_line, pkt_eval = pkt_line.split("#", maxsplit=1)
+        pkt_line, pkt_eval = log_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return
@@ -110,7 +108,7 @@ def test_pkt_addr_sets() -> None:
             cmd._validate(strict_checking=True)
         except (CommandInvalid, PacketInvalid) as err:
             assert err.__class__ == expected.__class__
-            assert err.message.startswith(expected.message)
+            assert err.message and err.message.startswith(expected.message)
             return
 
         res = {"src": cmd.src.id, "dst": cmd.dst.id, "set": [a.id for a in cmd._addrs]}

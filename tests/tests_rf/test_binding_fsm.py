@@ -4,7 +4,7 @@
 # TODO: test addenda phase of binding handshake
 # TODO: get test working with (and without) disabled QoS
 
-"""Test the binding protocol with a virtual RF
+"""TRAMSES RF - Test the binding protocol with a virtual RF.
 
 NB: This test will likely fail with pytest-repeat (pytest -n x); maybe because of
 concurrent access to pty.openpty().
@@ -159,11 +159,11 @@ TEST_SUITE_300 = [
 # ### FIXTURES #########################################################################
 
 
-def pytest_generate_tests(metafunc: pytest.Metafunc):
-    def id_fnc(test_set):
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    def id_fnc(test_set: dict) -> str:
         r_class = list(test_set[SZ_RESPONDENT].values())[0]["class"]
         s_class = list(test_set[SZ_SUPPLICANT].values())[0]["class"]
-        return s_class + " binding to " + r_class
+        return str(s_class + " binding to " + r_class)
 
     metafunc.parametrize("test_set", TEST_SUITE_300, ids=id_fnc)
 

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test eavesdropping of a device class.
-"""
+"""RAMSES RF - Test eavesdropping of a device class."""
 
 import json
 from pathlib import Path, PurePath
+
+import pytest
 
 from ramses_rf import Gateway
 from tests.helpers import TEST_DIR, assert_expected, shuffle_dict
@@ -15,17 +13,16 @@ from tests.helpers import TEST_DIR, assert_expected, shuffle_dict
 WORK_DIR = f"{TEST_DIR}/eavesdrop_schema"
 
 
-def id_fnc(param):
-    return PurePath(param).name
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    def id_fnc(param) -> str:
+        return PurePath(param).name
 
-
-def pytest_generate_tests(metafunc):
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]
     folders.sort()
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-async def assert_schemas_equal(gwy: Gateway, expected_schema: dict):
+async def assert_schemas_equal(gwy: Gateway, expected_schema: dict) -> None:
     """Check the gwy schema, then shuffle and test again."""
 
     schema, packets = gwy.get_state(include_expired=True)
@@ -37,7 +34,7 @@ async def assert_schemas_equal(gwy: Gateway, expected_schema: dict):
 
 
 # duplicate in test_eavesdrop_dev_class
-async def test_eavesdrop_off(dir_name):
+async def test_eavesdrop_off(dir_name: Path) -> None:
     """Check discovery of schema and known_list *without* eavesdropping."""
 
     with open(f"{dir_name}/packet.log") as f:
@@ -57,7 +54,7 @@ async def test_eavesdrop_off(dir_name):
 
 
 # duplicate in test_eavesdrop_dev_class
-async def test_eavesdrop_on_(dir_name):
+async def test_eavesdrop_on_(dir_name: Path) -> None:
     """Check discovery of schema and known_list *with* eavesdropping."""
 
     with open(f"{dir_name}/packet.log") as f:

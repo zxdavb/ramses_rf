@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Schema processor.
-"""
+"""RAMSES RF - Test the Schema processor."""
 
 import voluptuous as vol
 

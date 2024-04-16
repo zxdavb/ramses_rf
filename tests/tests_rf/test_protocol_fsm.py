@@ -381,7 +381,7 @@ async def test_flow_qos(protocol: PortProtocol) -> None:
 async def async_benchmark(benchmark):
     event_loop = asyncio.get_running_loop()
 
-    def _wrapper(func, *args, **kwargs):
+    def _wrapper(func, *args, **kwargs) -> None:
         if asyncio.iscoroutinefunction(func):
 
             @benchmark
@@ -395,10 +395,10 @@ async def async_benchmark(benchmark):
 
 
 # @pytest.mark.xdist_group(name="virt_serial")
-# def test_benchmark_100(async_benchmark):
+# def test_benchmark_100(async_benchmark) -> None:
 #     async_benchmark(_test_flow_10x)
 
 
 # @pytest.mark.xdist_group(name="virt_serial")
-# def test_benchmark_300(async_benchmark):
+# def test_benchmark_300(async_benchmark) -> None:
 #     async_benchmark(_test_flow_30x)

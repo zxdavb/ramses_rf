@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
@@ -31,7 +30,7 @@ logging.disable(logging.WARNING)  # usu. WARNING
 TEST_DIR = Path(__file__).resolve().parent  # TEST_DIR = f"{os.path.dirname(__file__)}"
 
 
-def shuffle_dict(old_dict) -> dict:
+def shuffle_dict(old_dict: dict) -> dict:
     keys = list(old_dict.keys())
     shuffle(keys)
     new_dict = dict()
@@ -51,7 +50,7 @@ async def gwy() -> AsyncGenerator[Gateway, None]:  # NOTE: async to get running 
         await gwy.stop()
 
 
-def assert_expected(actual, expected: dict = None) -> None:
+def assert_expected(actual: dict, expected: dict = None) -> None:
     """Compare an actual system state dict against the corresponding expected state."""
 
     def assert_expected(actual, expect) -> None:
@@ -61,7 +60,7 @@ def assert_expected(actual, expected: dict = None) -> None:
         assert_expected(shrink(actual), shrink(expected))
 
 
-def assert_expected_set(gwy, expected) -> None:
+def assert_expected_set(gwy: Gateway, expected: dict) -> None:
     """Compare the actual system state against the expected system state."""
 
     assert_expected(gwy.schema, expected.get("schema"))
@@ -70,7 +69,7 @@ def assert_expected_set(gwy, expected) -> None:
     assert_expected(gwy.known_list, expected.get("known_list"))
 
 
-def assert_raises(exception, fnc, *args):
+def assert_raises(exception, fnc, *args) -> None:
     try:
         fnc(*args)
     except exception:  # as err:
@@ -79,7 +78,7 @@ def assert_raises(exception, fnc, *args):
         assert False
 
 
-async def load_test_gwy(dir_name, **kwargs) -> Gateway:
+async def load_test_gwy(dir_name: Path, **kwargs) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
@@ -105,7 +104,7 @@ async def load_test_gwy(dir_name, **kwargs) -> Gateway:
     return gwy
 
 
-def load_expected_results(dir_name) -> dict:
+def load_expected_results(dir_name: Path) -> dict:
     """Return the expected (global) schema/params/status & traits (aka known_list)."""
 
     try:

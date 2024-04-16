@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the RAMSES II schema.
-"""
+"""RAMSES RF - Test the RAMSES II schema."""
 
 from ramses_rf import RQ
 from ramses_rf.device.heat import HEAT_CLASS_BY_SLUG
@@ -23,7 +19,7 @@ from ramses_tx.ramses import (
 )
 
 
-def test_code_counts():
+def test_code_counts() -> None:
     """All known command codes should be in the schema & vice-versa."""
 
     # assert len(Code) == len(CODES_SCHEMA)
@@ -31,7 +27,7 @@ def test_code_counts():
     assert not [c for c in Code if c not in CODES_SCHEMA]
 
 
-def test_verb_code_pairs():
+def test_verb_code_pairs() -> None:
     """Verb/code pairs are used to detect HVAC device classes: they should be unique."""
 
     assert len(HVAC_KLASS_BY_VC_PAIR) == (
@@ -39,7 +35,7 @@ def test_verb_code_pairs():
     ), "Coding error: There is a duplicate verb/code pair"
 
 
-def test_device_heat_slugs():
+def test_device_heat_slugs() -> None:
     """Every Heat device slug should have an entry in it domain's _DEV_KLASSES_*."""
 
     assert not [s for s in _DEV_KLASSES_HEAT if s not in HEAT_CLASS_BY_SLUG]
@@ -48,7 +44,7 @@ def test_device_heat_slugs():
     ]
 
 
-def test_device_hvac_slugs():
+def test_device_hvac_slugs() -> None:
     """Every HVAC device slug should have an entry in it domain's _DEV_KLASSES_*."""
 
     assert not [s for s in _DEV_KLASSES_HVAC if s not in HVAC_CLASS_BY_SLUG]
@@ -57,21 +53,21 @@ def test_device_hvac_slugs():
     ]
 
 
-def assert_codes_idx_mutex(mutex_list, other_list):
+def assert_codes_idx_mutex(mutex_list, other_list) -> None:
     """Assert the two lists are mutually exclusive."""
 
     codes = sorted(c for c in mutex_list if c in other_list)
     assert not codes
 
 
-def test_codes_idx_mutex():
+def test_codes_idx_mutex() -> None:
     """Every code should be in one of the three CODE_IDX_* constants."""
 
     codes_idx_all = CODE_IDX_ARE_COMPLEX | CODE_IDX_ARE_NONE | CODE_IDX_ARE_SIMPLE
     assert not [c for c in CODES_SCHEMA if c not in codes_idx_all]
 
 
-def test_codes_idx_complex_mutex():
+def test_codes_idx_complex_mutex() -> None:
     """The three CODE_IDX_* constants should be mutally exclusive."""
 
     assert_codes_idx_mutex(
@@ -79,7 +75,7 @@ def test_codes_idx_complex_mutex():
     )
 
 
-def test_codes_idx_none_mutex():
+def test_codes_idx_none_mutex() -> None:
     """The three CODE_IDX_* constants should be mutally exclusive."""
 
     assert_codes_idx_mutex(
@@ -87,7 +83,7 @@ def test_codes_idx_none_mutex():
     )
 
 
-def test_codes_idx_simple_mutex():
+def test_codes_idx_simple_mutex() -> None:
     """The three CODE_IDX_* constants should be mutally exclusive."""
 
     assert_codes_idx_mutex(
@@ -95,7 +91,7 @@ def test_codes_idx_simple_mutex():
     )
 
 
-def test_codes_mutex():
+def test_codes_mutex() -> None:
     assert_codes_idx_mutex(RQ_IDX_ONLY, CODE_IDX_ARE_NONE)
 
 

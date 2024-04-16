@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Command.put_*, Command.set_* APIs.
-"""
+"""RAMSES RF - Test the Command.put_*, Command.set_* APIs."""
 
 from collections.abc import Callable
 from datetime import datetime as dt
@@ -14,7 +10,7 @@ from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 
 
-def _test_api(api: Callable, packets: dict[str]):  # NOTE: incl. addr_set check
+def _test_api(api: Callable, packets: dict[str]) -> None:  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
 
     for pkt_line, kwargs in packets.items():
@@ -26,7 +22,7 @@ def _test_api(api: Callable, packets: dict[str]):  # NOTE: incl. addr_set check
         _test_api_from_msg(api, msg)
 
 
-def _create_pkt_from_frame(pkt_line) -> Packet:
+def _create_pkt_from_frame(pkt_line: str) -> Packet:
     """Create a pkt from a pkt_line and assert their frames match."""
 
     pkt = Packet.from_port(dt.now(), pkt_line)
@@ -54,7 +50,7 @@ def _test_api_from_kwargs(api: Callable, pkt: Packet, **kwargs) -> None:
     assert str(cmd) == str(pkt)
 
 
-def test_set():
+def test_set() -> None:
     for test_pkts in (SET_22F1_KWARGS, SET_22F7_KWARGS):
         pkt = list(test_pkts)[0]
         api = CODE_API_MAP[f"{pkt[4:6]}|{pkt[41:45]}"]

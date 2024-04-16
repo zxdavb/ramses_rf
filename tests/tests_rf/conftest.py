@@ -41,7 +41,7 @@ _global_failed_ports: list[str] = []
 
 
 @pytest.fixture(autouse=True)  # type: ignore[misc]
-def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
+def patches_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
     monkeypatch.setattr("ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT", True)
     monkeypatch.setattr("ramses_tx.transport.MINIMUM_WRITE_GAP", 0)
@@ -49,10 +49,10 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch):
 
 # TODO: add teardown to cleanup orphan MessageIndex thread
 # @pytest.fixture(scope="session", autouse=True)
-# def close_timer_threads(request: pytest.FixtureRequest):
+# def close_timer_threads(request: pytest.FixtureRequest) -> None:
 #     import threading
 
-#     def finalize():
+#     def finalize() -> None:
 #         running_timer_threads = [
 #             thread
 #             for thread in threading.enumerate()
@@ -169,6 +169,7 @@ async def _fake_gateway(gwy_port: PortStrT, gwy_config: dict, rf: VirtualRf) -> 
     with patch("ramses_tx.transport.comports", rf.comports):
         gwy = await _gateway(gwy_port, gwy_config)
 
+    assert gwy._transport  # mypy
     gwy._transport._extra["virtual_rf"] = rf
     return gwy
 
@@ -183,7 +184,7 @@ async def _real_gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:  # typ
 
     try:
         return await _gateway(gwy_port, gwy_config)
-    except (ser.SerialException, exc.TransportSerialError) as err:
+    except (ser.SerialException, exc.TransportError) as err:
         _global_failed_ports.append(gwy_port)
         pytest.xfail(str(err))  # not skip, as we had determined port exists elsewhere
 

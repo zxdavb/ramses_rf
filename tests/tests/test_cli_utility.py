@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 """RAMSES RF - Test the CLI utility."""
 
@@ -98,12 +97,14 @@ BASIC_TESTS = (  # can't use "-z"
 )
 
 
-def id_fnc(param: int):
+def id_fnc(param: int) -> str:
     return f"{BASIC_TESTS[param][0][1]:7}"
 
 
 @pytest.mark.parametrize("index", range(len(BASIC_TESTS)), ids=id_fnc)  # type: ignore[misc]
-def test_client_basic(monkeypatch: pytest.MonkeyPatch, index: int, tests=BASIC_TESTS):
+def test_client_basic(
+    monkeypatch: pytest.MonkeyPatch, index: int, tests=BASIC_TESTS
+) -> None:
     monkeypatch.setattr("sys.argv", tests[index][0])
     if tests[index][0][1] == PARSE:
         monkeypatch.setattr("sys.stdin", STDIN)

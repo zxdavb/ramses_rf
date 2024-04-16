@@ -1,33 +1,30 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test eavesdropping of a device class.
-"""
+"""RAMSES RF - Test eavesdropping of a device class."""
 
 import json
 from pathlib import Path, PurePath
 
-from ramses_rf import Gateway
+import pytest
+
+from ramses_rf import Gateway, Message
 from tests.helpers import TEST_DIR, assert_expected
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_dev_class"
 
 
-def id_fnc(param):
-    return PurePath(param).name
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    def id_fnc(param) -> str:
+        return PurePath(param).name
 
-
-def pytest_generate_tests(metafunc):
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir()]
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-async def test_packets_from_log_file(dir_name):
+async def test_packets_from_log_file(dir_name: Path) -> None:
     """Check eavesdropping of a src device _SLUG (from each packet line)."""
 
-    def proc_log_line(msg):
+    def proc_log_line(msg: Message) -> None:
         assert msg.src._SLUG in eval(msg._pkt.comment)
 
     with open(f"{dir_name}/packet.log") as f:
@@ -43,7 +40,7 @@ async def test_packets_from_log_file(dir_name):
 
 
 # duplicate in test_eavesdrop_schema
-async def test_dev_eavesdrop_on_(dir_name):
+async def test_dev_eavesdrop_on_(dir_name: Path) -> None:
     """Check discovery of schema and known_list *with* eavesdropping."""
 
     with open(f"{dir_name}/packet.log") as f:
@@ -63,7 +60,7 @@ async def test_dev_eavesdrop_on_(dir_name):
 
 
 # duplicate in test_eavesdrop_schema
-async def test_dev_eavesdrop_off(dir_name):
+async def test_dev_eavesdrop_off(dir_name: Path) -> None:
     """Check discovery of schema and known_list *without* eavesdropping."""
 
     with open(f"{dir_name}/packet.log") as f:

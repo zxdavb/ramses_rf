@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
+"""RAMSES RF - Test the payload parsers and corresponding output.
 
-Test the payload parsers and corresponding output (schema, traits, params, status).
+Includes gwy dicts (schema, traits, params, status).
 """
 
 from pathlib import Path, PurePath
+
+import pytest
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
@@ -24,11 +25,10 @@ from tests.helpers import (
 WORK_DIR = f"{TEST_DIR}/systems"
 
 
-def id_fnc(param):
-    return PurePath(param).name
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    def id_fnc(param: Path) -> str:
+        return PurePath(param).name
 
-
-def pytest_generate_tests(metafunc) -> None:
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
@@ -37,11 +37,10 @@ def test_payloads_from_log_file(dir_name: Path) -> None:
     """Assert that each message payload is as expected."""
     # RP --- 02:044328 18:200214 --:------ 2309 003 0007D0       # {'ufh_idx': '00', 'setpoint': 20.0}
 
-    def proc_log_line(pkt_line):
-        if "#" not in pkt_line:
+    def proc_log_line(log_line: str) -> None:
+        if "#" not in log_line:
             return
-
-        pkt_line, pkt_eval = pkt_line.split("#", maxsplit=1)
+        pkt_line, pkt_eval = log_line.split("#", maxsplit=1)
 
         if not pkt_line[27:].strip():
             return

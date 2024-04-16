@@ -29,8 +29,8 @@ from .virtual_rf import HgiFwTypes, VirtualRf
 async def assert_stack_state(
     protocol: RamsesProtocolT, transport: RamsesTransportT
 ) -> None:
-    assert transport._this_pkt.code == Code._PUZZ
-    assert transport._this_pkt.src.id == GWY_ID
+    assert transport._this_pkt and transport._this_pkt.code == Code._PUZZ
+    assert transport._this_pkt and transport._this_pkt.src.id == GWY_ID
     assert transport._prev_pkt is None
 
     assert transport.get_extra_info(SZ_ACTIVE_HGI) == GWY_ID

@@ -111,7 +111,7 @@ class Controller:
         self._gwy = None
 
 
-def _proc_log_line(log_line: str):
+def _proc_log_line(log_line: str) -> None:
     try:
         pkt = Packet.from_file(log_line[:26], log_line[27:])
     except ValueError:
@@ -154,7 +154,7 @@ def _proc_test_fault_entry(
 # ### TESTS ###########################################################################
 
 
-def test_faultlog_entries():
+def test_faultlog_entries() -> None:
     """Test instantiation of faultlog entries."""
 
     with open(f"{WORK_DIR}/code_0418.log") as f:
@@ -162,7 +162,7 @@ def test_faultlog_entries():
             _proc_log_line(line)
 
 
-def test_faultlog_instantiation_0():
+def test_faultlog_instantiation_0() -> None:
     """Log entries arrive in order of timestamp (i.e. as they'd occur)."""
 
     fault_log = FaultLog(Controller(CTL_ID))
@@ -175,7 +175,7 @@ def test_faultlog_instantiation_0():
     assert fault_log._map == EXPECTED_MAP
 
 
-def test_faultlog_instantiation_1():
+def test_faultlog_instantiation_1() -> None:
     """Log entries arrive in order of log_idx (e.g. enumerating the log via RQs)."""
 
     fault_log = FaultLog(Controller(CTL_ID))
@@ -188,7 +188,7 @@ def test_faultlog_instantiation_1():
     assert fault_log._map == EXPECTED_MAP
 
 
-def test_faultlog_instantiation_2():
+def test_faultlog_instantiation_2() -> None:
     """Log entries arrive in random order albeit with their correct log_idx."""
 
     fault_log = FaultLog(Controller(CTL_ID))
@@ -204,7 +204,7 @@ def test_faultlog_instantiation_2():
     assert fault_log._map == EXPECTED_MAP
 
 
-def test_faultlog_instantiation_3():
+def test_faultlog_instantiation_3() -> None:
     """Log entries arrive in an order set to confuse."""
 
     fault_log = FaultLog(Controller(CTL_ID))
@@ -268,7 +268,7 @@ def test_faultlog_instantiation_3():
     }
 
 
-def test_faultlog_instantiation_4():
+def test_faultlog_instantiation_4() -> None:
     """Log entries arrive in an order set to confuse."""
 
     fault_log = FaultLog(Controller(CTL_ID))

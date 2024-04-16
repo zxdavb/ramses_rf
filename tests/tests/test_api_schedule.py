@@ -6,8 +6,11 @@ import json
 from copy import deepcopy
 from pathlib import Path, PurePath
 
+import pytest
+
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
+from ramses_rf.system import Evohome
 from ramses_rf.system.schedule import (
     SCH_SCHEDULE_DHW_FULL,
     SCH_SCHEDULE_ZON_FULL,
@@ -22,22 +25,22 @@ from tests.helpers import TEST_DIR, load_test_gwy
 WORK_DIR = f"{TEST_DIR}/schedules"
 
 
-def id_fnc(param):
-    return PurePath(param).name
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    def id_fnc(param: Path) -> str:
+        return PurePath(param).name
 
-
-def pytest_generate_tests(metafunc):
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-async def test_schedule_get(dir_name):
+async def test_schedule_get(dir_name: Path) -> None:
     """Compare the schedule built from a log file with the expected results."""
 
     with open(f"{dir_name}/schedule.json") as f:
         schedule = json.load(f)
 
     gwy: Gateway = await load_test_gwy(dir_name)
+    assert isinstance(gwy.tcs, Evohome)  # mypy
     try:
         zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
         assert zone.schedule == schedule[SZ_SCHEDULE]
@@ -47,7 +50,7 @@ async def test_schedule_get(dir_name):
         await gwy.stop()
 
 
-async def test_schedule_helpers(dir_name):
+async def test_schedule_helpers(dir_name: Path) -> None:
     """Compare the schedule helpers are consistent and have symmetry."""
 
     with open(f"{dir_name}/schedule.json") as f:

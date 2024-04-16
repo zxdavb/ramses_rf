@@ -159,7 +159,7 @@
     "arg-type",  #       59
     "misc",  #           22
     "type-arg",  #       44
-    "union-attr",  #     10
+    # "union-attr",  #     10
   ]
 
 

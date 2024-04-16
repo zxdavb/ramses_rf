@@ -28,7 +28,7 @@ def _test_api_good(api, packets):  # NOTE: incl. addr_set check
             assert shrink(msg.payload, keep_falsys=True) == eval(payload)
 
 
-def _assert_pkt_from_frame(pkt_line) -> Packet:
+def _assert_pkt_from_frame(pkt_line: str) -> Packet:
     """Create a pkt from a pkt_line and assert their frames match."""
 
     pkt = Packet.from_port(dt.now(), pkt_line)
