@@ -526,6 +526,10 @@ class WantEcho(ProtocolStateBase):
         super().__init__(context)
 
         self._sent_cmd = context._state._sent_cmd
+        # if isinstance(context._state, WantEcho | WantRply):
+        #     self._echo_pkt = context._state._echo_pkt
+        # else:
+        #     self._echo_pkt = None
 
     def pkt_rcvd(self, pkt: Packet) -> None:  # Check if pkt is expected Echo
         """If the pkt is the expected Echo, transition to IsInIdle, or WantRply."""
@@ -537,8 +541,7 @@ class WantEcho(ProtocolStateBase):
 
         assert self._sent_cmd, f"{self}: Coding error"  # mypy hint
 
-        # _LOGGER.error("pkt=%s", pkt._hdr)
-        # if self._sent_cmd.rx_header:
+        # if self._sent_cmd.rx_header and pkt._hdr == self._sent_cmd.rx_header:
         #     _LOGGER.error("hdr=%s", self._sent_cmd.rx_header)
         #     _LOGGER.error("src=%s", self._sent_cmd.src.id)
         #     _LOGGER.error("dst=%s", pkt.dst.id)
@@ -546,7 +549,13 @@ class WantEcho(ProtocolStateBase):
         if (
             self._sent_cmd.rx_header
             and pkt._hdr == self._sent_cmd.rx_header
-            and pkt.dst.id[:3] == self._sent_cmd.src.id[:3]  # 18:146440 == 18:000730
+            and (
+                pkt.dst.id == self._sent_cmd.src.id
+                or (  # handle: 18:146440 == 18:000730
+                    self._sent_cmd.src.id == HGI_DEVICE_ID
+                    and pkt.dst.id == self._context._protocol.hgi_id
+                )
+            )
         ):
             _LOGGER.warning(
                 "%s: Invalid state to receive a reply (expecting echo)", self._context
@@ -607,12 +616,17 @@ class WantRply(ProtocolStateBase):
         """If the pkt is the expected reply, transition to IsInIdle."""
 
         assert self._sent_cmd, f"{self}: Coding error"  # mypy hint
+        assert self._echo_pkt, f"{self}: Coding error"  # mypy hint
 
-        if pkt == self._sent_cmd:  # pkt._hdr == self._sent_cmd.tx_header and ...
+        # NOTE: beware collisions: same header, but is not reply (must check RSSI or src)
+        # 2024-04-16 08:28:33.895 000 RQ --- 18:146440 10:048122 --:------ 3220 005 0000110000  # 3220|RQ|10:048122|11
+        # 2024-04-16 08:28:33.910 052 RQ --- 01:145038 10:048122 --:------ 3220 005 0000110000  # 3220|RQ|10:048122|11
+
+        if pkt._hdr == self._sent_cmd.tx_header and pkt.src == self._echo_pkt.src:
             _LOGGER.warning(
                 "%s: Invalid state to receive an echo (expecting reply)", self._context
             )
-            return
+            return  # do not transition, wait until existing timer expires
 
         # HACK: special case: if null log entry for log_idx=nn, then
         # rx_hdr will be 0418|RP|01:145038|00, and not 0418|RP|01:145038|nn
