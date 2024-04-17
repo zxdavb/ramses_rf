@@ -90,10 +90,11 @@
     "src/ramses_rf/system/heat.py",
     "src/ramses_rf/system/zones.py",
     "tests/deprecated",
+    "tests/wip",
   ]
 
   follow_imports = "skip"  # TODO: don't use this feature
-  no_implicit_optional = false  # TODO: don't disable this
+  no_implicit_optional = true
 
   # see: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
 
@@ -111,7 +112,7 @@
   # These shouldn't be too much additional work, but may be tricky to
   # get passing if you use a lot of untyped libraries
   disallow_subclassing_any = true
-  disallow_untyped_decorators = true  # TODO: set to True
+  disallow_untyped_decorators = true
   disallow_any_generics = true                                                         # current work is here
 
   # These next few are various gradations of forcing use of type annotations
@@ -138,11 +139,11 @@
 #
 [[tool.mypy.overrides]]
   module = [
-    "ramses_rf/entity_base",
-    "ramses_rf/gateway",
-    "ramses_rf/helpers",
-    "ramses_tx.parsers",  # will be lots of work
-    "ramses_rf/schemas",
+   "ramses_rf/entity_base",  # 10
+    "ramses_rf/gateway",  #    14
+    "ramses_rf/helpers",  #     7
+    "ramses_tx.parsers",  #    89 - will be lots of work
+    "ramses_rf/schemas",  #     2
   ]
 
   disallow_any_generics = false
@@ -150,14 +151,19 @@
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
-  disable_error_code = ["arg-type", "attr-defined", "unreachable"]
+  no_implicit_optional = false  # 14
+
+  disable_error_code = [
+    "arg-type",  #    5 (but a can of worms)
+    "unreachable",  # 6 (but a can of worms)
+  ]
 #
 [[tool.mypy.overrides]]
   module = ["tests.*", "tests_rf.*"]
 
   disable_error_code = [
-    "arg-type",  #       59
-    "type-arg",  #       38
+    "arg-type",  # 63
+    "type-arg",  # 38
   ]
 
 

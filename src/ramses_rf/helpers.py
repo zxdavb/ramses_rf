@@ -31,7 +31,7 @@ def is_subset(inner: _SchemaT, outer: _SchemaT) -> bool:
     return _is_subset(inner, outer)
 
 
-def deep_merge(src: _SchemaT, dst: _SchemaT, _dc: bool = None) -> _SchemaT:
+def deep_merge(src: _SchemaT, dst: _SchemaT, _dc: bool = False) -> _SchemaT:
     """Deep merge a src dict (precedent) into a dst dict and return the result.
 
     run me with nosetests --with-doctest file.py

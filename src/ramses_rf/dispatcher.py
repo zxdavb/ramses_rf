@@ -127,7 +127,7 @@ def _check_msg_addrs(msg: Message) -> None:  # TODO
             )
 
 
-def _check_src_slug(msg: Message, *, slug: str = None) -> None:
+def _check_src_slug(msg: Message, *, slug: str | None = None) -> None:
     """Validate the packet's source device class against its verb/code pair."""
 
     if slug is None:  # slug = best_dev_role(msg.src, msg=msg)._SLUG
@@ -150,7 +150,7 @@ def _check_src_slug(msg: Message, *, slug: str = None) -> None:
         raise exc.PacketInvalid(f"{msg!r} < Unexpected verb/code for src to Tx")
 
 
-def _check_dst_slug(msg: Message, *, slug: str = None) -> None:
+def _check_dst_slug(msg: Message, *, slug: str | None = None) -> None:
     """Validate the packet's destination device class against its verb/code pair."""
 
     if slug is None:

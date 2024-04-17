@@ -8,6 +8,7 @@ import warnings
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from random import shuffle
+from typing import Any
 
 import pytest
 import voluptuous as vol
@@ -39,7 +40,7 @@ def shuffle_dict(old_dict: dict) -> dict:
     return new_dict
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[misc]
 async def gwy() -> AsyncGenerator[Gateway, None]:  # NOTE: async to get running loop
     """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})
@@ -50,7 +51,9 @@ async def gwy() -> AsyncGenerator[Gateway, None]:  # NOTE: async to get running 
         await gwy.stop()
 
 
-def assert_expected(actual: dict, expected: dict = None) -> None:
+def assert_expected(
+    actual: dict[str, Any], expected: dict[str, Any] | None = None
+) -> None:
     """Compare an actual system state dict against the corresponding expected state."""
 
     def assert_expected(actual, expect) -> None:

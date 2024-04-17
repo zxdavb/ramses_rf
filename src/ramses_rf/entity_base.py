@@ -236,17 +236,21 @@ class _MessageDB(_Entity):
     def _delete_msg(self, msg: Message) -> None:  # FIXME: this is a mess
         """Remove the msg from all state databases."""
 
+        from .device import Device
+
         obj: _MessageDB
 
         if self._gwy._zzz is not None:
             self._gwy._zzz.rem(msg)
 
-        entities = [msg.src] if isinstance(msg.src, _MessageDB) else []
-        if getattr(msg.src, "tcs", None):
-            entities.append(msg.src.tcs)
-            if msg.src.tcs.dhw:
-                entities.append(msg.src.tcs.dhw)
-            entities.extend(msg.src.tcs.zones)
+        entities: list[_MessageDB] = []
+        if isinstance(msg.src, Device):
+            entities = [msg.src]
+            if getattr(msg.src, "tcs", None):
+                entities.append(msg.src.tcs)
+                if msg.src.tcs.dhw:
+                    entities.append(msg.src.tcs.dhw)
+                entities.extend(msg.src.tcs.zones)
 
         # remove the msg from all the state DBs
         for obj in entities:
@@ -870,7 +874,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         self._child_id: str | None = None  # TODO: should be: str?
 
     def _handle_msg(self, msg: Message) -> None:
-        from .device import Controller, UfhController
+        from .device import Controller, Device, UfhController
 
         def eavesdrop_parent_zone():
             if isinstance(msg.src, UfhController):
@@ -879,15 +883,15 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             if SZ_ZONE_IDX not in msg.payload:
                 return
 
-            # FIXME: to remove attr-defined
-            # the follwing is a mess - may just be better off deprecating it
-            if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:
-                self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
+            if isinstance(self, Device):  # FIXME: a mess...
+                # the following is a mess - may just be better off deprecating it
+                if self.type in DEV_TYPE_MAP.HEAT_ZONE_ACTUATORS:
+                    self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
 
-            elif self.type in DEV_TYPE_MAP.THM_DEVICES:
-                self.set_parent(
-                    msg.dst, child_id=msg.payload[SZ_ZONE_IDX], is_sensor=True
-                )
+                elif self.type in DEV_TYPE_MAP.THM_DEVICES:
+                    self.set_parent(
+                        msg.dst, child_id=msg.payload[SZ_ZONE_IDX], is_sensor=True
+                    )
 
         super()._handle_msg(msg)
 
