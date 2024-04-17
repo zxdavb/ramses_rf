@@ -7,17 +7,19 @@
 """RAMSES RF - Check GWY address/type detection and its treatment of addr0."""
 
 import asyncio
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from ramses_rf import Command, Gateway
 from ramses_tx import exceptions as exc
-from ramses_tx.address import HGI_DEVICE_ID
+from ramses_tx.address import HGI_DEVICE_ID, Address
 from ramses_tx.protocol import PortProtocol
+from ramses_tx.schemas import DeviceIdT
 from ramses_tx.transport import MqttTransport
 from ramses_tx.typing import QosParams
+
+from .conftest import _GwyConfigDictT
 
 # patched constants
 _DBG_DISABLE_STRICT_CHECKING = True  # #    ramses_tx.address
@@ -28,7 +30,7 @@ DEFAULT_MAX_SLEEP = 0.05  # 0.01/0.05 minimum for mocked (virtual RF)/actual
 
 
 HGI_ID_ = HGI_DEVICE_ID  # the sentinel value
-TST_ID_ = "18:222222"  # the id of the test HGI80-compatible device
+TST_ID_ = Address("18:222222").id  # the id of the test HGI80-compatible device
 
 TEST_CMDS = {  # test command strings (no impersonation)
     10: f"RQ --- {TST_ID_} 63:262142 --:------ 10E0 001 00",
@@ -54,7 +56,7 @@ pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
 @pytest.fixture()  # type: ignore[misc]
-def gwy_config() -> dict[str, Any]:
+def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
             "disable_discovery": True,
@@ -66,7 +68,7 @@ def gwy_config() -> dict[str, Any]:
 
 
 @pytest.fixture()  # type: ignore[misc]
-def gwy_dev_id() -> str:
+def gwy_dev_id() -> DeviceIdT:
     return TST_ID_
 
 
