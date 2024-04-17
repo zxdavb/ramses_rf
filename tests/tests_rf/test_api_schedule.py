@@ -13,13 +13,15 @@ from ramses_rf.system import Evohome, Zone
 from ramses_tx.address import HGI_DEVICE_ID
 from ramses_tx.schemas import DeviceIdT
 
+from .conftest import _GwyConfigDictT
+
 # ### FIXTURES #########################################################################
 
 pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
 @pytest.fixture()  # scope="module")
-def gwy_config() -> dict[str, Any]:
+def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
             "disable_discovery": True,

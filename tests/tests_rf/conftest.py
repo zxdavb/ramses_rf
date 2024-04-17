@@ -5,7 +5,7 @@
 import logging
 import os
 from collections.abc import AsyncGenerator
-from typing import Final, NoReturn, TypeAlias
+from typing import Final, NoReturn, TypeAlias, TypedDict
 from unittest.mock import patch
 
 import pytest
@@ -24,6 +24,18 @@ PortStrT: TypeAlias = str
 
 SZ_GWY_CONFIG: Final = "gwy_config"
 SZ_GWY_DEV_ID: Final = "gwy_dev_id"
+
+
+class _ConfigDictT(TypedDict):
+    disable_discovery: bool
+    disable_qos: bool
+    enforce_known_list: bool
+
+
+class _GwyConfigDictT(TypedDict):
+    config: _ConfigDictT
+    known_list: dict[DeviceIdT, dict[str, bool]]
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -152,7 +164,7 @@ async def real_ti3410_port() -> PortStrT | NoReturn:  # type: ignore[return]
 #######################################################################################
 
 
-async def _gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:
+async def _gateway(gwy_port: PortStrT, gwy_config: _GwyConfigDictT) -> Gateway:
     """Instantiate a gateway."""
 
     gwy = Gateway(gwy_port, **gwy_config)
@@ -163,7 +175,9 @@ async def _gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:
     return gwy
 
 
-async def _fake_gateway(gwy_port: PortStrT, gwy_config: dict, rf: VirtualRf) -> Gateway:
+async def _fake_gateway(
+    gwy_port: PortStrT, gwy_config: _GwyConfigDictT, rf: VirtualRf
+) -> Gateway:
     """Wrapper to instantiate a virtual gateway."""
 
     with patch("ramses_tx.transport.comports", rf.comports):
@@ -174,7 +188,7 @@ async def _fake_gateway(gwy_port: PortStrT, gwy_config: dict, rf: VirtualRf) -> 
     return gwy
 
 
-async def _real_gateway(gwy_port: PortStrT, gwy_config: dict) -> Gateway:  # type: ignore[return]
+async def _real_gateway(gwy_port: PortStrT, gwy_config: _GwyConfigDictT) -> Gateway:  # type: ignore[return]
     """Wrapper to instantiate a physical gateway."""
 
     global _global_failed_ports
@@ -195,7 +209,7 @@ async def fake_evofw3(
 ) -> AsyncGenerator[Gateway, None]:
     """Utilize a virtual evofw3-compatible gateway (discovered by fake_evofw3_port)."""
 
-    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
+    gwy_config: _GwyConfigDictT = request.getfixturevalue(SZ_GWY_CONFIG)
     gwy_dev_id: DeviceIdT = request.getfixturevalue(SZ_GWY_DEV_ID)
 
     gwy = await _fake_gateway(fake_evofw3_port, gwy_config, rf)
@@ -215,7 +229,7 @@ async def fake_ti3410(
 ) -> AsyncGenerator[Gateway, None]:
     """Utilize a virtual HGI80-compatible gateway (discovered by fake_ti3410_port)."""
 
-    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
+    gwy_config: _GwyConfigDictT = request.getfixturevalue(SZ_GWY_CONFIG)
     gwy_dev_id: DeviceIdT = request.getfixturevalue(SZ_GWY_DEV_ID)
 
     gwy = await _fake_gateway(fake_ti3410_port, gwy_config, rf)
@@ -235,7 +249,7 @@ async def mqtt_evofw3(
 ) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual evofw3-compatible gateway (discovered by mqtt_evofw3_port)."""
 
-    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
+    gwy_config: _GwyConfigDictT = request.getfixturevalue(SZ_GWY_CONFIG)
 
     gwy = await _real_gateway(mqtt_evofw3_port, gwy_config)
 
@@ -256,7 +270,7 @@ async def real_evofw3(
 ) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual evofw3-compatible gateway (discovered by real_evofw3_port)."""
 
-    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
+    gwy_config: _GwyConfigDictT = request.getfixturevalue(SZ_GWY_CONFIG)
 
     gwy = await _real_gateway(real_evofw3_port, gwy_config)
 
@@ -275,7 +289,7 @@ async def real_ti3410(
 ) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual HGI80-compatible gateway (discovered by real_ti3410_port)."""
 
-    gwy_config: dict = request.getfixturevalue(SZ_GWY_CONFIG)
+    gwy_config: _GwyConfigDictT = request.getfixturevalue(SZ_GWY_CONFIG)
 
     gwy = await _real_gateway(real_ti3410_port, gwy_config)
 

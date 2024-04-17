@@ -158,8 +158,7 @@
   disable_error_code = [
     "arg-type",  #       59
     "misc",  #           22
-    "type-arg",  #       44
-    # "union-attr",  #     10
+    "type-arg",  #       38
   ]
 
 
