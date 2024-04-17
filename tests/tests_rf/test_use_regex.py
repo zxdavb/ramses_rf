@@ -69,7 +69,7 @@ GWY_CONFIG = {
 # ### FIXTURES #########################################################################
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)  # type: ignore[misc]
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
     monkeypatch.setattr("ramses_tx.transport.MINIMUM_WRITE_GAP", 0)
@@ -89,7 +89,7 @@ async def assert_this_pkt(
 # ### TESTS ############################################################################
 
 
-@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
 async def test_regex_inbound_() -> None:
     """Check the inbound filters work as expected (this test works with QoS)."""
 
@@ -116,7 +116,7 @@ async def test_regex_inbound_() -> None:
         await rf.stop()
 
 
-@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
 @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
 async def test_regex_outbound() -> None:
     """Check the outbound filters work (this test does not work with QoS)."""
@@ -148,7 +148,7 @@ async def test_regex_outbound() -> None:
         await rf.stop()
 
 
-@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
 async def test_regex_with_qos() -> None:
     """Check the in/outbound regex filters work as expected with QoS."""
 

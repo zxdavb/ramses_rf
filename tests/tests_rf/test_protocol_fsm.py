@@ -72,7 +72,7 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 # ### FIXTURES #########################################################################
 
 
-@pytest.fixture()  # scope="function")
+@pytest.fixture()  # type: ignore[misc]
 async def protocol(rf: VirtualRf) -> AsyncGenerator[PortProtocol, None]:
     def _msg_handler(msg: Message) -> None:
         pass
@@ -84,8 +84,8 @@ async def protocol(rf: VirtualRf) -> AsyncGenerator[PortProtocol, None]:
 
     # TODO: These values should be asserted in protocol FSM tests
     assert protocol._context.echo_timeout == 0.5
-    assert protocol._context.reply_timeout == 0.2
-    assert protocol._context.SEND_TIMEOUT_LIMIT == 15.0
+    assert protocol._context.reply_timeout == 0.5
+    assert protocol._context.SEND_TIMEOUT_LIMIT == 20.0
 
     await assert_protocol_state(protocol, Inactive, max_sleep=0)
 

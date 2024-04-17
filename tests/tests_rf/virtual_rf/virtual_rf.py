@@ -290,7 +290,8 @@ class VirtualRfBase:
         if os.name == "posix":  # signal.SIGKILL people?
             for sig in (signal.SIGABRT, signal.SIGINT, signal.SIGTERM):
                 self._loop.add_signal_handler(
-                    sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
+                    sig,
+                    lambda sig=sig: self._loop.create_task(handle_sig_posix(sig)),  # type: ignore[misc]
                 )
         else:  # unsupported OS
             raise RuntimeError(f"Unsupported OS for this module: {os.name} (termios)")

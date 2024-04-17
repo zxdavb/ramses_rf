@@ -19,7 +19,7 @@ from tests.helpers import (
 WORK_DIR = f"{TEST_DIR}/schemas"
 
 
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # type: ignore[misc]
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/log_files").glob("*.log")]
 )
 async def test_schema_discover_from_log(f_name: Path) -> None:
@@ -41,7 +41,7 @@ async def test_schema_discover_from_log(f_name: Path) -> None:
         assert shrink(gwy.schema) == shrink(schema)
 
 
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # type: ignore[misc]
     "f_name", [f.stem for f in Path(f"{WORK_DIR}/jsn_files").glob("*.json")]
 )
 async def test_schema_load_from_json(gwy: Gateway, f_name: Path) -> None:  # noqa: F811

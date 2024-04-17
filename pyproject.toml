@@ -157,7 +157,6 @@
 
   disable_error_code = [
     "arg-type",  #       59
-    "misc",  #           22
     "type-arg",  #       38
   ]
 

@@ -16,7 +16,7 @@ from .conftest import _GwyConfigDictT
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio()  # scope="module")
+pytestmark = pytest.mark.asyncio()
 
 
 @pytest.fixture()  # type: ignore[misc]
@@ -49,14 +49,14 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
 #######################################################################################
 
 
-@pytest.mark.xdist_group(name="real_serial")
+@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
 async def test_get_faultlog_mqtt(mqtt_evofw3: Gateway) -> None:
     """Test obtaining the fault log from a real controller via MQTT."""
 
     await _test_get_faultlog(mqtt_evofw3, "01:145038")
 
 
-@pytest.mark.xdist_group(name="real_serial")
+@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
 async def test_get_faultlog_real(real_evofw3: Gateway) -> None:
     """Test obtaining the fault log from a real controller via RF."""
 

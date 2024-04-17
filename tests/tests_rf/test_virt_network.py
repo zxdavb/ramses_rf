@@ -167,7 +167,7 @@ async def _test_virtual_rf_pkt_flow(
 
 
 # NOTE: does not use factory
-@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
 async def test_virtual_rf_dev_disc() -> None:
     """Check the virtual RF network behaves as expected (device discovery)."""
 
@@ -196,7 +196,7 @@ async def test_virtual_rf_dev_disc() -> None:
 
 
 # NOTE: uses factory
-@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
 async def test_virtual_rf_pkt_flow() -> None:
     """Check the virtual RF network behaves as expected (packet flow)."""
 

@@ -17,10 +17,10 @@ from .conftest import _GwyConfigDictT
 
 # ### FIXTURES #########################################################################
 
-pytestmark = pytest.mark.asyncio()  # scope="module")
+pytestmark = pytest.mark.asyncio()
 
 
-@pytest.fixture()  # scope="module")
+@pytest.fixture()  # type: ignore[misc]
 def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
@@ -35,7 +35,7 @@ def gwy_config() -> _GwyConfigDictT:
 #######################################################################################
 
 
-@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
 async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
     """Test obtaining the version and schedule."""
 
@@ -55,14 +55,14 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
 #######################################################################################
 
 
-@pytest.mark.xdist_group(name="real_serial")
-async def _test_get_schedule_mqtt(mqtt_evofw3: Gateway) -> None:
+@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+async def test_get_schedule_mqtt(mqtt_evofw3: Gateway) -> None:
     """Test obtaining the schedule from a real controller via MQTT."""
 
     await _test_get_schedule(mqtt_evofw3, "01:145038", "01")
 
 
-@pytest.mark.xdist_group(name="real_serial")
+@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
 async def test_get_schedule_real(real_evofw3: Gateway) -> None:
     """Test obtaining the schedule from a real controller via RF."""
 
