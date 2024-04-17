@@ -13,7 +13,7 @@ import asyncio
 import pytest
 import serial  # type: ignore[import-untyped]
 
-from ramses_rf import Code, Command, Device, Gateway
+from ramses_rf import Address, Code, Command, Gateway
 from tests_rf.virtual_rf import VirtualRf, rf_factory
 
 # other constants
@@ -62,9 +62,11 @@ async def assert_code_in_device_msgz(
 
 
 async def assert_devices(
-    gwy: Gateway, devices: list[Device], max_sleep: int = DEFAULT_MAX_SLEEP
+    gwy: Gateway, devices: list[str], max_sleep: int = DEFAULT_MAX_SLEEP
 ):
     """Fail if the two sets of devices are not equal."""
+
+    devices = [Address(d).id for d in devices]
 
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)

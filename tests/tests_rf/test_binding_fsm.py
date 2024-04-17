@@ -174,6 +174,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 async def assert_context_state(
     device: Fakeable, state: type[BindStateBase], max_sleep: float = DEFAULT_MAX_SLEEP
 ) -> None:
+    assert device._bind_context
+
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
         await asyncio.sleep(ASSERT_CYCLE_TIME)
         if isinstance(device._bind_context.state, state):
@@ -199,6 +201,9 @@ async def _test_flow_10x(
 
     await assert_context_state(respondent, _BindStates.IS_IDLE_DEVICE)
     await assert_context_state(supplicant, _BindStates.IS_IDLE_DEVICE)
+
+    assert respondent._bind_context
+    assert supplicant._bind_context
 
     assert not respondent._bind_context.is_binding
     assert not supplicant._bind_context.is_binding

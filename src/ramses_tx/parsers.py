@@ -1039,7 +1039,9 @@ def parser_10e2(payload: str, msg: Message) -> dict:
 
 
 # tpi_params (domain/zone/device)  # FIXME: a bit messy
-def parser_1100(payload: str, msg: Message) -> Mapping[str, float | int | str | None]:
+def parser_1100(
+    payload: str, msg: Message
+) -> PayDictT._1100 | Mapping[str, float | int | str | None]:
     def complex_idx(seqx) -> dict:
         return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # only FC
 
@@ -1086,10 +1088,7 @@ def parser_1100(payload: str, msg: Message) -> Mapping[str, float | int | str | 
             }
         )
 
-    return {
-        **complex_idx(payload[:2]),
-        **result,
-    }
+    return complex_idx(payload[:2]) | result
 
 
 # unknown_11f0, from heatpump relay

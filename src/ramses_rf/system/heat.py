@@ -36,7 +36,6 @@ from ramses_rf.device import (
     BdrSwitch,
     Controller,
     Device,
-    DeviceHeat,
     OtbGateway,
     Temperature,
     UfhController,
@@ -63,9 +62,9 @@ from ramses_tx import (
     Address,
     Command,
     Message,
-    Packet,
 )
 from ramses_tx.address import DeviceIdT
+from ramses_tx.typed_dicts import PayDictT
 
 from .faultlog import FaultLog
 from .zones import DhwZone, Zone
@@ -120,42 +119,11 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         self.id: DeviceIdT = ctl.id
 
         self.ctl = ctl
-        self.tcs = self
+        self.tcs: Evohome = self  # type: ignore[assignment]
         self._child_id = FF  # NOTE: domain_id
 
-        self._app_cntrl: DeviceHeat = None  # schema attr
-        self._heat_demand = None  # state attr
-
-    def _update_schema(self, **schema):
-        """Update a CH/DHW system with new schema attrs.
-
-        Raise an exception if the new schema is not a superset of the existing schema.
-        """
-
-        schema = shrink(SCH_TCS(schema))
-
-        if schema.get(SZ_SYSTEM) and (
-            dev_id := schema[SZ_SYSTEM].get(SZ_APPLIANCE_CONTROL)
-        ):
-            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
-
-        if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.get_dhw_zone(**_schema)  # self._dhw = ...
-
-        if _schema := (schema.get(SZ_ZONES)):
-            [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
-
-    @classmethod
-    def create_from_schema(cls, ctl: Device, **schema):
-        """Create a CH/DHW system for a CTL and set its schema attrs.
-
-        The appropriate System class should have been determined by a factory.
-        Schema attrs include: class (klass) & others.
-        """
-
-        tcs = cls(ctl)
-        tcs._update_schema(**schema)
-        return tcs
+        self._app_cntrl: BdrSwitch | OtbGateway | None = None
+        self._heat_demand = None
 
     def __repr__(self) -> str:
         return f"{self.ctl.id} ({self._SLUG})"
@@ -237,11 +205,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
                 )  # sets self._app_cntrl
             return
 
-        if msg.code == Code._0008:
-            if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
-                self._relay_demands[domain_id] = msg
-
-        elif msg.code == Code._3150:
+        if msg.code == Code._3150:
             if msg.payload.get(SZ_DOMAIN_ID) == FC and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
@@ -261,12 +225,12 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
-    def tpi_params(self) -> dict | None:  # 1100
-        return self._msg_value(Code._1100)
+    def tpi_params(self) -> PayDictT._1100 | None:  # 1100
+        return self._msg_value(Code._1100)  # type: ignore[return-value]
 
     @property
     def heat_demand(self) -> float | None:  # 3150/FC
-        return self._msg_value(Code._3150, domain_id=FC, key=SZ_HEAT_DEMAND)
+        return self._msg_value(Code._3150, domain_id=FC, key=SZ_HEAT_DEMAND)  # type: ignore[return-value]
 
     @property
     def is_calling_for_heat(self) -> bool | None:
@@ -356,7 +320,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         self.zones = []
         self.zone_by_idx = {}
-        self._max_zones = getattr(self._gwy.config, SZ_MAX_ZONES, DEFAULT_MAX_ZONES)
+        self._max_zones: int = getattr(
+            self._gwy.config, SZ_MAX_ZONES, DEFAULT_MAX_ZONES
+        )
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
@@ -624,10 +590,11 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
                 False,
             )  # global_ver, did_io
 
-        pkt: Packet = await self._gwy.async_send_cmd(
+        pkt = await self._gwy.async_send_cmd(
             Command.get_schedule_version(self.ctl.id), wait_for_reply=True
         )
-        self._msg_0006 = Message(pkt)
+        if pkt:
+            self._msg_0006 = Message(pkt)
 
         return self._msg_0006.payload[SZ_CHANGE_COUNTER], True  # global_ver, did_io
 
@@ -750,12 +717,16 @@ class Logbook(SystemBase):  # 0418
     @property
     def latest_event(self) -> tuple[str] | None:
         """Return the most recently logged event (fault or restore), if any."""
-        return self._this_event and self._this_event.payload["log_entry"]
+        if not self._this_event:
+            return None
+        return self._this_event.payload["log_entry"]  # type: ignore[no-any-return]
 
     @property
     def latest_fault(self) -> tuple[str] | None:
         """Return the most recently logged fault, if any."""
-        return self._this_fault and self._this_fault.payload["log_entry"]
+        if not self._this_fault:
+            return None
+        return self._this_fault.payload["log_entry"]  # type: ignore[no-any-return]
 
     @property
     def status(self) -> dict[str, Any]:
@@ -974,7 +945,10 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        if SZ_DOMAIN_ID in msg.payload:
+        if not isinstance(msg.payload, dict):
+            return
+
+        if (idx := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
             idx = msg.payload[SZ_DOMAIN_ID]
             if msg.code == Code._0008:
                 self._relay_demands[idx] = msg
@@ -1032,6 +1006,38 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
     # older evohome don't have zone_type=ELE
 
     _SLUG: str = SYS_KLASS.TCS
+
+    def _update_schema(self, **schema):
+        """Update a CH/DHW system with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        _schema: dict[str, Any]
+        schema = shrink(SCH_TCS(schema))
+
+        if schema.get(SZ_SYSTEM) and (
+            dev_id := schema[SZ_SYSTEM].get(SZ_APPLIANCE_CONTROL)
+        ):
+            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
+
+        if _schema := (schema.get(SZ_DHW_SYSTEM)):  # type: ignore[assignment]
+            self.get_dhw_zone(**_schema)  # self._dhw = ...
+
+        if _schema := (schema.get(SZ_ZONES)):  # type: ignore[assignment]
+            [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
+
+    @classmethod
+    def create_from_schema(cls, ctl: Device, **schema):
+        """Create a CH/DHW system for a CTL and set its schema attrs.
+
+        The appropriate System class should have been determined by a factory.
+        Schema attrs include: class (klass) & others.
+        """
+
+        tcs = cls(ctl)
+        tcs._update_schema(**schema)
+        return tcs
 
 
 class Chronotherm(Evohome):

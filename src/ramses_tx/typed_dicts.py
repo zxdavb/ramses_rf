@@ -69,6 +69,13 @@ class _10e1(TypedDict):
     device_id: DeviceIdT
 
 
+class _1100(TypedDict):
+    cycle_rate: int
+    min_on_time: int
+    min_off_time: int
+    proportional_band_width: NotRequired[float | None]
+
+
 class _12b0(TypedDict):
     window_open: bool | None
 
@@ -248,6 +255,7 @@ class PayDictT:
     _1090: TypeAlias = _1090
     _10D0: TypeAlias = _10d0
     _10E1: TypeAlias = _10e1
+    _1100: TypeAlias = _1100
     _1260: TypeAlias = _Temperature
     _1280: TypeAlias = OutdoorHumidity
     _1290: TypeAlias = OutdoorTemp

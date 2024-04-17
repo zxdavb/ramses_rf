@@ -336,7 +336,7 @@ class Fakeable(DeviceBase):
         *,
         idx: IndexT = "00",
         require_ratify: bool = False,
-    ) -> Message:  # TODO: Packets or Message?
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Listen for a binding and return the Offer, or raise an exception."""
         if not self.is_faked:
             raise TypeError(f"{self}: Faking not enabled")
@@ -353,7 +353,7 @@ class Fakeable(DeviceBase):
         *,
         confirm_code: Code | None = None,
         ratify_cmd: Command | None = None,
-    ) -> Message:  # TODO: Packets or Message?
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Start a binding and return the Accept, or raise an exception.
 
         confirm_code can be FFFF.

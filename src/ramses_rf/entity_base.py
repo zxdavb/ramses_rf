@@ -920,7 +920,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             UfhCircuit,
             UfhController,
         )
-        from .system import DhwZone, System, Zone
+        from .system import DhwZone, Evohome, System, Zone
 
         if isinstance(self, UfhController):
             child_id = FF
@@ -928,9 +928,9 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         if isinstance(parent, Controller):  # A controller cant be a Parent
             parent = parent.tcs
 
-        if isinstance(parent, System) and child_id:
+        if isinstance(parent, Evohome) and child_id:
             if child_id in (F9, FA):
-                parent: DhwZone = parent.get_dhw_zone()  # type: ignore[no-redef]
+                parent = parent.get_dhw_zone()
             # elif child_id == FC:
             #     pass
             elif int(child_id, 16) < parent._max_zones:
