@@ -79,10 +79,12 @@ async def protocol(rf: VirtualRf) -> AsyncGenerator[PortProtocol, None]:
 
     protocol = protocol_factory(_msg_handler)
 
+    # These values should be asserted as needed for subsequent tests
     assert isinstance(protocol, PortProtocol)  # mypy
     assert isinstance(protocol._context, ProtocolContext)  # mypy
 
-    # TODO: These values should be asserted in protocol FSM tests
+    protocol._disable_qos = False  # HACK: needed for tests to succeed (default: None?)
+
     assert protocol._context.echo_timeout == 0.5
     assert protocol._context.reply_timeout == 0.5
     assert protocol._context.SEND_TIMEOUT_LIMIT == 20.0
@@ -250,7 +252,9 @@ async def _test_flow_402(protocol: PortProtocol) -> None:
         assert pkt == Command.put_sensor_temp("03:123456", i)
 
 
-async def _test_flow_qos_helper(send_cmd_coro: Awaitable) -> None:
+async def _test_flow_qos_helper(
+    send_cmd_coro: Awaitable, will_fail: bool = False
+) -> None:
     try:
         _ = await send_cmd_coro
     except exc.ProtocolSendFailed:
@@ -308,24 +312,24 @@ async def _test_flow_qos(protocol: PortProtocol) -> None:
     # # ### Simple test for an RQ (expects an RP)...
 
     cmd = Command.get_system_time("01:000111")
-    coro = protocol._send_cmd(cmd)
-    await _test_flow_qos_helper(coro)
+    pkt = await protocol._send_cmd(cmd)
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
 
     cmd = Command.get_system_time("01:000222")
-    coro = protocol._send_cmd(cmd, qos=None)
-    await _test_flow_qos_helper(coro)
+    pkt = await protocol._send_cmd(cmd, qos=None)
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
 
     cmd = Command.get_system_time("01:000333")
-    coro = protocol._send_cmd(cmd, qos=QosParams())
-    await _test_flow_qos_helper(coro)
+    pkt = await protocol._send_cmd(cmd, qos=QosParams())
+    assert pkt == cmd, "Should be echo as there's no reply to wait for"
 
     cmd = Command.get_system_time("01:000444")
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=None))
-    assert pkt == cmd
+    assert pkt == cmd, "Should be echo as there is no wait_for_reply"
 
     cmd = Command.get_system_time("01:000555")
     pkt = await protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=False))
-    assert pkt == cmd
+    assert pkt == cmd, "Should be echo as there is no wait_for_reply"
 
     cmd = Command.get_system_time("01:000666")
     coro = protocol._send_cmd(cmd, qos=QosParams(wait_for_reply=True, timeout=0.05))

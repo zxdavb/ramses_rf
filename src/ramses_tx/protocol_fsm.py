@@ -71,6 +71,7 @@ class ProtocolContext:
         )
 
         self._expiry_timer: asyncio.Task[None] | None = None
+        self._multiplier = 0
         self._state: _ProtocolStateT = None  # type: ignore[assignment]
 
         # TODO: pass this over as an instance paramater
@@ -127,12 +128,21 @@ class ProtocolContext:
             assert self._cmd_tx_count > 0, f"{self}: Coding error"  # TODO: remove
 
             if isinstance(self._state, WantEcho):
-                delay = self.echo_timeout * 2 ** (self._cmd_tx_count - 1)
-                await asyncio.sleep(delay)
+                delay = self.echo_timeout * (2**self._multiplier)
+            else:  # isinstance(self._state, WantRply):
+                delay = self.reply_timeout * (2**self._multiplier)
+
+            # assuming success, multiplier can be decremented...
+            self._multiplier, old_val = max(0, self._multiplier - 1), self._multiplier
+
+            await asyncio.sleep(delay)  # ideally, will be interrupted by wait_for()
+
+            # nope, was not successful, so multiplier should be incremented...
+            self._multiplier = min(3, old_val + 1)
+
+            if isinstance(self._state, WantEcho):
                 _LOGGER.warning("TOUT = %s: echo_timeout=%s", self, delay)
             else:  # isinstance(self._state, WantRply):
-                delay = self.reply_timeout * 2 ** (self._cmd_tx_count - 1)
-                await asyncio.sleep(delay)
                 _LOGGER.warning("TOUT = %s: reply_timeout=%s", self, delay)
 
             assert isinstance(

@@ -159,10 +159,10 @@ class _Entity:
         # _msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
         return self._gwy.send_cmd(
             cmd,
-            **kwargs,
             # max_retries=qos.max_retries if qos else None,
             # timeout=qos.timeout if qos else None,
-            # wait_for_reply=qos.wait_for_reply if qos else None,
+            wait_for_reply=False,
+            **kwargs,
         )
 
     # FIXME: this is a mess

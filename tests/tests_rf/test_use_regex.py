@@ -61,6 +61,7 @@ TESTS_INBOUND = {  # sent by other, received
 GWY_CONFIG = {
     "config": {
         "disable_discovery": True,
+        "disable_qos": False,  # QoS is required for this test
         "enforce_known_list": False,
     }
 }
@@ -163,6 +164,8 @@ async def test_regex_with_qos() -> None:
     if not isinstance(gwy_0._protocol, PortProtocol) or not gwy_0._protocol._context:
         await rf.stop()
         pytest.skip("QoS protocol not enabled")
+    else:
+        assert gwy_0._protocol._disable_qos is False  # needed for successful tests
 
     try:
         await gwy_0.start()

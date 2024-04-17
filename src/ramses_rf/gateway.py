@@ -38,6 +38,7 @@ from ramses_tx.const import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
     DEFAULT_SEND_TIMEOUT,
+    DEFAULT_WAIT_FOR_REPLY,
     SZ_ACTIVE_HGI,
 )
 from ramses_tx.schemas import (
@@ -538,9 +539,13 @@ class Gateway(Engine):
     def send_cmd(
         self,
         cmd: Command,
+        /,
+        *,
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
+        timeout: float = DEFAULT_SEND_TIMEOUT,
+        wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
         callback: Callable | None = None,
     ) -> asyncio.Task:
         """Wrapper to schedule an async_send_cmd() and return the Task.
@@ -551,11 +556,16 @@ class Gateway(Engine):
         callback:     a callback to run when the command is sent (needs QoS)
         """
 
+        if callback and wait_for_reply is None:
+            wait_for_reply = True
+
         coro = self.async_send_cmd(
             cmd,
             gap_duration=gap_duration,
             num_repeats=num_repeats,
             priority=priority,
+            timeout=timeout,
+            wait_for_reply=wait_for_reply,
             callback=callback,
         )
 
@@ -573,11 +583,12 @@ class Gateway(Engine):
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
-        wait_for_reply: bool | None = True,
+        wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
         **kwargs: Any,
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet."""
 
+        # TODO: should make wait_for_reply true
         callback = kwargs.pop("callback", None)  # warn if no Qos
         assert not kwargs, kwargs
 

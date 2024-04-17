@@ -24,10 +24,12 @@ from typing import TYPE_CHECKING, Any, Never
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
+    DEFAULT_DISABLE_QOS,
     DEFAULT_GAP_DURATION,
     DEFAULT_MAX_RETRIES,
     DEFAULT_NUM_REPEATS,
     DEFAULT_SEND_TIMEOUT,
+    DEFAULT_WAIT_FOR_REPLY,
     Priority,
 )
 from .message import Message
@@ -155,11 +157,10 @@ class Engine:
         self._protocol = protocol_factory(
             msg_handler,
             disable_sending=self._disable_sending,
-            disable_qos=self._kwargs.get(SZ_DISABLE_QOS, False),
+            disable_qos=self._kwargs.pop(SZ_DISABLE_QOS, DEFAULT_DISABLE_QOS),
             enforce_include_list=self._enforce_known_list,
             exclude_list=self._exclude,
             include_list=self._include,
-            # **self._kwargs,  # HACK: odd/misc params
         )
 
     def add_msg_handler(
@@ -202,7 +203,7 @@ class Engine:
             disable_sending=self._disable_sending,
             loop=self._loop,
             **pkt_source,
-            **self._kwargs,  # HACK: odd/misc params
+            **self._kwargs,  # HACK: odd/misc params, e.g. comms_params
         )
 
         self._kwargs = {}  # HACK
@@ -304,7 +305,7 @@ class Engine:
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
-        wait_for_reply: bool | None = None,
+        wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
     ) -> Packet | None:
         """Send a Command and, if QoS is enabled, return the corresponding Packet.
 

@@ -25,7 +25,7 @@ def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
             "disable_discovery": True,
-            "disable_qos": False,  # this is required for this test
+            "disable_qos": False,  # QoS is required for this test
             "enforce_known_list": False,
         },
         "known_list": {HGI_DEVICE_ID: {}},  # req'd to thwart foreign HGI blacklisting
@@ -40,6 +40,7 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
     """Test obtaining the version and schedule."""
 
     assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
+    assert gwy._protocol._disable_qos is False  # QoS is required for this test
 
     _: Controller = gwy.get_device(ctl_id)
 

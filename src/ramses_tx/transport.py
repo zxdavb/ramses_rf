@@ -874,7 +874,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             self._init_task = self._loop.create_task(
                 connect_sans_signature(), name="PortTransport.connect_sans_signature()"
             )
-        else:  # incl. disable_qos
+        else:
             self._init_task = self._loop.create_task(
                 connect_with_signature(), name="PortTransport.connect_with_signature()"
             )
@@ -1176,7 +1176,6 @@ async def transport_factory(
     port_config: PortConfigT | None = None,
     packet_log: TextIOWrapper | None = None,
     packet_dict: dict[str, str] | None = None,
-    disable_qos: bool | None = False,
     disable_sending: bool | None = False,
     extra: dict[str, Any] | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
@@ -1250,19 +1249,14 @@ async def transport_factory(
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()  # TODO: add tests for these...
 
-    if disable_sending or disable_qos:  # TODO: can we still disable QoS?
-        transport = PortTransport(
-            ser_instance,
-            protocol,
-            disable_sending=bool(disable_sending),
-            extra=extra,
-            loop=loop,
-            **kwargs,
-        )
-    else:
-        transport = PortTransport(
-            ser_instance, protocol, extra=extra, loop=loop, **kwargs
-        )
+    transport = PortTransport(
+        ser_instance,
+        protocol,
+        disable_sending=bool(disable_sending),
+        extra=extra,
+        loop=loop,
+        **kwargs,
+    )
 
     await protocol.wait_for_connection_made(timeout=5)  # TODO: remove this
     return transport

@@ -15,6 +15,7 @@ from . import exceptions as exc
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
 from .command import Command
 from .const import (
+    DEFAULT_DISABLE_QOS,
     DEFAULT_GAP_DURATION,
     DEFAULT_NUM_REPEATS,
     DEV_TYPE_MAP,
@@ -500,7 +501,10 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can receive Packets and send Commands +/- QoS (using a FSM)."""
 
     def __init__(
-        self, msg_handler: MsgHandlerT, disable_qos: bool = False, **kwargs
+        self,
+        msg_handler: MsgHandlerT,
+        disable_qos: bool | None = DEFAULT_DISABLE_QOS,
+        **kwargs,
     ) -> None:
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler, **kwargs)
@@ -508,7 +512,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         self._context: ProtocolContext | None = None
         self._disable_qos = disable_qos
 
-        if disable_qos is not True:
+        if disable_qos is not True:  # True, None, False
             self._context = ProtocolContext(self)
 
     def __repr__(self) -> str:
@@ -590,7 +594,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
 
         await self._send_cmd(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
-    async def _send_cmd(
+    async def _send_cmd(  # NOTE: QoS wrapped here...
         self,
         cmd: Command,
         /,
@@ -602,33 +606,34 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     ) -> Packet | None:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
-        if not self._context:
-            return await super()._send_cmd(
-                cmd, gap_duration=gap_duration, num_repeats=num_repeats
-            )
-
-        qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
-
-        # Should do the same as super()._send_cmd()
         async def send_cmd(kmd: Command) -> None:
             """Wrapper to for self._send_frame(cmd) with x re-transmits.
 
             Repeats are distinct from retries (a QoS feature): you wouldn't have both.
             """
+            # priority, qos have no role here
 
             await self._send_frame(
-                str(kmd), num_repeats=num_repeats, gap_duration=gap_duration
+                str(kmd), gap_duration=gap_duration, num_repeats=num_repeats
             )
+
+        if not self._context or self._disable_qos is True or _DBG_DISABLE_QOS:
+            await send_cmd(cmd)
+            return None
+
+        qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
 
         # if cmd.code == Code._PUZZ:  # NOTE: not as simple as this
         #     priority = Priority.HIGHEST  # FIXME: hack for _7FFF
 
-        # TODO: REMOVE: selective QoS (HACK) or the cmd does not want QoS
-        _CODES = (Code._0006, Code._0404, Code._1FC9)  # must have QoS
-        if _DBG_DISABLE_QOS or (self._disable_qos and cmd.code not in _CODES):
-            await self._send_frame(
-                str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
-            )
+        _CODES = (Code._0006, Code._0404, Code._0418, Code._1FC9)  # must have QoS
+
+        if self._disable_qos is None and cmd.code not in _CODES:
+            if qos:
+                (_LOGGER.warning if qos.wait_for_reply else _LOGGER.debug)(
+                    f"{self}: {cmd} < QoS was requested, but is disabled"
+                )
+            await send_cmd(cmd)
             return None
 
         # Should do this check before, or after previous block (of non-QoS sends)?
@@ -642,9 +647,6 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         # except InvalidStateError as err:  # TODO: handle InvalidStateError separately
         #     # reset protocol stack
         except exc.ProtocolError as err:
-            # raise exc.ProtocolError(
-            #     f"{self}: Failed to send {cmd._hdr}: {err}"
-            # ) from err
             _LOGGER.info(f"{self}: Failed to send {cmd._hdr}: {err}")
             raise
 
@@ -696,12 +698,11 @@ def protocol_factory(
     msg_handler: MsgHandlerT,
     /,
     *,
-    disable_qos: bool | None = False,
+    disable_qos: bool | None = DEFAULT_DISABLE_QOS,
     disable_sending: bool | None = False,
-    enforce_include_list: bool = False,
+    enforce_include_list: bool = False,  # True, None, False
     exclude_list: DeviceListT | None = None,
     include_list: DeviceListT | None = None,
-    **kwargs,  # HACK: odd/misc params
 ) -> RamsesProtocolT:
     """Create and return a Ramses-specific async packet Protocol."""
 
@@ -715,11 +716,11 @@ def protocol_factory(
         )
 
     if disable_qos:
-        _LOGGER.debug("QoS has been disabled (will still QoS echos)")
+        _LOGGER.debug("PortProtocol: QoS has been disabled (will wait_for echos)")
 
     return PortProtocol(
         msg_handler,
-        disable_qos=bool(disable_qos),
+        disable_qos=disable_qos,
         enforce_include_list=enforce_include_list,
         exclude_list=exclude_list,
         include_list=include_list,
@@ -732,7 +733,7 @@ async def create_stack(
     *,
     protocol_factory_: Callable[..., RamsesProtocolT] | None = None,
     transport_factory_: Awaitable[RamsesTransportT] | None = None,
-    disable_qos: bool | None = False,
+    disable_qos: bool | None = DEFAULT_DISABLE_QOS,  # True, None, False
     disable_sending: bool | None = False,
     enforce_include_list: bool = False,
     exclude_list: DeviceListT | None = None,
@@ -759,7 +760,7 @@ async def create_stack(
     )
 
     transport: RamsesTransportT = await (transport_factory_ or transport_factory)(  # type: ignore[operator]
-        protocol, disable_qos=disable_qos, disable_sending=disable_sending, **kwargs
+        protocol, disable_sending=disable_sending, **kwargs
     )
 
     if not kwargs.get(SZ_PORT_NAME):

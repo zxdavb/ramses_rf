@@ -336,7 +336,7 @@ class Schedule:  # 0404
             cmd = Command.set_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_cnt, fragment
             )
-            await self._gwy.async_send_cmd(cmd)
+            await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
 
         def normalise_validate(schedule: _ScheduleT) -> _FullScheduleT:
             full_schedule: _FullScheduleT
