@@ -10,6 +10,7 @@ from ramses_rf import Gateway
 from ramses_rf.device import Controller
 from ramses_rf.system import Evohome
 from ramses_tx.address import HGI_DEVICE_ID
+from ramses_tx.protocol import PortProtocol
 from ramses_tx.schemas import DeviceIdT
 
 from .conftest import _GwyConfigDictT
@@ -38,6 +39,7 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
     """Test obtaining the fault log."""
 
     assert gwy._loop is asyncio.get_running_loop()  # scope BUG is here
+    assert isinstance(gwy._protocol, PortProtocol)  # mypy
     assert gwy._protocol._disable_qos is False  # QoS is required for this test
 
     _: Controller = gwy.get_device(ctl_id)
