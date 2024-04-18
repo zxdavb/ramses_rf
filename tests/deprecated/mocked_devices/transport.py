@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 
 # TODO: a real mess - needs refactor a la protocol_new/transport_new
 

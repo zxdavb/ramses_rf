@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Test the Schedule functions."""
 
 import json

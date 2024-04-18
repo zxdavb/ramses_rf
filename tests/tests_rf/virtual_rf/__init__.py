@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - A pseudo-mocked serial port used for testing."""
 
 from unittest.mock import patch

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - RAMSES-II compatible packet protocol finite state machine."""
 
 from __future__ import annotations

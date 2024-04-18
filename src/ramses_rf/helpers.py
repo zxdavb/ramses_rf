@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Helper functions."""
 
 from __future__ import annotations

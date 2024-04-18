@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Check get of TCS fault logs."""
 
 import asyncio
@@ -20,7 +19,7 @@ from .conftest import _GwyConfigDictT
 pytestmark = pytest.mark.asyncio()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
@@ -42,9 +41,11 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
     assert isinstance(gwy._protocol, PortProtocol)  # mypy
     assert gwy._protocol._disable_qos is False  # QoS is required for this test
 
-    _: Controller = gwy.get_device(ctl_id)
+    _: Controller = gwy.get_device(ctl_id)  # type: ignore[assignment]
 
-    tcs: Evohome = gwy.tcs
+    tcs: Evohome | None = gwy.tcs
+    assert isinstance(tcs, Evohome)  # mypy
+
     faultlog = await tcs.get_faultlog()
     assert faultlog
 
@@ -52,14 +53,14 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
 #######################################################################################
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_get_faultlog_mqtt(mqtt_evofw3: Gateway) -> None:
     """Test obtaining the fault log from a real controller via MQTT."""
 
     await _test_get_faultlog(mqtt_evofw3, "01:145038")
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_get_faultlog_real(real_evofw3: Gateway) -> None:
     """Test obtaining the fault log from a real controller via RF."""
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Test the CLI utility."""
 
 import io
@@ -101,7 +100,7 @@ def id_fnc(param: int) -> str:
     return f"{BASIC_TESTS[param][0][1]:7}"
 
 
-@pytest.mark.parametrize("index", range(len(BASIC_TESTS)), ids=id_fnc)  # type: ignore[misc]
+@pytest.mark.parametrize("index", range(len(BASIC_TESTS)), ids=id_fnc)
 def test_client_basic(
     monkeypatch: pytest.MonkeyPatch, index: int, tests=BASIC_TESTS
 ) -> None:

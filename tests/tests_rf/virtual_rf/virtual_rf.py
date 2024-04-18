@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-#
 """A virtual RF network useful for testing."""
 
 # NOTE: does not rely on ramses_rf library
 
 import asyncio
+import contextlib
 import logging
 import os
 import pty
 import signal
 import tty
 from collections import deque
-from contextlib import ExitStack
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
 from typing import TypeAlias, TypedDict
@@ -170,7 +169,7 @@ class VirtualRfBase:
 
         self._master_to_port[master_fd] = port_name
         self._port_to_master[port_name] = master_fd
-        self._port_to_object[port_name] = open(master_fd, "rb+", buffering=0)
+        self._port_to_object[port_name] = open(master_fd, "rb+", buffering=0)  # noqa: SIM115
         self._port_to_slave_[port_name] = slave_fd
 
         self._set_comport_info(port_name, dev_type=dev_type)
@@ -198,10 +197,8 @@ class VirtualRfBase:
         if not self._task or self._task.done():
             return
         self._task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._task
-        except asyncio.CancelledError:
-            pass
 
         self._cleanup()
 
@@ -222,7 +219,7 @@ class VirtualRfBase:
     async def _poll_ports_for_data(self) -> None:
         """Send data received from any one port (as .write(data)) to all other ports."""
 
-        with ExitStack() as stack:
+        with contextlib.ExitStack() as stack:
             for fo in self._port_to_object.values():
                 stack.enter_context(fo)
 
@@ -250,7 +247,7 @@ class VirtualRfBase:
         """Pull the frame from the source port and cast it to the RF."""
 
         _LOGGER.info(f"{src_port:<11} cast:  {frame!r}")
-        for dst_port in self._port_to_master.keys():
+        for dst_port in self._port_to_master:
             self._push_frame_to_dst_port(dst_port, frame)
 
     def _push_frame_to_dst_port(self, dst_port: _PN, frame: bytes) -> None:

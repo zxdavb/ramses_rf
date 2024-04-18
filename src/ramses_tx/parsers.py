@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - payload processors.
 
 NOTES: aspirations on a consistent Schema, going forward:

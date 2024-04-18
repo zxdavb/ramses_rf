@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Entity is the base of all RAMSES-II objects: devices and also system/zone constructs.
@@ -9,6 +7,7 @@ Entity is the base of all RAMSES-II objects: devices and also system/zone constr
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import random
 from datetime import datetime as dt, timedelta as td
@@ -56,7 +55,7 @@ if TYPE_CHECKING:
 
     from .device import Controller
     from .gateway import Gateway
-    from .system import System
+    from .system import Evohome
 
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -174,13 +173,9 @@ class _Entity:
     ) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
 
-        if self._gwy._disable_sending:
-            _LOGGER.warning(f"{cmd} < Sending is disabled, ignoring request (A)")
-            return None  # TODO: raise Exception
-
         if self._qos_tx_count > _QOS_TX_LIMIT:
             _LOGGER.warning(f"{cmd} < Sending was deprecated for {self}")
-            return None  # TODO: raise Exception
+            return None  # FIXME: raise Exception
 
         # cmd._source_entity = self  # TODO: is needed?
         return await self._gwy.async_send_cmd(
@@ -197,7 +192,7 @@ class _MessageDB(_Entity):
 
     _gwy: Gateway
     ctl: Controller
-    tcs: System
+    tcs: Evohome
 
     def __init__(self, gwy: Gateway) -> None:
         super().__init__(gwy)
@@ -256,10 +251,8 @@ class _MessageDB(_Entity):
         for obj in entities:
             if msg in obj._msgs_.values():
                 del obj._msgs_[msg.code]
-            try:
+            with contextlib.suppress(KeyError):
                 del obj._msgz_[msg.code][msg.verb][msg._pkt._ctx]
-            except KeyError:
-                pass
 
     def _get_msg_by_hdr(self, hdr: HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
@@ -518,10 +511,8 @@ class _Discovery(_MessageDB):
             return
 
         self._discovery_poller.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._discovery_poller
-        except asyncio.CancelledError:
-            pass
 
     async def _poll_discovery_cmds(self) -> None:
         """Send any outstanding commands that are past due.
@@ -802,12 +793,10 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif hasattr(self, SZ_ACTUATORS):  # HTG zone
             assert isinstance(self, Zone)  # TODO: remove me
-            assert isinstance(child, BdrSwitch | UfhCircuit | TrvActuator), (
-                "what" if True else "why"
-            )
+            assert isinstance(child, BdrSwitch | UfhCircuit | TrvActuator)
             if child not in self.actuators:
                 self.actuators.append(child)
-                self.actuator_by_id[child.id] = child
+                self.actuator_by_id[child.id] = child  # type: ignore[index]
 
         elif child_id == F9:  # DHW zone (HTG valve)
             assert isinstance(self, DhwZone)  # TODO: remove me
@@ -1071,7 +1060,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         assert isinstance(ctl, Controller)  # mypy hint
 
-        self.ctl = ctl
-        self.tcs = ctl.tcs
+        self.ctl: Controller = ctl
+        self.tcs: Evohome = ctl.tcs
 
         return parent

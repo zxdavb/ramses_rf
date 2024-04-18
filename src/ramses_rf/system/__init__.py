@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Heating entities (e.g. TCS, DHW, Zone)."""
 
 from __future__ import annotations

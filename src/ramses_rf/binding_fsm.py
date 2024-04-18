@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Base for all devices.
@@ -277,7 +275,7 @@ class BindContextRespondent(BindContextBase):
         if DEV_MODE:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
 
-        pkt: Packet = await self._dev._async_send_cmd(  # Tx accept/accept
+        pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 
@@ -359,7 +357,7 @@ class BindContextSupplicant(BindContextBase):
         if DEV_MODE:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
 
-        pkt: Packet = await self._dev._async_send_cmd(  # Tx tender/offer
+        pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 
@@ -385,7 +383,7 @@ class BindContextSupplicant(BindContextBase):
         if DEV_MODE:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
 
-        pkt: Packet = await self._dev._async_send_cmd(  # Tx affirm/confirm
+        pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 
@@ -395,7 +393,7 @@ class BindContextSupplicant(BindContextBase):
     async def _cast_addenda(self, accept: Message, cmd: Command) -> Packet:
         """Supp casts an Addenda (the final 10E0 command)."""
 
-        pkt: Packet = await self._dev._async_send_cmd(  # Tx ratify/addenda
+        pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]
             cmd, priority=Priority.HIGH, qos=BINDING_QOS
         )
 

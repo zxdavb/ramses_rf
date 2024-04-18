@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Provide the base class for commands (constructed/sent packets) and packets.
@@ -61,8 +59,8 @@ class Frame:
     `RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000`
     """
 
-    src: Address
-    dst: Address
+    src: Address  # Address | Device
+    dst: Address  # Address | Device
     _addrs: tuple[Address, Address, Address]
 
     def __init__(self, frame: str) -> None:

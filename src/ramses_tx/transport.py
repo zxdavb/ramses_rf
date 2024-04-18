@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - RAMSES-II compatible packet transport.
 
 Operates at the pkt layer of: app - msg - pkt - h/w
@@ -39,6 +37,7 @@ For re-flashing evofw3 via Arduino IDE on *my* atmega32u4 (YMMV):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import glob
 import json
@@ -155,11 +154,12 @@ else:  # is linux
             _hide_subsystems = ["platform"]
 
         devices = set()
-        drivers = open("/proc/tty/drivers").readlines()
-        for driver in drivers:
-            items = driver.strip().split()
-            if items[4] == "serial":
-                devices.update(glob.glob(items[1] + "*"))
+        with open("/proc/tty/drivers") as file:
+            drivers = file.readlines()
+            for driver in drivers:
+                items = driver.strip().split()
+                if items[4] == "serial":
+                    devices.update(glob.glob(items[1] + "*"))
 
         if include_links:
             devices.update(list_links(devices))
@@ -891,10 +891,8 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
         """Used to enforce a minimum time between calls to self.write()."""
         while True:
             await asyncio.sleep(MINIMUM_WRITE_GAP)
-            try:
+            with contextlib.suppress(ValueError):
                 self._leaker_sem.release()
-            except ValueError:
-                pass
 
     # NOTE: self._frame_read() invoked from here
     def _read_ready(self) -> None:
@@ -1210,10 +1208,8 @@ async def transport_factory(
             ) from err
 
         # FTDI on Posix/Linux would be a common environment for this library...
-        try:
+        with contextlib.suppress(AttributeError, NotImplementedError, ValueError):
             ser_obj.set_low_latency_mode(True)
-        except (AttributeError, NotImplementedError, ValueError):
-            pass  # Wrong OS/Platform/not FTDI
 
         return ser_obj
 

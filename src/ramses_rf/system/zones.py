@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - The evohome-compatible zones."""
 
 from __future__ import annotations
@@ -148,7 +146,7 @@ class ZoneSchedule:  # 0404
         if msg.code in (Code._0006, Code._0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_io=None) -> dict | None:
+    async def get_schedule(self, *, force_io=None) -> dict[str, Any] | None:
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Test the RAMSES II schema."""
 
 from ramses_rf import RQ

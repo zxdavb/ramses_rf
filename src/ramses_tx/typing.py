@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Typing for RamsesProtocol & RamsesTransport."""
 
 import asyncio

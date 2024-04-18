@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 
 # TODO:
 # - sort out gwy.config...
@@ -27,7 +25,6 @@ from ramses_tx import (
     Engine,
     Packet,
     Priority,
-    exceptions as exc,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -53,7 +50,7 @@ from ramses_tx.transport import SZ_READER_TASK
 
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
 from .database import MessageIndex
-from .device import DeviceHeat, DeviceHvac, Fakeable, device_factory
+from .device import DeviceHeat, DeviceHvac, Fakeable, HgiGateway, device_factory
 from .dispatcher import Message, detect_array_fragment, process_msg
 from .schemas import (
     SCH_GATEWAY_CONFIG,
@@ -69,7 +66,7 @@ from .schemas import (
     SZ_ORPHANS,
     load_schema,
 )
-from .system import System
+from .system import Evohome
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -137,7 +134,7 @@ class Gateway(Engine):
 
         # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
         # if self.config.reduce_processing > 0:
-        self._tcs: System | None = None
+        self._tcs: Evohome | None = None
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
@@ -149,12 +146,12 @@ class Gateway(Engine):
         return f"Gateway(port_name={self.ser_name}, port_config={self._port_config})"
 
     @property
-    def hgi(self) -> Device | None:
+    def hgi(self) -> HgiGateway | None:
         """Return the active HGI80-compatible gateway device, if known."""
-        if self._transport and (
-            device_id := self._transport.get_extra_info(SZ_ACTIVE_HGI)
-        ):
-            return self.device_by_id.get(device_id)
+        if not self._transport:
+            return None
+        if device_id := self._transport.get_extra_info(SZ_ACTIVE_HGI):
+            return self.device_by_id.get(device_id)  # type: ignore[return-value]
         return None
 
     async def start(
@@ -413,7 +410,7 @@ class Gateway(Engine):
         raise TypeError(f"The device is not fakable: {device_id}")
 
     @property
-    def tcs(self) -> System | None:
+    def tcs(self) -> Evohome | None:
         """Return the primary TCS, if any."""
 
         if self._tcs is None and self.systems:
@@ -421,7 +418,7 @@ class Gateway(Engine):
         return self._tcs
 
     @property
-    def known_list(self) -> dict:
+    def known_list(self) -> DeviceListT:
         """Return the working known_list (a superset of the provided known_list).
 
         Unlike orphans, which are always instantiated when a schema is loaded, these
@@ -432,7 +429,7 @@ class Gateway(Engine):
         result = self._include  # could be devices here, not (yet) in gwy.devices
         result.update(
             {
-                d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
+                d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}  # type: ignore[misc]
                 for d in self.devices
                 if not self._enforce_known_list or d.id in self._include
             }
@@ -440,7 +437,7 @@ class Gateway(Engine):
         return result
 
     @property
-    def system_by_id(self) -> dict:
+    def system_by_id(self) -> dict[DeviceIdT, Evohome]:
         return {
             d.id: d.tcs
             for d in self.devices
@@ -448,11 +445,11 @@ class Gateway(Engine):
         }  # why something so simple look so messy
 
     @property
-    def systems(self) -> list:
+    def systems(self) -> list[Evohome]:
         return list(self.system_by_id.values())
 
     @property
-    def _config(self) -> dict:
+    def _config(self) -> dict[str, Any]:
         """Return the working configuration.
 
         Includes:
@@ -472,7 +469,7 @@ class Gateway(Engine):
         }
 
     @property
-    def schema(self) -> dict:
+    def schema(self) -> dict[str, Any]:
         """Return the global schema.
 
         This 'active' schema may exclude non-present devices from the configured schema
@@ -483,12 +480,12 @@ class Gateway(Engine):
         just like the other devices in the schema.
         """
 
-        schema = {SZ_MAIN_TCS: self.tcs.ctl.id if self.tcs else None}
+        schema: dict[str, Any] = {SZ_MAIN_TCS: self.tcs.ctl.id if self.tcs else None}
 
         for tcs in self.systems:
             schema[tcs.ctl.id] = tcs.schema
 
-        schema[f"{SZ_ORPHANS}_heat"] = sorted(
+        dev_list: list[DeviceIdT] = sorted(
             [
                 d.id
                 for d in self.devices
@@ -497,19 +494,21 @@ class Gateway(Engine):
                 and d._is_present
             ]
         )
+        schema[f"{SZ_ORPHANS}_heat"] = dev_list
 
-        schema[f"{SZ_ORPHANS}_hvac"] = sorted(
+        dev_list = sorted(
             [d.id for d in self.devices if isinstance(d, DeviceHvac) and d._is_present]
         )
+        schema[f"{SZ_ORPHANS}_hvac"] = dev_list
 
         return schema
 
     @property
-    def params(self) -> dict:
+    def params(self) -> dict[str, Any]:
         return {SZ_DEVICES: {d.id: d.params for d in sorted(self.devices)}}
 
     @property
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
     def _msg_handler(self, msg: Message) -> None:
@@ -585,29 +584,32 @@ class Gateway(Engine):
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
         **kwargs: Any,
-    ) -> Packet | None:
-        """Send a Command and, if QoS is enabled, return the corresponding Packet."""
+    ) -> Packet:
+        """Send a Command and, if QoS is enabled, return the corresponding Packet.
 
-        # TODO: should make wait_for_reply true
-        callback = kwargs.pop("callback", None)  # warn if no Qos
+        If wait_for_reply is True (and the Command has a rx_header), will return the
+        reply. Otherwise, will simply return the echo.
+
+        Will raise ProtocolSendFailed if the expected pkt is not received.
+        """
+
+        callback = kwargs.pop("callback", None)  # TODO: warn (elsewhere) if no Qos
         assert not kwargs, kwargs
 
         # if callback and self._protocol. disable_qos is not False:
         #     raise
 
-        try:  # TODO: remove this try/except
-            pkt = await super().async_send_cmd(
-                cmd,
-                gap_duration=gap_duration,
-                max_retries=max_retries,
-                num_repeats=num_repeats,
-                priority=priority,
-                timeout=timeout,
-                wait_for_reply=wait_for_reply,
-            )
-        except exc.ProtocolSendFailed as err:
-            _LOGGER.error(f"Failed to send {cmd._hdr}: {err}")
-            return None  # FIXME: should really raise
+        pkt = await super().async_send_cmd(
+            cmd,
+            gap_duration=gap_duration,
+            max_retries=max_retries,
+            num_repeats=num_repeats,
+            priority=priority,
+            timeout=timeout,
+            wait_for_reply=wait_for_reply,
+        )  # may: raise ProtocolSendFailed
+
+        assert pkt  # mypy
 
         if callback:
             self.add_task(self._loop.create_task(callback(pkt)))

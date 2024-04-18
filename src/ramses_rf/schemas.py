@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Schema processor for upper layer.
@@ -50,6 +48,7 @@ from ramses_tx.schemas import (  # noqa: F401
     select_device_filter_mode,
 )
 
+from . import exceptions as exc
 from .const import (
     DEFAULT_MAX_ZONES,
     DEV_ROLE_MAP,
@@ -343,6 +342,8 @@ def load_schema(
 ) -> None:
     """Instantiate all entities in the schema, and faked devices in the known_list."""
 
+    from .device import Fakeable  # circular import
+
     known_list = known_list or {}
 
     # schema: dict = SCH_GLOBAL_SCHEMAS_DICT(schema)
@@ -369,6 +370,8 @@ def load_schema(
     for device_id, traits in known_list.items():
         if traits.get(SZ_FAKED):
             dev = _get_device(gwy, device_id)  # , **traits)
+            if not isinstance(dev, Fakeable):
+                raise exc.SystemSchemaInconsistent(f"Device is not fakeable: {dev}")
             if not dev.is_faked:
                 dev._make_fake()
 

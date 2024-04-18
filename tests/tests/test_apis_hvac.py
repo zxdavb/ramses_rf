@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Test the Command.put_*, Command.set_* APIs."""
 
 from collections.abc import Callable

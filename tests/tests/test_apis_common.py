@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Test the Command.put_*, Command.set_* APIs."""
 
 from ramses_tx import exceptions as exc

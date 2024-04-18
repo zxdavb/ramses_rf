@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """Fixtures for testing."""
 
 import logging
@@ -52,7 +51,7 @@ _global_failed_ports: list[str] = []
 # pytestmark = pytest.mark.asyncio(scope="function")  # needed?
 
 
-@pytest.fixture(autouse=True)  # type: ignore[misc]
+@pytest.fixture(autouse=True)
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
     monkeypatch.setattr("ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT", True)
@@ -79,7 +78,7 @@ def patches_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 #######################################################################################
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def rf() -> AsyncGenerator[VirtualRf, None]:
     """Utilize a virtual evofw3-compatible gateway."""
 
@@ -91,7 +90,7 @@ async def rf() -> AsyncGenerator[VirtualRf, None]:
         await rf.stop()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def fake_evofw3_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT | None:
     """Utilize a virtual evofw3-compatible gateway."""
 
@@ -103,7 +102,7 @@ def fake_evofw3_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
     return rf.ports[0]
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT | None:
     """Utilize a virtual HGI80-compatible gateway."""
 
@@ -115,7 +114,7 @@ def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
     return rf.ports[0]
 
 
-@pytest.fixture()  # type: ignore[misc]  # TODO: remove HACK, below
+@pytest.fixture()  # TODO: remove HACK, below
 async def mqtt_evofw3_port() -> PortStrT:
     """Utilize an actual evofw3-compatible gateway."""
 
@@ -127,8 +126,8 @@ async def mqtt_evofw3_port() -> PortStrT:
     return "mqtt://mqtt_username:mqtt_passw0rd@127.0.0.1"
 
 
-@pytest.fixture()  # type: ignore[misc]  # TODO: remove HACK, below
-async def real_evofw3_port() -> PortStrT | NoReturn:  # type: ignore[return]
+@pytest.fixture()  # TODO: remove HACK, below
+async def real_evofw3_port() -> PortStrT | NoReturn:
     """Utilize an actual evofw3-compatible gateway."""
 
     port_names: list[PortStrT] = [
@@ -147,8 +146,8 @@ async def real_evofw3_port() -> PortStrT | NoReturn:  # type: ignore[return]
     pytest.skip("No evofw3-based gateway device found")
 
 
-@pytest.fixture()  # type: ignore[misc]
-async def real_ti3410_port() -> PortStrT | NoReturn:  # type: ignore[return]
+@pytest.fixture()
+async def real_ti3410_port() -> PortStrT | NoReturn:
     """Utilize an actual HGI80-compatible gateway."""
 
     port_names: list[PortStrT] = [
@@ -188,7 +187,7 @@ async def _fake_gateway(
     return gwy
 
 
-async def _real_gateway(gwy_port: PortStrT, gwy_config: _GwyConfigDictT) -> Gateway:  # type: ignore[return]
+async def _real_gateway(gwy_port: PortStrT, gwy_config: _GwyConfigDictT) -> Gateway:
     """Wrapper to instantiate a physical gateway."""
 
     global _global_failed_ports
@@ -203,7 +202,7 @@ async def _real_gateway(gwy_port: PortStrT, gwy_config: _GwyConfigDictT) -> Gate
         pytest.xfail(str(err))  # not skip, as we had determined port exists elsewhere
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def fake_evofw3(
     fake_evofw3_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
 ) -> AsyncGenerator[Gateway, None]:
@@ -223,7 +222,7 @@ async def fake_evofw3(
         await gwy.stop()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def fake_ti3410(
     fake_ti3410_port: PortStrT, request: pytest.FixtureRequest, rf: VirtualRf
 ) -> AsyncGenerator[Gateway, None]:
@@ -243,7 +242,7 @@ async def fake_ti3410(
         await gwy.stop()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def mqtt_evofw3(
     mqtt_evofw3_port: PortStrT, request: pytest.FixtureRequest
 ) -> AsyncGenerator[Gateway, None]:
@@ -264,7 +263,7 @@ async def mqtt_evofw3(
         await gwy.stop()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def real_evofw3(
     real_evofw3_port: PortStrT, request: pytest.FixtureRequest
 ) -> AsyncGenerator[Gateway, None]:
@@ -283,7 +282,7 @@ async def real_evofw3(
         await gwy.stop()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def real_ti3410(
     real_ti3410_port: PortStrT, request: pytest.FixtureRequest
 ) -> AsyncGenerator[Gateway, None]:

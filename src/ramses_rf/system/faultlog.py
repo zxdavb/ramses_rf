@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Expose an 0418 fault log (is a stateful process)."""
 
 from __future__ import annotations
@@ -189,9 +188,6 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         for i in range(start, limit):
             cmd = Command.get_system_log_entry(self.id, i)
             pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
-
-            if pkt is None:
-                break
 
             try:
                 _ = FaultLogEntry.from_pkt(pkt)

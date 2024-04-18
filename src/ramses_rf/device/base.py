@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Base for all devices.
@@ -310,7 +308,7 @@ class Fakeable(DeviceBase):
 
         self._bind_context = BindContext(self)
         self._gwy._include[self.id][SZ_FAKED] = True  # TODO: remove this
-        _LOGGER.info(f"Faking now enabled for: {self}")  # TODO: be info/debug
+        _LOGGER.info(f"Faking now enabled for: {self}")
 
     async def _async_send_cmd(
         self,

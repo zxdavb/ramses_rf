@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import json
@@ -40,7 +39,7 @@ def shuffle_dict(old_dict: dict) -> dict:
     return new_dict
 
 
-@pytest.fixture  # type: ignore[misc]
+@pytest.fixture
 async def gwy() -> AsyncGenerator[Gateway, None]:  # NOTE: async to get running loop
     """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})

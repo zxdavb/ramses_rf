@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 
 # TODO: replace protocol_decorator with a factory or fixture
 
@@ -72,7 +71,7 @@ RP_PKT_1 = Packet(dt.now(), f"... {RP_CMD_STR_1}")
 # ### FIXTURES #########################################################################
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 async def protocol(rf: VirtualRf) -> AsyncGenerator[PortProtocol, None]:
     def _msg_handler(msg: Message) -> None:
         pass
@@ -345,37 +344,37 @@ async def _test_flow_qos(protocol: PortProtocol) -> None:
 # ######################################################################################
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_300(protocol: PortProtocol) -> None:
     """Check state change of RQ/I/RQ cmds using protocol methods."""
     await _test_flow_30x(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_401(protocol: PortProtocol) -> None:
     """Throw a bunch of commands in a random order, and see that all are echo'd."""
     await _test_flow_401(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_402(protocol: PortProtocol) -> None:
     """Throw a bunch of commands in a random order, and see that all are echo'd."""
     await _test_flow_402(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_601(protocol: PortProtocol) -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_60x(protocol)
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_602(protocol: PortProtocol) -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_60x(protocol, num_cmds=2)
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_qos(protocol: PortProtocol) -> None:
     """Check the wait_for_reply kwarg."""
     await _test_flow_qos(protocol)

@@ -93,7 +93,6 @@
     "tests/wip",
   ]
 
-  follow_imports = "skip"  # TODO: don't use this feature
   no_implicit_optional = true
 
   # see: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
@@ -139,11 +138,11 @@
 #
 [[tool.mypy.overrides]]
   module = [
-   "ramses_rf/entity_base",  # 10
-    "ramses_rf/gateway",  #    14
-    "ramses_rf/helpers",  #     7
-    "ramses_tx.parsers",  #    89 - will be lots of work
-    "ramses_rf/schemas",  #     2
+    "ramses_rf/entity_base",  # 10
+    "ramses_rf/gateway",  #     14
+    "ramses_rf/helpers",  #      7
+    "ramses_tx.parsers",  #     89 - will be lots of work
+    "ramses_rf/schemas",  #      2
   ]
 
   disallow_any_generics = false
@@ -183,13 +182,13 @@
     "F",  # Pyflakes
     "I",  # isort
     # "SIM",  # flake8-simplify
+    "SIM105",  # Use `contextlib.suppress()` instead of try/except/pass
     "UP",  # pyupgrade
   ]
-  ignore = ["B011", "E501", "UP009", "UP040"]
+  ignore = ["B011", "E501", "UP040"]
   # B010  - Do not call setattr with a constant attribute value
   # B011  - Do not call assert False since python -O removes these calls
   # E501  - Line too long
-  # UP009 - UTF-8 encoding declaration is unnecessary
   # UP040 - Type alias uses `TypeAlias` annotation instead of the `type` keyword
 
 

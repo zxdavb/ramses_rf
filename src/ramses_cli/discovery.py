@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - discovery scripts."""
 
 from __future__ import annotations
@@ -13,6 +11,7 @@ from typing import TYPE_CHECKING, Final
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
+from ramses_rf.device import Fakeable
 from ramses_tx import CODES_SCHEMA, Command, Priority
 from ramses_tx.address import DeviceIdT
 from ramses_tx.opentherm import OTB_MSG_IDS
@@ -143,14 +142,20 @@ async def set_schedule(gwy: Gateway, ctl_id: DeviceIdT, schedule) -> None:
         _LOGGER.error("set_schedule(): Function timed out: %s", err)
 
 
-async def script_bind_req(gwy: Gateway, dev_id: DeviceIdT):
-    gwy.get_device(dev_id)._make_fake(bind=True)
+async def script_bind_req(gwy: Gateway, dev_id: DeviceIdT, code: Code = Code._2309):
+    dev = gwy.get_device(dev_id)
+    assert isinstance(dev, Fakeable)  # mypy
+    dev._make_fake()
+    await dev._initiate_binding_process([code])
 
 
 async def script_bind_wait(
     gwy: Gateway, dev_id: DeviceIdT, code: Code = Code._2309, idx: IndexT = "00"
 ):
-    gwy.get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
+    dev = gwy.get_device(dev_id)
+    assert isinstance(dev, Fakeable)  # mypy
+    dev._make_fake()
+    await dev._wait_for_binding_request([code], idx=idx)
 
 
 def script_poll_device(gwy: Gateway, dev_id: DeviceIdT) -> list:

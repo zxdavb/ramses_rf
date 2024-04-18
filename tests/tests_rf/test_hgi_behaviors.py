@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 
 # TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
 # TODO: Test with strict address checking
@@ -55,7 +54,7 @@ TEST_CMDS_FAIL_ON_HGI80 = [k for k, v in TEST_CMDS.items() if v[7:16] == TST_ID_
 pytestmark = pytest.mark.asyncio()  # scope="module")
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
@@ -67,7 +66,7 @@ def gwy_config() -> _GwyConfigDictT:
     }
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def gwy_dev_id() -> DeviceIdT:
     return TST_ID_
 
@@ -142,35 +141,35 @@ async def _test_gwy_device(gwy: Gateway, test_idx: int) -> None:
 # ### TESTS ############################################################################
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_fake_evofw3(fake_evofw3: Gateway, test_idx: int) -> None:
     """Check the behaviour of the fake (virtual) evofw3 against the GWY test."""
 
     await _test_gwy_device(fake_evofw3, test_idx)
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_fake_ti3410(fake_ti3410: Gateway, test_idx: int) -> None:
     """Check the behaviour of the fake (virtual) HGI80 against the GWY test."""
 
     await _test_gwy_device(fake_ti3410, test_idx)
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_mqtt_evofw3(mqtt_evofw3: Gateway, test_idx: int) -> None:
     """Validate the GWY test against a real (physical) evofw3."""
 
     await _test_gwy_device(mqtt_evofw3, test_idx)
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_real_evofw3(real_evofw3: Gateway, test_idx: int) -> None:
     """Validate the GWY test against a real (physical) evofw3."""
 
     await _test_gwy_device(real_evofw3, test_idx)
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_real_ti3410(real_ti3410: Gateway, test_idx: int) -> None:
     """Validate the GWY test against a real (physical) HGI80."""
 

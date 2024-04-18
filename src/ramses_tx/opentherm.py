@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Opentherm processor."""
 
 # TODO: a fnc to translate OT flags into a list of strs

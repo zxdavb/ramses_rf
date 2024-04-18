@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 
 # TODO:
 # - self._tasks is not ThreadSafe
@@ -318,13 +316,16 @@ class Engine:
             wait_for_reply=wait_for_reply,
         )
 
+        # if cmd.code in (Code._0005, Code._000C) and qos.wait_for_reply is None:
+        #     qos.wait_for_reply = True
+
         return await self._protocol.send_cmd(
             cmd,
             gap_duration=gap_duration,
             num_repeats=num_repeats,
             priority=priority,
             qos=qos,
-        )
+        )  # may: raise ProtocolSendFailed
 
     def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism

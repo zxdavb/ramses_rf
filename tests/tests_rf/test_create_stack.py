@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 
 # TODO: replace protocol_decorator with a factory or fixture
 
@@ -163,8 +162,8 @@ TEST_SUITE_FAIL = {  # fails because exclude_list is checked before active_hgi
 }
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
-@pytest.mark.parametrize("idx", TEST_SUITE_GOOD)  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.parametrize("idx", TEST_SUITE_GOOD)
 async def test_create_stack(idx: str) -> None:
     """Check that Transport calls Protocol.connection_made() correctly."""
 
@@ -183,8 +182,8 @@ async def test_create_stack(idx: str) -> None:
         await rf.stop()
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
-@pytest.mark.parametrize("idx", TEST_SUITE_GOOD)  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.parametrize("idx", TEST_SUITE_GOOD)
 async def test_create_s_alt(idx: str) -> None:
     """Check that Transport calls Protocol.connection_made() correctly."""
 
@@ -205,8 +204,8 @@ async def test_create_s_alt(idx: str) -> None:
         await rf.stop()
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
-@pytest.mark.parametrize("idx", TEST_SUITE_GOOD)  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
+@pytest.mark.parametrize("idx", TEST_SUITE_GOOD)
 async def test_factories_01(idx: str) -> None:
     """Check that Transport calls Protocol.connection_made() correctly.
 

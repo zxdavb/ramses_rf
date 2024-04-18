@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Check get/set of zone/DHW schedules."""
 
 import asyncio
@@ -21,7 +20,7 @@ from .conftest import _GwyConfigDictT
 pytestmark = pytest.mark.asyncio()
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def gwy_config() -> _GwyConfigDictT:
     return {
         "config": {
@@ -36,7 +35,7 @@ def gwy_config() -> _GwyConfigDictT:
 #######################################################################################
 
 
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
     """Test obtaining the version and schedule."""
 
@@ -44,28 +43,31 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
     assert isinstance(gwy._protocol, PortProtocol)  # mypy
     assert gwy._protocol._disable_qos is False  # QoS is required for this test
 
-    _: Controller = gwy.get_device(ctl_id)
+    _: Controller = gwy.get_device(ctl_id)  # type: ignore[assignment]
 
-    tcs: Evohome = gwy.tcs
+    tcs: Evohome | None = gwy.tcs
+    assert isinstance(tcs, Evohome)  # mypy
+
     global_ver, did_io = await tcs._schedule_version()
     assert isinstance(global_ver, int) and did_io
 
     zon: Zone = tcs.get_htg_zone(idx)
-    schedule: dict[str, Any] = await zon.get_schedule()
+    schedule: dict[str, Any] | None = await zon.get_schedule()
+    assert schedule is not None
     assert len(schedule) == 7  # days of week
 
 
 #######################################################################################
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_get_schedule_mqtt(mqtt_evofw3: Gateway) -> None:
     """Test obtaining the schedule from a real controller via MQTT."""
 
     await _test_get_schedule(mqtt_evofw3, "01:145038", "01")
 
 
-@pytest.mark.xdist_group(name="real_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="real_serial")
 async def test_get_schedule_real(real_evofw3: Gateway) -> None:
     """Test obtaining the schedule from a real controller via RF."""
 

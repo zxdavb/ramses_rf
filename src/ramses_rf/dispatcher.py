@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Decode/process a message (payload into JSON).
-"""
+"""RAMSES RF - Decode/process a message (payload into JSON)."""
 
 # TODO:
 # - fix dispatching - what devices (some are Addr) are sent packets, esp. 1FC9s
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import timedelta as td
 from typing import TYPE_CHECKING
@@ -63,9 +59,10 @@ _TD_SECONDS_003 = td(seconds=3)
 def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
     """Discover and create any new devices using the packet addresses (not payload)."""
 
+    # FIXME: changing Address to Devices is messy: ? Protocol for same method signatures
     # prefer Devices but can continue with Addresses if required...
-    this.src = gwy.device_by_id.get(this.src.id, this.src)
-    this.dst = gwy.device_by_id.get(this.dst.id, this.dst)
+    this.src = gwy.device_by_id.get(this.src.id, this.src)  # type: ignore[assignment]
+    this.dst = gwy.device_by_id.get(this.dst.id, this.dst)  # type: ignore[assignment]
 
     # Devices need to know their controller, ?and their location ('parent' domain)
     # NB: only addrs processed here, packet metadata is processed elsewhere
@@ -81,8 +78,9 @@ def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
     #  - discovery: from packet fingerprint, excl. payloads (only for 10:)
     #  - eavesdrop: from packet fingerprint, incl. payloads
 
-    if not isinstance(this.src, Device):
-        this.src = gwy.get_device(this.src.id)  # may: LookupError (don't swallow)
+    if not isinstance(this.src, Device):  # type: ignore[unreachable]
+        # may: LookupError, but don't suppress
+        this.src = gwy.get_device(this.src.id)  # type: ignore[assignment]
         if this.dst.id == this.src.id:
             this.dst = this.src
             return
@@ -90,11 +88,9 @@ def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
     if not gwy.config.enable_eavesdrop:
         return
 
-    if not isinstance(this.dst, Device) and this.src is not gwy.hgi:
-        try:
-            this.dst = gwy.get_device(this.dst.id)  # may: LookupError (but swallow it)
-        except LookupError:
-            pass
+    if not isinstance(this.dst, Device) and this.src is not gwy.hgi:  # type: ignore[unreachable]
+        with contextlib.suppress(LookupError):
+            this.dst = gwy.get_device(this.dst.id)  # type: ignore[assignment]
 
 
 def _check_msg_addrs(msg: Message) -> None:  # TODO
@@ -225,8 +221,8 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
         # NOTE: here, msgs are routed only to devices: routing to other entities (i.e.
         # systems, zones, circuits) is done by those devices (e.g. UFC to UfhCircuit)
 
-        if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
-            gwy._loop.call_soon(msg.src._handle_msg, msg)
+        if isinstance(msg.src, Device):  # type: ignore[unreachable]
+            gwy._loop.call_soon(msg.src._handle_msg, msg)  # type: ignore[unreachable]
 
         # TODO: only be for fully-faked (not Fakable) dst (it picks up via RF if not)
 
@@ -236,9 +232,10 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
         elif msg.dst == ALL_DEV_ADDR:  # some offers use dst=63:, so after IFC9 offer
             devices = [d for d in gwy.devices if d is not msg.src and d.is_faked]
 
-        elif msg.dst is not msg.src and isinstance(msg.dst, Fakeable):  # is_faked?
+        elif msg.dst is not msg.src and isinstance(msg.dst, Fakeable):  # type: ignore[unreachable]
             # to eavesdrop pkts from other devices, but relevant to this device
-            devices = [msg.dst]  # dont: msg.dst._handle_msg(msg)
+            # dont: msg.dst._handle_msg(msg)
+            devices = [msg.dst]  # type: ignore[unreachable]
 
         elif hasattr(msg.src, SZ_DEVICES):  # FIXME: use isinstance()
             # elif isinstance(msg.src, Controller):

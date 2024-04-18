@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 
 # TODO: test addenda phase of binding handshake
 # TODO: get test working with (and without) disabled QoS
@@ -195,9 +194,12 @@ async def _test_flow_10x(
     # asyncio.create_task() should be OK (no need to pass in an event loop)
 
     # STEP 0: Setup...
-    respondent: Fakeable = gwy_r.devices[0]
-    supplicant: Fakeable = gwy_s.devices[0]
+    respondent = gwy_r.devices[0]
+    supplicant = gwy_s.devices[0]
     ensure_fakeable(respondent)
+
+    assert isinstance(respondent, Fakeable)  # mypy
+    assert isinstance(supplicant, Fakeable)  # mypy
 
     await assert_context_state(respondent, _BindStates.IS_IDLE_DEVICE)
     await assert_context_state(supplicant, _BindStates.IS_IDLE_DEVICE)
@@ -216,7 +218,7 @@ async def _test_flow_10x(
 
     #
     # Step S0: Supplicant initial state
-    supplicant._bind_context.set_state(_BindStates.NEEDING_ACCEPT)
+    supplicant._bind_context.set_state(_BindStates.NEEDING_ACCEPT)  # type: ignore[unreachable]
     await assert_context_state(supplicant, _BindStates.NEEDING_ACCEPT)
     assert supplicant._bind_context.is_binding
 
@@ -322,9 +324,12 @@ async def _test_flow_20x(
     """Check the change of state during a binding at device layer."""
 
     # STEP 0: Setup...
-    respondent: Fakeable = gwy_r.devices[0]
-    supplicant: Fakeable = gwy_s.devices[0]
+    respondent = gwy_r.devices[0]
+    supplicant = gwy_s.devices[0]
     ensure_fakeable(respondent)
+
+    assert isinstance(respondent, Fakeable)  # mypy
+    assert isinstance(supplicant, Fakeable)  # mypy
 
     assert respondent.id == pkt_flow_expected[_ACCEPT][7:16], "bad test suite config"
     assert supplicant.id == pkt_flow_expected[_TENDER][7:16], "bad test suite config"
@@ -372,7 +377,7 @@ async def _test_flow_20x(
 
 
 # TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_100(test_set: dict[str, dict]) -> None:
     """Check packet flow / state change of a binding at context layer."""
 
@@ -401,7 +406,7 @@ async def test_flow_100(test_set: dict[str, dict]) -> None:
 
 
 # TODO: binding working without QoS  # @patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
-@pytest.mark.xdist_group(name="virt_serial")  # type: ignore[misc]
+@pytest.mark.xdist_group(name="virt_serial")
 async def test_flow_200(test_set: dict[str, dict]) -> None:
     """Check packet flow / state change of a binding at device layer."""
 

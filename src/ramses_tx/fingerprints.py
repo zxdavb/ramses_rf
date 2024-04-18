@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - RAMSES-II compatible Packet processor."""
 
 from __future__ import annotations

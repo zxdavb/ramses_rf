@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Schema processor for protocol (lower) layer.
@@ -248,7 +246,7 @@ DeviceTraitsT = TypedDict(
 def sch_global_traits_dict_factory(
     heat_traits: dict[vol.Optional, vol.Any] | None = None,
     hvac_traits: dict[vol.Optional, vol.Any] | None = None,
-) -> tuple[dict[vol.Optional, vol.Any], vol.Schema]:
+) -> tuple[dict[vol.Optional, vol.Any], vol.Any]:
     """Return a global traits dict with a configurable extra traits.
 
     usage:

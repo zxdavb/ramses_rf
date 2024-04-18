@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Heating devices (e.g. CTL, OTB, BDR, TRV)."""
 
 from __future__ import annotations
@@ -9,8 +7,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ramses_rf.const import DEV_TYPE_MAP
-from ramses_rf.schemas import SZ_CLASS, SZ_FAKED
 from ramses_tx.const import DevType
+from ramses_tx.schemas import SZ_CLASS, SZ_FAKED
 
 from .base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     BASE_CLASS_BY_SLUG as _BASE_CLASS_BY_SLUG,
@@ -126,7 +124,7 @@ def best_dev_role(
 
 
 def device_factory(
-    gwy: Gateway, dev_addr: Address, *, msg: Message = None, **traits: Any
+    gwy: Gateway, dev_addr: Address, *, msg: Message | None = None, **traits: Any
 ) -> Device:
     """Return the initial device class for a given device id/msg/traits.
 

@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Decode/process a message (payload into JSON)."""
 
 from __future__ import annotations

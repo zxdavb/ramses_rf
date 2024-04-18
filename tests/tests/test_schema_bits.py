@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#
 """RAMSES RF - Test the Schema processor."""
 
 import voluptuous as vol

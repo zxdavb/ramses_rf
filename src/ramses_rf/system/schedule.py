@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 """RAMSES RF - Expose an 0404 schedule (is a stateful process)."""
 
 # TODO: use schemas from evohome_async
@@ -38,7 +36,6 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 )
 
 if TYPE_CHECKING:
-    from ramses_rf.system.heat import ScheduleSync
     from ramses_rf.system.zones import DhwZone, Zone
 
 
@@ -69,7 +66,7 @@ def schema_sched(schema_switchpoint: vol.Schema) -> vol.Schema:
         extra=vol.PREVENT_EXTRA,
     )
     return vol.Schema(
-        vol.Schema([schema_sched_day], vol.Length(min=0, max=7)),
+        vol.All([schema_sched_day], vol.Length(min=0, max=7)),
         extra=vol.PREVENT_EXTRA,
     )
 
@@ -142,7 +139,7 @@ class Schedule:  # 0404
         self.idx = zone.idx
 
         self.ctl = zone.ctl
-        self.tcs: ScheduleSync = zone.tcs
+        self.tcs = zone.tcs
         self._gwy = zone._gwy
 
         self._full_schedule: _FullScheduleT = {}
