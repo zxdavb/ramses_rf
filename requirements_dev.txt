@@ -11,8 +11,8 @@
   pytest-xdist>=3.5.0
 
 # used for linting
-  pre-commit>=3.6.2
-  ruff>=0.3.2
+  pre-commit>=3.7.0
+  ruff>=0.4.1
 
 # used for typing
   mypy>=1.9.0
