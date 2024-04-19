@@ -304,11 +304,8 @@ class Engine:
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
-    ) -> Packet | None:
-        """Send a Command and, if QoS is enabled, return the corresponding Packet.
-
-        If wait_for_reply is None, then it acts as True for 1FC9, 0006, etc.
-        """
+    ) -> Packet:
+        """Send a Command and return the echo, or the reply (if so configured)."""
 
         qos = QosParams(
             max_retries=max_retries,
@@ -319,7 +316,7 @@ class Engine:
         # if cmd.code in (Code._0005, Code._000C) and qos.wait_for_reply is None:
         #     qos.wait_for_reply = True
 
-        return await self._protocol.send_cmd(
+        return await self._protocol.send_cmd(  # type: ignore[return-value]
             cmd,
             gap_duration=gap_duration,
             num_repeats=num_repeats,

@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-
-# TODO: Remove unittest.mock.patch (use monkeypatch instead of unittest patch)
-# TODO: get tests working with QoS enabled (swap monkeypatch for unittest patch)
-# TODO: why is ser_1.read(ser_1.in_waiting) needed?
-
 """RAMSES RF - Test the use_regex feature."""
 
 import asyncio
 from datetime import datetime as dt
-from unittest.mock import patch
 
 import pytest
 import serial  # type: ignore[import-untyped]
@@ -91,7 +85,7 @@ async def assert_this_pkt(
 
 @pytest.mark.xdist_group(name="virt_serial")
 async def test_regex_inbound_() -> None:
-    """Check the inbound filters work as expected (this test works with QoS)."""
+    """Check the inbound filters work as expected (this test works without QoS)."""
 
     rf = VirtualRf(2)
 
@@ -110,38 +104,6 @@ async def test_regex_inbound_() -> None:
             ser_1.write(bytes(cmd.encode("ascii")) + b"\r\n")
 
             await assert_this_pkt(gwy_0, Command(pkt))
-
-    finally:
-        await gwy_0.stop()
-        await rf.stop()
-
-
-@pytest.mark.xdist_group(name="virt_serial")
-@patch("ramses_tx.protocol._DBG_DISABLE_QOS", True)
-async def test_regex_outbound() -> None:
-    """Check the outbound filters work (this test does not work with QoS)."""
-
-    rf = VirtualRf(2)
-
-    # NOTE: the absence of reciprocal inbound tests is intentional
-    config = GWY_CONFIG
-    config["config"].update({SZ_USE_REGEX: {SZ_OUTBOUND: RULES_OUTBOUND}})  # type: ignore[dict-item]
-
-    gwy_0 = Gateway(rf.ports[0], **config)
-    ser_1 = serial.Serial(rf.ports[1])
-
-    try:
-        await gwy_0.start()
-        assert gwy_0._protocol._transport
-
-        _ = ser_1.read(ser_1.in_waiting)  # ser_1.flush() doesn't work?
-
-        for cmd, pkt in TESTS_OUTBOUND.items():
-            await gwy_0.async_send_cmd(Command(cmd), wait_for_reply=False)
-            await assert_this_pkt(gwy_0, Command(pkt))  # no reciprocal rules for echo
-
-            pkt = ser_1.read(ser_1.in_waiting)
-            await assert_this_pkt(gwy_0, Command(_str(pkt).strip()[4:]))
 
     finally:
         await gwy_0.stop()

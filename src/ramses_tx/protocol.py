@@ -601,7 +601,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
-    ) -> Packet | None:
+    ) -> Packet:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
         async def send_cmd(kmd: Command) -> None:
@@ -615,9 +615,9 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
                 str(kmd), gap_duration=gap_duration, num_repeats=num_repeats
             )
 
-        if not self._context or self._disable_qos is True or _DBG_DISABLE_QOS:
+        if not self._context or _DBG_DISABLE_QOS:
             await send_cmd(cmd)
-            return None
+            return  # type: ignore[return-value]  # FIXME: should be echo Packet
 
         qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
 
@@ -626,13 +626,10 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
 
         _CODES = (Code._0006, Code._0404, Code._0418, Code._1FC9)  # must have QoS
 
-        if self._disable_qos is None and cmd.code not in _CODES:
-            if qos:
-                (_LOGGER.warning if qos.wait_for_reply else _LOGGER.debug)(
-                    f"{self}: {cmd} < QoS was requested, but is disabled"
-                )
-            await send_cmd(cmd)
-            return None
+        if self._disable_qos is True or _DBG_DISABLE_QOS:
+            qos._wait_for_reply = False
+        elif self._disable_qos is None and cmd.code not in _CODES:
+            qos._wait_for_reply = False
 
         # Should do this check before, or after previous block (of non-QoS sends)?
         # if not self._transport._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
@@ -657,7 +654,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,  # max_retries, timeout, wait_for_reply
-    ) -> Packet | None:
+    ) -> Packet:
         """Send a Command with Qos (with retries, until success or ProtocolError).
 
         Returns the Command's response Packet or the Command echo if a response is not
@@ -680,7 +677,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
 
-        return await super().send_cmd(
+        return await super().send_cmd(  # type: ignore[return-value]  # FIXME
             cmd,
             gap_duration=gap_duration,
             num_repeats=num_repeats,
