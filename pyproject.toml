@@ -112,29 +112,23 @@
   # get passing if you use a lot of untyped libraries
   disallow_subclassing_any = true
   disallow_untyped_decorators = true
-  disallow_any_generics = true                                                         # current work is here
+  disallow_any_generics = true
 
   # These next few are various gradations of forcing use of type annotations
-  # disallow_untyped_calls = true
-  # disallow_incomplete_defs = true
-  # disallow_untyped_defs = true
+  disallow_untyped_calls = true
+  # disallow_incomplete_defs = true  # 173
+  # disallow_untyped_defs = true  #    185
 
   # This one isn't too hard to get passing, but return on investment is lower
-  # no_implicit_reexport = true
+  # no_implicit_reexport = true  #     242
 
   # This one can be tricky to get passing if you use a lot of untyped libraries
   warn_return_any = true
 
-  # disallow_any_unimported = true
+  disallow_any_unimported = true
   warn_no_return = true
   warn_unreachable = true
 
-#
-[[tool.mypy.overrides]]
-  module = "ramses_cli.discovery"
-
-  disable_error_code = ["misc"]  # disallow_untyped_decorators
-  disallow_any_generics = false
 #
 [[tool.mypy.overrides]]
   module = [

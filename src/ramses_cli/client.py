@@ -558,7 +558,7 @@ cli.add_command(execute)
 cli.add_command(listen)
 
 
-def main():
+def main() -> None:
     print("\r\nclient.py: Starting ramses_rf...")
 
     try:

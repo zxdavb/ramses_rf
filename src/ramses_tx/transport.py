@@ -136,7 +136,7 @@ else:  # is linux
 
     from serial.tools.list_ports_linux import SysFS  # type: ignore[import-untyped]
 
-    def list_links(devices):
+    def list_links(devices) -> list[str]:
         """Search for symlinks to ports already listed in devices."""
 
         links = []
@@ -145,7 +145,7 @@ else:  # is linux
                 links.append(device)
         return links
 
-    def comports(
+    def comports(  # type: ignore[no-any-unimported]
         include_links: bool = False, _hide_subsystems: list[str] | None = None
     ) -> list[SysFS]:
         """Return a list of Serial objects for all known serial ports."""
@@ -164,7 +164,10 @@ else:  # is linux
         if include_links:
             devices.update(list_links(devices))
 
-        return [d for d in map(SysFS, devices) if d.subsystem not in _hide_subsystems]
+        result: list[SysFS] = [  # type: ignore[no-any-unimported]
+            d for d in map(SysFS, devices) if d.subsystem not in _hide_subsystems
+        ]
+        return result
 
 
 def is_hgi80(serial_port: SerPortNameT) -> bool | None:
@@ -401,9 +404,9 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]):
     async def wrapper(*args, **kwargs) -> None:
         global _global_sync_cycles
 
-        def is_imminent(p):
+        def is_imminent(p) -> bool:
             """Return True if a sync cycle is imminent."""
-            return (
+            return bool(
                 SYNC_WINDOW_LOWER
                 < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
                 < SYNC_WINDOW_UPPER
@@ -492,12 +495,12 @@ class _FileTransportAbstractor:
         self._loop = loop or asyncio.get_event_loop()
 
 
-class _PortTransportAbstractor(serial_asyncio.SerialTransport):  # type: ignore[misc]
+class _PortTransportAbstractor(serial_asyncio.SerialTransport):  # type: ignore[misc, no-any-unimported]
     """Do the bare minimum to abstract a transport from its underlying class."""
 
-    serial: Serial  # serial_asyncio.SerialTransport does not have typing
+    serial: Serial  # type: ignore[no-any-unimported]
 
-    def __init__(
+    def __init__(  # type: ignore[no-any-unimported]
         self,
         serial_instance: Serial,
         protocol: RamsesProtocolT,
@@ -1184,7 +1187,7 @@ async def transport_factory(
     # kwargs are specific to a transport. The above transports have:
     # evofw3_flag, use_regex
 
-    def get_serial_instance(
+    def get_serial_instance(  # type: ignore[no-any-unimported]
         ser_name: SerPortNameT, ser_config: PortConfigT | None
     ) -> Serial:
         """Return a Serial instance for the given port name and config.

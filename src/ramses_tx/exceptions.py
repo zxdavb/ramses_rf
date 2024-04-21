@@ -15,9 +15,9 @@ class RamsesException(_RamsesBaseException):
 
     HINT: None | str = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message: str | None = args[0] if args else None
+    def __init__(self, *args: object):
+        super().__init__(*args)
+        self.message: str | None = args[0] if args else None  # type: ignore[assignment]
 
     def __str__(self) -> str:
         if self.message and self.HINT:

@@ -314,7 +314,7 @@ class Message(MessageBase):  # add _expired attr
 
         def fraction_expired(lifespan: td) -> float:
             """Return the packet's age as fraction of its 'normal' life span."""
-            return (self._gwy._dt_now() - self.dtm - _TD_SECS_003) / lifespan  # type: ignore[no-any-return]
+            return (self._gwy._dt_now() - self.dtm - _TD_SECS_003) / lifespan
 
         # 1. Look for easy win...
         if self._fraction_expired is not None:

@@ -424,7 +424,7 @@ async def main() -> None:
     rf = VirtualRf(num_ports)
     print(f"Ports are: {rf.ports}")
 
-    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]
+    sers: list[Serial] = [serial_for_url(rf.ports[i]) for i in range(num_ports)]  # type: ignore[no-any-unimported]
 
     for i in range(num_ports):
         sers[i].write(bytes(f"Hello World {i}! ", "utf-8"))

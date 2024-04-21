@@ -1005,7 +1005,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     _SLUG: str = SYS_KLASS.TCS
 
-    def _update_schema(self, **schema):
+    def _update_schema(self, **schema) -> None:
         """Update a CH/DHW system with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.

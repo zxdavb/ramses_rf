@@ -102,7 +102,7 @@ class xRamsesTransportT(Protocol):
     _is_closing: bool
     # _is_reading: bool
 
-    def __init__(
+    def __init__(  # type: ignore[no-any-unimported]
         self,
         protocol: asyncio.Protocol,
         pkt_source: Serial | dict[str, str] | TextIOWrapper,

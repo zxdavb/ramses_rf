@@ -59,12 +59,12 @@ def no_duplicates_constructor(
     """Check for duplicate keys."""
     mapping: dict[str, Any] = {}
     for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
+        key = loader.construct_object(key_node, deep=deep)  # type: ignore[no-untyped-call]
         if key in mapping:
             raise yaml.constructor.ConstructorError(
                 f"Duplicate key: {key} ('{mapping[key]}' overwrites '{value_node}')"
             )
-        value = loader.construct_object(value_node, deep=deep)
+        value = loader.construct_object(value_node, deep=deep)  # type: ignore[no-untyped-call]
         mapping[key] = value
     return loader.construct_mapping(node, deep)
 

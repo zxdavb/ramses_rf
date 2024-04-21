@@ -143,7 +143,7 @@ def assert_protocol_state_detail(
     assert bool(cmd) is isinstance(protocol._context.state, WantEcho | WantRply)
 
 
-async def async_pkt_received(
+async def async_pkt_received(  # type: ignore[no-any-unimported]
     protocol: PortProtocol,
     pkt: Packet,
     method: int = 0,

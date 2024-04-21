@@ -143,7 +143,7 @@ class Engine:
         )
         return f"{device_id} ({self.ser_name})"
 
-    def _dt_now(self):
+    def _dt_now(self) -> dt:
         return self._transport._dt_now() if self._transport else dt.now()
 
     def _set_msg_handler(self, msg_handler: _MsgHandlerT) -> None:
