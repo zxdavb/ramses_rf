@@ -347,16 +347,16 @@ async def script_scan_otb_map(
     _LOGGER.warning("script_scan_otb_map invoked - expect a lot of nonsense")
 
     RAMSES_TO_OPENTHERM = {
-        Code._22D9: "01",  # boiler setpoint        / ControlSetpoint
-        Code._3EF1: "11",  # rel. modulation level  / RelativeModulationLevel
-        Code._1300: "12",  # cv water pressure      / CHWaterPressure
-        Code._12F0: "13",  # dhw_flow_rate          / DHWFlowRate
-        Code._3200: "19",  # boiler output temp     / BoilerWaterTemperature
-        Code._1260: "1A",  # dhw temp               / DHWTemperature
-        Code._1290: "1B",  # outdoor temp           / OutsideTemperature
-        Code._3210: "1C",  # boiler return temp     / ReturnWaterTemperature
+        Code._22D9: "01",  # boiler setpoint         / ControlSetpoint
+        Code._3EF1: "11",  # rel. modulation level   / RelativeModulationLevel
+        Code._1300: "12",  # cv water pressure       / CHWaterPressure
+        Code._12F0: "13",  # dhw_flow_rate           / DHWFlowRate
+        Code._3200: "19",  # boiler output temp      / BoilerWaterTemperature
+        Code._1260: "1A",  # dhw temp                / DHWTemperature
+        Code._1290: "1B",  # outdoor temp            / OutsideTemperature
+        Code._3210: "1C",  # boiler return temp      / ReturnWaterTemperature
         Code._10A0: "38",  # dhw params[SZ_SETPOINT] / DHWSetpoint
-        Code._1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
+        Code._1081: "39",  # max ch setpoint         / MaxCHWaterSetpoint
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
