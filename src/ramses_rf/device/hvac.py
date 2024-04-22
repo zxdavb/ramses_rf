@@ -286,7 +286,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     _SLUG: str = DevType.FAN
 
-    def _handle_msg(self, *args, **kwargs):
+    def _handle_msg(self, *args: Any, **kwargs: Any):
         return super()._handle_msg(*args, **kwargs)
 
     def _update_schema(self, **schema) -> None:

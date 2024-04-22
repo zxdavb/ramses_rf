@@ -143,7 +143,6 @@
   module = "ramses_rf.entity_base.*"
 
   disallow_any_generics = false     # 19
-  disallow_incomplete_defs = false  # 12
   disallow_untyped_defs = false     # 11
   no_implicit_optional = false      # 15
 

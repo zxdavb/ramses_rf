@@ -38,6 +38,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RQ,
     W_,
     Code,
+    VerbT,
 )
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -100,7 +101,7 @@ class _Entity:
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
-    def deprecate_device(self, pkt, reset=False) -> None:
+    def deprecate_device(self, pkt: Packet, reset: bool = False) -> None:
         """If an entity is deprecated enough times, stop sending to it."""
 
         if reset:
@@ -126,7 +127,12 @@ class _Entity:
 
     # TODO: deprecate this API
     def _make_and_send_cmd(
-        self, code, dest_id, payload="00", verb=RQ, **kwargs
+        self,
+        code: Code,
+        dest_id: DeviceIdT,
+        payload: str = "00",
+        verb: VerbT = RQ,
+        **kwargs: Any,
     ) -> None:
         qos = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
         if kwargs:
@@ -286,7 +292,7 @@ class _MessageDB(_Entity):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: Code, *args, **kwargs: Any) -> dict | list | None:
+    def _msg_value(self, code: Code, *args: Any, **kwargs: Any) -> dict | list | None:
         if isinstance(code, str | tuple):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
@@ -452,12 +458,12 @@ class _Discovery(_MessageDB):
             )
         }
 
-    def is_not_deprecated_cmd(self, code, ctx=None) -> bool:
+    def is_not_deprecated_cmd(self, code: Code, ctx: str | None = None) -> bool:
         """Return True if the code|ctx pair is not deprecated."""
 
         if ctx is None:
             supported_cmds = self._supported_cmds
-            idx = code
+            idx = str(code)
         else:
             supported_cmds = self._supported_cmds_ctx
             idx = f"{code}|{ctx}"
@@ -468,7 +474,7 @@ class _Discovery(_MessageDB):
         raise NotImplementedError
 
     def _add_discovery_cmd(
-        self, cmd: Command, interval, *, timeout: float = None, delay: float = 0
+        self, cmd: Command, interval: float, *, timeout: float = None, delay: float = 0
     ) -> None:
         """Schedule a command to run periodically.
 
@@ -639,7 +645,7 @@ class _Discovery(_MessageDB):
     ) -> None:
         """If a code|ctx is deprecated twice, stop polling for it."""
 
-        def deprecate(supported_dict: dict, idx: str):
+        def deprecate(supported_dict: dict[str, bool | None], idx: str) -> None:
             if idx not in supported_dict:
                 supported_dict[idx] = None
             elif supported_dict[idx] is None:
@@ -649,7 +655,7 @@ class _Discovery(_MessageDB):
                 )
                 supported_dict[idx] = False
 
-        def reinstate(supported_dict: dict, idx: str):
+        def reinstate(supported_dict: dict, idx: str) -> None:
             if self.is_not_deprecated_cmd(idx, None) is False:
                 _LOGGER.info(
                     f"{pkt} < Polling now reinstated for code|ctx={idx}: "
@@ -694,7 +700,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     _dhw_valve: Entity
     _htg_valve: Entity
 
-    def __init__(self, *args, child_id: str = None, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, child_id: str = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._child_id: str = child_id  # type: ignore[assignment]
@@ -732,7 +738,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         return self._child_id
 
     @zone_idx.setter
-    def zone_idx(self, value) -> None:
+    def zone_idx(self, value: str) -> None:
         """Set the domain id, after validating it."""
         self._child_id = value
 
@@ -853,7 +859,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
     """
 
     def __init__(
-        self, *args, parent: Parent = None, is_sensor: bool = None, **kwargs
+        self, *args: Any, parent: Parent = None, is_sensor: bool = None, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
 

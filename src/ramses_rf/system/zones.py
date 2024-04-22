@@ -645,7 +645,7 @@ class Zone(ZoneSchedule, ZoneBase):
         ):
             eavesdrop_zone_type(msg)
 
-    def _msg_value(self, *args, **kwargs):
+    def _msg_value(self, *args: Any, **kwargs: Any):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
     @property
