@@ -116,8 +116,8 @@
 
   # These next few are various gradations of forcing use of type annotations
   disallow_untyped_calls = true
-  disallow_incomplete_defs = true  #  68
-  # disallow_untyped_defs = true  #    185
+  disallow_incomplete_defs = true
+  disallow_untyped_defs = true  # 20
 
   # This one isn't too hard to get passing, but return on investment is lower
   # no_implicit_reexport = true  #     242
@@ -132,11 +132,9 @@
 #
 [[tool.mypy.overrides]]
   module = [
-    "ramses_rf/entity_base",  # 10
-    "ramses_rf/gateway",  #     14
-    "ramses_rf/helpers",  #      7
-    "ramses_tx.parsers",  #     89 - will be lots of work
-    "ramses_rf/schemas",  #      2
+    "ramses_rf/gateway",  #  7
+    "ramses_rf/helpers",  #  7
+    "ramses_tx.parsers",  # 89 - will be lots of work
   ]
 
   disallow_any_generics = false
@@ -144,8 +142,10 @@
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
-  no_implicit_optional = false      # 15
+  disallow_any_generics = false     # 19
   disallow_incomplete_defs = false  # 12
+  disallow_untyped_defs = false     # 11
+  no_implicit_optional = false      # 15
 
   disable_error_code = [
     "arg-type",  #    5 (but a can of worms)
@@ -156,8 +156,8 @@
   module = ["tests.*", "tests_rf.*"]
 
   disable_error_code = [
-    "arg-type",  # 63
-    "type-arg",  # 38
+    "arg-type",  # 78
+    "type-arg",  # 39
   ]
 
 

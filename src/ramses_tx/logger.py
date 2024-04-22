@@ -11,7 +11,7 @@ import os
 import re
 import shutil
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime as dt
 from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
 from typing import Any
@@ -67,23 +67,23 @@ class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
 
     def makeRecord(
         self,
-        name,
-        level,
-        fn,
-        lno,
-        msg,
-        args,
-        exc_info,
-        func=None,
-        extra=None,
-        sinfo=None,
-    ):
+        name: str,
+        level: int,
+        fn: str,
+        lno: int,
+        msg: object,
+        args: Any,
+        exc_info: Any,
+        func: str | None = None,
+        extra: Mapping[str, object] | None = None,
+        sinfo: str | None = None,
+    ) -> logging.LogRecord:
         """Create a specialized LogRecord with a bespoke timestamp.
 
         Will overwrite created and msecs (and thus asctime), but not relativeCreated.
         """
 
-        extra = dict(extra)  # work with a copy
+        extra = dict(extra or {})  # work with a copy
         extra["frame"] = extra.pop("_frame", "")
         if extra["frame"]:
             extra["frame"] = f" {extra['_rssi']} {extra['frame']}"
@@ -174,7 +174,7 @@ class TimedRotatingFileHandler(_TimedRotatingFileHandler):
     #         self.doRollover()
     #     return super().emit(record)
 
-    def getFilesToDelete(self):  # zxdavb: my version
+    def getFilesToDelete(self) -> list[str]:  # zxdavb: my version
         """Determine the files to delete when rolling over.
 
         Overriden as old log files not being deleted.

@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from enum import EnumCheck, IntEnum, StrEnum, verify
 from types import SimpleNamespace
-from typing import Final, Literal
+from typing import Any, Final, Literal, NoReturn
 
 __dev_mode__ = False  # NOTE: this is const.py
 DEV_MODE = __dev_mode__
@@ -150,7 +150,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
     _SZ_SLUGS: Final = "SLUGS"
 
     @classmethod
-    def __readonly(cls, *args, **kwargs):
+    def __readonly(cls, *args: Any, **kwargs: Any) -> NoReturn:
         raise TypeError(f"'{cls.__class__.__name__}' object is read only")
 
     __delitem__ = __readonly
@@ -163,7 +163,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
 
     del __readonly
 
-    def __init__(self, main_table: dict[str, dict], attr_table: dict):  # type: ignore[type-arg]
+    def __init__(self, main_table: dict[str, dict], attr_table: dict[str, Any]) -> None:  # type: ignore[type-arg]
         self._main_table = main_table
         self._attr_table = attr_table
         self._attr_table[self._SZ_SLUGS] = tuple(sorted(main_table.keys()))
@@ -207,7 +207,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
 
         super().__init__(self._forward)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         if key in self._main_table:  # map[ZON_ROLE.DHW] -> "dhw_sensor"
             return list(self._main_table[key].values())[0]
         # if key in self._forward:  # map["0D"] -> "dhw_sensor"
@@ -216,7 +216,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
             return self._reverse.__getitem__(key)
         return super().__getitem__(key)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if name in self._main_table:  # map.DHW -> "0D" (using slug)
             if (result := list(self._main_table[name].keys())[0]) is not None:
                 return result

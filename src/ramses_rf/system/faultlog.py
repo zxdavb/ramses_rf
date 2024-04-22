@@ -92,7 +92,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     _MAX_LOG_IDX = 0x3E
 
     def __init__(self, tcs: Evohome) -> None:
-        self._ctl = tcs
+        self._tcs = tcs
         self.id = tcs.id
         self._gwy = tcs._gwy
 

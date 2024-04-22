@@ -189,12 +189,13 @@ def _normalise_mode(
     if mode not in ZON_MODE_MAP:
         mode = ZON_MODE_MAP._hex(mode)  # type: ignore[arg-type]  # may raise KeyError
 
+    assert isinstance(mode, str)  # mypy check
+
     if mode != ZON_MODE_MAP.FOLLOW and target is None:
         raise exc.CommandInvalid(
             f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
         )
 
-    assert isinstance(mode, str)  # mypy check
     return mode
 
 
@@ -216,7 +217,7 @@ def _normalise_until(
     if mode == ZON_MODE_MAP.TEMPORARY:
         if duration is not None:
             raise exc.CommandInvalid(
-                f"Invalid args: For {ZON_MODE_MAP[mode]}, duration must be None"
+                f"Invalid args: For mode={mode}, duration must be None"
             )
         if until is None:
             mode = ZON_MODE_MAP.ADVANCED  # or: until = dt.now() + td(hour=1)
@@ -224,17 +225,16 @@ def _normalise_until(
     elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
             raise exc.CommandInvalid(
-                f"Invalid args: For {ZON_MODE_MAP[mode]}, duration cant be None"
+                f"Invalid args: For mode={mode}, duration cant be None"
             )
         if until is not None:
             raise exc.CommandInvalid(
-                f"Invalid args: For {ZON_MODE_MAP[mode]}, until must be None"
+                f"Invalid args: For mode={mode}, until must be None"
             )
 
     elif until is not None or duration is not None:
         raise exc.CommandInvalid(
-            f"Invalid args: For {ZON_MODE_MAP[mode]},"
-            " until and duration must both be None"
+            f"Invalid args: For mode={mode}, until and duration must both be None"
         )
 
     return until, duration

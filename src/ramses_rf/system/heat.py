@@ -929,7 +929,7 @@ class UfHeating(SystemBase):
 
 
 class System(StoredHw, Datetime, Logbook, SystemBase):
-    """The Controller class."""
+    """The Temperature Control System class."""
 
     _SLUG: str = SYS_KLASS.PRG
 

@@ -376,7 +376,7 @@ def load_schema(
                 dev._make_fake()
 
 
-def load_fan(gwy: Gateway, fan_id: DeviceIdT, schema: dict) -> Device:
+def load_fan(gwy: Gateway, fan_id: DeviceIdT, schema: dict[str, Any]) -> Device:
     """Create a FAN using its schema (i.e. with remotes, sensors)."""
 
     fan = _get_device(gwy, fan_id)
@@ -385,7 +385,7 @@ def load_fan(gwy: Gateway, fan_id: DeviceIdT, schema: dict) -> Device:
     return fan
 
 
-def load_tcs(gwy: Gateway, ctl_id: DeviceIdT, schema: dict) -> Evohome:
+def load_tcs(gwy: Gateway, ctl_id: DeviceIdT, schema: dict[str, Any]) -> Evohome:
     """Create a TCS using its schema."""
     # print(schema)
     # schema = SCH_TCS_ZONES_ZON(schema)

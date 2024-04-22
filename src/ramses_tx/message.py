@@ -124,7 +124,7 @@ class MessageBase:
         return f" {addr.id}"  # can't do 'CTL:123456' instead of ' 01:123456'
 
     @property
-    def payload(self):  # Union[dict, list[dict]]:
+    def payload(self):  # type: ignore[no-untyped-def]  # FIXME -> dict | list:
         """Return the payload."""
         return self._payload
 
