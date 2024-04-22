@@ -871,7 +871,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
     def _handle_msg(self, msg: Message) -> None:
         from .device import Controller, Device, UfhController
 
-        def eavesdrop_parent_zone():
+        def eavesdrop_parent_zone() -> None:
             if isinstance(msg.src, UfhController):
                 return
 

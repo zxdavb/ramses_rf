@@ -142,13 +142,12 @@
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
-  disallow_any_generics = false     # 19
-  disallow_untyped_defs = false     # 11
-  no_implicit_optional = false      # 15
+  disallow_any_generics = false     # 18
+  no_implicit_optional = false      # 16
 
   disable_error_code = [
-    "arg-type",  #    5 (but a can of worms)
-    "unreachable",  # 6 (but a can of worms)
+    "arg-type",  #    10 (but a can of worms)
+    "unreachable",  # 14 (but a can of worms)
   ]
 #
 [[tool.mypy.overrides]]
