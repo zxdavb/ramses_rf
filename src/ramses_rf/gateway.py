@@ -575,7 +575,8 @@ class Gateway(Engine):
         )
 
         task = self._loop.create_task(coro)
-        task.add_done_callback(callback)
+        if callback:
+            task.add_done_callback(callback)
         self.add_task(task)
         return task
 

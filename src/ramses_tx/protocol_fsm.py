@@ -213,7 +213,7 @@ class ProtocolContext:
             assert isinstance(
                 self._state, WantEcho | WantRply
             ), f"{self}: Coding error"  # mypy hint
-            self._fut.set_exception(exception)  # apoligise to the sender  # ZZZZ
+            self._fut.set_exception(exception)  # apologise to the sender
 
         elif result:
             _LOGGER.debug("BEFORE = %s: result=%s", self, result._hdr)
@@ -223,7 +223,7 @@ class ProtocolContext:
             assert isinstance(
                 self._state, WantEcho | WantRply
             ), f"{self}: Coding error"  # mypy hint
-            self._fut.set_result(result)  # ZZZZ
+            self._fut.set_result(result)
 
         elif expired:  # by expire_state_on_timeout(echo_timeout/reply_timeout)
             _LOGGER.debug("BEFORE = %s: expired=%s", self, expired)
@@ -233,7 +233,7 @@ class ProtocolContext:
             assert isinstance(
                 self._state, WantEcho | WantRply
             ), f"{self}: Coding error"  # mypy hint
-            self._fut.set_exception(  # ZZZZ
+            self._fut.set_exception(
                 exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
 
@@ -310,7 +310,7 @@ class ProtocolContext:
 
         assert self._loop is asyncio.get_running_loop()  # BUG is here
 
-        fut = self._loop.create_future()  # label: ZZZ
+        fut = self._loop.create_future()
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
         except Full as err:
@@ -324,9 +324,7 @@ class ProtocolContext:
             qos.timeout, self.SEND_TIMEOUT_LIMIT
         )  # incl. time queued in buffer
         try:
-            await asyncio.wait_for(  # ZZZZ
-                fut, timeout=timeout
-            )
+            await asyncio.wait_for(fut, timeout=timeout)
         except TimeoutError as err:  # incl. fut.cancel()
             msg = f"{self}: Expired global timer after {timeout} sec"
             _LOGGER.warning(
@@ -355,9 +353,9 @@ class ProtocolContext:
 
         while True:
             try:
-                *_, self._cmd, self._qos, self._fut = self._que.get_nowait()  # ZZZ
+                *_, self._cmd, self._qos, self._fut = self._que.get_nowait()
             except Empty:
-                self._cmd = self._qos = self._fut = None  # ZZZ
+                self._cmd = self._qos = self._fut = None
                 self._lock.release()
                 return
 
