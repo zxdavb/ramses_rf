@@ -52,7 +52,7 @@ def test_device_hvac_slugs() -> None:
     ]
 
 
-def assert_codes_idx_mutex(mutex_list, other_list) -> None:
+def assert_codes_idx_mutex(mutex_list: set, other_list: set) -> None:
     """Assert the two lists are mutually exclusive."""
 
     codes = sorted(c for c in mutex_list if c in other_list)

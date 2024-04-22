@@ -3,6 +3,7 @@
 
 import random
 from datetime import datetime as dt
+from typing import Any
 
 from ramses_rf import Address, Command, Message, Packet
 from ramses_rf.system.faultlog import FaultLog, FaultLogEntry
@@ -29,7 +30,9 @@ CTL_ID = Address("01:145038").id
 HGI_ID = HGI_DEVICE_ID
 
 
-def _fault_log_entry(*args, timestamp: str | None = None, **kwargs) -> FaultLogEntry:
+def _fault_log_entry(
+    *args: Any, timestamp: str | None = None, **kwargs: Any
+) -> FaultLogEntry:
     if timestamp is None:
         timestamp = dt.strftime(dt.now(), "%y-%m-%dT%H:%M:%S")
 

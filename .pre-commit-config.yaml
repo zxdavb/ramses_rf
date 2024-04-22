@@ -61,6 +61,13 @@ repos:
       args: [-i]
       exclude: .pre-commit-config.yaml  # avoid false +ve
 
+    - id: style_1
+      name: check for 'as exc:' (should be 'as err:')
+      entry: ' as exc:'
+      language: pygrep
+      args: [-i]
+      exclude: .pre-commit-config.yaml  # avoid false +ve
+
     # - id: private imports
     #   name: check for private imports
     #   entry: 'from .* import _.*'

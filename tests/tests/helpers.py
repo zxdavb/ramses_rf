@@ -4,7 +4,7 @@
 import json
 import logging
 import warnings
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 from random import shuffle
 from typing import Any
@@ -55,7 +55,7 @@ def assert_expected(
 ) -> None:
     """Compare an actual system state dict against the corresponding expected state."""
 
-    def assert_expected(actual, expect) -> None:
+    def assert_expected(actual: dict[str, Any], expect: dict[str, Any]) -> None:
         assert actual == expect
 
     if expected:
@@ -71,7 +71,7 @@ def assert_expected_set(gwy: Gateway, expected: dict) -> None:
     assert_expected(gwy.known_list, expected.get("known_list"))
 
 
-def assert_raises(exception, fnc, *args) -> None:
+def assert_raises(exception: type[Exception], fnc: Callable, *args: Any) -> None:
     try:
         fnc(*args)
     except exception:  # as err:
@@ -80,7 +80,7 @@ def assert_raises(exception, fnc, *args) -> None:
         assert False
 
 
-async def load_test_gwy(dir_name: Path, **kwargs) -> Gateway:
+async def load_test_gwy(dir_name: Path, **kwargs: Any) -> Gateway:
     """Create a system state from a packet log (using an optional configuration)."""
 
     kwargs = SCH_GLOBAL_CONFIG({k: v for k, v in kwargs.items() if k[:1] != "_"})
@@ -106,7 +106,7 @@ async def load_test_gwy(dir_name: Path, **kwargs) -> Gateway:
     return gwy
 
 
-def load_expected_results(dir_name: Path) -> dict:
+def load_expected_results(dir_name: Path) -> dict[str, Any]:
     """Return the expected (global) schema/params/status & traits (aka known_list)."""
 
     try:

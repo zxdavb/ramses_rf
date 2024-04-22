@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .address import ALL_DEV_ADDR, ALL_DEVICE_ID, Address, is_valid_dev_id  # noqa: F401
 from .command import CODE_API_MAP, Command  # noqa: F401
@@ -63,6 +63,6 @@ if TYPE_CHECKING:
     from logging import Logger
 
 
-def set_pkt_logging_config(**config) -> Logger:
+def set_pkt_logging_config(**config: Any) -> Logger:
     set_pkt_logging(PKT_LOGGER, **config)
-    return PKT_LOGGER  # type: ignore[no-any-return]
+    return PKT_LOGGER

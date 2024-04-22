@@ -80,34 +80,34 @@ CheckForDuplicatesLoader.add_constructor(
 )
 
 
-def _test_schema(validator: vol.Schema, schema: str) -> dict:
-    return validator(yaml.load(schema, CheckForDuplicatesLoader))  # type: ignore[no-any-return]
+def _test_schema(validator: vol.Schema, config: str) -> dict:
+    return validator(yaml.load(config, CheckForDuplicatesLoader))  # type: ignore[no-any-return]
     # return validator(yaml.safe_load(schema))  # PyYAML silently swallows duplicate keys!
 
 
-def _test_schema_bad(validator: vol.Schema, schema: str) -> None:
+def _test_schema_bad(validator: vol.Schema, config: str) -> None:
     global test_schemas_bad_failed
     try:
-        _test_schema(validator, schema)
+        _test_schema(validator, config)
     except (vol.MultipleInvalid, yaml.YAMLError):
         pass
     else:
         test_schemas_bad_failed = True
-        raise TypeError(f"should *not* be valid YAML, but parsed OK: {schema}")
+        raise TypeError(f"should *not* be valid YAML, but parsed OK: {config}")
 
 
-def _test_schema_good(validator: vol.Schema, schema: str) -> dict:
+def _test_schema_good(validator: vol.Schema, config: str) -> dict:
     global test_schemas_good_failed
     try:
-        return _test_schema(validator, schema)
+        return _test_schema(validator, config)
     except vol.MultipleInvalid as err:
         test_schemas_good_failed = True
         raise TypeError(
-            f"should parse via voluptuous, but didn't: {schema} ({err})"
+            f"should parse via voluptuous, but didn't: {config} ({err})"
         ) from err
     except yaml.YAMLError as err:
         test_schemas_good_failed = True
-        raise TypeError(f"should be valid YAML, but isn't: {schema} ({err})") from err
+        raise TypeError(f"should be valid YAML, but isn't: {config} ({err})") from err
 
 
 GATEWAY_BAD = (
@@ -174,13 +174,13 @@ GATEWAY_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(GATEWAY_BAD)))
-def test_gateway_bad(index, schemas=GATEWAY_BAD) -> None:
-    _test_schema_bad(SCH_GATEWAY, schemas[index])
+def test_gateway_bad(index: int, configs: tuple[str, ...] = GATEWAY_BAD) -> None:
+    _test_schema_bad(SCH_GATEWAY, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(GATEWAY_GOOD)))
-def test_gateway_good(index, schemas=GATEWAY_GOOD) -> None:
-    _test_schema_good(SCH_GATEWAY, schemas[index])
+def test_gateway_good(index: int, configs: tuple[str, ...] = GATEWAY_GOOD) -> None:
+    _test_schema_good(SCH_GATEWAY, configs[index])
 
 
 KNOWN_LIST_BAD = (
@@ -273,13 +273,15 @@ KNOWN_LIST_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(KNOWN_LIST_BAD)))
-def test_known_list_bad(index, schemas=KNOWN_LIST_BAD) -> None:
-    _test_schema_bad(SCH_GLOBAL_TRAITS, schemas[index])
+def test_known_list_bad(index: int, configs: tuple[str, ...] = KNOWN_LIST_BAD) -> None:
+    _test_schema_bad(SCH_GLOBAL_TRAITS, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(KNOWN_LIST_GOOD)))
-def test_known_list_good(index, schemas=KNOWN_LIST_GOOD) -> None:
-    _test_schema_good(SCH_GLOBAL_TRAITS, schemas[index])
+def test_known_list_good(
+    index: int, configs: tuple[str, ...] = KNOWN_LIST_GOOD
+) -> None:
+    _test_schema_good(SCH_GLOBAL_TRAITS, configs[index])
 
 
 PACKET_LOG_BAD = (
@@ -333,13 +335,15 @@ PACKET_LOG_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(PACKET_LOG_BAD)))
-def test_packet_log_bad(index, schemas=PACKET_LOG_BAD) -> None:
-    _test_schema_bad(SCH_PACKET_LOG, schemas[index])
+def test_packet_log_bad(index: int, configs: tuple[str, ...] = PACKET_LOG_BAD) -> None:
+    _test_schema_bad(SCH_PACKET_LOG, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(PACKET_LOG_GOOD)))
-def test_packet_log_good(index, schemas=PACKET_LOG_GOOD) -> None:
-    _test_schema_good(SCH_PACKET_LOG, schemas[index])
+def test_packet_log_good(
+    index: int, configs: tuple[str, ...] = PACKET_LOG_GOOD
+) -> None:
+    _test_schema_good(SCH_PACKET_LOG, configs[index])
 
 
 RESTORE_CACHE_BAD = (
@@ -395,13 +399,17 @@ RESTORE_CACHE_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(RESTORE_CACHE_BAD)))
-def test_restore_cache_bad(index, schemas=RESTORE_CACHE_BAD) -> None:
-    _test_schema_bad(SCH_RESTORE_CACHE, schemas[index])
+def test_restore_cache_bad(
+    index: int, configs: tuple[str, ...] = RESTORE_CACHE_BAD
+) -> None:
+    _test_schema_bad(SCH_RESTORE_CACHE, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(RESTORE_CACHE_GOOD)))
-def test_restore_cache_good(index, schemas=RESTORE_CACHE_GOOD) -> None:
-    _test_schema_good(SCH_RESTORE_CACHE, schemas[index])
+def test_restore_cache_good(
+    index: int, configs: tuple[str, ...] = RESTORE_CACHE_GOOD
+) -> None:
+    _test_schema_good(SCH_RESTORE_CACHE, configs[index])
 
 
 SERIAL_PORT_BAD = (
@@ -468,13 +476,17 @@ SERIAL_PORT_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(SERIAL_PORT_BAD)))
-def test_serial_port_bad(index, schemas=SERIAL_PORT_BAD) -> None:
-    _test_schema_bad(SCH_SERIAL_PORT, schemas[index])
+def test_serial_port_bad(
+    index: int, configs: tuple[str, ...] = SERIAL_PORT_BAD
+) -> None:
+    _test_schema_bad(SCH_SERIAL_PORT, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(SERIAL_PORT_GOOD)))
-def test_serial_port_good(index, schemas=SERIAL_PORT_GOOD) -> None:
-    _test_schema_good(SCH_SERIAL_PORT, schemas[index])
+def test_serial_port_good(
+    index: int, configs: tuple[str, ...] = SERIAL_PORT_GOOD
+) -> None:
+    _test_schema_good(SCH_SERIAL_PORT, configs[index])
 
 
 SCHEMAS_TCS_BAD = (
@@ -593,13 +605,17 @@ SCHEMAS_TCS_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_TCS_BAD)))
-def test_schemas_tcs_bad(index, schemas=SCHEMAS_TCS_BAD) -> None:
-    _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
+def test_schemas_tcs_bad(
+    index: int, configs: tuple[str, ...] = SCHEMAS_TCS_BAD
+) -> None:
+    _test_schema_bad(SCH_GLOBAL_SCHEMAS, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_TCS_GOOD)))
-def test_schemas_tcs_good(index, schemas=SCHEMAS_TCS_GOOD) -> None:
-    _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
+def test_schemas_tcs_good(
+    index: int, configs: tuple[str, ...] = SCHEMAS_TCS_GOOD
+) -> None:
+    _test_schema_good(SCH_GLOBAL_SCHEMAS, configs[index])
 
 
 SCHEMAS_VCS_BAD = (
@@ -660,13 +676,17 @@ SCHEMAS_VCS_GOOD = (
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_VCS_BAD)))
-def test_schemas_vcs_bad(index, schemas=SCHEMAS_VCS_BAD) -> None:
-    _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
+def test_schemas_vcs_bad(
+    index: int, configs: tuple[str, ...] = SCHEMAS_VCS_BAD
+) -> None:
+    _test_schema_bad(SCH_GLOBAL_SCHEMAS, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_VCS_GOOD)))
-def test_schemas_vcs_good(index, schemas=SCHEMAS_VCS_GOOD) -> None:
-    _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
+def test_schemas_vcs_good(
+    index: int, configs: tuple[str, ...] = SCHEMAS_VCS_GOOD
+) -> None:
+    _test_schema_good(SCH_GLOBAL_SCHEMAS, configs[index])
 
 
 SCHEMAS_MIXED_BAD = tuple(x + y for x in SCHEMAS_TCS_GOOD for y in SCHEMAS_VCS_BAD[1:])
@@ -683,17 +703,21 @@ test_schemas_good_failed = False
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_BAD)))
-def test_schemas_mixed_bad(index, schemas=SCHEMAS_MIXED_BAD) -> None:
+def test_schemas_mixed_bad(
+    index: int, configs: tuple[str, ...] = SCHEMAS_MIXED_BAD
+) -> None:
     global test_schemas_bad_failed
     if not test_schemas_bad_failed:
-        _test_schema_bad(SCH_GLOBAL_SCHEMAS, schemas[index])
+        _test_schema_bad(SCH_GLOBAL_SCHEMAS, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_MIXED_GOOD)))
-def test_schemas_mixed_good(index, schemas=SCHEMAS_MIXED_GOOD) -> None:
+def test_schemas_mixed_good(
+    index: int, configs: tuple[str, ...] = SCHEMAS_MIXED_GOOD
+) -> None:
     global test_schemas_good_failed
     if not test_schemas_good_failed:
-        _test_schema_good(SCH_GLOBAL_SCHEMAS, schemas[index])
+        _test_schema_good(SCH_GLOBAL_SCHEMAS, configs[index])
 
 
 SCHEMAS_HASS_BAD = (
@@ -841,10 +865,14 @@ SCH_GLOBAL_HASS = vol.Schema(
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_BAD)))
-def test_schemas_hass_bad(index, schemas=SCHEMAS_HASS_BAD) -> None:
-    _test_schema_bad(SCH_GLOBAL_HASS, schemas[index])
+def test_schemas_hass_bad(
+    index: int, configs: tuple[str, ...] = SCHEMAS_HASS_BAD
+) -> None:
+    _test_schema_bad(SCH_GLOBAL_HASS, configs[index])
 
 
 @pytest.mark.parametrize("index", range(len(SCHEMAS_HASS_GOOD)))
-def test_schemas_hass_good(index, schemas=SCHEMAS_HASS_GOOD) -> None:
-    _test_schema_good(SCH_GLOBAL_HASS, schemas[index])
+def test_schemas_hass_good(
+    index: int, configs: tuple[str, ...] = SCHEMAS_HASS_GOOD
+) -> None:
+    _test_schema_good(SCH_GLOBAL_HASS, configs[index])

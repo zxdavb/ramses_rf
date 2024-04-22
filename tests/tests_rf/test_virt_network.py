@@ -13,6 +13,7 @@ import pytest
 import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Address, Code, Command, Gateway
+from ramses_tx.transport import PortTransport
 from tests_rf.virtual_rf import VirtualRf, rf_factory
 
 # other constants
@@ -48,7 +49,7 @@ async def assert_code_in_device_msgz(
     code: Code,
     max_sleep: int = DEFAULT_MAX_SLEEP,
     test_not: bool = False,
-):
+) -> None:
     """Fail if the device doesn't exist, or if it doesn't have the code in its DB."""
 
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):
@@ -62,7 +63,7 @@ async def assert_code_in_device_msgz(
 
 async def assert_devices(
     gwy: Gateway, devices: list[str], max_sleep: int = DEFAULT_MAX_SLEEP
-):
+) -> None:
     """Fail if the two sets of devices are not equal."""
 
     devices = [Address(d).id for d in devices]
@@ -75,7 +76,7 @@ async def assert_devices(
 
 
 async def assert_this_pkt(
-    transport, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP
+    transport: PortTransport, cmd: Command, max_sleep: int = DEFAULT_MAX_SLEEP
 ) -> None:
     """Check, at the transport layer, that the current packet is as expected."""
     for _ in range(int(max_sleep / ASSERT_CYCLE_TIME)):

@@ -7,7 +7,7 @@ import logging
 import math
 from asyncio import Future
 from datetime import datetime as dt, timedelta as td
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import (
@@ -53,6 +53,9 @@ from ramses_tx.const import SZ_PAYLOAD
 
 from .schedule import Schedule
 
+if TYPE_CHECKING:
+    from .heat import Evohome
+
 # Kudos & many thanks to:
 # - @dbmandrake: valve_position -> heat_demand transform
 
@@ -85,19 +88,19 @@ class ZoneBase(Child, Parent, Entity):
     _ROLE_ACTUATORS: str = None  # type: ignore[assignment]
     _ROLE_SENSORS: str = None  # type: ignore[assignment]
 
-    def __init__(self, tcs, zone_idx: str) -> None:
+    def __init__(self, tcs: Evohome, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
 
         self.id: str = f"{tcs.id}_{zone_idx}"
 
-        self.tcs = tcs
+        self.tcs: Evohome = tcs
         self.ctl: Controller = tcs.ctl
-        self._child_id = zone_idx
+        self._child_id: str = zone_idx
 
         self._name = None  # param attr
 
     @classmethod
-    def create_from_schema(cls, tcs, zone_idx: str, **schema):
+    def create_from_schema(cls, tcs: Evohome, zone_idx: str, **schema: Any):
         """Create a CH/DHW zone for a TCS and set its schema attrs.
 
         The appropriate Zone class should have been determined by a factory.
@@ -114,13 +117,13 @@ class ZoneBase(Child, Parent, Entity):
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, ZoneBase):
             return NotImplemented
         return self.idx < other.idx  # type: ignore[no-any-return]
 
     # TODO: deprecate this API
-    def _make_and_send_cmd(self, code, **kwargs) -> None:
+    def _make_and_send_cmd(self, code, **kwargs: Any) -> None:
         payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")
         super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
@@ -135,7 +138,7 @@ class ZoneBase(Child, Parent, Entity):
 
 
 class ZoneSchedule:  # 0404
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._schedule = Schedule(self)  # ? add to discovery
@@ -177,7 +180,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     _SLUG: str = ZoneRole.DHW
 
-    def __init__(self, tcs, zone_idx: str = "HW") -> None:
+    def __init__(self, tcs: Evohome, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
 
         if tcs.dhw:
@@ -433,7 +436,7 @@ class Zone(ZoneSchedule, ZoneBase):
     _SLUG: str = None  # type: ignore[assignment]
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
 
-    def __init__(self, tcs, zone_idx: str) -> None:
+    def __init__(self, tcs: Evohome, zone_idx: str) -> None:
         """Create a heating zone.
 
         The type of zone may not be known at instantiation. Even when it is known, zones
@@ -901,7 +904,9 @@ def _transform(valve_pos: float) -> float:
 ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 
-def zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> _ZoneT:
+def zone_factory(
+    tcs: Evohome, idx: str, *, msg: Message = None, **schema: Any
+) -> _ZoneT:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).
@@ -913,7 +918,7 @@ def zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> _ZoneT:
         *,
         msg: Message = None,
         eavesdrop: bool = False,
-        **schema,
+        **schema: Any,
     ) -> type[_ZoneT]:
         """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 

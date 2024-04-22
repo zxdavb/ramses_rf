@@ -71,7 +71,9 @@ class PktLogConfigT(TypedDict):
     rotate_bytes: int | None
 
 
-def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any]:
+def sch_packet_log_dict_factory(
+    default_backups: int = 0,
+) -> dict[vol.Required, vol.Any]:
     """Return a packet log dict with a configurable default rotation policy.
 
     usage:
@@ -93,7 +95,7 @@ def sch_packet_log_dict_factory(default_backups=0) -> dict[vol.Required, vol.Any
 
     SCH_PACKET_LOG_NAME = str
 
-    def NormalisePacketLog(rotate_backups: int = 0):
+    def NormalisePacketLog(rotate_backups: int = 0) -> Callable[..., Any]:
         def normalise_packet_log(node_value: str | PktLogConfigT) -> PktLogConfigT:
             if isinstance(node_value, str):
                 return {

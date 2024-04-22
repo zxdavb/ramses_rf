@@ -138,7 +138,7 @@ class _Entity:
         )
 
     # FIXME: this is a mess - to deprecate for async version?
-    def _send_cmd(self, cmd: Command, **kwargs) -> asyncio.Task | None:
+    def _send_cmd(self, cmd: Command, **kwargs: Any) -> asyncio.Task | None:
         """Send a Command & return the corresponding Task."""
 
         if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
@@ -286,7 +286,7 @@ class _MessageDB(_Entity):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: Code, *args, **kwargs) -> dict | list | None:
+    def _msg_value(self, code: Code, *args, **kwargs: Any) -> dict | list | None:
         if isinstance(code, str | tuple):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
@@ -297,7 +297,7 @@ class _MessageDB(_Entity):
         code: Code,
         verb: VerbT | None = None,
         key: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict | list | None:
         assert (
             not isinstance(code, tuple) or verb is None
@@ -694,7 +694,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     _dhw_valve: Entity
     _htg_valve: Entity
 
-    def __init__(self, *args, child_id: str = None, **kwargs) -> None:
+    def __init__(self, *args, child_id: str = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._child_id: str = child_id  # type: ignore[assignment]
@@ -1020,7 +1020,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         return parent, child_id
 
     def set_parent(
-        self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
+        self, parent: Parent | None, *, child_id: str = None, is_sensor: bool = None
     ) -> Parent:
         """Set the device's parent, after validating it.
 

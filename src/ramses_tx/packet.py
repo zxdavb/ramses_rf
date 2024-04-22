@@ -7,6 +7,7 @@ Decode/process a packet (packet that was received).
 from __future__ import annotations
 
 from datetime import datetime as dt, timedelta as td
+from typing import Any
 
 from . import exceptions as exc
 from .command import Command
@@ -46,7 +47,7 @@ class Packet(Frame):
     _dtm: dt
     _rssi: str
 
-    def __init__(self, dtm: dt, frame: str, **kwargs) -> None:
+    def __init__(self, dtm: dt, frame: str, **kwargs: Any) -> None:
         """Create a packet from a string (actually from f"{RSSI} {frame}").
 
         Will raise InvalidPacketError if it is invalid.

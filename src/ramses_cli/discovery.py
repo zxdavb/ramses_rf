@@ -51,9 +51,9 @@ SCAN_XXXX: Final = "scan_xxxx"
 _LOGGER = logging.getLogger(__name__)
 
 
-def script_decorator(fnc: Callable[..., Any]):
+def script_decorator(fnc: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fnc)
-    def wrapper(gwy: Gateway, *args, **kwargs) -> None:
+    def wrapper(gwy: Gateway, *args: Any, **kwargs: Any) -> None:
         gwy.send_cmd(
             Command._puzzle(message="Script begins:"),
             priority=Priority.HIGHEST,
@@ -73,7 +73,7 @@ def script_decorator(fnc: Callable[..., Any]):
     return wrapper
 
 
-def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task[None]]:
+def spawn_scripts(gwy: Gateway, **kwargs: Any) -> list[asyncio.Task[None]]:
     tasks = []
 
     if kwargs.get(EXEC_CMD):
@@ -100,7 +100,7 @@ def spawn_scripts(gwy: Gateway, **kwargs) -> list[asyncio.Task[None]]:
     return tasks
 
 
-async def exec_cmd(gwy: Gateway, **kwargs) -> None:
+async def exec_cmd(gwy: Gateway, **kwargs: Any) -> None:
     cmd = Command.from_cli(kwargs[EXEC_CMD])
     await gwy.async_send_cmd(cmd, priority=Priority.HIGH, wait_for_reply=True)
 
@@ -133,14 +133,14 @@ async def get_schedule(gwy: Gateway, ctl_id: DeviceIdT, zone_idx: str) -> None:
         _LOGGER.error("get_schedule(): Function timed out: %s", err)
 
 
-async def set_schedule(gwy: Gateway, ctl_id: DeviceIdT, schedule) -> None:
-    schedule = json.load(schedule)
-    zone_idx = schedule[SZ_ZONE_IDX]
+async def set_schedule(gwy: Gateway, ctl_id: DeviceIdT, schedule: str) -> None:
+    schedule_ = json.loads(schedule)
+    zone_idx = schedule_[SZ_ZONE_IDX]
 
     zone = gwy.get_device(ctl_id).tcs.get_htg_zone(zone_idx)
 
     try:
-        await zone.set_schedule(schedule[SZ_SCHEDULE])  # 0404
+        await zone.set_schedule(schedule_[SZ_SCHEDULE])  # 0404
     except exc.ExpiredCallbackError as err:
         _LOGGER.error("set_schedule(): Function timed out: %s", err)
 

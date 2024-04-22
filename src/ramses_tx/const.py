@@ -228,7 +228,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
             return self[name.lower()]
         return self.__getattribute__(name)
 
-    def _hex(self, key) -> str:
+    def _hex(self, key: str) -> str:
         """Return the key/ID (2-byte hex string) of the two-way dict (e.g. '04')."""
         if key in self._main_table:
             return list(self._main_table[key].keys())[0]  # type: ignore[no-any-return]
@@ -236,7 +236,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
             return self._reverse[key]
         raise KeyError(key)
 
-    def _str(self, key) -> str:
+    def _str(self, key: str) -> str:
         """Return the value (string) of the two-way dict (e.g. 'radiator_valve')."""
         if key in self._main_table:
             return list(self._main_table[key].values())[0]  # type: ignore[no-any-return]
@@ -247,7 +247,7 @@ class AttrDict(dict):  # type: ignore[type-arg]
     # def values(self):
     #     return {k: k for k in super().values()}.values()
 
-    def slug(self, key) -> str:
+    def slug(self, key: str) -> str:
         """WIP: Return master slug for a hex key/ID (e.g. 00 -> 'TRV', not 'TR0')."""
         slug_ = self._slug_lookup[key]
         # if slug_ in self._attr_table["_TRANSFORMS"]:

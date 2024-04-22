@@ -102,7 +102,7 @@ def id_fnc(param: int) -> str:
 
 @pytest.mark.parametrize("index", range(len(BASIC_TESTS)), ids=id_fnc)
 def test_client_basic(
-    monkeypatch: pytest.MonkeyPatch, index: int, tests=BASIC_TESTS
+    monkeypatch: pytest.MonkeyPatch, index: int, tests: tuple = BASIC_TESTS
 ) -> None:
     monkeypatch.setattr("sys.argv", tests[index][0])
     if tests[index][0][1] == PARSE:

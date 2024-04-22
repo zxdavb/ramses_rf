@@ -30,7 +30,6 @@ For re-flashing evofw3 via Arduino IDE on *my* atmega32u4 (YMMV):
 """
 
 # TODO:
-# - add auto-detection of evofw3/HGI80
 # - chase down gwy.config.disable_discovery
 # - chase down / check deprecation
 
@@ -136,7 +135,7 @@ else:  # is linux
 
     from serial.tools.list_ports_linux import SysFS  # type: ignore[import-untyped]
 
-    def list_links(devices) -> list[str]:
+    def list_links(devices: set[str]) -> list[str]:
         """Search for symlinks to ports already listed in devices."""
 
         links = []
@@ -278,7 +277,9 @@ def _str(value: bytes) -> str:
     return result
 
 
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATION):
+def limit_duty_cycle(
+    max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATION
+) -> Callable[..., Any]:
     """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
     max_duty_cycle: bandwidth available per observation window (%)
@@ -289,13 +290,17 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATI
     FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
     BUCKET_CAPACITY: float = FILL_RATE * time_window
 
-    def decorator(fnc: Callable[..., Awaitable[None]]):
+    def decorator(
+        fnc: Callable[..., Awaitable[None]],
+    ) -> Callable[..., Awaitable[None]]:
         # start with a full bit bucket
         bits_in_bucket: float = BUCKET_CAPACITY
         last_time_bit_added = perf_counter()
 
         @wraps(fnc)
-        async def wrapper(self, frame: str, *args, **kwargs) -> None:
+        async def wrapper(
+            self: PortTransport, frame: str, *args: Any, **kwargs: Any
+        ) -> None:
             nonlocal bits_in_bucket
             nonlocal last_time_bit_added
 
@@ -322,7 +327,9 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATI
                 bits_in_bucket -= rf_frame_size
 
         @wraps(fnc)
-        async def null_wrapper(self, frame: str, *args, **kwargs) -> None:
+        async def null_wrapper(
+            self: PortTransport, frame: str, *args: Any, **kwargs: Any
+        ) -> None:
             await fnc(self, frame, *args, **kwargs)
 
         if 0 < max_duty_cycle <= 1:
@@ -333,7 +340,9 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = DUTY_CYCLE_DURATI
     return decorator
 
 
-def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATION):
+def limit_transmit_rate(
+    max_tokens: float, time_window: int = DUTY_CYCLE_DURATION
+) -> Callable[..., Any]:
     """Limit the Tx rate as # packets per period of time.
 
     Rate-limits the decorated function locally, for one process (Token Bucket).
@@ -346,12 +355,14 @@ def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATIO
 
     token_fill_rate: float = max_tokens / time_window
 
-    def decorator(fnc: Callable[..., Awaitable[None]]):
+    def decorator(
+        fnc: Callable[..., Awaitable[None]],
+    ) -> Callable[..., Awaitable[None]]:
         token_bucket: float = max_tokens  # initialize with max tokens
         last_time_token_added = perf_counter()
 
         @wraps(fnc)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> None:
             nonlocal token_bucket
             nonlocal last_time_token_added
 
@@ -373,8 +384,8 @@ def limit_transmit_rate(max_tokens: float, time_window: int = DUTY_CYCLE_DURATIO
         return wrapper
 
         @wraps(fnc)  # type: ignore[unreachable]
-        async def null_wrapper(*args, **kwargs) -> Any:
-            return await fnc(*args, **kwargs)
+        async def null_wrapper(*args: Any, **kwargs: Any) -> None:
+            await fnc(*args, **kwargs)
 
         if max_tokens <= 0:
             return null_wrapper
@@ -387,7 +398,7 @@ _global_sync_cycles: deque[Packet] = (
 )  # used by @avoid_system_syncs/@track_system_syncs
 
 
-def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]):
+def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any]:
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
     DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
@@ -401,10 +412,10 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]):
 
     times_0 = []  # TODO: remove
 
-    async def wrapper(*args, **kwargs) -> None:
+    async def wrapper(*args: Any, **kwargs: Any) -> None:
         global _global_sync_cycles
 
-        def is_imminent(p) -> bool:
+        def is_imminent(p: Packet) -> bool:
             """Return True if a sync cycle is imminent."""
             return bool(
                 SYNC_WINDOW_LOWER
@@ -437,12 +448,12 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]):
     return wrapper
 
 
-def track_system_syncs(fnc: Callable[[Any, Packet], None]):
+def track_system_syncs(fnc: Callable[..., None]) -> Callable[..., Any]:
     """Track/remember the any new/outstanding TCS sync cycle."""
 
     MAX_SYNCS_TRACKED = 3
 
-    def wrapper(self, pkt: Packet) -> None:
+    def wrapper(self: PortTransport, pkt: Packet) -> None:
         global _global_sync_cycles
 
         def is_pending(p: Packet) -> bool:
@@ -464,7 +475,6 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
             _global_sync_cycles.popleft()
 
         fnc(self, pkt)
-        return None
 
     return wrapper
 
@@ -474,7 +484,7 @@ def track_system_syncs(fnc: Callable[[Any, Packet], None]):
 
 
 class _BaseTransport:
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
 
@@ -543,7 +553,9 @@ class _ReadTransport(_BaseTransport):
 
     #  __slots__ = ('_extra',)
 
-    def __init__(self, *args, extra: dict[str, Any] | None = None, **kwargs) -> None:
+    def __init__(
+        self, *args: Any, extra: dict[str, Any] | None = None, **kwargs: Any
+    ) -> None:
         super().__init__(*args, loop=kwargs.pop("loop", None))
 
         self._extra: dict[str, Any] = {} if extra is None else extra
@@ -576,7 +588,7 @@ class _ReadTransport(_BaseTransport):
         """The asyncio event loop as declared by SerialTransport."""
         return self._loop
 
-    def get_extra_info(self, name: str, default: Any = None):
+    def get_extra_info(self, name: str, default: Any = None) -> Any:
         return self._extra.get(name, default)
 
     def is_closing(self) -> bool:
@@ -666,7 +678,9 @@ class _ReadTransport(_BaseTransport):
 class _FullTransport(_ReadTransport):  # asyncio.Transport
     """Interface representing a bidirectional transport."""
 
-    def __init__(self, *args, disable_sending: bool = False, **kwargs) -> None:
+    def __init__(
+        self, *args: Any, disable_sending: bool = False, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self._disable_sending = disable_sending
@@ -707,7 +721,7 @@ _RegexRuleT: TypeAlias = dict[str, str]
 
 class _RegHackMixin:
     def __init__(
-        self, *args, use_regex: dict[str, _RegexRuleT] | None = None, **kwargs
+        self, *args: Any, use_regex: dict[str, _RegexRuleT] | None = None, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
 
@@ -748,7 +762,7 @@ class _RegHackMixin:
 class FileTransport(_ReadTransport, _FileTransportAbstractor):
     """Receive packets from a read-only source such as packet log or a dict."""
 
-    def __init__(self, *args, disable_sending: bool = True, **kwargs) -> None:
+    def __init__(self, *args: Any, disable_sending: bool = True, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         if bool(disable_sending) is False:
@@ -815,7 +829,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
     _recv_buffer: bytes = b""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._leaker_sem = asyncio.BoundedSemaphore()
@@ -829,7 +843,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             self._create_connection(), name="PortTransport._create_connection()"
         )
 
-    def get_extra_info(self, name: str, default: Any = None):
+    def get_extra_info(self, name: str, default: Any = None) -> Any:
         if name == SZ_IS_EVOFW3:
             return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
         return self._extra.get(name, default)
@@ -942,7 +956,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         super()._pkt_read(pkt)
 
-    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # type: ignore[misc]  # @limit_transmit_rate(_MAX_TOKENS)
+    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # @limit_transmit_rate(_MAX_TOKENS)
     @avoid_system_syncs
     async def write_frame(self, frame: str) -> None:  # Protocols call this, not write()
         """Transmit the frame via the underlying handler."""
@@ -995,7 +1009,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 class MqttTransport(_FullTransport, _MqttTransportAbstractor):
     """Send/receive packets to/from ESP_evofw3 via MQTT."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         # _LOGGER.error("__init__(%s, %s)", args, kwargs)
 
         super().__init__(*args, **kwargs)
@@ -1075,7 +1089,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Rx: %s", msg.payload)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
-            _LOGGER.warning("Rx: %s", msg.payload)
+            _LOGGER.info("Rx: %s", msg.payload)
 
         if msg.topic[-3:] != "/rx":  # then, e.g. 'RAMSES/GATEWAY/18:017804'
             if msg.payload == b"offline" and self._topic_sub.startswith(msg.topic):
@@ -1104,7 +1118,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         """Write some data bytes to the underlying transport."""
         # _LOGGER.error("Mqtt._write_frame(%s)", frame)
 
-        data = frame  # later, will be JSON
+        data = json.dumps({"msg": frame})
 
         if _DBG_FORCE_LOG_FRAMES:
             _LOGGER.warning("Tx: %s", data)
@@ -1117,11 +1131,11 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
             self._close(exc.TransportError(err))
             return
 
-    def _publish(self, message: str) -> None:
+    def _publish(self, payload: str) -> None:
         # _LOGGER.error("Mqtt._publish(%s)", message)
 
         info: mqtt.MQTTMessageInfo = self.client.publish(
-            self._topic_pub, payload=message, qos=self._mqtt_qos
+            self._topic_pub, payload=payload, qos=self._mqtt_qos
         )
         assert info
 
@@ -1180,7 +1194,7 @@ async def transport_factory(
     disable_sending: bool | None = False,
     extra: dict[str, Any] | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
-    **kwargs,  # HACK: odd/misc params
+    **kwargs: Any,  # HACK: odd/misc params
 ) -> RamsesTransportT:
     """Create and return a Ramses-specific async packet Transport."""
 

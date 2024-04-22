@@ -11,7 +11,7 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Full
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from ramses_rf.const import I_, RP, RQ, SZ_ACTUATORS, SZ_ZONES, W_, ZON_ROLE_MAP, Code
 from ramses_rf.schemas import SZ_CLASS
@@ -206,7 +206,7 @@ class MockZone:
         name: ZoneNameT,
         heating_type: ZoneTypeT,
         use_evotouch: bool,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Instantiate a zone."""
 
@@ -756,7 +756,7 @@ class MockDeviceCtl(MockDeviceBase):
         Clear the old sensor, if there was one.
         """
 
-        def callback(msg, *args, **kwargs) -> None:
+        def callback(msg, *args: Any, **kwargs: Any) -> None:
             """If the bind was successful, set the zone sensor."""
             if msg:
                 zone._set_sensor(msg.src.id)

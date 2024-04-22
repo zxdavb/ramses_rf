@@ -14,6 +14,7 @@ import sys
 from collections.abc import Callable
 from datetime import datetime as dt
 from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
+from typing import Any
 
 from .version import VERSION
 
@@ -115,7 +116,7 @@ class _Formatter:  # format asctime with configurable precision
     default_time_format = "%Y-%m-%dT%H:%M:%S.%f"
     precision = 6
 
-    def formatTime(self, record, datefmt=None) -> str:
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
         """Return the creation time (asctime) of the LogRecord as formatted text.
 
         Allows for sub-millisecond precision, using datetime instead of time objects.
@@ -140,7 +141,7 @@ class Formatter(_Formatter, logging.Formatter):  # type: ignore[misc]
 class PktLogFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.WARNING)
     """For packet log files, process only wanted packets."""
 
-    def filter(self, record) -> bool:
+    def filter(self, record: logging.LogRecord) -> bool:
         """Return True if the record is to be processed."""
         # if record._frame[4:] or record.comment or record.error_text:
         return record.levelno in (logging.INFO, logging.WARNING)
@@ -149,21 +150,21 @@ class PktLogFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.
 class StdErrFilter(logging.Filter):  # record.levelno >= logging.WARNING
     """For sys.stderr, process only wanted packets."""
 
-    def filter(self, record) -> bool:
+    def filter(self, record: logging.LogRecord) -> bool:
         """Return True if the record is to be processed."""  # WARNING-30, ERROR-40
-        return record.levelno >= logging.WARNING  # type: ignore[no-any-return]
+        return record.levelno >= logging.WARNING
 
 
 class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
     """For sys.stdout, process only wanted packets."""
 
-    def filter(self, record) -> bool:
+    def filter(self, record: logging.LogRecord) -> bool:
         """Return True if the record is to be processed."""  # INFO-20, DEBUG-10
-        return record.levelno < logging.WARNING  # type: ignore[no-any-return]
+        return record.levelno < logging.WARNING
 
 
 class TimedRotatingFileHandler(_TimedRotatingFileHandler):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         assert self.when == "MIDNIGHT"
         self.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
@@ -199,7 +200,7 @@ class TimedRotatingFileHandler(_TimedRotatingFileHandler):
 
 def getLogger(  # permits a bespoke Logger class
     name: str | None = None, pkt_log: bool = False
-):
+) -> logging.Logger:
     """Return a logger with the specified name, creating it if necessary.
 
     Used to set record timestamps to its packet timestamp instead of the current time.
@@ -220,13 +221,13 @@ def getLogger(  # permits a bespoke Logger class
     return logger
 
 
-def set_logger_timesource(dtm_now: Callable[[], dt]):
+def set_logger_timesource(dtm_now: Callable[..., dt]) -> None:
     """Set a custom record factory, with a bespoke source of timestamps.
 
     Used to have records with the same datetime as the most recent packet log record.
     """
 
-    def record_factory(*args, **kwargs):
+    def record_factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
         record = old_factory(*args, **kwargs)
 
         ct = dtm_now().timestamp()

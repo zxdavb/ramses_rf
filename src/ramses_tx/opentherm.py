@@ -1006,25 +1006,30 @@ def parity(x: int) -> int:
 def _msg_value(val_seqx: str, val_type: str) -> _DataValueT:
     """Make this the docstring."""
 
+    assert len(val_seqx) in (2, 4), f"Invalid value sequence: {val_seqx}"
+
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
 
-    def flag8(byte: str, *args) -> list[int]:
+    def flag8(byte: str, *args: str) -> list[int]:
         """Split a byte (as a str) into a list of 8 bits.
 
         In the original payload (the OT specification), the lsb is bit 0 (the last bit),
         so the order of bits is reversed here, giving flags[0] (the 1st bit in the
         array) as the lsb.
         """
+        assert len(args) == 0 or (len(args) == 1 and args[0] == "")
         return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
 
-    def u8(byte: str, *args) -> int:
+    def u8(byte: str, *args: str) -> int:
         """Convert a byte (as a str) into an unsigned int."""
+        assert len(args) == 0 or (len(args) == 1 and args[0] == "")
         result = struct.unpack(">B", bytes.fromhex(byte))[0]
         assert isinstance(result, int)  # mypy hint
         return result
 
-    def s8(byte: str, *args) -> int:
+    def s8(byte: str, *args: str) -> int:
         """Convert a byte (as a str) into a signed int."""
+        assert len(args) == 0 or (len(args) == 1 and args[0] == "")
         result = struct.unpack(">b", bytes.fromhex(byte))[0]
         assert isinstance(result, int)  # mypy hint
         return result

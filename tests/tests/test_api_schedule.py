@@ -19,6 +19,7 @@ from ramses_rf.system.schedule import (
     fragz_to_full_sched,
     full_sched_to_fragz,
 )
+from ramses_rf.system.zones import ZoneSchedule
 from tests.helpers import TEST_DIR, load_test_gwy
 
 WORK_DIR = f"{TEST_DIR}/schedules"
@@ -41,7 +42,8 @@ async def test_schedule_get(dir_name: Path) -> None:
     gwy: Gateway = await load_test_gwy(dir_name)
     assert isinstance(gwy.tcs, Evohome)  # mypy
     try:
-        zone = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
+        zone: ZoneSchedule = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]  # type: ignore[assignment]
+        assert isinstance(zone, ZoneSchedule)
         assert zone.schedule == schedule[SZ_SCHEDULE]
         assert zone._schedule._full_schedule == schedule
 

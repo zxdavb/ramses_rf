@@ -238,11 +238,8 @@ def hex_from_dtm(
 ) -> HexStr12 | HexStr14:
     """Convert a datetime (isoformat str, or naive dtm) to a 12/14-char hex str."""
 
-    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args) -> str:
-        return (
-            f"{tm_sec:02X}{tm_min:02X}{tm_hour:02X}"
-            f"{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
-        )
+    def _dtm_to_hex(year, mon, mday, hour, min, sec, *args: int) -> str:  # type: ignore[no-untyped-def]
+        return f"{sec:02X}{min:02X}{hour:02X}{mday:02X}{mon:02X}{year:04X}"
 
     if dtm is None:
         return "FF" * (7 if incl_seconds else 6)

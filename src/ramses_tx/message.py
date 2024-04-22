@@ -103,7 +103,7 @@ class MessageBase:
         )
         return self._str
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, Message):
             return NotImplemented
         return (self.src, self.dst, self.verb, self.code, self._pkt.payload) == (
@@ -114,7 +114,7 @@ class MessageBase:
             other._pkt.payload,
         )
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, Message):
             return NotImplemented
         return self.dtm < other.dtm

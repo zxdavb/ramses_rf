@@ -338,7 +338,7 @@ def _get_device(gwy: Gateway, dev_id: DeviceIdT, **kwargs: Any) -> Device:  # , 
 
 
 def load_schema(
-    gwy: Gateway, known_list: dict[DeviceIdT, Any] | None = None, **schema
+    gwy: Gateway, known_list: dict[DeviceIdT, Any] | None = None, **schema: Any
 ) -> None:
     """Instantiate all entities in the schema, and faked devices in the known_list."""
 

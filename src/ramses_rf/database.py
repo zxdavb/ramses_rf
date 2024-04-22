@@ -64,13 +64,13 @@ class MessageIndex:
     #     return msgs
 
     def _setup_adapter_converters(self) -> None:
-        def adapt_datetime_iso(val: dt):
+        def adapt_datetime_iso(val: dt) -> str:
             """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
             return val.isoformat(timespec="microseconds")
 
         sqlite3.register_adapter(dt, adapt_datetime_iso)
 
-        def convert_datetime(val: bytes):
+        def convert_datetime(val: bytes) -> dt:
             """Convert ISO 8601 datetime to datetime.datetime object."""
             return dt.fromisoformat(val.decode())
 
@@ -120,7 +120,7 @@ class MessageIndex:
         self._cx.commit()
         return old[0] if old else None
 
-    def _rem(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
+    def _rem(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
         """Remove a set of message(s) from the index."""
 
         msgs = self.get(msg=msg, **kwargs)
@@ -136,7 +136,7 @@ class MessageIndex:
 
         return msgs
 
-    def rem(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
+    def rem(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
         """Remove a set of message(s) from the index.
 
         Returns any messages that were removed.
@@ -164,7 +164,7 @@ class MessageIndex:
             m for m in self._msgs.values() if include_expired or not m._expired
         )
 
-    def get(self, msg: Message | None = None, **kwargs) -> tuple[Message, ...]:
+    def get(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
         """Return a set of message(s) from the index."""
 
         if msg and kwargs:

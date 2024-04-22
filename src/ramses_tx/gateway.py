@@ -80,7 +80,7 @@ class Engine:
         block_list: DeviceListT | None = None,
         known_list: DeviceListT | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if port_name and input_file:
             _LOGGER.warning(
@@ -229,7 +229,7 @@ class Engine:
 
         return None
 
-    def _pause(self, *args) -> None:
+    def _pause(self, *args: Any) -> None:
         """Pause the (active) engine or raise a RuntimeError."""
 
         if not self._engine_lock.acquire(blocking=False):
@@ -282,7 +282,7 @@ class Engine:
 
     @staticmethod
     def create_cmd(
-        verb: VerbT, device_id: DeviceIdT, code: Code, payload: PayloadT, **kwargs
+        verb: VerbT, device_id: DeviceIdT, code: Code, payload: PayloadT, **kwargs: Any
     ) -> Command:
         """Make a command addressed to device_id."""
 

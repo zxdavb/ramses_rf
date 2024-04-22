@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-
-# TODO: replace protocol_decorator with a factory or fixture
-
 """RAMSES RF - Test the binding protocol with a virtual RF
 
 NB: This test will likely fail with pytest -n x, because of the protocol's throttle
@@ -14,7 +11,6 @@ from collections.abc import AsyncGenerator, Awaitable
 from datetime import datetime as dt
 
 import pytest
-import pytest_asyncio
 import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Command, Message, Packet
@@ -262,7 +258,7 @@ async def _test_flow_qos_helper(
         assert False, f"Had expected {exc.ProtocolSendFailed}"
 
 
-async def _test_flow_60x(protocol: PortProtocol, num_cmds=1) -> None:
+async def _test_flow_60x(protocol: PortProtocol, num_cmds: int = 1) -> None:
     #
     # Setup...
     tasks = []
@@ -380,21 +376,21 @@ async def test_flow_qos(protocol: PortProtocol) -> None:
     await _test_flow_qos(protocol)
 
 
-@pytest_asyncio.fixture
-async def async_benchmark(benchmark):
-    event_loop = asyncio.get_running_loop()
+# @pytest_asyncio.fixture
+# async def async_benchmark(benchmark: pytest.FixtureDef) -> Callable[..., None]:
+#     event_loop = asyncio.get_running_loop()
 
-    def _wrapper(func, *args, **kwargs) -> None:
-        if asyncio.iscoroutinefunction(func):
+#     def _wrapper(func: Callable, *args: Any, **kwargs: Any) -> None:
+#         if asyncio.iscoroutinefunction(func):
 
-            @benchmark
-            def _():
-                return event_loop.run_until_complete(func(*args, **kwargs))
+#             @benchmark
+#             def _():
+#                 return event_loop.run_until_complete(func(*args, **kwargs))
 
-        else:
-            benchmark(func, *args, **kwargs)
+#         else:
+#             benchmark(func, *args, **kwargs)
 
-    return _wrapper
+#     return _wrapper
 
 
 # @pytest.mark.xdist_group(name="virt_serial")

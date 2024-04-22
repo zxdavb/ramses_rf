@@ -287,7 +287,7 @@ def parser_0005(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
     # RP --- 02:017205 18:073736 --:------ 0005 004 0009001F
     # .I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         if msg.src.type == DEV_TYPE_MAP.UFC:  # DEX, or use: seqx[2:4] == ...
             zone_mask = hex_to_flag8(seqx[6:8], lsb=True)
         elif msg.len == 3:  # ATC928G1000 - 1st gen monochrome model, max 8 zones
@@ -373,7 +373,7 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
     # .I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
     # .I --- 10:040239 01:223036 --:------ 0009 003 000000
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         assert seqx[:2] in (F9, FC) or int(seqx[:2], 16) < 16
         return {
             SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
@@ -392,7 +392,7 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # zone_params (zone_config)
 def parser_000a(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
-    def _parser(seqx) -> dict:  # null_rp: "007FFF7FFF"
+    def _parser(seqx: str) -> dict:  # null_rp: "007FFF7FFF"
         bitmap = int(seqx[2:4], 16)
         return {
             SZ_MIN_TEMP: hex_to_temp(seqx[4:8]),
@@ -425,7 +425,7 @@ def parser_000c(payload: str, msg: Message) -> dict:
     # RP --- 01:145038 18:013393 --:------ 000C 006 00-00-00-10DAFD
     # RP --- 01:145038 18:013393 --:------ 000C 012 01-00-00-10DAF5 01-00-00-10DAFB
 
-    def complex_idx(seqx, msg) -> dict:  # complex index
+    def complex_idx(seqx: str, msg: Message) -> dict:  # complex index
         """domain_id, zone_idx, or ufx_idx|zone_idx."""
 
         # TODO: 000C to a UFC should be ufh_ifx, not zone_idx
@@ -449,7 +449,9 @@ def parser_000c(payload: str, msg: Message) -> dict:
         assert int(seqx, 16) < 16, f"invalid zone_idx: '{seqx}' (0x03)"
         return {SZ_ZONE_IDX: seqx}
 
-    def _parser(seqx) -> dict:  # TODO: assumption that all id/idx are same is wrong!
+    def _parser(
+        seqx: str,
+    ) -> dict:  # TODO: assumption that all id/idx are same is wrong!
         assert (
             seqx[:2] == payload[:2]
         ), f"idx != {payload[:2]} (seqx = {seqx}), short={is_short_000C(payload)}"
@@ -457,7 +459,7 @@ def parser_000c(payload: str, msg: Message) -> dict:
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6, f"Bad device_id: {seqx[6:]}"
         return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
 
-    def is_short_000C(payload) -> bool:
+    def is_short_000C(payload: str) -> bool:
         """Return True if it is a short 000C (element length is 5, not 6)."""
 
         if (pkt_len := len(payload)) != 72:
@@ -829,7 +831,7 @@ def parser_1030(payload: str, msg: Message) -> dict:
     # .I --- --:------ --:------ 12:144017 1030 016 01-C80137-C9010F-CA0196-CB010F-CC0101
     # RP --- 32:155617 18:005904 --:------ 1030 007 00-200100-21011F
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         assert seqx[2:4] == "01", seqx[2:4]
 
         param_name = {
@@ -1040,7 +1042,7 @@ def parser_10e2(payload: str, msg: Message) -> dict:
 def parser_1100(
     payload: str, msg: Message
 ) -> PayDictT._1100 | Mapping[str, float | int | str | None]:
-    def complex_idx(seqx) -> dict:
+    def complex_idx(seqx: str) -> dict:
         return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # only FC
 
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Japser, DEX
@@ -1062,7 +1064,7 @@ def parser_1100(
     #  - min_on_time:  1 (1-5)          // ?? (1, 5, 10,...30)
     #  - min_off_time: 1 (1-?)          // ?? (0, 5, 10, 15)
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         return {
             "cycle_rate": int(int(payload[2:4], 16) / 4),  # cycles/hour
             "min_on_time": int(payload[4:6], 16) / 4,  # min
@@ -1115,7 +1117,7 @@ def parser_1290(payload: str, msg: Message) -> PayDictT._1290:
 
 
 # HVAC: co2_level, see: 31DA[6:10]
-def parser_1298(payload: str, _) -> PayDictT._1298:
+def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
     return parse_co2_level(payload[2:6])
 
 
@@ -1150,7 +1152,7 @@ def parser_12c0(payload: str, msg: Message) -> Mapping[str, float | int | str | 
 
 
 # HVAC: air_quality (and air_quality_basis), see: 31DA[2:6]
-def parser_12c8(payload: str, _) -> PayDictT._12C8:
+def parser_12c8(payload: str, msg: Message) -> PayDictT._12C8:
     return parse_air_quality(payload[2:6])
 
 
@@ -1282,7 +1284,7 @@ def parser_1f70(payload: str, msg: Message) -> dict:
 
 # rf_bind
 def parser_1fc9(payload: str, msg: Message) -> dict[str, list | str | None]:
-    def _parser(seqx) -> list:
+    def _parser(seqx: str) -> list:
         if seqx[:2] not in ("90",):
             assert (
                 seqx[6:] == payload[6:12]
@@ -1373,7 +1375,7 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
     # see: https://github.com/jrosser/honeymon/blob/master/decoder.cpp#L357-L370
     # .I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
 
-    def _parser(seqx) -> dict[str, bool | float | int | str | None]:
+    def _parser(seqx: str) -> dict[str, bool | float | int | str | None]:
         minutes = int(seqx[10:], 16)
         next_setpoint = msg.dtm + td(minutes=minutes)
         return {
@@ -1422,7 +1424,7 @@ def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
     # Notes on 008|suffix: only seen as I, only when no array, only as 7FFF(0101|0202)03$
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         assert seqx[10:] in ("01", "02"), f"is {seqx[10:]}, expecting 01 or 02"
 
         return {
@@ -1446,7 +1448,7 @@ def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # unknown_22d0, UFH system mode (heat/cool)
 def parser_22d0(payload: str, msg: Message) -> dict:
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         # assert seqx[2:4] in ("00", "03", "10", "13", "14"), _INFORM_DEV_MSG
         assert seqx[4:6] == "00", _INFORM_DEV_MSG
         return {
@@ -1475,7 +1477,7 @@ def parser_22d9(payload: str, msg: Message) -> PayDictT._22D9:
 def parser_22e0(payload: str, msg: Message) -> Mapping[str, float | None]:
     # RP --- 32:155617 18:005904 --:------ 22E0 004 00-34-A0-1E
     # RP --- 32:153258 18:005904 --:------ 22E0 004 00-64-A0-1E
-    def _parser(seqx) -> float:
+    def _parser(seqx: str) -> float:
         assert int(seqx, 16) <= 200 or seqx == "E6"  # only for 22E0, not 22E5/22E9
         return int(seqx, 16) / 200
 
@@ -1586,7 +1588,7 @@ def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-0174 01-0208
     # RP --- 32:155617 18:005904 --:------ 22F2 006 00-01E5 01-0201
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         assert seqx[:2] in ("00", "01"), f"is {seqx[:2]}, expecting 00/01"
 
         return {
@@ -1841,10 +1843,10 @@ def parser_2411(payload: str, msg: Message) -> dict:
     # RQ --- 37:171871 32:155617 --:------ 2411 003 00004E            # 11th menu option (i.e. 0x0A)
     # RP --- 32:155617 37:171871 --:------ 2411 023 00004E460000000001000000000000000100000001A600
 
-    def counter(x) -> int:
+    def counter(x: str) -> int:
         return int(x, 16)
 
-    def centile(x) -> float:
+    def centile(x: str) -> float:
         return int(x, 16) / 10
 
     _2411_DATA_TYPES = {
@@ -2079,7 +2081,7 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
     # .I --- 04:136513 --:------ 01:158182 3150 002 01CA < often seen CA, artefact?
 
-    def complex_idx(seqx, msg) -> dict[str, str]:
+    def complex_idx(seqx: str, msg: Message) -> dict[str, str]:
         # assert seqx[:2] == FC or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         idx_name = "ufx_idx" if msg.src.type == DEV_TYPE_MAP.UFC else SZ_ZONE_IDX  # DEX
         return {SZ_DOMAIN_ID if seqx[:1] == "F" else idx_name: seqx[:2]}
@@ -2243,7 +2245,7 @@ def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
     # .I --- 32:168090 30:082155 --:------ 31E0 004 00-00C8-00
     # .I --- 37:258565 37:261128 --:------ 31E0 004 00-0001-00
 
-    def _parser(seqx) -> dict:
+    def _parser(seqx: str) -> dict:
         assert seqx[6:] in ("", "00", "FF")
         return {
             # "hvac_idx": seqx[:2],

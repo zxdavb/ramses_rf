@@ -13,7 +13,7 @@ WORK_DIR = f"{TEST_DIR}/eavesdrop_schema"
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    def id_fnc(param) -> str:
+    def id_fnc(param: Path) -> str:
         return PurePath(param).name
 
     folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]

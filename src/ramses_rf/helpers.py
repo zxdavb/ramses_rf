@@ -93,21 +93,25 @@ def shrink(
 
 def schedule_task(
     fnc: Callable,
-    *args,
+    *args: Any,
     delay: float | None = None,
     period: float | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> asyncio.Task:
     """Start a coro after delay seconds."""
 
-    async def execute_fnc(fnc: Callable, *args, **kwargs):
+    async def execute_fnc(fnc: Callable, *args: Any, **kwargs: Any) -> Any:
         if iscoroutinefunction(fnc):
             return await fnc(*args, **kwargs)
         return fnc(*args, **kwargs)
 
     async def schedule_fnc(
-        fnc: Callable, delay: float | None, period: float | None, *args, **kwargs
-    ):
+        fnc: Callable,
+        delay: float | None,
+        period: float | None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         if delay:
             await asyncio.sleep(delay)
 

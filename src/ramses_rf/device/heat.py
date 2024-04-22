@@ -315,7 +315,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
     _SLUG: str = DevType.CTL
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         # self.ctl = None
@@ -379,7 +379,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     # 12:27:24.824 059  I --- 01:191718 --:------ 01:191718 3150 002 FC5C
     # 12:27:24.857 067  I --- 02:000921 --:------ 02:000921 3150 006 0060-015A-025C
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._child_id = FA  # NOTE: domain_id, UFC
@@ -572,7 +572,7 @@ class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
 
     _STATE_ATTR = SZ_TEMPERATURE
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._child_id = FA  # NOTE: domain_id
@@ -637,7 +637,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0
     }  # also 10A0?
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._child_id = FC  # NOTE: domain_id
@@ -1243,7 +1243,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 
     _STATE_ATTR = "active"
 
-    # def __init__(self, *args, **kwargs) -> None:
+    # def __init__(self, *args: Any, **kwargs: Any) -> None:
     #     super().__init__(*args, **kwargs)
 
     #     if kwargs.get(SZ_DOMAIN_ID) == FC:  # TODO: F9/FA/FC, zone_idx

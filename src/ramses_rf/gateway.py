@@ -81,6 +81,7 @@ if TYPE_CHECKING:
     from ramses_tx.schemas import DeviceIdT, DeviceListT
 
     from .device import Device
+    from .entity_base import Parent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class Gateway(Engine):
         block_list: DeviceListT | None = None,
         known_list: DeviceListT | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if kwargs.pop("debug_mode", None):
             _LOGGER.setLevel(logging.DEBUG)
@@ -159,7 +160,7 @@ class Gateway(Engine):
     ) -> None:
         """Start the Gateway and Initiate discovery as required."""
 
-        def initiate_discovery(dev_list, sys_list) -> None:
+        def initiate_discovery(dev_list: list[Device], sys_list: list[Evohome]) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
             # [d._start_discovery_poller() for d in devs]
@@ -200,7 +201,7 @@ class Gateway(Engine):
             self._zzz.stop()
         await super().stop()
 
-    def _pause(self, *args) -> None:
+    def _pause(self, *args: Any) -> None:
         """Pause the (unpaused) gateway (disables sending/discovery).
 
         There is the option to save other objects, as *args.
@@ -319,8 +320,8 @@ class Gateway(Engine):
         device_id: DeviceIdT,
         *,
         msg: Message | None = None,
-        parent=None,
-        child_id=None,
+        parent: Parent | None = None,
+        child_id: str | None = None,
         is_sensor: bool | None = None,
     ) -> Device:  # TODO: **schema/traits) -> Device:  # may: LookupError
         """Return a device, create it if required.

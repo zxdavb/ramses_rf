@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-
-# TODO: replace protocol_decorator with a factory or fixture
-
 """RAMSES RF - Test the binding protocol with a virtual RF
 
 NB: This test will likely fail with pytest -n x, because of the protocol's throttle
@@ -10,6 +7,7 @@ limits.
 
 import asyncio
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 import serial  # type: ignore[import-untyped]
@@ -57,7 +55,7 @@ async def _test_create_stack(
     enforce_include_list: bool = False,
     exclude_list: dict[DeviceIdT, dict] | None = None,
     include_list: dict[DeviceIdT, dict] | None = None,
-    **kwargs,  # TODO: these are for the transport_factory
+    **kwargs: Any,  # TODO: these are for the transport_factory
 ) -> None:
     protocol: RamsesProtocolT
     transport: RamsesTransportT
@@ -95,7 +93,7 @@ async def _test_factories(
     enforce_include_list: bool = False,
     exclude_list: dict[DeviceIdT, dict] | None = None,
     include_list: dict[DeviceIdT, dict] | None = None,
-    **kwargs,  # TODO: these are for the transport_factory
+    **kwargs: Any,  # TODO: these are for the transport_factory
 ) -> None:
     protocol: RamsesProtocolT = protocol_factory(
         _msg_handler,

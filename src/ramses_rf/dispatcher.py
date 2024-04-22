@@ -182,7 +182,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
     # All methods require msg with a valid payload, except _create_devices_from_addrs(),
     # which requires a valid payload only for 000C.
 
-    def logger_xxxx(msg: Message):
+    def logger_xxxx(msg: Message) -> None:
         if _DBG_FORCE_LOG_MESSAGES:
             _LOGGER.warning(msg)
         elif msg.src is not gwy.hgi or (msg.code != Code._PUZZ and msg.verb != RQ):

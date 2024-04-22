@@ -116,7 +116,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         self.id: DeviceIdT = ctl.id
 
-        self.ctl = ctl
+        self.ctl: Controller = ctl
         self.tcs: Evohome = self  # type: ignore[assignment]
         self._child_id = FF  # NOTE: domain_id
 
@@ -211,7 +211,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             eavesdrop_appliance_control(msg)
 
     # TODO: deprecate this API
-    def _make_and_send_cmd(self, code, payload="00", **kwargs) -> None:
+    def _make_and_send_cmd(self, code, payload="00", **kwargs: Any) -> None:
         super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
@@ -313,16 +313,16 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self.zones = []
-        self.zone_by_idx = {}
+        self.zones: list[Zone] = []
+        self.zone_by_idx: dict[str, Zone] = {}
         self._max_zones: int = getattr(
             self._gwy.config, SZ_MAX_ZONES, DEFAULT_MAX_ZONES
         )
 
-        self._prev_30c9 = None  # used to eavesdrop zone sensors
+        self._prev_30c9: Message | None = None  # used to eavesdrop zone sensors
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -547,13 +547,13 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
 
 class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._msg_0006: Message = None  # type: ignore[assignment]
 
         self.zone_lock = Lock()  # used to stop concurrent get_schedules
-        self.zone_lock_idx = None
+        self.zone_lock_idx: str | None = None
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -663,7 +663,7 @@ class Language(SystemBase):  # 0100
 
 
 class Logbook(SystemBase):  # 0418
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._prev_event: Message = None  # type: ignore[assignment]
@@ -742,7 +742,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._dhw: DhwZone = None  # type: ignore[assignment]
 
@@ -933,7 +933,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
 
     _SLUG: str = SYS_KLASS.PRG
 
-    def __init__(self, ctl, **kwargs) -> None:
+    def __init__(self, ctl, **kwargs: Any) -> None:
         super().__init__(ctl, **kwargs)
 
         self._heat_demands: dict[str, Any] = {}
@@ -1026,7 +1026,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
             [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
-    def create_from_schema(cls, ctl: Device, **schema):
+    def create_from_schema(cls, ctl: Device, **schema: Any):
         """Create a CH/DHW system for a CTL and set its schema attrs.
 
         The appropriate System class should have been determined by a factory.
@@ -1083,7 +1083,7 @@ def system_factory(ctl, *, msg: Message = None, **schema) -> _SystemT:
         *,
         msg: Message = None,
         eavesdrop: bool = False,
-        **schema,
+        **schema: Any,
     ) -> type[_SystemT]:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 

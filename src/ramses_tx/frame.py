@@ -163,7 +163,7 @@ class Frame:
         except AttributeError as err:
             return f"{self!r} < {err}"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not hasattr(other, "_frame"):
             return NotImplemented
         return self._frame[4:] == other._frame[4:]  # type: ignore[no-any-return]

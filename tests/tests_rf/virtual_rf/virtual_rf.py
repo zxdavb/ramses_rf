@@ -174,7 +174,9 @@ class VirtualRfBase:
 
         self._set_comport_info(port_name, dev_type=dev_type)
 
-    def comports(self, include_links=False) -> list[VirtualComPortInfo]:  # unsorted
+    def comports(
+        self, include_links: bool = False
+    ) -> list[VirtualComPortInfo]:  # unsorted
         """Use this method to monkey patch serial.tools.list_ports.comports()."""
         return list(self._port_info_list.values())
 
@@ -274,7 +276,7 @@ class VirtualRfBase:
             if err:
                 raise err
 
-        async def handle_sig_posix(sig) -> None:
+        async def handle_sig_posix(sig: signal.Signals) -> None:
             """Handle signals on posix platform."""
             _LOGGER.error("Received a signal: %s, cleaning up...", sig.name)
             self._cleanup()

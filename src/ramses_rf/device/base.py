@@ -57,7 +57,7 @@ class DeviceBase(Entity):
 
     _STATE_ATTR: str = None  # type: ignore[assignment]
 
-    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs) -> None:
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
         # super().__init__(gwy)  # NOTE: is invoked lower down
 
@@ -86,7 +86,7 @@ class DeviceBase(Entity):
             return f"{self.id} ({self._SLUG}): {getattr(self, self._STATE_ATTR)}"
         return f"{self.id} ({self._SLUG})"
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: object) -> bool:
         if not hasattr(other, "id"):
             return NotImplemented
         return self.id < other.id  # type: ignore[no-any-return]
@@ -107,7 +107,7 @@ class DeviceBase(Entity):
         self._scheme = traits.get(SZ_SCHEME)
 
     @classmethod
-    def create_from_schema(cls, gwy: Gateway, dev_addr: Address, **schema):
+    def create_from_schema(cls, gwy: Gateway, dev_addr: Address, **schema: Any):
         """Create a device (for a GWY) and set its schema attrs (aka traits).
 
         All devices have traits, but also controllers (CTL, UFC) have a system schema.
@@ -131,10 +131,10 @@ class DeviceBase(Entity):
         pass
 
     # TODO: deprecate this API
-    def _make_and_send_cmd(self, code, payload="00", **kwargs) -> None:  # type: ignore[override]
+    def _make_and_send_cmd(self, code, payload="00", **kwargs: Any) -> None:  # type: ignore[override]
         super()._make_and_send_cmd(code, self.id, payload=payload, **kwargs)
 
-    def _send_cmd(self, cmd: Command, **kwargs) -> None:
+    def _send_cmd(self, cmd: Command, **kwargs: Any) -> None:
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (it has a battery)")
 
@@ -290,7 +290,7 @@ class Fakeable(DeviceBase):
     such packets via RF.
     """
 
-    def __init__(self, gwy: Gateway, *args, **kwargs) -> None:
+    def __init__(self, gwy: Gateway, *args: Any, **kwargs: Any) -> None:
         super().__init__(gwy, *args, **kwargs)
 
         self._bind_context: BindContext | None = None
@@ -378,7 +378,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
 
     _SLUG: str = DevType.HGI
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self.ctl = None  # type: ignore[assignment]  # FIXME: a mess
@@ -460,7 +460,7 @@ class DeviceHvac(Device):  # HVAC (ventilation, PIV, MV/HR)
 
     _SLUG: str = DevType.HVC  # these may be instantiated, and promoted later on
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._child_id = "hv"  # TODO: domain_id/deprecate

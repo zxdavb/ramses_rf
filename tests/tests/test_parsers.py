@@ -20,7 +20,7 @@ META_KEYS = (HAS_ARRAY, HAS_IDX, HAS_PAYLOAD, IS_FRAGMENT)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    def id_fnc(param) -> str:
+    def id_fnc(param: Path) -> str:
         return PurePath(param).name
 
     metafunc.parametrize("f_name", sorted(Path(WORK_DIR).glob("*.log")), ids=id_fnc)

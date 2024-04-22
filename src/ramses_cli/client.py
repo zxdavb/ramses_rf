@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Final
+from typing import Any, Final
 
 import click
 from colorama import Fore, Style, init as colorama_init
@@ -197,7 +197,7 @@ def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
 
 # Args/Params for packet log only
 class FileCommand(click.Command):  # client.py parse <file>
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.params.insert(  # input_file
             0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
@@ -216,7 +216,7 @@ class FileCommand(click.Command):  # client.py parse <file>
 class PortCommand(
     click.Command
 ):  # client.py <command> <port> --packet-log xxx --evofw3-flag xxx
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.params.insert(0, click.Argument(("serial-port",)))
         """ # self.params.insert(  # --no-discover
@@ -520,10 +520,10 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs):
 
         elif command == MONITOR:
             _ = spawn_scripts(gwy, **kwargs)
-            await gwy._protocol.wait_connection_lost
+            await gwy._protocol._wait_connection_lost
 
         elif command == LISTEN:
-            await gwy._protocol.wait_connection_lost
+            await gwy._protocol._wait_connection_lost
 
     except asyncio.CancelledError:
         msg = "ended via: CancelledError (e.g. SIGINT)"

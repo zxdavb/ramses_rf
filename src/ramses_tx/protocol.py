@@ -7,7 +7,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime as dt
-from typing import TYPE_CHECKING, Final, TypeAlias
+from typing import TYPE_CHECKING, Any, Final, TypeAlias
 
 from . import exceptions as exc
 from .address import ALL_DEV_ADDR, HGI_DEV_ADDR, NON_DEV_ADDR
@@ -454,7 +454,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
             return
         super().pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command, *args, **kwargs) -> Packet | None:
+    async def send_cmd(self, cmd: Command, *args: Any, **kwargs: Any) -> Packet | None:
         if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
             raise exc.ProtocolError(f"Command excluded by device_id filter: {cmd}")
         return await super().send_cmd(cmd, *args, **kwargs)
@@ -463,7 +463,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
     """A protocol that can only receive Packets."""
 
-    def __init__(self, msg_handler: MsgHandlerT, **kwargs) -> None:
+    def __init__(self, msg_handler: MsgHandlerT, **kwargs: Any) -> None:
         super().__init__(msg_handler, **kwargs)
 
         self._pause_writing = True
@@ -502,7 +502,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         self,
         msg_handler: MsgHandlerT,
         disable_qos: bool | None = DEFAULT_DISABLE_QOS,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler, **kwargs)
@@ -733,7 +733,7 @@ async def create_stack(
     enforce_include_list: bool = False,
     exclude_list: DeviceListT | None = None,
     include_list: DeviceListT | None = None,
-    **kwargs,  # TODO: these are for the transport_factory
+    **kwargs: Any,  # TODO: these are for the transport_factory
 ) -> tuple[RamsesProtocolT, RamsesTransportT]:
     """Utility function to provide a Protocol / Transport pair.
 

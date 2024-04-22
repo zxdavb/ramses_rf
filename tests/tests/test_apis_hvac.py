@@ -3,6 +3,7 @@
 
 from collections.abc import Callable
 from datetime import datetime as dt
+from typing import Any
 
 from ramses_tx.command import CODE_API_MAP, Command
 from ramses_tx.message import Message
@@ -43,7 +44,7 @@ def _test_api_from_msg(api: Callable, msg: Message) -> Command:
     return cmd
 
 
-def _test_api_from_kwargs(api: Callable, pkt: Packet, **kwargs) -> None:
+def _test_api_from_kwargs(api: Callable, pkt: Packet, **kwargs: Any) -> None:
     cmd = api(HRU, src_id=REM, **kwargs)
 
     assert str(cmd) == str(pkt)
