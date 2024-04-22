@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from inspect import iscoroutinefunction
 from typing import Any, TypeAlias
@@ -15,7 +15,9 @@ _SchemaT: TypeAlias = dict[str, Any]
 def is_subset(inner: _SchemaT, outer: _SchemaT) -> bool:
     """Return True is one dict (or list) is a subset of another."""
 
-    def _is_subset(a: dict | list | Any, b: dict | list | Any) -> bool:
+    def _is_subset(
+        a: dict[str, Any] | list[Any] | Any, b: dict[str, Any] | list[Any] | Any
+    ) -> bool:
         if isinstance(a, dict):
             return isinstance(b, dict) and all(
                 k in b and _is_subset(v, b[k]) for k, v in a.items()
@@ -87,26 +89,28 @@ def shrink(
     if not isinstance(value, dict):
         raise TypeError("value is not a dict")
 
-    result: dict = walk(value)
+    result: _SchemaT = walk(value)
     return result
 
 
 def schedule_task(
-    fnc: Callable,
+    fnc: Awaitable[Any] | Callable[..., Any],
     *args: Any,
     delay: float | None = None,
     period: float | None = None,
     **kwargs: Any,
-) -> asyncio.Task:
+) -> asyncio.Task[Any]:
     """Start a coro after delay seconds."""
 
-    async def execute_fnc(fnc: Callable, *args: Any, **kwargs: Any) -> Any:
-        if iscoroutinefunction(fnc):
+    async def execute_fnc(
+        fnc: Awaitable[Any] | Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Any:
+        if iscoroutinefunction(fnc):  # Awaitable, else Callable
             return await fnc(*args, **kwargs)
-        return fnc(*args, **kwargs)
+        return fnc(*args, **kwargs)  # type: ignore[operator]
 
     async def schedule_fnc(
-        fnc: Callable,
+        fnc: Awaitable[Any] | Callable[..., Any],
         delay: float | None,
         period: float | None,
         *args: Any,

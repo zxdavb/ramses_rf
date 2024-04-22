@@ -859,7 +859,11 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
     """
 
     def __init__(
-        self, *args: Any, parent: Parent = None, is_sensor: bool = None, **kwargs: Any
+        self,
+        *args: Any,
+        parent: Parent = None,
+        is_sensor: bool | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
 
@@ -899,7 +903,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
             eavesdrop_parent_zone()
 
     def _get_parent(
-        self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
+        self, parent: Parent, *, child_id: str = None, is_sensor: bool | None = None
     ) -> tuple[Parent, str | None]:
         """Get the device's parent, after validating it."""
 

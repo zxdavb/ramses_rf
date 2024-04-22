@@ -104,7 +104,7 @@ class Gateway(Engine):
             _LOGGER.setLevel(logging.DEBUG)
 
         kwargs = {k: v for k, v in kwargs.items() if k[:1] != "_"}  # anachronism
-        config: dict = kwargs.pop(SZ_CONFIG, {})
+        config: dict[str, Any] = kwargs.pop(SZ_CONFIG, {})
 
         super().__init__(
             port_name,
@@ -126,7 +126,7 @@ class Gateway(Engine):
             )
 
         self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
-        self._schema: dict = SCH_GLOBAL_SCHEMAS(kwargs)
+        self._schema: dict[str, Any] = SCH_GLOBAL_SCHEMAS(kwargs)
 
         set_pkt_logging_config(  # type: ignore[arg-type]
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
@@ -156,7 +156,11 @@ class Gateway(Engine):
         return None
 
     async def start(
-        self, /, *, start_discovery: bool = True, cached_packets: dict | None = None
+        self,
+        /,
+        *,
+        start_discovery: bool = True,
+        cached_packets: dict[str, str] | None = None,
     ) -> None:
         """Start the Gateway and Initiate discovery as required."""
 
@@ -229,7 +233,9 @@ class Gateway(Engine):
 
         return args
 
-    def get_state(self, include_expired: bool = False) -> tuple[dict, dict]:
+    def get_state(
+        self, include_expired: bool = False
+    ) -> tuple[dict[str, Any], dict[str, str]]:
         """Return the current schema & state (may include expired packets)."""
 
         self._pause()
@@ -365,7 +371,7 @@ class Gateway(Engine):
         dev = self.device_by_id.get(device_id)
 
         if not dev:
-            traits: dict = SCH_TRAITS(self._include.get(device_id, {}))
+            traits: dict[str, Any] = SCH_TRAITS(self._include.get(device_id, {}))
 
             dev = device_factory(self, Address(device_id), msg=msg, **traits)
 
@@ -546,8 +552,8 @@ class Gateway(Engine):
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
-        callback: Callable | None = None,
-    ) -> asyncio.Task:
+        callback: Callable[[asyncio.Task[Packet]], None] | None = None,
+    ) -> asyncio.Task[Packet]:
         """Wrapper to schedule an async_send_cmd() and return the Task.
 
         num_repeats:  0 = send once, 1 = send twice, etc.
@@ -566,10 +572,10 @@ class Gateway(Engine):
             priority=priority,
             timeout=timeout,
             wait_for_reply=wait_for_reply,
-            callback=callback,
         )
 
         task = self._loop.create_task(coro)
+        task.add_done_callback(callback)
         self.add_task(task)
         return task
 
@@ -584,7 +590,6 @@ class Gateway(Engine):
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
-        **kwargs: Any,
     ) -> Packet:
         """Send a Command and, if QoS is enabled, return the corresponding Packet.
 
@@ -593,9 +598,6 @@ class Gateway(Engine):
 
         Will raise ProtocolSendFailed if the expected pkt is not received.
         """
-
-        callback = kwargs.pop("callback", None)  # TODO: warn (elsewhere) if no Qos
-        assert not kwargs, kwargs
 
         # if callback and self._protocol. disable_qos is not False:
         #     raise
@@ -611,8 +613,4 @@ class Gateway(Engine):
         )  # may: raise ProtocolSendFailed
 
         assert pkt  # mypy
-
-        if callback:
-            self.add_task(self._loop.create_task(callback(pkt)))
-
         return pkt
