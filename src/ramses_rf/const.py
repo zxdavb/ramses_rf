@@ -86,6 +86,7 @@ from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused
     RQ,
     W_,
     Code,
+    VerbT,
 )
 
 from ramses_tx.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
