@@ -3,31 +3,96 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
-import threading
 from collections import OrderedDict
 from datetime import datetime as dt, timedelta as td
-from typing import NewType
+from typing import NewType, TypedDict
 
 from .dispatcher import Message
 
-_LOGGER = logging.getLogger(__name__)
-
-
 DtmStrT = NewType("DtmStrT", str)
+MsgDdT = OrderedDict[DtmStrT, Message]
+
+
+class Params(TypedDict):
+    dtm: dt | str | None
+    verb: str | None
+    src: str | None
+    dst: str | None
+    code: str | None
+    ctx: str | None
+    hdr: str | None
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class MessageIndex:
     """A simple in-memory SQLite3 database for indexing messages."""
 
     def __init__(self) -> None:
-        self._msgs: OrderedDict[DtmStrT, Message] = OrderedDict()
+        """Instantiate a message database/index."""
+
+        self._msgs: MsgDdT = OrderedDict()
 
         self._cx = sqlite3.connect(":memory:")  # Connect to a SQLite DB in memory
         self._cu = self._cx.cursor()  # Create a cursor
 
-        self._setup_adapter_converters()
+        self._setup_db_adapters()  # dtm adapter/converter
+        self._setup_db_schema()
+
+        self._lock = asyncio.Lock()
+        self._last_housekeeping: dt = None  # type: ignore[assignment]
+        self._housekeeping_task: asyncio.Task[None] = None  # type: ignore[assignment]
+
+        self.start()
+
+    def __repr__(self) -> str:
+        return f"MessageIndex({len(self._msgs)} messages)"
+
+    def start(self) -> None:
+        """Start the housekeeper loop."""
+
+        if self._housekeeping_task and not self._housekeeping_task.done():
+            return
+
+        self._housekeeping_task = asyncio.create_task(
+            self._housekeeping_loop(), name=f"{self.__class__.__name__}.housekeeper"
+        )
+
+    def stop(self) -> None:
+        """Stop the housekeeper loop."""
+
+        if self._housekeeping_task and not self._housekeeping_task.done():
+            self._housekeeping_task.cancel()  # stop the housekeeper
+
+        self._cx.commit()  # just in case
+        # self._cx.close()  # may still need to do queries after engine has stopped?
+
+    @property
+    def msgs(self) -> MsgDdT:
+        """Return the messages in the index in a threadsafe way."""
+        return self._msgs
+
+    def _setup_db_adapters(self) -> None:
+        """Setup the database adapters and converters."""
+
+        def adapt_datetime_iso(val: dt) -> str:
+            """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
+            return val.isoformat(timespec="microseconds")
+
+        sqlite3.register_adapter(dt, adapt_datetime_iso)
+
+        def convert_datetime(val: bytes) -> dt:
+            """Convert ISO 8601 datetime to datetime.datetime object."""
+            return dt.fromisoformat(val.decode())
+
+        sqlite3.register_converter("dtm", convert_datetime)
+
+    def _setup_db_schema(self) -> None:
+        """Setup the dayabase schema."""
 
         self._cu.execute(
             """
@@ -52,29 +117,32 @@ class MessageIndex:
 
         self._cx.commit()
 
-        self._timer = threading.Timer(3600, self._housekeeping)
+    async def _housekeeping_loop(self) -> None:
+        """Periodically remove stale messages from the index."""
 
-        self.start()
+        def housekeeping(dt_now: dt, _cutoff: td = td(days=1)) -> None:
+            dtm = (dt_now - _cutoff).isoformat(timespec="microseconds")
 
-    def __repr__(self) -> str:
-        return f"MessageIndex({len(self._msgs)} messages, housekeeping={self._timer.is_alive()})"
+            self._cu.execute("SELECT dtm FROM messages WHERE dtm => ?", (dtm,))
+            rows = self._cu.fetchall()
 
-    # def _msgs(self, device_id: DeviceIdT) -> tuple[Message, ...]:
-    #     msgs = [msg for msg in self._megs.values() if msg.src.id == device_id]
-    #     return msgs
+            try:  # make this operation atomic, i.e. update self._msgs only on success
+                # await self._lock.acquire()
+                self._cu.execute("DELETE FROM messages WHERE dtm < ?", (dtm,))
+                msgs = OrderedDict({row[0]: self._msgs[row[0]] for row in rows})
+                self._cx.commit()
 
-    def _setup_adapter_converters(self) -> None:
-        def adapt_datetime_iso(val: dt) -> str:
-            """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
-            return val.isoformat(timespec="microseconds")
+            except sqlite3.Error:  # need to tighten?
+                self._cx.rollback()
+            else:
+                self._msgs = msgs
+            finally:
+                pass  # self._lock.release()
 
-        sqlite3.register_adapter(dt, adapt_datetime_iso)
-
-        def convert_datetime(val: bytes) -> dt:
-            """Convert ISO 8601 datetime to datetime.datetime object."""
-            return dt.fromisoformat(val.decode())
-
-        sqlite3.register_converter("dtm", convert_datetime)
+        while True:
+            self._last_housekeeping = dt.now()
+            await asyncio.sleep(3600)
+            housekeeping(self._last_housekeeping)
 
     def add(self, msg: Message) -> Message | None:
         """Add a single message to the index.
@@ -84,57 +152,57 @@ class MessageIndex:
         Throws a warning is there is a duplicate dtm.
         """  # TODO: eventually, may be better to use SqlAlchemy
 
-        def insert_msg(msg: Message) -> None:
-            self._cu.execute(
-                """
-                INSERT INTO messages (dtm, verb, src, dst, code, ctx, hdr)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    msg.dtm,
-                    msg.verb,
-                    msg.src.id,
-                    msg.dst.id,
-                    msg.code,
-                    msg._pkt._ctx,
-                    msg._pkt._hdr,
-                ),
-            )
-
-        old = self.rem(hdr=msg._pkt._hdr)
+        dup: tuple[Message, ...] = tuple()  # avoid UnboundLocalError
+        old: Message | None = None  # avoid UnboundLocalError
 
         try:  # TODO: remove, or use only when source is a packet log?
-            insert_msg(msg)
-        except sqlite3.IntegrityError:
-            dups = self.rem(dtm=msg.dtm)
-            if not dups:  # UNIQUE constraint failed: messages.dtm?
-                raise
-            _LOGGER.warning(
-                "Overwrote dtm in index for %s: %s", msg._pkt._hdr, dups[0]._pkt
+            # await self._lock.acquire()
+            dup = self._delete_from(  # HACK: because of contrived pkt logs
+                dtm=msg.dtm.isoformat(timespec="microseconds")
             )
-            insert_msg(msg)
+            old = self._insert_into(msg)  # will delete old msg by hdr
 
-        dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
-        self._msgs[dtm] = msg
+        except sqlite3.Error:  # UNIQUE constraint failed: ? messages.dtm (so: HACK)
+            self._cx.rollback()
 
-        self._cx.commit()
-        return old[0] if old else None
-
-    def _rem(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
-        """Remove a set of message(s) from the index."""
-
-        msgs = self.get(msg=msg, **kwargs)
-
-        sql = "DELETE FROM messages WHERE "
-        sql += " AND ".join(f"{k} = ?" for k in kwargs)
-
-        self._cu.execute(sql, tuple(kwargs.values()))
-
-        for msg in msgs:
+        else:
             dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
-            self._msgs.pop(dtm)
+            self._msgs[dtm] = msg
 
-        return msgs
+        finally:
+            pass  # self._lock.release()
+
+        if dup:
+            _LOGGER.warning(
+                "Overwrote dtm for %s: %s (contrived log?)", msg._pkt._hdr, dup[0]._pkt
+            )
+
+        return old
+
+    def _insert_into(self, msg: Message) -> Message | None:
+        """Insert a message into the index (and return any message replaced by hdr)."""
+
+        msgs = self._delete_from(hdr=msg._pkt._hdr)
+
+        sql = """
+            INSERT INTO messages (dtm, verb, src, dst, code, ctx, hdr)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+
+        self._cu.execute(
+            sql,
+            (
+                msg.dtm,
+                msg.verb,
+                msg.src.id,
+                msg.dst.id,
+                msg.code,
+                msg._pkt._ctx,
+                msg._pkt._hdr,
+            ),
+        )
+
+        return msgs[0] if msgs else None
 
     def rem(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
         """Remove a set of message(s) from the index.
@@ -142,17 +210,69 @@ class MessageIndex:
         Returns any messages that were removed.
         """
 
-        if msg and kwargs:
-            raise ValueError("Either Message or kwargs should be provided, not both")
+        if bool(msg) ^ bool(kwargs):
+            raise ValueError("Either a Message or kwargs should be provided, not both")
         if msg:
-            kwargs["dtm"] = msg.dtm
-        if not kwargs:
-            raise ValueError("No Message or kwargs provided")
+            kwargs["dtm"] = msg.dtm.isoformat(timespec="microseconds")
 
-        msgs = self._rem(msg, **kwargs)
+        try:  # make this operation atomic, i.e. update self._msgs only on success
+            # await self._lock.acquire()
+            msgs = self._delete_from(**kwargs)
 
-        self._cx.commit()
+        except sqlite3.Error:  # need to tighten?
+            self._cx.rollback()
+
+        else:
+            for msg in msgs:
+                dtm: DtmStrT = msg.dtm.isoformat(timespec="microseconds")  # type: ignore[assignment]
+                self._msgs.pop(dtm)
+
+        finally:
+            pass  # self._lock.release()
+
         return msgs
+
+    def _delete_from(self, **kwargs: str) -> tuple[Message, ...]:
+        """Remove message(s) from the index (and return any messages removed)."""
+
+        msgs = self._select_from(**kwargs)
+
+        sql = "DELETE FROM messages WHERE "
+        sql += " AND ".join(f"{k} = ?" for k in kwargs)
+
+        self._cu.execute(sql, tuple(kwargs.values()))
+
+        return msgs
+
+    def get(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
+        """Return a set of message(s) from the index."""
+
+        if bool(msg) ^ bool(kwargs):
+            raise ValueError("Either a Message or kwargs should be provided, not both")
+        if msg:
+            kwargs["dtm"] = msg.dtm.isoformat(timespec="microseconds")
+
+        return self._select_from(**kwargs)
+
+    def _select_from(self, **kwargs: str) -> tuple[Message, ...]:
+        """Select message(s) from the index (and return any such messages)."""
+
+        sql = "SELECT dtm FROM messages WHERE "
+        sql += " AND ".join(f"{k} = ?" for k in kwargs)
+
+        self._cu.execute(sql, tuple(kwargs.values()))
+
+        return tuple(self._msgs[row[0]] for row in self._cu.fetchall())
+
+    def qry(self, sql: str, parameters: tuple[str, ...]) -> tuple[Message, ...]:
+        """Return a set of message(s) from the index, given sql and parameters."""
+
+        if "SELECT" not in sql:
+            raise ValueError(f"{self}: Only SELECT queries are allowed")
+
+        self._cu.execute(sql, parameters)
+
+        return tuple(self._msgs[row[0]] for row in self._cu.fetchall())
 
     def all(self, include_expired: bool = False) -> tuple[Message, ...]:
         """Return all messages from the index."""
@@ -164,30 +284,6 @@ class MessageIndex:
             m for m in self._msgs.values() if include_expired or not m._expired
         )
 
-    def get(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
-        """Return a set of message(s) from the index."""
-
-        if msg and kwargs:
-            raise ValueError("Either Message or kwargs should be provided, not both")
-        if msg:
-            kwargs["dtm"] = msg.dtm
-        if not kwargs:
-            raise ValueError("No Message or kwargs provided")
-
-        sql = "SELECT dtm FROM messages WHERE "
-        sql += " AND ".join(f"{k} = ?" for k in kwargs)
-
-        if len(self._msgs) > 8:
-            pass
-
-        return self.qry(sql, tuple(kwargs.values()))
-
-    def qry(self, sql: str, parameters: tuple[str, ...]) -> tuple[Message, ...]:
-        """Return a set of message(s) from the index, given a sql and parameters."""
-
-        self._cu.execute(sql, parameters)
-        return tuple(self._msgs[row[0]] for row in self._cu.fetchall())
-
     def clr(self) -> None:
         """Clear the message index (remove all messages)."""
 
@@ -196,26 +292,6 @@ class MessageIndex:
 
         self._msgs.clear()
 
-    def start(self) -> None:
-        if not self._timer.is_alive():
-            self._timer.start()
-            self._timer.name = "MessageIndex.housekeeping"
-
-    def stop(self) -> None:
-        self._timer.cancel()  # stop the housekeeping thread
-        # self._cx.close()  #    may still need to do queries after engine has stopped
-
-    def _housekeeping(self) -> None:
-        """Perform housekeeping on the message index.
-
-        Remove stale messages from the index.
-        """
-
-        dtm = (dt.now() - td(days=1)).isoformat(timespec="microseconds")
-
-        self._cu.execute("SELECT dtm FROM messages WHERE dtm < ?", (dtm,))
-        for row in self._cu.fetchall():
-            self._msgs.pop(row[0])
-
-        self._cu.execute("DELETE FROM messages WHERE dtm < ?", (dtm,))
-        self._cx.commit()
+    # def _msgs(self, device_id: DeviceIdT) -> tuple[Message, ...]:
+    #     msgs = [msg for msg in self._msgs.values() if msg.src.id == device_id]
+    #     return msgs
