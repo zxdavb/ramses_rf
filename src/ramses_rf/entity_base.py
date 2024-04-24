@@ -390,7 +390,9 @@ class _MessageDB(_Entity):
         sql = """
             SELECT dtm from messages WHERE verb in (' I', 'RP') AND (src = ? OR dst = ?)
         """
-        return {m.code: m for m in self._gwy._zzz.qry(sql, (self.id, self.id))}
+        return {  # ? use context instead?
+            m.code: m for m in self._gwy._zzz.qry(sql, (self.id[:9], self.id[:9]))
+        }  # e.g. 01:123456_HW
 
     @property
     def _msgz(self) -> dict[Code, dict[VerbT, dict[bool | str | None, Message]]]:
