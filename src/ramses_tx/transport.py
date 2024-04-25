@@ -822,7 +822,10 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
 
 
 class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
-    """Send/receive packets to/from evofw3/HGI80 via serial port."""
+    """Send/receive packets async to/from evofw3/HGI80 via a serial port.
+
+    See: https://github.com/ghoti57/evofw3
+    """
 
     _init_fut: asyncio.Future[Packet | None]
     _init_task: asyncio.Task[None]
@@ -1007,7 +1010,10 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
 
 class MqttTransport(_FullTransport, _MqttTransportAbstractor):
-    """Send/receive packets to/from ESP_evofw3 via MQTT."""
+    """Send/receive packets to/from ramses_esp via MQTT.
+
+    See: https://github.com/IndaloTech/ramses_esp
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # _LOGGER.error("__init__(%s, %s)", args, kwargs)
