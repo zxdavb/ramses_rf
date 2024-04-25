@@ -524,6 +524,37 @@ class _PortTransportAbstractor(serial_asyncio.SerialTransport):  # type: ignore[
         # lf._loop = loop or asyncio.get_event_loop()
 
 
+class _SyncTransportAbstractor:
+    """Do the bare minimum to abstract a transport from its underlying class."""
+
+    def __init__(  # type: ignore[no-any-unimported]
+        self,
+        serial_instance: Serial,
+        protocol: RamsesProtocolT,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
+        # per().__init__(loop or asyncio.get_event_loop(), protocol, serial_instance)
+
+        self.serial = serial_instance  # ._serial, not .serial
+
+        self._protocol = protocol
+        self.loop = loop or asyncio.get_event_loop()
+
+    def get_extra_info(self, name, default=None):
+        """Get optional transport information.
+
+        Currently only "serial" is available.
+        """
+        if name == "serial":
+            return self.serial
+        return default
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}({self.loop}, {self._protocol}, {self.serial})"
+        )
+
+
 class _MqttTransportAbstractor:
     """Do the bare minimum to abstract a transport from its underlying class."""
 
@@ -822,7 +853,7 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
 
 
 class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
-    """Send/receive packets async to/from evofw3/HGI80 via a serial port.
+    """Send/receive packets *async* to/from evofw3/HGI80 via a serial port.
 
     See: https://github.com/ghoti57/evofw3
     """
@@ -846,11 +877,13 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             self._create_connection(), name="PortTransport._create_connection()"
         )
 
+    # SAME as PortTransport
     def get_extra_info(self, name: str, default: Any = None) -> Any:
         if name == SZ_IS_EVOFW3:
             return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
         return self._extra.get(name, default)
 
+    # SAME as PortTransport
     async def _create_connection(self) -> None:
         """Invoke the Protocols's connection_made() callback after HGI80 discovery."""
 
@@ -907,6 +940,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
                 f"Failed to initialise Transport within {timeout} secs"
             ) from err
 
+    # SAME as PortTransport
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self.write()."""
         while True:
@@ -959,6 +993,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         super()._pkt_read(pkt)
 
+    # SAME as PortTransport
     @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # @limit_transmit_rate(_MAX_TOKENS)
     @avoid_system_syncs
     async def write_frame(self, frame: str) -> None:  # Protocols call this, not write()
@@ -970,6 +1005,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
     # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
     # then the code that avoids the controller sync cycles
 
+    # SAME as PortTransport
     async def _write_frame(self, frame: str) -> None:
         """Write some data bytes to the underlying transport."""
 
@@ -986,6 +1022,201 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             self._abort(err)
             return
 
+    # SAME as PortTransport
+    def _write(self, data: bytes) -> None:
+        self.serial.write(data)
+
+    def _abort(self, exc: ExceptionT) -> None:  # used by serial_asyncio.SerialTransport
+        super()._abort(exc)
+
+        if self._init_task:
+            self._init_task.cancel()
+        if self._leaker_task:
+            self._leaker_task.cancel()
+
+    def _close(self, exc: exc.RamsesException | None = None) -> None:
+        """Close the transport (cancel any outstanding tasks)."""
+
+        super()._close(exc)
+
+        if self._init_task:
+            self._init_task.cancel()
+
+        if self._leaker_task:
+            self._leaker_task.cancel()
+
+
+class SyncTransport(_RegHackMixin, _FullTransport, _SyncTransportAbstractor):
+    """Send/receive packets *sync* to/from evofw3/HGI80 via a serial port.
+
+    See: https://github.com/ghoti57/evofw3
+    """
+
+    _init_fut: asyncio.Future[Packet | None]
+    _init_task: asyncio.Task[None]
+
+    _recv_buffer: bytes = b""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._leaker_sem = asyncio.BoundedSemaphore()
+        self._leaker_task = self._loop.create_task(
+            self._leak_sem(), name="PortTransport._leak_sem()"
+        )
+
+        self._is_hgi80 = is_hgi80(self.serial.name)
+
+        self._loop.create_task(
+            self._create_connection(), name="PortTransport._create_connection()"
+        )
+
+    # SAME as PortTransport
+    def get_extra_info(self, name: str, default: Any = None) -> Any:
+        if name == SZ_IS_EVOFW3:
+            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
+        return self._extra.get(name, default)
+
+    # SAME as PortTransport
+    async def _create_connection(self) -> None:
+        """Invoke the Protocols's connection_made() callback after HGI80 discovery."""
+
+        # HGI80s (and also VMs) take longer to send signature packets as they have long
+        # initialisation times, so we must wait until they send OK
+
+        # signature also serves to discover the HGI's device_id (& for pkt log, if any)
+
+        async def connect_sans_signature() -> None:
+            """Call connection_made() without sending/waiting for a signature."""
+
+            self._init_fut.set_result(None)
+            self._make_connection(gwy_id=None)
+
+        async def connect_with_signature() -> None:
+            """Poll port with signatures, call connection_made() after first echo."""
+
+            sig = Command._puzzle()
+            self._extra[SZ_SIGNATURE] = sig.payload
+
+            num_sends = 0
+            while num_sends < _SIGNATURE_MAX_TRYS:
+                num_sends += 1
+
+                await self._write_frame(str(sig))
+                await asyncio.sleep(_SIGNATURE_GAP_SECS)
+
+                if self._init_fut.done():
+                    pkt = self._init_fut.result()
+                    self._make_connection(gwy_id=pkt.src.id if pkt else None)
+                    return
+
+            if not self._init_fut.done():
+                self._init_fut.set_result(None)
+
+            self._make_connection(gwy_id=None)
+            return
+
+        self._init_fut = asyncio.Future()
+        if self._disable_sending:
+            self._init_task = self._loop.create_task(
+                connect_sans_signature(), name="PortTransport.connect_sans_signature()"
+            )
+        else:
+            self._init_task = self._loop.create_task(
+                connect_with_signature(), name="PortTransport.connect_with_signature()"
+            )
+
+        timeout = 3
+        try:  # wait to get (1st) signature echo from evofw3/HGI80, if any
+            await asyncio.wait_for(self._init_fut, timeout=timeout)  # signature echo
+        except TimeoutError as err:
+            raise exc.TransportSerialError(
+                f"Failed to initialise Transport within {timeout} secs"
+            ) from err
+
+    # SAME as PortTransport
+    async def _leak_sem(self) -> None:
+        """Used to enforce a minimum time between calls to self.write()."""
+        while True:
+            await asyncio.sleep(MINIMUM_WRITE_GAP)
+            with contextlib.suppress(ValueError):
+                self._leaker_sem.release()
+
+    # NOTE: self._frame_read() invoked from here
+    def _read_ready(self) -> None:
+        """Make Frames from the read data and process them."""
+
+        def bytes_read(data: bytes) -> Iterable[tuple[dt, bytes]]:
+            self._recv_buffer += data
+            if b"\r\n" in self._recv_buffer:
+                lines = self._recv_buffer.split(b"\r\n")
+                self._recv_buffer = lines[-1]
+                for line in lines[:-1]:
+                    yield self._dt_now(), line + b"\r\n"
+
+        try:
+            data: bytes = self.serial.read(self._max_read_size)
+        except SerialException as err:
+            if not self._closing:
+                self._close(exc=err)  # have to use _close() to pass in exception
+            return
+
+        if not data:
+            return
+
+        for dtm, raw_line in bytes_read(data):
+            if _DBG_FORCE_LOG_FRAMES:
+                _LOGGER.warning("Rx: %s", raw_line)
+            elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+                _LOGGER.info("Rx: %s", raw_line)
+
+            self._frame_read(
+                dtm.isoformat(timespec="milliseconds"), _normalise(_str(raw_line))
+            )
+
+    @track_system_syncs
+    def _pkt_read(self, pkt: Packet) -> None:
+        # NOTE: a signature can override an existing active gateway
+        if (
+            not self._init_fut.done()
+            and pkt.code == Code._PUZZ
+            and pkt.payload == self._extra[SZ_SIGNATURE]
+        ):
+            self._extra[SZ_ACTIVE_HGI] = pkt.src.id  # , by_signature=True)
+            self._init_fut.set_result(pkt)
+
+        super()._pkt_read(pkt)
+
+    # SAME as PortTransport
+    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # @limit_transmit_rate(_MAX_TOKENS)
+    @avoid_system_syncs
+    async def write_frame(self, frame: str) -> None:  # Protocols call this, not write()
+        """Transmit the frame via the underlying handler."""
+
+        await self._leaker_sem.acquire()  # asyncio.sleep(MINIMUM_WRITE_GAP)
+        await super().write_frame(frame)
+
+    # NOTE: The order should be: minimum gap between writes, duty cycle limits, and
+    # then the code that avoids the controller sync cycles
+
+    # SAME as PortTransport
+    async def _write_frame(self, frame: str) -> None:
+        """Write some data bytes to the underlying transport."""
+
+        data = bytes(frame, "ascii") + b"\r\n"
+
+        if _DBG_FORCE_LOG_FRAMES:
+            _LOGGER.warning("Tx:     %s", data)
+        elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
+            _LOGGER.info("Tx:     %s", data)
+
+        try:
+            self._write(data)
+        except SerialException as err:
+            self._abort(err)
+            return
+
+    # SAME as PortTransport
     def _write(self, data: bytes) -> None:
         self.serial.write(data)
 
