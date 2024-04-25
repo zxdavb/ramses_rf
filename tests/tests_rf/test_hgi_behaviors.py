@@ -106,11 +106,11 @@ async def _test_gwy_device(gwy: Gateway, test_idx: int) -> None:
 
     # NOTE: timeout values are empirical, and may need to be adjusted
     if isinstance(gwy._transport, MqttTransport):  # MQTT
-        timeout = 0.375 * 2  # intesting, fail: 0.370 work: 0.375
+        timeout = 0.375 * 2  # intesting, fail: 0.370 work: 0.375: 0.75 margin of safety
     elif gwy._transport.get_extra_info("virtual_rf"):  #   # fake
-        timeout = 0.003 * 2  # in testing, fail: 0.002 work: 0.003
+        timeout = 0.003 * 2  # in testing, fail: 0.002 work: 0.003: 0.006 margin of ...
     else:  #                                        # real
-        timeout = 0.355 * 2  # intesting, fail: 0.350 work: 0.355
+        timeout = 0.355 * 2  # intesting, fail: 0.350 work: 0.355: 0.71 margin of safety
 
     try:
         # using gwy._protocol.send_cmd() instead of gwy.async_send_cmd() as the
