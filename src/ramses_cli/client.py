@@ -359,7 +359,7 @@ def listen(obj, **kwargs):
 
 def print_results(gwy: Gateway, **kwargs):
     if kwargs[GET_FAULTS]:
-        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._faultlog.fault_log
+        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._faultlog.faultlog
 
         if fault_log is None:
             print("No fault log, or failed to get the fault log.")
