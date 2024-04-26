@@ -8,6 +8,7 @@ import contextlib
 import logging
 import os
 import pty
+import re
 import signal
 import tty
 from collections import deque
@@ -157,6 +158,8 @@ class VirtualRfBase:
         self._log: deque[tuple[_PN, str, bytes]] = deque([], log_size)
         self._task: asyncio.Task = None  # type: ignore[assignment]
 
+        self._replies: dict[str, bytes] = {}
+
     def _create_port(self, port_idx: int, dev_type: HgiFwTypes | None = None) -> None:
         """Create a port without a HGI80 attached."""
         master_fd, slave_fd = pty.openpty()  # pty, tty
@@ -251,6 +254,31 @@ class VirtualRfBase:
         _LOGGER.info(f"{src_port:<11} cast:  {frame!r}")
         for dst_port in self._port_to_master:
             self._push_frame_to_dst_port(dst_port, frame)
+
+        # see if there is a faked reponse (RP/I) for a given command (RQ/W)
+        if not (reply := self._find_reply_for_cmd(frame)):
+            return
+
+        _LOGGER.info(f"{src_port:<11} rply:  {reply!r}")
+        for dst_port in self._port_to_master:
+            self._push_frame_to_dst_port(dst_port, reply)  # is not echo only
+
+    def add_reply_for_cmd(self, cmd: str, reply: str) -> None:
+        """Add a reply packet for a given command frame (for a mocked device).
+
+        For example (note no RSSI, \\r\\n in reply pkt):
+          cmd regex: r"RQ.* 18:.* 01:.* 0006 001 00"
+          reply pkt: "RP --- 01:145038 18:013393 --:------ 0006 004 00050135",
+        """
+
+        self._replies[cmd] = reply.encode() + b"\r\n"
+
+    def _find_reply_for_cmd(self, cmd: bytes) -> bytes | None:
+        """Return a reply packet for a given command frame (for a mocked device)."""
+        for pattern, reply in self._replies.items():
+            if re.match(pattern, cmd.decode()):
+                return reply
+        return None
 
     def _push_frame_to_dst_port(self, dst_port: _PN, frame: bytes) -> None:
         """Push the frame to a single destination port."""

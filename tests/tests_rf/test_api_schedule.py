@@ -9,11 +9,15 @@ import pytest
 from ramses_rf import Gateway
 from ramses_rf.device import Controller
 from ramses_rf.system import Evohome, Zone
-from ramses_tx.address import HGI_DEVICE_ID
+from ramses_tx.address import HGI_DEVICE_ID, Address
 from ramses_tx.protocol import PortProtocol
 from ramses_tx.schemas import DeviceIdT
 
 from .conftest import _GwyConfigDictT
+from .virtual_rf import VirtualRf
+
+TST_ID_ = Address("18:123456").id  # the id of the test HGI80-compatible device
+
 
 # ### FIXTURES #########################################################################
 
@@ -30,6 +34,11 @@ def gwy_config() -> _GwyConfigDictT:
         },
         "known_list": {HGI_DEVICE_ID: {}},  # req'd to thwart foreign HGI blacklisting
     }
+
+
+@pytest.fixture()
+def gwy_dev_id() -> DeviceIdT:
+    return TST_ID_
 
 
 #######################################################################################
@@ -58,6 +67,34 @@ async def _test_get_schedule(gwy: Gateway, ctl_id: DeviceIdT, idx: str) -> None:
 
 
 #######################################################################################
+
+# 2021-10-24T15:26:06.084723 023 RQ --- 18:013393 01:145038 --:------ 0404 007 01200008000100
+# 2021-10-24T15:26:06.144750 046 RP --- 01:145038 18:013393 --:------ 0404 048 0120000829010368816DCCB10D80300C0551DB710C03515052310303300B73320A440111E0527D9D9C2722A252DF768E
+# 2021-10-24T15:26:06.303681 023 RQ --- 18:013393 01:145038 --:------ 0404 007 01200008000203
+# 2021-10-24T15:26:06.347579 046 RP --- 01:145038 18:013393 --:------ 0404 048 01200008290203A1AFFB6EFB39FAEEDD46FFDFCD59648AA729780A9E82A7E01978069E8167E025F0127809BC049E83E7
+# 2021-10-24T15:26:06.381601 023 RQ --- 18:013393 01:145038 --:------ 0404 007 01200008000303
+# 2021-10-24T15:26:06.417568 045 RP --- 01:145038 18:013393 --:------ 0404 038 012000081F0303E039780E5EBEFEB677A52DF66F5FAFB4F5E30578015E80178D77006F8713D1
+
+
+TEST_SUITE = {
+    r"RQ.* 18:.* 01:.* 0006 001 00": "RP --- 01:145038 18:013393 --:------ 0006 004 00050135",
+    r"RQ.* 18:.* 01:.* 0404 007 01200008000100": "RP --- 01:145038 18:013393 --:------ 0404 048 0120000829010368816DCCB10D80300C0551DB710C03515052310303300B73320A440111E0527D9D9C2722A252DF768E",
+    r"RQ.* 18:.* 01:.* 0404 007 01200008000203": "RP --- 01:145038 18:013393 --:------ 0404 048 01200008290203A1AFFB6EFB39FAEEDD46FFDFCD59648AA729780A9E82A7E01978069E8167E025F0127809BC049E83E7",
+    r"RQ.* 18:.* 01:.* 0404 007 01200008000303": "RP --- 01:145038 18:013393 --:------ 0404 038 012000081F0303E039780E5EBEFEB677A52DF66F5FAFB4F5E30578015E80178D77006F8713D1",
+}
+
+
+async def test_get_schedule_fake(fake_evofw3: Gateway) -> None:
+    """Test obtaining the schedule from a faked controller via Virtual RF."""
+
+    assert fake_evofw3._transport  # mypy
+
+    # Prime the virtual RF with the expected replies...
+    rf: VirtualRf = fake_evofw3._transport.get_extra_info("virtual_rf")
+    for k, v in TEST_SUITE.items():
+        rf.add_reply_for_cmd(k, v)
+
+    await _test_get_schedule(fake_evofw3, "01:145038", "01")
 
 
 @pytest.mark.xdist_group(name="real_serial")
