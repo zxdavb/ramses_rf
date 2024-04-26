@@ -6,7 +6,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Never, NewType, TypeAlias
+from typing import TYPE_CHECKING, NewType, TypeAlias
 
 from ramses_tx import Command, Message, Packet
 from ramses_tx.const import (
@@ -84,8 +84,8 @@ class FaultLogEntry:
 FaultDtmT = NewType("FaultDtmT", str)
 FaultIdxT = NewType("FaultIdxT", int)
 
-FaultLogT: TypeAlias = dict[Never, Never] | dict[FaultDtmT, FaultLogEntry]
-FaultMapT: TypeAlias = OrderedDict[Never, Never] | OrderedDict[FaultIdxT, FaultDtmT]
+FaultLogT: TypeAlias = dict[FaultDtmT, FaultLogEntry]
+FaultMapT: TypeAlias = OrderedDict[FaultIdxT, FaultDtmT]
 
 
 class FaultLog:  # 0418  # TODO: use a NamedTuple
@@ -173,7 +173,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         entry = FaultLogEntry.from_msg(msg)  # if msg.payload[SZ_LOG_ENTRY] else None
         dtm: FaultDtmT = entry.timestamp  # type: ignore[assignment]
 
-        if self._map.get(idx) == dtm:  # type: ignore[call-overload]
+        if self._map.get(idx) == dtm:
             return  # i.e. No evidence anything has changed
 
         if dtm not in self._log:
@@ -222,7 +222,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         # if self._faultlog:
         #     return self._faultlog
 
-        return {idx: self._log[dtm] for idx, dtm in self._map.items()}  # type: ignore[index]
+        return {idx: self._log[dtm] for idx, dtm in self._map.items()}
 
     def is_current(self, force_io: bool | None = None) -> bool:
         """Return True if the local fault log is identical to the controllers.
@@ -234,3 +234,25 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         if not self._is_current:
             return False
         return True
+
+    @property
+    def active_fault(self) -> FaultLogEntry | None:
+        """Return the most recently logged event, if any, but only if it is a fault."""
+
+        if self.latest_fault != self.latest_event:
+            return None
+        return self.latest_fault
+
+    @property
+    def latest_event(self) -> FaultLogEntry | None:
+        """Return the most recently logged event (fault or restore), if any."""
+
+        return self._log[max(k for k in self._log.keys())]
+
+    @property
+    def latest_fault(self) -> FaultLogEntry | None:
+        """Return the most recently logged fault, if any."""
+
+        return self._log[
+            max(k for k, v in self._log.items() if v.fault_state == FaultState.FAULT)
+        ]

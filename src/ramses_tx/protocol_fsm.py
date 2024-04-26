@@ -122,13 +122,17 @@ class ProtocolContext:
         async def expire_state_on_timeout() -> None:
             # a separate coro, so can be spawned off with create_task()
 
+            assert self._cmd is not None  # mypy
+
             assert isinstance(
                 self.is_sending, bool
             ), f"{self}: Coding error"  # TODO: remove
             assert self._cmd_tx_count > 0, f"{self}: Coding error"  # TODO: remove
 
-            if isinstance(self._state, WantEcho):
+            if isinstance(self._state, WantEcho):  # otherwise is WantRply
                 delay = self.echo_timeout * (2**self._multiplier)
+            # elif self._cmd.code == Code._0404:
+            #     delay = self.reply_timeout * (2**self._multiplier) * 2
             else:  # isinstance(self._state, WantRply):
                 delay = self.reply_timeout * (2**self._multiplier)
 
