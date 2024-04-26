@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from .transport import RamsesTransportT
 
 _LOGGER = logging.getLogger(__name__)
+# _LOGGER.setLevel(logging.DEBUG)
 
 # All debug flags should be False for end-users
 _DBG_MAINTAIN_STATE_CHAIN: Final[bool] = False  # maintain Context._prev_state
@@ -39,7 +40,7 @@ _DBG_USE_STRICT_TRANSITIONS: Final[bool] = False
 
 #######################################################################################
 
-_FutureT: TypeAlias = asyncio.Future[Packet | Exception]
+_FutureT: TypeAlias = asyncio.Future[Packet]
 _QueueEntryT: TypeAlias = tuple[Priority, dt, Command, QosParams, _FutureT]
 
 
@@ -140,9 +141,9 @@ class ProtocolContext:
             self._multiplier = min(3, old_val + 1)
 
             if isinstance(self._state, WantEcho):
-                _LOGGER.warning("TOUT = %s: echo_timeout=%s", self, delay)
+                _LOGGER.warning("TOUT.. = %s: echo_timeout=%s", self, delay)
             else:  # isinstance(self._state, WantRply):
-                _LOGGER.warning("TOUT = %s: reply_timeout=%s", self, delay)
+                _LOGGER.warning("TOUT.. = %s: rply_timeout=%s", self, delay)
 
             assert isinstance(
                 self.is_sending, bool
@@ -306,11 +307,11 @@ class ProtocolContext:
         self._send_fnc = send_fnc  # TODO: REMOVE: make per Context, not per Command
 
         if isinstance(self._state, Inactive):
-            raise exc.ProtocolSendFailed(f"{self}: Send failed (no transport?)")
+            raise exc.ProtocolSendFailed(f"{self}: Send failed (no active transport?)")
 
         assert self._loop is asyncio.get_running_loop()  # BUG is here
 
-        fut = self._loop.create_future()
+        fut: _FutureT = self._loop.create_future()
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
         except Full as err:
@@ -328,7 +329,7 @@ class ProtocolContext:
         except TimeoutError as err:  # incl. fut.cancel()
             msg = f"{self}: Expired global timer after {timeout} sec"
             _LOGGER.warning(
-                "TOUT = %s: send_timeout=%s (%s)", self, timeout, self._cmd is cmd
+                "TOUT.. = %s: send_timeout=%s (%s)", self, timeout, self._cmd is cmd
             )
             if self._cmd is cmd:  # NOTE: # this cmd may not yet be self._cmd
                 self.set_state(
@@ -337,7 +338,7 @@ class ProtocolContext:
             raise exc.ProtocolSendFailed(msg) from err  # make msg *before* state reset
 
         try:
-            return fut.result()  # type: ignore[no-any-return]
+            return fut.result()
         except exc.ProtocolSendFailed:
             raise
         except (exc.ProtocolError, exc.TransportError) as err:  # incl. ProtocolFsmError
