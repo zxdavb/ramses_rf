@@ -100,12 +100,9 @@ _SIGNATURE_MAX_TRYS = 24
 _SIGNATURE_GAP_SECS = 0.05
 
 
-DEV_MODE = False
-
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.WARNING)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
+# _LOGGER.setLevel(logging.INFO)
+
 
 # All debug flags (used for dev/test) should be False for published code
 _DBG_DISABLE_DUTY_CYCLE_LIMIT = False
@@ -743,9 +740,7 @@ class _RegHackMixin:
                 _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {err}")
 
         if result != pkt_line and not _DBG_DISABLE_REGEX_WARNINGS:
-            (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
-                f"{pkt_line} < Changed by use_regex to: {result}"
-            )
+            _LOGGER.warning(f"{pkt_line} < Changed by use_regex to: {result}")
         return result
 
     def _frame_read(self, dtm_str: str, frame: str) -> None:
