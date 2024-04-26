@@ -31,6 +31,9 @@ if TYPE_CHECKING:
     from ramses_rf.system.heat import Evohome
 
 
+DEFAULT_LIMIT = 6
+
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -51,6 +54,16 @@ class FaultLogEntry:
     domain_idx: str  # #              # 00-0F, FC, etc. ? only if dev_class is/not CTL?
     device_class: FaultDeviceClass  # # controller, actuator, sensor, etc.
     device_id: DeviceIdT | None  # #  # 04:164787
+
+    # def __post_init__(self):
+    #     def modify(device_id: DeviceIdT) -> DeviceIdT:
+    #     object.__setattr__(self, "device_id", modify(self.device_id))
+
+    def __str__(self) -> str:
+        return (
+            f"{self.timestamp} {self.fault_state:<7} {self.fault_type} "
+            f"{self.device_id} {self.domain_idx} {self.device_class}"
+        )
 
     @classmethod
     def from_msg(cls, msg: Message) -> FaultLogEntry:
@@ -176,17 +189,17 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         /,
         *,
         start: int = 0,
-        limit: int | None = None,
+        limit: int | None = DEFAULT_LIMIT,
         force_refresh: bool = False,
     ) -> dict[FaultIdxT, FaultLogEntry]:
         """Retrieve the fault log from the controller."""
         if limit is None:
-            limit = self._MAX_LOG_IDX + 1
+            limit = DEFAULT_LIMIT
 
         self._is_getting = True
 
-        for i in range(start, limit):
-            cmd = Command.get_system_log_entry(self.id, i)
+        for idx in range(start, limit):
+            cmd = Command.get_system_log_entry(self.id, idx)
             pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
 
             try:
