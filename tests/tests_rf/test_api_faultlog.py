@@ -46,7 +46,7 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
     tcs: Evohome | None = gwy.tcs
     assert isinstance(tcs, Evohome)  # mypy
 
-    faultlog = await tcs.get_faultlog()
+    faultlog = await tcs.get_faultlog(limit=3)  # 3 entries is enough
     assert faultlog
 
 
