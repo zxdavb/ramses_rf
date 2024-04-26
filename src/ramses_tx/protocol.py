@@ -54,15 +54,13 @@ _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
 
 
+DEFAULT_QOS = QosParams()
+
+
 class _BaseProtocol(asyncio.Protocol):
     """Base class for RAMSES II protocols."""
 
     WRITER_TASK = "writer_task"
-
-    _this_msg: Message | None = None
-    _prev_msg: Message | None = None
-
-    _is_evofw3: bool | None = None
 
     def __init__(self, msg_handler: MsgHandlerT) -> None:
         self._msg_handler = msg_handler
@@ -72,8 +70,15 @@ class _BaseProtocol(asyncio.Protocol):
         self._loop = asyncio.get_running_loop()
 
         self._pause_writing = False  # FIXME: Start in R/O mode as no connection yet?
-        self._wait_connection_lost: asyncio.Future[Exception | None] | None = None
-        self._wait_connection_made = self._loop.create_future()
+        self._wait_connection_lost: asyncio.Future[None] | None = None
+        self._wait_connection_made: asyncio.Future[RamsesTransportT] = (
+            self._loop.create_future()
+        )
+
+        self._this_msg: Message | None = None
+        self._prev_msg: Message | None = None
+
+        self._is_evofw3: bool | None = None
 
     @property
     def hgi_id(self) -> DeviceIdT:
@@ -159,7 +164,7 @@ class _BaseProtocol(asyncio.Protocol):
             return None
 
         try:
-            return await asyncio.wait_for(self._wait_connection_lost, timeout)  # type: ignore[arg-type]
+            return await asyncio.wait_for(self._wait_connection_lost, timeout)
         except TimeoutError as err:
             raise exc.TransportError(
                 f"Transport did not unbind from Protocol within {timeout} secs"
@@ -194,7 +199,7 @@ class _BaseProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
-    async def send_cmd(  # send_cmd() -> _send_cmd()
+    async def send_cmd(
         self,
         cmd: Command,
         /,
@@ -202,8 +207,8 @@ class _BaseProtocol(asyncio.Protocol):
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        qos: QosParams | None = None,
-    ) -> Packet | None:
+        qos: QosParams = DEFAULT_QOS,
+    ) -> Packet:
         """This is the wrapper for self._send_cmd(cmd)."""
 
         # if not self._transport:
@@ -215,7 +220,7 @@ class _BaseProtocol(asyncio.Protocol):
             _LOGGER.debug(f"QUEUED:     {cmd}")
 
         if self._pause_writing:
-            raise exc.ProtocolSendFailed("The Protocol is currently read-only/paused")
+            raise exc.ProtocolError("The Protocol is currently read-only/paused")
 
         return await self._send_cmd(
             cmd,
@@ -225,7 +230,7 @@ class _BaseProtocol(asyncio.Protocol):
             qos=qos,
         )
 
-    async def _send_cmd(  # _send_cmd() *-> _send_frame()
+    async def _send_cmd(
         self,
         cmd: Command,
         /,
@@ -233,17 +238,12 @@ class _BaseProtocol(asyncio.Protocol):
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        qos: QosParams | None = None,
-    ) -> Packet | None:  # only cmd, no args, kwargs
-        """This is the wrapper for self._send_frame(cmd), with repeats.
-
-        Repeats are distinct from retries (a QoS feature): you wouldn't have both.
-        """
-
-        await self._send_frame(
-            str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
-        )
-        return None  # returns None because no QoS
+        qos: QosParams = DEFAULT_QOS,
+    ) -> Packet:  # only cmd, no args, kwargs
+        # await self._send_frame(
+        #     str(cmd), num_repeats=num_repeats, gap_duration=gap_duration
+        # )
+        raise NotImplementedError(f"{self}: Unexpected error")
 
     async def _send_frame(
         self, frame: str, num_repeats: int = 0, gap_duration: float = 0.0
@@ -454,7 +454,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
             return
         super().pkt_received(pkt)
 
-    async def send_cmd(self, cmd: Command, *args: Any, **kwargs: Any) -> Packet | None:
+    async def send_cmd(self, cmd: Command, *args: Any, **kwargs: Any) -> Packet:
         if not self._is_wanted_addrs(cmd.src.id, cmd.dst.id, sending=True):
             raise exc.ProtocolError(f"Command excluded by device_id filter: {cmd}")
         return await super().send_cmd(cmd, *args, **kwargs)
@@ -490,7 +490,7 @@ class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
         qos: QosParams | None = None,
-    ) -> Packet | None:
+    ) -> Packet:
         """Raise an exception as the Protocol cannot send Commands."""
         raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
 
@@ -507,11 +507,8 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         """Add a FSM to the Protocol, to provide QoS."""
         super().__init__(msg_handler, **kwargs)
 
-        self._context: ProtocolContext | None = None
-        self._disable_qos = disable_qos
-
-        if disable_qos is not True:  # True, None, False
-            self._context = ProtocolContext(self)
+        self._context = ProtocolContext(self)
+        self._disable_qos = disable_qos  # no wait_for_reply
 
     def __repr__(self) -> str:
         if not self._context:
@@ -600,26 +597,23 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        qos: QosParams | None = None,
+        qos: QosParams = DEFAULT_QOS,
     ) -> Packet:
         """Wrapper to send a Command with QoS (retries, until success or exception)."""
 
+        # TODO: use a sync function, so we don't have a stack of awaits before the write
         async def send_cmd(kmd: Command) -> None:
-            """Wrapper to for self._send_frame(cmd) with x re-transmits.
-
-            Repeats are distinct from retries (a QoS feature): you wouldn't have both.
-            """
-            # priority, qos have no role here
+            """Wrapper to for self._send_frame(cmd)."""
 
             await self._send_frame(
                 str(kmd), gap_duration=gap_duration, num_repeats=num_repeats
             )
 
-        if not self._context or _DBG_DISABLE_QOS:
-            await send_cmd(cmd)
-            return  # type: ignore[return-value]  # FIXME: should be echo Packet
+        qos = qos or DEFAULT_QOS
 
-        qos = qos or QosParams()  # max_retries, timeout, wait_for_reply
+        if _DBG_DISABLE_QOS:  # TODO: should allow echo Packet?
+            await send_cmd(cmd)
+            return None  # type: ignore[return-value]  # used for test/dev
 
         # if cmd.code == Code._PUZZ:  # NOTE: not as simple as this
         #     priority = Priority.HIGHEST  # FIXME: hack for _7FFF
@@ -653,7 +647,7 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         gap_duration: float = DEFAULT_GAP_DURATION,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
-        qos: QosParams | None = None,  # max_retries, timeout, wait_for_reply
+        qos: QosParams = DEFAULT_QOS,  # max_retries, timeout, wait_for_reply
     ) -> Packet:
         """Send a Command with Qos (with retries, until success or ProtocolError).
 
@@ -664,12 +658,20 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         if one doesn't arrive. If it is False, return the echo of the Command only. If
         it is None (the default), act as True for RQs, and False for all other Commands.
 
+        num_repeats is # of times to send the Command, in addition to the fist transmit,
+        with gap_duration seconds between each transmission. If wait_for_reply is True,
+        then num_repeats is ignored.
+
         Commands are queued and sent FIFO, except higher-priority Commands are always
         sent first.
+
+        Will raise:
+            ProtocolSendFailed: tried to Tx Command, but didn't get echo/reply
+            ProtocolError:      didn't attempt to Tx Command for some reason
         """
 
         assert gap_duration == DEFAULT_GAP_DURATION
-        assert DEFAULT_NUM_REPEATS <= num_repeats <= 3  # no repeats if QoS
+        assert 0 <= num_repeats <= 3  # if QoS, only Tx x1, with no repeats
 
         if qos and not self._context:
             _LOGGER.warning(f"{cmd} < QoS is currently disabled by this Protocol")
@@ -677,13 +679,22 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         if cmd.src.id != HGI_DEV_ADDR.id:  # or actual HGI addr
             await self._send_impersonation_alert(cmd)
 
-        return await super().send_cmd(  # type: ignore[return-value]  # FIXME
+        if qos.wait_for_reply and num_repeats:
+            _LOGGER.warning(f"{cmd} < num_repeats set to 0, as wait_for_reply is True")
+            num_repeats = 0  # the lesser crime over wait_for_reply=False
+
+        pkt = await super().send_cmd(  # may: raise ProtocolError/ProtocolSendFailed
             cmd,
             gap_duration=gap_duration,
             num_repeats=num_repeats,
             priority=priority,
             qos=qos,
         )
+
+        if not pkt:  # HACK: temporary workaround for returning None
+            raise exc.ProtocolSendFailed(f"Failed to send command: {cmd} (REPORT THIS)")
+
+        return pkt
 
 
 RamsesProtocolT: TypeAlias = PortProtocol | ReadProtocol

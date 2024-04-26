@@ -27,7 +27,7 @@ MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st se
 MINIMUM_WRITE_GAP: Final[float] = 0.05  # seconds
 DEFAULT_GAP_DURATION: Final[float] = MINIMUM_WRITE_GAP
 DEFAULT_MAX_RETRIES: Final[int] = 3
-DEFAULT_NUM_REPEATS: Final[int] = 1
+DEFAULT_NUM_REPEATS: Final[int] = 0
 
 SZ_QOS: Final = "qos"
 

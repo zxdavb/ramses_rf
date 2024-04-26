@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
 from io import TextIOWrapper
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -139,7 +138,7 @@ class Gateway(Engine):
         self.devices: list[Device] = []
         self.device_by_id: dict[str, Device] = {}
 
-        self._zzz: MessageIndex | None = None
+        self._zzz: MessageIndex | None = None  # MessageIndex()
 
     def __repr__(self) -> str:
         if not self.ser_name:
@@ -552,18 +551,13 @@ class Gateway(Engine):
         priority: Priority = Priority.DEFAULT,
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
-        callback: Callable[[asyncio.Task[Packet]], None] | None = None,
     ) -> asyncio.Task[Packet]:
         """Wrapper to schedule an async_send_cmd() and return the Task.
 
         num_repeats:  0 = send once, 1 = send twice, etc.
         gap_duration: the gap between repeats (in seconds)
         priority:     the priority of the command
-        callback:     a callback to run when the command is sent (needs QoS)
         """
-
-        if callback and wait_for_reply is None:
-            wait_for_reply = True
 
         coro = self.async_send_cmd(
             cmd,
@@ -575,8 +569,6 @@ class Gateway(Engine):
         )
 
         task = self._loop.create_task(coro)
-        if callback:
-            task.add_done_callback(callback)
         self.add_task(task)
         return task
 
@@ -586,32 +578,28 @@ class Gateway(Engine):
         /,
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
-        max_retries: int = DEFAULT_MAX_RETRIES,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
     ) -> Packet:
-        """Send a Command and, if QoS is enabled, return the corresponding Packet.
+        """Send a Command and return the corresponding (echo or reply) Packet.
 
-        If wait_for_reply is True (and the Command has a rx_header), will return the
-        reply. Otherwise, will simply return the echo.
+        If wait_for_reply is True (*and* the Command has a rx_header), return the
+        reply Packet. Otherwise, simply return the echo Packet.
 
-        Will raise ProtocolSendFailed if the expected pkt is not received.
+        If the expected Packet can't be returned, raise:
+            ProtocolSendFailed: tried to Tx Command, but didn't get echo/reply
+            ProtocolError:      didn't attempt to Tx Command for some reason
         """
 
-        # if callback and self._protocol. disable_qos is not False:
-        #     raise
-
-        pkt = await super().async_send_cmd(
+        return await super().async_send_cmd(
             cmd,
             gap_duration=gap_duration,
-            max_retries=max_retries,
             num_repeats=num_repeats,
             priority=priority,
+            max_retries=max_retries,
             timeout=timeout,
             wait_for_reply=wait_for_reply,
-        )  # may: raise ProtocolSendFailed
-
-        assert pkt  # mypy
-        return pkt
+        )  # may: raise ProtocolError/ProtocolSendFailed

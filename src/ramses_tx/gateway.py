@@ -299,13 +299,21 @@ class Engine:
         /,
         *,
         gap_duration: float = DEFAULT_GAP_DURATION,
-        max_retries: int = DEFAULT_MAX_RETRIES,
         num_repeats: int = DEFAULT_NUM_REPEATS,
         priority: Priority = Priority.DEFAULT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_SEND_TIMEOUT,
         wait_for_reply: bool | None = DEFAULT_WAIT_FOR_REPLY,
     ) -> Packet:
-        """Send a Command and return the echo, or the reply (if so configured)."""
+        """Send a Command and return the corresponding Packet.
+
+        If wait_for_reply is True (*and* the Command has a rx_header), return the
+        reply Packet. Otherwise, simply return the echo Packet.
+
+        If the expected Packet can't be returned, raise:
+            ProtocolSendFailed: tried to Tx Command, but didn't get echo/reply
+            ProtocolError:      didn't attempt to Tx Command for some reason
+        """
 
         qos = QosParams(
             max_retries=max_retries,
@@ -313,16 +321,17 @@ class Engine:
             wait_for_reply=wait_for_reply,
         )
 
+        # adjust priority, WFR here?
         # if cmd.code in (Code._0005, Code._000C) and qos.wait_for_reply is None:
         #     qos.wait_for_reply = True
 
-        return await self._protocol.send_cmd(  # type: ignore[return-value]
+        return await self._protocol.send_cmd(
             cmd,
             gap_duration=gap_duration,
             num_repeats=num_repeats,
             priority=priority,
             qos=qos,
-        )  # may: raise ProtocolSendFailed
+        )  # may: raise ProtocolError/ProtocolSendFailed
 
     def _msg_handler(self, msg: Message) -> None:
         # HACK: This is one consequence of an unpleaseant anachronism
