@@ -8,11 +8,12 @@ from pathlib import Path
 
 from serial.serialutil import SerialException
 from serial.tools import list_ports
-from tests_deprecated.mocked_rf import CTL_ID, MOCKED_PORT, MockDeviceCtl, MockGateway
 
 from ramses_rf import Gateway
 from ramses_rf.schemas import SCH_GLOBAL_CONFIG
 from ramses_rf.system import System
+
+from .mocked_devices import CTL_ID, MOCKED_PORT, MockDeviceCtl, MockGateway
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 

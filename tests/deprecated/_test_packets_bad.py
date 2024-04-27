@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Schema processor.
-"""
+"""RAMSES RF - Test the Schema processor."""
 
 from pathlib import Path, PurePath
 
@@ -10,7 +7,8 @@ import pytest
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
-from tests.helpers import TEST_DIR  # noqa: F401
+
+from .common import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/logs"
 

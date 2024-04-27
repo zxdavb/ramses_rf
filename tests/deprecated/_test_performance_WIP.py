@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""RAMSES RF - Protocol/Transport layer.
-
-Helper functions.
-"""
-# from __future__ import annotations  # incompatible with @typechecked
+"""RAMSES RF - PHelper functions."""
 
 import sys
 import time

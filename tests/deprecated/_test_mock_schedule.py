@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test CH/DHW schedules with a mocked controller.
-"""
+"""RAMSES RF - Test CH/DHW schedules with a mocked controller."""
 
 from copy import deepcopy
 from unittest.mock import patch
 
-from tests.deprecated.common import (
+from .common import (
     TEST_DIR,
     abort_if_rf_test_fails,
     find_test_tcs,
     load_test_gwy,
     test_ports,
 )
-from tests.deprecated.mocked_devices import MOCKED_PORT
+from .mocked_devices import MOCKED_PORT
 
 from ramses_rf.const import SZ_SCHEDULE, SZ_TOTAL_FRAGS, SZ_ZONE_IDX, Code
 from ramses_rf.system import DhwZone, System, Zone

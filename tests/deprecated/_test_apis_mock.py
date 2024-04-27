@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Test the Command.put_*, Command.set_* APIs.
-"""
+"""RAMSES RF - Test the Command.put_*, Command.set_* APIs."""
 
 from datetime import datetime as dt
-
-from tests_deprecated.mocked_rf.command import MockCommand as Command
 
 from ramses_rf.helpers import shrink
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 
+from .mocked_devices.command import MockCommand as Command
 
 def _test_api_good(api, packets):  # NOTE: incl. addr_set check
     """Test a verb|code pair that has a Command constructor."""
