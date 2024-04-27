@@ -31,6 +31,9 @@ if TYPE_CHECKING:
     from ramses_rf.system.heat import Evohome
 
 
+FaultTupleT: TypeAlias = tuple[FaultType, FaultDeviceClass, DeviceIdT, str]
+
+
 DEFAULT_LIMIT = 6
 
 
@@ -63,6 +66,39 @@ class FaultLogEntry:
         return (
             f"{self.timestamp} {self.fault_state:<7} {self.fault_type} "
             f"{self.device_id} {self.domain_idx} {self.device_class}"
+        )
+
+    def is_matching_pair(self, other: FaultLogEntry) -> bool:
+        """Return True if the other entry could be a matching pair (fault/restore)."""
+
+        if not isinstance(other, FaultLogEntry):
+            return TypeError(f"{other} is not not a FaultLogEntry")
+
+        if self.fault_state == FaultState.FAULT:
+            return (
+                other.fault_state == FaultState.RESTORE
+                and self._as_tuple == other._as_tuple
+                and other.timestamp > self.timestamp
+            )
+
+        if self.fault_state == FaultState.RESTORE:
+            return (
+                other.fault_state == FaultState.FAULT
+                and self._as_tuple == other._as_tuple
+                and other.timestamp < self.timestamp
+            )
+
+        return False
+
+    @property
+    def _as_tuple(self) -> FaultTupleT:
+        """Return the fault log entry as a tuple, excluding state (fault/restore)."""
+
+        return (
+            self.fault_type,
+            self.device_class,
+            self.device_id,
+            self.domain_idx,
         )
 
     @classmethod
@@ -236,14 +272,6 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         return True
 
     @property
-    def active_fault(self) -> FaultLogEntry | None:
-        """Return the most recently logged event, if any, but only if it is a fault."""
-
-        if self.latest_fault != self.latest_event:
-            return None
-        return self.latest_fault
-
-    @property
     def latest_event(self) -> FaultLogEntry | None:
         """Return the most recently logged event (fault or restore), if any."""
 
@@ -256,3 +284,24 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         return self._log[
             max(k for k, v in self._log.items() if v.fault_state == FaultState.FAULT)
         ]
+
+    @property
+    def active_faults(self) -> list[FaultLogEntry]:
+        """Return a list of all faults outstanding (i.e. no corresponding restore)."""
+
+        restores = {}
+        faults = {}
+
+        for entry in self._log.values():
+            if entry.fault_state == FaultState.RESTORE:
+                # keep to match against upcoming faults
+                restores[entry._as_tuple] = entry
+
+            if entry.fault_state == FaultState.FAULT:
+                # look for (existing) matching restore, otherwise keep
+                if entry._as_tuple in restores:
+                    del restores[entry._as_tuple]
+                else:
+                    faults[entry._as_tuple] = entry
+
+        return list(faults.values())

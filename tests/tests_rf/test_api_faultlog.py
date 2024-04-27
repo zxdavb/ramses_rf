@@ -14,6 +14,14 @@ from ramses_tx.protocol import PortProtocol
 from ramses_tx.schemas import DeviceIdT
 from tests_rf.virtual_rf import VirtualRf
 
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    Code,
+)
+
 from .conftest import TEST_DIR, _GwyConfigDictT
 
 LOGS_DIR = f"{TEST_DIR}/logs"
@@ -67,7 +75,7 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
 
 def _create_test_suite(log_file_name: str) -> dict[str, str]:
     def proc_log_line_pair(rq: str, rp: str) -> dict[str, str]:
-        if "RQ" not in rq and "RP" not in rp:
+        if RQ not in rq and RP not in rp:
             # RQ --- 18:006402 01:145038 --:------ 0418 003 000000
             # RP --- 01:145038 18:006402 --:------ 0418 022 004000B00400000000004A18...
             raise ValueError(f"Bad log file RQ/RP pair at line {rq}")
