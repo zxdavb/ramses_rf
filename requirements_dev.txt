@@ -7,7 +7,7 @@
 
 # used for development (linting)
   pre-commit>=3.7.0
-  ruff>=0.4.1
+  ruff>=0.4.2
 
 # used for development (typing)
   mypy>=1.9.0
