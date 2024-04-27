@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from ramses_rf.system.heat import Evohome
 
 
-FaultTupleT: TypeAlias = tuple[FaultType, FaultDeviceClass, DeviceIdT, str]
+FaultTupleT: TypeAlias = tuple[FaultType, FaultDeviceClass, DeviceIdT | None, str]
 
 
 DEFAULT_LIMIT = 6
@@ -68,11 +68,11 @@ class FaultLogEntry:
             f"{self.device_id} {self.domain_idx} {self.device_class}"
         )
 
-    def is_matching_pair(self, other: FaultLogEntry) -> bool:
+    def _is_matching_pair(self, other: object) -> bool:
         """Return True if the other entry could be a matching pair (fault/restore)."""
 
         if not isinstance(other, FaultLogEntry):
-            return TypeError(f"{other} is not not a FaultLogEntry")
+            raise TypeError(f"{other} is not not a FaultLogEntry")
 
         if self.fault_state == FaultState.FAULT:
             return (
@@ -153,7 +153,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         self._is_getting: bool = False
 
     def _insert_into_map(self, idx: FaultIdxT, dtm: FaultDtmT | None) -> FaultMapT:
-        """Rebuild the map, given the new log entry data."""
+        """Rebuild the map (as best as possible), given the a log entry."""
 
         new_map: FaultMapT = OrderedDict()
 
