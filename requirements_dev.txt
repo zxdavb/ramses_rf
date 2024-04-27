@@ -1,4 +1,4 @@
-# last checked/updated: 2024/04/20 (c.f. HA 2023.5.x)
+# last checked/updated: 2024/04/27 (c.f. HA 2023.5.x)
 #  - to check against pyproject.toml, github workflows
 #
 
@@ -10,7 +10,7 @@
   ruff>=0.4.2
 
 # used for development (typing)
-  mypy>=1.9.0
+  mypy>=1.10.0
   voluptuous>=0.14.2
 
   types-colorama>=0.4.15
@@ -18,10 +18,10 @@
   types-PyYAML>=6.0.12.20240311
 
 # used for testing
-  pytest>=8.1.1
+  pytest>=8.1.2
   pytest-asyncio>=0.23.6
   pytest-xdist>=3.5.0
 
 # used for build/deploy
-  hatch>=1.9.4       # is not in core HA
-  hatchling<=1.22    # is not in core HA
+  hatch>=1.9.7       # is not in core HA
+  hatchling<1.22     # is not in core HA
