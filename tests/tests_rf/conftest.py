@@ -4,6 +4,7 @@
 import logging
 import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Final, NoReturn, TypeAlias, TypedDict
 from unittest.mock import patch
 
@@ -20,6 +21,8 @@ from tests_rf.virtual_rf import HgiFwTypes, VirtualRf
 
 #
 PortStrT: TypeAlias = str
+
+TEST_DIR = Path(__file__).resolve().parent  # TEST_DIR = f"{os.path.dirname(__file__)}"
 
 SZ_GWY_CONFIG: Final = "gwy_config"
 SZ_GWY_DEV_ID: Final = "gwy_dev_id"
