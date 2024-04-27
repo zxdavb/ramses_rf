@@ -7,7 +7,8 @@ from pathlib import Path, PurePath
 import pytest
 
 from ramses_rf import Gateway
-from tests.helpers import TEST_DIR, assert_expected, shuffle_dict
+
+from .helpers import TEST_DIR, assert_expected, shuffle_dict
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_schema"
 

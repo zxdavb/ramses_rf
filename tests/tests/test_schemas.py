@@ -9,7 +9,8 @@ import pytest
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import load_schema
-from tests.helpers import (
+
+from .helpers import (
     TEST_DIR,
     gwy,  # noqa: F401
     shuffle_dict,

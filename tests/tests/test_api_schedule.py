@@ -20,7 +20,8 @@ from ramses_rf.system.schedule import (
     full_sched_to_fragz,
 )
 from ramses_rf.system.zones import ZoneSchedule
-from tests.helpers import TEST_DIR, load_test_gwy
+
+from .helpers import TEST_DIR, load_test_gwy
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 

@@ -8,7 +8,8 @@ from typing import Any
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.helpers import deep_merge
 from ramses_tx.const import attr_dict_factory
-from tests.helpers import assert_raises
+
+from .helpers import assert_raises
 
 
 def test_merge_dicts() -> None:

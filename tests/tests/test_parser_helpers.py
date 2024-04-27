@@ -25,7 +25,8 @@ from ramses_tx.helpers import (
     hex_to_temp,
 )
 from ramses_tx.packet import Packet
-from tests.helpers import TEST_DIR
+
+from .helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/parser_helpers"
 

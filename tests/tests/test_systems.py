@@ -12,7 +12,8 @@ from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
-from tests.helpers import (
+
+from .helpers import (
     TEST_DIR,
     assert_expected,
     assert_expected_set,

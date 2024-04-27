@@ -8,7 +8,8 @@ import pytest
 from ramses_tx.const import Code
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
-from tests.helpers import TEST_DIR
+
+from .helpers import TEST_DIR
 
 WORK_DIR = f"{TEST_DIR}/parsers"
 

@@ -7,7 +7,8 @@ from pathlib import Path, PurePath
 import pytest
 
 from ramses_rf import Gateway, Message
-from tests.helpers import TEST_DIR, assert_expected
+
+from .helpers import TEST_DIR, assert_expected
 
 WORK_DIR = f"{TEST_DIR}/eavesdrop_dev_class"
 
