@@ -49,7 +49,6 @@ from ramses_rf.schemas import (
     SZ_SENSOR,
 )
 from ramses_tx import Address, Command, Message
-from ramses_tx.const import SZ_PAYLOAD
 
 from .schedule import Schedule
 
@@ -121,11 +120,6 @@ class ZoneBase(Child, Parent, Entity):
         if not isinstance(other, ZoneBase):
             return NotImplemented
         return self.idx < other.idx  # type: ignore[no-any-return]
-
-    # TODO: deprecate this API
-    def _make_and_send_cmd(self, code, **kwargs: Any) -> None:
-        payload = kwargs.pop(SZ_PAYLOAD, f"{self.idx}00")
-        super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
     def heating_type(self) -> str:
@@ -634,9 +628,10 @@ class Zone(ZoneSchedule, ZoneBase):
 
             # TODO: testing this concept, hoping to learn device_id of UFC
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
-                self._make_and_send_cmd(
-                    Code._000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}"
+                cmd = Command.from_attrs(
+                    RQ, self.ctl.id, Code._000C, f"{self.idx}{DEV_ROLE_MAP.UFH}"
                 )
+                self._send_cmd(cmd)
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (

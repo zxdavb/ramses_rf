@@ -130,10 +130,6 @@ class DeviceBase(Entity):
 
         pass
 
-    # TODO: deprecate this API
-    def _make_and_send_cmd(self, code, payload="00", **kwargs: Any) -> None:  # type: ignore[override]
-        super()._make_and_send_cmd(code, self.id, payload=payload, **kwargs)
-
     def _send_cmd(self, cmd: Command, **kwargs: Any) -> None:
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (it has a battery)")

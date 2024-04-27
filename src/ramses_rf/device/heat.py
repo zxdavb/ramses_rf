@@ -149,12 +149,8 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             and not self._gwy._disable_sending
             and not self._gwy.config.disable_discovery
         ):
-            # lf._make_and_send_cmd(
-            #     Code._0008, qos=QOS_LOW
-            # )  # FIXME: deprecate QoS in kwargs
-            self._make_and_send_cmd(
-                Code._3EF1, qos=QOS_LOW
-            )  # FIXME: deprecate QoS in kwargs
+            # lf._send_cmd(Command.get_relay_demand(self.id),           qos=QOS_LOW)
+            self._send_cmd(Command.from_attrs(RQ, self.id, Code._3EF1), qos=QOS_LOW)
 
     @property
     def actuator_cycle(self) -> dict | None:  # 3EF1
@@ -434,9 +430,10 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                 if not flag:
                     self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: None}
                 elif SZ_ZONE_IDX not in self.circuit_by_id[ufh_idx]:
-                    self._make_and_send_cmd(
-                        Code._000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}"
+                    cmd = Command.from_attrs(
+                        RQ, self.ctl.id, Code._000C, f"{ufh_idx}{DEV_ROLE_MAP.UFH}"
                     )
+                    self._send_cmd(cmd)
 
         elif msg.code == Code._0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get(SZ_DOMAIN_ID) == FC:

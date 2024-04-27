@@ -210,10 +210,6 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if self._gwy.config.enable_eavesdrop and not self.appliance_control:
             eavesdrop_appliance_control(msg)
 
-    # TODO: deprecate this API
-    def _make_and_send_cmd(self, code, payload="00", **kwargs: Any) -> None:
-        super()._make_and_send_cmd(code, self.ctl.id, payload=payload, **kwargs)
-
     @property
     def appliance_control(self) -> Device:
         """The TCS relay, aka 'appliance control' (BDR or OTB)."""

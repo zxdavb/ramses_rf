@@ -125,24 +125,6 @@ class _Entity:
         # if self._gwy.hgi and msg.src.id != self._gwy.hgi.id:
         #     self.deprecate_device(msg._pkt, reset=True)
 
-    # TODO: deprecate this API
-    def _make_and_send_cmd(
-        self,
-        code: Code,
-        dest_id: DeviceIdT,
-        payload: str = "00",
-        verb: VerbT = RQ,
-        **kwargs: Any,
-    ) -> None:
-        qos = kwargs.pop("qos", {})  # FIXME: deprecate QoS in kwargs
-        if kwargs:
-            raise RuntimeError(f"Deprecated kwargs: {kwargs} ({code}|{dest_id}|{code})")
-
-        self._send_cmd(
-            self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs),
-            **qos,
-        )
-
     # FIXME: this is a mess - to deprecate for async version?
     def _send_cmd(self, cmd: Command, **kwargs: Any) -> asyncio.Task | None:
         """Send a Command & return the corresponding Task."""
