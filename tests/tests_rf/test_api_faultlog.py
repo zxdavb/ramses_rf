@@ -2,6 +2,7 @@
 """RAMSES RF - Check get of TCS fault logs."""
 
 import asyncio
+import re
 
 import pytest
 
@@ -11,14 +12,16 @@ from ramses_rf.system import Evohome
 from ramses_tx.address import HGI_DEVICE_ID, Address
 from ramses_tx.protocol import PortProtocol
 from ramses_tx.schemas import DeviceIdT
+from tests_rf.virtual_rf import VirtualRf
 
-from .conftest import _GwyConfigDictT
-from .virtual_rf import VirtualRf
+from .conftest import TEST_DIR, _GwyConfigDictT
+
+LOGS_DIR = f"{TEST_DIR}/logs"
 
 TST_ID_ = Address("18:123456").id  # the id of the test HGI80-compatible device
 
 
-# ### FIXTURES #########################################################################
+# ### FIXTURES ########################################################################
 
 pytestmark = pytest.mark.asyncio()
 
@@ -40,7 +43,7 @@ def gwy_dev_id() -> DeviceIdT:
     return TST_ID_
 
 
-#######################################################################################
+# ### TESTS ###########################################################################
 
 
 async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
@@ -61,13 +64,36 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
 
 #######################################################################################
 
-TEST_SUITE = {  # TODO: construct from logs/test_api_faultlog.log
-    r"RQ.* 18:.* 01:.* 0418 003 000000": "RP --- 01:145038 18:006402 --:------ 0418 022 004000B00400000000004A18659A7FFFFF7000000001",
-    r"RQ.* 18:.* 01:.* 0418 003 000001": "RP --- 01:145038 18:006402 --:------ 0418 022 000001B00400000000004A184B58FFFFFF7000000001",
-    r"RQ.* 18:.* 01:.* 0418 003 000002": "RP --- 01:145038 18:006402 --:------ 0418 022 004002B0060401000000431888F87FFFFF70005A23FD",
-    r"RQ.* 18:.* 01:.* 0418 003 000003": "RP --- 01:145038 18:006402 --:------ 0418 022 000003B006040100000043187D63FFFFFF70005A23FD",
-    r"RQ.* 18:.* 01:.* 0418 003 000004": "RP --- 01:145038 18:006402 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000",
-}
+
+def _create_test_suite(log_file_name: str) -> dict[str, str]:
+    def proc_log_line_pair(rq: str, rp: str) -> dict[str, str]:
+        if "RQ" not in rq and "RP" not in rp:
+            # RQ --- 18:006402 01:145038 --:------ 0418 003 000000
+            # RP --- 01:145038 18:006402 --:------ 0418 022 004000B00400000000004A18...
+            raise ValueError(f"Bad log file RQ/RP pair at line {rq}")
+
+        rq_ = re.sub(r" 18:...... ", f" {TST_ID_} ", rq[31:].strip())
+        rp_ = re.sub(r" 18:...... ", f" {TST_ID_} ", rp[31:].strip())
+        return {rq_: rp_}
+
+    result: dict[str, str] = {}
+
+    with open(log_file_name) as file:
+        lines = [line for line in file if line.strip()]  # Skip blank lines
+        for i in range(0, len(lines), 2):
+            result |= proc_log_line_pair(lines[i], lines[i + 1])
+
+    return result
+
+
+# TEST_SUITE = {
+#     r"RQ.* 18:.* 01:.* 0418 003 000000": "RP --- 01:145038 18:006402 --:------ 0418 022 004000B00400000000004A18659A7FFFFF7000000001",
+#     r"RQ.* 18:.* 01:.* 0418 003 000001": "RP --- 01:145038 18:006402 --:------ 0418 022 000001B00400000000004A184B58FFFFFF7000000001",
+#     r"RQ.* 18:.* 01:.* 0418 003 000002": "RP --- 01:145038 18:006402 --:------ 0418 022 004002B0060401000000431888F87FFFFF70005A23FD",
+#     r"RQ.* 18:.* 01:.* 0418 003 000003": "RP --- 01:145038 18:006402 --:------ 0418 022 000003B006040100000043187D63FFFFFF70005A23FD",
+#     r"RQ.* 18:.* 01:.* 0418 003 000004": "RP --- 01:145038 18:006402 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000",
+# }
+TEST_SUITE = _create_test_suite(f"{LOGS_DIR}/test_api_faultlog.log")
 
 
 async def test_get_faultlog_fake(fake_evofw3: Gateway) -> None:
@@ -85,9 +111,9 @@ async def test_get_faultlog_fake(fake_evofw3: Gateway) -> None:
     tcs = fake_evofw3.tcs
     assert tcs  # mypy
 
-    # _ = await tcs.get_faultlog(limit=0x3F)  # TODO: make TEST_SUITE much larger
+    _ = await tcs.get_faultlog(limit=0x3F)  # TODO: make TEST_SUITE much larger
 
-    assert len(tcs._faultlog._log) == 2
+    assert len(tcs._faultlog._log) == 49
     assert (
         str(tcs._faultlog.latest_event)
         == "24-04-20T12:44:52 restore battery_low 00:000001 00 controller"
