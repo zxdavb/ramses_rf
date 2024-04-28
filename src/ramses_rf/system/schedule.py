@@ -23,7 +23,7 @@ from ramses_rf.const import (
     SZ_ZONE_IDX,
 )
 from ramses_tx.command import Command
-from ramses_tx.const import SZ_CHANGE_COUNTER
+from ramses_tx.const import SZ_CHANGE_COUNTER, Priority
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
 
@@ -236,7 +236,9 @@ class Schedule:  # 0404
             cmd = Command.get_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_set_size
             )
-            pkt: Packet = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
+            pkt: Packet = await self._gwy.async_send_cmd(
+                cmd, wait_for_reply=True, priority=Priority.HIGH
+            )
             msg = Message(pkt)
             assert isinstance(msg.payload, dict)  # mypy check
             return msg.payload  # may: TimeoutError?
@@ -333,7 +335,9 @@ class Schedule:  # 0404
             cmd = Command.set_schedule_fragment(
                 self.ctl.id, self.idx, frag_num, frag_cnt, fragment
             )
-            await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
+            await self._gwy.async_send_cmd(
+                cmd, wait_for_reply=True, priority=Priority.HIGH
+            )
 
         def normalise_validate(schedule: _ScheduleT) -> _FullScheduleT:
             full_schedule: _FullScheduleT

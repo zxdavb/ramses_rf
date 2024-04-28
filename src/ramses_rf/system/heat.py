@@ -62,6 +62,7 @@ from ramses_tx import (
     Message,
 )
 from ramses_tx.address import DeviceIdT
+from ramses_tx.const import Priority
 from ramses_tx.typed_dicts import PayDictT
 
 from .faultlog import FaultLog
@@ -569,6 +570,8 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
         If `force_io`, then RQ the latest change counter from the TCS rather than
         rely upon a recent (cached) value.
+
+        Cached values are only used if less than 3 minutes old.
         """
 
         # RQ --- 30:185469 01:037519 --:------ 0006 001 00
@@ -584,8 +587,9 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
                 False,
             )  # global_ver, did_io
 
+        cmd = Command.get_schedule_version(self.ctl.id)
         pkt = await self._gwy.async_send_cmd(
-            Command.get_schedule_version(self.ctl.id), wait_for_reply=True
+            cmd, wait_for_reply=True, priority=Priority.HIGH
         )
         if pkt:
             self._msg_0006 = Message(pkt)
