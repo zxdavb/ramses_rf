@@ -658,9 +658,8 @@ class Zone(ZoneSchedule, ZoneBase):
         return self._msg_value(Code._0004, key=SZ_NAME)
 
     @name.setter
-    def name(self, value) -> None:
-        """Set the name of the zone."""
-        self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, value))
+    def name(self, value: str) -> None:
+        raise NotImplementedError("The setter has been deprecated, use: .set_name()")
 
     @property
     def config(self) -> dict | None:  # 000A
