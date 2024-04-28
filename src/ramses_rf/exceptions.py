@@ -66,6 +66,12 @@ class SystemSchemaInconsistent(SystemInconsistent):
     HINT = "try restarting the client library"
 
 
+class DeviceNotFaked(SystemInconsistent):
+    """Raised when the device does not have faking enabled."""
+
+    HINT = "faking is configured in the known_list"
+
+
 class ForeignGatewayError(_RamsesUpperError):
     """Raised when a foreign gateway is detected.
 

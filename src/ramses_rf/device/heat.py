@@ -208,9 +208,13 @@ class Weather(DeviceHeat):  # 0002
 
     @temperature.setter
     def temperature(self, value: float | None) -> None:
+        """Fake the outdoor temperature of the sensor."""
+
         if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_outdoor_temp(self.id, value))
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        cmd = Command.put_outdoor_temp(self.id, value)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -266,9 +270,13 @@ class DhwTemperature(DeviceHeat):  # 1260
 
     @temperature.setter
     def temperature(self, value: float | None) -> None:
+        """Fake the DHW temperature of the sensor."""
+
         if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_dhw_temp(self.id, value))
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        cmd = Command.put_dhw_temp(self.id, value)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -288,9 +296,13 @@ class Temperature(DeviceHeat):  # 30C9
 
     @temperature.setter
     def temperature(self, value: float | None) -> None:
+        """Fake the indoor temperature of the sensor."""
+
         if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_sensor_temp(self.id, value))
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        cmd = Command.put_sensor_temp(self.id, value)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def status(self) -> dict[str, Any]:

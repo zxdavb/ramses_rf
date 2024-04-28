@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeVar
 
+from ramses_rf import exceptions as exc
 from ramses_rf.const import (
     FAN_MODE,
     SZ_AIR_QUALITY,
@@ -38,7 +39,7 @@ from ramses_rf.const import (
 from ramses_rf.entity_base import class_by_attr
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
-from ramses_tx import Address, Command, Message, Packet
+from ramses_tx import Address, Command, Message, Packet, Priority
 from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 
 from .base import BatteryState, Device, DeviceHvac, Fakeable
@@ -96,9 +97,13 @@ class CarbonDioxide(HvacSensorBase):  # 1298
 
     @co2_level.setter
     def co2_level(self, value: int | None) -> None:
+        """Fake the CO2 level of the sensor."""
+
         if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_co2_level(self.id, value))
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        cmd = Command.put_co2_level(self.id, value)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -117,9 +122,13 @@ class IndoorHumidity(HvacSensorBase):  # 12A0
 
     @indoor_humidity.setter
     def indoor_humidity(self, value: float | None) -> None:
+        """Fake the indoor humidity of the sensor."""
+
         if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_indoor_humidity(self.id, value))
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        cmd = Command.put_indoor_humidity(self.id, value)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def status(self) -> dict[str, Any]:
@@ -132,8 +141,8 @@ class IndoorHumidity(HvacSensorBase):  # 12A0
 class PresenceDetect(HvacSensorBase):  # 2E10
     """The presence sensor (2E10/31E0)."""
 
-    # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B              # CO2, idx|10E0 == 01
-    # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                     # FAN, BRDG-02A55
+    # .I --- 37:154011 --:------ 37:154011 1FC9 030 00-31E0-96599B 00-1298-96599B 00-2E10-96599B 01-10E0-96599B 00-1FC9-96599B    # CO2, idx|10E0 == 01
+    # .W --- 28:126620 37:154011 --:------ 1FC9 012 00-31D9-49EE9C 00-31DA-49EE9C                                                 # FAN, BRDG-02A55
     # .I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
 
     @property
@@ -142,9 +151,13 @@ class PresenceDetect(HvacSensorBase):  # 2E10
 
     @presence_detected.setter
     def presence_detected(self, value: bool | None) -> None:
+        """Fake the presence state of the sensor."""
+
         if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(Command.put_presence_detected(self.id, value))
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        cmd = Command.put_presence_detected(self.id, value)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def status(self) -> dict[str, Any]:
