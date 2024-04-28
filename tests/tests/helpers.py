@@ -55,8 +55,8 @@ def assert_expected(
 ) -> None:
     """Compare an actual system state dict against the corresponding expected state."""
 
-    def assert_expected(actual: dict[str, Any], expect: dict[str, Any]) -> None:
-        assert actual == expect
+    def assert_expected(actual_: dict[str, Any], expected_: dict[str, Any]) -> None:
+        assert actual_ == expected_
 
     if expected:
         assert_expected(shrink(actual), shrink(expected))

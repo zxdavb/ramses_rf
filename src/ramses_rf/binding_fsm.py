@@ -375,6 +375,7 @@ class BindContextSupplicant(BindContextBase):
         self, accept: Message, confirm_code: Code | None = None
     ) -> Packet:
         """Supp casts a Confirm on the basis of a rcvd Accept & returns the Confirm."""
+
         idx = accept._pkt.payload[:2]  # HACK assumes all idx same
 
         cmd = Command.put_bind(

@@ -313,8 +313,10 @@ class Fakeable(DeviceBase):
         qos: QosParams | None = None,
     ) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
+
         if self._is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
             self._bind_context.sent_cmd(cmd)  # other codes needed for edge cases
+
         return await super()._async_send_cmd(cmd, priority=priority, qos=qos)
 
     def _handle_msg(self, msg: Message) -> None:
