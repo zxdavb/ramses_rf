@@ -654,11 +654,11 @@ class Zone(ZoneSchedule):
                 )
 
             # TODO: testing this concept, hoping to learn device_id of UFC
-            if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
-                cmd = Command.from_attrs(
-                    RQ, self.ctl.id, Code._000C, f"{self.idx}{DEV_ROLE_MAP.UFH}"
-                )
-                self._send_cmd(cmd)
+            # if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
+            #     cmd = Command.from_attrs(
+            #         RQ, self.ctl.id, Code._000C, f"{self.idx}{DEV_ROLE_MAP.UFH}"
+            #     )
+            #     self._send_cmd(cmd)
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._SLUG in (

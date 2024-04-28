@@ -130,29 +130,19 @@ class _Entity:
     def _send_cmd(self, cmd: Command, **kwargs: Any) -> asyncio.Task | None:
         """Send a Command & return the corresponding Task."""
 
-        if self._gwy._disable_sending:  # TODO: make warning (but stop senders sending)
-            _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
-            return None  # TODO: raise Exception
-
         # Don't poll this device if it is not responding
         if self._qos_tx_count > _QOS_TX_LIMIT:
             _LOGGER.info(f"{cmd} < Sending was deprecated for {self}")
             return None  # TODO: raise Exception (should be handled before now)
 
-        if [
+        if [  # TODO: remove this
             k for k in kwargs if k not in ("priority", "num_repeats")
-        ]:  # FIXME: deprecate QoS in kwargs
+        ]:  # FIXME: deprecate QoS in kwargs, should be qos=QosParams(...)
             raise RuntimeError("Deprecated kwargs: %s", kwargs)
 
         # cmd._source_entity = self  # TODO: is needed?
         # _msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        return self._gwy.send_cmd(
-            cmd,
-            # max_retries=qos.max_retries if qos else None,
-            # timeout=qos.timeout if qos else None,
-            wait_for_reply=False,
-            **kwargs,
-        )
+        return self._gwy.send_cmd(cmd, wait_for_reply=False, **kwargs)
 
     # FIXME: this is a mess
     async def _async_send_cmd(

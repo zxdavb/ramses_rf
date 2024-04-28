@@ -441,11 +441,12 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                 ufh_idx = f"{idx:02X}"
                 if not flag:
                     self.circuit_by_id[ufh_idx] = {SZ_ZONE_IDX: None}
-                elif SZ_ZONE_IDX not in self.circuit_by_id[ufh_idx]:
-                    cmd = Command.from_attrs(
-                        RQ, self.ctl.id, Code._000C, f"{ufh_idx}{DEV_ROLE_MAP.UFH}"
-                    )
-                    self._send_cmd(cmd)
+                # FIXME: this causing tests to fail when read-only protocol
+                # elif SZ_ZONE_IDX not in self.circuit_by_id[ufh_idx]:
+                #     cmd = Command.from_attrs(
+                #         RQ, self.ctl.id, Code._000C, f"{ufh_idx}{DEV_ROLE_MAP.UFH}"
+                #     )
+                #     self._send_cmd(cmd)
 
         elif msg.code == Code._0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get(SZ_DOMAIN_ID) == FC:
