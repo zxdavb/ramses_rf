@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from asyncio import Future
 from datetime import datetime as dt, timedelta as td
 from threading import Lock
 from types import SimpleNamespace
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import (
@@ -67,6 +66,9 @@ from ramses_tx.typed_dicts import PayDictT
 
 from .faultlog import FaultLog
 from .zones import DhwZone, Zone
+
+if TYPE_CHECKING:
+    from ramses_tx import Packet
 
 # TODO: refactor packet routing (filter *before* routing)
 
@@ -492,6 +494,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         ):
             eavesdrop_zone_sensors(msg)
 
+    # TODO: should be a private method
     def get_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
         """Return a heating zone, create it if required.
 
@@ -775,6 +778,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         # Route all messages to their zones, incl. 000C, 0404, others
         self.get_dhw_zone(msg=msg)
 
+    # TODO: should be a private method
     def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
         """Return a DHW zone, create it if required.
 
@@ -849,16 +853,17 @@ class SysMode(SystemBase):  # 2E04
 
     def set_mode(
         self, system_mode: int | str | None, *, until: dt | str | None = None
-    ) -> Future:
+    ) -> asyncio.Task[Packet]:
         """Set a system mode for a specified duration, or indefinitely."""
-        cmd = Command.set_system_mode(self.id, system_mode, until=until)
-        return self._send_cmd(cmd, wait_for_reply=True, priority=Priority.HIGH)
 
-    def set_auto(self) -> Future:
+        cmd = Command.set_system_mode(self.id, system_mode, until=until)
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH, wait_for_reply=True)
+
+    def set_auto(self) -> asyncio.Task[Packet]:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
         return self.set_mode(SYS_MODE_MAP.AUTO)
 
-    def reset_mode(self) -> Future:
+    def reset_mode(self) -> asyncio.Task[Packet]:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
         return self.set_mode(SYS_MODE_MAP.AUTO_WITH_RESET)
 
@@ -887,10 +892,13 @@ class Datetime(SystemBase):  # 313F
 
     async def get_datetime(self) -> dt | None:
         cmd = Command.get_system_time(self.id)
-        msg = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
+        pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
+        msg = Message._from_pkt(pkt)
         return dt.fromisoformat(msg.payload[SZ_DATETIME])
 
-    async def set_datetime(self, dtm: dt) -> Message | None:
+    async def set_datetime(self, dtm: dt) -> Packet:
+        """Set the date and time of the system."""
+
         cmd = Command.set_system_time(self.id, dtm)
         return await self._gwy.async_send_cmd(cmd, priority=Priority.HIGH)
 

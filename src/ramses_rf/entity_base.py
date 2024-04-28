@@ -101,6 +101,7 @@ class _Entity:
     def __repr__(self) -> str:
         return f"{self.id} ({self._SLUG})"
 
+    # TODO: should be a private method
     def deprecate_device(self, pkt: Packet, reset: bool = False) -> None:
         """If an entity is deprecated enough times, stop sending to it."""
 
@@ -133,9 +134,10 @@ class _Entity:
             _LOGGER.info(f"{cmd} < Sending is disabled, ignoring request (S)")
             return None  # TODO: raise Exception
 
+        # Don't poll this device if it is not responding
         if self._qos_tx_count > _QOS_TX_LIMIT:
             _LOGGER.info(f"{cmd} < Sending was deprecated for {self}")
-            return None  # TODO: raise Exception
+            return None  # TODO: raise Exception (should be handled before now)
 
         if [
             k for k in kwargs if k not in ("priority", "num_repeats")
@@ -161,9 +163,10 @@ class _Entity:
     ) -> Packet | None:
         """Send a Command & return the response Packet, or the echo Packet otherwise."""
 
+        # Don't poll this device if it is not responding
         if self._qos_tx_count > _QOS_TX_LIMIT:
             _LOGGER.warning(f"{cmd} < Sending was deprecated for {self}")
-            return None  # FIXME: raise Exception
+            return None  # FIXME: raise Exception (should be handled before now)
 
         # cmd._source_entity = self  # TODO: is needed?
         return await self._gwy.async_send_cmd(
@@ -442,6 +445,7 @@ class _Discovery(_MessageDB):
             )
         }
 
+    # TODO: should be a private method
     def is_not_deprecated_cmd(self, code: Code, ctx: str | None = None) -> bool:
         """Return True if the code|ctx pair is not deprecated."""
 
@@ -721,7 +725,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
         """
         return self._child_id
 
-    @zone_idx.setter
+    @zone_idx.setter  # TODO: should be a private setter
     def zone_idx(self, value: str) -> None:
         """Set the domain id, after validating it."""
         self._child_id = value
@@ -1013,6 +1017,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         return parent, child_id
 
+    # TODO: should be a private method
     def set_parent(
         self, parent: Parent | None, *, child_id: str = None, is_sensor: bool = None
     ) -> Parent:

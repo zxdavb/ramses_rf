@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from asyncio import Future
@@ -48,11 +49,13 @@ from ramses_rf.schemas import (
     SZ_HTG_VALVE,
     SZ_SENSOR,
 )
-from ramses_tx import Address, Command, Message
+from ramses_tx import Address, Command, Message, Priority
 
 from .schedule import Schedule
 
 if TYPE_CHECKING:
+    from ramses_tx import Packet
+
     from .heat import Evohome
 
 # Kudos & many thanks to:
@@ -331,8 +334,8 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def setpoint(self) -> float | None:  # 10A0
         return self._msg_value(Code._10A0, key=SZ_SETPOINT)
 
-    @setpoint.setter
-    def setpoint(self, value) -> None:  # 10A0
+    @setpoint.setter  # TODO: can value be None?
+    def setpoint(self, value: float) -> None:  # 10A0
         self.set_config(setpoint=value)
 
     @property
@@ -357,13 +360,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         mode: int | str | None = None,
         active: bool | None = None,
         until: dt | str | None = None,
-    ) -> Future:
+    ) -> asyncio.Task[Packet]:
         """Set the DHW mode (mode, active, until)."""
-        return self._send_cmd(
-            Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
-        )
 
-    def set_boost_mode(self) -> Future:
+        cmd = Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH, wait_for_result=True)
+
+    def set_boost_mode(self) -> asyncio.Task[Packet]:
         """Enable DHW for an hour, despite any schedule."""
         return self.set_mode(
             mode=ZON_MODE_MAP.TEMPORARY,
@@ -371,7 +374,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             until=dt.now() + td(hours=1),
         )
 
-    def reset_mode(self) -> Future:  # 1F41
+    def reset_mode(self) -> asyncio.Task[Packet]:  # 1F41
         """Revert the DHW to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
@@ -381,8 +384,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         setpoint: float | None = None,
         overrun: int | None = None,
         differential: float | None = None,
-    ) -> Future:
+    ) -> asyncio.Task[Packet]:
         """Set the DHW parameters (setpoint, overrun, differential)."""
+
         # dhw_params = self._msg_value(Code._10A0)
         # if setpoint is None:
         #     setpoint = dhw_params[SZ_SETPOINT]
@@ -391,16 +395,15 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # if differential is None:
         #     setpoint = dhw_params["differential"]
 
-        return self._send_cmd(
-            Command.set_dhw_params(
-                self.ctl.id,
-                setpoint=setpoint,
-                overrun=overrun,
-                differential=differential,
-            )
+        cmd = Command.set_dhw_params(
+            self.ctl.id,
+            setpoint=setpoint,
+            overrun=overrun,
+            differential=differential,
         )
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
-    def reset_config(self) -> Future:  # 10A0
+    def reset_config(self) -> asyncio.Task[Packet]:  # 10A0
         """Reset the DHW parameters to their default values."""
         return self.set_config(setpoint=50, overrun=5, differential=1)
 
@@ -673,13 +676,15 @@ class Zone(ZoneSchedule, ZoneBase):
     def setpoint(self) -> float | None:  # 2309 (2349 is a superset of 2309)
         return self._msg_value((Code._2309, Code._2349), key=SZ_SETPOINT)
 
-    @setpoint.setter
-    def setpoint(self, value) -> None:  # 000A/2309
+    @setpoint.setter  # TODO: can value be None?
+    def setpoint(self, value: float) -> None:  # 000A/2309
         """Set the target temperature, until the next scheduled setpoint."""
+
         if value is None:
-            self.reset_mode()
-        else:
-            self._send_cmd(Command.set_zone_setpoint(self.ctl.id, self.idx, value))
+            return self.reset_mode()
+
+        cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, value)
+        self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
     @property
     def temperature(self) -> float | None:  # 30C9
@@ -704,7 +709,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """Get the zone's latest temp from the Controller."""
         return self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
 
-    def reset_config(self) -> Future:  # 000A
+    def reset_config(self) -> asyncio.Task[Packet]:  # 000A
         """Reset the zone's parameters to their default values."""
         return self.set_config()
 
@@ -716,8 +721,9 @@ class Zone(ZoneSchedule, ZoneBase):
         local_override: bool = False,
         openwindow_function: bool = False,
         multiroom_mode: bool = False,
-    ) -> Future:
+    ) -> asyncio.Task[Packet]:
         """Set the zone's parameters (min_temp, max_temp, etc.)."""
+
         cmd = Command.set_zone_config(
             self.ctl.id,
             self.idx,
@@ -727,13 +733,13 @@ class Zone(ZoneSchedule, ZoneBase):
             openwindow_function=openwindow_function,
             multiroom_mode=multiroom_mode,
         )
-        return self._send_cmd(cmd)
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
-    def reset_mode(self) -> Future:  # 2349
+    def reset_mode(self) -> asyncio.Task[Packet]:  # 2349
         """Revert the zone to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
-    def set_frost_mode(self) -> Future:  # 2349
+    def set_frost_mode(self) -> asyncio.Task[Packet]:  # 2349
         """Set the zone to the lowest possible setpoint, indefinitely."""
         return self.set_mode(mode=ZON_MODE_MAP.PERMANENT, setpoint=5)  # TODO
 
@@ -743,19 +749,22 @@ class Zone(ZoneSchedule, ZoneBase):
         mode: str | None = None,
         setpoint: float | None = None,
         until: dt | str | None = None,
-    ) -> Future:  # 2309/2349
+    ) -> asyncio.Task[Packet]:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
+
         if mode is None and until is None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
         else:
             cmd = Command.set_zone_mode(
                 self.ctl.id, self.idx, mode=mode, setpoint=setpoint, until=until
             )
-        return self._send_cmd(cmd)
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
-    def set_name(self, name) -> Future:
+    def set_name(self, name) -> asyncio.Task[Packet]:
         """Set the zone's name."""
-        return self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, name))
+
+        cmd = Command.set_zone_name(self.ctl.id, self.idx, name)
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
     @property
     def schema(self) -> dict[str, Any]:

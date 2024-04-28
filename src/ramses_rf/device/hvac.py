@@ -252,11 +252,16 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 
     @fan_rate.setter
     def fan_rate(self, rate) -> None:
-        if not self.is_faked:
-            raise RuntimeError(f"Faking is not enabled for {self}")
-        self._send_cmd(
-            Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
-        )  # TODO: needs checking
+        """Fake a fan rate from a remote (to a FAN, is a WIP)."""
+
+        if not self.is_faked:  # NOTE: device is stateless, doesn't *need* to be faked
+            raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
+
+        # TODO: num_repeats=2, or wait_for_reply=True ?
+
+        # NOTE: this is not completely understood (diffs between vendors?)
+        cmd = Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
+        self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
     def fan_mode(self) -> str | None:
