@@ -628,6 +628,7 @@ class _Discovery(_MessageDB):
                 task[_SZ_LAST_PKT] = None
                 task[_SZ_NEXT_DUE] = dt_now + backoff(hdr, task[_SZ_FAILURES])
 
+    # TODO: should be a private method
     def deprecate_code_ctx(
         self, pkt: Packet, ctx: str = None, reset: bool = False
     ) -> None:
