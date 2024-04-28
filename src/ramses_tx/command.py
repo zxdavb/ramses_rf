@@ -1047,6 +1047,7 @@ class Command(Frame):
          - I 018 --:------ --:------ 39:159057 22F1 003 000204
          - I --- 21:039407 28:126495 --:------ 22F1 003 000407
         """
+        # NOTE: WIP: rate can be int or str
 
         # Scheme 1: I 218 --:------ --:------ 39:159057
         #  - are cast as a triplet, 0.1s apart?, with a seqn (000-255) and no src_id

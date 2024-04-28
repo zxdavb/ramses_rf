@@ -91,7 +91,7 @@ class DeviceBase(Entity):
             return NotImplemented
         return self.id < other.id  # type: ignore[no-any-return]
 
-    def _update_traits(self, **traits: Any):
+    def _update_traits(self, **traits: Any) -> None:
         """Update a device with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -107,7 +107,9 @@ class DeviceBase(Entity):
         self._scheme = traits.get(SZ_SCHEME)
 
     @classmethod
-    def create_from_schema(cls, gwy: Gateway, dev_addr: Address, **schema: Any):
+    def create_from_schema(
+        cls, gwy: Gateway, dev_addr: Address, **schema: Any
+    ) -> DeviceBase:
         """Create a device (for a GWY) and set its schema attrs (aka traits).
 
         All devices have traits, but also controllers (CTL, UFC) have a system schema.
@@ -384,7 +386,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         self.tcs = None
 
     @property
-    def schema(self):
+    def schema(self) -> dict[str, Any]:
         return {}
 
 
@@ -400,7 +402,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
 
     _SLUG: str = DevType.HEA  # shouldn't be any of these instantiated
 
-    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs):
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
         super().__init__(gwy, dev_addr, **kwargs)
 
         self.ctl = None  # type: ignore[assignment]
@@ -422,7 +424,9 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
-    def _make_tcs_controller(self, *, msg=None, **schema) -> None:  # CH/DHW
+    def _make_tcs_controller(
+        self, *, msg: Message | None = None, **schema: Any
+    ) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
         if self.type not in DEV_TYPE_MAP.CONTROLLERS:  # potentially can be controllers

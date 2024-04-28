@@ -92,7 +92,7 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 _LOGGER = logging.getLogger(__name__)
 
 
-_SystemT = TypeVar("_SystemT", bound="System")
+_SystemT = TypeVar("_SystemT", bound="Evohome")
 
 
 SYS_KLASS = SimpleNamespace(
@@ -144,7 +144,9 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         self._add_discovery_cmd(cmd, 60 * 60 * 6, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:
-        def eavesdrop_appliance_control(this, *, prev=None) -> None:
+        def eavesdrop_appliance_control(
+            this: Message, *, prev: Message | None = None
+        ) -> None:
             """Discover the heat relay (10: or 13:) for this system.
 
             There's' 3 ways to find a controller's heat relay (in order of reliability):
@@ -307,7 +309,9 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         status: dict[str, Any] = {SZ_SYSTEM: {}}
         status[SZ_SYSTEM]["heat_demand"] = self.heat_demand
 
-        status[SZ_DEVICES] = {d.id: d.status for d in sorted(self.childs)}
+        status[SZ_DEVICES] = {
+            d.id: d.status for d in sorted(self.childs, key=lambda x: x.id)
+        }
 
         return status
 
@@ -337,7 +341,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         If `zone_idx` in payload, route any messages to the corresponding zone.
         """
 
-        def eavesdrop_zones(this, *, prev=None) -> None:
+        def eavesdrop_zones(this: Message, *, prev: Message | None = None) -> None:
             [
                 self.get_htg_zone(v)
                 for d in msg.payload
@@ -345,10 +349,12 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 if k == SZ_ZONE_IDX
             ]
 
-        def eavesdrop_zone_sensors(this, *, prev=None) -> None:
+        def eavesdrop_zone_sensors(
+            this: Message, *, prev: Message | None = None
+        ) -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures."""
 
-            def _testable_zones(changed_zones) -> dict:
+            def _testable_zones(changed_zones: dict[str, float]) -> dict[float, str]:
                 return {
                     t: z
                     for z, t in changed_zones.items()
@@ -367,7 +373,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             # _LOGGER.warning("System state (before): %s", self.schema)
 
-            changed_zones = {
+            changed_zones: dict[str, float] = {
                 z[SZ_ZONE_IDX]: z[SZ_TEMPERATURE]
                 for z in this.payload
                 if z not in prev.payload and z[SZ_TEMPERATURE] is not None
@@ -420,12 +426,11 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             # _LOGGER.warning("System state (finally): %s", self.schema)
 
-        def handle_msg_by_zone_idx(zone_idx: str, msg):
+        def handle_msg_by_zone_idx(zone_idx: str, msg: Message) -> None:
             if zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
             #     self.get_htg_zone(zone_idx)._handle_msg(msg)
-            pass
 
         super()._handle_msg(msg)
 
@@ -483,7 +488,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         elif isinstance(msg.payload, list) and len(msg.payload):
             # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == FA:  # DHW
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
-                [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
+                for z in msg.payload:
+                    handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg)
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if (  # TODO: edge case: 1 zone with CTL as SEN
@@ -495,7 +501,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             eavesdrop_zone_sensors(msg)
 
     # TODO: should be a private method
-    def get_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
+    def get_htg_zone(
+        self, zone_idx: str, *, msg: Message | None = None, **schema: Any
+    ) -> Zone:
         """Return a heating zone, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -610,7 +618,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
         if dhw := getattr(self, "dhw", None):
             self._gwy._loop.create_task(dhw.get_schedule(force_io=True))
 
-    async def _obtain_lock(self, zone_idx) -> None:
+    async def _obtain_lock(self, zone_idx: str) -> None:
         timeout_dtm = dt.now() + td(minutes=3)
         while dt.now() < timeout_dtm:
             self.zone_lock.acquire()
@@ -779,7 +787,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         self.get_dhw_zone(msg=msg)
 
     # TODO: should be a private method
-    def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
+    def get_dhw_zone(self, *, msg: Message | None = None, **schema: Any) -> DhwZone:
         """Return a DHW zone, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -904,7 +912,7 @@ class Datetime(SystemBase):  # 313F
 
 
 class UfHeating(SystemBase):
-    def _ufh_ctls(self):
+    def _ufh_ctls(self) -> list[UfhController]:
         return sorted([d for d in self.childs if isinstance(d, UfhController)])
 
     @property
@@ -934,7 +942,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
 
     _SLUG: str = SYS_KLASS.PRG
 
-    def __init__(self, ctl, **kwargs: Any) -> None:
+    def __init__(self, ctl: Controller, **kwargs: Any) -> None:
         super().__init__(ctl, **kwargs)
 
         self._heat_demands: dict[str, Any] = {}
@@ -1006,7 +1014,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     _SLUG: str = SYS_KLASS.TCS
 
-    def _update_schema(self, **schema) -> None:
+    def _update_schema(self, **schema: Any) -> None:
         """Update a CH/DHW system with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -1027,7 +1035,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
             [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
-    def create_from_schema(cls, ctl: Device, **schema: Any):
+    def create_from_schema(cls, ctl: Controller, **schema: Any) -> None:
         """Create a CH/DHW system for a CTL and set its schema attrs.
 
         The appropriate System class should have been determined by a factory.
@@ -1076,7 +1084,9 @@ class Sundial(Evohome):
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
-def system_factory(ctl, *, msg: Message = None, **schema) -> _SystemT:
+def system_factory(
+    ctl: Controller, *, msg: Message = None, **schema: Any
+) -> type[_SystemT]:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(

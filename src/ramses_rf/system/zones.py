@@ -104,7 +104,9 @@ class ZoneBase(Child, Parent, Entity):
 
     # Should be a private method
     @classmethod
-    def create_from_schema(cls, tcs: Evohome, zone_idx: str, **schema: Any):
+    def create_from_schema(
+        cls, tcs: Evohome, zone_idx: str, **schema: Any
+    ) -> type[_ZoneT]:
         """Create a CH/DHW zone for a TCS and set its schema attrs.
 
         The appropriate Zone class should have been determined by a factory.
@@ -189,7 +191,7 @@ class ZoneSchedule(ZoneBase):  # 0404
         }
 
 
-class DhwZone(ZoneSchedule):  # CS92A  # TODO: add Schedule
+class DhwZone(ZoneSchedule):  # CS92A
     """The DHW class."""
 
     _SLUG: str = ZoneRole.DHW
@@ -479,7 +481,7 @@ class Zone(ZoneSchedule):
         self.actuators = []  # schema attr
         self.actuator_by_id = {}  # schema attr
 
-    def _update_schema(self, *, append_actuators: bool = True, **schema) -> None:
+    def _update_schema(self, *, append_actuators: bool = True, **schema: Any) -> None:
         """Update a heating zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -562,7 +564,7 @@ class Zone(ZoneSchedule):
         )  # longer dt as low yield (factory duration is 30 min): prefer eavesdropping
 
     def _add_discovery_cmd(
-        self, cmd, interval, *, delay: float = 0, timeout: float = None
+        self, cmd: Command, interval: float, *, delay: float = 0, timeout: float = None
     ) -> None:
         """Schedule a command to run periodically."""
         super()._add_discovery_cmd(cmd, interval, delay=delay, timeout=timeout)
@@ -582,7 +584,7 @@ class Zone(ZoneSchedule):
             _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
     def _handle_msg(self, msg: Message) -> None:
-        def eavesdrop_zone_type(this, *, prev=None) -> None:
+        def eavesdrop_zone_type(this: Message, *, prev: Message | None = None) -> None:
             """TODO.
 
             There are three ways to determine the type of a zone:
@@ -740,8 +742,8 @@ class Zone(ZoneSchedule):
     def set_config(
         self,
         *,
-        min_temp=5,
-        max_temp=35,
+        min_temp: float = 5,
+        max_temp: float = 35,
         local_override: bool = False,
         openwindow_function: bool = False,
         multiroom_mode: bool = False,
@@ -784,7 +786,7 @@ class Zone(ZoneSchedule):
             )
         return self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
-    def set_name(self, name) -> asyncio.Task[Packet]:
+    def set_name(self, name: str) -> asyncio.Task[Packet]:
         """Set the zone's name."""
 
         cmd = Command.set_zone_name(self.ctl.id, self.idx, name)

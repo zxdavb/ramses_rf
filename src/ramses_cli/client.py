@@ -176,7 +176,7 @@ class DeviceIdParamType(click.ParamType):
     help="display crazy things",
 )
 @click.pass_context
-def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs):
+def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs: Any) -> None:
     """A CLI for the ramses_rf library."""
 
     if kwargs[SZ_DBG_MODE] > 0:  # Do first
@@ -251,7 +251,7 @@ class PortCommand(
 # 1/4: PARSE (a file, +/- eavesdrop)
 @click.command(cls=FileCommand)  # parse a packet log, then stop
 @click.pass_obj
-def parse(obj, **kwargs):
+def parse(obj, **kwargs: Any):
     """Parse a log file for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
@@ -277,7 +277,7 @@ def parse(obj, **kwargs):
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
 )
 @click.pass_obj
-def monitor(obj, discover: None | bool = None, **kwargs):
+def monitor(obj, discover: None | bool = None, **kwargs: Any):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
@@ -315,7 +315,7 @@ def monitor(obj, discover: None | bool = None, **kwargs):
     help="controller_id, filename.json",
 )
 @click.pass_obj
-def execute(obj, **kwargs):
+def execute(obj, **kwargs: Any):
     """Execute any specified scripts, return the results, then quit.
 
     Disables discovery, and enforces a strict allow_list.
@@ -347,7 +347,7 @@ def execute(obj, **kwargs):
 # 4/4: LISTEN (to RF, +/- eavesdrop - NO sending/discovery)
 @click.command(cls=PortCommand)  # (optionally) execute a command, then listen
 @click.pass_obj
-def listen(obj, **kwargs):
+def listen(obj, **kwargs: Any):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
     config, lib_config = split_kwargs(obj, kwargs)
 
@@ -357,7 +357,7 @@ def listen(obj, **kwargs):
     return LISTEN, lib_config, config
 
 
-def print_results(gwy: Gateway, **kwargs):
+def print_results(gwy: Gateway, **kwargs: Any) -> None:
     if kwargs[GET_FAULTS]:
         fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._faultlog.faultlog
 
@@ -386,7 +386,7 @@ def print_results(gwy: Gateway, **kwargs):
         system_id, _ = kwargs[GET_SCHED]
 
 
-def _save_state(gwy: Gateway):
+def _save_state(gwy: Gateway) -> None:
     schema, msgs = gwy.get_state()
 
     with open("state_msgs.log", "w") as f:
@@ -396,7 +396,7 @@ def _save_state(gwy: Gateway):
         f.write(json.dumps(schema, indent=4))
 
 
-def _print_engine_state(gwy: Gateway, **kwargs):
+def _print_engine_state(gwy: Gateway, **kwargs: Any) -> None:
     (schema, packets) = gwy.get_state(include_expired=True)
 
     if kwargs["print_state"] > 0:
@@ -405,7 +405,7 @@ def _print_engine_state(gwy: Gateway, **kwargs):
         print(f"packets: {json.dumps(packets, indent=4)}\r\n")
 
 
-def print_summary(gwy: Gateway, **kwargs):
+def print_summary(gwy: Gateway, **kwargs: Any) -> None:
     entity = gwy.tcs or gwy
 
     if kwargs.get("show_schema"):
@@ -452,7 +452,7 @@ def print_summary(gwy: Gateway, **kwargs):
             print()
 
 
-async def async_main(command: str, lib_kwargs: dict, **kwargs):
+async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
     """Do certain things."""
 
     def handle_msg(msg: Message) -> None:

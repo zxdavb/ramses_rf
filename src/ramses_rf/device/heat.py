@@ -103,7 +103,7 @@ from ramses_tx.const import (
 )
 
 if TYPE_CHECKING:
-    from ramses_rf.system import Zone
+    from ramses_rf.system import Evohome, Zone
     from ramses_tx import Address, Message, Packet
 
 
@@ -149,8 +149,10 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
             and not self._gwy._disable_sending
             and not self._gwy.config.disable_discovery
         ):
-            # lf._send_cmd(Command.get_relay_demand(self.id),           qos=QOS_LOW)
-            self._send_cmd(Command.from_attrs(RQ, self.id, Code._3EF1), qos=QOS_LOW)
+            # lf._send_cmd(Command.get_relay_demand(self.id), qos=QOS_LOW)
+            self._send_cmd(
+                Command.from_attrs(RQ, self.id, Code._3EF1, "00"), qos=QOS_LOW
+            )  # actuator cycle
 
     @property
     def actuator_cycle(self) -> dict | None:  # 3EF1
@@ -335,10 +337,12 @@ class Controller(DeviceHeat):  # CTL (01):
 
         self.tcs._handle_msg(msg)
 
-    def _make_tcs_controller(self, *, msg=None, **schema) -> None:  # CH/DHW
+    def _make_tcs_controller(
+        self, *, msg: Message | None = None, **schema: Any
+    ) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
-        def get_system(*, msg=None, **schema) -> Any:  # System:
+        def get_system(*, msg: Message | None = None, **schema: Any) -> Evohome:
             """Return a TCS (temperature control system), create it if required.
 
             Use the schema to create/update it, then pass it any msg to handle.
@@ -492,7 +496,9 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
     # TODO: should be a private method
-    def get_circuit(self, cct_idx, *, msg=None, **schema) -> Any:
+    def get_circuit(
+        self, cct_idx: str, *, msg: Message | None = None, **schema: Any
+    ) -> Any:
         """Return a UFH circuit, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -786,7 +792,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return None
 
     @staticmethod
-    def _ot_msg_name(msg) -> str:  # TODO: remove
+    def _ot_msg_name(msg: Message) -> str:  # TODO: remove
         return (
             msg.payload[SZ_MSG_NAME]
             if isinstance(msg.payload[SZ_MSG_NAME], str)
@@ -817,7 +823,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     def _result_by_lookup(
         self,
-        code,
+        code: Code,
         /,
         *,
         key: str,
@@ -1383,7 +1389,7 @@ class UfhCircuit(Entity):
 
     _SLUG: str = None  # type: ignore[assignment]
 
-    def __init__(self, ufc, ufh_idx: str) -> None:
+    def __init__(self, ufc: UfhController, ufh_idx: str) -> None:
         super().__init__(ufc._gwy)
 
         self.id: str = f"{ufc.id}_{ufh_idx}"
@@ -1448,7 +1454,7 @@ _HEAT_VC_PAIR_BY_CLASS = {
 
 
 def class_dev_heat(
-    dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
+    dev_addr: Address, *, msg: Message | None = None, eavesdrop: bool = False
 ) -> type[Device]:
     """Return a device class, but only if the device must be from the CH/DHW group.
 

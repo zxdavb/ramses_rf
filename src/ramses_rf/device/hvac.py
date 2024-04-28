@@ -248,11 +248,13 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
 
     @property
     def fan_rate(self) -> str | None:  # 22F1
+        # NOTE: WIP: rate can be int or str
         return self._msg_value(Code._22F1, key="rate")
 
     @fan_rate.setter
-    def fan_rate(self, rate) -> None:
+    def fan_rate(self, rate: int) -> None:
         """Fake a fan rate from a remote (to a FAN, is a WIP)."""
+        # NOTE: WIP: rate can be int or str
 
         if not self.is_faked:  # NOTE: device is stateless, doesn't *need* to be faked
             raise exc.DeviceNotFaked(f"{self}: Faking is not enabled")
@@ -304,7 +306,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     _SLUG: str = DevType.FAN
 
-    def _handle_msg(self, *args: Any, **kwargs: Any):
+    def _handle_msg(self, *args: Any, **kwargs: Any) -> None:
         return super()._handle_msg(*args, **kwargs)
 
     def _update_schema(self, **schema: Any) -> None:
@@ -452,7 +454,7 @@ HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidityS
 
 
 def class_dev_hvac(
-    dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
+    dev_addr: Address, *, msg: Message | None = None, eavesdrop: bool = False
 ) -> type[Device]:
     """Return a device class, but only if the device must be from the HVAC group.
 
