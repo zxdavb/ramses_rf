@@ -307,7 +307,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     def _handle_msg(self, *args: Any, **kwargs: Any):
         return super()._handle_msg(*args, **kwargs)
 
-    def _update_schema(self, **schema) -> None:
+    def _update_schema(self, **schema: Any) -> None:
         """Update a FAN with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.

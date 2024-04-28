@@ -53,7 +53,7 @@ _LOGGER = logging.getLogger(__name__)
 class DeviceBase(Entity):
     """The Device base class - can also be used for unknown device types."""
 
-    _SLUG: str = DevType.DEV  # type: ignore[assignment]
+    _SLUG: str = DevType.DEV
 
     _STATE_ATTR: str = None  # type: ignore[assignment]
 

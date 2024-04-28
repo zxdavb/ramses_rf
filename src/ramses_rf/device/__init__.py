@@ -101,7 +101,7 @@ def best_dev_role(
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
         if cls := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):
             _LOGGER.debug(
-                f"Using the default Heat class for: {dev_addr!r} ({cls._SLUG})"  # type: ignore[attr-defined]
+                f"Using the default Heat class for: {dev_addr!r} ({cls._SLUG})"
             )
             return cls
     except TypeError:
@@ -110,7 +110,7 @@ def best_dev_role(
     try:  # or, a HVAC class, eavesdropped from the message code/payload...
         if cls := class_dev_hvac(dev_addr, msg=msg, eavesdrop=eavesdrop):
             _LOGGER.debug(
-                f"Using eavesdropped HVAC class for: {dev_addr!r} ({cls._SLUG})"  # type: ignore[attr-defined]
+                f"Using eavesdropped HVAC class for: {dev_addr!r} ({cls._SLUG})"
             )
             return cls  # includes DeviceHvac
     except TypeError:
@@ -120,7 +120,7 @@ def best_dev_role(
     _LOGGER.debug(
         f"Using a promotable HVAC class for: {dev_addr!r} ({DeviceHvac._SLUG})"
     )
-    return DeviceHvac  # type: ignore[return-value]
+    return DeviceHvac
 
 
 def device_factory(

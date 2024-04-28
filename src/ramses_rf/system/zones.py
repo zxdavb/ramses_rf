@@ -93,7 +93,8 @@ class ZoneBase(Child, Parent, Entity):
     def __init__(self, tcs: Evohome, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
 
-        self.id: str = f"{tcs.id}_{zone_idx}"
+        # FIXME: entities must know their parent device ID and their own ID
+        self.id: str = f"{tcs.id}_{zone_idx}"  # type: ignore[assignment]
 
         self.tcs: Evohome = tcs
         self.ctl: Controller = tcs.ctl
@@ -101,6 +102,7 @@ class ZoneBase(Child, Parent, Entity):
 
         self._name = None  # param attr
 
+    # Should be a private method
     @classmethod
     def create_from_schema(cls, tcs: Evohome, zone_idx: str, **schema: Any):
         """Create a CH/DHW zone for a TCS and set its schema attrs.
@@ -113,7 +115,7 @@ class ZoneBase(Child, Parent, Entity):
         zon._update_schema(**schema)
         return zon
 
-    def _update_schema(self, **schema):
+    def _update_schema(self, **schema: Any) -> None:
         raise NotImplementedError
 
     def __repr__(self) -> str:
@@ -122,19 +124,34 @@ class ZoneBase(Child, Parent, Entity):
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ZoneBase):
             return NotImplemented
-        return self.idx < other.idx  # type: ignore[no-any-return]
+        return self.idx < other.idx
 
     @property
     def heating_type(self) -> str:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return ZON_ROLE_MAP[self._SLUG]
+        return ZON_ROLE_MAP[self._SLUG]  # type: ignore[no-any-return]
 
     @property
     def idx(self) -> str:
         return self._child_id
 
+    @property
+    def schema(self) -> dict[str, Any]:
+        """Return the schema (cant be changed without destroying/re-creating entity)."""
+        return {}
 
-class ZoneSchedule:  # 0404
+    @property
+    def params(self) -> dict[str, Any]:
+        """Return confiuration (can be changed by user)."""
+        return {}
+
+    @property
+    def status(self) -> dict[str, Any]:
+        """Return the current state."""
+        return {}
+
+
+class ZoneSchedule(ZoneBase):  # 0404
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
@@ -146,21 +163,21 @@ class ZoneSchedule:  # 0404
         if msg.code in (Code._0006, Code._0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_io=None) -> dict[str, Any] | None:
+    async def get_schedule(self, *, force_io: bool = False) -> dict[str, Any] | None:
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
-    async def set_schedule(self, schedule) -> dict | None:
+    async def set_schedule(self, schedule: dict[str, Any]) -> dict[str, Any] | None:
         await self._schedule.set_schedule(schedule)
         return self.schedule
 
     @property
-    def schedule(self) -> dict | None:
+    def schedule(self) -> dict[str, Any] | None:
         """Return the latest retrieved schedule (not guaranteed to be up to date)."""
         return self._schedule.schedule
 
     @property
-    def schedule_version(self) -> int | None:
+    def schedule_version(self) -> int | None:  # TODO: make int
         """Return the version number associated with the latest retrieved schedule."""
         return self._schedule.version
 
@@ -172,7 +189,7 @@ class ZoneSchedule:  # 0404
         }
 
 
-class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
+class DhwZone(ZoneSchedule):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
     _SLUG: str = ZoneRole.DHW
@@ -187,9 +204,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         super().__init__(tcs, "HW")
 
-        self._dhw_sensor: DhwSensor = None  # type: ignore[assignment]
-        self._dhw_valve: BdrSwitch = None  # type: ignore[assignment]
-        self._htg_valve: BdrSwitch = None  # type: ignore[assignment]
+        # DhwZones have a sensor, but actuators are optional, depending on schema
+        self._dhw_sensor: DhwSensor | None = None
+        self._dhw_valve: BdrSwitch | None = None
+        self._htg_valve: BdrSwitch | None = None
 
     def _setup_discovery_cmds(self) -> None:
         # super()._setup_discovery_cmds()
@@ -209,40 +227,40 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self._add_discovery_cmd(Command.get_dhw_temp(self.ctl.id), 60 * 15)
 
     def _handle_msg(self, msg: Message) -> None:
-        def eavesdrop_dhw_sensor(this, *, prev=None) -> None:
-            """Eavesdrop packets, or pairs of packets, to maintain the system state.
+        # def eavesdrop_dhw_sensor(this: Message, *, prev: Message | None = None) -> None:
+        # """Eavesdrop packets, or pairs of packets, to maintain the system state.
 
-            There are only 2 ways to to find a controller's DHW sensor:
-            1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
-            2. Use sensor temp matching - non-deterministic
+        # There are only 2 ways to to find a controller's DHW sensor:
+        # 1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
+        # 2. Use sensor temp matching - non-deterministic
 
-            Data from the CTL is considered more authorative. The RQ is initiated by the
-            DHW, so is not authorative. The I/1260 is not to/from a controller, so is
-            not useful.
-            """
+        # Data from the CTL is considered more authorative. The RQ is initiated by the
+        # DHW, so is not authorative. The I/1260 is not to/from a controller, so is
+        # not useful.
+        # """
 
-            # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
-            # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-            # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+        # # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
+        # # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
+        # # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-            # 1260: I/07: can't get which parent controller - would need to match temps
-            # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
+        # # 1260: I/07: can't get which parent controller - would need to match temps
+        # # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
 
-            # 1F41: I/01: get parent controller, but not DHW sensor
-            # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
-            # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
+        # # 1F41: I/01: get parent controller, but not DHW sensor
+        # # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
+        # # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
 
-            assert self._gwy.config.enable_eavesdrop, "Coding error"
+        # assert self._gwy.config.enable_eavesdrop, "Coding error"
 
-            if all(
-                (
-                    this.code == Code._10A0,
-                    this.verb == RP,
-                    this.src is self.ctl,
-                    isinstance(this.dst, DhwSensor),
-                )
-            ):
-                self._get_dhw(sensor=this.dst)
+        # if all(
+        #     (
+        #         this.code == Code._10A0,
+        #         this.verb == RP,
+        #         this.src is self.ctl,
+        #         isinstance(this.dst, DhwSensor),
+        #     )
+        # ):
+        #     self._get_dhw(sensor=this.dst)
 
         assert (
             msg.src is self.ctl
@@ -274,7 +292,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # if self._gwy.config.enable_eavesdrop and not self.dhw_sensor:
         #     eavesdrop_dhw_sensor(msg)
 
-    def _update_schema(self, **schema):
+    def _update_schema(self, **schema: Any) -> None:
         """Update a DHW zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -296,26 +314,32 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         schema = shrink(SCH_TCS_DHW(schema))
 
         if dev_id := schema.get(SZ_SENSOR):
-            self._dhw_sensor = self._gwy.get_device(
+            dhw_sensor = self._gwy.get_device(
                 dev_id, parent=self, child_id=FA, is_sensor=True
             )
+            assert isinstance(dhw_sensor, DhwSensor)  # mypy
+            self._dhw_sensor = dhw_sensor
 
         if dev_id := schema.get(DEV_ROLE_MAP[DevRole.HTG]):
-            self._dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id=FA)
+            dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id=FA)
+            assert isinstance(dhw_valve, BdrSwitch)  # mypy
+            self._dhw_valve = dhw_valve
 
         if dev_id := schema.get(DEV_ROLE_MAP[DevRole.HT1]):
-            self._htg_valve = self._gwy.get_device(dev_id, parent=self, child_id=F9)
+            htg_valve = self._gwy.get_device(dev_id, parent=self, child_id=F9)
+            assert isinstance(htg_valve, BdrSwitch)  # mypy
+            self._htg_valve = htg_valve
 
     @property
-    def sensor(self) -> DhwSensor:  # self._dhw_sensor
+    def sensor(self) -> DhwSensor | None:  # self._dhw_sensor
         return self._dhw_sensor
 
     @property
-    def hotwater_valve(self) -> BdrSwitch:  # self._dhw_valve
+    def hotwater_valve(self) -> BdrSwitch | None:  # self._dhw_valve
         return self._dhw_valve
 
     @property
-    def heating_valve(self) -> BdrSwitch:  # self._htg_valve
+    def heating_valve(self) -> BdrSwitch | None:  # self._htg_valve
         return self._htg_valve
 
     @property
@@ -323,16 +347,16 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return "Stored HW"
 
     @property
-    def config(self) -> dict | None:  # 10A0
-        return self._msg_value(Code._10A0)
+    def config(self) -> dict[str, Any] | None:  # 10A0
+        return self._msg_value(Code._10A0)  # type: ignore[return-value]
 
     @property
-    def mode(self) -> dict | None:  # 1F41
-        return self._msg_value(Code._1F41)
+    def mode(self) -> dict[str, Any] | None:  # 1F41
+        return self._msg_value(Code._1F41)  # type: ignore[return-value]
 
     @property
     def setpoint(self) -> float | None:  # 10A0
-        return self._msg_value(Code._10A0, key=SZ_SETPOINT)
+        return self._msg_value(Code._10A0, key=SZ_SETPOINT)  # type: ignore[return-value]
 
     @setpoint.setter  # TODO: can value be None?
     def setpoint(self, value: float) -> None:  # 10A0
@@ -340,19 +364,19 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     @property
     def temperature(self) -> float | None:  # 1260
-        return self._msg_value(Code._1260, key=SZ_TEMPERATURE)
+        return self._msg_value(Code._1260, key=SZ_TEMPERATURE)  # type: ignore[return-value]
 
     @property
     def heat_demand(self) -> float | None:  # 3150
-        return self._msg_value(Code._3150, key=SZ_HEAT_DEMAND)
+        return self._msg_value(Code._3150, key=SZ_HEAT_DEMAND)  # type: ignore[return-value]
 
     @property
     def relay_demand(self) -> float | None:  # 0008
-        return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
+        return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)  # type: ignore[return-value]
 
     @property  # only seen with FC, but seems should pair with 0008?
     def relay_failsafe(self) -> float | None:  # 0009
-        return self._msg_value(Code._0009, key=SZ_RELAY_FAILSAFE)
+        return self._msg_value(Code._0009, key=SZ_RELAY_FAILSAFE)  # type: ignore[return-value]
 
     def set_mode(
         self,
@@ -364,7 +388,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Set the DHW mode (mode, active, until)."""
 
         cmd = Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
-        return self._gwy.send_cmd(cmd, priority=Priority.HIGH, wait_for_result=True)
+        return self._gwy.send_cmd(cmd, priority=Priority.HIGH, wait_for_reply=True)
 
     def set_boost_mode(self) -> asyncio.Task[Packet]:
         """Enable DHW for an hour, despite any schedule."""
@@ -427,7 +451,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return {a: getattr(self, a) for a in (SZ_TEMPERATURE, SZ_HEAT_DEMAND)}
 
 
-class Zone(ZoneSchedule, ZoneBase):
+class Zone(ZoneSchedule):
     """The Zone class for all zone types (but not DHW)."""
 
     _SLUG: str = None  # type: ignore[assignment]
@@ -455,7 +479,7 @@ class Zone(ZoneSchedule, ZoneBase):
         self.actuators = []  # schema attr
         self.actuator_by_id = {}  # schema attr
 
-    def _update_schema(self, *, append_actuators=True, **schema):
+    def _update_schema(self, *, append_actuators: bool = True, **schema) -> None:
         """Update a heating zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -539,7 +563,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def _add_discovery_cmd(
         self, cmd, interval, *, delay: float = 0, timeout: float = None
-    ):
+    ) -> None:
         """Schedule a command to run periodically."""
         super()._add_discovery_cmd(cmd, interval, delay=delay, timeout=timeout)
 
@@ -643,7 +667,7 @@ class Zone(ZoneSchedule, ZoneBase):
         ):
             eavesdrop_zone_type(msg)
 
-    def _msg_value(self, *args: Any, **kwargs: Any):
+    def _msg_value(self, *args: Any, **kwargs: Any) -> Any:
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
     @property
@@ -909,7 +933,7 @@ ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 def zone_factory(
     tcs: Evohome, idx: str, *, msg: Message = None, **schema: Any
-) -> _ZoneT:
+) -> type[_ZoneT]:  # DhwZone | Zone:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).

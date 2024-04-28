@@ -86,9 +86,7 @@
   exclude = [
     "src/ramses_cli/client.py",
     "src/ramses_cli/utils",
-    "src/ramses_rf/device",
-    "src/ramses_rf/system/heat.py",
-    "src/ramses_rf/system/zones.py",
+    # "src/ramses_rf/device",
     "tests/deprecated",
     "tests/wip",
   ]
@@ -144,6 +142,66 @@
   disable_error_code = [
     "arg-type",  #    10 (but a can of worms)
     "unreachable",  # 14 (but a can of worms)
+  ]
+#
+[[tool.mypy.overrides]]
+  module = "ramses_rf.device.*"
+
+  disable_error_code = [
+    "arg-type",  #        #
+    "assignment",  #      #
+    "attr-defined",  #    #
+    "call-arg",  #        #
+    "call-overload",  #   #
+    "index",  #           #
+    "misc",  #            #
+    "no-any-return",  #   #
+    # "no-untyped-call",  #
+    "no-untyped-def",  #  #
+    "operator",  #        #
+    "override",  #        #
+    "return-value",  #    #
+    "type-arg",  #        #
+    "type-var",  #        #
+    "union-attr",  #      #
+    "unreachable",  #     #
+  ]
+#
+[[tool.mypy.overrides]]
+  module = "ramses_rf.system.heat"
+
+  disable_error_code = [
+    "arg-type",  #        #
+    "attr-defined",  #    #
+    "assignment",  #      #
+    "no-any-return",  #   #
+    "no-untyped-call",  # #
+    "no-untyped-def",  #  #
+    "operator",  #        #
+    "override",  #        #
+    "return-value",  #    #
+    "type-arg",  #        #
+    "type-var",  #        #
+    "union-attr",  #      #
+    "unreachable",  #     #
+  ]
+#
+[[tool.mypy.overrides]]
+  module = "ramses_rf.system.zones"
+
+  disable_error_code = [
+    "arg-type",  #        #
+    "assignment",  #      #
+    "attr-defined",  #    #
+    "no-any-return",  #   #
+    "no-untyped-call",  # #
+    "no-untyped-def",  #  #
+    "operator",  #        #
+    "override",  #        #
+    "return-value",  #    #
+    "type-arg",  #        #
+    "type-var",  #        #
+    "unreachable",  #     #
   ]
 #
 [[tool.mypy.overrides]]

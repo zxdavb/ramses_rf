@@ -43,7 +43,7 @@ async def test_schedule_get(dir_name: Path) -> None:
     gwy: Gateway = await load_test_gwy(dir_name)
     assert isinstance(gwy.tcs, Evohome)  # mypy
     try:
-        zone: ZoneSchedule = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]  # type: ignore[assignment]
+        zone: ZoneSchedule = gwy.tcs.dhw if gwy.tcs.dhw else gwy.tcs.zones[0]
         assert isinstance(zone, ZoneSchedule)
         assert zone.schedule == schedule[SZ_SCHEDULE]
         assert zone._schedule._full_schedule == schedule
