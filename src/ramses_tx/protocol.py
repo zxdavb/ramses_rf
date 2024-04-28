@@ -492,7 +492,7 @@ class ReadProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         qos: QosParams | None = None,
     ) -> Packet:
         """Raise an exception as the Protocol cannot send Commands."""
-        raise NotImplementedError(f"{self}: The chosen Protocol is Read-Only")
+        raise NotImplementedError(f"{cmd._hdr}: < this Protocol is Read-Only")
 
 
 class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
