@@ -138,7 +138,8 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             cmd = Command.from_attrs(RQ, self.ctl.id, Code._000C, payload)
             self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0)
 
-        self._add_discovery_cmd(Command.get_tpi_params(self.id), 60 * 60 * 6, delay=5)
+        cmd = Command.get_tpi_params(self.id)
+        self._add_discovery_cmd(cmd, 60 * 60 * 6, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:
         def eavesdrop_appliance_control(this, *, prev=None) -> None:
@@ -326,11 +327,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
             cmd = Command.from_attrs(RQ, self.id, Code._0005, f"00{zone_type}")
-            self._add_discovery_cmd(
-                cmd,
-                60 * 60 * 24,
-                delay=0,
-            )
+            self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=0)
 
     def _handle_msg(self, msg: Message) -> None:
         """Process any relevant message.
@@ -555,7 +552,8 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(Command.get_schedule_version(self.id), 60 * 5, delay=5)
+        cmd = Command.get_schedule_version(self.id)
+        self._add_discovery_cmd(cmd, 60 * 5, delay=5)
 
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         """Periodically retrieve the latest global change counter."""
@@ -647,9 +645,8 @@ class Language(SystemBase):  # 0100
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(
-            Command.get_system_language(self.id), 60 * 60 * 24, delay=60 * 15
-        )
+        cmd = Command.get_system_language(self.id)
+        self._add_discovery_cmd(cmd, 60 * 60 * 24, delay=60 * 15)
 
     @property
     def language(self) -> str | None:
@@ -677,9 +674,8 @@ class Logbook(SystemBase):  # 0418
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(
-            Command.get_system_log_entry(self.ctl.id, 0), 60 * 5, delay=5
-        )
+        cmd = Command.get_system_log_entry(self.id, 0)
+        self._add_discovery_cmd(cmd, 60 * 5, delay=5)
         # self._gwy.add_task(
         #     self._gwy._loop.create_task(self.get_faultlog())
         # )
@@ -844,7 +840,8 @@ class SysMode(SystemBase):  # 2E04
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(Command.get_system_mode(self.id), 60 * 5, delay=5)
+        cmd = Command.get_system_mode(self.id)
+        self._add_discovery_cmd(cmd, 60 * 5, delay=5)
 
     @property
     def system_mode(self) -> dict | None:  # 2E04
@@ -854,9 +851,8 @@ class SysMode(SystemBase):  # 2E04
         self, system_mode: int | str | None, *, until: dt | str | None = None
     ) -> Future:
         """Set a system mode for a specified duration, or indefinitely."""
-        return self._send_cmd(
-            Command.set_system_mode(self.id, system_mode, until=until)
-        )
+        cmd = Command.set_system_mode(self.id, system_mode, until=until)
+        return self._send_cmd(cmd, wait_for_reply=True, priority=Priority.HIGH)
 
     def set_auto(self) -> Future:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
@@ -877,7 +873,8 @@ class Datetime(SystemBase):  # 313F
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
 
-        self._add_discovery_cmd(Command.get_system_time(self.id), 60 * 60, delay=0)
+        cmd = Command.get_system_time(self.id)
+        self._add_discovery_cmd(cmd, 60 * 60, delay=0)
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -889,11 +886,13 @@ class Datetime(SystemBase):  # 313F
                 _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
 
     async def get_datetime(self) -> dt | None:
-        msg = await self._gwy.async_send_cmd(Command.get_system_time(self.id))
+        cmd = Command.get_system_time(self.id)
+        msg = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
         return dt.fromisoformat(msg.payload[SZ_DATETIME])
 
     async def set_datetime(self, dtm: dt) -> Message | None:
-        return await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
+        cmd = Command.set_system_time(self.id, dtm)
+        return await self._gwy.async_send_cmd(cmd, priority=Priority.HIGH)
 
 
 class UfHeating(SystemBase):
