@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from ramses_tx.frame import HeaderT
     from ramses_tx.schemas import DeviceIdT
 
-    from .device import Controller
+    from .device import BdrSwitch, Controller, DhwSensor, TrvActuator, UfhCircuit
     from .gateway import Gateway
     from .system import Evohome
 
@@ -74,7 +74,7 @@ _DBG_ENABLE_BACKOFF = False
 _LOGGER = logging.getLogger(__name__)
 
 
-def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
+def class_by_attr(name: str, attr: str) -> dict[str, Any]:  # TODO: change to __module__
     """Return a mapping of a (unique) attr of classes in a module to that class."""
 
     def predicate(m: ModuleType) -> bool:
@@ -670,14 +670,14 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
     There is a `set_parent` method, but no `set_child` method.
     """
 
-    actuator_by_id: dict[DeviceIdT, Entity]
-    actuators: list[Entity]
+    actuator_by_id: dict[DeviceIdT, BdrSwitch | UfhCircuit | TrvActuator]
+    actuators: list[BdrSwitch | UfhCircuit | TrvActuator]
 
     circuit_by_id: dict[str, Any]
 
-    _dhw_sensor: Entity
-    _dhw_valve: Entity
-    _htg_valve: Entity
+    _dhw_sensor: DhwSensor
+    _dhw_valve: BdrSwitch
+    _htg_valve: BdrSwitch
 
     def __init__(self, *args: Any, child_id: str = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -781,7 +781,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
             assert isinstance(child, BdrSwitch | UfhCircuit | TrvActuator)
             if child not in self.actuators:
                 self.actuators.append(child)
-                self.actuator_by_id[child.id] = child  # type: ignore[index]
+                self.actuator_by_id[child.id] = child  # type: ignore[assignment,index]
 
         elif child_id == F9:  # DHW zone (HTG valve)
             assert isinstance(self, DhwZone)  # TODO: remove me

@@ -286,7 +286,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         ]
 
     @property
-    def active_faults(self) -> list[FaultLogEntry]:
+    def active_faults(self) -> tuple[FaultLogEntry, ...]:
         """Return a list of all faults outstanding (i.e. no corresponding restore)."""
 
         restores = {}
@@ -304,4 +304,4 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
                 else:
                     faults[entry._as_tuple] = entry
 
-        return list(faults.values())
+        return tuple(faults.values())

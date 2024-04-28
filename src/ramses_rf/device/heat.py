@@ -48,7 +48,7 @@ from ramses_tx.opentherm import (
 )
 from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
 
-from .base import BatteryState, Device, DeviceHeat, Fakeable
+from .base import BatteryState, DeviceHeat, Fakeable
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F9,
@@ -262,9 +262,6 @@ class RelayDemand(DeviceHeat):  # 0008
 
 class DhwTemperature(DeviceHeat):  # 1260
     TEMPERATURE: Final = SZ_TEMPERATURE  # TODO: deprecate
-
-    async def initiate_binding_process(self) -> Packet:
-        return await super().initiate_binding_process(Code._1260)
 
     @property
     def temperature(self) -> float | None:  # 1260
@@ -602,6 +599,9 @@ class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
             # update the controller DHW temp
             self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 
+    async def initiate_binding_process(self) -> Packet:
+        return await super()._initiate_binding_process(Code._1260)
+
     @property
     def dhw_params(self) -> dict | None:  # 10A0
         return self._msg_value(Code._10A0)
@@ -623,6 +623,9 @@ class OutSensor(Weather, Fakeable):  # OUT: 17
     # WINDSPEED = "windspeed"  # km/h
 
     _STATE_ATTR = SZ_TEMPERATURE
+
+    # async def initiate_binding_process(self) -> Packet:
+    #     return await super()._initiate_binding_process(...)
 
 
 # NOTE: config.use_native_ot should enforces sends, but not reads from _msgz DB
@@ -802,7 +805,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def _ot_msg_value(self, msg_id: MsgId) -> int | float | list | None:
         # data_id = int(msg_id, 16)
         if (msg := self._msgs_ot.get(msg_id)) and not msg._expired:
-            return msg.payload.get(SZ_VALUE)  # TODO: value_hb/_lb
+            # TODO: value_hb/_lb
+            return msg.payload.get(SZ_VALUE)  # type: ignore[no-any-return]
         return None
 
     def _result_by_callback(
@@ -1200,11 +1204,6 @@ class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
 
     _STATE_ATTR = SZ_TEMPERATURE
 
-    async def initiate_binding_process(self) -> Packet:
-        return await super().initiate_binding_process(
-            [Code._2309, Code._30C9, Code._0008]
-        )
-
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
@@ -1241,6 +1240,11 @@ class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
                 self._make_tcs_controller(msg=msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (21): was FALSE, now True")
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super()._initiate_binding_process(
+            [Code._2309, Code._30C9, Code._0008]
+        )
 
 
 class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
@@ -1307,7 +1311,8 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         if self._child_id in DOMAIN_TYPE_MAP:
             return DOMAIN_TYPE_MAP[self._child_id]
         elif self._parent:
-            return self._parent.heating_type  # TODO: only applies to zones
+            # TODO: only applies to zones
+            return self._parent.heating_type  # type: ignore[no-any-return]
 
         # if Code._3B00 in _msgs and _msgs[Code._3B00].verb == I_:
         #     self._is_tpi = True
@@ -1445,7 +1450,8 @@ class UfhCircuit(Entity):
         return None
 
 
-HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller
+# e.g. {"CTL": Controller}
+HEAT_CLASS_BY_SLUG: dict[str, type[DeviceHeat]] = class_by_attr(__name__, "_SLUG")
 
 _HEAT_VC_PAIR_BY_CLASS = {
     DevType.DHW: ((I_, Code._1260),),
@@ -1455,7 +1461,7 @@ _HEAT_VC_PAIR_BY_CLASS = {
 
 def class_dev_heat(
     dev_addr: Address, *, msg: Message | None = None, eavesdrop: bool = False
-) -> type[Device]:
+) -> type[DeviceHeat]:
     """Return a device class, but only if the device must be from the CH/DHW group.
 
     May return a device class, DeviceHeat (which will need promotion).

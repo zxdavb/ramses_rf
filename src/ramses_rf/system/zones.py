@@ -50,6 +50,7 @@ from ramses_rf.schemas import (
     SZ_SENSOR,
 )
 from ramses_tx import Address, Command, Message, Priority
+from ramses_tx.schemas import DeviceIdT
 
 from .schedule import Schedule
 
@@ -477,9 +478,9 @@ class Zone(ZoneSchedule):
 
         super().__init__(tcs, zone_idx)
 
-        self._sensor = None  # schema attr
-        self.actuators = []  # schema attr
-        self.actuator_by_id = {}  # schema attr
+        self._sensor: Device | None = None
+        self.actuators: list[Device] = []
+        self.actuator_by_id: dict[DeviceIdT, Device] = {}
 
     def _update_schema(self, *, append_actuators: bool = True, **schema: Any) -> None:
         """Update a heating zone with new schema attrs.
@@ -523,6 +524,8 @@ class Zone(ZoneSchedule):
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
             self._setup_discovery_cmds()
+
+        dev_id: DeviceIdT
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
@@ -930,7 +933,10 @@ def _transform(valve_pos: float) -> float:
     return math.floor((valve_pos - t1) * t1 / (t2 - t1) + t0 + 0.5) / 100
 
 
-ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
+# e.g. {"RAD": RadZone}
+ZONE_CLASS_BY_SLUG: dict[str, type[DhwZone], type[Zone]] = class_by_attr(
+    __name__, "_SLUG"
+)
 
 
 def zone_factory(

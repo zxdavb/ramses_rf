@@ -64,7 +64,7 @@ from ramses_tx.address import DeviceIdT
 from ramses_tx.const import Priority
 from ramses_tx.typed_dicts import PayDictT
 
-from .faultlog import FaultLog
+from .faultlog import FaultLog, FaultLogEntry
 from .zones import DhwZone, Zone
 
 if TYPE_CHECKING:
@@ -713,9 +713,9 @@ class Logbook(SystemBase):  # 0418
             return None
 
     @property
-    def active_fault(self) -> tuple[str] | None:
+    def active_faults(self) -> tuple[FaultLogEntry, ...]:
         """Return the most recently logged fault (that is not restored), if any."""
-        return self._faultlog.active_fault
+        return self._faultlog.active_faults
 
     @property
     def latest_event(self) -> tuple[str] | None:
@@ -1012,7 +1012,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     # older evohome don't have zone_type=ELE
 
-    _SLUG: str = SYS_KLASS.TCS
+    _SLUG: str = SYS_KLASS.TCS  # "evohome"
 
     def _update_schema(self, **schema: Any) -> None:
         """Update a CH/DHW system with new schema attrs.
@@ -1081,7 +1081,8 @@ class Sundial(Evohome):
     _SLUG: str = SYS_KLASS.SYS
 
 
-SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
+# e.g. {"evohome": Evohome}
+SYS_CLASS_BY_SLUG: dict[str, type[System]] = class_by_attr(__name__, "_SLUG")
 
 
 def system_factory(

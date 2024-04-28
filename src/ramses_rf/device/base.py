@@ -344,6 +344,16 @@ class Fakeable(DeviceBase):
         )
         return msgs
 
+    async def wait_for_binding_request(
+        self,
+        accept_codes: Iterable[Code],
+        /,
+        *,
+        idx: IndexT = "00",
+        require_ratify: bool = False,
+    ) -> tuple[Packet, Packet, Packet, Packet | None]:
+        raise NotImplementedError
+
     async def _initiate_binding_process(
         self,
         offer_codes: Iterable[Code],
@@ -363,6 +373,9 @@ class Fakeable(DeviceBase):
             offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
         )  # TODO: if successul, re-discover schema?
         return msgs
+
+    async def initiate_binding_process(self) -> Packet:
+        raise NotImplementedError
 
     @property
     def oem_code(self) -> str | None:
@@ -486,4 +499,5 @@ class DeviceHvac(Device):  # HVAC (ventilation, PIV, MV/HR)
     #         self._hvac_trick()
 
 
-BASE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "HGI": HgiGateway
+# e.g. {"HGI": HgiGateway}
+BASE_CLASS_BY_SLUG: dict[str, type[Device]] = class_by_attr(__name__, "_SLUG")

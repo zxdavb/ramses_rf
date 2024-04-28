@@ -154,7 +154,6 @@
     "call-overload",  #   #
     "index",  #           #
     "misc",  #            #
-    "no-any-return",  #   #
     "operator",  #        #
     "override",  #        #
     "return-value",  #    #
@@ -170,7 +169,6 @@
     "arg-type",  #        #
     "attr-defined",  #    #
     "assignment",  #      #
-    "no-any-return",  #   #
     "operator",  #        #
     "override",  #        #
     "return-value",  #    #
@@ -186,7 +184,7 @@
     "arg-type",  #        #
     "assignment",  #      #
     "attr-defined",  #    #
-    "no-any-return",  #   #
+    "no-any-return",  #   #  9
     "operator",  #        #
     "override",  #        #
     "return-value",  #    #

@@ -42,7 +42,7 @@ from ramses_rf.schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
 from ramses_tx import Address, Command, Message, Packet, Priority
 from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 
-from .base import BatteryState, Device, DeviceHvac, Fakeable
+from .base import BatteryState, DeviceHvac, Fakeable
 
 from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -81,15 +81,6 @@ class HvacSensorBase(DeviceHvac):
 
 class CarbonDioxide(HvacSensorBase):  # 1298
     """The CO2 sensor (cardinal code is 1298)."""
-
-    # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
-    # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
-    # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
-
-    async def initiate_binding_process(self) -> Packet:
-        return await super().initiate_binding_process(
-            [Code._31E0, Code._1298, Code._2E10]
-        )
 
     @property
     def co2_level(self) -> int | None:  # 1298
@@ -228,6 +219,15 @@ class HvacCarbonDioxideSensor(CarbonDioxide, Fakeable):  # CO2: I/1298
 
     _SLUG: str = DevType.CO2
 
+    # .I --- 29:181813 63:262142 --:------ 1FC9 030 00-31E0-76C635 01-31E0-76C635 00-1298-76C635 67-10E0-76C635 00-1FC9-76C635
+    # .W --- 32:155617 29:181813 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1  # The HRU
+    # .I --- 29:181813 32:155617 --:------ 1FC9 001 00
+
+    async def initiate_binding_process(self) -> Packet:
+        return await super()._initiate_binding_process(
+            [Code._31E0, Code._1298, Code._2E10]
+        )
+
 
 class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
     """The REM (remote/switch) class, such as a 4-way switch.
@@ -242,7 +242,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         # .W --- 32:155617 37:155617 --:------ 1FC9 012 00-31D9-825FE1 00-31DA-825FE1
         # .I --- 37:155617 32:155617 --:------ 1FC9 001 00
 
-        return await super().initiate_binding_process(
+        return await super()._initiate_binding_process(
             Code._22F1 if self._scheme == "nuaire" else [Code._22F1, Code._22F3]
         )
 
@@ -288,7 +288,7 @@ class HvacDisplayRemote(HvacRemote):  # DIS
     _SLUG: str = DevType.DIS
 
     # async def initiate_binding_process(self) -> Packet:
-    #     return await super().initiate_binding_process(
+    #     return await super()._initiate_binding_process(
     #         [Code._31E0, Code._1298, Code._2E10]
     #     )
 
@@ -450,12 +450,13 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 #     _SLUG: str = DEV_TYPE.PIV
 
 
-HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumiditySensor
+# e.g. {"HUM": HvacHumiditySensor}
+HVAC_CLASS_BY_SLUG: dict[str, type[DeviceHvac]] = class_by_attr(__name__, "_SLUG")
 
 
 def class_dev_hvac(
     dev_addr: Address, *, msg: Message | None = None, eavesdrop: bool = False
-) -> type[Device]:
+) -> type[DeviceHvac]:
     """Return a device class, but only if the device must be from the HVAC group.
 
     May return a base clase, DeviceHvac, which will need promotion.
