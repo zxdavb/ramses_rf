@@ -490,6 +490,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
+    # TODO: should be a private method
     def get_circuit(self, cct_idx, *, msg=None, **schema) -> Any:
         """Return a UFH circuit, create it if required.
 
