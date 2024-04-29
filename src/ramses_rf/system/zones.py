@@ -57,7 +57,7 @@ from .schedule import Schedule
 if TYPE_CHECKING:
     from ramses_tx import Packet
 
-    from .heat import Evohome
+    from .heat import Evohome, _MultiZoneT, _StoredHwT
 
 # Kudos & many thanks to:
 # - @dbmandrake: valve_position -> heat_demand transform
@@ -81,17 +81,15 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 _LOGGER = logging.getLogger(__name__)
 
 
-_ZoneT = TypeVar("_ZoneT", bound="ZoneBase")
-
-
 class ZoneBase(Child, Parent, Entity):
     """The Zone/DHW base class."""
 
     _SLUG: str = None  # type: ignore[assignment]
+
     _ROLE_ACTUATORS: str = None  # type: ignore[assignment]
     _ROLE_SENSORS: str = None  # type: ignore[assignment]
 
-    def __init__(self, tcs: Evohome, zone_idx: str) -> None:
+    def __init__(self, tcs: _MultiZoneT | _StoredHwT, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
 
         # FIXME: entities must know their parent device ID and their own ID
@@ -106,8 +104,8 @@ class ZoneBase(Child, Parent, Entity):
     # Should be a private method
     @classmethod
     def create_from_schema(
-        cls, tcs: Evohome, zone_idx: str, **schema: Any
-    ) -> type[_ZoneT]:
+        cls, tcs: _MultiZoneT, zone_idx: str, **schema: Any
+    ) -> ZoneBase:
         """Create a CH/DHW zone for a TCS and set its schema attrs.
 
         The appropriate Zone class should have been determined by a factory.
@@ -197,7 +195,7 @@ class DhwZone(ZoneSchedule):  # CS92A
 
     _SLUG: str = ZoneRole.DHW
 
-    def __init__(self, tcs: Evohome, zone_idx: str = "HW") -> None:
+    def __init__(self, tcs: _StoredHwT, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
 
         if tcs.dhw:
@@ -460,7 +458,7 @@ class Zone(ZoneSchedule):
     _SLUG: str = None  # type: ignore[assignment]
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
 
-    def __init__(self, tcs: Evohome, zone_idx: str) -> None:
+    def __init__(self, tcs: _MultiZoneT, zone_idx: str) -> None:
         """Create a heating zone.
 
         The type of zone may not be known at instantiation. Even when it is known, zones
@@ -940,8 +938,12 @@ ZONE_CLASS_BY_SLUG: dict[str, type[DhwZone], type[Zone]] = class_by_attr(
 
 
 def zone_factory(
-    tcs: Evohome, idx: str, *, msg: Message = None, **schema: Any
-) -> type[_ZoneT]:  # DhwZone | Zone:
+    tcs: _StoredHwT | _MultiZoneT,
+    idx: str,
+    *,
+    msg: Message | None = None,
+    **schema: Any,
+) -> DhwZone | Zone:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).
@@ -951,10 +953,10 @@ def zone_factory(
         ctl_addr: Address,
         idx: str,
         *,
-        msg: Message = None,
+        msg: Message | None = None,
         eavesdrop: bool = False,
         **schema: Any,
-    ) -> type[_ZoneT]:
+    ) -> type[DhwZone] | type[Zone]:
         """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 
         # NOTE: for now, zones are always promoted after instantiation
@@ -988,10 +990,16 @@ def zone_factory(
         )
         return Zone
 
-    return best_zon_class(
+    zon: DhwZone | Zone = best_zon_class(  # type: ignore[type-var]
         tcs.ctl.addr,
         idx,
         msg=msg,
         eavesdrop=tcs._gwy.config.enable_eavesdrop,
         **schema,
     ).create_from_schema(tcs, idx, **schema)
+
+    # assert isinstance(zon, DhwZone | Zone)  # mypy
+    return zon
+
+
+_ZoneT = TypeVar("_ZoneT", bound="ZoneBase")

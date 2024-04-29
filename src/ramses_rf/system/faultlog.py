@@ -28,7 +28,7 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 )
 
 if TYPE_CHECKING:
-    from ramses_rf.system.heat import Evohome
+    from ramses_rf.system.heat import _LogbookT
 
 
 FaultTupleT: TypeAlias = tuple[FaultType, FaultDeviceClass, DeviceIdT | None, str]
@@ -140,8 +140,8 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
     _MAX_LOG_IDX = 0x3E
 
-    def __init__(self, tcs: Evohome) -> None:
-        self._tcs = tcs
+    def __init__(self, tcs: _LogbookT) -> None:
+        self._tcs: _LogbookT = tcs
         self.id = tcs.id
         self._gwy = tcs._gwy
 

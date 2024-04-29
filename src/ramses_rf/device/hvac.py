@@ -262,7 +262,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         # TODO: num_repeats=2, or wait_for_reply=True ?
 
         # NOTE: this is not completely understood (diffs between vendors?)
-        cmd = Command.set_fan_mode(self.id, int(4 * rate), 4, src_id=self.id)
+        cmd = Command.set_fan_mode(self.id, int(4 * rate), src_id=self.id)
         self._gwy.send_cmd(cmd, num_repeats=2, priority=Priority.HIGH)
 
     @property
@@ -318,10 +318,10 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         schema = shrink(SCH_VCS(schema))
 
         for dev_id in schema.get(SZ_REMOTES, {}):
-            self._gwy.get_device(self._gwy, dev_id)
+            self._gwy.get_device(dev_id)
 
         for dev_id in schema.get(SZ_SENSORS, {}):
-            self._gwy.get_device(self._gwy, dev_id)
+            self._gwy.get_device(dev_id)
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()

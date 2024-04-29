@@ -148,16 +148,15 @@
   module = "ramses_rf.device.*"
 
   disable_error_code = [
-    "arg-type",  #        #
-    "assignment",  #      #
-    "attr-defined",  #    #
+    "arg-type",  #        # 22
+    "assignment",  #      # 16
+    "attr-defined",  #    #  9
     "call-overload",  #   #
     "index",  #           #
-    "misc",  #            #
     "operator",  #        #
     "override",  #        #
-    "return-value",  #    #
-    "type-arg",  #        #
+    "return-value",  #    # 60
+    "type-arg",  #        # 18
     "union-attr",  #      #
     "unreachable",  #     #
   ]
@@ -166,13 +165,12 @@
   module = "ramses_rf.system.heat"
 
   disable_error_code = [
-    "arg-type",  #        #
-    "attr-defined",  #    #
-    "assignment",  #      #
+    "assignment",  #      #  8
+    "attr-defined",  #    #  2
     "operator",  #        #
     "override",  #        #
-    "return-value",  #    #
-    "type-arg",  #        #
+    "return-value",  #    # 11
+    "type-arg",  #        #  5
     "union-attr",  #      #
     "unreachable",  #     #
   ]
@@ -182,13 +180,12 @@
 
   disable_error_code = [
     "arg-type",  #        #
-    "assignment",  #      #
-    "attr-defined",  #    #
+    "assignment",  #      #  9
     "no-any-return",  #   #  9
     "operator",  #        #
     "override",  #        #
-    "return-value",  #    #
-    "type-arg",  #        #
+    "return-value",  #    #  5
+    "type-arg",  #        #  5
     "unreachable",  #     #
   ]
 #

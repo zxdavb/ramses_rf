@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from ramses_rf import Gateway
+    from ramses_rf.system import Zone
     from ramses_tx import Address, Message
     from ramses_tx.address import DeviceIdT
     from ramses_tx.const import IndexT
@@ -176,11 +177,11 @@ class DeviceBase(Entity):
 
     @property
     def is_faked(self) -> bool:
-        return bool(getattr(self, "_bind_context", None))
+        return False
 
     @property
     def _is_binding(self) -> bool:
-        return self.is_faked and self._bind_context.is_binding
+        return False
 
     @property
     def _is_present(self) -> bool:
@@ -234,7 +235,7 @@ class BatteryState(DeviceBase):  # 1060
         return self._msg_value(Code._1060, key=self.BATTERY_LOW)
 
     @property
-    def battery_state(self) -> dict | None:  # 1060
+    def battery_state(self) -> dict[str, Any] | None:  # 1060
         if self.is_faked:
             return None
         return self._msg_value(Code._1060)
@@ -378,6 +379,14 @@ class Fakeable(DeviceBase):
         raise NotImplementedError
 
     @property
+    def is_faked(self) -> bool:
+        return bool(self._bind_context)
+
+    @property
+    def _is_binding(self) -> bool:
+        return self.is_faked and self._bind_context.is_binding
+
+    @property
     def oem_code(self) -> str | None:
         """Return the OEM code (a 2-char ascii str) for this device, if there is one."""
         # raise NotImplementedError  # self.traits is a @property
@@ -464,7 +473,7 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
         return False
 
     @property
-    def zone(self) -> Entity | None:  # should be: Optional[Zone]
+    def zone(self) -> Zone | None:
         """Return the device's parent zone, if known."""
 
         return self._parent

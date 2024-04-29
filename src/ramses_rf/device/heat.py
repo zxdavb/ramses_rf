@@ -314,13 +314,17 @@ class Temperature(DeviceHeat):  # 30C9
 class RfgGateway(DeviceHeat):  # RFG (30:)
     """The RFG100 base class."""
 
-    _SLUG: str = DevType.RFG
+    _SLUG = DevType.RFG
+    _STATE_ATTR = None
 
 
 class Controller(DeviceHeat):  # CTL (01):
     """The Controller base class."""
 
-    _SLUG: str = DevType.CTL
+    HEAT_DEMAND: Final = SZ_HEAT_DEMAND
+
+    _SLUG = DevType.CTL
+    _STATE_ATTR = HEAT_DEMAND
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -370,17 +374,19 @@ class Controller(DeviceHeat):  # CTL (01):
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    _SLUG: str = DevType.PRG
+    _SLUG = DevType.PRG
 
 
 class UfhController(Parent, DeviceHeat):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    _SLUG: str = DevType.UFC
-
     HEAT_DEMAND: Final = SZ_HEAT_DEMAND
 
-    _STATE_ATTR = SZ_HEAT_DEMAND
+    _SLUG = DevType.UFC
+    _STATE_ATTR = HEAT_DEMAND
+
+    _child_id = FA
+    _iz_controller = True
 
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
     # 12:27:24.546 068  I --- 02:000921 --:------ 01:191718 3150 002 065A
@@ -391,17 +397,13 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = FA  # NOTE: domain_id, UFC
-
         self.circuit_by_id = {f"{i:02X}": {} for i in range(8)}
 
-        self._setpoints: Message = None  # type: ignore[assignment]
-        self._heat_demand: Message = None  # type: ignore[assignment]
-        self._heat_demands: Message = None  # type: ignore[assignment]
-        self._relay_demand: Message = None  # type: ignore[assignment]
-        self._relay_demand_fa: Message = None  # type: ignore[assignment]
-
-        self._iz_controller = True
+        self._setpoints: Message | None = None
+        self._heat_demand: Message | None = None
+        self._heat_demands: Message | None = None
+        self._relay_demand: Message | None = None
+        self._relay_demand_fa: Message | None = None
 
     def _setup_discovery_cmds(self) -> None:
         super()._setup_discovery_cmds()
@@ -579,12 +581,10 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    _SLUG: str = DevType.DHW
-
     DHW_PARAMS: Final = "dhw_params"
-    TEMPERATURE: Final = SZ_TEMPERATURE
 
-    _STATE_ATTR = SZ_TEMPERATURE
+    _SLUG: str = DevType.DHW
+    _STATE_ATTR = DhwTemperature.TEMPERATURE
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -617,11 +617,10 @@ class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
 class OutSensor(Weather, Fakeable):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
-    _SLUG: str = DevType.OUT
-
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
 
+    _SLUG = DevType.OUT
     _STATE_ATTR = SZ_TEMPERATURE
 
     # async def initiate_binding_process(self) -> Packet:
@@ -635,8 +634,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     # see: https://www.opentherm.eu/request-details/?post_ids=2944
     # see: https://www.automatedhome.co.uk/vbulletin/showthread.php?6400-(New)-cool-mode-in-Evohome
 
-    _SLUG: str = DevType.OTB
-
+    _SLUG = DevType.OTB
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
     OT_TO_RAMSES: dict[str, Code] = {  # TODO: move to opentherm.py
@@ -1200,8 +1198,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    _SLUG: str = DevType.THM
-
+    _SLUG = DevType.THM
     _STATE_ATTR = SZ_TEMPERATURE
 
     def _handle_msg(self, msg: Message) -> None:
@@ -1257,11 +1254,10 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    _SLUG: str = DevType.BDR
-
     ACTIVE: Final = "active"
     TPI_PARAMS: Final = "tpi_params"
 
+    _SLUG = DevType.BDR
     _STATE_ATTR = "active"
 
     # def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -1351,10 +1347,9 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
     """The TRV class, such as a HR92."""
 
-    _SLUG: str = DevType.TRV
-
     WINDOW_OPEN: Final = SZ_WINDOW_OPEN
 
+    _SLUG = DevType.TRV
     _STATE_ATTR = SZ_HEAT_DEMAND
 
     @property
@@ -1378,13 +1373,15 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
 class JimDevice(Actuator):  # BDR (08):
     _SLUG: str = DevType.JIM
+    _STATE_ATTR = None
 
 
 class JstDevice(RelayDemand):  # BDR (31):
     _SLUG: str = DevType.JST
+    _STATE_ATTR = None
 
 
-class UfhCircuit(Entity):
+class UfhCircuit(Entity):  # FIXME
     """The UFH circuit class (UFC:circuit is much like CTL/TCS:zone).
 
     NOTE: for circuits, there's a difference between :
@@ -1393,6 +1390,7 @@ class UfhCircuit(Entity):
     """
 
     _SLUG: str = None  # type: ignore[assignment]
+    _STATE_ATTR = None
 
     def __init__(self, ufc: UfhController, ufh_idx: str) -> None:
         super().__init__(ufc._gwy)

@@ -168,7 +168,7 @@ def test_faultlog_entries() -> None:
 def test_faultlog_instantiation_0() -> None:
     """Log entries arrive in order of timestamp (i.e. as they'd occur)."""
 
-    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[arg-type]
+    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[type-var]
 
     # log entries arrive in order of timestamp (i.e. as they'd occur)
     for i in reversed(range(len(TEST_FAULTS))):
@@ -181,7 +181,7 @@ def test_faultlog_instantiation_0() -> None:
 def test_faultlog_instantiation_1() -> None:
     """Log entries arrive in order of log_idx (e.g. enumerating the log via RQs)."""
 
-    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[arg-type]
+    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[type-var]
 
     # log entries arrive in order of log_idx (e.g. enumerating the log via RQs)
     for i in reversed(range(len(TEST_FAULTS))):
@@ -194,7 +194,7 @@ def test_faultlog_instantiation_1() -> None:
 def test_faultlog_instantiation_2() -> None:
     """Log entries arrive in random order albeit with their correct log_idx."""
 
-    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[arg-type]
+    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[type-var]
 
     # log entries arrive in random order albeit with their correct log_idx
     numbers = list(range(len(TEST_FAULTS)))
@@ -210,7 +210,7 @@ def test_faultlog_instantiation_2() -> None:
 def test_faultlog_instantiation_3() -> None:
     """Log entries arrive in an order set to confuse."""
 
-    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[arg-type]
+    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[type-var]
 
     # a log with two entries arrives in order
     _proc_test_fault_entry(fault_log, "05")
@@ -274,7 +274,7 @@ def test_faultlog_instantiation_3() -> None:
 def test_faultlog_instantiation_4() -> None:
     """Log entries arrive in an order set to confuse."""
 
-    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[arg-type]
+    fault_log = FaultLog(EvohomeStub(CTL_ID))  # type: ignore[type-var]
 
     # a log with three entries is enumerated, kinda
     _proc_test_fault_entry(fault_log, "03", _log_idx="00")

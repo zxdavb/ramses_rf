@@ -65,9 +65,10 @@ from ramses_tx.const import Priority
 from ramses_tx.typed_dicts import PayDictT
 
 from .faultlog import FaultLog, FaultLogEntry
-from .zones import DhwZone, Zone
+from .zones import DhwZone, Zone, zone_factory
 
 if TYPE_CHECKING:
+    from ramses_rf.system.zones import DhwZone, Zone
     from ramses_tx import Packet
 
 # TODO: refactor packet routing (filter *before* routing)
@@ -93,6 +94,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 _SystemT = TypeVar("_SystemT", bound="Evohome")
+
+_StoredHwT = TypeVar("_StoredHwT", bound="StoredHw")
+_LogbookT = TypeVar("_LogbookT", bound="Logbook")
+_MultiZoneT = TypeVar("_MultiZoneT", bound="MultiZone")
 
 
 SYS_KLASS = SimpleNamespace(
@@ -321,7 +326,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super().__init__(*args, **kwargs)
 
         self.zones: list[Zone] = []
-        self.zone_by_idx: dict[str, Zone] = {}
+        self.zone_by_idx: dict[str, Zone] = {}  # should not include HW
         self._max_zones: int = getattr(
             self._gwy.config, SZ_MAX_ZONES, DEFAULT_MAX_ZONES
         )
@@ -356,10 +361,10 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             def _testable_zones(changed_zones: dict[str, float]) -> dict[float, str]:
                 return {
-                    t: z
-                    for z, t in changed_zones.items()
-                    if self.zone_by_idx[z].sensor is None
-                    and t not in [t2 for z2, t2 in changed_zones.items() if z2 != z]
+                    t1: i1
+                    for i1, t1 in changed_zones.items()
+                    if self.zone_by_idx[i1].sensor is None
+                    and t1 not in [t2 for i2, t2 in changed_zones.items() if i2 != i1]
                 }
 
             self._prev_30c9, prev = this, self._prev_30c9
@@ -488,8 +493,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         elif isinstance(msg.payload, list) and len(msg.payload):
             # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == FA:  # DHW
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
-                for z in msg.payload:
-                    handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg)
+                for zon in msg.payload:
+                    handle_msg_by_zone_idx(zon.get(SZ_ZONE_IDX), msg)
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if (  # TODO: edge case: 1 zone with CTL as SEN
@@ -512,11 +517,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         If a zone is created, attach it to this TCS.
         """
 
-        from .zones import zone_factory
-
         schema = shrink(SCH_TCS_ZONES_ZON(schema))
 
-        zon = self.zone_by_idx.get(zone_idx)
+        zon: Zone = self.zone_by_idx.get(zone_idx)
         if not zon:
             zon = zone_factory(self, zone_idx, msg=msg, **schema)
             self.zone_by_idx[zon.idx] = zon
@@ -731,7 +734,7 @@ class Logbook(SystemBase):  # 0418
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            "active_fault": self.active_fault,
+            "active_fault": self.active_faults,
             "latest_event": self.latest_event,
             "latest_fault": self.latest_fault,
             # "faultlog": self.faultlog,
@@ -795,8 +798,6 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         DHW zones are uniquely identified by a controller ID.
         If a DHW zone is created, attach it to this TCS.
         """
-
-        from .zones import zone_factory
 
         schema = shrink(SCH_TCS_DHW(schema))
 
@@ -1035,7 +1036,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
             [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
-    def create_from_schema(cls, ctl: Controller, **schema: Any) -> None:
+    def create_from_schema(cls, ctl: Controller, **schema: Any) -> Evohome:
         """Create a CH/DHW system for a CTL and set its schema attrs.
 
         The appropriate System class should have been determined by a factory.
@@ -1086,21 +1087,23 @@ SYS_CLASS_BY_SLUG: dict[str, type[System]] = class_by_attr(__name__, "_SLUG")
 
 
 def system_factory(
-    ctl: Controller, *, msg: Message = None, **schema: Any
+    ctl: Controller, *, msg: Message | None = None, **schema: Any
 ) -> type[_SystemT]:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
         ctl_addr: Address,
         *,
-        msg: Message = None,
+        msg: Message | None = None,
         eavesdrop: bool = False,
         **schema: Any,
     ) -> type[_SystemT]:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
+        klass: str = schema.get(SZ_CLASS)
+
         # a specified system class always takes precidence (even if it is wrong)...
-        if cls := SYS_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
+        if klass and (cls := SYS_CLASS_BY_SLUG.get(klass)):
             _LOGGER.debug(
                 f"Using an explicitly-defined system class for: {ctl_addr} ({cls._SLUG})"
             )
