@@ -8,7 +8,7 @@ EXCLUDED_APIS = ("from_attrs", "_from_attrs", "from_cli")
 EXCLUDED_APIS += ()  # APIs not added to the CODE_API_MAP, should be an empty tuple
 
 
-def test_all_apis_in_map() -> None:
+def test_command_apis_via_map() -> None:
     """Check that all Command constructors are in CODE_API_MAP."""
 
     cls_apis = set(

@@ -225,7 +225,7 @@ class HvacCarbonDioxideSensor(CarbonDioxide, Fakeable):  # CO2: I/1298
 
     async def initiate_binding_process(self) -> Packet:
         return await super()._initiate_binding_process(
-            [Code._31E0, Code._1298, Code._2E10]
+            (Code._31E0, Code._1298, Code._2E10)
         )
 
 
@@ -243,7 +243,7 @@ class HvacRemote(BatteryState, Fakeable, HvacRemoteBase):  # REM: I/22F[138]
         # .I --- 37:155617 32:155617 --:------ 1FC9 001 00
 
         return await super()._initiate_binding_process(
-            Code._22F1 if self._scheme == "nuaire" else [Code._22F1, Code._22F3]
+            Code._22F1 if self._scheme == "nuaire" else (Code._22F1, Code._22F3)
         )
 
     @property
@@ -289,7 +289,7 @@ class HvacDisplayRemote(HvacRemote):  # DIS
 
     # async def initiate_binding_process(self) -> Packet:
     #     return await super()._initiate_binding_process(
-    #         [Code._31E0, Code._1298, Code._2E10]
+    #         (Code._31E0, Code._1298, Code._2E10)
     #     )
 
 

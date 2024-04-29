@@ -55,8 +55,9 @@ class DeviceBase(Entity):
     """The Device base class - can also be used for unknown device types."""
 
     _SLUG: str = DevType.DEV
-
     _STATE_ATTR: str = None  # type: ignore[assignment]
+
+    _bind_context: BindContext | None = None
 
     def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)

@@ -47,7 +47,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-DeviceIdT = str
 HeaderT = str
 PayloadT = str
 _PktIdxT = str

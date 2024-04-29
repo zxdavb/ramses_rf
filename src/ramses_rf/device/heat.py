@@ -1240,7 +1240,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
 
     async def initiate_binding_process(self) -> Packet:
         return await super()._initiate_binding_process(
-            [Code._2309, Code._30C9, Code._0008]
+            (Code._2309, Code._30C9, Code._0008)
         )
 
 
