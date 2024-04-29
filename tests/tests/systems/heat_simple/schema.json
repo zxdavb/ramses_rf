@@ -1,0 +1,14 @@
+{
+    "main_tcs": "01:145038",
+    "01:145038": {
+        "system": {"appliance_control": "13:032648"},
+        "orphans": [],
+        "stored_hotwater": {"sensor": "07:017494"},
+        "underfloor_heating": {},
+        "zones": {
+            "01": {"class": "radiator_valve", "sensor": "34:064023", "actuators": ["04:189078"], "_name": "Lounge" }
+        }
+    },
+    "orphans_heat": [],
+    "orphans_hvac": []
+}
