@@ -247,7 +247,7 @@ class MessageIndex:
     def get(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
         """Return a set of message(s) from the index."""
 
-        if bool(msg) ^ bool(kwargs):
+        if not (bool(msg) ^ bool(kwargs)):
             raise ValueError("Either a Message or kwargs should be provided, not both")
         if msg:
             kwargs["dtm"] = msg.dtm.isoformat(timespec="microseconds")
