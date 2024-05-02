@@ -1395,6 +1395,10 @@ class UfhCircuit(Entity):  # FIXME
     def __init__(self, ufc: UfhController, ufh_idx: str) -> None:
         super().__init__(ufc._gwy)
 
+        # FIXME: ZZZ entities must know their parent device ID and their own idx
+        self._z_id = ufc.id
+        self._z_idx = ufh_idx
+
         self.id: str = f"{ufc.id}_{ufh_idx}"
 
         self.ufc: UfhController = ufc

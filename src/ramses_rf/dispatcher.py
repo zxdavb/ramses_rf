@@ -264,7 +264,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
 
     else:
         logger_xxxx(msg)
-        if gwy._zzz is not None:
+        if gwy._zzz:
             gwy._zzz.add(msg)
 
 

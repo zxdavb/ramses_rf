@@ -72,6 +72,10 @@ class DeviceBase(Entity):
 
         super().__init__(gwy)
 
+        # FIXME: ZZZ entities must know their parent device ID and their own idx
+        self._z_id = dev_addr.id  # the responsible device is itself
+        self._z_idx = None  # depends upon it's location in the schema
+
         self.id: DeviceIdT = dev_addr.id
 
         # self.tcs = None  # NOTE: Heat (CH/DHW) devices only

@@ -52,7 +52,7 @@ if TYPE_CHECKING:
     from ramses_tx import Command, Message, Packet
     from ramses_tx.const import VerbT
     from ramses_tx.frame import HeaderT
-    from ramses_tx.schemas import DeviceIdT
+    from ramses_tx.schemas import DeviceIdT, DevIndexT
 
     from .device import BdrSwitch, Controller, DhwSensor, TrvActuator, UfhCircuit
     from .gateway import Gateway
@@ -175,6 +175,10 @@ class _MessageDB(_Entity):
     ctl: Controller
     tcs: Evohome
 
+    # These attr used must be in this class, and the Entity base class
+    _z_id: DeviceIdT
+    _z_idx: DevIndexT | None  # e.g. 03, HW, is None for CTL, TCS
+
     def __init__(self, gwy: Gateway) -> None:
         super().__init__(gwy)
 
@@ -191,7 +195,7 @@ class _MessageDB(_Entity):
 
         if msg.code not in self._msgz_:
             self._msgz_[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
-        elif msg.verb not in self._msgz[msg.code]:
+        elif msg.verb not in self._msgz_[msg.code]:
             self._msgz_[msg.code][msg.verb] = {msg._pkt._ctx: msg}
         else:
             self._msgz_[msg.code][msg.verb][msg._pkt._ctx] = msg
@@ -216,7 +220,7 @@ class _MessageDB(_Entity):
 
         obj: _MessageDB
 
-        if self._gwy._zzz is not None:
+        if self._gwy._zzz:
             self._gwy._zzz.rem(msg)
 
         entities: list[_MessageDB] = []
@@ -316,6 +320,7 @@ class _MessageDB(_Entity):
 
         idx: str | None = None
         val: str | None = None
+
         if domain_id:
             idx, val = SZ_DOMAIN_ID, domain_id
         elif zone_idx:
@@ -359,7 +364,7 @@ class _MessageDB(_Entity):
 
     @property
     def _msgs(self) -> dict[Code, Message]:
-        if self._gwy._zzz is None:
+        if not self._gwy._zzz:
             return self._msgs_
 
         sql = """
@@ -371,7 +376,7 @@ class _MessageDB(_Entity):
 
     @property
     def _msgz(self) -> dict[Code, dict[VerbT, dict[bool | str | None, Message]]]:
-        if self._gwy._zzz is None:
+        if not self._gwy._zzz:
             return self._msgz_
 
         msgs_1: dict[Code, dict[VerbT, dict[bool | str | None, Message]]] = {}

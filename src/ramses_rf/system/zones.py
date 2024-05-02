@@ -92,7 +92,10 @@ class ZoneBase(Child, Parent, Entity):
     def __init__(self, tcs: _MultiZoneT | _StoredHwT, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
 
-        # FIXME: entities must know their parent device ID and their own ID
+        # FIXME: ZZZ entities must know their parent device ID and their own idx
+        self._z_id = tcs.id  # the responsible device is the controller
+        self._z_idx = zone_idx  # the zone idx (ctx), 00-0B (or 0F), and HW (FA)
+
         self.id: str = f"{tcs.id}_{zone_idx}"  # type: ignore[assignment]
 
         self.tcs: Evohome = tcs

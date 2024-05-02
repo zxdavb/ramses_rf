@@ -122,6 +122,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         super().__init__(ctl._gwy)
 
+        # FIXME: ZZZ entities must know their parent device ID and their own idx
+        self._z_id = ctl.id  # the responsible device is the controller
+        self._z_idx = None  # ? True (sentinel value to pick up arrays?)
+
         self.id: DeviceIdT = ctl.id
 
         self.ctl: Controller = ctl

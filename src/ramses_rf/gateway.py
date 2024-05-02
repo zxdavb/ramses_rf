@@ -200,7 +200,7 @@ class Gateway(Engine):
     async def stop(self) -> None:
         """Stop the Gateway and tidy up."""
 
-        if self._zzz is not None:
+        if self._zzz:
             self._zzz.stop()
         await super().stop()
 
@@ -259,17 +259,17 @@ class Gateway(Engine):
             msgs.extend([m for z in system.zones for m in z._msgs.values()])
             # msgs.extend([m for z in system.dhw for m in z._msgs.values()])  # TODO
 
-        if self._zzz is None:
-            pkts = {  # BUG: assumes pkts have unique dtms: may be untrue for contrived logs
+        if not self._zzz:
+            pkts = {
                 f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
-                for msg in msgs
+                for msg in self._zzz.all(include_expired=True)
                 if wanted_msg(msg, include_expired=include_expired)
             }
 
         else:
-            pkts = {
+            pkts = {  # BUG: assumes pkts have unique dtms: may be untrue for contrived logs
                 f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
-                for msg in self._zzz.all(include_expired=True)
+                for msg in msgs
                 if wanted_msg(msg, include_expired=include_expired)
             }
 
