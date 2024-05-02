@@ -259,7 +259,7 @@ class Gateway(Engine):
             msgs.extend([m for z in system.zones for m in z._msgs.values()])
             # msgs.extend([m for z in system.dhw for m in z._msgs.values()])  # TODO
 
-        if not self._zzz:
+        if self._zzz:
             pkts = {
                 f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
                 for msg in self._zzz.all(include_expired=True)
