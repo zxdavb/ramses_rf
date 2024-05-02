@@ -367,7 +367,7 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         False (disabled) - if RF comms are lost, relay will be held in OFF position
         True  (enabled)  - if RF comms are lost, relay will cycle at 20% ON, 80% OFF
 
-    This setting may need to be enabled to ensure prost protect mode.
+    This setting may need to be enabled to ensure frost protect mode.
     """
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
     # .I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
