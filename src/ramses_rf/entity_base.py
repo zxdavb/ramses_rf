@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 from ramses_rf.helpers import schedule_task
 from ramses_tx import Priority, QosParams
+from ramses_tx.address import ALL_DEVICE_ID
 from ramses_tx.opentherm import OPENTHERM_MESSAGES
 from ramses_tx.ramses import CODES_SCHEMA
 
@@ -190,6 +191,19 @@ class _MessageDB(_Entity):
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in the DBs."""
 
+        # NOTE: ZZZ project
+        if not (
+            msg.src.id == self.id[:9]
+            or (msg.dst.id == self.id and msg.verb in (I_, RP))  # ? W_
+            or (msg.dst.id == ALL_DEVICE_ID and msg.code == Code._10E0)
+            or msg.code == Code._1FC9
+        ):
+            raise TypeError(msg._pkt)  # shouldn't have been routed to this entity
+
+        # NOTE: ZZZ project
+        if not msg.src.id == self.id[:9] or (msg.dst.id == self.id and msg.verb == RP):
+            return  # don't store these
+
         if msg.verb in (I_, RP):
             self._msgs_[msg.code] = msg
 
@@ -197,8 +211,12 @@ class _MessageDB(_Entity):
             self._msgz_[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
         elif msg.verb not in self._msgz_[msg.code]:
             self._msgz_[msg.code][msg.verb] = {msg._pkt._ctx: msg}
-        else:
+        else:  # if not self._gwy._zzz:
             self._msgz_[msg.code][msg.verb][msg._pkt._ctx] = msg
+        # elif (
+        #     self._msgz[msg.code][msg.verb][msg._pkt._ctx] is not msg
+        # ):  # MsgIdx ensures this
+        #     assert False  # TODO: remove
 
     @property
     def _msg_db(self) -> list[Message]:  # flattened version of _msgz[code][verb][indx]
@@ -241,6 +259,10 @@ class _MessageDB(_Entity):
 
     def _get_msg_by_hdr(self, hdr: HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
+
+        # if self._gwy._zzz:
+        #     msgs = self._gwy._zzz.get(hdr=hdr)
+        #     return msgs[0] if msgs else None
 
         msg: Message
         code: Code
@@ -338,8 +360,8 @@ class _MessageDB(_Entity):
             # .I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
             msg_dict = msg.payload[0]
 
-        assert (
-            not domain_id and not zone_idx or msg_dict.get(idx) == val
+        assert (not domain_id and not zone_idx) or (
+            msg_dict.get(idx) == val
         ), f"{msg_dict} < Coding error: key={idx}, val={val}"
 
         if key:
