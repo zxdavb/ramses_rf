@@ -1,5 +1,5 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb/ramses_rf
-# last updated 2024-04-27, based on HA 2024.03.dev0
+# last checked/updated: 2024/05/02 (c.f. HA 2023.5.x)
 
 exclude: (^.secrets/|^docs/|^misc|tests/deprecated)
 

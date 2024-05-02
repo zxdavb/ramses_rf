@@ -1,7 +1,9 @@
 # Setup venv for ramses_rf
 
-# last checked/updated: 2024/04/20 (c.f. HA 2023.5.x)
-#  - to check against pyproject.toml, github workflows
+# last checked/updated: 2024/05/02 (c.f. HA 2023.5.x)
+#  - also update pyproject.toml, github workflows
+#
+#  check: pip list | grep -E 'colorlog|paho-mqtt|pyserial|voluptuous'
 #
 
 # Pre-requisites & install...
