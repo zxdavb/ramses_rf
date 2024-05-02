@@ -688,6 +688,11 @@ class Zone(ZoneSchedule):
     @property
     def name(self) -> str | None:  # 0004
         """Return the name of the zone."""
+
+        if self._gwy._zzz:
+            msgs = self._gwy._zzz.get(code=Code._0004, src=self._z_id, ctx=self._z_idx)
+            return msgs[0].payload.get(SZ_NAME) if msgs else None
+
         return self._msg_value(Code._0004, key=SZ_NAME)
 
     @name.setter
