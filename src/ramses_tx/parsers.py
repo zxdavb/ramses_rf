@@ -255,7 +255,7 @@ def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
 
 
 # outdoor_sensor (outdoor_weather / outdoor_temperature)
-def parser_0002(payload: str, msg: Message) -> dict:
+def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
     # .I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
 
@@ -420,7 +420,7 @@ def parser_000a(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # zone_devices
-def parser_000c(payload: str, msg: Message) -> dict:
+def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 34:092243 --:------ 34:092243 000C 018 00-0A-7F-FFFFFF 00-0F-7F-FFFFFF 00-10-7F-FFFFFF  # noqa: E501
     # RP --- 01:145038 18:013393 --:------ 000C 006 00-00-00-10DAFD
     # RP --- 01:145038 18:013393 --:------ 000C 012 01-00-00-10DAF5 01-00-00-10DAFB
@@ -511,7 +511,7 @@ def parser_000c(payload: str, msg: Message) -> dict:
 
 
 # unknown_000e, from STA
-def parser_000e(payload: str, msg: Message) -> dict:
+def parser_000e(payload: str, msg: Message) -> dict[str, Any]:
     assert payload in ("000014", "000028"), _INFORM_DEV_MSG
 
     return {
@@ -520,7 +520,7 @@ def parser_000e(payload: str, msg: Message) -> dict:
 
 
 # rf_check
-def parser_0016(payload: str, msg: Message) -> dict:
+def parser_0016(payload: str, msg: Message) -> dict[str, Any]:
     # TODO: does 0016 include parent_idx?, but RQ|07:|0000?
     # RQ --- 22:060293 01:078710 --:------ 0016 002 0200
     # RP --- 01:078710 22:060293 --:------ 0016 002 021E
@@ -551,7 +551,7 @@ def parser_0100(payload: str, msg: Message) -> PayDictT._0100 | PayDictT.EMPTY:
 
 
 # unknown_0150, from OTB
-def parser_0150(payload: str, msg: Message) -> dict:
+def parser_0150(payload: str, msg: Message) -> dict[str, Any]:
     assert payload == "000000", _INFORM_DEV_MSG
 
     return {
@@ -560,7 +560,7 @@ def parser_0150(payload: str, msg: Message) -> dict:
 
 
 # unknown_01d0, from a HR91 (when its buttons are pushed)
-def parser_01d0(payload: str, msg: Message) -> dict:
+def parser_01d0(payload: str, msg: Message) -> dict[str, Any]:
     # 23:57:28.869 045  W --- 04:000722 01:158182 --:------ 01D0 002 0003
     # 23:57:28.931 045  I --- 01:158182 04:000722 --:------ 01D0 002 0003
     # 23:57:31.581 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
@@ -575,7 +575,7 @@ def parser_01d0(payload: str, msg: Message) -> dict:
 
 
 # unknown_01e9, from a HR91 (when its buttons are pushed)
-def parser_01e9(payload: str, msg: Message) -> dict:
+def parser_01e9(payload: str, msg: Message) -> dict[str, Any]:
     # 23:57:31.581348 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
     # 23:57:31.643188 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
 
@@ -586,7 +586,7 @@ def parser_01e9(payload: str, msg: Message) -> dict:
 
 
 # unknown_01ff, to/from a Itho Spider/Thermostat
-def parser_01ff(payload: str, msg: Message) -> dict:
+def parser_01ff(payload: str, msg: Message) -> dict[str, Any]:
     # see: https://github.com/zxdavb/ramses_rf/issues/73 & 101
 
     # lots of '80's, and I see temps are `int(payload[6:8], 16) / 2`, so I wonder if 0x80 is N/A?
@@ -667,7 +667,7 @@ def parser_01ff(payload: str, msg: Message) -> dict:
 
 
 # zone_schedule (fragment)
-def parser_0404(payload: str, msg: Message) -> dict:
+def parser_0404(payload: str, msg: Message) -> dict[str, Any]:
     # Retreival of Zone schedule (NB: 200008)
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0100
     # RP --- 01:037519 30:185469 --:------ 0404 048 00-200008-29-0103-6E2...
@@ -797,7 +797,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
 
 
 # unknown_042f, from STA, VMS
-def parser_042f(payload: str, msg: Message) -> dict:
+def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0025-0025-F5
@@ -817,7 +817,7 @@ def parser_042f(payload: str, msg: Message) -> dict:
 
 
 # TODO: unknown_0b04, from THM (only when its a CTL?)
-def parser_0b04(payload: str, msg: Message) -> dict:
+def parser_0b04(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- --:------ --:------ 12:207082 0B04 002 00C8  # batch of 3, every 24h
 
     return {
@@ -826,7 +826,7 @@ def parser_0b04(payload: str, msg: Message) -> dict:
 
 
 # mixvalve_config (zone), FAN
-def parser_1030(payload: str, msg: Message) -> dict:
+def parser_1030(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 01:145038 --:------ 01:145038 1030 016 0A-C80137-C9010F-CA0196-CB0100-CC0101
     # .I --- --:------ --:------ 12:144017 1030 016 01-C80137-C9010F-CA0196-CB010F-CC0101
     # RP --- 32:155617 18:005904 --:------ 1030 007 00-200100-21011F
@@ -890,7 +890,7 @@ def parser_1090(payload: str, msg: Message) -> PayDictT._1090:
 
 
 # unknown_1098, from OTB
-def parser_1098(payload: str, msg: Message) -> dict:
+def parser_1098(payload: str, msg: Message) -> dict[str, Any]:
     assert payload == "00C8", _INFORM_DEV_MSG
 
     return {
@@ -902,7 +902,7 @@ def parser_1098(payload: str, msg: Message) -> dict:
 
 
 # dhw (cylinder) params  # FIXME: a bit messy
-def parser_10a0(payload: str, msg: Message) -> dict:
+def parser_10a0(payload: str, msg: Message) -> dict[str, Any]:
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4  # RQ/RP, every 24h
     # RP --- 01:145038 07:045960 --:------ 10A0 006 00-109A-00-03E8
     # RP --- 10:048122 18:006402 --:------ 10A0 003 00-1B58
@@ -944,7 +944,7 @@ def parser_10a0(payload: str, msg: Message) -> dict:
 
 
 # unknown_10b0, from OTB
-def parser_10b0(payload: str, msg: Message) -> dict:
+def parser_10b0(payload: str, msg: Message) -> dict[str, Any]:
     assert payload == "0000", _INFORM_DEV_MSG
 
     return {
@@ -956,7 +956,7 @@ def parser_10b0(payload: str, msg: Message) -> dict:
 
 
 # filter_change, HVAC
-def parser_10d0(payload: str, msg: Message) -> dict:
+def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     # 2022-07-03T22:52:34.571579 045  W --- 37:171871 32:155617 --:------ 10D0 002 00FF
     # 2022-07-03T22:52:34.596526 066  I --- 32:155617 37:171871 --:------ 10D0 006 0047B44F0000
     # then...
@@ -983,7 +983,7 @@ def parser_10d0(payload: str, msg: Message) -> dict:
 
 
 # device_info
-def parser_10e0(payload: str, msg: Message) -> dict:
+def parser_10e0(payload: str, msg: Message) -> dict[str, Any]:
     if payload == "00":  # some HVAC devices wil RP|10E0|00
         return {}
 
@@ -1027,7 +1027,7 @@ def parser_10e1(payload: str, msg: Message) -> PayDictT._10E1:
 
 
 # unknown_10e2 - HVAC
-def parser_10e2(payload: str, msg: Message) -> dict:
+def parser_10e2(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- --:------ --:------ 20:231151 10E2 003 00AD74  # every 2 minutes
 
     assert payload[:2] == "00", _INFORM_DEV_MSG
@@ -1092,7 +1092,7 @@ def parser_1100(
 
 
 # unknown_11f0, from heatpump relay
-def parser_11f0(payload: str, msg: Message) -> dict:
+def parser_11f0(payload: str, msg: Message) -> dict[str, Any]:
     assert payload == "000009000000000000", _INFORM_DEV_MSG
 
     return {
@@ -1168,7 +1168,7 @@ def parser_1300(payload: str, msg: Message) -> PayDictT._1300:
 
 
 # programme_scheme, HVAC
-def parser_1470(payload: str, msg: Message) -> dict:
+def parser_1470(payload: str, msg: Message) -> dict[str, Any]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
     SCHEDULE_SCHEME = {
@@ -1222,7 +1222,7 @@ def parser_1f09(payload: str, msg: Message) -> PayDictT._1F09:
 
 
 # dhw_mode
-def parser_1f41(payload: str, msg: Message) -> dict:
+def parser_1f41(payload: str, msg: Message) -> dict[str, Any]:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
     assert payload[4:6] in ZON_MODE_MAP, f"{payload[4:6]} (0xjj)"
     assert (
@@ -1247,7 +1247,7 @@ def parser_1f41(payload: str, msg: Message) -> dict:
 
 
 # programme_config, HVAC
-def parser_1f70(payload: str, msg: Message) -> dict:
+def parser_1f70(payload: str, msg: Message) -> dict[str, Any]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
     try:
@@ -1344,7 +1344,7 @@ def parser_1fca(payload: str, msg: Message) -> Mapping[str, str]:
 
 
 # unknown_1fd0, from OTB
-def parser_1fd0(payload: str, msg: Message) -> dict:
+def parser_1fd0(payload: str, msg: Message) -> dict[str, Any]:
     assert payload == "0000000000000000", _INFORM_DEV_MSG
 
     return {
@@ -1358,7 +1358,7 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 
 
 # WIP: unknown, HVAC
-def parser_2210(payload: str, msg: Message) -> dict:
+def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000000800
     # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000000800
     # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000020800
@@ -1399,7 +1399,7 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # program_enabled, HVAC
-def parser_22b0(payload: str, msg: Message) -> dict:
+def parser_22b0(payload: str, msg: Message) -> dict[str, Any]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
     # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable
@@ -1447,7 +1447,7 @@ def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # unknown_22d0, UFH system mode (heat/cool)
-def parser_22d0(payload: str, msg: Message) -> dict:
+def parser_22d0(payload: str, msg: Message) -> dict[str, Any]:
     def _parser(seqx: str) -> dict:
         # assert seqx[2:4] in ("00", "03", "10", "13", "14"), _INFORM_DEV_MSG
         assert seqx[4:6] == "00", _INFORM_DEV_MSG
@@ -1511,7 +1511,7 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 
 # fan_speed (switch_mode), HVAC
-def parser_22f1(payload: str, msg: Message) -> dict:
+def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
     # Orcon wireless remote 15RF
     # .I --- 37:171871 32:155617 --:------ 22F1 003 000007  # Absent mode  // Afwezig (absence mode, aka: weg/away) - low & doesn't respond to sensors
     # .I --- 37:171871 32:155617 --:------ 22F1 003 000107  # Mode 1: Low  // Stand 1 (position low)
@@ -1600,7 +1600,7 @@ def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
 
 
 # fan_boost, HVAC
-def parser_22f3(payload: str, msg: Message) -> dict:
+def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
     # .I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
     # .I 026 --:------ --:------ 39:159057 22F3 003 00001E  # 30 mins
@@ -1653,7 +1653,7 @@ def parser_22f3(payload: str, msg: Message) -> dict:
 
 
 # WIP: unknown, HVAC
-def parser_22f4(payload: str, msg: Message) -> dict:
+def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60E6-00000000000000-200000
     # RP --- 32:153258 18:005904 --:------ 22F4 013 00-60DD-00000000000000-200000
     # RP --- 32:155617 18:005904 --:------ 22F4 013 00-40B0-00000000000000-200000
@@ -1668,7 +1668,7 @@ def parser_22f4(payload: str, msg: Message) -> dict:
 
 
 # bypass_mode, HVAC
-def parser_22f7(payload: str, msg: Message) -> dict:
+def parser_22f7(payload: str, msg: Message) -> dict[str, Any]:
     # RQ --- 37:171871 32:155617 --:------ 22F7 001 00
     # RP --- 32:155617 37:171871 --:------ 22F7 003 00FF00  # also: 000000, 00C8C8
 
@@ -1689,7 +1689,7 @@ def parser_22f7(payload: str, msg: Message) -> dict:
 
 
 # WIP: unknown_mode, HVAC
-def parser_22f8(payload: str, msg: Message) -> dict:
+def parser_22f8(payload: str, msg: Message) -> dict[str, Any]:
     # from: https://github.com/arjenhiemstra/ithowifi/blob/master/software/NRG_itho_wifi/src/IthoPacket.h
 
     # message command bytes specific for AUTO RFT (536-0150)
@@ -1725,7 +1725,7 @@ def parser_2309(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # zone_mode  # TODO: messy
-def parser_2349(payload: str, msg: Message) -> dict:
+def parser_2349(payload: str, msg: Message) -> dict[str, Any]:
     # RQ --- 34:225071 30:258557 --:------ 2349 001 00
     # RP --- 30:258557 34:225071 --:------ 2349 013 007FFF00FFFFFFFFFFFFFFFFFF
     # RP --- 30:253184 34:010943 --:------ 2349 013 00064000FFFFFF00110E0507E5
@@ -1764,14 +1764,14 @@ def parser_2349(payload: str, msg: Message) -> dict:
 
 
 # unknown_2389, from 03:
-def parser_2389(payload: str, msg: Message) -> dict:
+def parser_2389(payload: str, msg: Message) -> dict[str, Any]:
     return {
         "_unknown": hex_to_temp(payload[2:6]),
     }
 
 
 # unknown_2400, from OTB, FAN
-def parser_2400(payload: str, msg: Message) -> dict:
+def parser_2400(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:155617 18:005904 --:------ 2400 045 00001111-1010929292921110101020110010000080100010100000009191111191910011119191111111111100  # Orcon FAN
     # RP --- 10:048122 18:006402 --:------ 2400 004 0000000F
     # assert payload == "0000000F", _INFORM_DEV_MSG
@@ -1782,7 +1782,7 @@ def parser_2400(payload: str, msg: Message) -> dict:
 
 
 # unknown_2401, from OTB
-def parser_2401(payload: str, msg: Message) -> dict:
+def parser_2401(payload: str, msg: Message) -> dict[str, Any]:
     try:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
         assert (
@@ -1800,7 +1800,7 @@ def parser_2401(payload: str, msg: Message) -> dict:
 
 
 # unknown_2410, from OTB, FAN
-def parser_2410(payload: str, msg: Message) -> dict:
+def parser_2410(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 10:048122 18:006402 --:------ 2410 020 00-00000000-00000000-00000001-00000001-00000C  # OTB
     # RP --- 32:155617 18:005904 --:------ 2410 020 00-00003EE8-00000000-FFFFFFFF-00000000-1002A6  # Orcon Fan
 
@@ -1836,7 +1836,7 @@ def parser_2410(payload: str, msg: Message) -> dict:
 
 
 # fan_params, HVAC
-def parser_2411(payload: str, msg: Message) -> dict:
+def parser_2411(payload: str, msg: Message) -> dict[str, Any]:
     # There is a relationship between 0001 and 2411
     # RQ --- 37:171871 32:155617 --:------ 0001 005 0020000A04
     # RP --- 32:155617 37:171871 --:------ 0001 008 0020000A004E0B00  # 0A -> 2411|4E
@@ -1895,7 +1895,7 @@ def parser_2411(payload: str, msg: Message) -> dict:
 
 
 # unknown_2420, from OTB
-def parser_2420(payload: str, msg: Message) -> dict:
+def parser_2420(payload: str, msg: Message) -> dict[str, Any]:
     assert payload == "00000010" + "00" * 34, _INFORM_DEV_MSG
 
     return {
@@ -1947,7 +1947,7 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
 
 
 # presence_detect, HVAC sensor
-def parser_2e10(payload: str, msg: Message) -> dict:
+def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
     assert payload in ("0001", "000100"), _INFORM_DEV_MSG
 
     return {
@@ -2003,7 +2003,7 @@ def parser_3110(payload: str, msg: Message) -> PayDictT._3110:
 
 
 # unknown_3120, from STA, FAN
-def parser_3120(payload: str, msg: Message) -> dict:
+def parser_3120(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 34:136285 --:------ 34:136285 3120 007 0070B0000000FF  # every ~3:45:00!
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
     # .I --- 37:258565 --:------ 37:258565 3120 007 0080B0010003FF
@@ -2027,7 +2027,7 @@ def parser_3120(payload: str, msg: Message) -> dict:
 
 
 # WIP: unknown, HVAC
-def parser_313e(payload: str, msg: Message) -> dict:
+def parser_313e(payload: str, msg: Message) -> dict[str, Any]:
     # 11:00:59.412 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007937-003C80-0000
     # 11:02:23.961 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007B14-003C80-0000
     # 11:03:32.193 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007C1C-003C80-0000
@@ -2043,7 +2043,7 @@ def parser_313e(payload: str, msg: Message) -> dict:
 
 
 # datetime
-def parser_313f(payload: str, msg: Message) -> dict:  # TODO: look for TZ
+def parser_313f(payload: str, msg: Message) -> dict[str, Any]:  # TODO: look for TZ
     # 2020-03-28T03:59:21.315178 045 RP --- 01:158182 04:136513 --:------ 313F 009 00FC3500A41C0307E4  # noqa: E501
     # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4  # noqa: E501
     # 2022-09-20T20:50:32.800676 065 RP --- 01:182924 18:068640 --:------ 313F 009 00F9203234140907E6
@@ -2099,7 +2099,7 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # fan state (ventilation status), HVAC
-def parser_31d9(payload: str, msg: Message) -> dict:
+def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
     try:
         assert (
@@ -2270,7 +2270,7 @@ def parser_3210(payload: str, msg: Message) -> PayDictT._3210:
 
 
 # opentherm_msg, from OTB (and some RND)
-def parser_3220(payload: str, msg: Message) -> dict:
+def parser_3220(payload: str, msg: Message) -> dict[str, Any]:
     try:
         ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
     except AssertionError as err:
@@ -2353,7 +2353,7 @@ def parser_3220(payload: str, msg: Message) -> dict:
 
 
 # unknown_3221, from OTB, FAN
-def parser_3221(payload: str, msg: Message) -> dict:
+def parser_3221(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 10:052644 18:198151 --:------ 3221 002 000F
     # RP --- 10:048122 18:006402 --:------ 3221 002 0000
     # RP --- 32:155617 18:005904 --:------ 3221 002 000A
@@ -2367,7 +2367,7 @@ def parser_3221(payload: str, msg: Message) -> dict:
 
 
 # WIP: unknown, HVAC
-def parser_3222(payload: str, msg: Message) -> dict:
+def parser_3222(payload: str, msg: Message) -> dict[str, Any]:
     # 06:30:14.322 RP --- 32:155617 18:005904 --:------ 3222 004 00-00-01-00
     # 00:09:26.263 RP --- 32:155617 18:005904 --:------ 3222 005 00-00-02-0009
     # 02:42:27.090 RP --- 32:155617 18:005904 --:------ 3222 007 00-06-04-            000F100E
@@ -2389,7 +2389,7 @@ def parser_3222(payload: str, msg: Message) -> dict:
 
 
 # unknown_3223, from OTB
-def parser_3223(payload: str, msg: Message) -> dict:
+def parser_3223(payload: str, msg: Message) -> dict[str, Any]:
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
@@ -2399,7 +2399,7 @@ def parser_3223(payload: str, msg: Message) -> dict:
 
 
 # actuator_sync (aka sync_tpi: TPI cycle sync)
-def parser_3b00(payload: str, msg: Message) -> dict:
+def parser_3b00(payload: str, msg: Message) -> dict[str, Any]:
     # system timing master: the device that sends I/FCC8 pkt controls the heater relay
     """Decode a 3B00 packet (actuator_sync).
 
@@ -2548,7 +2548,7 @@ def parser_3ef0(
 
 
 # actuator_cycle
-def parser_3ef1(payload: str, msg: Message) -> dict:
+def parser_3ef1(payload: str, msg: Message) -> dict[str, Any]:
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper, DEX
         assert msg.len == 18, f"expecting len 18, got: {msg.len}"
         return {
@@ -2600,7 +2600,7 @@ def parser_3ef1(payload: str, msg: Message) -> dict:
 
 
 # timestamp, HVAC
-def parser_4401(payload: str, msg: Message) -> dict:
+def parser_4401(payload: str, msg: Message) -> dict[str, Any]:
     if msg.verb == RP:
         return {}
 
@@ -2662,7 +2662,7 @@ def parser_4401(payload: str, msg: Message) -> dict:
 
 
 # temperatures (see: 4e02) - Itho spider/autotemp
-def parser_4e01(payload: str, msg: Message) -> dict:
+def parser_4e01(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 02:248945 02:250708 --:------ 4E01 018 00-7FFF7FFF7FFF09077FFF7FFF7FFF7FFF-00  # 23.11, 8-group
     # .I --- 02:250984 02:250704 --:------ 4E01 018 00-7FFF7FFF7FFF7FFF08387FFF7FFF7FFF-00  # 21.04
 
@@ -2684,7 +2684,9 @@ def parser_4e01(payload: str, msg: Message) -> dict:
 
 
 # setpoint_bounds (see: 4e01) - Itho spider/autotemp
-def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min apart
+def parser_4e02(
+    payload: str, msg: Message
+) -> dict[str, Any]:  # sent a triplets, 1 min apart
     # .I --- 02:248945 02:250708 --:------ 4E02 034 00-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF08347FFF7FFF7FFF7FFF  # 20.00-21.00
     # .I --- 02:250984 02:250704 --:------ 4E02 034 00-7FFF7FFF7FFF076C7FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF  #
 
@@ -2719,7 +2721,7 @@ def parser_4e02(payload: str, msg: Message) -> dict:  # sent a triplets, 1 min a
 
 
 # hvac_4e04
-def parser_4e04(payload: str, msg: Message) -> dict:
+def parser_4e04(payload: str, msg: Message) -> dict[str, Any]:
     MODE = {
         "00": "off",
         "01": "heat",
@@ -2742,7 +2744,7 @@ def parser_4e04(payload: str, msg: Message) -> dict:
 
 
 # WIP: AT outdoor low - Itho spider/autotemp
-def parser_4e0d(payload: str, msg: Message) -> dict:
+def parser_4e0d(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0100  # Itho Autotemp: only(?) master -> slave
     # .I --- 02:250704 02:250984 --:------ 4E0D 002 0101  # why does it have a context?
 
@@ -2752,7 +2754,7 @@ def parser_4e0d(payload: str, msg: Message) -> dict:
 
 
 # AT fault circulation - Itho spider/autotemp
-def parser_4e14(payload: str, msg: Message) -> dict:
+def parser_4e14(payload: str, msg: Message) -> dict[str, Any]:
     """
     result = "AT fault circulation";
     result = (((payload[2:] & 0x01) != 0x01) ? " Fault state : no fault "                : " Fault state : fault ")
@@ -2762,7 +2764,7 @@ def parser_4e14(payload: str, msg: Message) -> dict:
 
 
 # wpu_state (hvac state) - Itho spider/autotemp
-def parser_4e15(payload: str, msg: Message) -> dict:
+def parser_4e15(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 21:034158 02:250676 --:------ 4E15 002 0000  # WPU "off" (maybe heating, but compressor off)
     # .I --- 21:064743 02:250708 --:------ 4E15 002 0001  # WPU cooling active
     # .I --- 21:057565 02:250677 --:------ 4E15 002 0002  # WPU heating, compressor active
@@ -2795,7 +2797,7 @@ def parser_4e15(payload: str, msg: Message) -> dict:
 
 
 # TODO: hvac_4e16 - Itho spider/autotemp
-def parser_4e16(payload: str, msg: Message) -> dict:
+def parser_4e16(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 02:250984 02:250704 --:------ 4E16 007 00000000000000  # Itho Autotemp: slave -> master
 
     assert payload == "00000000000000", _INFORM_DEV_MSG
@@ -2806,7 +2808,7 @@ def parser_4e16(payload: str, msg: Message) -> dict:
 
 
 # TODO: Fan characteristics - Itho
-def parser_4e20(payload: str, msg: Message) -> dict:
+def parser_4e20(payload: str, msg: Message) -> dict[str, Any]:
     """
     result = "Fan characteristics: "
     result += [C[ABC][210] hex_to_sint32[i:i+4] for i in range(2, 34, 4)]
@@ -2815,7 +2817,7 @@ def parser_4e20(payload: str, msg: Message) -> dict:
 
 
 # TODO: Potentiometer control - Itho
-def parser_4e21(payload: str, msg: Message) -> dict:
+def parser_4e21(payload: str, msg: Message) -> dict[str, Any]:
     """
     result = "Potentiometer control: "
     result += "Rel min: "        + hex_to_sint16(data[2:4])  # 16 bit, 2's complement
@@ -2829,7 +2831,7 @@ def parser_4e21(payload: str, msg: Message) -> dict:
 
 
 #   # faked puzzle pkt shouldn't be decorated
-def parser_7fff(payload: str, _: Message) -> dict:
+def parser_7fff(payload: str, _: Message) -> dict[str, Any]:
     if payload[:2] != "00":
         _LOGGER.debug("Invalid/deprecated Puzzle packet")
         return {
@@ -2870,7 +2872,7 @@ def parser_7fff(payload: str, _: Message) -> dict:
     return {**result, "parser": f"v{VERSION}"}
 
 
-def parser_unknown(payload: str, msg: Message) -> dict:
+def parser_unknown(payload: str, msg: Message) -> dict[str, Any]:
     # TODO: it may be useful to generically search payloads for hex_ids, commands, etc.
 
     # These are generic parsers
