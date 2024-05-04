@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-from asyncio import Future
 from datetime import datetime as dt, timedelta as td
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -712,7 +711,7 @@ class Zone(ZoneSchedule):
         return self._msg_value(Code._000A)  # type: ignore[no-any-return]
 
     @property
-    def mode(self) -> dict | None:  # 2349
+    def mode(self) -> dict[str, Any] | None:  # 2349
         return self._msg_value(Code._2349)  # type: ignore[no-any-return]
 
     @property
@@ -748,7 +747,7 @@ class Zone(ZoneSchedule):
         """Return an estimate of the zone's current window_open state."""
         return self._msg_value(Code._12B0, key=SZ_WINDOW_OPEN)  # type: ignore[no-any-return]
 
-    def _get_temp(self) -> Future:
+    def _get_temp(self) -> asyncio.Task[Packet] | None:
         """Get the zone's latest temp from the Controller."""
         return self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
 
@@ -951,7 +950,7 @@ def _transform(valve_pos: float) -> float:
 
 
 # e.g. {"RAD": RadZone}
-ZONE_CLASS_BY_SLUG: dict[str, type[DhwZone], type[Zone]] = class_by_attr(
+ZONE_CLASS_BY_SLUG: dict[str, type[DhwZone] | type[Zone]] = class_by_attr(
     __name__, "_SLUG"
 )
 

@@ -147,9 +147,9 @@
   module = "ramses_rf.device.*"
 
   disable_error_code = [
-    "assignment",  #      # 16
-    "return-value",  #    # 60
-    "type-arg",  #        # 18
+    "assignment",  #      # 18
+    "return-value",  #    # 64
+    "type-arg",  #        # 10 - doable
     "unreachable",  #     # 14
   ]
 #
@@ -169,7 +169,6 @@
   disable_error_code = [
     "assignment",  #      #  9
     "return-value",  #    #  5
-    "type-arg",  #        #  5
     "unreachable",  #     # 10
   ]
 #
