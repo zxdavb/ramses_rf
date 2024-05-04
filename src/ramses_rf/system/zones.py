@@ -56,6 +56,7 @@ from .schedule import Schedule
 if TYPE_CHECKING:
     from ramses_tx import Packet
     from ramses_tx.schemas import DeviceIdT, DevIndexT
+    from ramses_tx.typed_dicts import PayDictT
 
     from .heat import Evohome, _MultiZoneT, _StoredHwT
 
@@ -130,11 +131,6 @@ class ZoneBase(Child, Parent, Entity):
         if not isinstance(other, ZoneBase):
             return NotImplemented
         return self.idx < other.idx
-
-    @property
-    def heating_type(self) -> str:
-        """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return ZON_ROLE_MAP[self._SLUG]  # type: ignore[no-any-return]
 
     @property
     def idx(self) -> str:
@@ -569,9 +565,17 @@ class Zone(ZoneSchedule):
         )  # longer dt as low yield (factory duration is 30 min): prefer eavesdropping
 
     def _add_discovery_cmd(
-        self, cmd: Command, interval: float, *, delay: float = 0, timeout: float = None
+        self,
+        cmd: Command,
+        interval: float,
+        *,
+        delay: float = 0,
+        timeout: float | None = None,
     ) -> None:
-        """Schedule a command to run periodically."""
+        """Schedule a command to run periodically.
+
+        Both `timeout` and `delay` are in seconds.
+        """
         super()._add_discovery_cmd(cmd, interval, delay=delay, timeout=timeout)
 
         if cmd.code != Code._000C:  # or cmd._ctx == f"{self.idx}{ZON_ROLE_MAP.SEN}":
@@ -683,8 +687,11 @@ class Zone(ZoneSchedule):
 
     @property
     def heating_type(self) -> str | None:
-        if self._SLUG is not None:  # isinstance(self, ???)
-            return ZON_ROLE_MAP[self._SLUG]
+        """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
+
+        if self._SLUG is None:  # isinstance(self, ???)
+            return None
+        return ZON_ROLE_MAP[self._SLUG]  # type: ignore[no-any-return]
 
     @property
     def name(self) -> str | None:  # 0004
@@ -694,23 +701,23 @@ class Zone(ZoneSchedule):
             msgs = self._gwy._zzz.get(code=Code._0004, src=self._z_id, ctx=self._z_idx)
             return msgs[0].payload.get(SZ_NAME) if msgs else None
 
-        return self._msg_value(Code._0004, key=SZ_NAME)
+        return self._msg_value(Code._0004, key=SZ_NAME)  # type: ignore[no-any-return]
 
     @name.setter
     def name(self, value: str) -> None:
         raise NotImplementedError("The setter has been deprecated, use: .set_name()")
 
     @property
-    def config(self) -> dict | None:  # 000A
-        return self._msg_value(Code._000A)
+    def config(self) -> dict[str, Any] | None:  # 000A
+        return self._msg_value(Code._000A)  # type: ignore[no-any-return]
 
     @property
     def mode(self) -> dict | None:  # 2349
-        return self._msg_value(Code._2349)
+        return self._msg_value(Code._2349)  # type: ignore[no-any-return]
 
     @property
     def setpoint(self) -> float | None:  # 2309 (2349 is a superset of 2309)
-        return self._msg_value((Code._2309, Code._2349), key=SZ_SETPOINT)
+        return self._msg_value((Code._2309, Code._2349), key=SZ_SETPOINT)  # type: ignore[no-any-return]
 
     @setpoint.setter  # TODO: can value be None?
     def setpoint(self, value: float) -> None:  # 000A/2309
@@ -724,7 +731,7 @@ class Zone(ZoneSchedule):
 
     @property
     def temperature(self) -> float | None:  # 30C9
-        return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)
+        return self._msg_value(Code._30C9, key=SZ_TEMPERATURE)  # type: ignore[no-any-return]
 
     @property
     def heat_demand(self) -> float | None:  # 3150
@@ -739,7 +746,7 @@ class Zone(ZoneSchedule):
     @property
     def window_open(self) -> bool | None:  # 12B0
         """Return an estimate of the zone's current window_open state."""
-        return self._msg_value(Code._12B0, key=SZ_WINDOW_OPEN)
+        return self._msg_value(Code._12B0, key=SZ_WINDOW_OPEN)  # type: ignore[no-any-return]
 
     def _get_temp(self) -> Future:
         """Get the zone's latest temp from the Controller."""
@@ -854,7 +861,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     @property
     def relay_demand(self) -> float | None:  # 0008 (NOTE: CTLs wont RP|0008)
-        return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)
+        return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)  # type: ignore[no-any-return]
 
     @property
     def status(self) -> dict[str, Any]:
@@ -883,8 +890,8 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
         )
 
     @property
-    def mix_config(self) -> dict:  # 1030
-        return self._msg_value(Code._1030)
+    def mix_config(self) -> PayDictT._1030:
+        return self._msg_value(Code._1030)  # type: ignore[no-any-return]
 
     @property
     def params(self) -> dict[str, Any]:

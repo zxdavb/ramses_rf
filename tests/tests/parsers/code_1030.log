@@ -1,0 +1,10 @@
+
+# ### Heat domain
+2021-01-25T23:35:19.600038 062  I --- --:------ --:------ 12:207082 1030 016 01C80138C90111CA0197CB0110CC0100  # {'zone_idx': '01', 'max_flow_setpoint': 56, 'min_flow_setpoint': 17, 'valve_run_time': 151, 'pump_run_time': 16, 'boolean_cc': 0}
+2019-11-10T18:27:58.888816 095  I --- --:------ --:------ 12:259810 1030 016 01C80137C9010FCA0196CB010FCC0101  # {'zone_idx': '01', 'max_flow_setpoint': 55, 'min_flow_setpoint': 15, 'valve_run_time': 150, 'pump_run_time': 15, 'boolean_cc': 1}
+2019-11-15T16:41:56.250135 074  I --- 01:145038 --:------ 01:145038 1030 016 0AC80137C9010FCA0196CB0100CC0101  # {'zone_idx': '0A', 'max_flow_setpoint': 55, 'min_flow_setpoint': 15, 'valve_run_time': 150, 'pump_run_time':  0, 'boolean_cc': 1}
+
+# ### HVAC domain
+2022-08-17T17:00:36.323352 056  I --- 32:155617 63:262142 --:------ 10E0 038 000001C895050567FEFFFFFFFFFF010707E4564D442D3135524D533836000000000000000000  #  {'description': 'VMD-15RMS86', 'oem_code': '67', 'manufacturer_sub_id': 'C8', 'product_id': '95', 'date_1': '2020-07-01', 'date_2': '0000-00-00'}
+
+2022-07-03T20:06:17.209614 055 RP --- 32:155617 18:005904 --:------ 1030 007 0020010021011F                    # {'unknown_20': 0, 'unknown_21': 31}

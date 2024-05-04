@@ -160,7 +160,6 @@
   disable_error_code = [
     "assignment",  #      #  8
     "attr-defined",  #    #  2
-    "override",  #        #
     "return-value",  #    # 11
     "type-arg",  #        #  5
     "unreachable",  #     #
@@ -171,8 +170,6 @@
 
   disable_error_code = [
     "assignment",  #      #  9
-    "no-any-return",  #   #  9
-    "override",  #        #
     "return-value",  #    #  5
     "type-arg",  #        #  5
     "unreachable",  #     #

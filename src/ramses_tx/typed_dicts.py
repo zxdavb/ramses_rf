@@ -54,6 +54,14 @@ class _1060(TypedDict):
     battery_level: float | None
 
 
+class _1030(TypedDict):
+    max_flow_setpoint: float
+    min_flow_setpoint: float
+    valve_run_time: int
+    pump_run_time: int
+    boolean_cc: bool
+
+
 class _1090(TypedDict):
     temperature_0: float | None
     temperature_1: float | None
@@ -256,6 +264,7 @@ class PayDictT:
     _0008: TypeAlias = _0008
     _0100: TypeAlias = _0100
     _0418: TypeAlias = _0418
+    _1030: TypeAlias = _1030
     _1060: TypeAlias = _1060
     _1081: TypeAlias = _Setpoint
     _1090: TypeAlias = _1090

@@ -826,7 +826,7 @@ def parser_0b04(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # mixvalve_config (zone), FAN
-def parser_1030(payload: str, msg: Message) -> dict[str, Any]:
+def parser_1030(payload: str, msg: Message) -> PayDictT._1030:
     # .I --- 01:145038 --:------ 01:145038 1030 016 0A-C80137-C9010F-CA0196-CB0100-CC0101
     # .I --- --:------ --:------ 12:144017 1030 016 01-C80137-C9010F-CA0196-CB010F-CC0101
     # RP --- 32:155617 18:005904 --:------ 1030 007 00-200100-21011F
@@ -850,7 +850,7 @@ def parser_1030(payload: str, msg: Message) -> dict[str, Any]:
     # assert payload[30:] in ("00", "01"), payload[30:]
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
-    return {k: v for x in params for k, v in x.items()}
+    return {k: v for x in params for k, v in x.items()}  # type: ignore[return-value]
 
 
 # device_battery (battery_state)

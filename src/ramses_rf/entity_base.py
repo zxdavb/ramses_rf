@@ -487,7 +487,12 @@ class _Discovery(_MessageDB):
         raise NotImplementedError
 
     def _add_discovery_cmd(
-        self, cmd: Command, interval: float, *, timeout: float = None, delay: float = 0
+        self,
+        cmd: Command,
+        interval: float,
+        *,
+        delay: float = 0,
+        timeout: float | None = None,
     ) -> None:
         """Schedule a command to run periodically.
 

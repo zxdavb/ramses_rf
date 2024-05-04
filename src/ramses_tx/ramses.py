@@ -169,6 +169,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "mixvalve_params",
         # .I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
+        RP: r"^00((20|21)01[0-9A-F]{2}){2}$",  # rarely seen, HVAC
         W_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",  # contrived
     },
     Code._1060: {  # device_battery
