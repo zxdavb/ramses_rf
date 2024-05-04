@@ -63,7 +63,8 @@ from .const import (
 )
 
 if TYPE_CHECKING:
-    from . import Device, Gateway
+    from .device import Device
+    from .gateway import Gateway
     from .system import Evohome
 
 

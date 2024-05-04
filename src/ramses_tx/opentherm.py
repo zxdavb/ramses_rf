@@ -10,7 +10,6 @@ from collections.abc import Callable
 from enum import EnumCheck, IntEnum, StrEnum, verify
 from typing import Any, Final, TypeAlias
 
-_DataIdT: TypeAlias = int  # aka msg id
 _DataValueT: TypeAlias = float | int | list[int] | str | None
 _FrameT: TypeAlias = str
 _MsgStrT: TypeAlias = str
@@ -20,8 +19,7 @@ _FlagsSchemaT: TypeAlias = dict[int, dict[str, str]]
 _OtMsgSchemaT: TypeAlias = dict[str, Any]
 
 
-@verify(EnumCheck.UNIQUE)
-class OtMsgId(IntEnum):  # the subset of data-ids used by the OTB
+class OtDataId(IntEnum):  # the subset of data-ids used by the OTB
     STATUS = 0x00
     CONTROL_SETPOINT = 0x01
     MASTER_CONFIG = 0x02
@@ -32,8 +30,6 @@ class OtMsgId(IntEnum):  # the subset of data-ids used by the OTB
     # TSP_NUMBER = 0x0A
     # FHB_SIZE = 0x0C
     # FHB_ENTRY = 0x0D
-    # ??? = 0x0E
-    _0F = 0x0F
     ROOM_SETPOINT = 0x10
     REL_MODULATION_LEVEL = 0x11
     CH_WATER_PRESSURE = 0x12
@@ -58,29 +54,68 @@ class OtMsgId(IntEnum):  # the subset of data-ids used by the OTB
     CH_PUMP_HOURS = 0x79
     DHW_PUMP_HOURS = 0x7A
     DHW_BURNER_HOURS = 0x7B
+    #
+    _00 = 0x00
+    _01 = 0x01
+    _02 = 0x02
+    _03 = 0x03
+    _05 = 0x05
+    _06 = 0x06
+    _09 = 0x09
+    _0A = 0x0A
+    _0C = 0x0C
+    _0D = 0x0D
+    _0E = 0x0E
+    _0F = 0x0F
+    _10 = 0x10
+    _11 = 0x11
+    _12 = 0x12
+    _13 = 0x13
+    _18 = 0x18
+    _19 = 0x19
+    _1A = 0x1A
+    _1B = 0x1B
+    _1C = 0x1C
+    _30 = 0x30
+    _31 = 0x31
+    _38 = 0x38
+    _39 = 0x39
+    _71 = 0x71
+    _72 = 0x72
+    _73 = 0x73
+    _74 = 0x74
+    _75 = 0x75
+    _76 = 0x76
+    _77 = 0x77
+    _78 = 0x78
+    _79 = 0x79
+    _7A = 0x7A
+    _7B = 0x7B
     _7C = 0x7C
-    # _7D = 0x7D
+    _7D = 0x7D
     _7E = 0x7E
     _7F = 0x7F
 
+
+_OtDataIdT: TypeAlias = OtDataId  # | int
 
 # grep -E 'RP.* 34:.* 30:.* 3220 ' | grep -vE ' 005 00..(01   |05|  |11|12|13|19|1A|1C            |73                           )' returns no results
 # grep -E 'RP.* 10:.* 01:.* 3220 ' | grep -vE ' 005 00..(   03|05|0F|11|12|13|19|1A|1C|38|39|71|72|73|74|75|76|77|78|79|7A|7B|7F)' returns no results
 
 # These are R8810A/R8820A-supported msg_ids and their descriptions
-SCHEMA_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
-    0x03: "Slave configuration",  # .                                             #   3
+SCHEMA_DATA_IDS: Final[dict[_OtDataIdT, _MsgStrT]] = {
+    OtDataId._03: "Slave configuration",  # .                                             #   3
     # 003:HB0: Slave configuration: DHW present
     # 003:HB1: Slave configuration: Control type
     # 003:HB4: Slave configuration: Master low-off & pump control
     #
-    0x06: "Remote boiler parameter flags",  # .                                    #   6
+    OtDataId._06: "Remote boiler parameter flags",  # .                                    #   6
     # 006:HB0: Remote boiler parameter transfer-enable: DHW setpoint
     # 006:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
     # 006:LB0: Remote boiler parameter read/write: DHW setpoint
     # 006:LB1: Remote boiler parameter read/write: max. CH setpoint,
     #
-    0x7F: "Slave product version number and type",  # .                           # 127
+    OtDataId._7F: "Slave product version number and type",  # .                           # 127
     #
     # TODO: deprecate 71-2, 74-7B, as appears that always value=None
     # # These are STATUS seen RQ'd by 01:/30:, but here to retrieve less frequently
@@ -95,16 +130,16 @@ SCHEMA_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     # 0x7A: "Number of hours DHW pump has been running/valve has been opened",  # . # 122
     # 0x7B: "Number of hours DHW burner is in operation during DHW mode",  # .      # 123
 }
-PARAMS_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
-    0x0E: "Maximum relative modulation level setting (%)",  # .                   #  14
-    0x0F: "Max. boiler capacity (kW) and modulation level setting (%)",  # .      #  15
-    0x30: "DHW Setpoint upper & lower bounds for adjustment (°C)",  # .           #  48
-    0x31: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # .  #  49
-    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # see: 0x06, is R/W          #  56
-    0x39: "Max CH water Setpoint (°C) (Remote parameter 2)",  # see: 0x06, is R/W #  57
+PARAMS_DATA_IDS: Final[dict[_OtDataIdT, _MsgStrT]] = {
+    OtDataId._0E: "Maximum relative modulation level setting (%)",  # .                   #  14
+    OtDataId._0F: "Max. boiler capacity (kW) and modulation level setting (%)",  # .      #  15
+    OtDataId._30: "DHW Setpoint upper & lower bounds for adjustment (°C)",  # .           #  48
+    OtDataId._31: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # .  #  49
+    OtDataId._38: "DHW Setpoint (°C) (Remote parameter 1)",  # see: 0x06, is R/W          #  56
+    OtDataId._39: "Max CH water Setpoint (°C) (Remote parameter 2)",  # see: 0x06, is R/W #  57
 }
-STATUS_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
-    0x00: "Master/Slave status flags",  # .                                       #   0
+STATUS_DATA_IDS: Final[dict[_OtDataIdT, _MsgStrT]] = {
+    OtDataId._00: "Master/Slave status flags",  # .                                       #   0
     # 000:HB0: Master status: CH enable
     # 000:HB1: Master status: DHW enable
     # 000:HB2: Master status: Cooling enable
@@ -116,19 +151,18 @@ STATUS_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     # 000:LB2: Slave Status: DHW mode
     # 000:LB3: Slave Status: Flame status
     #
-    0x01: "CH water temperature Setpoint (°C)",  # NOTE: is W only!               #   1
-    0x11: "Relative Modulation Level (%)",  # .                                   #  17
-    0x12: "Water pressure in CH circuit (bar)",  # .                              #  18
-    0x13: "Water flow rate in DHW circuit. (L/min)",  # .                         #  19
-    # TODO: deprecate 18, as appears that always fixed value
-    # 0x18: "Room temperature (°C)",  # .                                           #  24
-    0x19: "Boiler flow water temperature (°C)",  # .                              #  25
-    0x1A: "DHW temperature (°C)",  # .                                            #  26
-    0x1B: "Outside temperature (°C)",  # TODO: any value here?  # is R/W          #  27
-    0x1C: "Return water temperature (°C)",  # .                                   #  28
+    OtDataId._01: "CH water temperature Setpoint (°C)",  # NOTE: is W only!               #   1
+    OtDataId._11: "Relative Modulation Level (%)",  # .                                   #  17
+    OtDataId._12: "Water pressure in CH circuit (bar)",  # .                              #  18
+    OtDataId._13: "Water flow rate in DHW circuit. (L/min)",  # .                         #  19
+    OtDataId._18: "Room temperature (°C)",  # .                                           #  24
+    OtDataId._19: "Boiler flow water temperature (°C)",  # .                              #  25
+    OtDataId._1A: "DHW temperature (°C)",  # .                                            #  26
+    OtDataId._1B: "Outside temperature (°C)",  # TODO: any value here?  # is R/W          #  27
+    OtDataId._1C: "Return water temperature (°C)",  # .                                   #  28
     #
     # These are error/state codes...
-    0x05: "Fault flags & OEM codes",  # .                                         #   5
+    OtDataId._05: "Fault flags & OEM codes",  # .                                         #   5
     # 005:HB0: Service request
     # 005:HB1: Lockout-reset
     # 005:HB2: Low water pressure
@@ -137,39 +171,39 @@ STATUS_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = {
     # 005:HB5: Water over-temperature
     # 005:LB:  OEM fault code
     #
-    0x73: "OEM diagnostic code",  # .                                             # 115
+    OtDataId._73: "OEM diagnostic code",  # .                                             # 115
 }
-WRITE_MSG_IDS: Final[
-    dict[_DataIdT, _MsgStrT]
+WRITE_DATA_IDS: Final[
+    dict[_OtDataIdT, _MsgStrT]
 ] = {  # Write-Data, NB: some are also Read-Data
-    0x01: "CH water temperature Setpoint (°C)",
+    OtDataId._01: "CH water temperature Setpoint (°C)",
     # 001: Control Setpoint i.e. CH water temperature Setpoint (°C)
     #
-    0x02: "Master configuration",
+    OtDataId._02: "Master configuration",
     # 002:HB0: Master configuration: Smart power
     # 002:LB:  Master MemberID code
     #
-    0x09: "Remote override room Setpoint",  # c.f. 0x64, 100                      #   9
-    0x0E: "Maximum relative modulation level setting (%)",  # c.f. 0x11           #  14
-    0x10: "Room Setpoint (°C)",  # .                                              #  16
-    0x18: "Room temperature (°C)",  # .                                           #  24
-    0x1B: "Outside temperature (°C)",  # .                                        #  27
-    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # .       # is R/W           #  56
-    0x39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # is R/W           #  57
-    0x7C: "Opentherm version Master",  # .                     # is R/W           # 124
-    0x7E: "Master product version number and type",  # .                          # 126
+    OtDataId._09: "Remote override room Setpoint",  # c.f. 0x64, 100                      #   9
+    OtDataId._0E: "Maximum relative modulation level setting (%)",  # c.f. 0x11           #  14
+    OtDataId._10: "Room Setpoint (°C)",  # .                                              #  16
+    OtDataId._18: "Room temperature (°C)",  # .                                           #  24
+    OtDataId._1B: "Outside temperature (°C)",  # .                                        #  27
+    OtDataId._38: "DHW Setpoint (°C) (Remote parameter 1)",  # .       # is R/W           #  56
+    OtDataId._39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # is R/W           #  57
+    OtDataId._7C: "Opentherm version Master",  # .                     # is R/W           # 124
+    OtDataId._7E: "Master product version number and type",  # .                          # 126
 }
 
-OTB_MSG_IDS: Final[dict[_DataIdT, _MsgStrT]] = (
-    SCHEMA_MSG_IDS
-    | PARAMS_MSG_IDS
-    | STATUS_MSG_IDS
-    | WRITE_MSG_IDS
+OTB_DATA_IDS: Final[dict[_OtDataIdT, _MsgStrT]] = (
+    SCHEMA_DATA_IDS
+    | PARAMS_DATA_IDS
+    | STATUS_DATA_IDS
+    | WRITE_DATA_IDS
     | {
-        0x0A: "Number of TSPs supported by slave",  # TODO                        #  10
-        0x0C: "Size of FHB supported by slave",  # .  TODO                        #  12
-        0x0D: "FHB Entry",  # .                       TODO                        #  13
-        0x7D: "Opentherm version Slave",  # .         TODO                        # 125
+        OtDataId._0A: "Number of TSPs supported by slave",  # TODO                        #  10
+        OtDataId._0C: "Size of FHB supported by slave",  # .  TODO                        #  12
+        OtDataId._0D: "FHB Entry",  # .                       TODO                        #  13
+        OtDataId._7D: "Opentherm version Slave",  # .         TODO                        # 125
     }
 )
 
@@ -418,14 +452,14 @@ _REMOTE_FLAGS: Final[_FlagsSchemaT] = {
     },
 }
 # OpenTherm messages  # NOTE: this is used in entity_base.py (traits)
-OPENTHERM_MESSAGES: Final[dict[_DataIdT, _OtMsgSchemaT]] = {
-    0x00: {  # 0, Status
+OPENTHERM_MESSAGES: Final[dict[_OtDataIdT, _OtMsgSchemaT]] = {
+    OtDataId._00: {  # 0, Status
         EN: "Status",
         DIR: READ_ONLY,
         VAL: {HB: FLAG8, LB: FLAG8},
         FLAGS: SZ_STATUS_FLAGS,
     },
-    0x01: {  # 1, Control Setpoint
+    OtDataId._01: {  # 1, Control Setpoint
         EN: "Control setpoint",
         NL: "Ketel doeltemperatuur",
         DIR: WRITE_ONLY,
@@ -433,38 +467,284 @@ OPENTHERM_MESSAGES: Final[dict[_DataIdT, _OtMsgSchemaT]] = {
         VAR: "ControlSetpoint",
         SENSOR: Sensor.TEMPERATURE,
     },
-    0x02: {  # 2, Master configuration (Member ID)
+    OtDataId._02: {  # 2, Master configuration (Member ID)
         EN: "Master configuration",
         DIR: WRITE_ONLY,
         VAL: {HB: FLAG8, LB: U8},
         FLAGS: SZ_MASTER_CONFIG_FLAGS,
         VAR: {LB: "MasterMemberId"},
     },
-    0x03: {  # 3, Slave configuration (Member ID)
+    OtDataId._03: {  # 3, Slave configuration (Member ID)
         EN: "Slave configuration",
         DIR: READ_ONLY,
         VAL: {HB: FLAG8, LB: U8},
         FLAGS: SZ_SLAVE_CONFIG_FLAGS,
         VAR: {LB: "SlaveMemberId"},
     },
-    0x04: {  # 4, Remote Command
-        EN: "Remote command",
-        DIR: WRITE_ONLY,
-        VAL: U8,
-        VAR: "RemoteCommand",
-    },
-    0x05: {  # 5, OEM Fault code
+    OtDataId._05: {  # 5, OEM Fault code
         EN: "Fault flags & OEM fault code",
         DIR: READ_ONLY,
         VAL: {HB: FLAG8, LB: U8},
         VAR: {LB: "OEMFaultCode"},
         FLAGS: SZ_FAULT_FLAGS,
     },
-    0x06: {  # 6, Remote Flags
+    OtDataId._06: {  # 6, Remote Flags
         EN: "Remote parameter flags",
         DIR: READ_ONLY,
         VAL: FLAG8,
         FLAGS: SZ_REMOTE_FLAGS,
+    },
+    OtDataId._09: {  # 9, Remote Override Room Setpoint
+        EN: "Remote override room setpoint",
+        NL: "Overschreven kamer doeltemperatuur",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "RemoteOverrideRoomSetpoint",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._0A: {  # 10, TSP Number
+        EN: "Number of transparent slave parameters supported by slave",
+        DIR: READ_ONLY,
+        VAL: U8,
+        VAR: {HB: "TSPNumber"},
+    },
+    OtDataId._0C: {  # 12, FHB Size
+        EN: "Size of fault history buffer supported by slave",
+        DIR: READ_ONLY,
+        VAL: U8,
+        VAR: {HB: "FHBSize"},
+    },
+    OtDataId._0D: {  # 13, FHB Entry
+        EN: "Index number/value of referred-to fault history buffer entry",
+        DIR: READ_ONLY,
+        VAL: U8,
+        VAR: {HB: "FHBIndex", LB: "FHBValue"},
+    },
+    OtDataId._0E: {  # 14, Max Relative Modulation Level
+        EN: "Max. relative modulation level",
+        NL: "Max. relatief modulatie-niveau",
+        DIR: WRITE_ONLY,
+        VAL: F8_8,
+        VAR: "MaxRelativeModulationLevel",
+        SENSOR: Sensor.PERCENTAGE,
+    },
+    OtDataId._0F: {  # 15, Max Boiler Capacity & Min Modulation Level
+        EN: "Max. boiler capacity (kW) and modulation level setting (%)",
+        DIR: READ_ONLY,
+        VAL: U8,
+        VAR: {HB: "MaxBoilerCapacity", LB: "MinModulationLevel"},
+    },
+    OtDataId._10: {  # 16, Current Setpoint
+        EN: "Room setpoint",
+        NL: "Kamer doeltemperatuur",
+        DIR: WRITE_ONLY,
+        VAL: F8_8,
+        VAR: "CurrentSetpoint",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._11: {  # 17, Relative Modulation Level
+        EN: "Relative modulation level",
+        NL: "Relatief modulatie-niveau",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "RelativeModulationLevel",
+        SENSOR: Sensor.PERCENTAGE,
+    },
+    OtDataId._12: {  # 18, CH Water Pressure
+        EN: "Central heating water pressure (bar)",
+        NL: "Keteldruk",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "CHWaterPressure",
+        SENSOR: Sensor.PRESSURE,
+    },
+    OtDataId._13: {  # 19, DHW Flow Rate
+        EN: "DHW flow rate (litres/minute)",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "DHWFlowRate",
+        SENSOR: Sensor.FLOW_RATE,
+    },
+    OtDataId._18: {  # 24, Current Room Temperature
+        EN: "Room temperature",
+        NL: "Kamertemperatuur",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "CurrentTemperature",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._19: {  # 25, Boiler Water Temperature
+        EN: "Boiler water temperature",
+        NL: "Ketelwatertemperatuur",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "BoilerWaterTemperature",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._1A: {  # 26, DHW Temperature
+        EN: "DHW temperature",
+        NL: "Tapwatertemperatuur",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "DHWTemperature",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._1B: {  # 27, Outside Temperature
+        EN: "Outside temperature",
+        NL: "Buitentemperatuur",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "OutsideTemperature",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._1C: {  # 28, Return Water Temperature
+        EN: "Return water temperature",
+        NL: "Retourtemperatuur",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "ReturnWaterTemperature",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._30: {  # 48, DHW Boundaries
+        EN: "DHW setpoint boundaries",
+        DIR: READ_ONLY,
+        VAL: S8,
+        VAR: {HB: "DHWUpperBound", LB: "DHWLowerBound"},
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._31: {  # 49, CH Boundaries
+        EN: "Max. central heating setpoint boundaries",
+        DIR: READ_ONLY,
+        VAL: S8,
+        VAR: {HB: "CHUpperBound", LB: "CHLowerBound"},
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._38: {  # 56, DHW Setpoint
+        EN: "DHW setpoint",
+        NL: "Tapwater doeltemperatuur",
+        DIR: READ_WRITE,
+        VAL: F8_8,
+        VAR: "DHWSetpoint",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    OtDataId._39: {  # 57, Max CH Water Setpoint
+        EN: "Max. central heating water setpoint",
+        NL: "Max. ketel doeltemperatuur",
+        DIR: READ_WRITE,
+        VAL: F8_8,
+        VAR: "MaxCHWaterSetpoint",
+        SENSOR: Sensor.TEMPERATURE,
+    },
+    # OpenTherm 2.2 IDs
+    OtDataId._73: {  # 115, OEM Diagnostic code
+        EN: "OEM diagnostic code",
+        DIR: READ_ONLY,
+        VAL: U16,
+        VAR: "OEMDiagnosticCode",
+    },
+    OtDataId._74: {  # 116, Starts Burner
+        EN: "Number of starts burner",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "StartsBurner",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._75: {  # 117, Starts CH Pump
+        EN: "Number of starts central heating pump",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "StartsCHPump",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._76: {  # 118, Starts DHW Pump
+        EN: "Number of starts DHW pump/valve",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "StartsDHWPump",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._77: {  # 119, Starts Burner DHW
+        EN: "Number of starts burner during DHW mode",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "StartsBurnerDHW",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._78: {  # 120, Hours Burner
+        EN: "Number of hours burner is in operation (i.e. flame on)",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "HoursBurner",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._79: {  # 121, Hours CH Pump
+        EN: "Number of hours central heating pump has been running",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "HoursCHPump",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._7A: {  # 122, Hours DHW Pump
+        EN: "Number of hours DHW pump has been running/valve has been opened",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "HoursDHWPump",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._7B: {  # 123, Hours DHW Burner
+        EN: "Number of hours DHW burner is in operation during DHW mode",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "HoursDHWBurner",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._7C: {  # 124, Master OpenTherm Version
+        EN: "Opentherm version Master",
+        DIR: WRITE_ONLY,
+        VAL: F8_8,
+        VAR: "MasterOpenThermVersion",
+    },
+    OtDataId._7D: {  # 125, Slave OpenTherm Version
+        EN: "Opentherm version Slave",
+        DIR: READ_ONLY,
+        VAL: F8_8,
+        VAR: "SlaveOpenThermVersion",
+    },
+    OtDataId._7E: {  # 126, Master Product Type/Version
+        EN: "Master product version and type",
+        DIR: WRITE_ONLY,
+        VAL: U8,
+        VAR: {HB: "MasterProductType", LB: "MasterProductVersion"},
+    },
+    OtDataId._7F: {  # 127, Slave Product Type/Version
+        EN: "Slave product version and type",
+        DIR: READ_ONLY,
+        VAL: U8,
+        VAR: {HB: "SlaveProductType", LB: "SlaveProductVersion"},
+    },
+    # ZX-DAVB extras
+    OtDataId._71: {  # 113, Bad Starts Burner
+        EN: "Number of un-successful burner starts",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "BadStartsBurner?",
+        SENSOR: Sensor.COUNTER,
+    },
+    OtDataId._72: {  # 114, Low Signals Flame
+        EN: "Number of times flame signal was too low",
+        DIR: READ_WRITE,
+        VAL: U16,
+        VAR: "LowSignalsFlame?",
+        SENSOR: Sensor.COUNTER,
+    },
+}
+
+_OPENTHERM_MESSAGES: Final[dict[int, _OtMsgSchemaT]] = {
+    0x04: {  # 4, Remote Command
+        EN: "Remote command",
+        DIR: WRITE_ONLY,
+        VAL: U8,
+        VAR: "RemoteCommand",
     },
     0x07: {  # 7, Cooling Control Signal
         EN: "Cooling control signal",
@@ -480,82 +760,11 @@ OPENTHERM_MESSAGES: Final[dict[_DataIdT, _OtMsgSchemaT]] = {
         VAR: "CH2ControlSetpoint",
         SENSOR: Sensor.TEMPERATURE,
     },
-    0x09: {  # 9, Remote Override Room Setpoint
-        EN: "Remote override room setpoint",
-        NL: "Overschreven kamer doeltemperatuur",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "RemoteOverrideRoomSetpoint",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x0A: {  # 10, TSP Number
-        EN: "Number of transparent slave parameters supported by slave",
-        DIR: READ_ONLY,
-        VAL: U8,
-        VAR: {HB: "TSPNumber"},
-    },
     0x0B: {  # 11, TSP Entry
         EN: "Index number/value of referred-to transparent slave parameter",
         DIR: READ_WRITE,
         VAL: U8,
         VAR: {HB: "TSPIndex", LB: "TSPValue"},
-    },
-    0x0C: {  # 12, FHB Size
-        EN: "Size of fault history buffer supported by slave",
-        DIR: READ_ONLY,
-        VAL: U8,
-        VAR: {HB: "FHBSize"},
-    },
-    0x0D: {  # 13, FHB Entry
-        EN: "Index number/value of referred-to fault history buffer entry",
-        DIR: READ_ONLY,
-        VAL: U8,
-        VAR: {HB: "FHBIndex", LB: "FHBValue"},
-    },
-    0x0E: {  # 14, Max Relative Modulation Level
-        EN: "Max. relative modulation level",
-        NL: "Max. relatief modulatie-niveau",
-        DIR: WRITE_ONLY,
-        VAL: F8_8,
-        VAR: "MaxRelativeModulationLevel",
-        SENSOR: Sensor.PERCENTAGE,
-    },
-    0x0F: {  # 15, Max Boiler Capacity & Min Modulation Level
-        EN: "Max. boiler capacity (kW) and modulation level setting (%)",
-        DIR: READ_ONLY,
-        VAL: U8,
-        VAR: {HB: "MaxBoilerCapacity", LB: "MinModulationLevel"},
-    },
-    0x10: {  # 16, Current Setpoint
-        EN: "Room setpoint",
-        NL: "Kamer doeltemperatuur",
-        DIR: WRITE_ONLY,
-        VAL: F8_8,
-        VAR: "CurrentSetpoint",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x11: {  # 17, Relative Modulation Level
-        EN: "Relative modulation level",
-        NL: "Relatief modulatie-niveau",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "RelativeModulationLevel",
-        SENSOR: Sensor.PERCENTAGE,
-    },
-    0x12: {  # 18, CH Water Pressure
-        EN: "Central heating water pressure (bar)",
-        NL: "Keteldruk",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "CHWaterPressure",
-        SENSOR: Sensor.PRESSURE,
-    },
-    0x13: {  # 19, DHW Flow Rate
-        EN: "DHW flow rate (litres/minute)",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "DHWFlowRate",
-        SENSOR: Sensor.FLOW_RATE,
     },
     0x14: {  # 20, Day/Time
         EN: "Day of week & Time of day",
@@ -580,46 +789,6 @@ OPENTHERM_MESSAGES: Final[dict[_DataIdT, _OtMsgSchemaT]] = {
         DIR: WRITE_ONLY,
         VAL: F8_8,
         VAR: "CH2CurrentSetpoint",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x18: {  # 24, Current Room Temperature
-        EN: "Room temperature",
-        NL: "Kamertemperatuur",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "CurrentTemperature",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x19: {  # 25, Boiler Water Temperature
-        EN: "Boiler water temperature",
-        NL: "Ketelwatertemperatuur",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "BoilerWaterTemperature",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x1A: {  # 26, DHW Temperature
-        EN: "DHW temperature",
-        NL: "Tapwatertemperatuur",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "DHWTemperature",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x1B: {  # 27, Outside Temperature
-        EN: "Outside temperature",
-        NL: "Buitentemperatuur",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "OutsideTemperature",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x1C: {  # 28, Return Water Temperature
-        EN: "Return water temperature",
-        NL: "Retourtemperatuur",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "ReturnWaterTemperature",
         SENSOR: Sensor.TEMPERATURE,
     },
     0x1D: {  # 29, Solar Storage Temperature
@@ -657,41 +826,11 @@ OPENTHERM_MESSAGES: Final[dict[_DataIdT, _OtMsgSchemaT]] = {
         VAR: "BoilerExhaustTemperature",
         SENSOR: Sensor.TEMPERATURE,
     },
-    0x30: {  # 48, DHW Boundaries
-        EN: "DHW setpoint boundaries",
-        DIR: READ_ONLY,
-        VAL: S8,
-        VAR: {HB: "DHWUpperBound", LB: "DHWLowerBound"},
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x31: {  # 49, CH Boundaries
-        EN: "Max. central heating setpoint boundaries",
-        DIR: READ_ONLY,
-        VAL: S8,
-        VAR: {HB: "CHUpperBound", LB: "CHLowerBound"},
-        SENSOR: Sensor.TEMPERATURE,
-    },
     0x32: {  # 50, OTC Boundaries
         EN: "OTC heat curve ratio upper & lower bounds",
         DIR: READ_ONLY,
         VAL: S8,
         VAR: {HB: "OTCUpperBound", LB: "OTCLowerBound"},
-    },
-    0x38: {  # 56, DHW Setpoint
-        EN: "DHW setpoint",
-        NL: "Tapwater doeltemperatuur",
-        DIR: READ_WRITE,
-        VAL: F8_8,
-        VAR: "DHWSetpoint",
-        SENSOR: Sensor.TEMPERATURE,
-    },
-    0x39: {  # 57, Max CH Water Setpoint
-        EN: "Max. central heating water setpoint",
-        NL: "Max. ketel doeltemperatuur",
-        DIR: READ_WRITE,
-        VAL: F8_8,
-        VAR: "MaxCHWaterSetpoint",
-        SENSOR: Sensor.TEMPERATURE,
     },
     0x3A: {  # 58, OTC Heat Curve Ratio
         EN: "OTC heat curve ratio",
@@ -848,107 +987,6 @@ OPENTHERM_MESSAGES: Final[dict[_DataIdT, _OtMsgSchemaT]] = {
         VAL: {HB: FLAG8, LB: U8},
         VAR: {HB: "RemoteOverrideFunction"},
     },
-    0x73: {  # 115, OEM Diagnostic code
-        EN: "OEM diagnostic code",
-        DIR: READ_ONLY,
-        VAL: U16,
-        VAR: "OEMDiagnosticCode",
-    },
-    0x74: {  # 116, Starts Burner
-        EN: "Number of starts burner",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "StartsBurner",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x75: {  # 117, Starts CH Pump
-        EN: "Number of starts central heating pump",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "StartsCHPump",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x76: {  # 118, Starts DHW Pump
-        EN: "Number of starts DHW pump/valve",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "StartsDHWPump",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x77: {  # 119, Starts Burner DHW
-        EN: "Number of starts burner during DHW mode",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "StartsBurnerDHW",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x78: {  # 120, Hours Burner
-        EN: "Number of hours burner is in operation (i.e. flame on)",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "HoursBurner",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x79: {  # 121, Hours CH Pump
-        EN: "Number of hours central heating pump has been running",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "HoursCHPump",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x7A: {  # 122, Hours DHW Pump
-        EN: "Number of hours DHW pump has been running/valve has been opened",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "HoursDHWPump",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x7B: {  # 123, Hours DHW Burner
-        EN: "Number of hours DHW burner is in operation during DHW mode",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "HoursDHWBurner",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x7C: {  # 124, Master OpenTherm Version
-        EN: "Opentherm version Master",
-        DIR: WRITE_ONLY,
-        VAL: F8_8,
-        VAR: "MasterOpenThermVersion",
-    },
-    0x7D: {  # 125, Slave OpenTherm Version
-        EN: "Opentherm version Slave",
-        DIR: READ_ONLY,
-        VAL: F8_8,
-        VAR: "SlaveOpenThermVersion",
-    },
-    0x7E: {  # 126, Master Product Type/Version
-        EN: "Master product version and type",
-        DIR: WRITE_ONLY,
-        VAL: U8,
-        VAR: {HB: "MasterProductType", LB: "MasterProductVersion"},
-    },
-    0x7F: {  # 127, Slave Product Type/Version
-        EN: "Slave product version and type",
-        DIR: READ_ONLY,
-        VAL: U8,
-        VAR: {HB: "SlaveProductType", LB: "SlaveProductVersion"},
-    },
-    # ZX-DAVB extras
-    0x71: {  # 113, Bad Starts Burner
-        EN: "Number of un-successful burner starts",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "BadStartsBurner?",
-        SENSOR: Sensor.COUNTER,
-    },
-    0x72: {  # 114, Low Signals Flame
-        EN: "Number of times flame signal was too low",
-        DIR: READ_WRITE,
-        VAL: U16,
-        VAR: "LowSignalsFlame?",
-        SENSOR: Sensor.COUNTER,
-    },
     # https://www.domoticaforum.eu/viewtopic.php?f=70&t=10893
     # 0x23: {  # 35, Boiler Fan Speed (rpm/60?)?
     # },
@@ -1084,7 +1122,7 @@ def _msg_value(val_seqx: str, val_type: str) -> _DataValueT:
 
 
 # FIXME: this is not finished...
-def _decode_flags(data_id: _DataIdT, flags: str) -> _FlagsSchemaT:  # TBA: list[str]:
+def _decode_flags(data_id: OtDataId, flags: str) -> _FlagsSchemaT:  # TBA: list[str]:
     try:  # FIXME: don't use _OT_FLAG_LOOKUP
         flag_schema: _FlagsSchemaT = _OT_FLAG_LOOKUP[OPENTHERM_MESSAGES[data_id][FLAGS]]
 
@@ -1097,7 +1135,7 @@ def _decode_flags(data_id: _DataIdT, flags: str) -> _FlagsSchemaT:  # TBA: list[
 # ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
 def decode_frame(
     frame: _FrameT,
-) -> tuple[OtMsgType, OtMsgId, dict[str, Any], _OtMsgSchemaT]:
+) -> tuple[OtMsgType, OtDataId, dict[str, Any], _OtMsgSchemaT]:
     """Decode a 3220 payload."""
 
     if not isinstance(frame, str) or len(frame) != 8:
@@ -1114,7 +1152,7 @@ def decode_frame(
     # if msg_type == 0b011:  # NOTE: this msg-type may no longer be reserved (R8820?)
     #     raise ValueError(f"Reserved msg-type (0b{msg_type:03b})")
 
-    data_id: OtMsgId = int(frame[2:4], 16)  # type: ignore[assignment]
+    data_id: OtDataId = int(frame[2:4], 16)  # type: ignore[assignment]
     try:
         msg_schema = OPENTHERM_MESSAGES[data_id]
     except KeyError as err:

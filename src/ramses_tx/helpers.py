@@ -338,6 +338,19 @@ def hex_to_percent(
     return result
 
 
+def hex_from_percent(value: float | None, high_res: bool = True) -> HexStr2:
+    """Convert a percentage into a 2-char hex string.
+
+    The range is 0-100%, with resolution of 0.5% (high_res, 00-C8) or 1% (00-64).
+    """
+    if value is None:
+        return "EF"
+    if not isinstance(value, float | int) or not 0 <= value <= 1:
+        raise ValueError(f"Invalid value: {value}, is not a percentage")
+    result = int(value * (200 if high_res else 100))
+    return f"{result:02X}"
+
+
 def hex_to_str(value: str) -> str:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking

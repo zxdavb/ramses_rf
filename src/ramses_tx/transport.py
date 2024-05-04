@@ -96,12 +96,13 @@ if TYPE_CHECKING:
     from .protocol import RamsesProtocolT
 
 
-_SIGNATURE_MAX_TRYS = 24
 _SIGNATURE_GAP_SECS = 0.05
+_SIGNATURE_MAX_TRYS = 100  # was: 24
+_SIGNATURE_MAX_SECS = 5  # was: 3
 
 
-_LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.INFO)
+SZ_RAMSES_GATEWAY: Final = "RAMSES/GATEWAY"
+SZ_READER_TASK: Final = "reader_task"
 
 
 # All debug flags (used for dev/test) should be False for published code
@@ -109,9 +110,8 @@ _DBG_DISABLE_DUTY_CYCLE_LIMIT = False
 _DBG_DISABLE_REGEX_WARNINGS = False
 _DBG_FORCE_LOG_FRAMES = False
 
-
-SZ_RAMSES_GATEWAY: Final = "RAMSES/GATEWAY"
-SZ_READER_TASK: Final = "reader_task"
+_LOGGER = logging.getLogger(__name__)
+# _LOGGER.setLevel(logging.INFO)
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
@@ -894,12 +894,11 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
                 connect_with_signature(), name="PortTransport.connect_with_signature()"
             )
 
-        timeout = 3
         try:  # wait to get (1st) signature echo from evofw3/HGI80, if any
-            await asyncio.wait_for(self._init_fut, timeout=timeout)  # signature echo
+            await asyncio.wait_for(self._init_fut, timeout=_SIGNATURE_MAX_SECS)
         except TimeoutError as err:
             raise exc.TransportSerialError(
-                f"Failed to initialise Transport within {timeout} secs"
+                f"Failed to initialise Transport within {_SIGNATURE_MAX_SECS} secs"
             ) from err
 
     async def _leak_sem(self) -> None:

@@ -2,10 +2,7 @@
 
 # TODO: Add assert_protocol_ready to VirtualRF factory (or in library?)
 
-"""Test the Virtual RF library.
-
-VirtualRF is used for testing.
-"""
+"""Test the Virtual RF library - VirtualRF is used for testing."""
 
 import asyncio
 
@@ -13,6 +10,7 @@ import pytest
 import serial  # type: ignore[import-untyped]
 
 from ramses_rf import Address, Code, Command, Gateway
+from ramses_tx.schemas import DeviceIdT
 from ramses_tx.transport import PortTransport
 from tests_rf.virtual_rf import VirtualRf, rf_factory
 
@@ -45,7 +43,7 @@ SCHEMA_1 = {
 
 async def assert_code_in_device_msgz(
     gwy: Gateway,
-    dev_id: str,
+    dev_id: DeviceIdT,
     code: Code,
     max_sleep: int = DEFAULT_MAX_SLEEP,
     test_not: bool = False,

@@ -7,6 +7,7 @@ import asyncio
 import contextlib
 import logging
 import random
+from collections.abc import Iterable
 from datetime import datetime as dt, timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
     from ramses_tx import Command, Message, Packet
     from ramses_tx.const import VerbT
     from ramses_tx.frame import HeaderT
+    from ramses_tx.opentherm import OtDataId
     from ramses_tx.schemas import DeviceIdT, DevIndexT
 
     from .device import BdrSwitch, Controller, DhwSensor, TrvActuator, UfhCircuit
@@ -291,7 +293,9 @@ class _MessageDB(_Entity):
             return bool(flags[idx])
         return None
 
-    def _msg_value(self, code: Code, *args: Any, **kwargs: Any) -> dict | list | None:
+    def _msg_value(
+        self, code: Code | Iterable[Code], *args: Any, **kwargs: Any
+    ) -> dict | list | None:
         if isinstance(code, str | tuple):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
@@ -451,12 +455,19 @@ class _Discovery(_MessageDB):
     @property
     def supported_cmds_ot(self) -> dict[MsgId, Any]:
         """Return the current list of pollable OT msg_ids."""
+
+        def _to_data_id(msg_id: MsgId | str) -> OtDataId:
+            return int(msg_id, 16)  # type: ignore[return-value]
+
+        def _to_msg_id(data_id: OtDataId | int) -> MsgId:
+            return f"{data_id:02X}"  # type: ignore[return-value]
+
         return {
-            f"0x{msg_id}": OPENTHERM_MESSAGES[int(msg_id, 16)].get("en")  # type: ignore[misc]
+            f"0x{msg_id}": OPENTHERM_MESSAGES[_to_data_id(msg_id)].get("en")  # type: ignore[misc]
             for msg_id in sorted(self._msgz[Code._3220].get(RP, []))  # type: ignore[type-var]
             if (
                 self._is_not_deprecated_cmd(Code._3220, ctx=msg_id)
-                and int(msg_id, 16) in OPENTHERM_MESSAGES
+                and _to_data_id(msg_id) in OPENTHERM_MESSAGES
             )
         }
 

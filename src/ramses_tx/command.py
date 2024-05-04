@@ -43,6 +43,7 @@ from .helpers import (
     hex_from_double,
     hex_from_dtm,
     hex_from_dts,
+    hex_from_percent,
     hex_from_str,
     hex_from_temp,
     timestamp,
@@ -729,10 +730,10 @@ class Command(Frame):
         cls,
         ctl_id: DeviceIdT | str,
         *,
-        setpoint: float = 50.0,
-        overrun: int = 5,
-        differential: float = 1,
-        **kwargs: Any,
+        setpoint: float | None = 50.0,
+        overrun: int | None = 5,
+        differential: float | None = 1,
+        **kwargs: Any,  # only expect "dhw_idx"
     ) -> Command:
         """Constructor to set the params of the DHW (c.f. parser_10a0)."""
         # Defaults for newer evohome colour:
@@ -859,12 +860,12 @@ class Command(Frame):
 
     @classmethod  # constructor for I|12A0
     def put_indoor_humidity(
-        cls, dev_id: DeviceIdT | str, indoor_humidity: float
+        cls, dev_id: DeviceIdT | str, indoor_humidity: float | None
     ) -> Command:
         """Constructor to announce the current humidity of a sensor (12A0)."""
         # .I --- 37:039266 --:------ 37:039266 1298 003 000316
 
-        payload = f"00{int(indoor_humidity * 100):02X}"  # percent_to_hex
+        payload = "00" + hex_from_percent(indoor_humidity, high_res=False)
         return cls._from_attrs(I_, Code._12A0, payload, addr0=dev_id, addr2=dev_id)
 
     @classmethod  # constructor for RQ|12B0
@@ -1137,7 +1138,7 @@ class Command(Frame):
 
         return cls.from_attrs(W_, ctl_id, Code._2309, _check_idx(zone_idx))
 
-    @classmethod  # constructor for W|2309
+    @classmethod  # constructor for W|2309  # TODO: check if setpoint can be None
     def set_zone_setpoint(
         cls, ctl_id: DeviceIdT | str, zone_idx: _ZoneIdxT, setpoint: float
     ) -> Command:
@@ -1384,7 +1385,8 @@ class Command(Frame):
         payload = "00"
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
         payload += f"{actuator_countdown:04X}"
-        payload += f"{int(modulation_level * 200):02X}FF"  # percent_to_hex
+        payload += hex_from_percent(modulation_level)
+        payload += "FF"
         return cls._from_attrs(RP, Code._3EF1, payload, addr0=src_id, addr1=dst_id)
 
     @classmethod  # constructor for internal use only

@@ -81,6 +81,18 @@ async def test_systemx_from_log_file(dir_name: Path) -> None:
     assert_expected_set(gwy, expected)
     # sert shrink(gwy.schema) == shrink(schema)
 
+    for dev in gwy.devices:
+        _ = dev.schema
+        _ = dev.traits
+        _ = dev.params
+        _ = dev.status
+
+    for tcs in gwy.systems:
+        _ = tcs.schema
+        _ = tcs.traits
+        _ = tcs.params
+        _ = tcs.status
+
     await gwy.stop()
 
 

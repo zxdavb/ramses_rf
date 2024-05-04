@@ -13,7 +13,7 @@ from . import exceptions as exc
 from .command import Command
 from .frame import Frame
 from .logger import getLogger  # overridden logger.getLogger
-from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
+from .opentherm import PARAMS_DATA_IDS, SCHEMA_DATA_IDS, STATUS_DATA_IDS
 from .ramses import CODES_SCHEMA, SZ_LIFESPAN
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -192,11 +192,11 @@ def pkt_lifespan(pkt: Packet) -> td:  # import OtbGateway??
     if pkt.code == Code._3220:  # FIXME: 2.1 means we can miss two packets
         # if pkt.payload[4:6] in WRITE_MSG_IDS:  #  and Write-Data:  # TODO
         #     return _TD_SECS_003 * 2.1
-        if pkt.payload[4:6] in SCHEMA_MSG_IDS:
+        if pkt.payload[4:6] in SCHEMA_DATA_IDS:
             return _TD_MINS_360 * 2.1
-        if pkt.payload[4:6] in PARAMS_MSG_IDS:
+        if pkt.payload[4:6] in PARAMS_DATA_IDS:
             return _TD_MINS_060 * 2.1
-        if pkt.payload[4:6] in STATUS_MSG_IDS:
+        if pkt.payload[4:6] in STATUS_DATA_IDS:
             return _TD_MINS_005 * 2.1
         return _TD_MINS_005 * 2.1
 

@@ -66,7 +66,7 @@ HVAC_DEV_CLASS_BY_SLUG = {
 def best_dev_role(
     dev_addr: Address,
     *,
-    msg: Message = None,
+    msg: Message | None = None,
     eavesdrop: bool = False,
     **schema: Any,
 ) -> type[Device]:
@@ -79,16 +79,17 @@ def best_dev_role(
     The generic HVAC class can be promoted later on, when more information is available.
     """
 
-    cls: None | type[Device] = None
-    slug: None | str = None
+    cls: type[Device]
+    slug: str
 
     try:  # convert (say) 'dhw_sensor' to DHW
-        slug = DEV_TYPE_MAP.slug(schema.get(SZ_CLASS))  # FIXME: broken
+        slug = DEV_TYPE_MAP.slug(schema.get(SZ_CLASS))  # type: ignore[arg-type]
     except KeyError:
         slug = schema.get(SZ_CLASS)
 
     # a specified device class always takes precidence (even if it is wrong)...
-    if cls := _CLASS_BY_SLUG.get(slug):
+    if slug in _CLASS_BY_SLUG:
+        cls = _CLASS_BY_SLUG[slug]
         _LOGGER.debug(
             f"Using an explicitly-defined class for: {dev_addr!r} ({cls._SLUG})"
         )
@@ -96,7 +97,7 @@ def best_dev_role(
 
     if dev_addr.type == DEV_TYPE_MAP.HGI:
         _LOGGER.debug(f"Using the default class for: {dev_addr!r} ({HgiGateway._SLUG})")
-        return HgiGateway  # type: ignore[return-value]
+        return HgiGateway
 
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
         if cls := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):

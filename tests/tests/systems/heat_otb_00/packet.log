@@ -2,9 +2,9 @@
 # WIP.: 2401, 3221, 3223                         (are variable payloads)
 # TODO: 0150, 1098, 10B0, 1FD0, 2400, 2410, 2420 (appear fixed payloads?)
 
-# SCHEMA_MSG_IDS not in OT_TO_RAMSES: 03, 06, 71-2, 74-B, 7D, 7F
-# PARAMS_MSG_IDS not in OT_TO_RAMSES: 0F, 30-1
-# STATUS_MSG_IDS not in OT_TO_RAMSES: 00, 05, 73
+# SCHEMA_DATA_IDS not in OT_TO_RAMSES: 03, 06, 71-2, 74-B, 7D, 7F
+# PARAMS_DATA_IDS not in OT_TO_RAMSES: 0F, 30-1
+# STATUS_DATA_IDS not in OT_TO_RAMSES: 00, 05, 73
 
 2022-09-08T13:40:52.447364 ... RP --- 10:048122 18:006402 --:------ 2401 004 00000100               # {'_value_2': 1, '_flags_2': [0, 0, 0, 0, 0, 0, 0, 1], 'heat_demand': 0.0}
 2022-09-08T13:40:53.403687 ... RP --- 10:048122 18:006402 --:------ 3221 002 0000                   # {'_payload': '0000', 'value': 0}

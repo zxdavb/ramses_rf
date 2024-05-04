@@ -48,6 +48,10 @@ class GatewayStub:
     _include: dict[str] = {}
     _zzz = None
 
+    def _add_device(self, dev: Fakeable) -> None:
+        self.device_by_id[dev.id] = dev
+        self.devices.append(dev)
+
 
 # ### FIXTURES ########################################################################
 

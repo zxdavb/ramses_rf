@@ -147,7 +147,6 @@
   module = "ramses_rf.device.*"
 
   disable_error_code = [
-    "arg-type",  #        # 22
     "assignment",  #      # 16
     "attr-defined",  #    #  9
     "return-value",  #    # 60
@@ -171,7 +170,6 @@
   module = "ramses_rf.system.zones"
 
   disable_error_code = [
-    "arg-type",  #        #
     "assignment",  #      #  9
     "no-any-return",  #   #  9
     "override",  #        #

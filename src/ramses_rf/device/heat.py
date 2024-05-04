@@ -27,16 +27,16 @@ from ramses_rf.const import (
     ZON_ROLE_MAP,
     DevType,
 )
-from ramses_rf.entity_base import Entity, Parent, class_by_attr
+from ramses_rf.entity_base import Child, Entity, Parent, class_by_attr
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
 from ramses_tx.address import NON_DEV_ADDR
 from ramses_tx.command import Command, Priority
 from ramses_tx.const import SZ_NUM_REPEATS, SZ_PRIORITY, MsgId
 from ramses_tx.opentherm import (
-    PARAMS_MSG_IDS,
-    SCHEMA_MSG_IDS,
-    STATUS_MSG_IDS,
+    PARAMS_DATA_IDS,
+    SCHEMA_DATA_IDS,
+    STATUS_DATA_IDS,
     SZ_MSG_ID,
     SZ_MSG_NAME,
     SZ_MSG_TYPE,
@@ -103,6 +103,7 @@ from ramses_tx.const import (
 if TYPE_CHECKING:
     from ramses_rf.system import Evohome, Zone
     from ramses_tx import Address, Message, Packet
+    from ramses_tx.opentherm import OtDataId
 
 
 QOS_LOW = {SZ_PRIORITY: Priority.LOW}  # FIXME:  deprecate QoS in kwargs
@@ -506,7 +507,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         schema = {}  # shrink(SCH_CCT(schema))
 
-        cct: UfhCircuit = self.child_by_id.get(cct_idx)
+        cct = self.child_by_id.get(cct_idx)
         if not cct:
             cct = UfhCircuit(self, cct_idx)
             self.child_by_id[cct_idx] = cct
@@ -625,6 +626,10 @@ class OutSensor(Weather, Fakeable):  # OUT: 17
     #     return await super()._initiate_binding_process(...)
 
 
+def _to_msg_id(data_id: OtDataId) -> MsgId:
+    return f"{data_id:02X}"
+
+
 # NOTE: config.use_native_ot should enforces sends, but not reads from _msgz DB
 class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
@@ -690,18 +695,18 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
                 Command.from_attrs(RQ, self.id, Code._2401, "00"), 60
             )
 
-        for _msg_id in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
-            if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
+        for data_id in SCHEMA_DATA_IDS:  # From OT v2.2: version numbers
+            if cmd := which_cmd(self._gwy.config.use_native_ot, _to_msg_id(data_id)):
                 self._add_discovery_cmd(cmd, 6 * 3600, delay=180)
 
-        for _msg_id in PARAMS_MSG_IDS:  # params or L/T state
-            if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
+        for data_id in PARAMS_DATA_IDS:  # params or L/T state
+            if cmd := which_cmd(self._gwy.config.use_native_ot, _to_msg_id(data_id)):
                 self._add_discovery_cmd(cmd, 3600, delay=90)
 
-        for _msg_id in STATUS_MSG_IDS:  # except "00", see above
-            if _msg_id == 0x00:
+        for data_id in STATUS_DATA_IDS:  # except "00", see above
+            if data_id == 0x00:
                 continue
-            if cmd := which_cmd(self._gwy.config.use_native_ot, f"{_msg_id:02X}"):
+            if cmd := which_cmd(self._gwy.config.use_native_ot, _to_msg_id(data_id)):
                 self._add_discovery_cmd(cmd, 300, delay=15)
 
         if False and DEV_MODE:  # TODO: these are WIP, but do vary in payload
@@ -749,8 +754,8 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             return
 
         # msg_id is int in msg payload/opentherm.py, but MsgId (str) is in this module
-        msg_id: int = msg.payload[SZ_MSG_ID]
-        self._msgs_ot[f"{msg_id:02X}"] = msg  # type: ignore[index]
+        msg_id = _to_msg_id(msg.payload[SZ_MSG_ID])
+        self._msgs_ot[msg_id] = msg
 
         if not _DBG_ENABLE_DEPRECATION:  # FIXME: data gaps
             return
@@ -1035,7 +1040,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result: dict[str, Any] = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(k) and k in SCHEMA_MSG_IDS
+            if self._supported_cmds_ctx.get(k) and k in SCHEMA_DATA_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1062,7 +1067,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(k) and k in PARAMS_MSG_IDS
+            if self._supported_cmds_ctx.get(k) and k in PARAMS_DATA_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1071,21 +1076,21 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
     @property
     def opentherm_status(self) -> dict[str, Any]:  # F8_8, U16 (only OEM_CODE) or bool
-        return {  # most these are in: STATUS_MSG_IDS
+        return {  # most these are in: STATUS_DATA_IDS
             SZ_BOILER_OUTPUT_TEMP: self._ot_msg_value(MsgId._19),
             SZ_BOILER_RETURN_TEMP: self._ot_msg_value(MsgId._1C),
             SZ_BOILER_SETPOINT: self._ot_msg_value(MsgId._01),
-            # SZ_CH_MAX_SETPOINT: self._ot_msg_value(MsgId._39),  # in PARAMS_MSG_IDS
+            # SZ_CH_MAX_SETPOINT: self._ot_msg_value(MsgId._39),  # in PARAMS_DATA_IDS
             SZ_CH_WATER_PRESSURE: self._ot_msg_value(MsgId._12),
             SZ_DHW_FLOW_RATE: self._ot_msg_value(MsgId._13),
-            # SZ_DHW_SETPOINT: self._ot_msg_value(MsgId._38),  # in PARAMS_MSG_IDS
+            # SZ_DHW_SETPOINT: self._ot_msg_value(MsgId._38),  # in PARAMS_DATA_IDS
             SZ_DHW_TEMP: self._ot_msg_value(MsgId._1A),
             SZ_OEM_CODE: self._ot_msg_value(MsgId._73),
             SZ_OUTSIDE_TEMP: self._ot_msg_value(MsgId._1B),
             SZ_REL_MODULATION_LEVEL: self._ot_msg_value(MsgId._11),
             #
-            # SZ...: self._ot_msg_value(MsgId._05),  # in STATUS_MSG_IDS
-            # SZ...: self._ot_msg_value(MsgId._18),  # in STATUS_MSG_IDS
+            # SZ...: self._ot_msg_value(MsgId._05),  # in STATUS_DATA_IDS
+            # SZ...: self._ot_msg_value(MsgId._18),  # in STATUS_DATA_IDS
             #
             SZ_CH_ACTIVE: self._ot_msg_flag(MsgId._00, 8 + 1),
             SZ_CH_ENABLED: self._ot_msg_flag(MsgId._00, 0),
@@ -1378,7 +1383,7 @@ class JstDevice(RelayDemand):  # BDR (31):
     _STATE_ATTR = None
 
 
-class UfhCircuit(Entity):  # FIXME
+class UfhCircuit(Child, Entity):  # FIXME
     """The UFH circuit class (UFC:circuit is much like CTL/TCS:zone).
 
     NOTE: for circuits, there's a difference between :

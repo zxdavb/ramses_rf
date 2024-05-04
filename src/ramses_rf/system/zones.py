@@ -50,14 +50,15 @@ from ramses_rf.schemas import (
     SZ_SENSOR,
 )
 from ramses_tx import Address, Command, Message, Priority
-from ramses_tx.schemas import DeviceIdT
 
 from .schedule import Schedule
 
 if TYPE_CHECKING:
     from ramses_tx import Packet
+    from ramses_tx.schemas import DeviceIdT, DevIndexT
 
     from .heat import Evohome, _MultiZoneT, _StoredHwT
+
 
 # Kudos & many thanks to:
 # - @dbmandrake: valve_position -> heat_demand transform
@@ -94,7 +95,7 @@ class ZoneBase(Child, Parent, Entity):
 
         # FIXME: ZZZ entities must know their parent device ID and their own idx
         self._z_id = tcs.id  # the responsible device is the controller
-        self._z_idx = zone_idx  # the zone idx (ctx), 00-0B (or 0F), and HW (FA)
+        self._z_idx: DevIndexT = zone_idx  # the zone idx (ctx), 00-0B (or 0F), HW (FA)
 
         self.id: str = f"{tcs.id}_{zone_idx}"  # type: ignore[assignment]
 
@@ -159,7 +160,7 @@ class ZoneSchedule(ZoneBase):  # 0404
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self._schedule = Schedule(self)  # ? add to discovery
+        self._schedule = Schedule(self)  # type: ignore[arg-type]
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -172,7 +173,7 @@ class ZoneSchedule(ZoneBase):  # 0404
         return self.schedule
 
     async def set_schedule(self, schedule: dict[str, Any]) -> dict[str, Any] | None:
-        await self._schedule.set_schedule(schedule)
+        await self._schedule.set_schedule(schedule)  # type: ignore[arg-type]
         return self.schedule
 
     @property
@@ -483,7 +484,7 @@ class Zone(ZoneSchedule):
         self.actuators: list[Device] = []
         self.actuator_by_id: dict[DeviceIdT, Device] = {}
 
-    def _update_schema(self, *, append_actuators: bool = True, **schema: Any) -> None:
+    def _update_schema(self, **schema: Any) -> None:
         """Update a heating zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -577,7 +578,7 @@ class Zone(ZoneSchedule):
             return
 
         if [t for t in self._discovery_cmds if t[-2:] in ZON_ROLE_MAP.HEAT_ZONES] and (
-            self._discovery_cmds.pop(f"{self.idx}{ZON_ROLE_MAP.ACT}", None)
+            self._discovery_cmds.pop(f"{self.idx}{ZON_ROLE_MAP.ACT}", [])
         ):
             _LOGGER.warning(f"cmd({cmd}): inferior header removed from discovery")
 
@@ -787,12 +788,15 @@ class Zone(ZoneSchedule):
     ) -> asyncio.Task[Packet]:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
 
-        if mode is None and until is None:  # Hometronics doesn't support 2349
-            cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
-        else:
+        if mode is not None or until is not None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_mode(
                 self.ctl.id, self.idx, mode=mode, setpoint=setpoint, until=until
             )
+        elif setpoint is not None:  # unsure if Hometronics supports setpoint of None
+            cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
+        else:
+            raise ValueError("Invalid mode/setpoint")
+
         return self._gwy.send_cmd(cmd, priority=Priority.HIGH)
 
     def set_name(self, name: str) -> asyncio.Task[Packet]:

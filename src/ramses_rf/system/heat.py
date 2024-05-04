@@ -112,7 +112,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     _SLUG: str = None  # type: ignore[assignment]
 
-    def __init__(self, ctl: Device) -> None:
+    def __init__(self, ctl: Controller) -> None:
         _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl.id, self.__class__)
 
         if ctl.id in ctl._gwy.system_by_id:
@@ -226,7 +226,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             eavesdrop_appliance_control(msg)
 
     @property
-    def appliance_control(self) -> Device:
+    def appliance_control(self) -> BdrSwitch | OtbGateway | None:
         """The TCS relay, aka 'appliance control' (BDR or OTB)."""
         if self._app_cntrl:
             return self._app_cntrl
@@ -945,7 +945,7 @@ class UfHeating(SystemBase):
 class System(StoredHw, Datetime, Logbook, SystemBase):
     """The Temperature Control System class."""
 
-    _SLUG: str = SYS_KLASS.PRG
+    _SLUG: str = SYS_KLASS.SYS
 
     def __init__(self, ctl: Controller, **kwargs: Any) -> None:
         super().__init__(ctl, **kwargs)
@@ -953,6 +953,38 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         self._heat_demands: dict[str, Any] = {}
         self._relay_demands: dict[str, Any] = {}
         self._relay_failsafes: dict[str, Any] = {}
+
+    def _update_schema(self, **schema: Any) -> None:
+        """Update a CH/DHW system with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        _schema: dict[str, Any]
+        schema = shrink(SCH_TCS(schema))
+
+        if schema.get(SZ_SYSTEM) and (
+            dev_id := schema[SZ_SYSTEM].get(SZ_APPLIANCE_CONTROL)
+        ):
+            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
+
+        if _schema := (schema.get(SZ_DHW_SYSTEM)):  # type: ignore[assignment]
+            self.get_dhw_zone(**_schema)  # self._dhw = ...
+
+        if _schema := (schema.get(SZ_ZONES)):  # type: ignore[assignment]
+            [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
+
+    @classmethod
+    def create_from_schema(cls, ctl: Controller, **schema: Any) -> Evohome:
+        """Create a CH/DHW system for a CTL and set its schema attrs.
+
+        The appropriate System class should have been determined by a factory.
+        Schema attrs include: class (klass) & others.
+        """
+
+        tcs = cls(ctl)
+        tcs._update_schema(**schema)
+        return tcs
 
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
@@ -1013,43 +1045,9 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
 
 
 class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
-    """The Evohome system - some controllers are evohome-compatible."""
+    _SLUG: str = SYS_KLASS.TCS  # evohome
 
     # older evohome don't have zone_type=ELE
-
-    _SLUG: str = SYS_KLASS.TCS  # "evohome"
-
-    def _update_schema(self, **schema: Any) -> None:
-        """Update a CH/DHW system with new schema attrs.
-
-        Raise an exception if the new schema is not a superset of the existing schema.
-        """
-
-        _schema: dict[str, Any]
-        schema = shrink(SCH_TCS(schema))
-
-        if schema.get(SZ_SYSTEM) and (
-            dev_id := schema[SZ_SYSTEM].get(SZ_APPLIANCE_CONTROL)
-        ):
-            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
-
-        if _schema := (schema.get(SZ_DHW_SYSTEM)):  # type: ignore[assignment]
-            self.get_dhw_zone(**_schema)  # self._dhw = ...
-
-        if _schema := (schema.get(SZ_ZONES)):  # type: ignore[assignment]
-            [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
-
-    @classmethod
-    def create_from_schema(cls, ctl: Controller, **schema: Any) -> Evohome:
-        """Create a CH/DHW system for a CTL and set its schema attrs.
-
-        The appropriate System class should have been determined by a factory.
-        Schema attrs include: class (klass) & others.
-        """
-
-        tcs = cls(ctl)
-        tcs._update_schema(**schema)
-        return tcs
 
 
 class Chronotherm(Evohome):
@@ -1057,6 +1055,8 @@ class Chronotherm(Evohome):
 
 
 class Hometronics(System):
+    _SLUG: str = SYS_KLASS.SYS
+
     # These are only ever been seen from a Hometronics controller
     # .I --- 01:023389 --:------ 01:023389 2D49 003 00C800
     # .I --- 01:023389 --:------ 01:023389 2D49 003 01C800
@@ -1064,8 +1064,6 @@ class Hometronics(System):
     # .I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
 
     # Hometronic does not react to W/2349 but rather requies W/2309
-
-    _SLUG: str = SYS_KLASS.SYS
 
     #
     # def _setup_discovery_cmds(self) -> None:
@@ -1092,7 +1090,7 @@ SYS_CLASS_BY_SLUG: dict[str, type[System]] = class_by_attr(__name__, "_SLUG")
 
 def system_factory(
     ctl: Controller, *, msg: Message | None = None, **schema: Any
-) -> type[_SystemT]:
+) -> System:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
@@ -1101,7 +1099,7 @@ def system_factory(
         msg: Message | None = None,
         eavesdrop: bool = False,
         **schema: Any,
-    ) -> type[_SystemT]:
+    ) -> type[System]:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         klass: str = schema.get(SZ_CLASS)
@@ -1114,7 +1112,7 @@ def system_factory(
             return cls
 
         # otherwise, use the default system class...
-        _LOGGER.debug(f"Using a generic system class for: {ctl_addr} ({Evohome._SLUG})")
+        _LOGGER.debug(f"Using a generic system class for: {ctl_addr} ({Device._SLUG})")
         return Evohome
 
     return best_tcs_class(

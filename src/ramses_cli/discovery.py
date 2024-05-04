@@ -16,7 +16,7 @@ from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.device import Fakeable
 from ramses_tx import CODES_SCHEMA, Command, Priority
 from ramses_tx.address import DeviceIdT
-from ramses_tx.opentherm import OTB_MSG_IDS
+from ramses_tx.opentherm import OTB_DATA_IDS
 
 # Beware, none of this is reliable - it is all subject to random change
 # However, these serve as examples how to use the other modules
@@ -328,7 +328,7 @@ async def script_scan_fan(gwy: Gateway, dev_id: DeviceIdT) -> None:
 async def script_scan_otb(gwy: Gateway, dev_id: DeviceIdT) -> None:
     _LOGGER.warning("script_scan_otb_full invoked - expect a lot of nonsense")
 
-    for msg_id in OTB_MSG_IDS:
+    for msg_id in OTB_DATA_IDS:
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id))
 
 

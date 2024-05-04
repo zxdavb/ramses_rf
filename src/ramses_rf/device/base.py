@@ -60,16 +60,6 @@ class DeviceBase(Entity):
     _bind_context: BindContext | None = None
 
     def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
-        _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
-        # super().__init__(gwy)  # NOTE: is invoked lower down
-
-        # if not check_valid(dev_addr.id):  # TODO
-        #     raise ValueError(f"Invalid device id: {dev_addr.id}")
-        if dev_addr.id in gwy.device_by_id:
-            raise LookupError(f"Duplicate DEV: {dev_addr.id}")
-        gwy.device_by_id[dev_addr.id] = self
-        gwy.devices.append(self)
-
         super().__init__(gwy)
 
         # FIXME: ZZZ entities must know their parent device ID and their own idx
@@ -367,7 +357,7 @@ class Fakeable(DeviceBase):
 
     async def _initiate_binding_process(
         self,
-        offer_codes: Iterable[Code],
+        offer_codes: Code | Iterable[Code],
         /,
         *,
         confirm_code: Code | None = None,
@@ -379,8 +369,13 @@ class Fakeable(DeviceBase):
         if not self._bind_context:
             raise TypeError(f"{self}: Faking not enabled")
 
+        if isinstance(offer_codes, Iterable):
+            codes: tuple[Code] = offer_codes
+        else:
+            codes = tuple([offer_codes])
+
         msgs = await self._bind_context.initiate_binding_process(
-            offer_codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
+            codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
         )  # TODO: if successul, re-discover schema?
         return msgs
 
@@ -396,7 +391,17 @@ class Fakeable(DeviceBase):
         return self.traits.get(SZ_OEM_CODE)
 
 
-class HgiGateway(DeviceInfo):  # HGI (18:)
+class Device(Child, DeviceBase):
+    """The base class for all devices."""
+
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
+        _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
+        super().__init__(gwy, dev_addr)
+
+        gwy._add_device(self)
+
+
+class HgiGateway(Device):  # HGI (18:)
     """The HGI80 base class."""
 
     _SLUG: str = DevType.HGI
@@ -413,12 +418,8 @@ class HgiGateway(DeviceInfo):  # HGI (18:)
         return {}
 
 
-class Device(Child, DeviceBase):
-    pass
-
-
-class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
-    """The base class for Honeywell CH/DHW-compatible devices.
+class DeviceHeat(Device):  # Heat domain: Honeywell CH/DHW or compatible
+    """The base class for the heat domain (Honeywell CH/DHW-compatible devices).
 
     Includes UFH and heatpumps (which can also cool).
     """
@@ -480,13 +481,13 @@ class DeviceHeat(Device):  # Honeywell CH/DHW or compatible
         return self._parent
 
 
-class DeviceHvac(Device):  # HVAC (ventilation, PIV, MV/HR)
-    """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
+class DeviceHvac(Device):  # HVAC domain: ventilation, PIV, MV/HR
+    """The Device base class for the HVAC domain (ventilation, PIV, MV/HR)."""
 
     _SLUG: str = DevType.HVC  # these may be instantiated, and promoted later on
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
+        super().__init__(gwy, dev_addr, **kwargs)
 
         self._child_id = "hv"  # TODO: domain_id/deprecate
 

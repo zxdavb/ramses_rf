@@ -5,10 +5,7 @@
 # - sort out reduced processing
 
 
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-The serial to RF gateway (HGI80, not RFG100).
-"""
+"""RAMSES RF -the gateway (i.e. HGI80 / evofw3, not RFG100)."""
 
 from __future__ import annotations
 
@@ -135,8 +132,9 @@ class Gateway(Engine):
         # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
         # if self.config.reduce_processing > 0:
         self._tcs: Evohome | None = None
+
         self.devices: list[Device] = []
-        self.device_by_id: dict[str, Device] = {}
+        self.device_by_id: dict[DeviceIdT, Device] = {}
 
         self._zzz: MessageIndex | None = None  # MessageIndex()
 
@@ -319,6 +317,15 @@ class Gateway(Engine):
 
         _LOGGER.warning("GATEWAY: Restored, resuming")
         self._resume()
+
+    def _add_device(self, dev: Device) -> None:
+        """Add a device to the gateway (called by devices during instantiation)."""
+
+        if dev.id in self.device_by_id:
+            raise LookupError(f"Device already exists: {dev.id}")
+
+        self.devices.append(dev)
+        self.device_by_id[dev.id] = dev
 
     def get_device(
         self,

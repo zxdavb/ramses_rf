@@ -12,6 +12,7 @@ from ramses_tx.helpers import (
     hex_from_dtm,
     hex_from_dts,
     hex_from_flag8,
+    hex_from_percent,
     # hex_from_str,
     hex_from_temp,
     hex_to_bool,
@@ -20,7 +21,7 @@ from ramses_tx.helpers import (
     hex_to_dtm,
     hex_to_dts,
     hex_to_flag8,
-    # hex_to_percent,
+    hex_to_percent,
     # hex_to_str,
     hex_to_temp,
 )
@@ -64,6 +65,9 @@ def test_helper_field_parsers() -> None:
 
     for tmp in (None, False, -127.99, -100, -22.5, -1.53, 0, 1.53, 22.5, 100, 127.98):
         assert tmp == hex_to_temp(hex_from_temp(tmp))
+
+    for cent in (None, 0, 0.05, 0.1, 0.5, 0.95, 1.0):
+        assert cent == hex_to_percent(hex_from_percent(cent))
 
 
 def _test_pkt_dev_class() -> None:
