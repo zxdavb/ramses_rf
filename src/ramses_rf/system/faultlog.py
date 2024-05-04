@@ -275,7 +275,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def latest_event(self) -> FaultLogEntry | None:
         """Return the most recently logged event (fault or restore), if any."""
 
-        if not self._log:
+        if not self._log:  # TODO; raise exception or retrive log (make function)?
             return None
 
         return self._log[max(k for k in self._log.keys())]
@@ -284,7 +284,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def latest_fault(self) -> FaultLogEntry | None:
         """Return the most recently logged fault, if any."""
 
-        if not self._log:
+        if not self._log:  # TODO; raise exception or retrive log (make function)?
             return None
 
         return self._log[
@@ -295,7 +295,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def active_faults(self) -> tuple[FaultLogEntry, ...] | None:
         """Return a list of all faults outstanding (i.e. no corresponding restore)."""
 
-        if not self._log:  # None is a sentinel value for 'don't know'
+        if not self._log:  # TODO; raise exception or retrive log (make function)?
             return None
 
         restores = {}
