@@ -59,6 +59,12 @@ class _1090(TypedDict):
     temperature_1: float | None
 
 
+class _10a0(TypedDict):
+    setpoint: _HexToTempT | None
+    overrun: NotRequired[int]
+    differential: NotRequired[_HexToTempT]
+
+
 class _10d0(TypedDict):
     days_remaining: int | None
     days_lifetime: NotRequired[int | None]
@@ -253,6 +259,7 @@ class PayDictT:
     _1060: TypeAlias = _1060
     _1081: TypeAlias = _Setpoint
     _1090: TypeAlias = _1090
+    _10A0: TypeAlias = _10a0
     _10D0: TypeAlias = _10d0
     _10E1: TypeAlias = _10e1
     _1100: TypeAlias = _1100

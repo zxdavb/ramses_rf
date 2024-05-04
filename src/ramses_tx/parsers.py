@@ -902,7 +902,7 @@ def parser_1098(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # dhw (cylinder) params  # FIXME: a bit messy
-def parser_10a0(payload: str, msg: Message) -> dict[str, Any]:
+def parser_10a0(payload: str, msg: Message) -> PayDictT._10A0 | PayDictT.EMPTY:
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4  # RQ/RP, every 24h
     # RP --- 01:145038 07:045960 --:------ 10A0 006 00-109A-00-03E8
     # RP --- 10:048122 18:006402 --:------ 10A0 003 00-1B58
@@ -931,7 +931,7 @@ def parser_10a0(payload: str, msg: Message) -> dict[str, Any]:
     assert msg.len in (1, 3, 6), msg.len  # OTB uses 3, evohome uses 6
     assert payload[:2] in ("00", "01"), payload[:2]  # can be two DHW valves/system
 
-    result: dict[str, Any] = {}
+    result: PayDictT._10A0 = {}  # type: ignore[typeddict-item]
     if msg.len >= 2:
         setpoint = hex_to_temp(payload[2:6])  # 255 for OTB? iff no DHW?
         result = {SZ_SETPOINT: None if setpoint == 255 else setpoint}  # 30.0-85.0 C

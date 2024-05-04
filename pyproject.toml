@@ -86,7 +86,6 @@
   exclude = [
     "src/ramses_cli/client.py",
     "src/ramses_cli/utils",
-    # "src/ramses_rf/device",
     "tests/deprecated",
     "tests/wip",
   ]
@@ -151,13 +150,8 @@
     "arg-type",  #        # 22
     "assignment",  #      # 16
     "attr-defined",  #    #  9
-    "call-overload",  #   #
-    "index",  #           #
-    "operator",  #        #
-    "override",  #        #
     "return-value",  #    # 60
     "type-arg",  #        # 18
-    "union-attr",  #      #
     "unreachable",  #     #
   ]
 #
@@ -167,11 +161,9 @@
   disable_error_code = [
     "assignment",  #      #  8
     "attr-defined",  #    #  2
-    "operator",  #        #
     "override",  #        #
     "return-value",  #    # 11
     "type-arg",  #        #  5
-    "union-attr",  #      #
     "unreachable",  #     #
   ]
 #
@@ -182,7 +174,6 @@
     "arg-type",  #        #
     "assignment",  #      #  9
     "no-any-return",  #   #  9
-    "operator",  #        #
     "override",  #        #
     "return-value",  #    #  5
     "type-arg",  #        #  5

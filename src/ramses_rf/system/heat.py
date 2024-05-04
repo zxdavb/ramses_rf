@@ -376,7 +376,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 return
 
             # TODO: use msgz/I, not RP
-            secs = self._msg_value(Code._1F09, key="remaining_seconds")
+            secs: int = self._msg_value(Code._1F09, key="remaining_seconds")
             if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
                 return  # can only compare against 30C9 pkt from the last cycle
 
@@ -497,8 +497,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         elif isinstance(msg.payload, list) and len(msg.payload):
             # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == FA:  # DHW
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
-                for zon in msg.payload:
-                    handle_msg_by_zone_idx(zon.get(SZ_ZONE_IDX), msg)
+                for z in msg.payload:
+                    handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg)
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if (  # TODO: edge case: 1 zone with CTL as SEN

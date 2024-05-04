@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Heating devices.
-"""
+"""RAMSES RF - devices from the CH/DHW (heat) domain."""
 
 from __future__ import annotations
 
@@ -47,6 +44,7 @@ from ramses_tx.opentherm import (
     OtMsgType,
 )
 from ramses_tx.ramses import CODES_OF_HEAT_DOMAIN_ONLY, CODES_ONLY_FROM_CTL
+from ramses_tx.typed_dicts import PayDictT
 
 from .base import BatteryState, DeviceHeat, Fakeable
 
@@ -508,7 +506,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         schema = {}  # shrink(SCH_CCT(schema))
 
-        cct = self.child_by_id.get(cct_idx)
+        cct: UfhCircuit = self.child_by_id.get(cct_idx)
         if not cct:
             cct = UfhCircuit(self, cct_idx)
             self.child_by_id[cct_idx] = cct
@@ -603,7 +601,7 @@ class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
         return await super()._initiate_binding_process(Code._1260)
 
     @property
-    def dhw_params(self) -> dict | None:  # 10A0
+    def dhw_params(self) -> PayDictT._10A0 | None:
         return self._msg_value(Code._10A0)
 
     @property
@@ -637,7 +635,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     _SLUG = DevType.OTB
     _STATE_ATTR = SZ_REL_MODULATION_LEVEL
 
-    OT_TO_RAMSES: dict[str, Code] = {  # TODO: move to opentherm.py
+    OT_TO_RAMSES: dict[MsgId, Code] = {  # TODO: move to opentherm.py
         MsgId._00: Code._3EF0,  # master/slave status (actuator_state)
         MsgId._01: Code._22D9,  # boiler_setpoint
         MsgId._0E: Code._3EF0,  # max_rel_modulation_level (is a PARAM?)
@@ -651,7 +649,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         MsgId._38: Code._10A0,  # dhw_setpoint (is a PARAM)
         MsgId._39: Code._1081,  # ch_max_setpoint (is a PARAM)
     }
-    RAMSES_TO_OT: dict[Code, str] = {
+    RAMSES_TO_OT: dict[Code, MsgId] = {
         v: k for k, v in OT_TO_RAMSES.items() if v != Code._3EF0
     }  # also 10A0?
 
@@ -660,10 +658,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
 
         self._child_id = FC  # NOTE: domain_id
 
-        self._msgz[str(Code._3220)] = {RP: {}}  # _msgz[Code._3220][RP][msg_id]
+        self._msgz[Code._3220] = {RP: {}}  # _msgz[Code._3220][RP][msg_id]
 
         # lf._use_ot = self._gwy.config.use_native_ot
-        self._msgs_ot: dict[str, Message] = {}
+        self._msgs_ot: dict[MsgId, Message] = {}
         # lf._msgs_ot_ctl_polled = {}
 
     def _setup_discovery_cmds(self) -> None:
@@ -750,8 +748,9 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if msg.payload.get(SZ_VALUE) is None:
             return
 
-        msg_id: int = msg.payload[SZ_MSG_ID]  # msg_id is int in payload/opentherm.py
-        self._msgs_ot[f"{msg_id:02X}"] = msg  # but is str is in this module
+        # msg_id is int in msg payload/opentherm.py, but MsgId (str) is in this module
+        msg_id: int = msg.payload[SZ_MSG_ID]
+        self._msgs_ot[f"{msg_id:02X}"] = msg  # type: ignore[index]
 
         if not _DBG_ENABLE_DEPRECATION:  # FIXME: data gaps
             return
@@ -761,7 +760,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             OtMsgType.UNKNOWN_DATAID,
             OtMsgType.RESERVED,  # but some are ?always reserved
         )
-        self.deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
+        self._deprecate_code_ctx(msg._pkt, ctx=msg_id, reset=reset)
 
     def _handle_code(self, msg: Message) -> None:
         """Handle non-3220-based messages."""
@@ -783,14 +782,13 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         if msg._pkt.payload[2:] == "7FFF" or (
             msg.code == Code._1300 and msg._pkt.payload[2:] == "09F6"
         ):  # latter is CH water pressure
-            self.deprecate_code_ctx(msg._pkt)
+            self._deprecate_code_ctx(msg._pkt)
         else:
-            self.deprecate_code_ctx(msg._pkt, reset=True)
+            self._deprecate_code_ctx(msg._pkt, reset=True)
 
     def _ot_msg_flag(self, msg_id: MsgId, flag_idx: int) -> bool | None:
-        if flags := self._ot_msg_value(msg_id):
-            return bool(flags[flag_idx])
-        return None
+        flags: list = self._ot_msg_value(msg_id)
+        return bool(flags[flag_idx]) if flags else None
 
     @staticmethod
     def _ot_msg_name(msg: Message) -> str:  # TODO: remove
@@ -1033,11 +1031,11 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         return self._result_by_value(self._ot_msg_flag(MsgId._00, 5), None)
 
     @property
-    def opentherm_schema(self) -> dict:
-        result = {
+    def opentherm_schema(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(int(k, 16)) and int(k, 16) in (3, 6, 127)
+            if self._supported_cmds_ctx.get(k) and k in SCHEMA_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1045,8 +1043,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def opentherm_counters(self) -> dict:
-        # for msg_id in ("71", "72", ...):
+    def opentherm_counters(self) -> dict[str, Any]:  # all are U16
         return {
             SZ_BURNER_HOURS: self._ot_msg_value(MsgId._78),
             SZ_BURNER_STARTS: self._ot_msg_value(MsgId._74),
@@ -1058,10 +1055,10 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             SZ_DHW_PUMP_HOURS: self._ot_msg_value(MsgId._7A),
             SZ_DHW_PUMP_STARTS: self._ot_msg_value(MsgId._76),
             SZ_FLAME_SIGNAL_LOW: self._ot_msg_value(MsgId._72),
-        }  # 0x73 is OEM diagnostic code...
+        }  # 0x73 is not a counter: is OEM diagnostic code...
 
     @property
-    def opentherm_params(self) -> dict:
+    def opentherm_params(self) -> dict[str, Any]:  # F8_8, U8, {"hb": S8, "lb": S8}
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
@@ -1073,7 +1070,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def opentherm_status(self) -> dict:
+    def opentherm_status(self) -> dict[str, Any]:  # F8_8, U16 (only OEM_CODE) or bool
         return {  # most these are in: STATUS_MSG_IDS
             SZ_BOILER_OUTPUT_TEMP: self._ot_msg_value(MsgId._19),
             SZ_BOILER_RETURN_TEMP: self._ot_msg_value(MsgId._1C),
@@ -1104,17 +1101,17 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
-    def ramses_schema(self) -> dict:
+    def ramses_schema(self) -> PayDictT.EMPTY:
         return {}
 
     @property
-    def ramses_params(self) -> dict:
+    def ramses_params(self) -> dict[str, float | None]:
         return {
             SZ_MAX_REL_MODULATION: self.max_rel_modulation,
         }
 
     @property
-    def ramses_status(self) -> dict:
+    def ramses_status(self) -> dict[str, Any]:
         return {
             SZ_BOILER_OUTPUT_TEMP: self._msg_value(Code._3200, key=SZ_TEMPERATURE),
             SZ_BOILER_RETURN_TEMP: self._msg_value(Code._3210, key=SZ_TEMPERATURE),
@@ -1319,7 +1316,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         return None
 
     @property
-    def tpi_params(self) -> dict | None:  # 1100
+    def tpi_params(self) -> PayDictT._10A0 | None:
         return self._msg_value(Code._1100)
 
     @property

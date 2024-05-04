@@ -182,11 +182,11 @@ class DeviceBase(Entity):
 
     @property
     def is_faked(self) -> bool:
-        return False
+        return bool(self._bind_context)
 
     @property
     def _is_binding(self) -> bool:
-        return False
+        return self._bind_context and self._bind_context.is_binding
 
     @property
     def _is_present(self) -> bool:
@@ -307,7 +307,7 @@ class Fakeable(DeviceBase):
             self._make_fake()
 
     def _make_fake(self) -> None:
-        if self.is_faked:
+        if self._bind_context:
             return
 
         self._bind_context = BindContext(self)
@@ -322,15 +322,19 @@ class Fakeable(DeviceBase):
     ) -> Packet | None:
         """Wrapper to CC: any relevant Commands to the binding Context."""
 
-        if self._is_binding:  # cmd.code in (Code._1FC9, Code._10E0)
+        if self._bind_context and self._bind_context.is_binding:
+            # cmd.code in (Code._1FC9, Code._10E0)
             self._bind_context.sent_cmd(cmd)  # other codes needed for edge cases
 
         return await super()._async_send_cmd(cmd, priority=priority, qos=qos)
 
     def _handle_msg(self, msg: Message) -> None:
         """Wrapper to CC: any relevant Packets to the binding Context."""
+
         super()._handle_msg(msg)
-        if self._is_binding:  # msg.code in (Code._1FC9, Code._10E0)
+
+        if self._bind_context and self._bind_context.is_binding:
+            # msg.code in (Code._1FC9, Code._10E0)
             self._bind_context.rcvd_msg(msg)  # maybe other codes needed for edge cases
 
     async def _wait_for_binding_request(
@@ -342,7 +346,8 @@ class Fakeable(DeviceBase):
         require_ratify: bool = False,
     ) -> tuple[Packet, Packet, Packet, Packet | None]:
         """Listen for a binding and return the Offer, or raise an exception."""
-        if not self.is_faked:
+
+        if not self._bind_context:
             raise TypeError(f"{self}: Faking not enabled")
 
         msgs = await self._bind_context.wait_for_binding_request(
@@ -368,11 +373,10 @@ class Fakeable(DeviceBase):
         confirm_code: Code | None = None,
         ratify_cmd: Command | None = None,
     ) -> tuple[Packet, Packet, Packet, Packet | None]:
-        """Start a binding and return the Accept, or raise an exception.
+        """Start a binding and return the Accept, or raise an exception."""
+        # confirm_code can be FFFF.
 
-        confirm_code can be FFFF.
-        """
-        if not self.is_faked:
+        if not self._bind_context:
             raise TypeError(f"{self}: Faking not enabled")
 
         msgs = await self._bind_context.initiate_binding_process(
@@ -382,14 +386,6 @@ class Fakeable(DeviceBase):
 
     async def initiate_binding_process(self) -> Packet:
         raise NotImplementedError
-
-    @property
-    def is_faked(self) -> bool:
-        return bool(self._bind_context)
-
-    @property
-    def _is_binding(self) -> bool:
-        return self.is_faked and self._bind_context.is_binding
 
     @property
     def oem_code(self) -> str | None:

@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-HVAC devices.
-"""
+"""RAMSES RF - devices from the HVAC domain."""
 
 from __future__ import annotations
 

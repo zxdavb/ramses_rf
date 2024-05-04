@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-Entity is the base of all RAMSES-II objects: devices and also system/zone constructs.
-"""
+"""RAMSES RF - Base class for all RAMSES-II objects: devices and constructs."""
 
 from __future__ import annotations
 
@@ -19,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Final
 from ramses_rf.helpers import schedule_task
 from ramses_tx import Priority, QosParams
 from ramses_tx.address import ALL_DEVICE_ID
+from ramses_tx.const import MsgId
 from ramses_tx.opentherm import OPENTHERM_MESSAGES
 from ramses_tx.ramses import CODES_SCHEMA
 
@@ -70,7 +68,7 @@ _SZ_INTERVAL: Final = "interval"
 _SZ_COMMAND: Final = "command"
 
 
-_DBG_ENABLE_BACKOFF = False
+_DBG_ENABLE_DISCOVERY_BACKOFF = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -434,7 +432,7 @@ class _Discovery(_MessageDB):
             gwy._loop.call_soon(self._start_discovery_poller)
 
     @property  # TODO: needs tidy up
-    def discovery_cmds(self) -> dict:
+    def discovery_cmds(self) -> dict[HeaderT, dict]:
         """Return the pollable commands."""
         if self._discovery_cmds is None:
             self._discovery_cmds = {}
@@ -442,28 +440,27 @@ class _Discovery(_MessageDB):
         return self._discovery_cmds
 
     @property
-    def supported_cmds(self) -> dict:
+    def supported_cmds(self) -> dict[Code, Any]:
         """Return the current list of pollable command codes."""
         return {
             code: (CODES_SCHEMA[code][SZ_NAME] if code in CODES_SCHEMA else None)
             for code in sorted(self._msgz)
-            if self._msgz[code].get(RP) and self.is_not_deprecated_cmd(code)
+            if self._msgz[code].get(RP) and self._is_not_deprecated_cmd(code)
         }
 
     @property
-    def supported_cmds_ot(self) -> dict:
+    def supported_cmds_ot(self) -> dict[MsgId, Any]:
         """Return the current list of pollable OT msg_ids."""
         return {
-            f"0x{msg_id}": OPENTHERM_MESSAGES[int(msg_id, 16)].get("en")
+            f"0x{msg_id}": OPENTHERM_MESSAGES[int(msg_id, 16)].get("en")  # type: ignore[misc]
             for msg_id in sorted(self._msgz[Code._3220].get(RP, []))  # type: ignore[type-var]
             if (
-                self.is_not_deprecated_cmd(Code._3220, ctx=msg_id)
+                self._is_not_deprecated_cmd(Code._3220, ctx=msg_id)
                 and int(msg_id, 16) in OPENTHERM_MESSAGES
             )
         }
 
-    # TODO: should be a private method
-    def is_not_deprecated_cmd(self, code: Code, ctx: str | None = None) -> bool:
+    def _is_not_deprecated_cmd(self, code: Code, ctx: str | None = None) -> bool:
         """Return True if the code|ctx pair is not deprecated."""
 
         if ctx is None:
@@ -563,7 +560,7 @@ class _Discovery(_MessageDB):
         def backoff(hdr: HeaderT, failures: int) -> td:
             """Backoff the interval if there are/were any failures."""
 
-            if not _DBG_ENABLE_BACKOFF:  # FIXME: data gaps
+            if not _DBG_ENABLE_DISCOVERY_BACKOFF:  # FIXME: data gaps
                 return self.discovery_cmds[hdr][_SZ_INTERVAL]  # type: ignore[no-any-return]
 
             if failures > 5:
@@ -626,9 +623,9 @@ class _Discovery(_MessageDB):
             # since we may do I/O, check if the code|msg_id is deprecated
             task[_SZ_NEXT_DUE] = dt_now + task[_SZ_INTERVAL]  # might undeprecate later
 
-            if not self.is_not_deprecated_cmd(task[_SZ_COMMAND].code):
+            if not self._is_not_deprecated_cmd(task[_SZ_COMMAND].code):
                 continue
-            if not self.is_not_deprecated_cmd(
+            if not self._is_not_deprecated_cmd(
                 task[_SZ_COMMAND].code, ctx=task[_SZ_COMMAND].payload[4:6]
             ):  # only for Code._3220
                 continue
@@ -645,8 +642,7 @@ class _Discovery(_MessageDB):
                 task[_SZ_LAST_PKT] = None
                 task[_SZ_NEXT_DUE] = dt_now + backoff(hdr, task[_SZ_FAILURES])
 
-    # TODO: should be a private method
-    def deprecate_code_ctx(
+    def _deprecate_code_ctx(
         self, pkt: Packet, ctx: str = None, reset: bool = False
     ) -> None:
         """If a code|ctx is deprecated twice, stop polling for it."""
@@ -661,8 +657,8 @@ class _Discovery(_MessageDB):
                 )
                 supported_dict[idx] = False
 
-        def reinstate(supported_dict: dict, idx: str) -> None:
-            if self.is_not_deprecated_cmd(idx, None) is False:
+        def reinstate(supported_dict: dict[str, bool | None], idx: str) -> None:
+            if self._is_not_deprecated_cmd(idx, None) is False:
                 _LOGGER.info(
                     f"{pkt} < Polling now reinstated for code|ctx={idx}: "
                     "it now appears supported"
@@ -671,13 +667,13 @@ class _Discovery(_MessageDB):
                 supported_dict.pop(idx)
 
         if ctx is None:
-            supported_dict = self._supported_cmds
-            idx = pkt.code
+            supported_cmds = self._supported_cmds
+            idx: str = pkt.code
         else:
-            supported_dict = self._supported_cmds_ctx
-            idx = f"{pkt.code}|{ctx}"  # type: ignore[assignment]
+            supported_cmds = self._supported_cmds_ctx
+            idx = f"{pkt.code}|{ctx}"
 
-        (reinstate if reset else deprecate)(supported_dict, idx)
+        (reinstate if reset else deprecate)(supported_cmds, idx)
 
 
 class Entity(_Discovery):
