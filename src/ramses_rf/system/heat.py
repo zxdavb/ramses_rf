@@ -713,7 +713,7 @@ class Logbook(SystemBase):  # 0418
         start: int = 0,
         limit: int | None = None,
         force_refresh: bool = False,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         try:
             return await self._faultlog.get_faultlog(
                 start=start, limit=limit, force_refresh=force_refresh
@@ -863,7 +863,7 @@ class SysMode(SystemBase):  # 2E04
         self._add_discovery_cmd(cmd, 60 * 5, delay=5)
 
     @property
-    def system_mode(self) -> dict | None:  # 2E04
+    def system_mode(self) -> dict[str, Any] | None:  # 2E04
         return self._msg_value(Code._2E04)
 
     def set_mode(
@@ -1016,24 +1016,24 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
                 assert False, f"Unexpected code with a domain_id: {msg.code}"
 
     @property
-    def heat_demands(self) -> dict | None:  # 3150
+    def heat_demands(self) -> dict[str, Any] | None:  # 3150
         # FC: 00-C8 (no F9, FA), TODO: deprecate as FC only?
         if not self._heat_demands:
             return None
         return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
-    def relay_demands(self) -> dict | None:  # 0008
+    def relay_demands(self) -> dict[str, Any] | None:  # 0008
         # FC: 00-C8, F9: 00-C8, FA: 00 or C8 only (01: all 3, 02: FC/FA only)
         if not self._relay_demands:
             return None
         return {k: v.payload["relay_demand"] for k, v in self._relay_demands.items()}
 
     @property
-    def relay_failsafes(self) -> dict | None:  # 0009
+    def relay_failsafes(self) -> dict[str, Any] | None:  # 0009
         if not self._relay_failsafes:
             return None
-        return {}  # TODO: failsafe_enabled
+        return {}  # FIXME: failsafe_enabled
 
     @property
     def status(self) -> dict[str, Any]:
