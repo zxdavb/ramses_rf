@@ -275,19 +275,28 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def latest_event(self) -> FaultLogEntry | None:
         """Return the most recently logged event (fault or restore), if any."""
 
+        if not self._log:
+            return None
+
         return self._log[max(k for k in self._log.keys())]
 
     @property
     def latest_fault(self) -> FaultLogEntry | None:
         """Return the most recently logged fault, if any."""
 
+        if not self._log:
+            return None
+
         return self._log[
             max(k for k, v in self._log.items() if v.fault_state == FaultState.FAULT)
         ]
 
     @property
-    def active_faults(self) -> tuple[FaultLogEntry, ...]:
+    def active_faults(self) -> tuple[FaultLogEntry, ...] | None:
         """Return a list of all faults outstanding (i.e. no corresponding restore)."""
+
+        if not self._log:  # None is a sentinel value for 'don't know'
+            return None
 
         restores = {}
         faults = {}
