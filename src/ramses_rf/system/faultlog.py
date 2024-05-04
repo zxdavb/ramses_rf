@@ -292,9 +292,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         if not faults:
             return None
 
-        return self._log[
-            max(k for k, v in self._log.items() if v.fault_state == FaultState.FAULT)
-        ]
+        return self._log[max(faults)]
 
     @property
     def active_faults(self) -> tuple[FaultLogEntry, ...] | None:
