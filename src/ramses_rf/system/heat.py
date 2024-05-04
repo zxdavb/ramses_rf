@@ -112,6 +112,8 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     _SLUG: str = None  # type: ignore[assignment]
 
+    childs: list[Device]  # TODO: check (code so complex, not sure if this is true)
+
     def __init__(self, ctl: Controller) -> None:
         _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl.id, self.__class__)
 
@@ -497,8 +499,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         elif isinstance(msg.payload, list) and len(msg.payload):
             # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == FA:  # DHW
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
-                for z in msg.payload:
-                    handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg)
+                for z_dict in msg.payload:
+                    handle_msg_by_zone_idx(z_dict.get(SZ_ZONE_IDX), msg)
 
         # If some zones still don't have a sensor, maybe eavesdrop?
         if (  # TODO: edge case: 1 zone with CTL as SEN
@@ -970,6 +972,9 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):  # type: ignore[assignment]
             self.get_dhw_zone(**_schema)  # self._dhw = ...
+
+        if not isinstance(self, MultiZone):
+            return
 
         if _schema := (schema.get(SZ_ZONES)):  # type: ignore[assignment]
             [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]

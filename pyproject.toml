@@ -148,10 +148,9 @@
 
   disable_error_code = [
     "assignment",  #      # 16
-    "attr-defined",  #    #  9
     "return-value",  #    # 60
     "type-arg",  #        # 18
-    "unreachable",  #     #
+    "unreachable",  #     # 14
   ]
 #
 [[tool.mypy.overrides]]
@@ -159,10 +158,9 @@
 
   disable_error_code = [
     "assignment",  #      #  8
-    "attr-defined",  #    #  2
     "return-value",  #    # 11
     "type-arg",  #        #  5
-    "unreachable",  #     #
+    "unreachable",  #     #  9
   ]
 #
 [[tool.mypy.overrides]]
@@ -172,7 +170,7 @@
     "assignment",  #      #  9
     "return-value",  #    #  5
     "type-arg",  #        #  5
-    "unreachable",  #     #
+    "unreachable",  #     # 10
   ]
 #
 [[tool.mypy.overrides]]

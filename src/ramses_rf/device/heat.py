@@ -27,6 +27,7 @@ from ramses_rf.const import (
     ZON_ROLE_MAP,
     DevType,
 )
+from ramses_rf.device import Device
 from ramses_rf.entity_base import Child, Entity, Parent, class_by_attr
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_TCS, SZ_ACTUATORS, SZ_CIRCUITS
@@ -387,6 +388,8 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     _child_id = FA
     _iz_controller = True
 
+    childs: list[UfhCircuit]  # TODO: check (code so complex, not sure if this is true)
+
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
     # 12:27:24.546 068  I --- 02:000921 --:------ 01:191718 3150 002 065A
     # 12:27:24.693 067  I --- 02:000921 --:------ 01:191718 3150 002 045C
@@ -483,6 +486,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                 self._heat_demand = msg
             elif (
                 (zone_idx := msg.payload.get(SZ_ZONE_IDX))
+                and isinstance(msg.dst, Device)
                 and (tcs := msg.dst.tcs)
                 and (zone := tcs.zone_by_idx.get(zone_idx))
             ):
@@ -507,7 +511,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         schema = {}  # shrink(SCH_CCT(schema))
 
-        cct = self.child_by_id.get(cct_idx)
+        cct: UfhCircuit = self.child_by_id.get(cct_idx)
         if not cct:
             cct = UfhCircuit(self, cct_idx)
             self.child_by_id[cct_idx] = cct
@@ -1308,9 +1312,9 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         # TODO: use self._parent?
         if self._child_id in DOMAIN_TYPE_MAP:
             return DOMAIN_TYPE_MAP[self._child_id]
-        elif self._parent:
-            # TODO: only applies to zones
-            return self._parent.heating_type  # type: ignore[no-any-return]
+        elif self._parent and isinstance(self._parent, Zone):
+            # TODO: remove need for isinstance
+            return self._parent.heating_type
 
         # if Code._3B00 in _msgs and _msgs[Code._3B00].verb == I_:
         #     self._is_tpi = True
@@ -1413,35 +1417,40 @@ class UfhCircuit(Child, Entity):  # FIXME
     # def __str__(self) -> str:
     #     return f"{self.id} ({self._zone and self._zone._child_id})"
 
+    def _update_schema(self, **kwargs: Any) -> None:
+        raise NotImplementedError
+
     def _handle_msg(self, msg: Message) -> None:
         super()._handle_msg(msg)
 
-        # FIXME:
-        if msg.code == Code._000C and msg.payload[SZ_DEVICES]:  # zone_devices
-            if not (dev_ids := msg.payload[SZ_DEVICES]):
-                return
-            if len(dev_ids) != 1:
-                raise exc.PacketPayloadInvalid("No devices")
+        if msg.code != Code._000C or not msg.payload[SZ_DEVICES]:  # zone_devices
+            return
 
-            # ctl = self._gwy.device_by_id.get(dev_ids[0])
-            ctl = self._gwy.get_device(dev_ids[0])
-            if not ctl or (self._ctl and self._ctl is not ctl):
-                raise exc.PacketPayloadInvalid("No CTL")
-            self._ctl = ctl
+        # FIXME: is messy
+        if not (dev_ids := msg.payload[SZ_DEVICES]):
+            return
+        if len(dev_ids) != 1:
+            raise exc.PacketPayloadInvalid("No devices")
 
-            ctl._make_tcs_controller()
-            # self.set_parent(ctl.tcs)
+        # ctl = self._gwy.device_by_id.get(dev_ids[0])
+        ctl: Controller = self._gwy.get_device(dev_ids[0])
+        if not ctl or (self._ctl and self._ctl is not ctl):
+            raise exc.PacketPayloadInvalid("No CTL")
+        self._ctl = ctl
 
-            zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
-            if not zon:
-                raise exc.PacketPayloadInvalid("No Zone")
-            if self._zone and self._zone is not zon:
-                raise exc.PacketPayloadInvalid("Wrong Zone")
-            self._zone = zon
+        ctl._make_tcs_controller()
+        # self.set_parent(ctl.tcs)
 
-            if self not in self._zone.actuators:
-                schema = {SZ_ACTUATORS: [self.ufc.id], SZ_CIRCUITS: [self.id]}
-                self._zone._update_schema(**schema)
+        zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
+        if not zon:
+            raise exc.PacketPayloadInvalid("No Zone")
+        if self._zone and self._zone is not zon:
+            raise exc.PacketPayloadInvalid("Wrong Zone")
+        self._zone = zon
+
+        if self not in self._zone.actuators:
+            schema = {SZ_ACTUATORS: [self.ufc.id], SZ_CIRCUITS: [self.id]}
+            self._zone._update_schema(**schema)
 
     @property
     def ufx_idx(self) -> str:
