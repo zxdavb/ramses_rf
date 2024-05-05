@@ -192,12 +192,10 @@
     "E",  # pycodestyle
     "F",  # Pyflakes
     "I",  # isort
-    # "SIM",  # flake8-simplify
-    "SIM105",  # Use `contextlib.suppress()` instead of try/except/pass
+    "SIM",  # flake8-simplify
     "UP",  # pyupgrade
   ]
-  ignore = ["B011", "E501", "UP040"]
-  # B010  - Do not call setattr with a constant attribute value
+  ignore = ["B011", "E501", "SIM102", "SIM114", "UP040"]
   # B011  - Do not call assert False since python -O removes these calls
   # E501  - Line too long
   # UP040 - Type alias uses `TypeAlias` annotation instead of the `type` keyword

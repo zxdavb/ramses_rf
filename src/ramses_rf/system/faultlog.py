@@ -277,7 +277,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         if not self._log:  # TODO: raise exception or retrive log (make function)?
             return None
 
-        return self._log[max(k for k in self._log.keys())]
+        return self._log[max(k for k in self._log)]
 
     @property
     def latest_fault(self) -> FaultLogEntry | None:

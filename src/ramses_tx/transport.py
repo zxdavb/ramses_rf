@@ -100,11 +100,11 @@ _SIGNATURE_MAX_SECS = 3  # was: 3
 SZ_RAMSES_GATEWAY: Final = "RAMSES/GATEWAY"
 SZ_READER_TASK: Final = "reader_task"
 
-
-# All debug flags (used for dev/test) should be False for published code
-_DBG_DISABLE_DUTY_CYCLE_LIMIT = False
-_DBG_DISABLE_REGEX_WARNINGS = False
-_DBG_FORCE_LOG_FRAMES = False
+#
+# NOTE: All debug flags should be False for deployment to end-users
+_DBG_DISABLE_DUTY_CYCLE_LIMIT: Final[bool] = False
+_DBG_DISABLE_REGEX_WARNINGS: Final[bool] = False
+_DBG_FORCE_FRAME_LOGGING: Final[bool] = False
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.INFO)
@@ -927,7 +927,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
             return
 
         for dtm, raw_line in bytes_read(data):
-            if _DBG_FORCE_LOG_FRAMES:
+            if _DBG_FORCE_FRAME_LOGGING:
                 _LOGGER.warning("Rx: %s", raw_line)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
                 _LOGGER.info("Rx: %s", raw_line)
@@ -965,7 +965,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         data = bytes(frame, "ascii") + b"\r\n"
 
-        if _DBG_FORCE_LOG_FRAMES:
+        if _DBG_FORCE_FRAME_LOGGING:
             _LOGGER.warning("Tx:     %s", data)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Tx:     %s", data)
@@ -1082,7 +1082,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         #     (msg.timestamp, msg.topic, msg.payload),
         # )
 
-        if _DBG_FORCE_LOG_FRAMES:
+        if _DBG_FORCE_FRAME_LOGGING:
             _LOGGER.warning("Rx: %s", msg.payload)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Rx: %s", msg.payload)
@@ -1116,7 +1116,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
 
         data = json.dumps({"msg": frame})
 
-        if _DBG_FORCE_LOG_FRAMES:
+        if _DBG_FORCE_FRAME_LOGGING:
             _LOGGER.warning("Tx: %s", data)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:  # log for INFO not DEBUG
             _LOGGER.info("Tx: %s", data)

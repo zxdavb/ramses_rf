@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from . import exceptions as exc
 from .const import DEV_TYPE_MAP as _DEV_TYPE_MAP, DEVICE_ID_REGEX, DevType
@@ -13,8 +13,6 @@ from .schemas import DeviceIdT
 if TYPE_CHECKING:
     from .schemas import DeviceIdT
 
-# Test/Dev & Debug flags
-DEV_HVAC = True  #
 
 DEVICE_LOOKUP: dict[str, str] = {
     k: _DEV_TYPE_MAP._hex(k)
@@ -29,8 +27,10 @@ HGI_DEVICE_ID: DeviceIdT = "18:000730"  # type: ignore[assignment]
 NON_DEVICE_ID: DeviceIdT = "--:------"  # type: ignore[assignment]
 ALL_DEVICE_ID: DeviceIdT = "63:262142"  # type: ignore[assignment]  # aka 'FFFFFE'
 
-# All debug flags should be False for end-users
-_DBG_DISABLE_STRICT_CHECKING = False  # a convenience for the test suite
+#
+# NOTE: All debug flags should be False for deployment to end-users
+_DBG_DISABLE_STRICT_CHECKING: Final[bool] = False  # a convenience for the test suite
+_DBG_DISABLE_DEV_HVAC = False
 
 
 class Address:
@@ -176,7 +176,7 @@ def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
     if not isinstance(value, str) or not DEVICE_ID_REGEX.ANY.match(value):
         return False
 
-    if not DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPE_MAP:
+    if _DBG_DISABLE_DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPE_MAP:
         return False
 
     # TODO: specify device type (for HVAC)

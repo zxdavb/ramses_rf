@@ -31,12 +31,13 @@ if TYPE_CHECKING:
     from .protocol import RamsesProtocolT
     from .transport import RamsesTransportT
 
-_LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.DEBUG)
-
-# All debug flags should be False for end-users
+#
+# NOTE: All debug flags should be False for deployment to end-users
 _DBG_MAINTAIN_STATE_CHAIN: Final[bool] = False  # maintain Context._prev_state
 _DBG_USE_STRICT_TRANSITIONS: Final[bool] = False
+
+_LOGGER = logging.getLogger(__name__)
+
 
 #######################################################################################
 

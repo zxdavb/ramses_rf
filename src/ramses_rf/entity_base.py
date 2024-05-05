@@ -76,8 +76,9 @@ _SZ_FAILURES: Final = "failures"
 _SZ_INTERVAL: Final = "interval"
 _SZ_COMMAND: Final = "command"
 
-
-_DBG_ENABLE_DISCOVERY_BACKOFF = False
+#
+# NOTE: All debug flags should be False for deployment to end-users
+_DBG_ENABLE_DISCOVERY_BACKOFF: Final[bool] = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -208,7 +209,7 @@ class _MessageDB(_Entity):
             raise TypeError(msg._pkt)  # shouldn't have been routed to this entity
 
         # NOTE: ZZZ project
-        if not msg.src.id == self.id[:9] or (msg.dst.id == self.id and msg.verb == RP):
+        if (msg.src.id != self.id[:9]) or (msg.dst.id == self.id and msg.verb == RP):
             return  # don't store these
 
         if msg.verb in (I_, RP):

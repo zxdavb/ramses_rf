@@ -14,7 +14,7 @@ except ModuleNotFoundError as err:
     pytest.skip(f"{err}", allow_module_level=True)  # No module named 'colorama'
 
 
-from ramses_cli import _DBG_CLI  # noqa: E402
+from ramses_cli import _DBG_FORCE_CLI_DEBUGGING  # noqa: E402
 from ramses_cli.client import PARSE, cli  # noqa: E402
 
 # TODO: add tests for:
@@ -22,8 +22,11 @@ from ramses_cli.client import PARSE, cli  # noqa: E402
 # client execute /dev/ttyACM0 --get-schedule 01:145038 01
 
 
-if _DBG_CLI:
-    pytest.skip(f"_DBG_CLI = {_DBG_CLI}", allow_module_level=True)
+if _DBG_FORCE_CLI_DEBUGGING:
+    pytest.skip(
+        f"_DBG_FORCE_CLI_DEBUGGING = {_DBG_FORCE_CLI_DEBUGGING}",
+        allow_module_level=True,
+    )
 
 
 STDIN = io.StringIO("053  I --- 01:123456 --:------ 01:123456 3150 002 FC00\r\n")

@@ -36,11 +36,12 @@ if TYPE_CHECKING:
 
     from .device.base import Fakeable
 
-DEV_MODE = True
-_LOGGER = logging.getLogger(__name__)
+#
+# NOTE: All debug flags should be False for deployment to end-users
+_DBG_DISABLE_PHASE_ASSERTS: Final[bool] = False
+_DBG_MAINTAIN_STATE_CHAIN: Final[bool] = False  # maintain Context._prev_state
 
-# All debug flags should be False for end-users
-_DBG_MAINTAIN_STATE_CHAIN = False  # maintain Context._prev_state
+_LOGGER = logging.getLogger(__name__)
 
 
 SZ_RESPONDENT: Final = "respondent"
@@ -272,7 +273,7 @@ class BindContextRespondent(BindContextBase):
         """Resp sends an Accept on the basis of a rcvd Offer & returns the Confirm."""
 
         cmd = Command.put_bind(W_, self._dev.id, codes, dst_id=tender.src.id, idx=idx)
-        if DEV_MODE:  # TODO: should be in test suite
+        if not _DBG_DISABLE_PHASE_ASSERTS:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.ACCEPT
 
         pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]
@@ -320,10 +321,7 @@ class BindContextSupplicant(BindContextBase):
             )
         self.set_state(SuppSendOfferWaitForAccept)  # self._is_respondent = False
 
-        if ratify_cmd:
-            oem_code = ratify_cmd.payload[14:16]
-        else:
-            oem_code = None
+        oem_code = ratify_cmd.payload[14:16] if ratify_cmd else None
 
         # Step S1: Supplicant sends an Offer (makes Offer) and expects an Accept
         tender = await self._make_offer(offer_codes, oem_code=oem_code)
@@ -354,7 +352,7 @@ class BindContextSupplicant(BindContextBase):
         cmd = Command.put_bind(
             I_, self._dev.id, codes, dst_id=self._dev.id, oem_code=oem_code
         )
-        if DEV_MODE:  # TODO: should be in test suite
+        if not _DBG_DISABLE_PHASE_ASSERTS:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.TENDER
 
         pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]
@@ -381,7 +379,7 @@ class BindContextSupplicant(BindContextBase):
         cmd = Command.put_bind(
             I_, self._dev.id, confirm_code, dst_id=accept.src.id, idx=idx
         )
-        if DEV_MODE:  # TODO: should be in test suite
+        if not _DBG_DISABLE_PHASE_ASSERTS:  # TODO: should be in test suite
             assert Message._from_cmd(cmd).payload["phase"] == BindPhase.AFFIRM
 
         pkt: Packet = await self._dev._async_send_cmd(  # type: ignore[assignment]

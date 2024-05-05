@@ -9,7 +9,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from datetime import timedelta as td
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from ramses_tx import ALL_DEV_ADDR, CODES_BY_DEV_SLUG, Message
 from ramses_tx.ramses import (
@@ -41,12 +41,15 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from . import Gateway
 
+#
+# NOTE: All debug flags should be False for deployment to end-users
+_DBG_FORCE_LOG_MESSAGES: Final[bool] = False  # useful for dev/test
+_DBG_INCREASE_LOG_LEVELS: Final[bool] = (
+    False  # set True for developer-friendly log spam
+)
+
 _LOGGER = logging.getLogger(__name__)
 
-# all debug flags should be False for published code
-DEV_MODE = False  # set True for useful Tracebacks
-
-_DBG_FORCE_LOG_MESSAGES = False  # useful for dev/test
 
 __all__ = ["detect_array_fragment", "process_msg"]
 
@@ -203,7 +206,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
         try:
             _create_devices_from_addrs(gwy, msg)
         except LookupError as err:
-            (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+            (_LOGGER.error if _DBG_INCREASE_LOG_LEVELS else _LOGGER.warning)(
                 "%s < %s(%s)", msg._pkt, err.__class__.__name__, err
             )
             return
@@ -255,7 +258,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             gwy._loop.call_soon(d._handle_msg, msg)
 
     except (AssertionError, exc.RamsesException, NotImplementedError) as err:
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+        (_LOGGER.error if _DBG_INCREASE_LOG_LEVELS else _LOGGER.warning)(
             "%s < %s(%s)", msg._pkt, err.__class__.__name__, err
         )
 

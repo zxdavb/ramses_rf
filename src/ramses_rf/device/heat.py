@@ -111,10 +111,10 @@ QOS_LOW = {SZ_PRIORITY: Priority.LOW}  # FIXME:  deprecate QoS in kwargs
 QOS_MID = {SZ_PRIORITY: Priority.HIGH}  # FIXME: deprecate QoS in kwargs
 QOS_MAX = {SZ_PRIORITY: Priority.HIGH, SZ_NUM_REPEATS: 3}  # FIXME: deprecate QoS...
 
-
-DEV_MODE = False
-
-_DBG_ENABLE_DEPRECATION = False
+#
+# NOTE: All debug flags should be False for deployment to end-users
+_DBG_ENABLE_DEPRECATION: Final[bool] = False
+_DBG_EXTRA_OTB_DISCOVERY: Final[bool] = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -715,7 +715,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             if cmd := which_cmd(self._gwy.config.use_native_ot, _to_msg_id(data_id)):
                 self._add_discovery_cmd(cmd, 300, delay=15)
 
-        if False and DEV_MODE:  # TODO: these are WIP, but do vary in payload
+        if _DBG_EXTRA_OTB_DISCOVERY:  # TODO: these are WIP, but do vary in payload
             for code in (
                 Code._2401,  # WIP - modulation_level + flags?
                 Code._3221,  # R8810A/20A
@@ -723,7 +723,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
             ):
                 self._add_discovery_cmd(Command.from_attrs(RQ, self.id, code, "00"), 60)
 
-        if False and DEV_MODE:  # TODO: these are WIP, appear FIXED in payload
+        if _DBG_EXTRA_OTB_DISCOVERY:  # TODO: these are WIP, appear FIXED in payload
             for code in (
                 Code._0150,  # payload always "000000", R8820A only?
                 Code._1098,  # payload always "00C8",   R8820A only?

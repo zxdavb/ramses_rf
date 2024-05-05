@@ -45,13 +45,13 @@ if TYPE_CHECKING:
 
 TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
-_LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.WARNING)
-
-# All debug flags (used for dev/test) should be False for published code
+#
+# NOTE: All debug flags should be False for deployment to end-users
 _DBG_DISABLE_IMPERSONATION_ALERTS: Final[bool] = False
 _DBG_DISABLE_QOS: Final[bool] = False
 _DBG_FORCE_LOG_PACKETS: Final[bool] = False
+
+_LOGGER = logging.getLogger(__name__)
 
 
 DEFAULT_QOS = QosParams()
