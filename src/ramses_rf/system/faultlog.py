@@ -77,20 +77,19 @@ class FaultLogEntry:
         if self.fault_state == FaultState.FAULT:
             return (
                 other.fault_state == FaultState.RESTORE
-                and self._as_tuple == other._as_tuple
+                and self._as_tuple() == other._as_tuple()
                 and other.timestamp > self.timestamp
             )
 
         if self.fault_state == FaultState.RESTORE:
             return (
                 other.fault_state == FaultState.FAULT
-                and self._as_tuple == other._as_tuple
+                and self._as_tuple() == other._as_tuple()
                 and other.timestamp < self.timestamp
             )
 
         return False
 
-    @property
     def _as_tuple(self) -> FaultTupleT:
         """Return the fault log entry as a tuple, excluding state (fault/restore)."""
 
@@ -307,13 +306,13 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         for entry in self._log.values():
             if entry.fault_state == FaultState.RESTORE:
                 # keep to match against upcoming faults
-                restores[entry._as_tuple] = entry
+                restores[entry._as_tuple()] = entry
 
             if entry.fault_state == FaultState.FAULT:
                 # look for (existing) matching restore, otherwise keep
-                if entry._as_tuple in restores:
-                    del restores[entry._as_tuple]
+                if entry._as_tuple() in restores:
+                    del restores[entry._as_tuple()]
                 else:
-                    faults[entry._as_tuple] = entry
+                    faults[entry._as_tuple()] = entry
 
         return tuple(faults.values())

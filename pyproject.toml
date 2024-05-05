@@ -158,7 +158,6 @@
 
   disable_error_code = [
     "assignment",  #      #  8
-    "return-value",  #    # 11
     "unreachable",  #     #  9
   ]
 #

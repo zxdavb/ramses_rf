@@ -8,7 +8,7 @@ import logging
 from datetime import datetime as dt, timedelta as td
 from threading import Lock
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, NoReturn, TypeVar
 
 from ramses_rf import exceptions as exc
 from ramses_rf.const import (
@@ -64,7 +64,7 @@ from ramses_tx.address import DeviceIdT
 from ramses_tx.const import Priority
 from ramses_tx.typed_dicts import PayDictT
 
-from .faultlog import FaultLog, FaultLogEntry
+from .faultlog import FaultIdxT, FaultLog, FaultLogEntry, FaultTupleT
 from .zones import DhwZone, Zone, zone_factory
 
 if TYPE_CHECKING:
@@ -233,7 +233,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if self._app_cntrl:
             return self._app_cntrl
         app_cntrl = [d for d in self.childs if d._child_id == FC]
-        return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
+        return app_cntrl[0] if len(app_cntrl) == 1 else None  # type: ignore[return-value]
 
     @property
     def tpi_params(self) -> PayDictT._1100 | None:  # 1100
@@ -244,9 +244,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         return self._msg_value(Code._3150, domain_id=FC, key=SZ_HEAT_DEMAND)  # type: ignore[return-value]
 
     @property
-    def is_calling_for_heat(self) -> bool | None:
-        """Return True is the system is currently calling for heat."""
-        return self._app_cntrl and self._app_cntrl.actuator_state
+    def is_calling_for_heat(self) -> NoReturn:
+        raise NotImplementedError(
+            f"{self}: is_calling_for_heat attr is deprecated, use bool(heat_demand)"
+        )
 
     @property
     def schema(self) -> dict[str, Any]:
@@ -651,7 +652,7 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
     @property
     def schedule_version(self) -> int | None:
-        return self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER)
+        return self._msg_value(Code._0006, key=SZ_CHANGE_COUNTER)  # type: ignore[return-value]
 
     @property
     def status(self) -> dict[str, Any]:
@@ -670,7 +671,7 @@ class Language(SystemBase):  # 0100
 
     @property
     def language(self) -> str | None:
-        return self._msg_value(Code._0100, key=SZ_LANGUAGE)
+        return self._msg_value(Code._0100, key=SZ_LANGUAGE)  # type: ignore[return-value]
 
     @property
     def params(self) -> dict[str, Any]:
@@ -713,28 +714,35 @@ class Logbook(SystemBase):  # 0418
         start: int = 0,
         limit: int | None = None,
         force_refresh: bool = False,
-    ) -> dict[str, Any] | None:
+    ) -> dict[FaultIdxT, FaultLogEntry] | None:
         try:
             return await self._faultlog.get_faultlog(
                 start=start, limit=limit, force_refresh=force_refresh
             )
-        except (exc.ExpiredCallbackError, RuntimeError):
+        except exc.RamsesException as err:
+            _LOGGER.error("%s: Failed to get faultlog: %s", self, err)
             return None
 
     @property
-    def active_faults(self) -> tuple[FaultLogEntry, ...]:
-        """Return the most recently logged fault (that is not restored), if any."""
-        return self._faultlog.active_faults
+    def active_faults(self) -> tuple[FaultTupleT, ...] | None:
+        """Return the most recently logged faults that are not restored."""
+        if self._faultlog.active_faults is None:
+            return None
+        return tuple(f._as_tuple() for f in self._faultlog.active_faults)
 
     @property
-    def latest_event(self) -> tuple[str] | None:
+    def latest_event(self) -> FaultTupleT | None:
         """Return the most recently logged event (fault or restore), if any."""
-        return self._faultlog.latest_event
+        if not self._faultlog.latest_event:
+            return None
+        return self._faultlog.latest_event._as_tuple()
 
     @property
-    def latest_fault(self) -> tuple[str] | None:
+    def latest_fault(self) -> FaultTupleT | None:
         """Return the most recently logged fault, if any."""
-        return self._faultlog.latest_fault
+        if not self._faultlog.latest_fault:
+            return None
+        return self._faultlog.latest_fault._as_tuple()
 
     @property
     def status(self) -> dict[str, Any]:
@@ -864,7 +872,7 @@ class SysMode(SystemBase):  # 2E04
 
     @property
     def system_mode(self) -> dict[str, Any] | None:  # 2E04
-        return self._msg_value(Code._2E04)
+        return self._msg_value(Code._2E04)  # type: ignore[return-value]
 
     def set_mode(
         self, system_mode: int | str | None, *, until: dt | str | None = None
@@ -980,7 +988,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
             [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
-    def create_from_schema(cls, ctl: Controller, **schema: Any) -> Evohome:
+    def create_from_schema(cls, ctl: Controller, **schema: Any) -> System:
         """Create a CH/DHW system for a CTL and set its schema attrs.
 
         The appropriate System class should have been determined by a factory.
