@@ -188,17 +188,20 @@
 
 [tool.ruff.lint]
   select = [
-    "B",  # flake8-bugbear
-    "E",  # pycodestyle
-    "F",  # Pyflakes
-    "I",  # isort
+    "B",  #   flake8-bugbear
+    "E",  #   pycodestyle
+    "F",  #   Pyflakes
+    "I",  #   isort
     "SIM",  # flake8-simplify
-    "UP",  # pyupgrade
+    "UP",  #  pyupgrade
   ]
   ignore = ["B011", "E501", "SIM102", "SIM114", "UP040"]
-  # B011  - Do not call assert False since python -O removes these calls
-  # E501  - Line too long
-  # UP040 - Type alias uses `TypeAlias` annotation instead of the `type` keyword
+
+  # B011   - Do not call assert False since python -O removes these calls
+  # E501   - Line too long
+  # SIM102 - Use a single `if` statement instead of nested `if` statements
+  # SIM114 - Combine `if` branches using logical `or` operator
+  # UP040  - Type alias uses `TypeAlias` annotation instead of the `type` keyword
 
 
 [tool.ruff.lint.isort]
