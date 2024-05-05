@@ -19,8 +19,8 @@ from ramses_rf.system.schedule import (
     SZ_DAY_OF_WEEK,
     SZ_ENABLED,
     SZ_HEAT_SETPOINT,
-    SCH_SCHEDULE_DHW_FULL,
-    SCH_SCHEDULE_ZON_FULL,
+    SCH_SCHEDULE_DHW_OUTER,
+    SCH_SCHEDULE_ZON_OUTER,
     SZ_SWITCHPOINTS,
     SZ_TIME_OF_DAY,
 )
@@ -139,9 +139,9 @@ def assert_schedule_dict(zone: DhwZone | Zone):
     assert schedule_full[SZ_SCHEDULE] == zone.schedule
 
     if schedule_full[SZ_ZONE_IDX] == "HW":
-        SCH_SCHEDULE_DHW_FULL(schedule_full)
+        SCH_SCHEDULE_DHW_OUTER(schedule_full)
     else:
-        SCH_SCHEDULE_ZON_FULL(schedule_full)
+        SCH_SCHEDULE_ZON_OUTER(schedule_full)
 
     schedule = schedule_full[SZ_SCHEDULE]
     # assert isinstance(schedule, list)

@@ -50,7 +50,7 @@ from ramses_rf.schemas import (
 )
 from ramses_tx import Address, Command, Message, Priority
 
-from .schedule import Schedule
+from .schedule import InnerScheduleT, OuterScheduleT, Schedule
 
 if TYPE_CHECKING:
     from ramses_tx import Packet
@@ -163,17 +163,20 @@ class ZoneSchedule(ZoneBase):  # 0404
         if msg.code in (Code._0006, Code._0404):
             self._schedule._handle_msg(msg)
 
-    async def get_schedule(self, *, force_io: bool = False) -> dict[str, Any] | None:
+    async def get_schedule(self, *, force_io: bool = False) -> InnerScheduleT | None:
         await self._schedule.get_schedule(force_io=force_io)
         return self.schedule
 
-    async def set_schedule(self, schedule: dict[str, Any]) -> dict[str, Any] | None:
+    async def set_schedule(self, schedule: OuterScheduleT) -> InnerScheduleT | None:
         await self._schedule.set_schedule(schedule)  # type: ignore[arg-type]
         return self.schedule
 
     @property
-    def schedule(self) -> dict[str, Any] | None:
+    def schedule(self) -> InnerScheduleT | None:
         """Return the latest retrieved schedule (not guaranteed to be up to date)."""
+        # inner: [{"day_of_week": 0, "switchpoints": [...], {"day_of_week": 1, ...
+        # outer: {"zone_idx": "01", "schedule": <inner>
+
         return self._schedule.schedule
 
     @property

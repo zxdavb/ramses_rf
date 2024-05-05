@@ -11,7 +11,7 @@ import struct
 import zlib
 from collections.abc import Iterable
 from datetime import timedelta as td
-from typing import TYPE_CHECKING, Any, Final, TypeAlias
+from typing import TYPE_CHECKING, Any, Final, NotRequired, TypeAlias, TypedDict
 
 import voluptuous as vol  # type: ignore[import, unused-ignore]
 
@@ -37,6 +37,46 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 
 if TYPE_CHECKING:
     from ramses_rf.system.zones import DhwZone, Zone
+
+
+class EmptyDictT(TypedDict):
+    pass
+
+
+class SwitchPointDhw(TypedDict):
+    time_of_day: str
+    enabled: bool
+
+
+class SwitchPointZon(TypedDict):
+    time_of_day: str
+    heat_setpoint: float
+
+
+SwitchPointT: TypeAlias = SwitchPointDhw | SwitchPointZon
+SwitchPointsT: TypeAlias = list[SwitchPointDhw] | list[SwitchPointZon]
+
+
+class DayOfWeek(TypedDict):
+    day_of_week: int
+    switchpoints: SwitchPointsT
+
+
+DayOfWeekT: TypeAlias = DayOfWeek
+InnerScheduleT: TypeAlias = list[DayOfWeek]
+
+
+class _OuterSchedule(TypedDict):
+    zone_idx: str
+    schedule: InnerScheduleT
+
+
+class _EmptySchedule(TypedDict):
+    zone_idx: str
+    schedule: NotRequired[EmptyDictT | None]
+
+
+OuterScheduleT: TypeAlias = _OuterSchedule | _EmptySchedule
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,7 +130,7 @@ SCH_SWITCHPOINT_ZON = vol.Schema(
 )
 
 SCH_SCHEDULE_DHW = schema_sched(SCH_SWITCHPOINT_DHW)
-SCH_SCHEDULE_DHW_FULL = vol.Schema(
+SCH_SCHEDULE_DHW_OUTER = vol.Schema(
     {
         vol.Required(SZ_ZONE_IDX): "HW",
         vol.Required(SZ_SCHEDULE): SCH_SCHEDULE_DHW,
@@ -99,7 +139,7 @@ SCH_SCHEDULE_DHW_FULL = vol.Schema(
 )
 
 SCH_SCHEDULE_ZON = schema_sched(SCH_SWITCHPOINT_ZON)
-SCH_SCHEDULE_ZON_FULL = vol.Schema(
+SCH_SCHEDULE_ZON_OUTER = vol.Schema(
     {
         vol.Required(SZ_ZONE_IDX): vol.Match(r"0[0-F]"),
         vol.Required(SZ_SCHEDULE): SCH_SCHEDULE_ZON,
@@ -108,18 +148,13 @@ SCH_SCHEDULE_ZON_FULL = vol.Schema(
 )
 
 SCH_FULL_SCHEDULE = vol.Schema(
-    vol.Any(SCH_SCHEDULE_DHW_FULL, SCH_SCHEDULE_ZON_FULL),
+    vol.Any(SCH_SCHEDULE_DHW_OUTER, SCH_SCHEDULE_ZON_OUTER),
     extra=vol.PREVENT_EXTRA,
 )
 
 
 _PayloadT: TypeAlias = dict[str, Any]  # Message payload
 _PayloadSetT: TypeAlias = list[_PayloadT | None]
-
-_SwitchPointT: TypeAlias = dict[str, bool | float | str]
-_DayOfWeekT: TypeAlias = dict[str, int | list[_SwitchPointT]]
-_ScheduleT: TypeAlias = list[_DayOfWeekT]
-_FullScheduleT: TypeAlias = dict[str, str | _ScheduleT]
 
 _FragmentT: TypeAlias = str
 _FragmentSetT: TypeAlias = list[_FragmentT]
@@ -142,7 +177,7 @@ class Schedule:  # 0404
         self.tcs = zone.tcs
         self._gwy = zone._gwy
 
-        self._full_schedule: _FullScheduleT = {}
+        self._full_schedule: OuterScheduleT | EmptyDictT = {}
 
         self._payload_set: _PayloadSetT = EMPTY_PAYLOAD_SET  # Rx'd
         self._fragments: _FragmentSetT = []  # to Tx
@@ -205,7 +240,7 @@ class Schedule:  # 0404
 
     async def get_schedule(
         self, *, force_io: bool = False, timeout: float = 15
-    ) -> _ScheduleT | None:
+    ) -> InnerScheduleT | None:
         """Retrieve/return the brief schedule of a zone.
 
         Return the cached schedule (which may have been eavesdropped) only if the
@@ -245,7 +280,7 @@ class Schedule:  # 0404
 
         is_dated, did_io = await self._is_dated(force_io=force_io)
         if is_dated:
-            self._full_schedule = {}  # keep fragments, maybe only other sched(s) changed
+            self._full_schedule = {}  # keep frags, maybe only other scheds have changed
         if self._full_schedule:
             return
 
@@ -262,12 +297,12 @@ class Schedule:  # 0404
             # next line also in self._handle_msg(), so protected there with a lock
             self._payload_set = self._update_payload_set(self._payload_set, fragment)
             if self._full_schedule:  # TODO: potential for infinite loop?
-                self._sched_ver = self._global_ver
+                self._sched_ver = self._global_ver  # type: ignore[unreachable]
                 break
 
         self.tcs._release_lock()
 
-    def _proc_payload_set(self, payload_set: _PayloadSetT) -> _FullScheduleT | None:
+    def _proc_payload_set(self, payload_set: _PayloadSetT) -> OuterScheduleT | None:
         """Process a payload set and return the full schedule (sets `self._schedule`).
 
         If the schedule is for DHW, set the `zone_idx` key to 'HW' (to avoid confusing
@@ -325,8 +360,8 @@ class Schedule:  # 0404
         return init_payload_set(payload)
 
     async def set_schedule(
-        self, schedule: _ScheduleT, force_refresh: bool = False
-    ) -> _ScheduleT | None:
+        self, schedule: InnerScheduleT, force_refresh: bool = False
+    ) -> InnerScheduleT | None:
         """Set the schedule of a zone."""
 
         async def put_fragment(frag_num: int, frag_cnt: int, fragment: str) -> None:
@@ -339,15 +374,15 @@ class Schedule:  # 0404
                 cmd, wait_for_reply=True, priority=Priority.HIGH
             )
 
-        def normalise_validate(schedule: _ScheduleT) -> _FullScheduleT:
-            full_schedule: _FullScheduleT
+        def normalise_validate(schedule: InnerScheduleT) -> _OuterSchedule:
+            full_schedule: _OuterSchedule
 
             if self.idx == "HW":
                 full_schedule = {SZ_ZONE_IDX: "HW", SZ_SCHEDULE: schedule}
-                schedule_schema = SCH_SCHEDULE_DHW_FULL
+                schedule_schema = SCH_SCHEDULE_DHW_OUTER
             else:
                 full_schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
-                schedule_schema = SCH_SCHEDULE_ZON_FULL
+                schedule_schema = SCH_SCHEDULE_ZON_OUTER
 
             try:
                 full_schedule = schedule_schema(full_schedule)
@@ -359,7 +394,7 @@ class Schedule:  # 0404
 
             return full_schedule
 
-        full_schedule = normalise_validate(schedule)
+        full_schedule: _OuterSchedule = normalise_validate(schedule)
         self._fragments = full_sched_to_fragz(full_schedule)
 
         await self.tcs._obtain_lock(self.idx)  # maybe raise TimeOutError
@@ -385,11 +420,11 @@ class Schedule:  # 0404
         return self.schedule
 
     @property
-    def schedule(self) -> _ScheduleT | None:
+    def schedule(self) -> InnerScheduleT | None:
         """Return the current (not full) schedule, if any."""
         if not self._full_schedule:  # can be {}
             return None
-        result: _ScheduleT = self._full_schedule.get(SZ_SCHEDULE)  # type: ignore[assignment]
+        result: InnerScheduleT = self._full_schedule.get(SZ_SCHEDULE)  # type: ignore[assignment]
         return result
 
     @property
@@ -417,17 +452,22 @@ def _len(payload_set: _PayloadSetT) -> int:
     return len(payload_set)
 
 
-def fragz_to_full_sched(fragments: Iterable[_FragmentT]) -> _FullScheduleT:
+def fragz_to_full_sched(fragments: Iterable[_FragmentT]) -> _OuterSchedule:
     """Convert a tuple of fragments strs (a blob) into a schedule.
 
     May raise a `zlib.error` exception.
     """
 
+    def setpoint(value: int) -> dict[str, bool | float]:
+        if value in (0, 1):
+            return {SZ_ENABLED: bool(value)}
+        return {SZ_HEAT_SETPOINT: value / 100}
+
     raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
 
     old_day = 0
-    schedule: _ScheduleT = []
-    switchpoints: list[_SwitchPointT] = []
+    schedule: InnerScheduleT = []
+    switchpoints: SwitchPointsT = []  # type: ignore[assignment, unused-ignore]
 
     idx: int
     dow: int
@@ -439,25 +479,19 @@ def fragz_to_full_sched(fragments: Iterable[_FragmentT]) -> _FullScheduleT:
 
         if dow > old_day:
             schedule.append({SZ_DAY_OF_WEEK: old_day, SZ_SWITCHPOINTS: switchpoints})
-            old_day, switchpoints = dow, []
+            old_day, switchpoints = dow, []  # type: ignore[assignment, unused-ignore]
 
-        switchpoints.append(
-            {
-                SZ_TIME_OF_DAY: "{:02d}:{:02d}".format(*divmod(tod, 60)),
-                **(
-                    {SZ_ENABLED: bool(val)}
-                    if val in (0, 1)
-                    else {SZ_HEAT_SETPOINT: val / 100}
-                ),
-            }
-        )
+        switchpoint: SwitchPointDhw | SwitchPointZon = {
+            SZ_TIME_OF_DAY: "{:02d}:{:02d}".format(*divmod(tod, 60))
+        } | setpoint(val)  # type: ignore[assignment]
+        switchpoints.append(switchpoint)  # type: ignore[arg-type]
 
     schedule.append({SZ_DAY_OF_WEEK: old_day, SZ_SWITCHPOINTS: switchpoints})
 
     return {SZ_ZONE_IDX: f"{idx:02X}", SZ_SCHEDULE: schedule}
 
 
-def full_sched_to_fragz(full_schedule: _FullScheduleT) -> list[_FragmentT]:
+def full_sched_to_fragz(full_schedule: _OuterSchedule) -> list[_FragmentT]:
     """Convert a schedule into a set of fragments (a blob).
 
     May raise `KeyError`, `zlib.error` exceptions.
@@ -466,9 +500,9 @@ def full_sched_to_fragz(full_schedule: _FullScheduleT) -> list[_FragmentT]:
     cobj = zlib.compressobj(level=9, wbits=14)
     frags: list[bytes] = []
 
-    week_days: _ScheduleT = full_schedule[SZ_SCHEDULE]  # type: ignore[assignment]
-    for week_day in week_days:
-        switchpoints: list[_SwitchPointT] = week_day[SZ_SWITCHPOINTS]  # type: ignore[assignment]
+    days_of_week: InnerScheduleT = full_schedule[SZ_SCHEDULE]
+    for week_day in days_of_week:
+        switchpoints: SwitchPointsT = week_day[SZ_SWITCHPOINTS]
         for switchpoint in switchpoints:
             frags.append(_struct_pack(full_schedule, week_day, switchpoint))
 
@@ -478,18 +512,20 @@ def full_sched_to_fragz(full_schedule: _FullScheduleT) -> list[_FragmentT]:
 
 
 def _struct_pack(
-    full_schedule: _FullScheduleT, week_day: _DayOfWeekT, switchpoint: _SwitchPointT
+    full_schedule: OuterScheduleT,
+    week_day: DayOfWeekT,
+    switchpoint: SwitchPointDhw | SwitchPointZon,
 ) -> bytes:
-    idx_: str = full_schedule[SZ_ZONE_IDX]  # type: ignore[assignment]
-    dow_: int = week_day[SZ_DAY_OF_WEEK]  # type: ignore[assignment]
-    tod_: str = switchpoint[SZ_TIME_OF_DAY]  # type: ignore[assignment]
+    idx_: str = full_schedule[SZ_ZONE_IDX]
+    dow_: int = week_day[SZ_DAY_OF_WEEK]
+    tod_: str = switchpoint[SZ_TIME_OF_DAY]
 
     idx = int(idx_, 16)
     dow = int(dow_)
     tod = int(tod_[:2]) * 60 + int(tod_[3:])
 
     if SZ_HEAT_SETPOINT in switchpoint:
-        val = int(switchpoint[SZ_HEAT_SETPOINT] * 100)
+        val = int(switchpoint[SZ_HEAT_SETPOINT] * 100)  # type: ignore[typeddict-item]
     else:
         val = int(bool(switchpoint[SZ_ENABLED]))
 

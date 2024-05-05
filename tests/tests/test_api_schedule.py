@@ -11,8 +11,8 @@ from ramses_rf import Gateway
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.system import Evohome
 from ramses_rf.system.schedule import (
-    SCH_SCHEDULE_DHW_FULL,
-    SCH_SCHEDULE_ZON_FULL,
+    SCH_SCHEDULE_DHW_OUTER,
+    SCH_SCHEDULE_ZON_OUTER,
     SZ_ENABLED,
     SZ_HEAT_SETPOINT,
     SZ_SWITCHPOINTS,
@@ -61,10 +61,10 @@ async def test_schedule_helpers(dir_name: Path) -> None:
     new_schedule = deepcopy(schedule)
 
     if schedule[SZ_ZONE_IDX] == "HW":
-        SCH_SCHEDULE_DHW_FULL(schedule)
+        SCH_SCHEDULE_DHW_OUTER(schedule)
         schedule[SZ_ZONE_IDX] = "00"
     else:
-        SCH_SCHEDULE_ZON_FULL(schedule)
+        SCH_SCHEDULE_ZON_OUTER(schedule)
 
     assert schedule == fragz_to_full_sched(full_sched_to_fragz(schedule))
 
