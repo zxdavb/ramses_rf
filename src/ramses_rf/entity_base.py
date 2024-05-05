@@ -55,7 +55,14 @@ if TYPE_CHECKING:
     from ramses_tx.opentherm import OtDataId
     from ramses_tx.schemas import DeviceIdT, DevIndexT
 
-    from .device import BdrSwitch, Controller, DhwSensor, TrvActuator, UfhCircuit
+    from .device import (
+        BdrSwitch,
+        Controller,
+        DhwSensor,
+        OtbGateway,
+        TrvActuator,
+        UfhCircuit,
+    )
     from .gateway import Gateway
     from .system import Evohome
 
@@ -430,9 +437,8 @@ class _Discovery(_MessageDB):
         self._supported_cmds: dict[str, bool | None] = {}
         self._supported_cmds_ctx: dict[str, bool | None] = {}
 
-        # BUG: FIXME: The Bug
-        if not gwy.config.disable_discovery and not gwy._disable_sending:
-            # self._start_discovery_poller()  # Cant use: derived classes dont exist yet
+        if not gwy.config.disable_discovery:
+            # self._start_discovery_poller()  # Cant use derived classes dont exist yet
             gwy._loop.call_soon(self._start_discovery_poller)
 
     @property  # TODO: needs tidy up
@@ -714,9 +720,10 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
     circuit_by_id: dict[str, Any]
 
-    _dhw_sensor: DhwSensor
-    _dhw_valve: BdrSwitch
-    _htg_valve: BdrSwitch
+    _app_cntrl: BdrSwitch | OtbGateway | None
+    _dhw_sensor: DhwSensor | None
+    _dhw_valve: BdrSwitch | None
+    _htg_valve: BdrSwitch | None
 
     def __init__(self, *args: Any, child_id: str = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)

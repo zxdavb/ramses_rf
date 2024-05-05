@@ -142,13 +142,11 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
         if isinstance(self, OtbGateway):
             return
 
-        if (
-            msg.code == Code._3EF0
-            and msg.verb == I_  # will be a 13:
-            and not self.is_faked
-            and not self._gwy._disable_sending
-            and not self._gwy.config.disable_discovery
-        ):
+        if self._gwy.config.disable_discovery:
+            return
+
+        # TODO: why are we doing this here? Should simply use dscovery poller!
+        if msg.code == Code._3EF0 and msg.verb == I_ and not self.is_faked:
             # lf._send_cmd(Command.get_relay_demand(self.id), qos=QOS_LOW)
             self._send_cmd(
                 Command.from_attrs(RQ, self.id, Code._3EF1, "00"), qos=QOS_LOW
@@ -597,8 +595,12 @@ class DhwSensor(DhwTemperature, BatteryState, Fakeable):  # DHW (07): 10A0, 1260
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
-        # The following is required, as CTLs don't send such every sync_cycle
-        if msg.code == Code._1260 and self.ctl and not self._gwy._disable_sending:
+        if self._gwy.config.disable_discovery:
+            return
+
+        # TODO: why are we doing this here? Should simply use dscovery poller!
+        # The following is required, as CTLs don't send spontaneously
+        if msg.code == Code._1260 and self.ctl:
             # update the controller DHW temp
             self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 

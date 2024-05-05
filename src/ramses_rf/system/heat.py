@@ -112,7 +112,8 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     _SLUG: str = None  # type: ignore[assignment]
 
-    childs: list[Device]  # TODO: check (code so complex, not sure if this is true)
+    # TODO: check (code so complex, not sure if this is true)
+    childs: list[Device]  # type: ignore[assignment]
 
     def __init__(self, ctl: Controller) -> None:
         _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl.id, self.__class__)
@@ -379,7 +380,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 return
 
             # TODO: use msgz/I, not RP
-            secs: int = self._msg_value(Code._1F09, key="remaining_seconds")
+            secs: int = self._msg_value(Code._1F09, key="remaining_seconds")  # type: ignore[assignment]
             if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
                 return  # can only compare against 30C9 pkt from the last cycle
 
@@ -526,8 +527,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         schema = shrink(SCH_TCS_ZONES_ZON(schema))
 
-        zon: Zone = self.zone_by_idx.get(zone_idx)
-        if not zon:
+        zon: Zone = self.zone_by_idx.get(zone_idx)  # type: ignore[assignment]
+        if zon is None:
             zon = zone_factory(self, zone_idx, msg=msg, **schema)
             self.zone_by_idx[zon.idx] = zon
             self.zones.append(zon)
@@ -617,16 +618,11 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
     def _refresh_schedules(self) -> None:
         zone: Zone
-        dhw: DhwZone
 
-        if self._gwy._disable_sending:
-            raise RuntimeError("Sending is disabled")
-
-        # schedules based upon 'active' (not most recent) 0006 pkt
         for zone in getattr(self, SZ_ZONES, []):
             self._gwy._loop.create_task(zone.get_schedule(force_io=True))
-        if dhw := getattr(self, "dhw", None):
-            self._gwy._loop.create_task(dhw.get_schedule(force_io=True))
+        if isinstance(self, StoredHw) and self.dhw:
+            self._gwy._loop.create_task(self.dhw.get_schedule(force_io=True))
 
     async def _obtain_lock(self, zone_idx: str) -> None:
         timeout_dtm = dt.now() + td(minutes=3)
@@ -816,7 +812,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         schema = shrink(SCH_TCS_DHW(schema))
 
         if not self._dhw:
-            self._dhw = zone_factory(self, "HW", msg=msg, **schema)
+            self._dhw = zone_factory(self, "HW", msg=msg, **schema)  # type: ignore[assignment]
 
         elif schema:
             self._dhw._update_schema(**schema)
@@ -826,7 +822,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         return self._dhw
 
     @property
-    def dhw(self) -> DhwZone:
+    def dhw(self) -> DhwZone | None:
         return self._dhw
 
     @property
@@ -976,7 +972,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         if schema.get(SZ_SYSTEM) and (
             dev_id := schema[SZ_SYSTEM].get(SZ_APPLIANCE_CONTROL)
         ):
-            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
+            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)  # type: ignore[assignment]
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):  # type: ignore[assignment]
             self.get_dhw_zone(**_schema)  # self._dhw = ...
@@ -1115,7 +1111,7 @@ def system_factory(
     ) -> type[System]:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
-        klass: str = schema.get(SZ_CLASS)
+        klass: str = schema.get(SZ_CLASS)  # type: ignore[assignment]
 
         # a specified system class always takes precidence (even if it is wrong)...
         if klass and (cls := SYS_CLASS_BY_SLUG.get(klass)):

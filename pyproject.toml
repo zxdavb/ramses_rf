@@ -157,7 +157,6 @@
   module = "ramses_rf.system.heat"
 
   disable_error_code = [
-    "assignment",  #      #  8
     "unreachable",  #     #  9
   ]
 #
