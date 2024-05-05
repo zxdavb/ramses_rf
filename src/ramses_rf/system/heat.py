@@ -191,22 +191,25 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             if (
                 this.code in (Code._22D9, Code._3220) and this.verb == RQ
             ):  # TODO: RPs too?
-                if this.src is self.ctl and isinstance(this.dst, OtbGateway):
-                    app_cntrl = this.dst
+                # dst could be an Address...
+                if this.src is self.ctl and isinstance(this.dst, OtbGateway):  # type: ignore[unreachable]
+                    app_cntrl = this.dst  # type: ignore[unreachable]
 
             elif this.code == Code._3EF0 and this.verb == RQ:
+                # dst could be an Address...
                 if this.src is self.ctl and isinstance(
-                    this.dst, BdrSwitch | OtbGateway
+                    this.dst,  # type: ignore[unreachable]
+                    BdrSwitch | OtbGateway,
                 ):
-                    app_cntrl = this.dst
+                    app_cntrl = this.dst  # type: ignore[unreachable]
 
             elif this.code == Code._3B00 and this.verb == I_ and prev is not None:
-                if this.src is self.ctl and isinstance(prev.src, BdrSwitch):
-                    if prev.code == this.code and prev.verb == this.verb:
+                if this.src is self.ctl and isinstance(prev.src, BdrSwitch):  # type: ignore[unreachable]
+                    if prev.code == this.code and prev.verb == this.verb:  # type: ignore[unreachable]
                         app_cntrl = prev.src
 
             if app_cntrl is not None:
-                app_cntrl.set_parent(self, child_id=FC)  # sets self._app_cntrl
+                app_cntrl.set_parent(self, child_id=FC)  # type: ignore[unreachable]
 
         # # assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
 
@@ -377,7 +380,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             self._prev_30c9, prev = this, self._prev_30c9
             if prev is None:
-                return
+                return  # type: ignore[unreachable]
 
             # TODO: use msgz/I, not RP
             secs: int = self._msg_value(Code._1F09, key="remaining_seconds")  # type: ignore[assignment]
@@ -529,7 +532,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         zon: Zone = self.zone_by_idx.get(zone_idx)  # type: ignore[assignment]
         if zon is None:
-            zon = zone_factory(self, zone_idx, msg=msg, **schema)
+            zon = zone_factory(self, zone_idx, msg=msg, **schema)  # type: ignore[unreachable]
             self.zone_by_idx[zon.idx] = zon
             self.zones.append(zon)
 

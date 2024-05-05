@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """RAMSES RF - A pseudo-mocked serial port used for testing."""
 
+from typing import Any
 from unittest.mock import patch
 
 from ramses_rf import Gateway
@@ -29,7 +30,9 @@ _DEFAULT_GWY_CONFIG = {
 }
 
 
-def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> tuple[str, HgiFwTypes]:
+def _get_hgi_id_for_schema(
+    schema: dict[str, Any], port_idx: int
+) -> tuple[str, HgiFwTypes]:
     """Return the Gateway's device_id for a schema (if required, construct an id).
 
     Does not modify the schema.
@@ -39,7 +42,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> tuple[str, HgiFwTypes
     (port_idx, 0-5).
     """
 
-    known_list: dict = schema.get(SZ_KNOWN_LIST, {})
+    known_list: dict[str, Any] = schema.get(SZ_KNOWN_LIST, {})
 
     hgi_ids = [k for k, v in known_list.items() if v.get(SZ_CLASS) == DevType.HGI]
 
@@ -66,7 +69,7 @@ def _get_hgi_id_for_schema(schema: dict, port_idx: int) -> tuple[str, HgiFwTypes
 
 @patch("ramses_tx.transport.MINIMUM_WRITE_GAP", MINIMUM_WRITE_GAP)
 async def rf_factory(
-    schemas: list[dict | None], start_gwys: bool = True
+    schemas: list[dict[str, Any] | None], start_gwys: bool = True
 ) -> tuple[VirtualRf, list[Gateway]]:
     """Return the virtual network corresponding to a list of gateway schema/configs.
 

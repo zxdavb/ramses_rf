@@ -135,47 +135,47 @@
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
-  disallow_any_generics = false     # 18
-  no_implicit_optional = false      # 14
+  disallow_any_generics = false     # 14
+  no_implicit_optional = false      # 12
 
   disable_error_code = [
-    "arg-type",  #    10 (but a can of worms)
-    "unreachable",  # 14 (but a can of worms)
+    "arg-type",  #     13 (but a can of worms)
+    "unreachable",  #  13 (but a can of worms)
   ]
 #
 [[tool.mypy.overrides]]
   module = "ramses_rf.device.*"
 
   disable_error_code = [
-    "assignment",  #      # 18
-    "return-value",  #    # 64
-    "type-arg",  #        # 10 - doable
-    "unreachable",  #     # 14
-  ]
-#
-[[tool.mypy.overrides]]
-  module = "ramses_rf.system.heat"
-
-  disable_error_code = [
-    "unreachable",  #     #  9
+    "assignment",  #   18 - doable
+    "return-value",  # 64
+    "type-arg",  #     10 - doable
+    "unreachable",  #  14
   ]
 #
 [[tool.mypy.overrides]]
   module = "ramses_rf.system.zones"
 
   disable_error_code = [
-    "assignment",  #      #  9
-    "unreachable",  #     # 10
+    "assignment",  #    6
+    "unreachable",  #  10
   ]
 #
 [[tool.mypy.overrides]]
-  module = ["tests.*", "tests_rf.*"]
+  module = "tests.*"
 
   disable_error_code = [
-    "arg-type",  # 75
-    "type-arg",  # 39
+    "arg-type",  #     30
+    "type-arg",  #     22
   ]
 
+[[tool.mypy.overrides]]
+  module = "tests_rf.*"
+
+  disable_error_code = [
+    "arg-type",  #     54
+    "type-arg",  #     11
+  ]
 
 #
 ## ruff ##############################################################################

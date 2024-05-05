@@ -14,7 +14,7 @@ import tty
 from collections import deque
 from io import FileIO
 from selectors import EVENT_READ, DefaultSelector
-from typing import TypeAlias, TypedDict
+from typing import Any, Final, TypeAlias, TypedDict
 
 from serial import Serial, serial_for_url  # type: ignore[import-untyped]
 
@@ -41,13 +41,22 @@ _GwyAttrsT = TypedDict(
     },
 )
 
+
+DEVICE_ID: Final = "device_id"
+FW_TYPE: Final = "fw_type"
+DEVICE_ID_BYTES: Final = "device_id_bytes"
+
+
+class _GatewaysT(TypedDict):
+    device_id: str
+    fw_type: HgiFwTypes
+    device_id_bytes: bytes
+
+
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
 
 DEFAULT_GWY_ID = bytes("18:000730", "ascii")
-DEVICE_ID = "device_id"
-DEVICE_ID_BYTES = "device_id_bytes"
-FW_VERSION = "fw_version"
 
 MAX_NUM_PORTS = 6
 
@@ -156,7 +165,7 @@ class VirtualRfBase:
             self._create_port(idx)
 
         self._log: deque[tuple[_PN, str, bytes]] = deque([], log_size)
-        self._task: asyncio.Task = None  # type: ignore[assignment]
+        self._task: asyncio.Task[None] | None = None
 
         self._replies: dict[str, bytes] = {}
 
@@ -215,7 +224,7 @@ class VirtualRfBase:
         for fd in self._port_to_slave_.values():
             os.close(fd)  # else this slave fd will persist
 
-    def start(self) -> asyncio.Task:
+    def start(self) -> asyncio.Task[None]:
         """Start polling ports and distributing data, calls `pull_data_from_port()`."""
 
         self._task = self._loop.create_task(self._poll_ports_for_data())
@@ -296,7 +305,9 @@ class VirtualRfBase:
         return frame
 
     def _setup_event_handlers(self) -> None:
-        def handle_exception(loop: asyncio.BaseEventLoop, context: dict) -> None:
+        def handle_exception(
+            loop: asyncio.BaseEventLoop, context: dict[str, Any]
+        ) -> None:
             """Handle exceptions on any platform."""
             _LOGGER.error("Caught an exception: %s, cleaning up...", context["message"])
             self._cleanup()
@@ -311,7 +322,7 @@ class VirtualRfBase:
             signal.raise_signal(sig)
 
         _LOGGER.debug("Creating exception handler...")
-        self._loop.set_exception_handler(handle_exception)
+        self._loop.set_exception_handler(handle_exception)  # type: ignore[arg-type]
 
         _LOGGER.debug("Creating signal handlers...")
         if os.name == "posix":  # signal.SIGKILL people?
@@ -337,7 +348,7 @@ class VirtualRf(VirtualRfBase):
         Each port has the option of a HGI80 or evofw3-based gateway device.
         """
 
-        self._gateways: dict[_PN, dict] = {}
+        self._gateways: dict[_PN, _GatewaysT] = {}
 
         super().__init__(num_ports, log_size)
 
@@ -370,7 +381,7 @@ class VirtualRf(VirtualRfBase):
 
         self._gateways[port_name] = {
             DEVICE_ID: device_id,
-            FW_VERSION: fw_type,
+            FW_TYPE: fw_type,
             DEVICE_ID_BYTES: bytes(device_id, "ascii"),
         }
 
@@ -404,10 +415,10 @@ class VirtualRf(VirtualRfBase):
         if frame[:1] != b"!":
             return b"000 " + frame
 
-        # The type of Gateway will inform next steps...
-        gwy = self._gateways.get(rcv_port, {})  # not a ramses_rf gwy
+        # The type of Gateway will inform next steps (NOTE: is not a ramses_rf.Gateway)
+        gwy: _GatewaysT | None = self._gateways.get(rcv_port)
 
-        if gwy.get(FW_VERSION) != HgiFwTypes.EVOFW3:
+        if gwy is None or gwy.get(FW_TYPE) != HgiFwTypes.EVOFW3:
             return None
 
         if frame == b"!V":
@@ -423,20 +434,20 @@ class VirtualRf(VirtualRfBase):
         HGI80-based gateways will silently drop frames with addr0 other than 18:000730.
         """
 
-        # The type of Gateway will inform next steps...
-        gwy = self._gateways.get(src_port, {})  # not a ramses_rf gwy
+        # The type of Gateway will inform next steps (NOTE: is not a ramses_rf.Gateway)
+        gwy: _GatewaysT | None = self._gateways.get(src_port)
 
         # Handle trace flags (evofw3 only)
         if frame[:1] == b"!":  # never to be cast, but may be echo'd, or other response
-            if gwy.get(FW_VERSION) == HgiFwTypes.EVOFW3:
-                self._push_frame_to_dst_port(src_port, frame)
-            return None  # do not Tx the frame
+            if gwy is None or gwy.get(FW_TYPE) != HgiFwTypes.EVOFW3:
+                return None  # do not Tx the frame
+            self._push_frame_to_dst_port(src_port, frame)
 
-        if not gwy:  # TODO: ?should raise: but is probably from test suite
+        if gwy is None:  # TODO: ?should raise: but is probably from test suite
             return frame
 
         # Real HGI80s will silently drop cmds if addr0 is not the 18:000730 sentinel
-        if gwy[FW_VERSION] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
+        if gwy[FW_TYPE] == HgiFwTypes.HGI_80 and frame[7:16] != DEFAULT_GWY_ID:
             return None
 
         # Both (HGI80 & evofw3) will swap out addr0 (and only addr0)
