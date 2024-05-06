@@ -90,41 +90,76 @@
     "tests/wip",
   ]
 
-  no_implicit_optional = true
+  # ### Import discovery...
+  # - https://mypy.readthedocs.io/en/stable/command_line.html#import-discovery
 
-  # see: https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
+  # ignore_missing_imports = true  # only used per-module
+  # follow_imports = normal  # avoid skip/silent, prefer normal (default) over error
+
+
+  # ### Strict typing (--strict) if all following are set to true (excl. zxdavb)
+  #  - https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
+
+  # # Config file & Configuring warning
+  #  - https://mypy.readthedocs.io/en/stable/command_line.html#config-file
 
   # Start off with these
   warn_unused_configs = true
-  warn_redundant_casts = true  # this is not per-module
-  warn_unused_ignores = true
+  warn_redundant_casts = true  # from: Configuring warning
+  warn_unused_ignores = true  # from: Configuring warning
+
+  # # Miscellaneous strictness flags
+  #  - https://mypy.readthedocs.io/en/stable/command_line.html#miscellaneous-strictness-flags
 
   # Getting these passing should be easy
-  extra_checks = true  # was: strict_equality, strict_concatenate = true
+  extra_checks = true  # now incl.: strict_concatenate = true
+  strict_equality = true
 
   # Strongly recommend enabling this one as soon as you can
   check_untyped_defs = true
 
+  # allow-redefinition = false  # added by zxdavb
+  # no-implicit-reexport = true  # added by zxdavb
+
+  # # Disallow dynamic typing...
+  #  - https://mypy.readthedocs.io/en/stable/command_line.html#disallow-dynamic-typing
+
   # These shouldn't be too much additional work, but may be tricky to
   # get passing if you use a lot of untyped libraries
   disallow_subclassing_any = true
-  disallow_untyped_decorators = true
+  disallow_untyped_decorators = true  # from: Untyped definitions and calls
   disallow_any_generics = true
+
+  # disallow-any-explicit = true  # added by zxdavb
+
+  # # Untyped definitions and calls
+  #  - https://mypy.readthedocs.io/en/stable/command_line.html#untyped-definitions-and-calls
 
   # These next few are various gradations of forcing use of type annotations
   disallow_untyped_calls = true
   disallow_incomplete_defs = true
-  disallow_untyped_defs = true  # 20
+  disallow_untyped_defs = true  #  20
+
+  # disallow-untyped-decorators = true  # added by zxdavb
 
   # This one isn't too hard to get passing, but return on investment is lower
-  # no_implicit_reexport = true  #     242
+  # no_implicit_reexport = true  # 242  # from: Miscellaneous strictness flags
+
+  # # Configuring warnings
+  #  - https://mypy.readthedocs.io/en/stable/command_line.html#configuring-warnings
 
   # This one can be tricky to get passing if you use a lot of untyped libraries
   warn_return_any = true
 
-  disallow_any_unimported = true
+  disallow_any_unimported = true  # from: Disallow dynamic typing
   warn_no_return = true
   warn_unreachable = true
+
+  # # None and Optional handling
+  #  - https://mypy.readthedocs.io/en/stable/command_line.html#none-and-optional-handling
+
+  no_implicit_optional = true
+
 
 #
 [[tool.mypy.overrides]]
@@ -202,6 +237,10 @@
   # SIM102 - Use a single `if` statement instead of nested `if` statements
   # SIM114 - Combine `if` branches using logical `or` operator
   # UP040  - Type alias uses `TypeAlias` annotation instead of the `type` keyword
+
+
+[tool.ruff.lint.flake8-import-conventions.extend-aliases]
+  voluptuous = "vol"
 
 
 [tool.ruff.lint.isort]
