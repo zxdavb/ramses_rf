@@ -73,8 +73,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 if TYPE_CHECKING:
-    from ramses_tx.protocol import RamsesTransportT
-    from ramses_tx.schemas import DeviceIdT, DeviceListT
+    from ramses_tx import DeviceIdT, DeviceListT, RamsesTransportT
 
     from .device import Device
     from .entity_base import Parent

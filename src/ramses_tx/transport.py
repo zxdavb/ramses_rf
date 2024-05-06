@@ -59,7 +59,6 @@ from serial import (  # type: ignore[import-untyped]
 )
 
 from . import exceptions as exc
-from .address import DeviceIdT
 from .command import Command
 from .const import (
     DUTY_CYCLE_DURATION,
@@ -76,6 +75,7 @@ from .schemas import (
     SZ_EVOFW_FLAG,
     SZ_INBOUND,
     SZ_OUTBOUND,
+    DeviceIdT,
     PortConfigT,
 )
 from .typing import ExceptionT, SerPortNameT

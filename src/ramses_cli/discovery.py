@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING, Any, Final
 from ramses_rf import exceptions as exc
 from ramses_rf.const import SZ_SCHEDULE, SZ_ZONE_IDX
 from ramses_rf.device import Fakeable
-from ramses_tx import CODES_SCHEMA, Command, Priority
-from ramses_tx.address import DeviceIdT
+from ramses_tx import CODES_SCHEMA, Command, DeviceIdT, Priority
 from ramses_tx.opentherm import OTB_DATA_IDS
 
 # Beware, none of this is reliable - it is all subject to random change

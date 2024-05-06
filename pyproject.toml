@@ -166,7 +166,7 @@
   module = "ramses_tx.parsers"
 
   disallow_any_generics = false  # 89 - will be lots of work
-#
+
 [[tool.mypy.overrides]]
   module = "ramses_rf.entity_base.*"
 
@@ -177,7 +177,7 @@
     "arg-type",  #     13 (but a can of worms)
     "unreachable",  #  13 (but a can of worms)
   ]
-#
+
 [[tool.mypy.overrides]]
   module = "ramses_rf.device.*"
 
@@ -187,7 +187,7 @@
     "type-arg",  #     10 - doable
     "unreachable",  #  14
   ]
-#
+
 [[tool.mypy.overrides]]
   module = "ramses_rf.system.zones"
 
@@ -195,7 +195,7 @@
     "assignment",  #    6
     "unreachable",  #  10
   ]
-#
+
 [[tool.mypy.overrides]]
   module = "tests.*"
 
@@ -211,6 +211,11 @@
     "arg-type",  #     54
     "type-arg",  #     11
   ]
+
+[[tool.mypy.overrides]]
+  module = "ramses_tx.*"
+
+  no_implicit_reexport = true
 
 #
 ## ruff ##############################################################################

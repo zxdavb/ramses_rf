@@ -4,10 +4,7 @@
 # - self._tasks is not ThreadSafe
 
 
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
-
-The serial to RF gateway (HGI80, not RFG100).
-"""
+"""RAMSES RF - The serial to RF gateway (HGI80, not RFG100)."""
 
 from __future__ import annotations
 
@@ -28,11 +25,12 @@ from .const import (
     DEFAULT_NUM_REPEATS,
     DEFAULT_SEND_TIMEOUT,
     DEFAULT_WAIT_FOR_REPLY,
+    SZ_ACTIVE_HGI,
     Priority,
 )
 from .message import Message
 from .packet import Packet
-from .protocol import QosParams, protocol_factory
+from .protocol import protocol_factory
 from .schemas import (
     SZ_DISABLE_QOS,
     SZ_DISABLE_SENDING,
@@ -44,7 +42,8 @@ from .schemas import (
     PortConfigT,
     select_device_filter_mode,
 )
-from .transport import SZ_ACTIVE_HGI, is_hgi80, transport_factory
+from .transport import is_hgi80, transport_factory
+from .typing import QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -57,8 +56,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from .const import VerbT
     from .frame import PayloadT
-    from .protocol import RamsesProtocolT, RamsesTransportT
+    from .protocol import RamsesProtocolT
     from .schemas import DeviceIdT, DeviceListT
+    from .transport import RamsesTransportT
 
 _MsgHandlerT = Callable[[Message], None]
 

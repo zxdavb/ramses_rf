@@ -38,9 +38,7 @@ if TYPE_CHECKING:
 
     from ramses_rf import Gateway
     from ramses_rf.system import Zone
-    from ramses_tx import Address, Message
-    from ramses_tx.address import DeviceIdT
-    from ramses_tx.const import IndexT
+    from ramses_tx import Address, DeviceIdT, IndexT, Message
 
 
 BIND_WAITING_TIMEOUT = 300  # how long to wait, listening for an offer

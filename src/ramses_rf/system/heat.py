@@ -58,10 +58,10 @@ from ramses_tx import (
     ZON_ROLE_MAP,
     Address,
     Command,
+    DeviceIdT,
     Message,
+    Priority,
 )
-from ramses_tx.address import DeviceIdT
-from ramses_tx.const import Priority
 from ramses_tx.typed_dicts import PayDictT
 
 from .faultlog import FaultIdxT, FaultLog, FaultLogEntry, FaultTupleT
