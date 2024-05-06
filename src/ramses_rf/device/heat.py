@@ -1046,7 +1046,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result: dict[str, Any] = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(k) and k in SCHEMA_DATA_IDS
+            if self._supported_cmds_ctx.get(k) and int(k, 16) in SCHEMA_DATA_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1073,7 +1073,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._msgs_ot.items()
-            if self._supported_cmds_ctx.get(k) and k in PARAMS_DATA_IDS
+            if self._supported_cmds_ctx.get(k) and int(k, 16) in PARAMS_DATA_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(SZ_VALUE)}
@@ -1450,7 +1450,7 @@ class UfhCircuit(Child, Entity):  # FIXME
             raise exc.PacketPayloadInvalid("Wrong Zone")
         self._zone = zon
 
-        if self not in self._zone.actuators:
+        if self.ufc not in self._zone.actuators:
             schema = {SZ_ACTUATORS: [self.ufc.id], SZ_CIRCUITS: [self.id]}
             self._zone._update_schema(**schema)
 
