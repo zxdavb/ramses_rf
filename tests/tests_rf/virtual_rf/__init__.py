@@ -16,7 +16,7 @@ from .virtual_rf import (
 # patched constants
 # _DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
 # _DBG_DISABLE_QOS = False  # #                 ramses_tx.protocol
-MINIMUM_WRITE_GAP = 0  # #              ramses_tx.protocol
+MINIMUM_WRITE_GAP = 0  # #                      ramses_tx.protocol
 
 # other constants
 GWY_ID_0 = "18:000000"
