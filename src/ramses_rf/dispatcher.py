@@ -244,6 +244,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             # dont: msg.dst._handle_msg(msg)
             devices = [msg.dst]  # type: ignore[unreachable]
 
+        # TODO: this may not be required...
         elif hasattr(msg.src, SZ_DEVICES):  # FIXME: use isinstance()
             # elif isinstance(msg.src, Controller):
             # .I --- 22:060293 --:------ 22:060293 0008 002 000C
