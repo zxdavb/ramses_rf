@@ -867,6 +867,10 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
         async def connect_with_signature() -> None:
             """Poll port with signatures, call connection_made() after first echo."""
 
+            # TODO: send a 2nd signature, but with addr0 set to learned GWY address
+            # TODO: a HGI80 will silently drop this cmd, so an echo would tell us
+            # TODO: that the GWY is evofw3-compatible
+
             sig = Command._puzzle()
             self._extra[SZ_SIGNATURE] = sig.payload
 
