@@ -148,7 +148,7 @@ class Actuator(DeviceHeat):  # 3EF0, 3EF1 (for 10:/13:)
         if msg.code == Code._3EF0 and msg.verb == I_ and not self.is_faked:
             # lf._send_cmd(Command.get_relay_demand(self.id), qos=QOS_LOW)
             self._send_cmd(
-                Command.from_attrs(RQ, self.id, Code._3EF1, "00"), qos=QOS_LOW
+                Command.from_attrs(RQ, self.id, Code._3EF1, "00"), **QOS_LOW
             )  # actuator cycle
 
     @property
