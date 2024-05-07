@@ -405,13 +405,16 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 
         if dev_id in self._exclude:
             _LOGGER.error(f"{msg} MUST NOT be in the {SZ_BLOCK_LIST}{TIP}")
-        elif dev_id in self._include:
-            pass
-        elif self.enforce_include:
+
+        elif dev_id not in self._include:
             _LOGGER.warning(f"{msg} SHOULD be in the (enforced) {SZ_KNOWN_LIST}")
             # self._include.append(dev_id)  # a good idea?
+
+        elif not self.enforce_include:
+            _LOGGER.info(f"{msg} is in the {SZ_KNOWN_LIST}, which SHOULD be enforced")
+
         else:
-            _LOGGER.warning(f"{msg} SHOULD be in the {SZ_KNOWN_LIST}")
+            _LOGGER.debug(f"{msg} is in the {SZ_KNOWN_LIST}")
 
     def _is_wanted_addrs(
         self, src_id: DeviceIdT, dst_id: DeviceIdT, sending: bool = False
