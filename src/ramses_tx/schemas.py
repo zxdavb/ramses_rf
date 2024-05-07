@@ -19,7 +19,6 @@ from .const import (
     DEVICE_ID_REGEX,
     MAX_DUTY_CYCLE_RATE,
     MINIMUM_WRITE_GAP,
-    DevType,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -354,57 +353,40 @@ def select_device_filter_mode(
      - allow if device_id in known_list, or
     """
 
-    if both := set(known_list) & set(block_list):
-        raise ValueError(
-            f"There are devices in both the {SZ_KNOWN_LIST} & {SZ_BLOCK_LIST}: {both}"
-        )
-
-    hgi_list = [
-        k
-        for k, v in known_list.items()
-        if k[:2] == DEV_TYPE_MAP._hex(DevType.HGI)
-        and v.get(SZ_CLASS) in (None, DevType.HGI, DEV_TYPE_MAP[DevType.HGI])
-    ]
-    if len(hgi_list) != 1:
-        _LOGGER.warning(
-            f"Best practice is exactly one gateway (HGI) in the {SZ_KNOWN_LIST}: "
-            "but, len(%s) = %s",
-            hgi_list,
-            len(hgi_list),
-        )
+    # warn if not has_exactly_one_valid_hgi(known_list)
 
     if enforce_known_list and not known_list:
         _LOGGER.warning(
-            f"An empty {SZ_KNOWN_LIST} was provided, so it cant be used "
-            f"as a whitelist (device_id filter)"
+            f"Best practice is to enforce a {SZ_KNOWN_LIST} (an allow list), "
+            f"but it is empty, so it cant be used "
         )
         enforce_known_list = False
 
     if enforce_known_list:
         _LOGGER.info(
-            f"The {SZ_KNOWN_LIST} will be used "
-            f"as a whitelist (device_id filter), length = {len(known_list)}"
+            f"A valid {SZ_KNOWN_LIST} was provided, "
+            f"and will be enforced as a allow list: length = {len(known_list)}"
         )
         _LOGGER.debug(f"known_list = {known_list}")
 
     elif block_list:
         _LOGGER.info(
-            f"The {SZ_BLOCK_LIST} will be used "
-            f"as a blacklist (device_id filter), length = {len(block_list)}"
+            f"A valid {SZ_BLOCK_LIST} was provided, "
+            f"and will be used as a deny list: length = {len(block_list)}"
         )
         _LOGGER.debug(f"block_list = {block_list}")
 
     elif known_list:
         _LOGGER.warning(
-            f"It is strongly recommended to use the {SZ_KNOWN_LIST} "
-            f"as a whitelist (device_id filter), configure: {SZ_ENFORCE_KNOWN_LIST} = True"
+            f"Best practice is to enforce the {SZ_KNOWN_LIST} as an allow list, "
+            f"configure: {SZ_ENFORCE_KNOWN_LIST} = True"
         )
         _LOGGER.debug(f"known_list = {known_list}")
 
     else:
         _LOGGER.warning(
-            f"It is strongly recommended to provide a {SZ_KNOWN_LIST}, and use it "
-            f"as a whitelist (device_id filter), configure: {SZ_ENFORCE_KNOWN_LIST} = True"
+            f"Best practice is to provide a {SZ_KNOWN_LIST} and enforce it, "
+            f"configure: {SZ_ENFORCE_KNOWN_LIST} = True"
         )
 
     return enforce_known_list

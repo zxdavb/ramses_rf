@@ -113,6 +113,7 @@ __all__ = [
     "PortProtocol",
     "ReadProtocol",
     "RamsesProtocolT",
+    "extract_known_hgi_id",
     "protocol_factory",
     #
     "FileTransport",
@@ -133,3 +134,15 @@ if TYPE_CHECKING:
 def set_pkt_logging_config(**config: Any) -> Logger:
     set_pkt_logging(PKT_LOGGER, **config)
     return PKT_LOGGER
+
+
+def extract_known_hgi_id(
+    include_list: DeviceListT,
+    /,
+    *,
+    disable_warnings: bool = False,
+    strick_checking: bool = False,
+) -> DeviceIdT | None:
+    return PortProtocol._extract_known_hgi_id(
+        include_list, disable_warnings=disable_warnings, strick_checking=strick_checking
+    )

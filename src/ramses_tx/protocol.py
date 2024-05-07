@@ -309,7 +309,11 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         self._include += [ALL_DEV_ADDR.id, NON_DEV_ADDR.id]
 
         self._active_hgi: DeviceIdT | None = None
-        self._known_hgi = self._extract_known_hgi(include_list)
+        # HACK: to disable_warnings if pkt source is static (e.g. a file/dict)
+        # HACK: but a dynamic source (e.g. a port/MQTT) should warn if needed
+        self._known_hgi = self._extract_known_hgi_id(
+            include_list, disable_warnings=isinstance(self, ReadProtocol)
+        )
 
         self._foreign_gwys_lst: list[DeviceIdT] = []
         self._foreign_last_run = dt.now().date()
@@ -323,52 +327,66 @@ class _DeviceIdFilterMixin(_BaseProtocol):
         )
 
     @staticmethod
-    def _extract_known_hgi(include_list: DeviceListT) -> DeviceIdT | None:
+    def _extract_known_hgi_id(
+        include_list: DeviceListT,
+        /,
+        *,
+        disable_warnings: bool = False,
+        strick_checking: bool = False,
+    ) -> DeviceIdT | None:
         """Return the device_id of the gateway specified in the include_list, if any.
 
         The 'Known' gateway is the predicted Active gateway, given the known_list.
-        The 'Active' gateway is the USB device that is Tx/Rx frames.
+        The 'Active' gateway is the USB device that is actually Tx/Rx-ing frames.
 
         The Known gateway ID should be the Active gateway ID, but does not have to
         match.
 
-        Send a warning if the include_list is configured incorrectly.
+        Will send a warning if the include_list is configured incorrectly.
         """
 
-        known_hgis = [
-            k for k, v in include_list.items() if v.get(SZ_CLASS) == DevType.HGI
+        logger = _LOGGER.warning if not disable_warnings else _LOGGER.debug
+
+        explicit_hgis = [
+            k
+            for k, v in include_list.items()
+            if v.get(SZ_CLASS) in (DevType.HGI, DEV_TYPE_MAP[DevType.HGI])
         ]
-        known_hgis = known_hgis or [
-            k for k, v in include_list.items() if k[:2] == "18" and not v.get(SZ_CLASS)
+        implicit_hgis = [
+            k
+            for k, v in include_list.items()
+            if not v.get(SZ_CLASS) and k[:2] == DEV_TYPE_MAP._hex(DevType.HGI)
         ]
 
-        if not known_hgis:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
-                f"but does not (make sure you specify class: HGI)"
+        if not explicit_hgis and not implicit_hgis:
+            logger(
+                f"The {SZ_KNOWN_LIST} SHOULD include exactly one gateway (HGI), "
+                f"but does not (it should specify 'class: HGI')"
             )
             return None
 
-        known_hgi = known_hgis[0]
+        known_hgi = (explicit_hgis if explicit_hgis else implicit_hgis)[0]
 
         if include_list[known_hgi].get(SZ_CLASS) != DevType.HGI:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include a well-configured gateway (HGI), "
-                f"{known_hgi} should specify class: HGI (18: is also used for HVAC)"
+            logger(
+                f"The {SZ_KNOWN_LIST} SHOULD include exactly one gateway (HGI): "
+                f"{known_hgi} should specify 'class: HGI', as 18: is also used for HVAC"
             )
 
-        elif len(known_hgis) > 1:
-            _LOGGER.info(
-                f"The {SZ_KNOWN_LIST} should include exactly one gateway (HGI), "
-                f"{known_hgi} is the assumed device id (is it/are the others HVAC?)"
+        elif len(explicit_hgis) > 1:
+            logger(
+                f"The {SZ_KNOWN_LIST} SHOULD include exactly one gateway (HGI): "
+                f"{known_hgi} is the chosen device id (why is there >1 HGI?)"
             )
 
         else:
             _LOGGER.debug(
-                f"The {SZ_KNOWN_LIST} specifies {known_hgi} as the gateway (HGI)"
+                f"The {SZ_KNOWN_LIST} includes exactly one gateway (HGI): {known_hgi}"
             )
 
-        return known_hgis[0]
+        if strick_checking:
+            return known_hgi if [known_hgi] == explicit_hgis else None
+        return known_hgi
 
     def _set_active_hgi(self, dev_id: DeviceIdT, by_signature: bool = False) -> None:
         """Set the Active Gateway (HGI) device_id.
@@ -378,7 +396,7 @@ class _DeviceIdFilterMixin(_BaseProtocol):
 
         assert self._active_hgi is None  # should only be called once
 
-        msg = f"The active gateway {dev_id}: {{ class: HGI }} "
+        msg = f"The active gateway '{dev_id}: {{ class: HGI }}' "
         msg += "(by signature)" if by_signature else "(by filter)"
 
         if dev_id not in self._exclude:

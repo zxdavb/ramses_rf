@@ -21,6 +21,7 @@ from ramses_tx import (
     Engine,
     Packet,
     Priority,
+    extract_known_hgi_id,
     is_valid_dev_id,
     protocol_factory,
     set_pkt_logging_config,
@@ -299,10 +300,25 @@ class Gateway(Engine):
         if _clear_state:  # only intended for test suite use
             clear_state()
 
+        # We do not always enforce the known_list whilst restoring a cache because
+        # if it does not contain a correctly configured HGI, a 'working' address is
+        # used (which could be different to the address in the cache) & wanted packets
+        # can be dropped unneccesarily.
+
+        enforce_include_list = bool(
+            self._enforce_known_list
+            and extract_known_hgi_id(
+                self._include, disable_warnings=True, strick_checking=True
+            )
+        )
+
+        # The actual HGI address will be discovered when the actual transport was/is
+        # started up (usually before now)
+
         tmp_protocol = protocol_factory(
             self._msg_handler,
             disable_sending=True,
-            enforce_include_list=self._enforce_known_list,
+            enforce_include_list=enforce_include_list,
             exclude_list=self._exclude,
             include_list=self._include,
         )
