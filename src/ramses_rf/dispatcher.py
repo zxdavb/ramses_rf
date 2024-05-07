@@ -236,7 +236,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
         if msg.code == Code._1FC9 and msg.payload[SZ_PHASE] == SZ_OFFER:
             devices = [d for d in gwy.devices if d is not msg.src and d._is_binding]
 
-        elif msg.dst == ALL_DEV_ADDR:  # some offers use dst=63:, so after IFC9 offer
+        elif msg.dst == ALL_DEV_ADDR:  # some offers use dst=63:, so after 1FC9 offer
             devices = [d for d in gwy.devices if d is not msg.src and d.is_faked]
 
         elif msg.dst is not msg.src and isinstance(msg.dst, Fakeable):  # type: ignore[unreachable]
