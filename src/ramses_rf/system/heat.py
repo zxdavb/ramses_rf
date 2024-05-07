@@ -56,7 +56,6 @@ from ramses_tx import (
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     ZON_ROLE_MAP,
-    Address,
     Command,
     DeviceIdT,
     Message,
@@ -64,12 +63,15 @@ from ramses_tx import (
 )
 from ramses_tx.typed_dicts import PayDictT
 
-from .faultlog import FaultIdxT, FaultLog, FaultLogEntry, FaultTupleT
-from .zones import DhwZone, Zone, zone_factory
+from .faultlog import FaultLog
+from .zones import zone_factory
 
 if TYPE_CHECKING:
-    from ramses_rf.system.zones import DhwZone, Zone
-    from ramses_tx import Packet
+    from ramses_tx import Address, Packet
+
+    from .faultlog import FaultIdxT, FaultLogEntry
+    from .zones import DhwZone, Zone
+
 
 # TODO: refactor packet routing (filter *before* routing)
 
@@ -723,34 +725,33 @@ class Logbook(SystemBase):  # 0418
             return None
 
     @property
-    def active_faults(self) -> tuple[FaultTupleT, ...] | None:
+    def active_faults(self) -> tuple[str, ...] | None:
         """Return the most recently logged faults that are not restored."""
         if self._faultlog.active_faults is None:
             return None
-        return tuple(f._as_tuple() for f in self._faultlog.active_faults)
+        return tuple(str(f) for f in self._faultlog.active_faults)
 
     @property
-    def latest_event(self) -> FaultTupleT | None:
+    def latest_event(self) -> str | None:
         """Return the most recently logged event (fault or restore), if any."""
         if not self._faultlog.latest_event:
             return None
-        return self._faultlog.latest_event._as_tuple()
+        return str(self._faultlog.latest_event)
 
     @property
-    def latest_fault(self) -> FaultTupleT | None:
+    def latest_fault(self) -> str | None:
         """Return the most recently logged fault, if any."""
         if not self._faultlog.latest_fault:
             return None
-        return self._faultlog.latest_fault._as_tuple()
+        return str(self._faultlog.latest_fault)
 
     @property
     def status(self) -> dict[str, Any]:
         return {
             **super().status,
-            "active_fault": self.active_faults,
+            "active_faults": self.active_faults,
             "latest_event": self.latest_event,
             "latest_fault": self.latest_fault,
-            # "faultlog": self.faultlog,
         }
 
 

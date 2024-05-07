@@ -124,18 +124,18 @@ async def test_get_faultlog_fake(fake_evofw3: Gateway) -> None:
     assert len(tcs._faultlog._log) == 49
     assert (
         str(tcs._faultlog.latest_event)
-        == "24-04-20T12:44:52 restore battery_low 00:000001 00 controller"
+        == "24-04-20T12:44:52, restore, battery_low, 00:000001, 00, controller"
     )
     assert (
         str(tcs._faultlog.latest_fault)
-        == "24-04-20T09:26:49 fault   battery_low 00:000001 00 controller"
+        == "24-04-20T09:26:49, fault,   battery_low, 00:000001, 00, controller"
     )
     assert (
         tcs._faultlog.active_faults is not None
         and len(tcs._faultlog.active_faults) == 1
         and (
             str(tcs._faultlog.active_faults[0])
-            == "24-03-20T20:11:13 fault   comms_fault 07:123456 FA dhw_sensor"
+            == "24-03-20T20:11:13, fault,   comms_fault, 07:123456, FA, dhw_sensor"
         )
     )
 

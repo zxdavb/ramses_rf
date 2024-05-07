@@ -64,8 +64,8 @@ class FaultLogEntry:
 
     def __str__(self) -> str:
         return (
-            f"{self.timestamp} {self.fault_state:<7} {self.fault_type} "
-            f"{self.device_id} {self.domain_idx} {self.device_class}"
+            f"{self.timestamp}, {(self.fault_state + ","):<8} {self.fault_type}, "
+            f"{self.device_id}, {self.domain_idx}, {self.device_class}"
         )
 
     def _is_matching_pair(self, other: object) -> bool:
@@ -90,8 +90,8 @@ class FaultLogEntry:
 
         return False
 
-    def _as_tuple(self) -> FaultTupleT:
-        """Return the fault log entry as a tuple, excluding state (fault/restore)."""
+    def _as_tuple(self) -> FaultTupleT:  # only for use within this class
+        """Return the log entry as a tuple, excluding dtm & state (fault/restore)."""
 
         return (
             self.fault_type,
@@ -303,7 +303,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         restores = {}
         faults = {}
 
-        for entry in self._log.values():
+        for entry in sorted(self._log.values(), reverse=True):
             if entry.fault_state == FaultState.RESTORE:
                 # keep to match against upcoming faults
                 restores[entry._as_tuple()] = entry
