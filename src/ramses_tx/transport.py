@@ -90,10 +90,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from .protocol import RamsesProtocolT
 
-
 _SIGNATURE_GAP_SECS = 0.05
-_SIGNATURE_MAX_TRYS = 24  # was: 24
-_SIGNATURE_MAX_SECS = 3  # was: 3
+_SIGNATURE_MAX_TRYS = 40  # was: 24
+_SIGNATURE_MAX_SECS = 3
 
 
 SZ_RAMSES_GATEWAY: Final = "RAMSES/GATEWAY"
