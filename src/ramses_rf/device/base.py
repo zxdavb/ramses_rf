@@ -127,7 +127,7 @@ class DeviceBase(Entity):
         pass
 
     def _send_cmd(self, cmd: Command, **kwargs: Any) -> None:
-        if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
+        if self.has_battery and not self.is_faked and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (it has a battery)")
 
         super()._send_cmd(cmd, **kwargs)
@@ -164,16 +164,20 @@ class DeviceBase(Entity):
 
     @property
     def has_battery(self) -> None | bool:  # 1060
-        """Return True if a device is battery powered (excludes battery-backup)."""
+        """Return True if the device is battery powered (excludes battery-backup)."""
 
         return isinstance(self, BatteryState) or Code._1060 in self._msgz
 
     @property
     def is_faked(self) -> bool:
-        return bool(self._bind_context)
+        """Return True if the device is faked."""
+
+        return bool(self._bind_context)  # isinstance(self, Fakeable) and...
 
     @property
     def _is_binding(self) -> bool:
+        """Return True if the (faked) device is actively binding."""
+
         return self._bind_context and self._bind_context.is_binding
 
     @property
@@ -287,7 +291,7 @@ class Fakeable(DeviceBase):
 
         self._bind_context: BindContext | None = None
 
-        # TOD: thsi si messy - device schema vs device traits
+        # TOD: this is messy - device schema vs device traits
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
 
