@@ -1069,6 +1069,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         assert msg.payload == b"online", "Coding error"
 
         if self._connected:
+            self._loop.call_soon_threadsafe(self._protocol.resume_writing)
             return
         self._connected = True
 
@@ -1100,15 +1101,17 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
 
         if msg.topic[-3:] != "/rx":  # then, e.g. 'RAMSES/GATEWAY/18:017804'
             if msg.payload == b"offline" and self._topic_sub.startswith(msg.topic):
-                err = exc.TransportError(
-                    f"the MQTT topic is offline: {self._topic_sub[:-3]}"
+                _LOGGER.warning(
+                    f"{self}: the MQTT topic is offline: {self._topic_sub[:-3]}"
                 )
-                self._close(err)
+                self._protocol.pause_writing()
 
             # BUG: using create task (self._loop.ct() & asyncio.ct()) causes the
             # BUG: event look to close early
             elif msg.payload == b"online":
-                # self._loop.create_task(... name="MqttTransport._create_connection()")
+                _LOGGER.warning(
+                    f"{self}: the MQTT topic is online: {self._topic_sub[:-3]}"
+                )
                 self._create_connection(msg)
 
             return
