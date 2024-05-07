@@ -199,18 +199,12 @@ class _MessageDB(_Entity):
     def _handle_msg(self, msg: Message) -> None:  # TODO: beware, this is a mess
         """Store a msg in the DBs."""
 
-        # NOTE: ZZZ project
         if not (
             msg.src.id == self.id[:9]
-            or (msg.dst.id == self.id and msg.verb in (I_, RP))  # ? W_
-            or (msg.dst.id == ALL_DEVICE_ID and msg.code == Code._10E0)
-            or msg.code == Code._1FC9
+            or (msg.dst.id == self.id[:9] and msg.verb != RQ)
+            or (msg.dst.id == ALL_DEVICE_ID and msg.code == Code._1FC9)
         ):
-            raise TypeError(msg._pkt)  # shouldn't have been routed to this entity
-
-        # NOTE: ZZZ project
-        if (msg.src.id != self.id[:9]) or (msg.dst.id == self.id and msg.verb == RP):
-            return  # don't store these
+            return  # ZZZ: don't store these
 
         if msg.verb in (I_, RP):
             self._msgs_[msg.code] = msg
