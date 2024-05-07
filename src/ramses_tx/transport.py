@@ -50,7 +50,6 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any, Final, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
-import serial_asyncio  # type: ignore[import-untyped]
 from paho.mqtt import MQTTException, client as mqtt
 from serial import (  # type: ignore[import-untyped]
     Serial,
@@ -107,7 +106,16 @@ _DBG_DISABLE_REGEX_WARNINGS: Final[bool] = False
 _DBG_FORCE_FRAME_LOGGING: Final[bool] = False
 
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.INFO)
+
+
+try:
+    import serial_asyncio_fast as serial_asyncio  # type: ignore[import-not-found]
+
+    _LOGGER.warning(
+        "EXPERIMENTAL: Using pyserial-asyncio-fast in place of pyserial-asyncio"
+    )
+except ImportError:
+    import serial_asyncio  # type: ignore[import-untyped]
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
