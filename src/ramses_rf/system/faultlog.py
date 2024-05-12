@@ -228,6 +228,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         force_refresh: bool = False,
     ) -> dict[FaultIdxT, FaultLogEntry]:
         """Retrieve the fault log from the controller."""
+
         if limit is None:
             limit = DEFAULT_LIMIT
 

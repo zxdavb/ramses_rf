@@ -333,7 +333,7 @@ class Gateway(Engine):
         _LOGGER.warning("GATEWAY: Restored, resuming")
         self._resume()
 
-    def _add_device(self, dev: Device) -> None:
+    def _add_device(self, dev: Device) -> None:  # TODO: also: _add_system()
         """Add a device to the gateway (called by devices during instantiation)."""
 
         if dev.id in self.device_by_id:
