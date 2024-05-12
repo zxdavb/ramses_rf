@@ -401,15 +401,19 @@ def hex_from_temp(value: bool | float | None) -> HexStr4:
 ########################################################################################
 
 
-def parse_fault_log_entry(payload: str) -> PayDictT.FAULT_LOG_ENTRY | None:
+def parse_fault_log_entry(
+    payload: str,
+) -> PayDictT.FAULT_LOG_ENTRY | PayDictT.FAULT_LOG_ENTRY_NULL:
     """Return the fault log entry."""
 
     assert len(payload) == 44
 
-    if (timestamp := hex_to_dts(payload[18:30])) is None:
-        return None  # {SZ_LOG_IDX: payload[4:6]}
+    # NOTE: the log_idx will increment as the entry moves down the log, hence '_log_idx'
 
-    # NOTE: the log_idx will increment as the entry moves down the log, so '_log_idx'
+    # these are only only useful for I_, and not RP
+    if (timestamp := hex_to_dts(payload[18:30])) is None:
+        return {f"_{SZ_LOG_IDX}": payload[4:6]}  # type: ignore[misc,return-value]
+
     result: PayDictT.FAULT_LOG_ENTRY = {
         f"_{SZ_LOG_IDX}": payload[4:6],  # type: ignore[misc]
         SZ_TIMESTAMP: timestamp,

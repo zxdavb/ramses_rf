@@ -640,6 +640,10 @@ class PortProtocol(_DeviceIdFilterMixin, _BaseProtocol):
         #     priority = Priority.HIGHEST  # FIXME: hack for _7FFF
 
         _CODES = (Code._0006, Code._0404, Code._0418, Code._1FC9)  # must have QoS
+        # 0006|RQ must have wait_for_reply: (TODO: explain why)
+        # 0404|RQ must have wait_for_reply: (TODO: explain why)
+        # 0418|RQ must have wait_for_reply: if null log entry, reply has no idx
+        # 1FC9|xx must have wait_for_reply and priority (timing critical)
 
         if self._disable_qos is True or _DBG_DISABLE_QOS:
             qos._wait_for_reply = False

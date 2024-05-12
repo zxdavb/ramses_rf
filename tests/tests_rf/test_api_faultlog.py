@@ -114,12 +114,19 @@ async def test_get_faultlog_fake(fake_evofw3: Gateway) -> None:
     for k, v in TEST_SUITE.items():
         rf.add_reply_for_cmd(k, v)
 
+    # we'll need null replies for all the other fault log slots (max 64?)
+    for idx in range(len(TEST_SUITE), 64):
+        rf.add_reply_for_cmd(
+            list(TEST_SUITE.keys())[-1][:-2] + f"{idx:02X}",
+            list(TEST_SUITE.values())[-1],
+        )
+
     await _test_get_faultlog(fake_evofw3, "01:145038")
 
     tcs = fake_evofw3.tcs
     assert tcs  # mypy
 
-    _ = await tcs.get_faultlog(limit=0x3F)  # TODO: make TEST_SUITE much larger
+    _ = await tcs.get_faultlog(limit=64)  # TODO: multiple TEST_SUITEs
 
     assert len(tcs._faultlog._log) == 49
     assert (

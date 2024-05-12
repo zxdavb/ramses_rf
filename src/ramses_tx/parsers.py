@@ -731,7 +731,10 @@ def parser_0404(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # system_fault (fault_log_entry) - needs refactoring
-def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
+def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_NULL:
+    null_result: PayDictT._0418_NULL
+    full_result: PayDictT._0418
+
     # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
     # RQ --- 18:017804 01:145038 --:------ 0418 003 000005                                        # log_idx=0x05
@@ -740,11 +743,17 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
     # RQ --- 18:017804 01:145038 --:------ 0418 003 000006                                        # log_idx=0x06
     # RP --- 01:145038 18:017804 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # log_idx=None (00)
 
-    if msg.verb == RQ:  # have a ctx: log_idx
-        return {SZ_LOG_IDX: payload[4:6]}  # type: ignore[typeddict-item]
+    if msg.verb == RQ:  # has a ctx: log_idx
+        null_result = {SZ_LOG_IDX: payload[4:6]}  # type: ignore[typeddict-item]
+        return null_result
 
-    if hex_to_dts(payload[18:30]) is None:  # NOTE: null log entries have no idx
-        return {SZ_LOG_ENTRY: None}  # type: ignore[typeddict-item]
+    # NOTE: such payloads have idx=="00": if verb is I, can safely assume log_idx is 0,
+    # but for RP it is sentinel for null (we can't know the correspondings RQ's log_idx)
+    elif hex_to_dts(payload[18:30]) is None:
+        null_result = {SZ_LOG_ENTRY: None}
+        if msg.verb == I_:
+            null_result = {SZ_LOG_IDX: payload[4:6]} | null_result  # type: ignore[assignment]
+        return null_result
 
     try:
         assert payload[2:4] in FAULT_STATE, f"fault state: {payload[2:4]}"
@@ -759,41 +768,44 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418:
             f"{msg!r} < {_INFORM_DEV_MSG} ({err}), with a photo of your fault log"
         )
 
+    # log_entry will not be None, because of guard clauses, above
     log_entry: PayDictT.FAULT_LOG_ENTRY = parse_fault_log_entry(payload)  # type: ignore[assignment]
+
     # log_idx is not intrinsic to the fault & increments as the fault moves down the log
     log_entry.pop(f"_{SZ_LOG_IDX}")  # type: ignore[misc]
 
     _KEYS = (SZ_TIMESTAMP, SZ_FAULT_STATE, SZ_FAULT_TYPE)
-    result = [v for k, v in log_entry.items() if k in _KEYS]
+    entry = [v for k, v in log_entry.items() if k in _KEYS]
 
     if log_entry[SZ_DEVICE_CLASS] != FaultDeviceClass.ACTUATOR:
-        result.append(log_entry[SZ_DEVICE_CLASS])
+        entry.append(log_entry[SZ_DEVICE_CLASS])
     elif log_entry[SZ_DOMAIN_IDX] == FC:
-        result.append(DEV_ROLE_MAP[DevRole.APP])  # actual evohome UI
+        entry.append(DEV_ROLE_MAP[DevRole.APP])  # actual evohome UI
     elif log_entry[SZ_DOMAIN_IDX] == FA:
-        result.append(DEV_ROLE_MAP[DevRole.HTG])  # speculative
+        entry.append(DEV_ROLE_MAP[DevRole.HTG])  # speculative
     elif log_entry[SZ_DOMAIN_IDX] == F9:
-        result.append(DEV_ROLE_MAP[DevRole.HT1])  # speculative
+        entry.append(DEV_ROLE_MAP[DevRole.HT1])  # speculative
     else:
-        result.append(FaultDeviceClass.ACTUATOR)
+        entry.append(FaultDeviceClass.ACTUATOR)
 
     # TODO: remove the qualifier (the assert is false)
     if log_entry[SZ_DEVICE_CLASS] != FaultDeviceClass.CONTROLLER:
         # assert log_entry[SZ_DOMAIN_IDX] == "00", log_entry[SZ_DOMAIN_IDX]
         # key_name = SZ_ZONE_IDX if int(payload[10:12], 16) < 16 else SZ_DOMAIN_ID
         # log_entry.update({key_name: payload[10:12]})
-        result.append(log_entry[SZ_DOMAIN_IDX])
+        entry.append(log_entry[SZ_DOMAIN_IDX])
 
     if log_entry[SZ_DEVICE_ID] not in ("00:000000", "00:000001", "00:000002"):
         # "00:000001 for Controller? "00:000002 for Unknown?
-        result.append(log_entry[SZ_DEVICE_ID])
+        entry.append(log_entry[SZ_DEVICE_ID])
 
-    result.extend((payload[6:8], payload[14:18], payload[30:38]))  # TODO: remove?
+    entry.extend((payload[6:8], payload[14:18], payload[30:38]))  # TODO: remove?
 
-    return {
+    full_result = {
         SZ_LOG_IDX: payload[4:6],  # type: ignore[typeddict-item]
-        SZ_LOG_ENTRY: tuple([str(r) for r in result]),
+        SZ_LOG_ENTRY: tuple([str(r) for r in entry]),
     }
+    return full_result
 
 
 # unknown_042f, from STA, VMS

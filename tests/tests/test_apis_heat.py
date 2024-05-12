@@ -8,10 +8,10 @@ from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.helpers import shrink
 from ramses_tx.address import HGI_DEV_ADDR
 from ramses_tx.command import Command
+from ramses_tx.const import SZ_TIMESTAMP
 from ramses_tx.helpers import parse_fault_log_entry
 from ramses_tx.message import Message
 from ramses_tx.packet import Packet
-from ramses_tx.typed_dicts import PayDictT
 
 
 # NOTE: not used for 0418
@@ -125,13 +125,13 @@ GET_0418_GOOD = {  # NOTE: this constructor is used only for testing
 def test_put_0418() -> None:
     for pkt_line in GET_0418_GOOD:
         pkt = _create_pkt_from_frame(pkt_line.split("#")[0].rstrip())
-        log_pkt: PayDictT.FAULT_LOG_ENTRY | None = parse_fault_log_entry(pkt.payload)
+        log_pkt = parse_fault_log_entry(pkt.payload)
 
-        if log_pkt is None:
+        if SZ_TIMESTAMP not in log_pkt:  # ignore null log entries
             continue
 
-        cmd = Command._put_system_log_entry(pkt.src.id, **log_pkt)
-        log_cmd: PayDictT.FAULT_LOG_ENTRY | None = parse_fault_log_entry(cmd.payload)
+        cmd = Command._put_system_log_entry(pkt.src.id, **log_pkt)  # type: ignore[call-arg]
+        log_cmd = parse_fault_log_entry(cmd.payload)
 
         assert log_pkt == log_cmd
 

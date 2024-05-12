@@ -705,8 +705,8 @@ class Logbook(SystemBase):  # 0418
     def _handle_msg(self, msg: Message) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
-        if msg.code == Code._0418:
-            self._faultlog._handle_msg(msg)
+        if msg.code == Code._0418:  # and msg.verb in (I_, RP):
+            self._faultlog.handle_msg(msg)
 
     async def get_faultlog(
         self,

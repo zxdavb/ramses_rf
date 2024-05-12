@@ -42,11 +42,14 @@ LogIdxT = Literal[
 # fmt: on
 
 
-# NOTE: can have only log_idx, only log_entry, both
-class _0418(TypedDict):  # NOTE: not identical to FaultLogEntry
-    log_idx: LogIdxT  # "00" to ?"3F"
-    # TODO: = namedtuple("Fault", "timestamp fault_state ...")
-    log_entry: NotRequired[tuple[str, ...] | None]
+class _0418_NULL(TypedDict):  # only I_/RP with null payload
+    log_idx: NotRequired[LogIdxT]  # only when I_|0418|00 with null payload
+    log_entry: None
+
+
+class _0418(TypedDict):
+    log_idx: LogIdxT
+    log_entry: tuple[str, ...]  # TODO: = namedtuple("Fault", "timestamp fault_state...
 
 
 class _1060(TypedDict):
@@ -135,6 +138,10 @@ class _Setpoint(TypedDict):
 
 class _Temperature(TypedDict):
     temperature: _HexToTempT
+
+
+class FaultLogEntryNull(TypedDict):  # NOTE: not identical to _0418
+    _log_idx: LogIdxT  # "00" to ?"3F"
 
 
 class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
@@ -264,6 +271,7 @@ class PayDictT:
     _0008: TypeAlias = _0008
     _0100: TypeAlias = _0100
     _0418: TypeAlias = _0418
+    _0418_NULL: TypeAlias = _0418_NULL
     _1030: TypeAlias = _1030
     _1060: TypeAlias = _1060
     _1081: TypeAlias = _Setpoint
@@ -293,6 +301,7 @@ class PayDictT:
     _3210: TypeAlias = _Temperature
 
     FAULT_LOG_ENTRY: TypeAlias = FaultLogEntry
+    FAULT_LOG_ENTRY_NULL: TypeAlias = FaultLogEntryNull
     TEMPERATURE: TypeAlias = _Temperature
 
     # 31DA primitives

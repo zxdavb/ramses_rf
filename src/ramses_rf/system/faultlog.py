@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 FaultTupleT: TypeAlias = tuple[FaultType, FaultDeviceClass, DeviceIdT | None, str]
 
 
-DEFAULT_LIMIT = 6
+DEFAULT_GET_LIMIT = 6
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class FaultLogEntry:
     def _is_matching_pair(self, other: object) -> bool:
         """Return True if the other entry could be a matching pair (fault/restore)."""
 
-        if not isinstance(other, FaultLogEntry):
+        if not isinstance(other, FaultLogEntry):  # TODO: make a parochial exception
             raise TypeError(f"{other} is not not a FaultLogEntry")
 
         if self.fault_state == FaultState.FAULT:
@@ -110,7 +110,7 @@ class FaultLogEntry:
         """Create a fault log entry from a packet's payload."""
 
         log_entry = parse_fault_log_entry(pkt.payload)
-        if log_entry is None:
+        if log_entry is None:  # TODO: make a parochial exception
             raise TypeError("Null fault log entry")
 
         return cls(**{k: v for k, v in log_entry.items() if k[:1] != "_"})  # type: ignore[arg-type]
@@ -184,21 +184,28 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         return new_map
 
-    def _handle_msg(self, msg: Message) -> None:
-        """Handle a fault log message."""
+    def handle_msg(self, msg: Message) -> None:
+        """Handle a fault log message (some valid payloads should be ignored)."""
 
-        if msg.code != Code._0418:
+        assert msg.code == Code._0418 and msg.verb in (I_, RP), "Coding error"
+
+        if msg.verb == RP and msg.payload[SZ_LOG_ENTRY] is None:
+            # such payloads have idx == "00" (is sentinel for null), so can't know the
+            # correspondings RQ's log_idx, but if verb == I_, safely assume log_idx is 0
             return
+
+        self._process_msg(msg)
+
+    def _process_msg(self, msg: Message) -> None:
+        """Handle a processable fault log message."""
 
         if msg.verb == I_:
             self._is_current = False
 
-        if SZ_LOG_IDX in msg.payload:
-            idx: FaultIdxT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
-        elif msg._pkt._idx:  # then idx was hacked in by protocol FSM
-            idx = int(msg._pkt._idx, 16)  # type: ignore[assignment, arg-type]
-        else:
+        if SZ_LOG_IDX not in msg.payload:
             return  # we can't do anything useful with this message
+
+        idx: FaultIdxT = int(msg.payload[SZ_LOG_IDX], 16)  # type: ignore[assignment]
 
         if msg.payload[SZ_LOG_ENTRY] is None:  # NOTE: Subsequent entries will be empty
             self._map = self._insert_into_map(idx, None)
@@ -219,32 +226,69 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         # if idx != 0:  # there's other (new/changed) entries above this one?
         #     pass
 
+    def _hack_pkt_idx(self, pkt: Packet, cmd: Command) -> Message:
+        """Modify the Packet so that it has the log index of its corresponding Command.
+
+        If there is no log entry for log_idx=<idx>, then the headers wont match:
+        - cmd rx_hdr is 0418|RP|<ctl_id>|<idx> (expected)
+        - pkt hdr will  0418|RP|<ctl_id>|00    (response from controller)
+
+        We can only assume that the Pkt is the reply to the Cmd, which is why using
+        QoS with wait_for_reply=True is vital when getting fault log entries.
+
+        We can assume 0418| I|<ctl_id>|00 is only for log_idx=00 (I|0418s are stateless)
+        """
+
+        assert pkt.verb == RP and pkt.code == Code._0418 and pkt._idx == "00"
+        assert pkt.payload == "000000B0000000000000000000007FFFFF7000000000"
+
+        assert cmd.verb == RQ and pkt.code == Code._0418
+        assert cmd.rx_header and cmd.rx_header[:-2] == pkt._hdr[:-2]  # reply to this RQ
+
+        if cmd._idx == "00":  # no need to hack
+            return Message(pkt)
+
+        idx = cmd.rx_header[-2:]  # cmd._idx could be bool/None?
+        pkt.payload = f"0000{idx}B0000000000000000000007FFFFF7000000000"
+
+        # NOTE: must now reset pkt payload, and its header
+        pkt._repr = pkt._hdr_ = pkt._ctx_ = pkt._idx_ = None  # type: ignore[assignment]
+        pkt._frame = pkt._frame[:50] + idx + pkt._frame[52:]
+
+        assert pkt._hdr == cmd.rx_header, f"{self}: Coding error"
+        assert (
+            str(pkt) == pkt._frame[:50] + idx + pkt._frame[52:]
+        ), f"{self}: Coding error"
+
+        msg = Message(pkt)
+        msg._payload = {SZ_LOG_IDX: idx, SZ_LOG_ENTRY: None}  # PayDictT._0418_NULL
+
+        return msg
+
     async def get_faultlog(
         self,
         /,
         *,
         start: int = 0,
-        limit: int | None = DEFAULT_LIMIT,
+        limit: int | None = DEFAULT_GET_LIMIT,
         force_refresh: bool = False,
     ) -> dict[FaultIdxT, FaultLogEntry]:
         """Retrieve the fault log from the controller."""
 
         if limit is None:
-            limit = DEFAULT_LIMIT
+            limit = DEFAULT_GET_LIMIT
 
         self._is_getting = True
 
-        for idx in range(start, limit):
+        for idx in range(start, min(start + limit, 64)):
             cmd = Command.get_system_log_entry(self.id, idx)
             pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
 
-            try:
-                _ = FaultLogEntry.from_pkt(pkt)
-            except TypeError:  # Null fault log entry
-                self._handle_msg(Message(pkt))
+            if pkt.payload == "000000B0000000000000000000007FFFFF7000000000":
+                msg = self._hack_pkt_idx(pkt, cmd)  # RPs for null entrys have idx=="00"
+                self._process_msg(msg)  # since pkt via dispatcher aint got idx
                 break
-            except AttributeError:
-                break
+            self._process_msg(Message(pkt))  # JIC dispatcher doesn't do this for us
 
         self._is_current = False
         self._is_getting = False

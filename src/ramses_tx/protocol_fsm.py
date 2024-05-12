@@ -24,12 +24,12 @@ from .const import (
     Priority,
 )
 from .packet import Packet
-from .typing import ExceptionT, QosParams
+from .typing import QosParams
 
 if TYPE_CHECKING:
-    # these would be circular imports
     from .protocol import RamsesProtocolT
     from .transport import RamsesTransportT
+    from .typing import ExceptionT
 
 #
 # NOTE: All debug flags should be False for deployment to end-users
@@ -642,25 +642,21 @@ class WantRply(ProtocolStateBase):
             return  # do not transition, wait until existing timer expires
 
         # HACK: special case: if null log entry for log_idx=nn, then
-        # rx_hdr will be 0418|RP|01:145038|00, and not 0418|RP|01:145038|nn
-        # NOTE: this hack wont affect 0418| I|01:145038|nn (they are not stateful)
+        # HACK: rx_hdr will be 0418|RP|01:145038|00, and not 0418|RP|01:145038|nn
+        # HACK: wait_for_reply must be true for RQ|0418 commands
         if (
             self._sent_cmd.rx_header[:8] == "0418|RP|"  # type: ignore[index]
             and self._sent_cmd.rx_header[:-2] == pkt._hdr[:-2]  # type: ignore[index]
             and pkt.payload == "000000B0000000000000000000007FFFFF7000000000"
         ):
-            idx = self._sent_cmd.rx_header[-2:]  # type: ignore[index]
-            pkt.payload = f"0000{idx}B0000000000000000000007FFFFF7000000000"
-
-            # NOTE: must now reset pkt header
-            pkt._hdr_ = pkt._ctx_ = pkt._idx_ = None  # type: ignore[assignment]
-
-            assert pkt._hdr == self._sent_cmd.rx_header, f"{self}: Coding error"
+            self._rply_pkt = pkt
 
         elif pkt._hdr != self._sent_cmd.rx_header:
             return
 
-        self._rply_pkt = pkt
+        else:
+            self._rply_pkt = pkt
+
         self._context.set_state(IsInIdle, result=pkt)
 
 

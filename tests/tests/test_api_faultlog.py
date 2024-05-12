@@ -133,7 +133,7 @@ def _proc_null_fault_entry(fault_log: FaultLog, _log_idx: LogIdxT = "00") -> Non
     cmd = Command.from_attrs(
         I_, CTL_ID, Code._0418, f"0000{_log_idx}B0000000000000000000007FFFFF7000000000"
     )
-    fault_log._handle_msg(Message(Packet._from_cmd(cmd)))
+    fault_log.handle_msg(Message(Packet._from_cmd(cmd)))
 
 
 def _proc_test_fault_entry(
@@ -151,7 +151,7 @@ def _proc_test_fault_entry(
         _log_idx=_log_idx,
         timestamp=entry.timestamp,
     )
-    fault_log._handle_msg(Message(Packet._from_cmd(cmd)))
+    fault_log.handle_msg(Message(Packet._from_cmd(cmd)))
 
 
 # ### TESTS ###########################################################################
