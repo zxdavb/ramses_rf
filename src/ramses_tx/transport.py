@@ -62,7 +62,7 @@ from .command import Command
 from .const import (
     DUTY_CYCLE_DURATION,
     MAX_DUTY_CYCLE_RATE,
-    MINIMUM_WRITE_GAP,
+    MIN_INTER_WRITE_GAP,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
     SZ_SIGNATURE,
@@ -915,7 +915,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
     async def _leak_sem(self) -> None:
         """Used to enforce a minimum time between calls to self.write()."""
         while True:
-            await asyncio.sleep(MINIMUM_WRITE_GAP)
+            await asyncio.sleep(MIN_INTER_WRITE_GAP)
             with contextlib.suppress(ValueError):
                 self._leaker_sem.release()
 
@@ -969,7 +969,7 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
     async def write_frame(self, frame: str) -> None:  # Protocols call this, not write()
         """Transmit the frame via the underlying handler."""
 
-        await self._leaker_sem.acquire()  # asyncio.sleep(MINIMUM_WRITE_GAP)
+        await self._leaker_sem.acquire()  # MIN_INTER_WRITE_GAP
         await super().write_frame(frame)
 
     # NOTE: The order should be: minimum gap between writes, duty cycle limits, and

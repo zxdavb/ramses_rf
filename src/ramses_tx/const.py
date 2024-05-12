@@ -24,8 +24,8 @@ MAX_SEND_TIMEOUT: Final[float] = 20.0  # for a command to be sent, incl. queuing
 
 MAX_RETRY_LIMIT: Final[int] = 3  # for a command to be re-sent (not incl. 1st send)
 
-MINIMUM_WRITE_GAP: Final[float] = 0.05  # seconds
-DEFAULT_GAP_DURATION: Final[float] = MINIMUM_WRITE_GAP
+MIN_INTER_WRITE_GAP: Final[float] = 0.05  # seconds
+DEFAULT_GAP_DURATION: Final[float] = MIN_INTER_WRITE_GAP
 DEFAULT_MAX_RETRIES: Final[int] = 3
 DEFAULT_NUM_REPEATS: Final[int] = 0
 

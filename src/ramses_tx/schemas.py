@@ -18,7 +18,7 @@ from .const import (
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     MAX_DUTY_CYCLE_RATE,
-    MINIMUM_WRITE_GAP,
+    MIN_INTER_WRITE_GAP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ SCH_COMMS_PARAMS = vol.Schema(
         vol.Required(SZ_DUTY_CYCLE_LIMIT, default=MAX_DUTY_CYCLE_RATE): vol.All(
             float, vol.Range(min=0.005, max=0.2)
         ),
-        vol.Required(SZ_GAP_BETWEEN_WRITES, default=MINIMUM_WRITE_GAP): vol.All(
+        vol.Required(SZ_GAP_BETWEEN_WRITES, default=MIN_INTER_WRITE_GAP): vol.All(
             float, vol.Range(min=0.05, max=1.0)
         ),
         vol.Required(SZ_ECHO_TIMEOUT, default=DEFAULT_ECHO_TIMEOUT): vol.All(

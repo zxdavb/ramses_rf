@@ -38,8 +38,8 @@ def pytest_generate_tests(metafunc):
 _global_flow_marker: int = None  # type: ignore[assignment]
 
 
-MINIMUM_WRITE_GAP = 0  # patch ramses_tx.transport
-WAITING_TIMEOUT_SECS = 0  # #      patch ramses_rf.binding_fsm
+MIN_INTER_WRITE_GAP = 0  #  patch ramses_tx.transport
+WAITING_TIMEOUT_SECS = 0  # patch ramses_rf.binding_fsm
 
 
 RQ_0006_EXPECTED = 20
@@ -299,7 +299,7 @@ async def test_rq_0006_ver(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MINIMUM_WRITE_GAP", MINIMUM_WRITE_GAP)
+@patch("ramses_tx.transport.MIN_INTER_WRITE_GAP", MIN_INTER_WRITE_GAP)
 async def test_rq_0404_dhw(test_port):
     """Test the dhw.get_schedule() method."""
 
@@ -320,7 +320,7 @@ async def test_rq_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MINIMUM_WRITE_GAP", MINIMUM_WRITE_GAP)
+@patch("ramses_tx.transport.MIN_INTER_WRITE_GAP", MIN_INTER_WRITE_GAP)
 async def test_rq_0404_zon(test_port):
     """Test the zone.get_schedule() method."""
 
@@ -341,7 +341,7 @@ async def test_rq_0404_zon(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MINIMUM_WRITE_GAP", MINIMUM_WRITE_GAP)
+@patch("ramses_tx.transport.MIN_INTER_WRITE_GAP", MIN_INTER_WRITE_GAP)
 async def test_ww_0404_dhw(test_port):
     """Test the dhw.set_schedule() method (uses get_schedule)."""
 
@@ -362,7 +362,7 @@ async def test_ww_0404_dhw(test_port):
 
 
 @abort_if_rf_test_fails
-@patch("ramses_tx.transport.MINIMUM_WRITE_GAP", MINIMUM_WRITE_GAP)
+@patch("ramses_tx.transport.MIN_INTER_WRITE_GAP", MIN_INTER_WRITE_GAP)
 async def test_ww_0404_zon(test_port):
     """Test the zone.set_schedule() method (uses get_schedule)."""
 
