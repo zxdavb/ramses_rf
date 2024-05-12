@@ -385,14 +385,13 @@ def limit_transmit_rate(
             finally:
                 token_bucket -= 1.0
 
-        return wrapper
-
-        @wraps(fnc)  # type: ignore[unreachable]
+        @wraps(fnc)
         async def null_wrapper(*args: Any, **kwargs: Any) -> None:
             await fnc(*args, **kwargs)
 
         if max_tokens <= 0:
             return null_wrapper
+        return wrapper
 
     return decorator
 
