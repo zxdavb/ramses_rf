@@ -58,7 +58,9 @@ _global_failed_ports: list[str] = []
 def patches_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("ramses_tx.protocol._DBG_DISABLE_IMPERSONATION_ALERTS", True)
     monkeypatch.setattr("ramses_tx.transport._DBG_DISABLE_DUTY_CYCLE_LIMIT", True)
-    monkeypatch.setattr("ramses_tx.transport.MINIMUM_WRITE_GAP", 0)
+    monkeypatch.setattr("ramses_tx.transport.MIN_INTER_WRITE_GAP", 0)
+    monkeypatch.setattr("ramses_tx.transport._DEFAULT_TIMEOUT_MQTT", 2)
+    monkeypatch.setattr("ramses_tx.transport._DEFAULT_TIMEOUT_PORT", 0.5)
 
 
 # TODO: add teardown to cleanup orphan MessageIndex thread

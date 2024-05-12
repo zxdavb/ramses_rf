@@ -90,13 +90,17 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from .protocol import RamsesProtocolT
 
+
+_DEFAULT_TIMEOUT_PORT: Final[float] = 3
+_DEFAULT_TIMEOUT_MQTT: Final[float] = 9
+
 _SIGNATURE_GAP_SECS = 0.05
 _SIGNATURE_MAX_TRYS = 40  # was: 24
 _SIGNATURE_MAX_SECS = 3
 
-
 SZ_RAMSES_GATEWAY: Final = "RAMSES/GATEWAY"
 SZ_READER_TASK: Final = "reader_task"
+
 
 #
 # NOTE: All debug flags should be False for deployment to end-users
@@ -1264,7 +1268,8 @@ async def transport_factory(
     if port_name[:4] == "mqtt":  # TODO: handle disable_sending
         transport = MqttTransport(port_name, protocol, extra=extra, loop=loop, **kwargs)
 
-        await protocol.wait_for_connection_made(timeout=10)  # TODO: remove this
+        # TODO: remove this? better to invoke timeout after factory returns?
+        await protocol.wait_for_connection_made(timeout=_DEFAULT_TIMEOUT_MQTT)
         return transport
 
     ser_instance = get_serial_instance(port_name, port_config)
@@ -1281,5 +1286,6 @@ async def transport_factory(
         **kwargs,
     )
 
-    await protocol.wait_for_connection_made(timeout=5)  # TODO: remove this
+    # TODO: remove this? better to invoke timeout after factory returns?
+    await protocol.wait_for_connection_made(timeout=_DEFAULT_TIMEOUT_PORT)
     return transport
