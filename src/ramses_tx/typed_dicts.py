@@ -97,6 +97,12 @@ class _12b0(TypedDict):
     window_open: bool | None
 
 
+class _12c0(TypedDict):
+    temperature: float | None
+    units: Literal["Fahrenheit", "Celsius"]
+    _unknown_6: NotRequired[str]
+
+
 class _1f09(TypedDict):
     remaining_seconds: float
     _next_sync: str
@@ -286,6 +292,7 @@ class PayDictT:
     _1298: TypeAlias = Co2Level
     _12A0: TypeAlias = IndoorHumidity
     _12B0: TypeAlias = _12b0
+    _12C0: TypeAlias = _12c0
     _12C8: TypeAlias = AirQuality
     _12F0: TypeAlias = _FlowRate
     _1300: TypeAlias = _Pressure

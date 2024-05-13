@@ -1148,19 +1148,21 @@ def parser_12b0(payload: str, msg: Message) -> PayDictT._12B0:
 
 
 # displayed temperature (on a TR87RF bound to a RFG100)
-def parser_12c0(payload: str, msg: Message) -> Mapping[str, float | int | str | None]:
+def parser_12c0(payload: str, msg: Message) -> PayDictT._12C0:
     if payload[2:4] == "80":
         temp: float | None = None
-    elif payload[4:] == "00":  # units are 1.0 F
+    elif payload[4:6] == "00":  # units are 1.0 F
         temp = int(payload[2:4], 16)
     else:  # if payload[4:] == "01":  # units are 0.5 C
         temp = int(payload[2:4], 16) / 2
 
-    return {
+    result: PayDictT._12C0 = {
         SZ_TEMPERATURE: temp,
-        "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],
-        "_unknown_6": payload[6:],
+        "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],  # type: ignore[typeddict-item]
     }
+    if len(payload) > 6:
+        result["_unknown_6"] = payload[6:]
+    return result
 
 
 # HVAC: air_quality (and air_quality_basis), see: 31DA[2:6]
