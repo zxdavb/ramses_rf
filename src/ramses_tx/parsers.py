@@ -669,7 +669,7 @@ def parser_01ff(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # zone_schedule (fragment)
-def parser_0404(payload: str, msg: Message) -> dict[str, Any]:
+def parser_0404(payload: str, msg: Message) -> PayDictT._0404:
     # Retreival of Zone schedule (NB: 200008)
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0100
     # RP --- 01:037519 30:185469 --:------ 0404 048 00-200008-29-0103-6E2...
@@ -817,7 +817,7 @@ def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0025-0025-F5
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0026-0026-F5
     # .I --- 34:092243 --:------ 34:092243 042F 008 00-0001-0021-0022-01
-    # .I   34:011469 --:------ 34:011469 042F 008 00-0001-0003-0004-BC
+    # .I --- 34:011469 --:------ 34:011469 042F 008 00-0001-0003-0004-BC
 
     # .I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
     # .I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
@@ -1055,9 +1055,9 @@ def parser_10e2(payload: str, msg: Message) -> dict[str, Any]:
 # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(
     payload: str, msg: Message
-) -> PayDictT._1100 | Mapping[str, float | int | str | None]:
-    def complex_idx(seqx: str) -> dict:
-        return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # only FC
+) -> PayDictT._1100 | PayDictT._1100_IDX | PayDictT._1100_JIM | PayDictT.EMPTY:
+    def complex_idx(seqx: str) -> PayDictT._1100_IDX | PayDictT.EMPTY:
+        return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # type: ignore[typeddict-item]  # only FC
 
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Japser, DEX
         assert msg.len == 19, msg.len
@@ -1078,7 +1078,7 @@ def parser_1100(
     #  - min_on_time:  1 (1-5)          // ?? (1, 5, 10,...30)
     #  - min_off_time: 1 (1-?)          // ?? (0, 5, 10, 15)
 
-    def _parser(seqx: str) -> dict:
+    def _parser(seqx: str) -> PayDictT._1100:
         return {
             "cycle_rate": int(int(payload[2:4], 16) / 4),  # cycles/hour
             "min_on_time": int(payload[4:6], 16) / 4,  # min
@@ -1086,7 +1086,7 @@ def parser_1100(
             "_unknown_0": payload[8:10],  # always 00, FF?
         }
 
-    result: dict[str, float | int | str | None] = _parser(payload)
+    result = _parser(payload)
 
     if msg.len > 5:
         pbw = hex_to_temp(payload[10:14])

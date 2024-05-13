@@ -43,6 +43,13 @@ class _0100(TypedDict):
     _unknown_0: str
 
 
+class _0404(TypedDict):
+    frag_number: int
+    total_frags: int | None
+    frag_length: NotRequired[int | None]
+    fragment: NotRequired[str]
+
+
 # fmt: off
 LogIdxT = Literal[
     '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
@@ -98,10 +105,22 @@ class _10e1(TypedDict):
 
 
 class _1100(TypedDict):
+    domain_id: NotRequired[str]
     cycle_rate: int
-    min_on_time: int
-    min_off_time: int
+    min_on_time: float
+    min_off_time: float
+    _unknown_0: str
     proportional_band_width: NotRequired[float | None]
+    _unknown_1: NotRequired[str | None]
+
+
+class _1100_IDX(TypedDict):
+    domain_id: str
+
+
+class _1100_JIM(TypedDict):
+    ordinal: str
+    blob: str
 
 
 class _12b0(TypedDict):
@@ -309,6 +328,7 @@ class PayDictT:
     _0008: TypeAlias = _0008
     _000A: TypeAlias = _000a
     _0100: TypeAlias = _0100
+    _0404: TypeAlias = _0404
     _0418: TypeAlias = _0418
     _0418_NULL: TypeAlias = _0418_NULL
     _1030: TypeAlias = _1030
@@ -319,6 +339,8 @@ class PayDictT:
     _10D0: TypeAlias = _10d0
     _10E1: TypeAlias = _10e1
     _1100: TypeAlias = _1100
+    _1100_IDX: TypeAlias = _1100_IDX
+    _1100_JIM: TypeAlias = _1100_JIM
     _1260: TypeAlias = _Temperature
     _1280: TypeAlias = OutdoorHumidity
     _1290: TypeAlias = OutdoorTemp
