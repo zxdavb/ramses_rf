@@ -138,8 +138,26 @@ class _1f09(TypedDict):
     _next_sync: str
 
 
+class _1f41(TypedDict):
+    mode: str
+    active: NotRequired[bool | None]
+    until: NotRequired[str | None]
+
+
 class _1fd4(TypedDict):
     ticker: int
+
+
+@verify(EnumCheck.UNIQUE)
+class _BindPhase(StrEnum):
+    OFFER = "offer"
+    ACCEPT = "accept"
+    CONFIRM = "confirm"
+
+
+class _1fc9(TypedDict):
+    phase: str
+    bindings: list[list[str]]
 
 
 class _22b0(TypedDict):
@@ -352,6 +370,8 @@ class PayDictT:
     _12F0: TypeAlias = _FlowRate
     _1300: TypeAlias = _Pressure
     _1F09: TypeAlias = _1f09
+    _1F41: TypeAlias = _1f41
+    _1FC9: TypeAlias = _1fc9
     _1FD4: TypeAlias = _1fd4
     _22B0: TypeAlias = _22b0
     _2309: TypeAlias = _2309

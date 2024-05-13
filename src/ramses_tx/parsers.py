@@ -1238,8 +1238,9 @@ def parser_1f09(payload: str, msg: Message) -> PayDictT._1F09:
 
 
 # dhw_mode
-def parser_1f41(payload: str, msg: Message) -> dict[str, Any]:
+def parser_1f41(payload: str, msg: Message) -> PayDictT._1F41:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
+
     assert payload[4:6] in ZON_MODE_MAP, f"{payload[4:6]} (0xjj)"
     assert (
         payload[4:6] == ZON_MODE_MAP.TEMPORARY or msg.len == 6
@@ -1251,7 +1252,7 @@ def parser_1f41(payload: str, msg: Message) -> dict[str, Any]:
         payload[6:12] == "FFFFFF"
     ), f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
 
-    result = {SZ_MODE: ZON_MODE_MAP.get(payload[4:6])}
+    result: PayDictT._1F41 = {SZ_MODE: ZON_MODE_MAP.get(payload[4:6])}  # type: ignore[typeddict-item]
     if payload[2:4] != "FF":
         result[SZ_ACTIVE] = {"00": False, "01": True, "FF": None}[payload[2:4]]
     # if payload[4:6] == ZON_MODE_MAP.COUNTDOWN:
@@ -1299,8 +1300,8 @@ def parser_1f70(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # rf_bind
-def parser_1fc9(payload: str, msg: Message) -> dict[str, list | str | None]:
-    def _parser(seqx: str) -> list:
+def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
+    def _parser(seqx: str) -> list[str]:
         if seqx[:2] not in ("90",):
             assert (
                 seqx[6:] == payload[6:12]
@@ -1329,7 +1330,7 @@ def parser_1fc9(payload: str, msg: Message) -> dict[str, list | str | None]:
     elif msg.verb == I_:
         bind_phase = SZ_CONFIRM  # len(payload) could be 2 (e.g. 00, 21)
     else:
-        bind_phase = None  # unknown
+        raise TypeError("Unknown binding format")
 
     if len(payload) == 2 and bind_phase == SZ_CONFIRM:
         return {SZ_PHASE: bind_phase, SZ_BINDINGS: [[payload]]}  # double-bracket OK
