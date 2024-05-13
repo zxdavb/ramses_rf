@@ -64,7 +64,7 @@ class FaultLogEntry:
 
     def __str__(self) -> str:
         return (
-            f"{self.timestamp}, {(self.fault_state + ","):<8} {self.fault_type}, "
+            f"{self.timestamp}, {(self.fault_state + ','):<8} {self.fault_type}, "
             f"{self.device_id}, {self.domain_idx}, {self.device_class}"
         )
 
