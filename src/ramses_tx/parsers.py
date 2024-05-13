@@ -391,8 +391,10 @@ def parser_0009(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # zone_params (zone_config)
-def parser_000a(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
-    def _parser(seqx: str) -> dict:  # null_rp: "007FFF7FFF"
+def parser_000a(
+    payload: str, msg: Message
+) -> PayDictT._000A | list[PayDictT._000A] | PayDictT.EMPTY:
+    def _parser(seqx: str) -> PayDictT._000A:  # null_rp: "007FFF7FFF"
         bitmap = int(seqx[2:4], 16)
         return {
             SZ_MIN_TEMP: hex_to_temp(seqx[4:8]),
@@ -1721,7 +1723,9 @@ def parser_22f8(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # setpoint (of device/zones)
-def parser_2309(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
+def parser_2309(
+    payload: str, msg: Message
+) -> PayDictT._2309 | list[PayDictT._2309] | PayDictT.EMPTY:
     if msg._has_array:
         return [
             {
@@ -1739,7 +1743,7 @@ def parser_2309(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 
 # zone_mode  # TODO: messy
-def parser_2349(payload: str, msg: Message) -> dict[str, Any]:
+def parser_2349(payload: str, msg: Message) -> PayDictT._2349 | PayDictT.EMPTY:
     # RQ --- 34:225071 30:258557 --:------ 2349 001 00
     # RP --- 30:258557 34:225071 --:------ 2349 013 007FFF00FFFFFFFFFFFFFFFFFF
     # RP --- 30:253184 34:010943 --:------ 2349 013 00064000FFFFFF00110E0507E5
@@ -1750,9 +1754,9 @@ def parser_2349(payload: str, msg: Message) -> dict[str, Any]:
 
     assert msg.len in (7, 13), f"expected len 7,13, got {msg.len}"
 
-    assert payload[6:8] in ZON_MODE_MAP, "unknown zone_mode: {payload[6:8]}"
-    result = {
-        SZ_MODE: ZON_MODE_MAP.get(payload[6:8]),
+    assert payload[6:8] in ZON_MODE_MAP, f"unknown zone_mode: {payload[6:8]}"
+    result: PayDictT._2349 = {
+        SZ_MODE: ZON_MODE_MAP.get(payload[6:8]),  # type: ignore[typeddict-item]
         SZ_SETPOINT: hex_to_temp(payload[2:6]),
     }
 

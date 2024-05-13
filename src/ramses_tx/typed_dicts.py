@@ -1,5 +1,6 @@
 # We use typed dicts rather than data classes because we migrated from dicts
 
+from enum import EnumCheck, StrEnum, verify
 from typing import Literal, NotRequired, TypeAlias, TypedDict
 
 from ramses_tx.const import FaultDeviceClass, FaultState, FaultType
@@ -25,6 +26,16 @@ class _0006(TypedDict):
 
 class _0008(TypedDict):
     relay_demand: float | None
+
+
+class _000a(TypedDict):
+    zone_idx: NotRequired[str]
+    min_temp: float | None
+    max_temp: float | None
+    local_override: bool
+    openwindow_function: bool
+    multiroom_mode: bool
+    _unknown_bitmap: str
 
 
 class _0100(TypedDict):
@@ -114,6 +125,27 @@ class _1fd4(TypedDict):
 
 class _22b0(TypedDict):
     enabled: bool
+
+
+class _2309(TypedDict):
+    zone_idx: NotRequired[str]
+    setpoint: float | None
+
+
+@verify(EnumCheck.UNIQUE)
+class _ZoneMode(StrEnum):
+    FOLLOW = "follow_schedule"
+    ADVANCED = "advanced_override"  #   until the next scheduled setpoint
+    PERMANENT = "permanent_override"  # indefinitely, until auto_reset
+    COUNTDOWN = "countdown_override"  # for x mins (duration, max 1,215?)
+    TEMPORARY = "temporary_override"  #  until a given date/time (until)
+
+
+class _2349(TypedDict):
+    mode: _ZoneMode
+    setpoint: float | None
+    duration: NotRequired[int | None]
+    until: NotRequired[str | None]
 
 
 class _2d49(TypedDict):
@@ -275,6 +307,7 @@ class PayDictT:
     _0004: TypeAlias = _0004
     _0006: TypeAlias = _0006
     _0008: TypeAlias = _0008
+    _000A: TypeAlias = _000a
     _0100: TypeAlias = _0100
     _0418: TypeAlias = _0418
     _0418_NULL: TypeAlias = _0418_NULL
@@ -299,6 +332,8 @@ class PayDictT:
     _1F09: TypeAlias = _1f09
     _1FD4: TypeAlias = _1fd4
     _22B0: TypeAlias = _22b0
+    _2309: TypeAlias = _2309
+    _2349: TypeAlias = _2349
     _22D9: TypeAlias = _Setpoint
     _2D49: TypeAlias = _2d49
     _2E04: TypeAlias = _2e04
