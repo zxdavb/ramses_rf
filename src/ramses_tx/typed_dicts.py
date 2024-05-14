@@ -118,11 +118,6 @@ class _1100_IDX(TypedDict):
     domain_id: str
 
 
-class _1100_JIM(TypedDict):
-    ordinal: str
-    blob: str
-
-
 class _12b0(TypedDict):
     window_open: bool | None
 
@@ -156,7 +151,7 @@ class _BindPhase(StrEnum):
 
 
 class _1fc9(TypedDict):
-    phase: str
+    phase: str | None
     bindings: list[list[str]]
 
 
@@ -197,6 +192,63 @@ class _2e04(TypedDict):
 class _3110(TypedDict):
     mode: str
     demand: NotRequired[float | None]
+
+
+class _3220(TypedDict):
+    msg_id: int  # OtDataId
+    msg_type: str  # OtMsgType
+    msg_name: str
+    description: str
+
+
+class _3b00(TypedDict):
+    domain_id: NotRequired[Literal["FC"]]
+    actuator_sync: bool | None
+
+
+class _3ef0_3(TypedDict):
+    modulation_level: float | None
+    _flags_2: str
+
+
+class _3ef0_6(TypedDict):
+    modulation_level: float | None
+    _flags_2: str
+    _flags_3: list[int]
+    ch_active: bool
+    dhw_active: bool
+    cool_active: bool
+    flame_on: bool
+    _unknown_4: str
+    _unknown_5: str
+
+
+class _3ef0_9(TypedDict):
+    modulation_level: float | None
+    _flags_2: str
+    _flags_3: list[int]
+    ch_active: bool
+    dhw_active: bool
+    cool_active: bool
+    flame_on: bool
+    _unknown_4: str
+    _unknown_5: str
+    _flags_6: list[int]
+    ch_enabled: bool
+    ch_setpoint: int
+    max_rel_modulation: float
+
+
+class _3ef1(TypedDict):
+    modulation_level: float | None
+    actuator_countdown: int | None
+    cycle_countdown: int | None
+    _unknown_0: str
+
+
+class _JASPER(TypedDict):
+    ordinal: str
+    blob: str
 
 
 class _FlowRate(TypedDict):
@@ -358,7 +410,6 @@ class PayDictT:
     _10E1: TypeAlias = _10e1
     _1100: TypeAlias = _1100
     _1100_IDX: TypeAlias = _1100_IDX
-    _1100_JIM: TypeAlias = _1100_JIM
     _1260: TypeAlias = _Temperature
     _1280: TypeAlias = OutdoorHumidity
     _1290: TypeAlias = OutdoorTemp
@@ -383,6 +434,13 @@ class PayDictT:
     _31DA: TypeAlias = _VentilationState
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
+    _3B00: TypeAlias = _3b00
+    _3EF0_3: TypeAlias = _3ef0_3
+    _3EF0_6: TypeAlias = _3ef0_6
+    _3EF0_9: TypeAlias = _3ef0_9
+    _3EF1: TypeAlias = _3ef1
+
+    _JASPER: TypeAlias = _JASPER
 
     FAULT_LOG_ENTRY: TypeAlias = FaultLogEntry
     FAULT_LOG_ENTRY_NULL: TypeAlias = FaultLogEntryNull

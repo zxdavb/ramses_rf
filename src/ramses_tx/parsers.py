@@ -1055,7 +1055,7 @@ def parser_10e2(payload: str, msg: Message) -> dict[str, Any]:
 # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(
     payload: str, msg: Message
-) -> PayDictT._1100 | PayDictT._1100_IDX | PayDictT._1100_JIM | PayDictT.EMPTY:
+) -> PayDictT._1100 | PayDictT._1100_IDX | PayDictT._JASPER | PayDictT.EMPTY:
     def complex_idx(seqx: str) -> PayDictT._1100_IDX | PayDictT.EMPTY:
         return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # type: ignore[typeddict-item]  # only FC
 
@@ -1329,8 +1329,10 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
         bind_phase = SZ_ACCEPT
     elif msg.verb == I_:
         bind_phase = SZ_CONFIRM  # len(payload) could be 2 (e.g. 00, 21)
+    elif msg.verb == RP:
+        bind_phase = None
     else:
-        raise TypeError("Unknown binding format")
+        raise exc.PacketPayloadInvalid("Unknown binding format")
 
     if len(payload) == 2 and bind_phase == SZ_CONFIRM:
         return {SZ_PHASE: bind_phase, SZ_BINDINGS: [[payload]]}  # double-bracket OK
@@ -2418,7 +2420,7 @@ def parser_3223(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # actuator_sync (aka sync_tpi: TPI cycle sync)
-def parser_3b00(payload: str, msg: Message) -> dict[str, Any]:
+def parser_3b00(payload: str, msg: Message) -> PayDictT._3B00:
     # system timing master: the device that sends I/FCC8 pkt controls the heater relay
     """Decode a 3B00 packet (actuator_sync).
 
@@ -2459,7 +2461,7 @@ def parser_3b00(payload: str, msg: Message) -> dict[str, Any]:
     assert payload[2:] == "C8", payload[2:]  # Could it be a percentage?
 
     return {
-        **complex_idx(payload[:2], msg),
+        **complex_idx(payload[:2], msg),  # type: ignore[typeddict-item]
         "actuator_sync": hex_to_bool(payload[2:]),
     }
 
@@ -2467,8 +2469,8 @@ def parser_3b00(payload: str, msg: Message) -> dict[str, Any]:
 # actuator_state
 def parser_3ef0(
     payload: str, msg: Message
-) -> dict[str, bool | float | str | list[int] | None]:
-    result: dict[str, bool | float | str | list[int] | None]
+) -> PayDictT._3EF0_3 | PayDictT._3EF0_6 | PayDictT._3EF0_9 | PayDictT._JASPER:
+    result: dict[str, Any]
 
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
@@ -2562,12 +2564,11 @@ def parser_3ef0(
         _LOGGER.warning(
             f"{msg!r} < {_INFORM_DEV_MSG} ({err}), with a description of your system"
         )
-
-    return result
+    return result  # type: ignore[return-value]
 
 
 # actuator_cycle
-def parser_3ef1(payload: str, msg: Message) -> dict[str, Any]:
+def parser_3ef1(payload: str, msg: Message) -> PayDictT._3EF1 | PayDictT._JASPER:
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper, DEX
         assert msg.len == 18, f"expecting len 18, got: {msg.len}"
         return {
