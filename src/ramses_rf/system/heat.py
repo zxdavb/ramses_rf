@@ -573,7 +573,8 @@ class ScheduleSync(SystemBase):  # 0006 (+/- 0404?)
 
         self._msg_0006: Message = None  # type: ignore[assignment]
 
-        self.zone_lock = Lock()  # used to stop concurrent get_schedules
+        # used to stop concurrent get_schedules
+        self.zone_lock = Lock()  # FIXME: threading lock, or asyncio lock?
         self.zone_lock_idx: str | None = None
 
     def _setup_discovery_cmds(self) -> None:

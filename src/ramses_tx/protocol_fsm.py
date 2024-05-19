@@ -65,7 +65,7 @@ class ProtocolContext:
         self.max_buffer_size = min(max_buffer_size, DEFAULT_BUFFER_SIZE)
 
         self._loop = protocol._loop
-        self._lock = Lock()
+        self._lock = Lock()  # FIXME: threading lock, or asyncio lock?
         self._fut: _FutureT | None = None
         self._que: PriorityQueue[_QueueEntryT] = PriorityQueue(
             maxsize=self.max_buffer_size
