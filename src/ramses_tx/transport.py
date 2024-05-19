@@ -1125,7 +1125,13 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
             _LOGGER.warning("%s < Cant decode JSON (ignoring)", msg.payload)
             return
 
-        self._frame_read(payload["ts"], _normalise(payload["msg"]))
+        # HACK: hotfix for converting RAMSES_ESP dtm into local/naive dtm
+        dtm = dt.fromisoformat(payload["ts"])
+        if dtm.tzinfo is not None:
+            dtm = dtm.astimezone().replace(tzinfo=None)
+        # FIXME: convert all dt early, and convert to aware, i.e. dt.now().astimezone()
+
+        self._frame_read(dtm.isoformat(), _normalise(payload["msg"]))
 
     async def _write_frame(self, frame: str) -> None:
         """Write some data bytes to the underlying transport."""
