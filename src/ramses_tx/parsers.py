@@ -2064,7 +2064,7 @@ def parser_313e(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # datetime
-def parser_313f(payload: str, msg: Message) -> dict[str, Any]:  # TODO: look for TZ
+def parser_313f(payload: str, msg: Message) -> PayDictT._313F:  # TODO: look for TZ
     # 2020-03-28T03:59:21.315178 045 RP --- 01:158182 04:136513 --:------ 313F 009 00FC3500A41C0307E4
     # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4
     # 2022-09-20T20:50:32.800676 065 RP --- 01:182924 18:068640 --:------ 313F 009 00F9203234140907E6

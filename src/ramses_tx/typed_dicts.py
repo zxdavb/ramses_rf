@@ -194,6 +194,12 @@ class _3110(TypedDict):
     demand: NotRequired[float | None]
 
 
+class _313f(TypedDict):
+    datetime: str | None
+    is_dst: bool | None
+    _unknown_0: str
+
+
 class _3220(TypedDict):
     msg_id: int  # OtDataId
     msg_type: str  # OtMsgType
@@ -431,6 +437,7 @@ class PayDictT:
     _2D49: TypeAlias = _2d49
     _2E04: TypeAlias = _2e04
     _3110: TypeAlias = _3110
+    _313F: TypeAlias = _313f
     _31DA: TypeAlias = _VentilationState
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
