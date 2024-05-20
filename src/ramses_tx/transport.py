@@ -62,6 +62,7 @@ from .command import Command
 from .const import (
     DUTY_CYCLE_DURATION,
     MAX_DUTY_CYCLE_RATE,
+    MAX_TRANSMIT_RATE_TOKENS,
     MIN_INTER_WRITE_GAP,
     SZ_ACTIVE_HGI,
     SZ_IS_EVOFW3,
@@ -345,7 +346,7 @@ def limit_duty_cycle(
 
 
 def limit_transmit_rate(
-    max_tokens: float, time_window: int = DUTY_CYCLE_DURATION
+    max_tokens: int, time_window: int = DUTY_CYCLE_DURATION
 ) -> Callable[..., Any]:
     """Limit the Tx rate as # packets per period of time.
 
@@ -362,28 +363,57 @@ def limit_transmit_rate(
     def decorator(
         fnc: Callable[..., Awaitable[None]],
     ) -> Callable[..., Awaitable[None]]:
-        token_bucket: float = max_tokens  # initialize with max tokens
+        _max_tokens: float = max_tokens * 2  # initialize for initial burst
+        token_bucket: float = _max_tokens
         last_time_token_added = perf_counter()
+
+        lock = asyncio.Lock()  # FIXME: threading lock, or asyncio lock?
 
         @wraps(fnc)
         async def wrapper(*args: Any, **kwargs: Any) -> None:
             nonlocal token_bucket
             nonlocal last_time_token_added
+            nonlocal _max_tokens
 
+            nonlocal lock
+
+            await lock.acquire()
             # top-up the bit bucket
             elapsed = perf_counter() - last_time_token_added
-            token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
+            new_token_bucket = min(
+                token_bucket + elapsed * token_fill_rate, _max_tokens
+            )
             last_time_token_added = perf_counter()
 
+            lock.release()
+
             # if required, wait for a token (not for SETs/PUTs)
-            if token_bucket < 1.0:
-                await asyncio.sleep((1 - token_bucket) / token_fill_rate)
+            if new_token_bucket < 0.0:
+                _LOGGER.warning(
+                    "Exceeded token rate: Discarding, tokens = %s", new_token_bucket
+                )
+                return
+
+            token_bucket = new_token_bucket - 1.0
+
+            if _max_tokens > max_tokens:
+                _max_tokens = min(_max_tokens, new_token_bucket - 1.0)
+                _max_tokens = max(_max_tokens, max_tokens)
+
+            if new_token_bucket < 1.0:
+                _LOGGER.warning(
+                    "Tx sleeping: %s secs", (1 - new_token_bucket) / token_fill_rate
+                )
+                await asyncio.sleep((1 - new_token_bucket) / token_fill_rate)
 
             # consume one token for every call
             try:
                 await fnc(*args, **kwargs)
             finally:
-                token_bucket -= 1.0
+                # token_bucket = new_token_bucket - 1.0
+                pass  # token_bucket -= 1.0
+
+            _LOGGER.warning("Tx tokens: %s (of %s)", token_bucket, _max_tokens)
 
         @wraps(fnc)
         async def null_wrapper(*args: Any, **kwargs: Any) -> None:
@@ -396,9 +426,14 @@ def limit_transmit_rate(
     return decorator
 
 
-_global_sync_cycles: deque[Packet] = (
-    deque()
-)  # used by @avoid_system_syncs/@track_system_syncs
+# used by @track_transmit_rate, current_transmit_rate()
+_MAX_TRACKED_TRANSMITS = 99
+_MAX_TRACKED_DURATION = 300
+
+
+# used by @track_system_syncs, @avoid_system_syncs
+_MAX_TRACKED_SYNCS = 3
+_global_sync_cycles: deque[Packet] = deque(maxlen=_MAX_TRACKED_SYNCS)
 
 
 def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any]:
@@ -415,6 +450,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
 
     times_0 = []  # TODO: remove
 
+    @wraps(fnc)
     async def wrapper(*args: Any, **kwargs: Any) -> None:
         global _global_sync_cycles
 
@@ -454,8 +490,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
 def track_system_syncs(fnc: Callable[..., None]) -> Callable[..., Any]:
     """Track/remember the any new/outstanding TCS sync cycle."""
 
-    MAX_SYNCS_TRACKED = 3
-
+    @wraps(fnc)
     def wrapper(self: PortTransport, pkt: Packet) -> None:
         global _global_sync_cycles
 
@@ -473,7 +508,7 @@ def track_system_syncs(fnc: Callable[..., None]) -> Callable[..., Any]:
         _global_sync_cycles.append(pkt)  # TODO: sort
 
         if (
-            len(_global_sync_cycles) > MAX_SYNCS_TRACKED
+            len(_global_sync_cycles) > _MAX_TRACKED_SYNCS
         ):  # safety net for corrupted payloads
             _global_sync_cycles.popleft()
 
@@ -554,6 +589,8 @@ class _ReadTransport(_BaseTransport):
     _protocol: RamsesProtocolT = None  # type: ignore[assignment]
     _loop: asyncio.AbstractEventLoop
 
+    _is_hgi80: bool | None = None  # NOTE: None (unknown) is as False (is_evofw3)
+
     #  __slots__ = ('_extra',)
 
     def __init__(
@@ -592,6 +629,8 @@ class _ReadTransport(_BaseTransport):
         return self._loop
 
     def get_extra_info(self, name: str, default: Any = None) -> Any:
+        if name == SZ_IS_EVOFW3:
+            return not self._is_hgi80
         return self._extra.get(name, default)
 
     def is_closing(self) -> bool:
@@ -673,8 +712,8 @@ class _ReadTransport(_BaseTransport):
         except exc.ProtocolError as err:  # protect from upper layers
             _LOGGER.error("%s < exception from msg layer: %s", pkt, err)
 
-    async def write_frame(self, frame: str) -> None:
-        """Transmit the frame via the underlying handler."""
+    async def write_frame(self, frame: str, disable_tx_limits: bool = False) -> None:
+        """Transmit a frame via the underlying handler (e.g. serial port, MQTT)."""
         raise exc.TransportSerialError("This transport is read only")
 
 
@@ -687,12 +726,41 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
         super().__init__(*args, **kwargs)
 
         self._disable_sending = disable_sending
+        self._transmit_times: deque[dt] = deque(maxlen=_MAX_TRACKED_TRANSMITS)
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
         # _LOGGER.error("Full._dt_now()")
 
         return dt_now()
+
+    def get_extra_info(self, name: str, default: Any = None) -> Any:
+        if name == "tx_rate":
+            return self._report_transmit_rate()
+        return super().get_extra_info(name, default=default)
+
+    def _report_transmit_rate(self) -> float:
+        """Return the transmit rate in transmits per minute."""
+
+        dt_now = dt.now()
+        dtm = dt_now - td(seconds=_MAX_TRACKED_DURATION)
+        transmit_times = tuple(t for t in self._transmit_times if t > dtm)
+
+        if len(transmit_times) <= 1:
+            return len(transmit_times)
+
+        duration: float = (transmit_times[-1] - transmit_times[0]) / td(seconds=1)
+        return int(len(transmit_times) / duration * 6000) / 100
+
+    def _track_transmit_rate(self) -> None:
+        """Track the Tx rate as period of seconds per x transmits."""
+
+        # period: float = (transmit_times[-1] - transmit_times[0]) / td(seconds=1)
+        # num_tx: int   = len(transmit_times)
+
+        self._transmit_times.append(dt.now())
+
+        _LOGGER.error(f"Current Tx rate: {self._report_transmit_rate():.2f} pkts/min")
 
     # NOTE: Protocols call write_frame(), not write()
     def write(self, data: bytes) -> None:
@@ -701,14 +769,18 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
 
         raise exc.TransportError("write() not implemented, use write_frame() instead")
 
-    async def write_frame(self, frame: str) -> None:
-        """Transmit the frame via the underlying handler."""
-        # _LOGGER.error("Full.write_frame(%s)", frame)
+    async def write_frame(self, frame: str, disable_tx_limits: bool = False) -> None:
+        """Transmit a frame via the underlying handler (e.g. serial port, MQTT).
+
+        Protocols call Transport.write_frame(), not Transport.write().
+        """
 
         if self._disable_sending is True:
             raise exc.TransportError("Sending has been disabled")
         if self._closing is True:
             raise exc.TransportError("Transport is closing or has closed")
+
+        self._track_transmit_rate()
 
         await self._write_frame(frame)
 
@@ -752,7 +824,7 @@ class _RegHackMixin:
     def _frame_read(self, dtm_str: str, frame: str) -> None:
         super()._frame_read(dtm_str, self._regex_hack(frame, self._inbound_rule))  # type: ignore[misc]
 
-    async def write_frame(self, frame: str) -> None:
+    async def write_frame(self, frame: str, disable_tx_limits: bool = False) -> None:
         await super().write_frame(self._regex_hack(frame, self._outbound_rule))  # type: ignore[misc]
 
 
@@ -846,11 +918,6 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
         self._loop.create_task(
             self._create_connection(), name="PortTransport._create_connection()"
         )
-
-    def get_extra_info(self, name: str, default: Any = None) -> Any:
-        if name == SZ_IS_EVOFW3:
-            return not self._is_hgi80  # NOTE: None (unknown) as False (is_evofw3)
-        return self._extra.get(name, default)
 
     async def _create_connection(self) -> None:
         """Invoke the Protocols's connection_made() callback after HGI80 discovery."""
@@ -963,10 +1030,13 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
 
         super()._pkt_read(pkt)
 
-    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)  # @limit_transmit_rate(_MAX_TOKENS)
+    @limit_duty_cycle(MAX_DUTY_CYCLE_RATE)
     @avoid_system_syncs
-    async def write_frame(self, frame: str) -> None:  # Protocols call this, not write()
-        """Transmit the frame via the underlying handler."""
+    async def write_frame(self, frame: str, disable_tx_limits: bool = False) -> None:
+        """Transmit a frame via the underlying handler (e.g. serial port, MQTT).
+
+        Protocols call Transport.write_frame(), not Transport.write().
+        """
 
         await self._leaker_sem.acquire()  # MIN_INTER_WRITE_GAP
         await super().write_frame(frame)
@@ -1132,6 +1202,15 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         # FIXME: convert all dt early, and convert to aware, i.e. dt.now().astimezone()
 
         self._frame_read(dtm.isoformat(), _normalise(payload["msg"]))
+
+    @limit_transmit_rate(MAX_TRANSMIT_RATE_TOKENS)
+    async def write_frame(self, frame: str, disable_tx_limits: bool = False) -> None:
+        """Transmit a frame via the underlying handler (e.g. serial port, MQTT).
+
+        Protocols call Transport.write_frame(), not Transport.write().
+        """
+
+        await super().write_frame(frame)
 
     async def _write_frame(self, frame: str) -> None:
         """Write some data bytes to the underlying transport."""

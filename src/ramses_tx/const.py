@@ -44,8 +44,10 @@ SZ_ACTIVE_HGI: Final = "active_gwy"
 SZ_SIGNATURE: Final = "signature"
 SZ_IS_EVOFW3: Final = "is_evofw3"
 
-MAX_DUTY_CYCLE_RATE = 0.01  # % bandwidth used per cycle (default 60 secs)
-DUTY_CYCLE_DURATION = 30  # # seconds
+# default values for transmit rate governers...
+DUTY_CYCLE_DURATION = 60  #      time window (seconds) where rate limiting occurs
+MAX_DUTY_CYCLE_RATE = 0.01  #    % bandwidth used per cycle
+MAX_TRANSMIT_RATE_TOKENS = 80  # transmits per cycle
 
 
 # used by schedule.py...

@@ -537,7 +537,11 @@ class Gateway(Engine):
 
     @property
     def status(self) -> dict[str, Any]:
-        return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
+        tx_rate = self._transport.get_extra_info("tx_rate") if self._transport else None
+        return {
+            SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)},
+            "_tx_rate": tx_rate,
+        }
 
     def _msg_handler(self, msg: Message) -> None:
         """A callback to handle messages from the protocol stack."""
