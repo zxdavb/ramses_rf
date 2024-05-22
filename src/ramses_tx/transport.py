@@ -345,87 +345,6 @@ def limit_duty_cycle(
     return decorator
 
 
-def limit_transmit_rate(
-    max_tokens: int, time_window: int = DUTY_CYCLE_DURATION
-) -> Callable[..., Any]:
-    """Limit the Tx rate as # packets per period of time.
-
-    Rate-limits the decorated function locally, for one process (Token Bucket).
-
-    max_tokens: maximum number of calls of function in time_window (default 45?)
-    time_window: duration of the sliding observation window (default 60 seconds)
-    """
-    # thanks, kudos to: Thomas Meschede, license: MIT
-    # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
-
-    token_fill_rate: float = max_tokens / time_window
-
-    def decorator(
-        fnc: Callable[..., Awaitable[None]],
-    ) -> Callable[..., Awaitable[None]]:
-        _max_tokens: float = max_tokens * 2  # initialize for initial burst
-        token_bucket: float = _max_tokens
-        last_time_token_added = perf_counter()
-
-        lock = asyncio.Lock()  # FIXME: threading lock, or asyncio lock?
-
-        @wraps(fnc)
-        async def wrapper(*args: Any, **kwargs: Any) -> None:
-            nonlocal token_bucket
-            nonlocal last_time_token_added
-            nonlocal _max_tokens
-
-            nonlocal lock
-
-            await lock.acquire()
-            # top-up the bit bucket
-            elapsed = perf_counter() - last_time_token_added
-            new_token_bucket = min(
-                token_bucket + elapsed * token_fill_rate, _max_tokens
-            )
-            last_time_token_added = perf_counter()
-
-            lock.release()
-
-            # if required, wait for a token (not for SETs/PUTs)
-            if new_token_bucket < 0.0:
-                _LOGGER.warning(
-                    "Exceeded token rate: Discarding, tokens = %s", new_token_bucket
-                )
-                return
-
-            token_bucket = new_token_bucket - 1.0
-
-            if _max_tokens > max_tokens:
-                _max_tokens = min(_max_tokens, new_token_bucket - 1.0)
-                _max_tokens = max(_max_tokens, max_tokens)
-
-            if new_token_bucket < 1.0:
-                _LOGGER.warning(
-                    "Tx sleeping: %s secs", (1 - new_token_bucket) / token_fill_rate
-                )
-                await asyncio.sleep((1 - new_token_bucket) / token_fill_rate)
-
-            # consume one token for every call
-            try:
-                await fnc(*args, **kwargs)
-            finally:
-                # token_bucket = new_token_bucket - 1.0
-                pass  # token_bucket -= 1.0
-
-            _LOGGER.warning("Tx tokens: %s (of %s)", token_bucket, _max_tokens)
-
-        @wraps(fnc)
-        async def null_wrapper(*args: Any, **kwargs: Any) -> None:
-            await fnc(*args, **kwargs)
-
-        if max_tokens <= 0:
-            return null_wrapper
-        return wrapper
-
-    return decorator
-
-
 # used by @track_transmit_rate, current_transmit_rate()
 _MAX_TRACKED_TRANSMITS = 99
 _MAX_TRACKED_DURATION = 300
@@ -1089,6 +1008,11 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
     See: https://github.com/IndaloTech/ramses_esp
     """
 
+    # used in .write_frame() to rate-limit the number of writes
+    _MAX_TOKENS: Final[int] = MAX_TRANSMIT_RATE_TOKENS
+    _TIME_WINDOW: Final[int] = DUTY_CYCLE_DURATION
+    _TOKEN_RATE: Final[float] = _MAX_TOKENS / _TIME_WINDOW
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # _LOGGER.error("__init__(%s, %s)", args, kwargs)
 
@@ -1105,6 +1029,11 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
 
         self._connected = False
         self._extra[SZ_IS_EVOFW3] = True
+
+        # used in .write_frame() to rate-limit the number of writes
+        self._timestamp = perf_counter()
+        self._max_tokens: float = self._MAX_TOKENS * 2  # allow for the initial burst
+        self._num_tokens: float = self._MAX_TOKENS * 2
 
         self.client = mqtt.Client()
 
@@ -1203,12 +1132,37 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
 
         self._frame_read(dtm.isoformat(), _normalise(payload["msg"]))
 
-    @limit_transmit_rate(MAX_TRANSMIT_RATE_TOKENS)
     async def write_frame(self, frame: str, disable_tx_limits: bool = False) -> None:
         """Transmit a frame via the underlying handler (e.g. serial port, MQTT).
 
+        Writes are rate-limited to _MAX_TOKENS Packets over the last _TIME_WINDOW
+        seconds, except when disable_tx_limits is True (for e.g. user commands).
+
         Protocols call Transport.write_frame(), not Transport.write().
         """
+
+        # top-up the token bucket
+        timestamp = perf_counter()
+        elapsed, self._timestamp = timestamp - self._timestamp, timestamp
+        self._num_tokens = min(
+            self._num_tokens + elapsed * self._TOKEN_RATE, self._max_tokens
+        )
+
+        # if would have to sleep >= 1 second, dump the write instead
+        if self._num_tokens < 1.0 - self._TOKEN_RATE and not disable_tx_limits:
+            _LOGGER.warning(f"{self}: Discarding write (tokens={self._num_tokens:.2f})")
+            return
+
+        self._num_tokens -= 1.0
+        if self._max_tokens > self._MAX_TOKENS:  # what is the new max number of tokens
+            self._max_tokens = min(self._max_tokens, self._num_tokens)
+            self._max_tokens = max(self._max_tokens, self._MAX_TOKENS)
+
+        # if in token debt, sleep until the debt is paid
+        if self._num_tokens < 0.0 and not disable_tx_limits:
+            delay = (0 - self._num_tokens) / self._TOKEN_RATE
+            _LOGGER.debug(f"{self}: Sleeping (seconds={delay})")
+            await asyncio.sleep(delay)
 
         await super().write_frame(frame)
 
