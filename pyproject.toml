@@ -96,6 +96,7 @@
   # ignore_missing_imports = true  # only used per-module
   # follow_imports = normal  # avoid skip/silent, prefer normal (default) over error
 
+  no_implicit_reexport = true  # added by zxdavb
 
   # ### Strict typing (--strict) if all following are set to true (excl. zxdavb)
   #  - https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
@@ -213,9 +214,12 @@
   ]
 
 [[tool.mypy.overrides]]
-  module = "ramses_tx.*"
+  module = [
+    "ramses_rf.*",
+    # "ramses_tx.*"
+  ]
 
-  no_implicit_reexport = true
+  no_implicit_reexport = false
 
 #
 ## ruff ##############################################################################
