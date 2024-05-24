@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """RAMSES RF - A pseudo-mocked serial port used for testing."""
 
-from typing import Any
+from typing import Any, Final
 from unittest.mock import patch
 
 from ramses_rf import Gateway
 from ramses_rf.const import DEV_TYPE_MAP, DevType
 from ramses_rf.schemas import SZ_CLASS, SZ_KNOWN_LIST
 
-from .virtual_rf import (
-    HgiFwTypes,  # noqa: F401, pylint: disable=unused-import
-    VirtualRf,
-)
+from .const import HgiFwTypes
+from .virtual_rf import VirtualRf
+
+__all__ = ["HgiFwTypes", "VirtualRf", "rf_factory"]
 
 # patched constants
 # _DBG_DISABLE_IMPERSONATION_ALERTS = True  # # ramses_tx.protocol
@@ -19,8 +19,8 @@ from .virtual_rf import (
 MIN_INTER_WRITE_GAP = 0  # #                    ramses_tx.protocol
 
 # other constants
-GWY_ID_0 = "18:000000"
-GWY_ID_1 = "18:111111"
+GWY_ID_0: Final = "18:000000"
+GWY_ID_1: Final = "18:111111"
 
 _DEFAULT_GWY_CONFIG = {
     "config": {
