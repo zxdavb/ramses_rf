@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
-from ramses_tx.exceptions import (  # noqa: F401
-    PacketAddrSetInvalid,
-    PacketInvalid,
-    PacketPayloadInvalid,
-    ProtocolError,
-    RamsesException,
+from ramses_tx.exceptions import (
+    PacketAddrSetInvalid as PacketAddrSetInvalid,
+    PacketInvalid as PacketInvalid,
+    PacketPayloadInvalid as PacketPayloadInvalid,
+    ProtocolError as ProtocolError,
+    RamsesException as RamsesException,
 )
 
 
@@ -40,11 +40,11 @@ class ScheduleError(_RamsesUpperError):
     """An error occured when getting/setting a schedule."""
 
 
-class ScheduleFsmError(BindingError):
+class ScheduleFsmError(ScheduleError):
     """The schedule FSM was/became inconsistent (this shouldn't happen)."""
 
 
-class ScheduleFlowError(BindingError):
+class ScheduleFlowError(ScheduleError):
     """The get/set schedule failed due to a timeout or retry limit being exceeded."""
 
 

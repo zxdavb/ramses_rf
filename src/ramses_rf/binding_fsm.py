@@ -14,9 +14,15 @@ from typing import TYPE_CHECKING, Final
 
 import voluptuous as vol
 
-from ramses_tx import ALL_DEV_ADDR, ALL_DEVICE_ID, Command, Message, Priority
-from ramses_tx.const import DevType
-from ramses_tx.typing import QosParams
+from ramses_tx import (
+    ALL_DEV_ADDR,
+    ALL_DEVICE_ID,
+    Command,
+    DevType,
+    Message,
+    Priority,
+    QosParams,
+)
 
 from . import exceptions as exc
 
@@ -31,8 +37,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from ramses_tx import Packet
-    from ramses_tx.const import IndexT
+    from ramses_tx import IndexT, Packet
 
     from .device.base import Fakeable
 

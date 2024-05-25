@@ -213,14 +213,6 @@
     "type-arg",  #     11
   ]
 
-[[tool.mypy.overrides]]
-  module = [
-    "ramses_rf.*",
-    # "ramses_tx.*"
-  ]
-
-  no_implicit_reexport = false
-
 #
 ## ruff ##############################################################################
 

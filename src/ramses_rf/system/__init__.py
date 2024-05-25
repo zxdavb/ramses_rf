@@ -27,4 +27,15 @@ from .zones import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 
+__all__ = [
+    # .heat
+    "Evohome",
+    "System",
+    "system_factory",
+    # .zones
+    "DhwZone",
+    "Zone",
+]
+
+
 _LOGGER = logging.getLogger(__name__)

@@ -50,6 +50,38 @@ if TYPE_CHECKING:
     from ramses_rf import Gateway
     from ramses_tx import Address, Message
 
+
+__all__ = [
+    # .base
+    "Device",
+    "Fakeable",
+    "DeviceHeat",
+    "HgiGateway",
+    "DeviceHvac",
+    # .heat
+    "BdrSwitch",
+    "Controller",
+    "DhwSensor",
+    "OtbGateway",
+    "OutSensor",
+    "Temperature",
+    "Thermostat",
+    "TrvActuator",
+    "UfhCircuit",
+    "UfhController",
+    "class_dev_heat",
+    # .hvac
+    "HvacCarbonDioxideSensor",
+    "HvacHumiditySensor",
+    "HvacRemote",
+    "HvacVentilator",
+    "RfsGateway",
+    "class_dev_hvac",
+    #
+    "best_dev_role",
+    "device_factory",
+]
+
 _LOGGER = logging.getLogger(__name__)
 
 

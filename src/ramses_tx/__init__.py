@@ -33,6 +33,7 @@ from .const import (
     DevType,
     IndexT,
     Priority,
+    VerbT,
     ZoneRole,
 )
 from .gateway import Engine
@@ -100,6 +101,7 @@ __all__ = [
     "DevRole",
     "DevType",
     "IndexT",
+    "VerbT",
     "ZoneRole",
     #
     "Address",

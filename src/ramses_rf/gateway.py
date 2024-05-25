@@ -19,6 +19,7 @@ from ramses_tx import (
     Address,
     Command,
     Engine,
+    Message,
     Packet,
     Priority,
     extract_known_hgi_id,
@@ -48,7 +49,7 @@ from ramses_tx.transport import SZ_READER_TASK
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICES
 from .database import MessageIndex
 from .device import DeviceHeat, DeviceHvac, Fakeable, HgiGateway, device_factory
-from .dispatcher import Message, detect_array_fragment, process_msg
+from .dispatcher import detect_array_fragment, process_msg
 from .schemas import (
     SCH_GATEWAY_CONFIG,
     SCH_GLOBAL_SCHEMAS,

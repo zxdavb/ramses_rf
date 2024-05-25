@@ -573,7 +573,7 @@ SZ_CONFIRM: Final = "confirm"
 SZ_PHASE: Final = "phase"
 
 
-DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
+DEFAULT_MAX_ZONES: Final = 16 if DEV_MODE else 12
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones

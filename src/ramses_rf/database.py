@@ -10,7 +10,7 @@ from collections import OrderedDict
 from datetime import datetime as dt, timedelta as td
 from typing import NewType, TypedDict
 
-from .dispatcher import Message
+from ramses_tx import Message
 
 DtmStrT = NewType("DtmStrT", str)
 MsgDdT = OrderedDict[DtmStrT, Message]

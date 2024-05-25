@@ -13,15 +13,18 @@ from typing import TYPE_CHECKING, Any, Final
 
 import voluptuous as vol
 
+# TODO: deprecate re-exporting (via as) in favour of direct imports
 from ramses_tx.const import (
-    SZ_ACTUATORS,
-    SZ_CONFIG,
-    SZ_DEVICES,
+    SZ_ACTUATORS as SZ_ACTUATORS,
+    SZ_CONFIG as SZ_CONFIG,
+    SZ_DEVICES as SZ_DEVICES,
     SZ_NAME,
-    SZ_SENSOR,
+    SZ_SENSOR as SZ_SENSOR,
     SZ_ZONE_TYPE,
     SZ_ZONES,
 )
+
+# TODO: deprecate re-exporting (via as) in favour of direct imports
 from ramses_tx.schemas import (  # noqa: F401
     SCH_DEVICE_ID_ANY,
     SCH_DEVICE_ID_APP,
@@ -33,24 +36,26 @@ from ramses_tx.schemas import (  # noqa: F401
     SCH_DEVICE_ID_UFC,
     SCH_ENGINE_DICT,
     SCH_GLOBAL_TRAITS_DICT,
-    SCH_TRAITS,
-    SZ_ALIAS,
+    SCH_TRAITS as SCH_TRAITS,
+    SZ_ALIAS as SZ_ALIAS,
     SZ_BLOCK_LIST,
-    SZ_CLASS,
+    SZ_CLASS as SZ_CLASS,
     SZ_DISABLE_SENDING,
     SZ_ENFORCE_KNOWN_LIST,
-    SZ_FAKED,
-    SZ_KNOWN_LIST,
+    SZ_FAKED as SZ_FAKED,
+    SZ_KNOWN_LIST as SZ_KNOWN_LIST,
     SZ_PACKET_LOG,
-    SZ_SCHEME,
+    SZ_SCHEME as SZ_SCHEME,
     DeviceIdT,
     sch_packet_log_dict_factory,
     select_device_filter_mode,
 )
 
 from . import exceptions as exc
+
+# TODO: deprecate re-exporting (via as) in favour of direct imports
 from .const import (
-    DEFAULT_MAX_ZONES,
+    DEFAULT_MAX_ZONES as DEFAULT_MAX_ZONES,
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
