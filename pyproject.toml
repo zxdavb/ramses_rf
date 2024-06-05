@@ -12,7 +12,7 @@
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
     "colorlog>=6.8.2",
-    "paho-mqtt>=1.6.1,<2.0.0",
+    "paho-mqtt>=1.6.1,<3.0.0",
     "pyserial-asyncio>=0.6",
     "voluptuous>=0.13.1",
   ]
