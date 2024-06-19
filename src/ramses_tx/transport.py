@@ -679,7 +679,7 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
 
         self._transmit_times.append(dt.now())
 
-        _LOGGER.error(f"Current Tx rate: {self._report_transmit_rate():.2f} pkts/min")
+        _LOGGER.debug(f"Current Tx rate: {self._report_transmit_rate():.2f} pkts/min")
 
     # NOTE: Protocols call write_frame(), not write()
     def write(self, data: bytes) -> None:
@@ -1055,6 +1055,14 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         # _LOGGER.error("Mqtt._on_connect(%s, %s, %s, %s)", client, userdata, flags, rc)
 
         self.client.subscribe(self._topic_base)  # hope for 'online' message
+
+    def _on_connect_fail(
+        self, client: mqtt.Client, userdata: Any | None, rc: int
+    ) -> None:
+        _LOGGER.error(f"Disconnected with result code {rc}")
+
+        # self._closing = False  # FIXME
+        # self._connection_lost(rc)
 
     def _on_disconnect(
         self, client: mqtt.Client, userdata: Any | None, rc: int
