@@ -1421,10 +1421,10 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 def parser_22b0(payload: str, msg: Message) -> dict[str, Any]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
-    # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable
+    # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable, calender on
     # .I --- 32:155617 37:171871 --:------ 22B0 002 0005
 
-    # .W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable
+    # .W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable, calender off
     # .I --- 32:155617 37:171871 --:------ 22B0 002 0006
 
     return {
@@ -2049,17 +2049,22 @@ def parser_3120(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_313e(payload: str, msg: Message) -> dict[str, Any]:
-    # 11:00:59.412 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007937-003C80-0000
-    # 11:02:23.961 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007B14-003C80-0000
-    # 11:03:32.193 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007C1C-003C80-0000
-
+    # 11:00:59.412 RP --- 32:153258 18:005904 --:------ 313E 011 00-00000079-37-003C80-0000
+    # 11:02:23.961 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007B-14-003C80-0000
+    # 11:03:32.193 RP --- 32:153258 18:005904 --:------ 313E 011 00-0000007C-1C-003C80-0000
+    # 18:48:49.645 RP --- 32:137185 18:003599 --:------ 313E 011 00-00C3EC70-0E-003C80-0000
     assert payload[:2] == "00"
     assert payload[12:] == "003C800000"
 
+    result = (
+        msg.dtm - td(seconds=int(payload[10:12], 16), minutes=int(payload[2:10], 16))
+    ).isoformat()
+
     return {
-        "value_02": payload[2:12],
-        "value_12": payload[12:18],
-        "value_18": payload[18:],
+        "zulu": result,
+        "value_02": payload[2:10],
+        "value_10": payload[10:12],
+        "value_12": payload[12:],
     }
 
 
