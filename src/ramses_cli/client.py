@@ -522,7 +522,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
             _ = spawn_scripts(gwy, **kwargs)
             await gwy._protocol._wait_connection_lost
 
-        elif command == LISTEN:
+        elif command in (LISTEN, PARSE):
             await gwy._protocol._wait_connection_lost
 
     except asyncio.CancelledError:
@@ -536,7 +536,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"
     finally:
-        await gwy.stop()
+        await gwy.stop()  # what happens if we have an exception here?
 
     print(f"\r\nclient.py: Engine stopped: {msg}")
 
