@@ -208,6 +208,10 @@ class Engine:
 
         await self._protocol.wait_for_connection_made()
 
+        # TODO: should this be removed (if so, pytest all before committing)
+        if self._input_file:
+            await self._protocol.wait_for_connection_lost()
+
     async def stop(self) -> None:
         """Close the transport (will stop the protocol)."""
 
