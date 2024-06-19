@@ -96,8 +96,6 @@
   # ignore_missing_imports = true  # only used per-module
   # follow_imports = normal  # avoid skip/silent, prefer normal (default) over error
 
-  no_implicit_reexport = true  # added by zxdavb
-
   # ### Strict typing (--strict) if all following are set to true (excl. zxdavb)
   #  - https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
 
@@ -119,8 +117,8 @@
   # Strongly recommend enabling this one as soon as you can
   check_untyped_defs = true
 
-  # allow-redefinition = false  # added by zxdavb
-  # no-implicit-reexport = true  # added by zxdavb
+  # allow_redefinition = false  # default is false
+  no_implicit_reexport = true  # added by zxdavb
 
   # # Disallow dynamic typing...
   #  - https://mypy.readthedocs.io/en/stable/command_line.html#disallow-dynamic-typing
@@ -131,7 +129,7 @@
   disallow_untyped_decorators = true  # from: Untyped definitions and calls
   disallow_any_generics = true
 
-  # disallow-any-explicit = true  # added by zxdavb
+  # disallow_any_explicit = true  # TODO: added by zxdavb
 
   # # Untyped definitions and calls
   #  - https://mypy.readthedocs.io/en/stable/command_line.html#untyped-definitions-and-calls
@@ -212,6 +210,17 @@
     "arg-type",  #     54
     "type-arg",  #     11
   ]
+
+[[tool.mypy.overrides]]
+  module = [
+    "ramses_cli.*",
+    "ramses_rf.*",
+    "ramses_tx.parsers",
+    "tests",
+  ]
+
+  disallow_any_explicit = false
+
 
 #
 ## ruff ##############################################################################
