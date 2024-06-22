@@ -585,7 +585,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._3222: {  # unknown_3222, HVAC, NB: no I
         SZ_NAME: "unknown_3222",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{4,20}$",
+        RP: r"^00[0-9A-F]{4,24}$",
     },
     Code._3223: {  # unknown_3223, from OTB
         SZ_NAME: "message_3223",

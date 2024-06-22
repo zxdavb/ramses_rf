@@ -826,7 +826,7 @@ def _parse_fan_heater(param_name: str, value: HexStr2) -> Mapping[str, float | N
     if int(value, 16) & 0xF0 == 0xF0:
         return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
-    percentage = int(value, 16) / 100
+    percentage = int(value, 16) / 200  # Siber DF EVO 2 is /200, not /100 (?Others)
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     return {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
