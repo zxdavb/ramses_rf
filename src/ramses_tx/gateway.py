@@ -42,7 +42,7 @@ from .schemas import (
     PortConfigT,
     select_device_filter_mode,
 )
-from .transport import is_hgi80, transport_factory
+from .transport import transport_factory
 from .typing import QosParams
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -93,9 +93,7 @@ class Engine:
         self._disable_sending = kwargs.pop(SZ_DISABLE_SENDING, None)
         if input_file:
             self._disable_sending = True
-        elif port_name:
-            is_hgi80(port_name)  # raise an exception if the port is not found
-        else:
+        elif not port_name:
             raise TypeError("Either a port_name or a input_file must be specified")
 
         self.ser_name = port_name
