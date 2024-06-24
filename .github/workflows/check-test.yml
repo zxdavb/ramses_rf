@@ -1,5 +1,5 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-#  - see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# - see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
 name: Testing via pytest
 
