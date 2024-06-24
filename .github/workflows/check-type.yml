@@ -7,11 +7,19 @@ name: Typing via mypy
 on:
   push:
     branches: [ "master", "stable" ]
-    paths: ["src/**.py", "tests/**.py", "src/**/py.typed", ".github/workflows/type-type.yml"]
+    paths: [
+      ".github/workflows/type-type.yml",
+      "src/**.py", "src/**/py.typed",
+      "tests/**.py",
+    ]
 
   pull_request:
     branches: [ "master", "stable" ]
-    paths: ["src/**.py", "tests/**.py", "src/**/py.typed", ".github/workflows/type-type.yml"]
+    paths: [
+      ".github/workflows/type-type.yml",
+      "src/**.py", "src/**/py.typed",
+      "tests/**.py",
+    ]
 
   workflow_dispatch:
 

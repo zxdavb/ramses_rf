@@ -7,11 +7,19 @@ name: Testing via pytest
 on:
   push:
     branches: [ "master", "stable" ]
-    paths: ["src/**.py", "tests/**", ".github/workflows/check-test.yml"]
+    paths: [
+      ".github/workflows/check-test.yml",
+      "src/**.py",
+      "tests/**",
+    ]
 
   pull_request:
     branches: [ "master", "stable" ]
-    paths: ["src/**.py", "tests/**", ".github/workflows/check-test.yml"]
+    paths: [
+      ".github/workflows/check-test.yml",
+      "src/**.py",
+      "tests/**",
+    ]
 
   workflow_dispatch:
 
