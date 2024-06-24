@@ -84,9 +84,7 @@ class Engine:
     ) -> None:
         if port_name and input_file:
             _LOGGER.warning(
-                "Port (%s) specified, so file (%s) ignored",
-                port_name,
-                input_file,
+                "Port (%s) specified, so file (%s) ignored", port_name, input_file
             )
             input_file = None
 
