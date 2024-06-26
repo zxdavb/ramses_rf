@@ -1,11 +1,11 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb/ramses_rf
-# last checked/updated: 2024/05/02 (c.f. HA 2023.5.x)
+# last checked/updated: 2024-06-26
 
 exclude: (^.secrets/|^docs/|^misc|tests/deprecated)
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.2
+    rev: v0.4.10
     hooks:
       - id: ruff         # linter
       - id: ruff-format  # formatter
@@ -13,18 +13,22 @@ repos:
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:
-    - id: python-check-blanket-noqa
-    - id: python-check-blanket-type-ignore
-    - id: python-no-log-warn
+      - id: python-check-blanket-noqa
+      - id: python-check-blanket-type-ignore
+      # id: python-no-eval
+      - id: python-no-log-warn
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-    # id: check-json  # don't enable this one
-    - id: check-toml
-    - id: check-yaml
-    - id: end-of-file-fixer
-    - id: trailing-whitespace
+      - id: check-executables-have-shebangs
+      # id: check-json  # don't enable this one
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
 
   - repo: local
     hooks:
@@ -36,6 +40,13 @@ repos:
       language: pygrep
       args: [-i]
       exclude: (.pre-commit-config.yaml|^tests/.*\.py$)  # avoid false +ve
+
+    - id: secrets
+      name: check for secrets
+      entry: '#.*(secret|password|pwd)'
+      language: pygrep
+      args: [-i]
+      exclude: .pre-commit-config.yaml  # avoid false +ve
 
     - id: style_1
       name: check for 'as exc:' (should be 'as err:')
@@ -57,13 +68,6 @@ repos:
     #   language: pygrep
     #   args: [-i]
     #   exclude: .pre-commit-config.yaml  # avoid false +ve
-
-    - id: secrets
-      name: check for secrets
-      entry: '#.*(secret|password|pwd)'
-      language: pygrep
-      args: [-i]
-      exclude: .pre-commit-config.yaml  # avoid false +ve
 
 
   # We do not use pre-commit/mirrors-mypy, as it comes with opinionated defaults
