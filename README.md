@@ -1,4 +1,6 @@
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+![ruff](https://github.com/zxdavb/ramses_rf/actions/workflows/check-lint.yml/badge.svg)
+![mypy](https://github.com/zxdavb/ramses_rf/actions/workflows/check-type.yml/badge.svg)
+![pytest](https://github.com/zxdavb/ramses_rf/actions/workflows/check-test.yml/badge.svg)
 
 ## Overview
 **ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as:
