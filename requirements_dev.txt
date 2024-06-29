@@ -32,4 +32,4 @@
 
 # used for build/deploy
   hatch>=1.9.7       # is not in core HA
-  hatchling<1.22     # is not in core HA
+  hatchling<1.26     # is not in core HA
