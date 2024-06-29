@@ -228,17 +228,18 @@
 [tool.ruff]
   exclude = ["tests/deprecated/*.py"]
   src = ["src", "tests"]
-  target-version = "py312"  # Assume Python 3.12
+  target-version = "py312"
 
 
 [tool.ruff.lint]
   select = [
-    "B",  #   flake8-bugbear
-    "E",  #   pycodestyle
-    "F",  #   Pyflakes
-    "I",  #   isort
-    "SIM",  # flake8-simplify
-    "UP",  #  pyupgrade
+    "ASYNC",  # flake8-async
+    "B",  #     flake8-bugbear
+    "E",  #     pycodestyle
+    "F",  #     Pyflakes
+    "I",  #     isort
+    "SIM",  #   flake8-simplify
+    "UP",  #    pyupgrade
   ]
   ignore = ["B011", "E501", "SIM102", "SIM114", "UP040"]
 
@@ -257,3 +258,7 @@
   combine-as-imports = true
   force-sort-within-sections = false
   split-on-trailing-comma = false
+
+
+[tool.ruff.lint.per-file-ignores]
+  "tests/*" = ["ASYNC"]
