@@ -1,6 +1,6 @@
 # Setup venv for ramses_rf CLI
 
-# last checked/updated: 2024/05/02 (c.f. HA 2023.5.x)
+# last checked/updated: 2024/08/08 (c.f. HA 2023.8.x)
 #  - also update pyproject.toml, github workflows
 #
 #  check: pip list | grep -E 'click|colorama|debugpy'
@@ -14,4 +14,4 @@
   colorama>=0.4.6
 
 # used for testing at runtime
-  debugpy>=1.8.1
+  debugpy>=1.8.5

@@ -1,6 +1,6 @@
 # Setup venv for ramses_rf
 
-# last checked/updated: 2024/05/02 (c.f. HA 2023.5.x)
+# last checked/updated: 2024/08/08 (c.f. HA 2023.8.x)
 #  - also update pyproject.toml, github workflows
 #
 #  check: pip list | grep -E 'colorlog|paho-mqtt|pyserial|voluptuous'
@@ -19,4 +19,5 @@
   # colorlog>=6.8.2               # in ramses_tx/logger.py
   # paho-mqtt'>=1.6.1,<2.0.0'     # breaking change in v2
   # pyserial-asyncio>=0.6         # incl. pyserial==3.5
-  # voluptuous>=0.13.1            # 0.14.x has typing support
+  # pyserial-asyncio-fast>=0.11
+  # voluptuous>=0.15.2
