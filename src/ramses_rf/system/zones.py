@@ -116,7 +116,7 @@ class ZoneBase(Child, Parent, Entity):
         Can be a heating zone (of a klass), or the DHW subsystem (idx must be 'HW').
         """
 
-        zon = cls(tcs, zone_idx)
+        zon = cls(tcs, zone_idx)  # type: ignore[arg-type]
         zon._update_schema(**schema)
         return zon
 

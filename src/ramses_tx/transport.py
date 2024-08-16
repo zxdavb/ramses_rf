@@ -564,7 +564,7 @@ class _ReadTransport(_BaseTransport):
         self._closing = True
 
         self.loop.call_soon_threadsafe(
-            functools.partial(self._protocol.connection_lost, exc)
+            functools.partial(self._protocol.connection_lost, exc)  # type: ignore[arg-type]
         )
 
     def close(self) -> None:
@@ -587,7 +587,7 @@ class _ReadTransport(_BaseTransport):
         self._extra[SZ_ACTIVE_HGI] = gwy_id  # or HGI_DEV_ADDR.id
 
         self.loop.call_soon_threadsafe(  # shouldn't call this until we have HGI-ID
-            functools.partial(self._protocol.connection_made, self, ramses=True)
+            functools.partial(self._protocol.connection_made, self, ramses=True)  # type: ignore[arg-type]
         )
 
     # NOTE: all transport should call this method when they receive data
@@ -772,7 +772,7 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
             await self._reader()
         except Exception as err:
             self.loop.call_soon_threadsafe(
-                functools.partial(self._protocol.connection_lost, err)
+                functools.partial(self._protocol.connection_lost, err)  # type: ignore[arg-type]
             )
         else:
             self.loop.call_soon_threadsafe(
