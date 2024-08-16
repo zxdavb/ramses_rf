@@ -278,7 +278,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         if limit is None:
             limit = DEFAULT_GET_LIMIT
 
-        self._is_getting = True
+        self._is_getting = True  # TODO: semaphore?
 
         # TODO: handle exc.RamsesException (RQ retries exceeded)
         for idx in range(start, min(start + limit, self._MAX_LOG_IDX + 1)):
@@ -291,8 +291,8 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
                 break
             self._process_msg(Message(pkt))  # JIC dispatcher doesn't do this for us
 
-        self._is_current = False
         self._is_getting = False
+        self._is_current = True
 
         return self.faultlog
 
@@ -305,13 +305,14 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         return {idx: self._log[dtm] for idx, dtm in self._map.items()}
 
-    def is_current(self, force_io: bool | None = None) -> bool:  # TODO
+    async def is_current(self, force_io: bool = False) -> bool:
         """Return True if the local fault log is identical to the controllers.
 
         If force_io, retrieve the 0th log entry and check it is identical to the local
         copy.
         """
 
+        # if not self._is_current or not force_io:  # TODO
         return self._is_current
 
     @property
