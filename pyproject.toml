@@ -241,7 +241,7 @@
     "SIM",  #   flake8-simplify
     "UP",  #    pyupgrade
   ]
-  ignore = ["B011", "E501", "SIM102", "SIM114", "UP040"]
+  ignore = ["ASYNC109", "ASYNC110", "B011", "E501", "SIM102", "SIM114", "UP040"]
 
   # B011   - Do not call assert False since python -O removes these calls
   # E501   - Line too long
