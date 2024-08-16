@@ -10,7 +10,6 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, NoReturn, TypeVar
 
-from ramses_rf import exceptions as exc
 from ramses_rf.const import (
     SYS_MODE_MAP,
     SZ_ACTUATORS,
@@ -717,13 +716,9 @@ class Logbook(SystemBase):  # 0418
         limit: int | None = None,
         force_refresh: bool = False,
     ) -> dict[FaultIdxT, FaultLogEntry] | None:
-        try:
-            return await self._faultlog.get_faultlog(
-                start=start, limit=limit, force_refresh=force_refresh
-            )
-        except exc.RamsesException as err:
-            _LOGGER.error("%s: Failed to get faultlog: %s", self, err)
-            return None
+        return await self._faultlog.get_faultlog(
+            start=start, limit=limit, force_refresh=force_refresh
+        )
 
     @property
     def active_faults(self) -> tuple[str, ...] | None:

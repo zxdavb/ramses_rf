@@ -134,10 +134,10 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     in the system log.
 
     New entries are added to the top of the log (log_idx=0), and the log_idx is
-    incremented for all exisiting log enties.
+    incremented for all existing log enties.
     """
 
-    _MAX_LOG_IDX = 0x3E
+    _MAX_LOG_IDX = 0x3F  # evohome controller only keeps most recent 64 entries
 
     def __init__(self, tcs: _LogbookT) -> None:
         self._tcs: _LogbookT = tcs
@@ -280,7 +280,8 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         self._is_getting = True
 
-        for idx in range(start, min(start + limit, 64)):
+        # TODO: handle exc.RamsesException (RQ retries exceeded)
+        for idx in range(start, min(start + limit, self._MAX_LOG_IDX + 1)):
             cmd = Command.get_system_log_entry(self.id, idx)
             pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
 
@@ -304,16 +305,14 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         return {idx: self._log[dtm] for idx, dtm in self._map.items()}
 
-    def is_current(self, force_io: bool | None = None) -> bool:
+    def is_current(self, force_io: bool | None = None) -> bool:  # TODO
         """Return True if the local fault log is identical to the controllers.
 
         If force_io, retrieve the 0th log entry and check it is identical to the local
         copy.
         """
 
-        if not self._is_current:
-            return False
-        return True
+        return self._is_current
 
     @property
     def latest_event(self) -> FaultLogEntry | None:

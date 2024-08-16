@@ -632,7 +632,7 @@ class Command(Frame):
             _log_idx = 0
         if not isinstance(_log_idx, str):
             _log_idx = f"{_log_idx:02X}"
-        assert 0 <= int(_log_idx, 16) <= 0x3E
+        assert 0 <= int(_log_idx, 16) <= 0x3F  # TODO: is it 0x3E or 0x3F?
 
         if timestamp is None:
             timestamp = dt.now()  #
