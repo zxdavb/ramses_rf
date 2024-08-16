@@ -734,12 +734,18 @@ FAN_RATE: Final = "fan_rate"  # percentage, 0.0 - 1.0
 
 
 # Below, verbs & codes - can use Verb/Code/Index for mypy type checking
-VerbT = Literal[" I", "RQ", "RP", " W"]
+@verify(EnumCheck.UNIQUE)
+class VerbT(StrEnum):
+    I_ = " I"
+    RQ = "RQ"
+    RP = "RP"
+    W_ = " W"
 
-I_: Final[VerbT] = " I"
-RQ: Final[VerbT] = "RQ"
-RP: Final[VerbT] = "RP"
-W_: Final[VerbT] = " W"
+
+I_: Final = VerbT.I_
+RQ: Final = VerbT.RQ
+RP: Final = VerbT.RP
+W_: Final = VerbT.W_
 
 
 @verify(EnumCheck.UNIQUE)
