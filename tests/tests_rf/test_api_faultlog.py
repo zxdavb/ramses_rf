@@ -28,6 +28,8 @@ LOGS_DIR = f"{TEST_DIR}/logs"
 
 TST_ID_ = Address("18:123456").id  # the id of the test HGI80-compatible device
 
+TST_FAULTLOG_LIMIT = 3  #  max is 63 (0x3F) entries, 3 is enough for testing
+
 
 # ### FIXTURES ########################################################################
 
@@ -66,7 +68,7 @@ async def _test_get_faultlog(gwy: Gateway, ctl_id: DeviceIdT) -> None:
     tcs: Evohome | None = gwy.tcs
     assert isinstance(tcs, Evohome)  # mypy
 
-    faultlog = await tcs.get_faultlog(limit=3)  # 3 entries is enough for this test
+    faultlog = await tcs.get_faultlog(limit=TST_FAULTLOG_LIMIT)
     assert faultlog
 
 
