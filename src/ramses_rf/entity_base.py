@@ -86,7 +86,7 @@ def class_by_attr(name: str, attr: str) -> dict[str, Any]:  # TODO: change to __
     """Return a mapping of a (unique) attr of classes in a module to that class."""
 
     def predicate(m: ModuleType) -> bool:
-        return isclass(m) and m.__module__ == name and getattr(m, attr, None)  # type: ignore[return-value]
+        return isclass(m) and m.__module__ == name and getattr(m, attr, None)
 
     return {getattr(c[1], attr): c[1] for c in getmembers(modules[name], predicate)}
 
