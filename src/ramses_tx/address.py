@@ -176,15 +176,17 @@ def is_valid_dev_id(value: str, dev_class: None | str = None) -> bool:
     if not isinstance(value, str) or not DEVICE_ID_REGEX.ANY.match(value):
         return False
 
-    if _DBG_DISABLE_DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPE_MAP:
-        return False
+    return not _DBG_DISABLE_DEV_HVAC or value.split(":", 1)[0] in DEV_TYPE_MAP
 
-    # TODO: specify device type (for HVAC)
-    # elif dev_type is not None and dev_type != value.split(":", maxsplit=1)[0]:
-    #     raise TypeError(f"The device type does not match '{dev_type}'")
+    # if _DBG_DISABLE_DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPE_MAP:
+    #     return False
 
-    # assert value == hex_id_to_dev_id(dev_id_to_hex_id(value))
-    return True
+    # # TODO: specify device type (for HVAC)
+    # # elif dev_type is not None and dev_type != value.split(":", maxsplit=1)[0]:
+    # #     raise TypeError(f"The device type does not match '{dev_type}'")
+
+    # # assert value == hex_id_to_dev_id(dev_id_to_hex_id(value))
+    # return True
 
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
