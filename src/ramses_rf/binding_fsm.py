@@ -289,13 +289,17 @@ class BindContextRespondent(BindContextBase):
         return pkt
 
     async def _wait_for_confirm(
-        self, accept: Packet, timeout: float = _AFFIRM_WAIT_TIME
+        self,
+        accept: Packet,
+        timeout: float = _AFFIRM_WAIT_TIME,
     ) -> Message:
         """Resp waits timeout seconds for a Confirm to arrive & returns it."""
         return await self.state.wait_for_confirm(timeout)
 
     async def _wait_for_addenda(
-        self, accept: Packet, timeout: float = _RATIFY_WAIT_TIME
+        self,
+        accept: Packet,
+        timeout: float = _RATIFY_WAIT_TIME,
     ) -> Message:
         """Resp waits timeout seconds for an Addenda to arrive & returns it."""
         return await self.state.wait_for_addenda(timeout)
@@ -369,7 +373,9 @@ class BindContextSupplicant(BindContextBase):
         return pkt
 
     async def _wait_for_accept(
-        self, tender: Packet, timeout: float = _ACCEPT_WAIT_TIME
+        self,
+        tender: Packet,
+        timeout: float = _ACCEPT_WAIT_TIME,
     ) -> Message:
         """Supp waits timeout seconds for an Accept to arrive & returns it."""
         return await self.state.wait_for_accept(timeout)
