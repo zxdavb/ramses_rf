@@ -394,7 +394,7 @@ class Gateway(Engine):
 
         if not dev:
             # voluptuous bug workaround: https://github.com/alecthomas/voluptuous/pull/524
-            _traits = self._include.get(device_id, {})
+            _traits: dict[str, Any] = self._include.get(device_id, {})  # type: ignore[assignment]
             _traits.pop("commands", None)
 
             traits: dict[str, Any] = SCH_TRAITS(self._include.get(device_id, {}))
