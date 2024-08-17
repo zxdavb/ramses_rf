@@ -393,9 +393,13 @@ class Gateway(Engine):
         dev = self.device_by_id.get(device_id)
 
         if not dev:
+            # voluptuous bug workaround: https://github.com/alecthomas/voluptuous/pull/524
+            _traits = self._include.get(device_id, {})
+            _traits.pop("commands", None)
+
             traits: dict[str, Any] = SCH_TRAITS(self._include.get(device_id, {}))
 
-            dev = device_factory(self, Address(device_id), msg=msg, **traits)
+            dev = device_factory(self, Address(device_id), msg=msg, **_traits)
 
             if traits.get(SZ_FAKED):
                 if isinstance(dev, Fakeable):
