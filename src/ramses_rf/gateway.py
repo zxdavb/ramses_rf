@@ -293,7 +293,7 @@ class Gateway(Engine):
 
         tmp_transport: RamsesTransportT  # mypy hint
 
-        _LOGGER.warning("GATEWAY: Restoring a cached packet log...")
+        _LOGGER.debug("GATEWAY: Restoring a cached packet log...")
         self._pause()
 
         if _clear_state:  # only intended for test suite use
@@ -329,7 +329,7 @@ class Gateway(Engine):
 
         await tmp_transport.get_extra_info(SZ_READER_TASK)
 
-        _LOGGER.warning("GATEWAY: Restored, resuming")
+        _LOGGER.debug("GATEWAY: Restored, resuming")
         self._resume()
 
     def _add_device(self, dev: Device) -> None:  # TODO: also: _add_system()
