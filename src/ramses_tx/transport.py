@@ -353,6 +353,7 @@ _MAX_TRACKED_SYNCS = 3
 _global_sync_cycles: deque[Packet] = deque(maxlen=_MAX_TRACKED_SYNCS)
 
 
+# TODO: doesn't look right at all...
 def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any]:
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
@@ -364,8 +365,6 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
     SYNC_WAIT_SHORT = DURATION_SYNC_PKT
     SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
     SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
-
-    times_0 = []  # TODO: remove
 
     @wraps(fnc)
     async def wrapper(*args: Any, **kwargs: Any) -> None:
@@ -386,17 +385,8 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
             await asyncio.sleep(SYNC_WAIT_SHORT)
 
         # wait for the remainder of sync cycle (I|2309/30C9) to complete
-        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
+        if perf_counter() - start > SYNC_WAIT_SHORT:
             await asyncio.sleep(SYNC_WAIT_LONG)
-            # FIXME: remove this block, and merge both ifs
-            times_0.append(x)
-            _LOGGER.warning(
-                f"*** sync cycle stats: {x:.3f}, "
-                f"avg: {sum(times_0) / len(times_0):.3f}, "
-                f"lower: {min(times_0):.3f}, "
-                f"upper: {max(times_0):.3f}, "
-                f"times: {[f'{t:.3f}' for t in times_0]}"
-            )  # TODO: wrap with if effectiveloglevel
 
         await fnc(*args, **kwargs)
         return None
