@@ -115,9 +115,7 @@ _LOGGER = logging.getLogger(__name__)
 try:
     import serial_asyncio_fast as serial_asyncio  # type: ignore[import-not-found]
 
-    _LOGGER.warning(
-        "EXPERIMENTAL: Using pyserial-asyncio-fast in place of pyserial-asyncio"
-    )
+    _LOGGER.debug("Using pyserial-asyncio-fast in place of pyserial-asyncio")
 except ImportError:
     import serial_asyncio  # type: ignore[import-untyped]
 
