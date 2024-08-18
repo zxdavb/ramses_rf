@@ -125,11 +125,6 @@ class Gateway(Engine):
         self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
         self._schema: dict[str, Any] = SCH_GLOBAL_SCHEMAS(kwargs)
 
-        set_pkt_logging_config(  # type: ignore[arg-type]
-            cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
-            **self._packet_log,
-        )
-
         # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
         # if self.config.reduce_processing > 0:
         self._tcs: Evohome | None = None
@@ -175,6 +170,11 @@ class Gateway(Engine):
                     zone._start_discovery_poller()
                 if system.dhw:
                     system.dhw._start_discovery_poller()
+
+        set_pkt_logging_config(  # type: ignore[arg-type]
+            cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
+            **self._packet_log,
+        )
 
         self.config.disable_discovery, disable_discovery = (
             True,
