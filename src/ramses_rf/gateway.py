@@ -125,8 +125,6 @@ class Gateway(Engine):
         self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
         self._schema: dict[str, Any] = SCH_GLOBAL_SCHEMAS(kwargs)
 
-        # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
-        # if self.config.reduce_processing > 0:
         self._tcs: Evohome | None = None
 
         self.devices: list[Device] = []
