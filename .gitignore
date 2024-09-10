@@ -17,6 +17,7 @@
 
 # beware the *.log in github's default .gitignore
 !tests/
+!tests/**/*.ambr
 !tests/**/*.json
 !tests/**/*.log
 !tests/**/*.yaml
