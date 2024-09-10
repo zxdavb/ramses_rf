@@ -1,6 +1,6 @@
 #
 ### project ##########################################################################
-# ramses_rf, updated: 2024-08-08
+# last checked/updated: 2024-09-10
 #
 
 [project]
@@ -13,7 +13,7 @@
   dependencies = [
     "colorlog>=6.8.2",
     "paho-mqtt>=1.6.1,<2.0.0",
-    "pyserial-asyncio>=0.6",
+    "pyserial-asyncio-fast>=0.13",
     "voluptuous>=0.15.2",
   ]
   requires-python = ">=3.11"  # e.g. @enum.verify(enum.EnumCheck)

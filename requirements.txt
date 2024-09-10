@@ -1,23 +1,16 @@
-# Setup venv for ramses_rf
-
-# last checked/updated: 2024/08/08 (c.f. HA 2023.8.x)
-#  - also update pyproject.toml, github workflows
-#
-#  check: pip list | grep -E 'colorlog|paho-mqtt|pyserial|voluptuous'
+# Requirements to use the library via its CLI
+# - last checked/updated: 2024-09-10
 #
 
-# Pre-requisites & install...
-#   deactivate & rm -rf venv
-#   python3.12 -m venv --prompt ramses_rf venv
-#   source venv/bin/activate.fish
-#
+# library requirements (dependencies) are in pyproject.toml
+# - check: pip list | grep -E 'ramses|colorlog|paho-mqtt|pyserial|voluptuous'
 
-#   pip install -r requirements_cli.txt  # includes below
   -e .
 
-# for using the library (sans CLI) - required (see: pyproject.toml)
-  # colorlog>=6.8.2               # in ramses_tx/logger.py
-  # paho-mqtt'>=1.6.1,<2.0.0'     # breaking change in v2
-  # pyserial-asyncio>=0.6         # incl. pyserial==3.5
-  # pyserial-asyncio-fast>=0.11
-  # voluptuous>=0.15.2
+
+# also required if using the the library via the CLI, client.py
+# - check via: pip list | grep -E 'click|colorama|debugpy'
+
+  click >= 8.1.7                                 # NOTE: non-async version
+  colorama >= 0.4.6
+  debugpy >= 1.8.5                               # can invoke via CLI
