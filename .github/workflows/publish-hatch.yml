@@ -12,8 +12,8 @@ permissions:
 
 jobs:
   build-and-deploy:
-
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
@@ -31,7 +31,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -r requirements-dev.txt
 
       - name: Build package
         run: python -m build
