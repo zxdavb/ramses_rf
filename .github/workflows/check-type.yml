@@ -43,6 +43,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt
 
+      - name: Install the package (i.e. its dependencies)
+        run: pip install -e .
+
       - name: Check with mypy
         run: mypy --enable-incomplete-feature=NewGenericSyntax
 
