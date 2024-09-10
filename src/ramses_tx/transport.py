@@ -113,11 +113,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 try:
-    import serial_asyncio_fast as serial_asyncio  # type: ignore[import-not-found, unused-ignore]
+    import serial_asyncio_fast as serial_asyncio  # type: ignore[import-not-found, import-untyped, unused-ignore]
 
     _LOGGER.debug("Using pyserial-asyncio-fast in place of pyserial-asyncio")
 except ImportError:
-    import serial_asyncio  # type: ignore[import-untyped, unused-ignore]
+    import serial_asyncio  # type: ignore[import-not-found, import-untyped, unused-ignore]
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
