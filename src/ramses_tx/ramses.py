@@ -277,9 +277,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._12A0: {  # indoor_humidity
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
         # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003108127FFF00 01EF7FFF7FFF0002 42061503AC 00 # ClimaRad Ventura
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003508717FFF00 01EF7FFF7FFF0002 380683031A 00 # same ClimaRad, later
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 002F08677FFF00 01EF7FFF7FFF0002 39068F0344 00 # same ClimaRad, later
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003408917FFF00 01EF7FFF7FFF0002 3706B70327 00 # etc.
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
+        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?((01EF7FFF7FFF0002)[0-9A-F]{5}(00))?$",
         RP: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
         SZ_LIFESPAN: td(hours=1),
     },
@@ -365,8 +369,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
-    Code._2210: {  # unknown_2210, HVAC, NB: no I
+    Code._2210: {  # unknown_2210, HVAC, I only seen on ClimaRad HRU
+        # .I --- 37:153226 --:------ 37:153226 2210 042 00FF00FFFFFF0000000000FFFFFFFFFF00FFFFFF0000000000FFFFFFFFFFFFFFFF000000000000000140
         SZ_NAME: "unknown_2210",
+        I_: r"^(00)(FF)(00)(FF){3}(00){5}(FF){5}(00)(FF){3}(00){5}(FF){8}(00){7}(0140)$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{82}$",
     },
@@ -407,7 +413,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._22F1: {  # fan_mode, HVAC
         SZ_NAME: "fan_mode",
         RQ: r"^00$",
-        I_: r"^(00|63)(0[0-9A-F]){1,2}$",
+        I_: r"^(00|63)(0[0-9A-F]){1,2}$", # VASCO HD60 HRU: 22F1 003 000206, 22F1 003 000306, 22F1 003 000406
     },
     Code._22F2: {  # unknown_22f2, HVAC, NB: no I
         SZ_NAME: "unknown_22f2",
@@ -416,10 +422,12 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
-        I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
+        I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$", # VASCO D60 HRU: 22F3 007 00 021E 0406 0000 (a timer)
     },  # minutes only?
-    Code._22F4: {  # unknown_22f4, HVAC, NB: no I
+    Code._22F4: {  # unknown_22f4, HVAC
+        # .I + 22F4 013 00 40 30 00000000000000000000 as seen on ClimaRad Ventura
         SZ_NAME: "unknown_22f4",
+        I_: "^00([0-9A-F]{2}){2}(00){10}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{24}$",
     },
@@ -562,8 +570,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_demand",
         I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
-    Code._3200: {  # boiler output temp
+    Code._3200: {  # boiler output temp, I only on ClimaRad HRU
         SZ_NAME: "boiler_output",
+        I_: r"^00(7F)(FF)?$",  # I --- 37:153226 --:------ 37:153226 3200 003 00 7F FF (ClimaRad HRU)
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
@@ -1051,6 +1060,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
     },
     DevType.FAN: {
         Code._0001: {RP: {}},
+        Code._0002: {I_: {}},
         Code._042F: {I_: {}},
         Code._10D0: {I_: {}, RP: {}},
         Code._10E0: {I_: {}, RP: {}},
@@ -1060,14 +1070,18 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1470: {RP: {}},
         Code._1F09: {I_: {}, RP: {}},
         Code._1FC9: {W_: {}},
+        Code._2210: {I_: {}},
         Code._22F1: {},
         Code._22F3: {},
+        Code._22F4: {I_: {}},
         Code._22F7: {I_: {}, RP: {}},
         Code._2411: {I_: {}, RP: {}},
         Code._3120: {I_: {}},
         Code._313F: {I_: {}, RP: {}},
+        Code._3150: {I_: {}},
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
+        Code._3200: {I_: {}},
         # Code._31E0: {I_: {}},
     },
     DevType.CO2: {
@@ -1228,10 +1242,18 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
+_22F1_MODE_VASCO: dict[str, str] = {
+    "02": "low",     # low: 000206
+    "03": "medium",  # medium: 000306
+    "04": "high",    # high: 000406
+    "02": "boost",   # aka boost with 22F32
+}
+
 _22F1_SCHEMES: dict[str, dict[str, str]] = {
     "itho": _22F1_MODE_ITHO,
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
+    "vasco": _22F1_MODE_VASCO,
 }
 
 # unclear if true for only Orcon/*all* models

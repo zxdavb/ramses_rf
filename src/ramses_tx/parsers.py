@@ -258,6 +258,8 @@ def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
 def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
     # .I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
+    # also seen on FAN ClimaRad Ventura HRU
+    # .I --- 37:153226 --:------ 37:153226 0002 004 00180005
 
     # is it CODE_IDX_COMPLEX:
     #  - 02...... for outside temp?
@@ -1580,6 +1582,12 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
         _22f1_mode_set = ("", "0A")
         _22f1_scheme = "nuaire"
 
+    elif payload[4:6] == "06":
+        from .ramses import _22F1_MODE_VASCO as _22F1_FAN_MODE
+
+        _22f1_mode_set = ("", "06")
+        _22f1_scheme = "vasco"
+
     else:
         from .ramses import _22F1_MODE_ORCON as _22F1_FAN_MODE
 
@@ -1971,15 +1979,21 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
     return result  # TODO: double-check the final "00"
 
 
-# presence_detect, HVAC sensor
+# presence_detect, HVAC sensor, or Timed boost for Vasco D60
 def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
-    assert payload in ("0001", "000100"), _INFORM_DEV_MSG
+    if payload == "00021E04060000":  # Vasco remote timed boost, button bottom right pressed
+        return {
+            "mode": "boost",  # EBR WIP
+            "duration": (payload[5:6]),
+            "_unknown_4": payload[7:],
+        }
+    else:
+        assert payload in ("0001", "000100"), _INFORM_DEV_MSG
 
-    return {
-        "presence_detected": bool(payload[2:4]),
-        "_unknown_4": payload[4:],
-    }
-
+        return {
+            "presence_detected": bool(payload[2:4]),
+            "_unknown_4": payload[4:],
+        }
 
 # current temperature (of device, zone/s)
 def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict

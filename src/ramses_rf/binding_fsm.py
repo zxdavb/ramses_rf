@@ -92,6 +92,8 @@ class Vendor(StrEnum):
     ITHO = "itho"
     NUAIRE = "nuaire"
     ORCON = "orcon"
+    CLIMARAD = "climarad"
+    VASCO = "vasco"
     DEFAULT = "default"
 
 
@@ -142,6 +144,8 @@ SCHEME_LOOKUP = {
     Vendor.ITHO: {"oem_code": "01"},
     Vendor.NUAIRE: {"oem_code": "6C"},
     Vendor.ORCON: {"oem_code": "67", "offer_to": ALL_DEVICE_ID},
+    Vendor.CLIMARAD: {"oem_code": "65"},
+    Vendor.VASCO: {"oem_code": "66"},
     Vendor.DEFAULT: {"oem_code": None},
 }
 
@@ -212,7 +216,7 @@ class BindContextBase:
     # TODO: Should remain is_binding until after 10E0 rcvd (if one expected)?
     @property
     def is_binding(self) -> bool:
-        """Return True if is currently participating in a binding process."""
+        """Return True if currently participating in a binding process."""
         return not isinstance(self.state, _IS_NOT_BINDING_STATES)
 
     def rcvd_msg(self, msg: Message) -> None:
@@ -321,7 +325,7 @@ class BindContextSupplicant(BindContextBase):
         """Device starts binding as a Supplicant, by sending an Offer.
 
         Returns the Respondent's Accept, or raise an exception if the binding is
-        unsuccesful (BindError).
+        unsuccessful (BindError).
         """
 
         if self.is_binding:
@@ -627,7 +631,7 @@ class _DevIsReadyToSendCmd(BindStateBase):
 class _DevSendCmdUntilReply(_DevIsWaitingForMsg, _DevIsReadyToSendCmd):
     """Device sends a Command (Offer, Accept), until it gets the expected reply Packet.
 
-    Failure occurs when the the timer expires (timeout) or the retry limit is exceeded
+    Failure occurs when the timer expires (timeout) or the retry limit is exceeded
     before receiving a reply Packet.
     """
 

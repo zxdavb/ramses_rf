@@ -43,6 +43,7 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "0001001B371B01FEFF": ("FAN", "37", "2019-08-29", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B381B01FEFF": ("FAN", "37", "2020-02-14", "CVE-RF"),  # .                       31D9, 31DA (and I|042F, I|3120)
     "0001001B391B01FEFF": ("FAN", "37", "2021-11-04", "CVE-RF"),
+    "0001C8830C0A65FEFF": ("FAN", "37", "2021-12-01", "VMD-07RPS13"), # .                   ClimaRad Ventura
     "0001C81C090466FEFF": ("FAN", "29", "0000-00-00", "VMC-17RP01"),  # .                   appears to be an EXT
     "0001C8260A0367FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),
     "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),  # .                   31D9
@@ -70,6 +71,7 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "0001C827050167FFFF": ("REM", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
     "0001C827070167FFFF": ("REM", "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
     "0001C827090167FFFF": ("REM", "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
+    "0001C8400F0166FFFF": ("REM", "29", "2021-11-01", "VMN-17LMP01"),  # .        Vasco     remote 4-way
     "0001C85901016CFFFF": ("REM", "32", "2016-05-31", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
     "0001C85A01016CFFFF": ("REM", "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
     # REM (display, or with CO2 sensor)
@@ -118,7 +120,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMD - Heat recovery unit
 # VMC - Mechanical extraction: To integrate in a single fan system
 # VMI - User interface with display
-# VMN -
+# VMN - Remote
 # VMS - Sensors platform: CO2, humidity and temperature (and PIR?)
 
 # BRDG-02A55   - Fan of some description
@@ -133,6 +135,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMC-15RP01   - Orcon unit (senseair.com)
 # VMC-17RP01   - Vasco C400RF (fan)
 
+# VMD-07RPS13  - FAN - ClimaRad VenturaV1x
 # VMD-15RMS64  - FAN - Orcon HRC-350 (Ventiline) / Orcon MVS 15RHB
 # VMD-15RMS86  -
 # VMD-17RPS01  -
@@ -141,6 +144,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMI-15MC01   - REM - Orcon 15RF with integrated CO2
 
 # VMN-15LF01   - REM - Orcon 15RF 6 button remote
+# VMN-17LMP01  - REM - Vasco 4 button remote (NL 2021)
 # VMN-23LM33   - REM?
 # VMN-23LMH23  - REM - 4 button RF Switch
 
@@ -149,7 +153,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMS-15C16    - CO2 - CO2 Sensor (no remote)
 # VMS-12C39    - CO2 - CO2 Sensor, incl. integrated control, PIR?
 # VMS-15CM17   - CO2 - CO2 Sensor
-# VMS-17C01    -
+# VMS-17C01    - CO2 - CO2 Sensor, incl. integrated control Vasco
 # VMS-17HB01   -
 # VMS-23C33    - CO2 - CO2 Sensor (no PIR) (e.g. Nuaire DRI-ECO-CO2)
 # VMS-23HB33   - HUM - RH/Temp Sensor      (e.g. Nuaire DRI-ECO-RH)
