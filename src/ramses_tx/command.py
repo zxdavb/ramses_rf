@@ -1108,7 +1108,7 @@ class Command(Frame):
         bypass_mode: is a proxy for bypass_position (they should be mutex)
         """
 
-        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # offically: 00C8EF
+        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # officially: 00C8EF
         # RP --- 32:155617 37:155617 --:------ 22F7 003 00C8C8
 
         bypass_mode = kwargs.pop("bypass_mode", None)
@@ -1118,7 +1118,7 @@ class Command(Frame):
 
         if bypass_mode and bypass_position is not None:
             raise exc.CommandInvalid(
-                "bypass_mode and bypass_position are mutally exclusive, "
+                "bypass_mode and bypass_position are mutually exclusive, "
                 "both cannot be provided, and neither is OK"
             )
         elif bypass_position is not None:

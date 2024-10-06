@@ -397,8 +397,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._22E0: {  # unknown_22e0, HVAC, NB: no I
         SZ_NAME: "unknown_22e0",
-        RQ: r"^00$",
-        RP: r"^00[0-9A-F]{6}$",
+        RQ: r"^00$", # seen in RQ to ClimaRad VenturaV1x FAN
+        RP: r"^00[0-9A-F]{6}$", # seen in RP from ClimaRad VenturaV1x FAN
     },
     Code._22E5: {  # unknown_22e5, HVAC, NB: no I
         SZ_NAME: "unknown_22e5",
@@ -570,7 +570,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_demand",
         I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
-    Code._3200: {  # boiler output temp, I only on ClimaRad HRU
+    Code._3200: {  # boiler output temp, I was seen on ClimaRadx HRU (FAN) without heater, payload const 007FFF
         SZ_NAME: "boiler_output",
         I_: r"^00(7F)(FF)?$",  # I --- 37:153226 --:------ 37:153226 3200 003 00 7F FF (ClimaRad HRU)
         RQ: r"^00$",
@@ -1109,6 +1109,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._042F: {I_: {}},  # from a VMI (only?)
         Code._1060: {I_: {}},
         Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
+        Code._1298: {I_: {}}, # CO2 sensor report from wired Vasco CO2/remote
         Code._1470: {RQ: {}},  # from a VMI (only?)
         Code._1FC9: {I_: {}},
         Code._22F1: {I_: {}},
@@ -1242,11 +1243,11 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
-_22F1_MODE_VASCO: dict[str, str] = {
-    "02": "low",     # low: 000206
+_22F1_MODE_VASCO: dict[str, str] = { # same for ClimaRad Minibox fan/remote
+    "02": "low",     # low:    000206
     "03": "medium",  # medium: 000306
-    "04": "high",    # high: 000406
-    "02": "boost",   # aka boost with 22F32
+    "04": "high",    # high:   000406, aka boost with 22F3
+    "05": "auto",
 }
 
 _22F1_SCHEMES: dict[str, dict[str, str]] = {

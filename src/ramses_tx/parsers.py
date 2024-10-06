@@ -983,16 +983,22 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     # Default is 180 180 200. The returned value is the amount of days (180),
     # total amount of days till change (180), percentage (200)
 
+    # ClimaRad VenturaV1x:
+    # RP --- 37:153226 18:130140 --:------ 10D0 006 00 FE FE 79 FF FF (0x79 = 121 days?)
+
     result: dict[str, bool | float | None]
 
     if msg.verb == W_:
         result = {"reset_counter": payload[2:4] == "FF"}
     else:
-        result = {"days_remaining": int(payload[2:4], 16)}
+        if msg.len == 6:  # ClimaRad VenturaV1x TODO stricter filtering?
+            result = {"days_remaining": int(payload[6:8], 16)}
+        else:
+            result = {"days_remaining": int(payload[2:4], 16)}
 
-    if msg.len >= 3:
+    if 3 <= msg.len < 6:
         result.update({"days_lifetime": int(payload[4:6], 16)})
-    if msg.len >= 4:
+    if 4 <= msg.len < 6:
         result.update({"percent_remaining": hex_to_percent(payload[6:8])})
 
     return result
@@ -1000,7 +1006,7 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
 
 # device_info
 def parser_10e0(payload: str, msg: Message) -> dict[str, Any]:
-    if payload == "00":  # some HVAC devices wil RP|10E0|00
+    if payload == "00":  # some HVAC devices will RP|10E0|00
         return {}
 
     assert msg.len in (19, 28, 29, 30, 36, 38), msg.len  # >= 19, msg.len
@@ -1139,7 +1145,21 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
-    return parse_indoor_humidity(payload[2:])
+    if len(payload) == 21:
+        # for ClimaRad VenturaV1x 12A0 021 payload 00 29 081D7FFF0001EF7FFF7FFF0002_41_0505029400 0x41 = 65%
+        temp = int(payload[5:6], 16)  # Fahrenheit/Celsius flag? WIP
+        result: PayDictT._12A0 = {
+            SZ_TEMPERATURE: temp,
+            "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],  # type: ignore[typeddict-item]
+        }
+        result["indoor_humidity"] = parse_indoor_humidity(payload[30:32])
+        # TODO determine complete message: fan speed? room temperature payload[5:6]
+        result["_unknown_5"] = payload[6:30]
+        result["_unknown_6"] = payload[32:]
+        return result
+    else:
+        return parse_indoor_humidity(payload[2:])
+        # .I --- 29:099029 --:------ 29:099029 12A0 002 0042 ClimaRad MiniBox FAN
 
 
 # window_state (of a device/zone)
@@ -1554,6 +1574,9 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
     # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
     # Scheme A: only seen 000[239A]0A -- Normal, Boost (purge), HeaterOff & HeaterAuto
 
+    # Schema B: Vasco and ClimaRad fan remotes send fixed command 06, not 04, and like
+    # .I --- 37:117647 32:022222 --:------ 22F1 003 000506 for high
+
     try:
         assert payload[0:2] in ("00", "63")
         assert not payload[4:] or int(payload[2:4], 16) <= int(
@@ -1631,9 +1654,12 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
     # .I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
     # .I 026 --:------ --:------ 39:159057 22F3 003 00001E  # 30 mins
-    # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins
+    # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins (0x3C)
     # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
     # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
+
+    # Vasco REM boost command includes cmd 06:
+    # .I --- 29:123150 29:099029 --:------ 22F3 007 00021E-0406-0000  # 20 mins (0x1E)
 
     # NOTE: for boost timer for high
     try:
@@ -1648,11 +1674,14 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
         0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
     }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
-    fallback_speed = {  # after timer expiry
-        0x08: "fan_off",  # #      set fan off?
-        0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
-        0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
+    if msg.len == 7 and payload[9:10] == "06":  # Vasco and ClimaRad REM
+        fallback_speed = "per_vent_speed"
+    else:
+        fallback_speed = {  # after timer expiry
+            0x08: "fan_off",  # #      set fan off?
+            0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
+            0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
+        }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
 
     units = {
         0x00: "minutes",
@@ -1670,7 +1699,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
             "_fallback_speed_mode": fallback_speed,
         }
 
-    if msg.len >= 5 and payload[6:10] != "0000":  # new speed?
+    if msg.len >= 5 and payload[6:10] != "0000":  # new speed? also for Vasco
         result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
 
     if msg.len >= 7:  # fallback speed?
@@ -1689,6 +1718,7 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E5-00000000000000-200000
     # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E6-00000000000000-200000
 
+    #  I --- 37:153226 --:------ 37:153226 22F4 013 00-40-30-00000000000000-000000 (22F4 = constant)
     assert payload[:2] == "00"
     assert payload[6:] == "00000000000000200000"
 
@@ -2144,7 +2174,10 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # fan state (ventilation status), HVAC
 def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
-    # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
+    # NOTE: I have a suspicion that Itho uses 0x00-C8 for %, whilst Nuaire uses 0x00-64
+    # ClimaRad MiniBox fan status report:
+    # .I --- 29:099029 --:------ 29:099029 31D9 003 0000C8 (boost)
+    # .I --- 29:099029 --:------ 29:099029 31D9 003 000001 (auto)
     try:
         assert (
             payload[4:6] == "FF" or int(payload[4:6], 16) <= 200

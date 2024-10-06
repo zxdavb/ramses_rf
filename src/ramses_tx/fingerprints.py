@@ -43,7 +43,7 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "0001001B371B01FEFF": ("FAN", "37", "2019-08-29", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B381B01FEFF": ("FAN", "37", "2020-02-14", "CVE-RF"),  # .                       31D9, 31DA (and I|042F, I|3120)
     "0001001B391B01FEFF": ("FAN", "37", "2021-11-04", "CVE-RF"),
-    "0001C8830C0A65FEFF": ("FAN", "37", "2021-12-01", "VMD-07RPS13"), # .                   ClimaRad Ventura
+    "0001C8830C0A65FEFF": ("FAN", "37", "2020-12-17'", "VMD-07RPS13"), # .                   ClimaRad Ventura
     "0001C81C090466FEFF": ("FAN", "29", "0000-00-00", "VMC-17RP01"),  # .                   appears to be an EXT
     "0001C8260A0367FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),
     "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),  # .                   31D9
@@ -60,7 +60,7 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "00010028080101FEFF": ("CO2", "37", "2019-04-29", "VMS-12C39"),  # .                    1298, 31E0, 2E10, 3120, and I|22F1!
     "00010028090101FEFF": ("CO2", "37", "2021-01-20", "VMS-12C39"),  # .                    1298, 31E0, 2E10, 3120 (and I|042F)
     "0001C822030166FEFF": ("CO2", "29", "2015-05-07", "VMS-17C01"),  # .                    1298, 31E0
-    "0001C822060166FEFF": ("CO2", "37", "2016-12-22", "VMS-17C01"),  # .                    1298, 31E0
+    "0001C822060166FEFF": ("CO2", "37", "2016-12-22", "VMS-17C01"),  # .                    1298, 31E0 (Vasco RF includes REM buttons TODO)
     "0001C8500B0167FEFF": ("CO2", "29", "2017-03-09", "VMS-15C16"),  # .         CO2 sensor (no remote)
     "0001C85701016CFFFF": ("CO2", "32", "2016-06-17", "VMS-23C33"),  # .                    1298, 31E0 (and I|042F)
     # HUM
