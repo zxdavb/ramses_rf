@@ -410,8 +410,8 @@ def parser_000a(
     if msg._has_array:  # NOTE: these arrays can span 2 pkts!
         return [
             {
-                SZ_ZONE_IDX: payload[i : i + 2],
-                **_parser(payload[i : i + 12]),
+                SZ_ZONE_IDX: payload[i:i+2],
+                **_parser(payload[i:i+12]),
             }
             for i in range(0, len(payload), 12)
         ]
@@ -471,12 +471,12 @@ def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
 
         # 0608-001099C3 0608-001099C5 0608-001099BF 0608-001099BE 0608-001099BD 0608-001099BC  # len(element) = 6
         # 0508-00109901 0800-10990208 0010-99030800 1099-04080010 9905-08001099 0608-00109907  # len(element) = 5
-        elif all(payload[i : i + 4] == payload[:4] for i in range(12, pkt_len, 12)):
+        elif all(payload[i:i+4] == payload[:4] for i in range(12, pkt_len, 12)):
             return False  # len(element) = 6 (12)
 
         # 06 08-001099C3 06-08001099 C5-06080010 99-BF060800 10-99BE0608 00-1099BD06 08-001099BC  # len(element) = 6
         # 05 08-00109901 08-00109902 08-00109903 08-00109904 08-00109905 08-00109906 08-00109907  # len(element) = 5
-        elif all(payload[i : i + 2] == payload[2:4] for i in range(12, pkt_len, 10)):
+        elif all(payload[i:i+2] == payload[2:4] for i in range(12, pkt_len, 10)):
             return True  # len(element) = 5 (10)
 
         raise exc.PacketPayloadInvalid(
@@ -503,9 +503,9 @@ def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 01:059885 18:010642 --:------ 000C 016 00-00-0011EDAA    00-0011ED92    00-0011EDA0
 
     devs = (
-        [_parser(payload[:2] + payload[i : i + 10]) for i in range(2, len(payload), 10)]
+        [_parser(payload[:2] + payload[i:i+10]) for i in range(2, len(payload), 10)]
         if is_short_000C(payload)
-        else [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+        else [_parser(payload[i:i+12]) for i in range(0, len(payload), 12)]
     )
 
     return {
@@ -589,7 +589,7 @@ def parser_01e9(payload: str, msg: Message) -> dict[str, Any]:
     }
 
 
-# unknown_01ff, to/from a Itho Spider/Thermostat
+# unknown_01ff, to/from an Itho Spider/Thermostat
 def parser_01ff(payload: str, msg: Message) -> dict[str, Any]:
     # see: https://github.com/zxdavb/ramses_rf/issues/73 & 101
 
@@ -865,7 +865,7 @@ def parser_1030(payload: str, msg: Message) -> PayDictT._1030:
     assert (msg.len - 1) / 3 in (2, 5), msg.len
     # assert payload[30:] in ("00", "01"), payload[30:]
 
-    params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
+    params = [_parser(payload[i:i+6]) for i in range(2, len(payload), 6)]
     return {k: v for x in params for k, v in x.items()}  # type: ignore[return-value]
 
 
@@ -1146,16 +1146,14 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     if len(payload) == 21:
-        # for ClimaRad VenturaV1x 12A0 021 payload 00 29 081D7FFF0001EF7FFF7FFF0002_41_0505029400 0x41 = 65%
-        temp = int(payload[5:6], 16)  # Fahrenheit/Celsius flag? WIP
-        result: PayDictT._12A0 = {
-            SZ_TEMPERATURE: temp,
-            "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],  # type: ignore[typeddict-item]
-        }
-        result["indoor_humidity"] = parse_indoor_humidity(payload[30:32])
-        # TODO determine complete message: fan speed? room temperature payload[5:6]
-        result["_unknown_5"] = payload[6:30]
-        result["_unknown_6"] = payload[32:]
+        # for ClimaRad VenturaV1x:  --- 12A0 021 00 29 081D7FFF0001EF7FFF7FFF0002410505029400
+        temp = int(payload[2:4], 16)/2  # Fahrenheit/Celsius flag? WIP
+        result = {SZ_TEMPERATURE: temp,
+                  "units": {"01": "Fahrenheit", "02": "Celsius"}[payload[28:30]],  # only 0x02 Celsius seen
+                  "indoor_humidity": parse_indoor_humidity(payload[30:32]),
+                  "_unknown_2": payload[6:30],
+                  "_unknown_6": payload[32:]}
+        # TODO determine complete message: fan speed? room temperature = payload[5:6]
         return result
     else:
         return parse_indoor_humidity(payload[2:])
@@ -1774,8 +1772,8 @@ def parser_2309(
     if msg._has_array:
         return [
             {
-                SZ_ZONE_IDX: payload[i : i + 2],
-                SZ_SETPOINT: hex_to_temp(payload[i + 2 : i + 6]),
+                SZ_ZONE_IDX: payload[i:i+2],
+                SZ_SETPOINT: hex_to_temp(payload[i+2:i+6]),
             }
             for i in range(0, len(payload), 6)
         ]
@@ -2011,11 +2009,16 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
 
 # presence_detect, HVAC sensor, or Timed boost for Vasco D60
 def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
-    if payload == "00021E04060000":  # Vasco remote timed boost, button bottom right pressed
+    if payload == "00021E04060000":  # Vasco remote timed boost on, button bottom right pressed
         return {
-            "mode": "boost",  # EBR WIP
+            "mode": "boost",
             "duration": (payload[5:6]),
             "_unknown_4": payload[7:],
+        }
+    elif payload == "000000":  # ClimaRad Ventura set to auto
+        return {
+            "mode": "auto",  # EBR check for other values
+            "duration": (payload[5:6]),
         }
     else:
         assert payload in ("0001", "000100"), _INFORM_DEV_MSG
@@ -2030,8 +2033,8 @@ def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
     if msg._has_array:
         return [
             {
-                SZ_ZONE_IDX: payload[i : i + 2],
-                SZ_TEMPERATURE: hex_to_temp(payload[i + 2 : i + 6]),
+                SZ_ZONE_IDX: payload[i:i+2],
+                SZ_TEMPERATURE: hex_to_temp(payload[i+2:i+6]),
             }
             for i in range(0, len(payload), 6)
         ]
@@ -2185,6 +2188,12 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
+    if msg.len == 6:  # ClimaRad VenturaV1x
+        if payload[4:6] == 0xC8:
+            return {"fan mode" : "boost"}  # TODO use dict like Vasco
+        if payload[4:6] == 0x01:
+            return {"fan mode": "auto"}  # TODO use dict like Vasco
+
     bitmap = int(payload[2:4], 16)
 
     # NOTE: 31D9[4:6] is fan_rate (itho?) *or* fan_mode (orcon?)
@@ -2228,27 +2237,52 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
-    return {  # type: ignore[typeddict-unknown-key]
-        **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
-        **parse_fan_info(payload[36:38]),  # 22F3-ish
-        #
-        **parse_air_quality(payload[2:6]),  # 12C8[2:6]
-        **parse_co2_level(payload[6:10]),  # 1298[2:6]
-        **parse_indoor_humidity(payload[10:12]),  # 12A0?
-        **parse_outdoor_humidity(payload[12:14]),
-        **parse_exhaust_temp(payload[14:18]),  # to outside
-        **parse_supply_temp(payload[18:22]),  # to home
-        **parse_indoor_temp(payload[22:26]),  # in home
-        **parse_outdoor_temp(payload[26:30]),  # 1290?
-        **parse_capabilities(payload[30:34]),
-        **parse_bypass_position(payload[34:36]),  # 22F7-ish
-        **parse_supply_fan_speed(payload[40:42]),
-        **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
-        **parse_post_heater(payload[46:48]),
-        **parse_pre_heater(payload[48:50]),
-        **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
-        **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
-    }
+    if msg.len == 30:
+        # Seen on ClimaRad VenturaV1x 2021:
+        # .I --- 37:153226 --:------ 37:153226 31DA 030 00EF00029C00EF070D7FFF083307A8BE09001F0000000000008500850000
+        return {  # type: ignore[typeddict-unknown-key]
+            **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
+            **parse_fan_info(payload[28:30]),  # range 0-255 22F3-ish
+            #
+            **parse_air_quality(payload[2:6]),  # 12C8[2:6]
+            **parse_co2_level(payload[6:10]),  # 1298[2:6]
+            **parse_indoor_humidity(payload[10:12]),  # 12A0?
+            **parse_outdoor_humidity(payload[12:14]),
+            **parse_exhaust_temp(payload[14:18]),  # to outside
+            **parse_supply_temp(payload[18:22]),  # to home
+            **parse_indoor_temp(payload[22:26]),  # in home
+            **parse_outdoor_temp(payload[26:30]),  # 1290?
+            **parse_capabilities(payload[30:34]),
+            **parse_bypass_position(payload[34:36]),  # 22F7-ish
+            **parse_supply_fan_speed(payload[40:42]),
+            **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
+            **parse_post_heater(payload[46:48]),
+            **parse_pre_heater(payload[48:50]),
+            **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
+            **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
+        }
+    else:
+        return {  # type: ignore[typeddict-unknown-key]
+            **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
+            **parse_fan_info(payload[36:38]),  # 22F3-ish
+            #
+            **parse_air_quality(payload[2:6]),  # 12C8[2:6]
+            **parse_co2_level(payload[6:10]),  # 1298[2:6]
+            **parse_indoor_humidity(payload[10:12]),  # 12A0?
+            **parse_outdoor_humidity(payload[12:14]),
+            **parse_exhaust_temp(payload[14:18]),  # to outside
+            **parse_supply_temp(payload[18:22]),  # to home
+            **parse_indoor_temp(payload[22:26]),  # in home
+            **parse_outdoor_temp(payload[26:30]),  # 1290?
+            **parse_capabilities(payload[30:34]),
+            **parse_bypass_position(payload[34:36]),  # 22F7-ish
+            **parse_supply_fan_speed(payload[40:42]),
+            **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
+            **parse_post_heater(payload[46:48]),
+            **parse_pre_heater(payload[48:50]),
+            **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
+            **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
+        }
 
     # From an Orcon 15RF Display
     #  1 Software version
@@ -2271,7 +2305,7 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
 def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     """Notes are.
 
-    van means “of”.
+    'van' in docs. means 'of'.
     - 0 = min. van min. potm would be:
     - 0 = minimum of minimum potentiometer
 
@@ -2332,7 +2366,7 @@ def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         }
 
     if len(payload) > 8:
-        return [_parser(payload[x : x + 8]) for x in range(0, len(payload), 8)]
+        return [_parser(payload[x:x+8]) for x in range(0, len(payload), 8)]
     return _parser(payload)
 
 
@@ -2780,8 +2814,8 @@ def parser_4e02(
 
     x, y = 0, 2 + num_groups * 4
 
-    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # expect no context
-    assert payload[y : y + 2] in (
+    assert payload[x:x+2] == "00", _INFORM_DEV_MSG  # expect no context
+    assert payload[y:y+2] in (
         "02",
         "03",
         "04",
@@ -2789,13 +2823,13 @@ def parser_4e02(
     ), _INFORM_DEV_MSG  # mode: cool/heat?
 
     setpoints = [
-        (hex_to_temp(payload[x + i :][:4]), hex_to_temp(payload[y + i :][:4]))
+        (hex_to_temp(payload[x+i:][:4]), hex_to_temp(payload[y+i:][:4]))
         for i in range(2, y, 4)
     ]  # lower, upper setpoints
 
     return {
         SZ_MODE: {"02": "cool", "03": "cool+", "04": "heat", "05": "cool+"}[
-            payload[y : y + 2]
+            payload[y:y+2]
         ],
         SZ_SETPOINT_BOUNDS: [s if s != (None, None) else None for s in setpoints],
     }
