@@ -101,7 +101,7 @@ SZ_CLASS: Final = "class"
 SZ_VENDOR: Final = "vendor"
 SZ_TENDER: Final = "tender"
 SZ_AFFIRM: Final = "affirm"
-SZ_RATIFY: Final = "thumbrint"
+SZ_RATIFY: Final = "thumbrint"  # TODO fix spelling "thumbprint" ?
 
 # VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
 VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))

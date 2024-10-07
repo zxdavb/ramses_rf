@@ -410,7 +410,7 @@ def parse_fault_log_entry(
 
     # NOTE: the log_idx will increment as the entry moves down the log, hence '_log_idx'
 
-    # these are only only useful for I_, and not RP
+    # these are only useful for I_, not RP
     if (timestamp := hex_to_dts(payload[18:30])) is None:
         return {f"_{SZ_LOG_IDX}": payload[4:6]}  # type: ignore[misc,return-value]
 

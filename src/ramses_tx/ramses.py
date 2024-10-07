@@ -283,7 +283,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # .I --- 37:153226 --:------ 37:153226 12A0 021 003408917FFF00 01EF7FFF7FFF0002 3706B70327 00 # etc.
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?((01EF7FFF7FFF0002)[0-9A-F]{5}(00))?$",
+        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?((01EF7FFF7FFF0002)[0-9A-F]{10}(00))?$",
         RP: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
         SZ_LIFESPAN: td(hours=1),
     },
@@ -425,9 +425,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$", # VASCO D60 HRU: 22F3 007 00 021E 0406 0000 (a timer)
     },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC
-        # .I + 22F4 013 00 40 30 00000000000000000000 as seen on ClimaRad Ventura
+        # .I + 22F4 013 00 40 30 0000 00 00 000000-000000 (ClimaRad Ventura - mode auto)
+        # .I + 22F4 013 00 00 00 0000 60 C9 000000-000000 (idem speed 1)
         SZ_NAME: "unknown_22f4",
-        I_: "^00([0-9A-F]{2}){2}(00){10}$",
+        I_: r"^00[0-9A-F]{4}(00){2}[0-9A-F]{4}(00){6}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{24}$",
     },
@@ -560,8 +561,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._31DA: {  # hvac_state (fan_state_extended)
         # Seen on ClimaRad VenturaV1x 2021:
         # .I --- 37:153226 --:------ 37:153226 31DA 030 00EF00029C00EF070D7FFF083307A8BE09001F0000000000008500850000
+        # .I --- 37:153226 --:------ 37:153226 31DA 030 00 EF 00 02 C8 00 EF 07 AA 7FFF 07 CB 05 F0 BE09001F0808000000008500850000
         SZ_NAME: "hvac_state",
-        I_: r"^(00|01|15|16|17|21)[0-9A-F]{56}(00|20)?$",
+        I_: r"^(00|01|15|16|17|21)[0-9A-F]{56}(00|20)?$",  # not changed for ClimaRad Ventura, but not very strict
         RQ: r"^(00|01|15|16|17|21)$",
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },

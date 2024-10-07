@@ -1398,12 +1398,14 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 
 # WIP: unknown, HVAC
 def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000020800
-
+    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000 00 08 00
+    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000 00 08 00
+    # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000 02 08 00
+    # ClimaRad Ventura V1x:
+    # .I --- 37:153226 --:------ 37:153226 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000 00 01 40
     assert payload in (
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + "FFFFFF000000000000000800",
+        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000800"),
+        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad, TODO extract special content
     ), _INFORM_DEV_MSG
 
     return {}
@@ -1429,7 +1431,7 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         return [
             {
                 SZ_ZONE_IDX: payload[i : i + 2],
-                **_parser(payload[i + 2 : i + 14]),
+                **_parser(payload[i+2:i+14]),
             }
             for i in range(0, len(payload), 14)
         ]
@@ -1475,7 +1477,7 @@ def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         return [
             {
                 SZ_UFH_IDX: payload[i : i + 2],
-                **_parser(payload[i : i + 12]),
+                **_parser(payload[i:i+12]),
             }
             for i in range(0, len(payload), 12)
         ]
@@ -1716,13 +1718,16 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E5-00000000000000-200000
     # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E6-00000000000000-200000
 
-    #  I --- 37:153226 --:------ 37:153226 22F4 013 00-40-30-00000000000000-000000 (22F4 = constant)
+    # .I --- 37:153226 --:------ 37:153226 22F4 013 00-40-30-00000000000000-000000 (ClimaRad VenturaV1x - auto)
+    # .I --- 37:153226 --:------ 37:153226 22F4 013 00-00-00-000060C9000000-000000 (ClimaRad VenturaV1x - speed 1)
     assert payload[:2] == "00"
-    assert payload[6:] == "00000000000000200000"
+    assert (payload[6:] == "00000000000000200000" or payload[14:] == "000000000000")  # TODO add some error message?
 
     return {
         "value_02": payload[2:4],
         "value_04": payload[4:6],
+        "value_05": f"0x{payload[10:12]} d{int(payload[10:12], 16)}",  # 0x60 = d96  speed?
+        "value_06": f"0x{payload[12:14]} d{int(payload[12:14], 16)}",  # 0xC9 = d201 time?
     }
 
 
@@ -2190,9 +2195,9 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 
     if msg.len == 6:  # ClimaRad VenturaV1x
         if payload[4:6] == 0xC8:
-            return {"fan mode" : "boost"}  # TODO use dict like Vasco
+            return {"fan mode" : "boost"}  # TODO EBR use dict like Vasco
         if payload[4:6] == 0x01:
-            return {"fan mode": "auto"}  # TODO use dict like Vasco
+            return {"fan mode": "auto"}  # TODO EBR use dict like Vasco
 
     bitmap = int(payload[2:4], 16)
 
@@ -2237,29 +2242,23 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
-    if msg.len == 30:
-        # Seen on ClimaRad VenturaV1x 2021:
-        # .I --- 37:153226 --:------ 37:153226 31DA 030 00EF00029C00EF070D7FFF083307A8BE09001F0000000000008500850000
+    if msg.len == 30:  # ClimaRad VenturaV1x 2021 WIP EBR
+        # .I + 31DA 030   00 EF 00 02 9C 00 EF 07 0D 7FFF 08 33 07 A8 BE09001F 0000 000000008500850000 (auto)
+        # .I + 31DA 030   00 EF 00 02 C8 00 EF 07 AA 7FFF 07 CB 05 F0 BE09001F 0808 000000008500850000 (speed 1)
+        # .I + 31DA 030   00 EF 00 02 3B 00 EF 07 51 7FFF 07 32 05 5A BE09001F 1414 000000008500850000 (speed 2)
+        assert payload[30:38] == "BE09001F", f"Ventura non-matching block: {payload[30:38]}"  # fixed block?
         return {  # type: ignore[typeddict-unknown-key]
-            **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
-            **parse_fan_info(payload[28:30]),  # range 0-255 22F3-ish
-            #
-            **parse_air_quality(payload[2:6]),  # 12C8[2:6]
-            **parse_co2_level(payload[6:10]),  # 1298[2:6]
-            **parse_indoor_humidity(payload[10:12]),  # 12A0?
-            **parse_outdoor_humidity(payload[12:14]),
-            **parse_exhaust_temp(payload[14:18]),  # to outside
-            **parse_supply_temp(payload[18:22]),  # to home
-            **parse_indoor_temp(payload[22:26]),  # in home
-            **parse_outdoor_temp(payload[26:30]),  # 1290?
-            **parse_capabilities(payload[30:34]),
-            **parse_bypass_position(payload[34:36]),  # 22F7-ish
-            **parse_supply_fan_speed(payload[40:42]),
-            **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
-            **parse_post_heater(payload[46:48]),
-            **parse_pre_heater(payload[48:50]),
-            **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
-            **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
+            "st1": f"0x{payload[6:8]}",    # state1: 0x01|02
+            "sp1": f"d{int(payload[8:10], 16)}",  # speedrange1 0-255
+            "st2": f"0x{payload[10:12]}",  # a switch 0x00|08|52|9A|D3
+            "st3": f"0x{payload[14:16]}",  # 0x03-07
+            "sp2": f"d{int(payload[16:18], 16)}",  # speedrange2: 0x00-CA
+            "st4": f"0x{payload[22:24]}",  # 0x07-08
+            "sp3": f"d{int(payload[24:26], 16)}",  # 0x30-D7
+            "st5": f"0x{payload[26:28]}",  # 0x06-07
+            "sp4": f"d{int(payload[28:30], 16)}",  # 0x02-F7
+            "st6": f"0x{payload[38:40]}",  # 0x00|08|14 = speed auto/1/2
+            "st7": f"0x{payload[40:42]}",  # 0x00|08|14
         }
     else:
         return {  # type: ignore[typeddict-unknown-key]
