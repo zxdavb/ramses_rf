@@ -277,10 +277,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._12A0: {  # indoor_humidity
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
         # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 003108127FFF00 01EF7FFF7FFF0002 42061503AC 00 # ClimaRad Ventura
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 003508717FFF00 01EF7FFF7FFF0002 380683031A 00 # same ClimaRad, later
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 002F08677FFF00 01EF7FFF7FFF0002 39068F0344 00 # same ClimaRad, later
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 003408917FFF00 01EF7FFF7FFF0002 3706B70327 00 # etc.
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003108127FFF00 01EF7FFF7FFF0002 420615 03AC 00 # ClimaRad Ventura
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003508717FFF00 01EF7FFF7FFF0002 380683 031A 00 # same ClimaRad, later
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 002F08677FFF00 01EF7FFF7FFF0002 39068F 0344 00 # same ClimaRad, later
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003408917FFF00 01EF7FFF7FFF0002 3706B7 0327 00 # etc.
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
         I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?((01EF7FFF7FFF0002)[0-9A-F]{10}(00))?$",
@@ -422,13 +422,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
-        I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$", # VASCO D60 HRU: 22F3 007 00 021E 0406 0000 (a timer)
+        I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$", # VASCO D60 HRU: .I + 22F3 007 00 021E 0406 0000 (a timer)
     },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC
-        # .I + 22F4 013 00 40 30 0000 00 00 000000-000000 (ClimaRad Ventura - mode auto)
-        # .I + 22F4 013 00 00 00 0000 60 C9 000000-000000 (idem speed 1)
-        SZ_NAME: "unknown_22f4",
-        I_: r"^00[0-9A-F]{4}(00){2}[0-9A-F]{4}(00){6}$",
+        # .I + 22F4 013 00 40 30 0000 00 00 000000000000 (ClimaRad Ventura - mode Auto)
+        # .I + 22F4 013 00 00 00 0000 60 C9 000000000000 (ClimaRad Ventura - speed 1)
+        SZ_NAME: "unknown_22f4",  # TODO rename?
+        I_: r"^00[0-9A-F]{4}(0000)[0-9A-F]{4}(00){6}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{24}$",
     },
@@ -1247,11 +1247,20 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
-_22F1_MODE_VASCO: dict[str, str] = { # same for ClimaRad Minibox fan/remote
+_22F1_MODE_VASCO: dict[str, str] = { # for VASCO D60 AND ClimaRad Minibox fanS/remoteS
     "02": "low",     # low:    000206
     "03": "medium",  # medium: 000306
     "04": "high",    # high:   000406, aka boost with 22F3
     "05": "auto",
+}
+
+_22F1_MODE_CLIMARAD: dict[str, str] = {
+    # for ClimaRad Ventura fan/remote, actually for 22F4 but stored for easier comparison
+    "C9": "1",  # low
+    "CA": "2",  # medium-low
+    "CB": "3",  # medium
+    "CC": "4",  # medium-high
+    "CD": "5",  # high aka boost
 }
 
 _22F1_SCHEMES: dict[str, dict[str, str]] = {
@@ -1259,6 +1268,7 @@ _22F1_SCHEMES: dict[str, dict[str, str]] = {
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
     "vasco": _22F1_MODE_VASCO,
+    "climarad": _22F1_MODE_CLIMARAD, # used in 22F4
 }
 
 # unclear if true for only Orcon/*all* models

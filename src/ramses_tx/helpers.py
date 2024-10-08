@@ -368,7 +368,7 @@ def hex_from_str(value: str) -> str:
 
 
 def hex_to_temp(value: HexStr4) -> bool | float | None:  # TODO: remove bool
-    """Convert a 2's complement 4-byte hex string to an float."""
+    """Convert a 2's complement 4-byte hex string to a float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
     if value == "31FF":  # means: N/A (== 127.99, 2s complement), signed?
