@@ -86,7 +86,7 @@ from .const import (
     ZON_MODE_MAP,
     ZON_ROLE_MAP,
     DevRole,
-    FaultDeviceClass,
+    FaultDeviceClass, SZ_DEWPOINT_TEMP,
 )
 from .fingerprints import check_signature
 from .helpers import (
@@ -273,8 +273,7 @@ def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     if msg.src.type == "37":  # FAN/HRU ClimaRad VenturaV1x
         assert payload[4:8] == "0005"
         return {
-            "outdoor_state": payload[2:4],
-            "_unknown": payload[4:],
+            "outdoor_sensor_state": payload[2:4]
         }
 
     # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
@@ -820,7 +819,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
     return full_result
 
 
-# unknown_042f, from STA, VMS
+# unknown_042f, from STA, VMS remotes coupling
 def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
@@ -832,6 +831,7 @@ def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
     # .I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
 
+    # .I --- 37:117647 --:------ 37:117647 042F 009 00-012521250026C870 # Vasco CO2 RF
     return {
         "counter_1": f"0x{payload[2:6]}",
         "counter_3": f"0x{payload[6:10]}",
@@ -1153,16 +1153,26 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
-    if len(payload) == 21:
+    if len(payload) == 42:
         # for ClimaRad VenturaV1x:  --- 12A0 021 00 29 081D7FFF0001EF7FFF7FFF0002410505 0294 00
-        temp = int(payload[2:4], 16)/2  # Fahrenheit/Celsius flag? WIP
-        result = {SZ_TEMPERATURE: temp,
-                  "units": {"01": "Fahrenheit", "02": "Celsius"}[payload[28:30]],  # only 0x02 (decimal/Celsius?) seen
-                  "indoor_humidity": parse_indoor_humidity(payload[30:32]),
-                  "CO2": parse_co2_level(payload[36:40]),
-                  "_unknown_2": payload[6:30],
-                  "_unknown_6": payload[32:36]}
-        # TODO determine complete message: fan speed? room temperature = payload[5:6]?
+        # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
+        assert payload[8:12] == "7FFF", _INFORM_DEV_MSG
+        assert payload[12:14] == "00", _INFORM_DEV_MSG  # _parse_fan_heater ? or flags ?
+        assert payload[14:16] == "01", _INFORM_DEV_MSG  # parse_fan_info ?
+        assert payload[16:18] == "EF", _INFORM_DEV_MSG  # parse_bypass_position ?
+        assert payload[18:22] == "7FFF", _INFORM_DEV_MSG
+        assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
+        assert payload[26:28] == "00", _INFORM_DEV_MSG
+        assert payload[40:42] == "00", _INFORM_DEV_MSG
+        result = {SZ_TEMPERATURE: hex_to_temp(payload[4:8]),
+                  "units": {"00": "F", "01": "C"}[payload[14:16]],  # type: ignore[typeddict-item]
+                  # only 0x01 (decimal/Celsius?) seen on Ventura
+                  **parse_indoor_humidity(payload[2:4]),
+                  **parse_co2_level(payload[28:32]),
+                  **parse_supply_temp(payload[32:36]),  # to home
+                  SZ_DEWPOINT_TEMP: hex_to_temp(payload[36:40])
+                  }
+        # TODO determine complete message: fan speed? dew point?
         return result
     else:
         return parse_indoor_humidity(payload[2:])
@@ -1338,7 +1348,8 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
         if seqx[:2] not in (
             "21",  # HVAC, Nuaire
             "63",  # HVAC
-            "66",  # HVAC, Vasco?
+            "65",  # HVAC, ClimaRad oem
+            "66",  # HVAC, Vasco oem
             "67",  # HVAC
             "6C",  # HVAC
             "90",  # HEAT
@@ -1408,17 +1419,17 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 # WIP: unknown, HVAC
 def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000 00 08 00
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000 00 08 00
+    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000 00 08 00 <> !assertion
     # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000 02 08 00
     # ClimaRad Ventura V1x:
     # .I --- 37:153226 --:------ 37:153226 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000 00 01 40
     assert payload in (
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000800"),
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000020800"),
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x, extract special content?
+        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x, extract special content ?
     ), _INFORM_DEV_MSG
 
-    return {"unknown_hvac": payload[36:]}
+    return {"unknown_hvac": payload[78:]}
 
 
 # now_next_setpoint - Programmer/Hometronics
@@ -1584,9 +1595,9 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
     # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
     # Scheme A: only seen 000[239A]0A -- Normal, Boost (purge), HeaterOff & HeaterAuto
 
-    # Schema B: Vasco and ClimaRad fan remotes send fixed command 06, not 04, and like
+    # Schema B: Vasco and ClimaRad fan remotes send fixed command 06, not 04, like
     # .I --- 37:117647 32:022222 --:------ 22F1 003 000506 for high
-    # ClimaRad VenturaV1x does not send 22F1, uses 22F4
+    # ClimaRad VenturaV1x does not send 22F1 for speed, uses 22F4
 
     try:
         assert payload[0:2] in ("00", "63")
@@ -1619,7 +1630,7 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
     elif payload[4:6] == "06":
         from .ramses import _22F1_MODE_VASCO as _22F1_FAN_MODE
 
-        _22f1_mode_set = ("", "06")
+        _22f1_mode_set = ("", "00", "06")  # "00" seen incidentally on a ClimaRad 4-button remote
         _22f1_scheme = "vasco"
 
     else:
@@ -1671,7 +1682,8 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
     # Vasco REM boost command includes cmd 06:
     # .I --- 29:123150 29:099029 --:------ 22F3 007 00021E-0406-0000  # 20 mins (0x1E)
-
+    # ClimaRad 4-button remote
+    # .I --- 29:123150 29:099029 --:------ 22F3 007 00020F-0006-0000  ("unknown fan_mode: 00")
     # NOTE: for boost timer for high
     try:
         # assert payload[2:4] in ("00", "02", "12", "x52"), f"byte 1: {flag8(payload[2:4])}"
@@ -2292,19 +2304,19 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         # .I + 31DA 030   00 EF 00 02 9C 00 EF 07 0D 7FFF 08 33 07 A8 BE09001F 0000 000000008500850000 (auto)
         # .I + 31DA 030   00 EF 00 02 C8 00 EF 07 AA 7FFF 07 CB 05 F0 BE09001F 0808 000000008500850000 (speed 1)
         # .I + 31DA 030   00 EF 00 02 3B 00 EF 07 51 7FFF 07 32 05 5A BE09001F 1414 000000008500850000 (speed 2)
-        assert payload[30:38] == "BE09001F", f"Ventura non-matching block: {payload[30:38]}"  # fixed block?
+        assert payload[30:38] == "BE09001F", f"Ventura non-matching 31DA block: {payload[30:38]}"  # fixed value block?
         return {  # type: ignore[typeddict-unknown-key]
-            "st1": f"0x{payload[6:8]}",    # state1: 0x01|02
-            "sp1": f"d{int(payload[8:10], 16)}",  # speedrange1 0-255
-            "st2": f"0x{payload[10:12]}",  # a switch 0x00|08|52|9A|D3
-            "st3": f"0x{payload[14:16]}",  # 0x03-07
-            "sp2": f"d{int(payload[16:18], 16)}",  # speedrange2: 0x00-CA
-            "st4": f"0x{payload[22:24]}",  # 0x07-08
-            "sp3": f"d{int(payload[24:26], 16)}",  # 0x30-D7
-            "st5": f"0x{payload[26:28]}",  # 0x06-07
-            "sp4": f"d{int(payload[28:30], 16)}",  # 0x02-F7
-            "st6": f"0x{payload[38:40]}",  # 0x00|08|14 = speed auto/1/2
-            "st7": f"0x{payload[40:42]}",  # 0x00|08|14
+            # "st1": f"0x{payload[6:8]}",    # state1: 0x01|02
+            **parse_supply_flow(payload[6:10]),  # speed range1 0-255, parse_supply_temp[4]
+            # "st2": f"0x{payload[10:12]}",  # a switch 0x00|08|52|9A|D3
+            # "st3": f"0x{payload[14:16]}",  # 0x03-07
+            **parse_supply_fan_speed(payload[16:18]),  # speed range2: 0x00-CA
+            # "st4": f"0x{payload[22:24]}",  # 0x07-08
+            "speed3": f"{int(payload[24:26], 16)}",  # 0x30-D7
+            #"st5": f"0x{payload[26:28]}",  # 0x06-07
+            **parse_outdoor_temp(payload[26:30]),  # 0x02-F7, falling after 22:00h
+            # "st6": f"0x{payload[38:40]}",  # 0x00|08|14 = speed auto/1/2
+            # "st7": f"0x{payload[40:42]}",  # 0x00|08|14
         }
     else:
         return {  # type: ignore[typeddict-unknown-key]

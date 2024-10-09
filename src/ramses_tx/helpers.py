@@ -506,7 +506,7 @@ def parse_air_quality(value: HexStr4) -> PayDictT.AIR_QUALITY:
     assert value[2:] in ("10", "20", "40"), value[2:]  # TODO: remove assert
     basis = {
         "10": "voc",  # volatile compounds
-        "20": "co2",  # carbdon dioxide
+        "20": "co2",  # carbon dioxide
         "40": "rel_humidity",  # relative humidity
     }.get(value[2:], f"unknown_{value[2:]}")  # TODO: remove get/unknown
 

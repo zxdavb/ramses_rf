@@ -347,18 +347,21 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
+        #  I --- 29:123150 63:262142 --:------ 1FC9 018 00-22F1-75E10E 65-10E0-75E10E 00-1FC9-75E10E  # ClimaRad/Airios
+        #  I --- 37:117647 63:262142 --:------ 1FC9 030 00-31E0-95CB8F 00-1298-95CB8F 00-22F1-95CB8F 66-10E0-95CB8F 00-1FC9-95CB8F # Vasco CO RF
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
-        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00|21$",  # NOTE: payload can be 00
+        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00|21$",  # NOTE: payload can be 00. No filter effect from or1|or2
         W_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
     },
     Code._1FCA: {  # unknown_1fca
+        # .W --- 37:117647 32:022222 --:------ 1FCA 009 00-01FF95CB8FFFFFFF # Vasco RF
         SZ_NAME: "message_1fca",
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
-        W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+        W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+(FFFFFF)*$",
     },
     Code._1FD0: {  # unknown_1fd0
         SZ_NAME: "message_1fd0",

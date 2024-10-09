@@ -397,7 +397,7 @@ class Command(Frame):
         return f"... {self}{comment}"
 
     def __str__(self) -> str:
-        """Return an brief readable string representation of this object."""
+        """Return a brief readable string representation of this object."""
         # e.g.: 000A|RQ|01:145038|08
         return super().__repr__()  # TODO: self._hdr
 
