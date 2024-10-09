@@ -417,8 +417,8 @@ def parser_000a(
     if msg._has_array:  # NOTE: these arrays can span 2 pkts!
         return [
             {
-                SZ_ZONE_IDX: payload[i:i+2],
-                **_parser(payload[i:i+12]),
+                SZ_ZONE_IDX: payload[i : i + 2],
+                **_parser(payload[i : i + 12]),
             }
             for i in range(0, len(payload), 12)
         ]
@@ -478,12 +478,12 @@ def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
 
         # 0608-001099C3 0608-001099C5 0608-001099BF 0608-001099BE 0608-001099BD 0608-001099BC  # len(element) = 6
         # 0508-00109901 0800-10990208 0010-99030800 1099-04080010 9905-08001099 0608-00109907  # len(element) = 5
-        elif all(payload[i:i+4] == payload[:4] for i in range(12, pkt_len, 12)):
+        elif all(payload[i : i + 4] == payload[:4] for i in range(12, pkt_len, 12)):
             return False  # len(element) = 6 (12)
 
         # 06 08-001099C3 06-08001099 C5-06080010 99-BF060800 10-99BE0608 00-1099BD06 08-001099BC  # len(element) = 6
         # 05 08-00109901 08-00109902 08-00109903 08-00109904 08-00109905 08-00109906 08-00109907  # len(element) = 5
-        elif all(payload[i:i+2] == payload[2:4] for i in range(12, pkt_len, 10)):
+        elif all(payload[i : i + 2] == payload[2:4] for i in range(12, pkt_len, 10)):
             return True  # len(element) = 5 (10)
 
         raise exc.PacketPayloadInvalid(
@@ -510,9 +510,9 @@ def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 01:059885 18:010642 --:------ 000C 016 00-00-0011EDAA    00-0011ED92    00-0011EDA0
 
     devs = (
-        [_parser(payload[:2] + payload[i:i+10]) for i in range(2, len(payload), 10)]
+        [_parser(payload[:2] + payload[i : i + 10]) for i in range(2, len(payload), 10)]
         if is_short_000C(payload)
-        else [_parser(payload[i:i+12]) for i in range(0, len(payload), 12)]
+        else [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
     )
 
     return {
@@ -679,7 +679,7 @@ def parser_01ff(payload: str, msg: Message) -> dict[str, Any]:
 
 # zone_schedule (fragment)
 def parser_0404(payload: str, msg: Message) -> PayDictT._0404:
-    # Retreival of Zone schedule (NB: 200008)
+    # Retrieval of Zone schedule (NB: 200008)
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0100
     # RP --- 01:037519 30:185469 --:------ 0404 048 00-200008-29-0103-6E2...
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0203
@@ -687,7 +687,7 @@ def parser_0404(payload: str, msg: Message) -> PayDictT._0404:
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0303
     # RP --- 01:037519 30:185469 --:------ 0404 038 00-200008-1F-0303-C10...
 
-    # Retreival of DHW schedule (NB: 230008)
+    # Retrieval of DHW schedule (NB: 230008)
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-230008-00-0100
     # RP --- 01:037519 30:185469 --:------ 0404 048 00-230008-29-0103-618...
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-230008-00-0203
@@ -759,7 +759,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
         return null_result
 
     # NOTE: such payloads have idx=="00": if verb is I, can safely assume log_idx is 0,
-    # but for RP it is sentinel for null (we can't know the correspondings RQ's log_idx)
+    # but for RP it is sentinel for null (we can't know the corresponding RQ's log_idx)
     elif hex_to_dts(payload[18:30]) is None:
         null_result = {SZ_LOG_ENTRY: None}
         if msg.verb == I_:
@@ -873,7 +873,7 @@ def parser_1030(payload: str, msg: Message) -> PayDictT._1030:
     assert (msg.len - 1) / 3 in (2, 5), msg.len
     # assert payload[30:] in ("00", "01"), payload[30:]
 
-    params = [_parser(payload[i:i+6]) for i in range(2, len(payload), 6)]
+    params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
     return {k: v for x in params for k, v in x.items()}  # type: ignore[return-value]
 
 
@@ -1426,7 +1426,7 @@ def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
     assert payload in (
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000800"),
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000020800"),
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x, extract special content ?
+        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x
     ), _INFORM_DEV_MSG
 
     return {"unknown_hvac": payload[78:]}
@@ -1452,7 +1452,7 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         return [
             {
                 SZ_ZONE_IDX: payload[i : i + 2],
-                **_parser(payload[i+2:i+14]),
+                **_parser(payload[i + 2 : i + 14]),
             }
             for i in range(0, len(payload), 14)
         ]
@@ -1498,7 +1498,7 @@ def parser_22c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         return [
             {
                 SZ_UFH_IDX: payload[i : i + 2],
-                **_parser(payload[i:i+12]),
+                **_parser(payload[i : i + 12]),
             }
             for i in range(0, len(payload), 12)
         ]
@@ -1713,6 +1713,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     }.get(int(payload[2:4], 0x10) & 0xC0)  # 0b1100-0000
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
+    result = {}
 
     if msg.len >= 3:
         result = {
@@ -1723,7 +1724,8 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
         }
 
     if msg.len >= 5 and payload[6:10] != "0000":  # new speed? also for Vasco
-        result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
+        rt = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
+        result.update({"rate": rt})
 
     if msg.len >= 7:  # fallback speed?
         result.update({"_unknown_5": payload[10:]})
@@ -1833,8 +1835,8 @@ def parser_2309(
     if msg._has_array:
         return [
             {
-                SZ_ZONE_IDX: payload[i:i+2],
-                SZ_SETPOINT: hex_to_temp(payload[i+2:i+6]),
+                SZ_ZONE_IDX: payload[i : i + 2],
+                SZ_SETPOINT: hex_to_temp(payload[i + 2 : i + 6]),
             }
             for i in range(0, len(payload), 6)
         ]
@@ -2091,13 +2093,14 @@ def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
             "_unknown_4": payload[4:],
         }
 
+
 # current temperature (of device, zone/s)
 def parser_30c9(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     if msg._has_array:
         return [
             {
-                SZ_ZONE_IDX: payload[i:i+2],
-                SZ_TEMPERATURE: hex_to_temp(payload[i+2:i+6]),
+                SZ_ZONE_IDX: payload[i : i + 2],
+                SZ_TEMPERATURE: hex_to_temp(payload[i + 2 : i + 6]),
             }
             for i in range(0, len(payload), 6)
         ]
@@ -2423,7 +2426,7 @@ def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         }
 
     if len(payload) > 8:
-        return [_parser(payload[x:x+8]) for x in range(0, len(payload), 8)]
+        return [_parser(payload[x : x + 8]) for x in range(0, len(payload), 8)]
     return _parser(payload)
 
 
@@ -2874,8 +2877,8 @@ def parser_4e02(
 
     x, y = 0, 2 + num_groups * 4
 
-    assert payload[x:x+2] == "00", _INFORM_DEV_MSG  # expect no context
-    assert payload[y:y+2] in (
+    assert payload[x : x + 2] == "00", _INFORM_DEV_MSG  # expect no context
+    assert payload[y : y + 2] in (
         "02",
         "03",
         "04",
@@ -2883,13 +2886,13 @@ def parser_4e02(
     ), _INFORM_DEV_MSG  # mode: cool/heat?
 
     setpoints = [
-        (hex_to_temp(payload[x+i:][:4]), hex_to_temp(payload[y+i:][:4]))
+        (hex_to_temp(payload[x + i :][:4]), hex_to_temp(payload[y + i :][:4]))
         for i in range(2, y, 4)
     ]  # lower, upper setpoints
 
     return {
         SZ_MODE: {"02": "cool", "03": "cool+", "04": "heat", "05": "cool+"}[
-            payload[y:y+2]
+            payload[y : y + 2]
         ],
         SZ_SETPOINT_BOUNDS: [s if s != (None, None) else None for s in setpoints],
     }
@@ -2957,7 +2960,7 @@ def parser_4e15(payload: str, msg: Message) -> dict[str, Any]:
 
     assert (
         int(payload[2:], 16) & 0xF8 == 0x00
-    ), _INFORM_DEV_MSG  # check for uknown bit flags
+    ), _INFORM_DEV_MSG  # check for unknown bit flags
     if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
         raise TypeError  # TODO: Use local exception & ?Move to higher layer
     assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # cant heat and DHW

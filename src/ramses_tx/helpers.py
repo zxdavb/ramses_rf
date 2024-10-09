@@ -155,7 +155,7 @@ def dt_now() -> dt:
 
 
 def dt_str() -> str:
-    """Return the current datetime as a isoformat string."""
+    """Return the current datetime as an isoformat string."""
     return dt_now().isoformat(timespec="microseconds")
 
 
@@ -307,15 +307,15 @@ def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tu
 
 
 def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
-    """Convert list of 8 bits, MSB bit 1 by default, to an two-char ASCII hex string.
+    """Convert list of 8 bits, MSB bit 1 by default, to a two-char ASCII hex string.
 
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
     """
     if not isinstance(flags, list) or len(flags) != 8:
         raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
-    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
+        return f"{sum(x << idx for idx, x in enumerate(flags)):02X}"
+    return f"{sum(x << idx for idx, x in enumerate(reversed(flags))):02X}"
 
 
 # TODO: add a wrapper for EF, & 0xF0
