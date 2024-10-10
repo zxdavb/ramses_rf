@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from . import exceptions as exc
 from .address import ALL_DEV_ADDR, NON_DEV_ADDR, Address, pkt_addrs
-from .const import COMMAND_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP
+from .const import COMMAND_REGEX, CROSSED_REGEX, DEV_ROLE_MAP, DEV_TYPE_MAP
 from .ramses import (
     CODE_IDX_ARE_COMPLEX,
     CODE_IDX_ARE_NONE,
@@ -70,7 +70,11 @@ class Frame:
 
         self._frame: str = frame
         if not COMMAND_REGEX.match(self._frame):
-            raise exc.PacketInvalid(f"Bad frame: invalid structure: >>>{frame}<<<")
+            if CROSSED_REGEX.match(self._frame):
+                raise exc.PacketInvalid(f"Mixed-up frame dropped")
+                # on local installs this is common but harmless as we missed more while asleep
+            else:
+                raise exc.PacketInvalid(f"Bad frame: invalid structure: >>>{frame}<<<")
 
         fields = frame.lstrip().split(" ")
 
