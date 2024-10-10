@@ -1260,12 +1260,15 @@ _22F1_MODE_VASCO: dict[str, str] = {  # for VASCO D60 AND ClimaRad Minibox fanS/
 }
 
 _22F1_MODE_CLIMARAD: dict[str, str] = {
-    # for ClimaRad Ventura fan/remote, actually for 22F4 but stored for easier comparison
-    "C9": "1",  # low
-    "CA": "2",  # medium-low
-    "CB": "3",  # medium
-    "CC": "4",  # medium-high
-    "CD": "5",  # high aka boost
+    # for ClimaRad Ventura fan/remote, actually for 22F4 but stored here for easier comparison
+    "C9": "1",  # * low speed rate, operating mode for C9-CD always 60 - manual
+    "CA": "2",  # ** medium-low
+    "CB": "3",  # *** medium
+    "CC": "4",  # **** medium-high
+    "CD": "5",  # |>|> high aka boost
+    "20": "paused",
+    "40": "auto",
+    "60": "manual",
 }
 
 _22F1_SCHEMES: dict[str, dict[str, str]] = {

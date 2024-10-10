@@ -71,7 +71,7 @@ class Frame:
         self._frame: str = frame
         if not COMMAND_REGEX.match(self._frame):
             if CROSSED_REGEX.match(self._frame):
-                raise exc.PacketInvalid(f"Mixed-up frame dropped")
+                raise exc.PacketInvalid("Mixed-up frame dropped")
                 # on local installs this is common but harmless as we missed more while asleep
             else:
                 raise exc.PacketInvalid(f"Bad frame: invalid structure: >>>{frame}<<<")

@@ -77,6 +77,7 @@ from .const import (
     SZ_TIMESTAMP,
     SZ_TOTAL_FRAGS,
     SZ_UFH_IDX,
+    SZ_UNKNOWN,
     SZ_UNTIL,
     SZ_VALUE,
     SZ_WINDOW_OPEN,
@@ -118,7 +119,7 @@ from .helpers import (
     parse_supply_fan_speed,
     parse_supply_flow,
     parse_supply_temp,
-    parse_valve_demand, _parse_hvac_temp,
+    parse_valve_demand,
 )
 from .opentherm import (
     EN,
@@ -1155,24 +1156,25 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     if len(payload) == 42:
+        # TODO fix typed check error by overriding indoor_humidity? where?
         # for ClimaRad VenturaV1x:  --- 12A0 021 00 29 081D7FFF0001EF7FFF7FFF0002410505 0294 00
         # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
-        assert payload[8:12] == "7FFF", _INFORM_DEV_MSG # V1x: 'dewpoint_temp': None
-        assert payload[12:14] == "00", _INFORM_DEV_MSG  # _parse_fan_heater ? or flags ?
-        assert payload[14:16] == "01", _INFORM_DEV_MSG  # parse_fan_info ?
-        assert payload[16:18] == "EF", _INFORM_DEV_MSG  # parse_bypass_position ?
+        assert payload[8:12] == "7FFF", _INFORM_DEV_MSG  # V1x: 'dewpoint_temp': None
+        assert payload[12:14] == "00", _INFORM_DEV_MSG   # _parse_fan_heater ? or flags ?
+        assert payload[14:16] == "01", _INFORM_DEV_MSG   # parse_fan_info ?
+        assert payload[16:18] == "EF", _INFORM_DEV_MSG   # parse_bypass_position ?
         assert payload[18:22] == "7FFF", _INFORM_DEV_MSG
         assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
         assert payload[26:28] == "00", _INFORM_DEV_MSG
         assert payload[40:42] == "00", _INFORM_DEV_MSG
         result = {**parse_indoor_humidity(payload[2:12]),
-                  "units": {"00": "F", "01": "C"}[payload[14:16]],  # type: ignore[typeddict-item]
+                  "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],
                   # only 0x01 (decimal/Celsius?) seen on Ventura
                   **parse_co2_level(payload[28:32]),
                   **parse_supply_temp(payload[32:36]),  # to home
                   SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40])  # intake? None if fan speed == 0
                   }
-        # TODO determine complete message: fan speed? dew point?
+        # TODO confirm complete message
         return result
     else:
         return parse_indoor_humidity(payload[2:])
@@ -1698,7 +1700,9 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
     if msg.len == 7 and payload[9:10] == "06":  # Vasco and ClimaRad REM
-        fallback_speed = "per_vent_speed"
+        fallback_speed = {  # after timer expiry
+            0x18: "per_vent_speed"  # set fan as per current fan mode/speed
+        }  # 0b0001-1000
     else:
         fallback_speed = {  # after timer expiry
             0x08: "fan_off",  # #      set fan off?
@@ -1743,8 +1747,6 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E5-00000000000000-200000
     # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E6-00000000000000-200000
 
-    assert payload[:2] == "00"
-
     if msg.verb == I_:
         # heard from ClimaRad Ventura, see _22F1_MODE_CLIMARAD
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 4030 0000 0000 000000-000000 (auto)
@@ -1752,23 +1754,20 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 0000 0000 60CA 000000-000000 (speed 2)
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 0000 0000 60CB 000000-000000 (speed 3)
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 2000 0000 2000 000000-000000 (pauze ||)
-        _22f4_scheme = "N/A"
+        from .ramses import _22F1_MODE_CLIMARAD as _22F4_FAN_MODE
+        _22f4_scheme = "climarad"
         rate = "N/A"
         mode = "N/A"
-        if payload[2:4] == "40":
-            assert payload[4:6] == "30", f"unknown auto mode: {payload[2:6]}"
-            _22f4_scheme = "climarad"
-            mode = "auto"
-        elif payload[2:4] == "20":
-            assert payload[4:6] == "00", f"unknown paused mode: {payload[2:6]}"
-            _22f4_scheme = "climarad"
-            mode = "paused"
+        if payload[2:4] == "40":  # auto mode
+            assert payload[4:6] == "30", f"unknown auto mode: 0x40{payload[4:6]}"
+            mode = _22F4_FAN_MODE.get("40")
+        elif payload[2:4] == "20": # paused mode
+            assert payload[4:6] == "00", f"unknown paused mode: 0x20{payload[4:6]}"
+            mode = _22F4_FAN_MODE.get("20")
             rate = "0"
         _22f4_mode_set = ("", "60")
-        if payload[10:12] in _22f4_mode_set:
-            from .ramses import _22F1_MODE_CLIMARAD as _22F4_FAN_MODE
-            _22f4_scheme = "climarad"
-            mode = "manual"
+        if payload[10:12] in _22f4_mode_set:  # manual mode, with speed rate
+            mode = _22F4_FAN_MODE.get("60")
             try:
                 assert payload[12:14] in _22F4_FAN_MODE, f"unknown fan_mode: {payload[12:14]}"
             except AssertionError as err:
@@ -1788,6 +1787,7 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
             "value_04": payload[4:6],
         }
     return result
+
 
 # bypass_mode, HVAC
 def parser_22f7(payload: str, msg: Message) -> dict[str, Any]:
@@ -2255,11 +2255,12 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
     if msg.len == 6:  # ClimaRad VenturaV1x
-        if payload[4:6] == 0xC8:
+        if payload[4:6] == "C8":
             return {"fan mode" : "boost"}  # TODO EBR use dict like Vasco
-        if payload[4:6] == 0x01:
+        if payload[4:6] == "01":
             return {"fan mode": "auto"}  # TODO EBR use dict like Vasco
-
+        else:
+            return {"fan mode": SZ_UNKNOWN}
     bitmap = int(payload[2:4], 16)
 
     # NOTE: 31D9[4:6] is fan_rate (itho?) *or* fan_mode (orcon?)
@@ -2309,20 +2310,22 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         # .I + 31DA 030   00 EF 00 023B 00 EF 0751 7FFF 0732 055A BE09001F 1414 000000008500850000 (speed 2)
         # .I + 31DA 030   00 EF 00 019F 00 EF 067A 7FFF 0807 074E BE09001F 0000 000000008500850000 (auto)
         # .I + 31DA 030   00 EF 00 0195 F7 EF 0621 7FFF 0846 0773 BE09001F 0000 000000008500850000 (wake up button press, no changes)
-
+        # .I + 31DA 030   00 EF 00 01E5 00 EF 0586 7FFF 079D 06D0 BE09001F 0000 000000008500850000
+        # .I + 31DA 030   00 EF 00 01AB 3E EF 0572 7FFF 07BC 06EA BE09001F 0000 000000008500850000
         assert payload[2:4] == "EF", f"Ventura 31DA s0: {payload[2:4]}"
         assert payload[4:6] == "00", f"Ventura 31DA s1: {payload[4:6]}"
-        assert payload[2:4] == "EF", f"Ventura 31DA s2: {payload[12:14]}"
-        assert payload[18:20] == "7FFF", f"Ventura 31DA t2: {payload[18:22]}"
+        assert payload[12:14] == "EF", f"Ventura 31DA s2: {payload[12:14]}"
+        assert payload[18:22] == "7FFF", f"Ventura 31DA t2: {payload[18:22]}"
         assert payload[30:38] == "BE09001F", f"Ventura 31DA block: {payload[30:38]}"  # fixed value?
-        assert payload[30:32] == payload[32:34], f"Ventura 31DA key {payload[32:34]}"
-        assert payload[34:42] == "000000008500850000"
+        assert payload[38:40] == payload[40:42], f"Ventura 31DA twin {payload[40:42]}"
+        assert payload[42:60] == "000000008500850000"
         return {  # type: ignore[typeddict-unknown-key]
             "zone": f"0x{payload[0:2]}",    # zone
-            **_parse_hvac_temp(SZ_MIN_TEMP, {payload[6:10]}),
-            "state": f"0x{payload[10:12]}",  # a switch? 0x00|08|52|9A|D3
-            **_parse_hvac_temp("t3", {payload[30:32]}),  # range: 0x055A-0813 name WIP EBR
-            **_parse_hvac_temp("t4", {payload[32:34]}),  # range: 0x0502-07F7 name WIP EBR
+            **parse_exhaust_temp(payload[6:10]),  # range: - name WIP EBR
+            "state1": f"0x{payload[10:12]}",      # a switch? 0x00|08|52|9A|D3
+            **parse_supply_temp(payload[22:26]),  # range: 0x055A-0813 name WIP
+            **parse_outdoor_temp(payload[26:30]),  # range: 0x0502-07F7 name WIP
+            "state2": f"0x{payload[38:40]}",  # a switch? 0x00|08|52|9A|D3 meaning?
         }
     else:
         return {  # type: ignore[typeddict-unknown-key]

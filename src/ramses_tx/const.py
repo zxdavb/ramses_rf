@@ -636,7 +636,7 @@ p = r"([0-9A-F]{2}){1,48}"  # payload
 # DEVICE_ID_REGEX = re.compile(f"^{d}$")
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
-CROSSED_REGEX = re.compile(f"^.+ {ll} .+ {ll} .+$")  # throw out mingled packets (happens on CPU wake up)
+CROSSED_REGEX = re.compile(f"(^.+ {ll} .+ {ll} .+$)|(^.+#.+$)")  # throw out mingled packets (happens on CPU wake up)
 
 # Used by 0418/system_fault parser
 class FaultDeviceClass(StrEnum):
