@@ -1173,7 +1173,7 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
         assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
         assert payload[26:28] == "00", _INFORM_DEV_MSG
         assert payload[40:42] == "00", _INFORM_DEV_MSG
-        result = {**parse_indoor_humidity(payload[2:12]),
+        result = {**parse_indoor_humidity(payload[2:12]),  # type: ignore[typeddict-item]
                   "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],
                   # only 0x01 (decimal/Celsius?) seen on Ventura
                   **parse_co2_level(payload[28:32]),
@@ -2321,7 +2321,7 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
-    if msg.len == 30 and msg.src.type == "37":  # ClimaRad VenturaV1x 2021
+    if msg.len == 30 and payload[30:38] == "BE09001F":  # ClimaRad VenturaV1x 2021
         # .I + 31DA 030   00 EF 00 029C 00 EF 070D 7FFF 0833 07A8 BE09001F 0000 000000008500850000 (auto)
         # .I + 31DA 030   00 EF 00 02C8 00 EF 07AA 7FFF 07CB 05F0 BE09001F 0808 000000008500850000 (speed 1)
         # .I + 31DA 030   00 EF 00 023B 00 EF 0751 7FFF 0732 055A BE09001F 1414 000000008500850000 (speed 2)
@@ -2332,7 +2332,6 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         assert payload[4:6] == "00", f"Ventura 31DA 4: {payload[4:6]}"
         assert payload[12:14] == "EF", f"Ventura 31DA 12: {payload[12:14]}"
         assert payload[18:22] == "7FFF", f"Ventura 31DA 18: {payload[18:22]}"
-        assert payload[30:38] == "BE09001F", f"Ventura 31DA block: {payload[30:38]}"
         assert payload[38:40] == payload[40:42], f"Ventura 31DA twin {payload[40:42]}"
         assert payload[42:60] == "000000008500850000"
         return {  # type: ignore[typeddict-unknown-key]
