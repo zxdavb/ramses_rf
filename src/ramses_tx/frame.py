@@ -72,7 +72,7 @@ class Frame:
         if not COMMAND_REGEX.match(self._frame):
             if CROSSED_REGEX.match(self._frame):
                 raise exc.PacketInvalid("Mixed-up frame dropped")
-                # on local installs this is common but harmless as we missed more while asleep
+                # common on local CLI wake up, but harmless as we missed more during sleep
             else:
                 raise exc.PacketInvalid(f"Bad frame: invalid structure: >>>{frame}<<<")
 

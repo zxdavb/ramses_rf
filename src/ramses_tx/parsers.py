@@ -40,6 +40,7 @@ from .const import (
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
+    SZ_DEWPOINT_TEMP,
     SZ_DHW_FLOW_RATE,
     SZ_DOMAIN_ID,
     SZ_DOMAIN_IDX,
@@ -142,6 +143,7 @@ from .version import VERSION
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 # - tomkooij: 3110
 # - RemyDeRuysscher: 10E0, 31DA (and related), others
+# - silverailscolo:  12A0, 31DA
 
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -261,9 +263,10 @@ def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
 def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
     # .I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
-    # seen on FAN ClimaRad Ventura HRU:
-    # .I --- 37:153226 --:------ 37:153226 0002 004 00120005 0x12 = seems default, some default valve state?
-    # .I --- 37:153226 --:------ 37:153226 0002 004 00180005 0x18 = very scarce, minutes after&before -0x12-
+    #
+    # FAN ClimaRad Ventura HRU:
+    # .I --- 37:153226 --:------ 37:153226 0002 004 00120005 # 0x12 = b00010010 default on 1 zone
+    # .I --- 37:153226 --:------ 37:153226 0002 004 00180005 # 0x18 = b00011000 very scarce, minutes after&before 0x12
     # is it CODE_IDX_COMPLEX:
     #  - 02...... for outside temp?
     #  - 03...... for other stuff?
@@ -275,7 +278,7 @@ def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     if msg.src.type == "37":  # FAN/HRU ClimaRad VenturaV1x
         assert payload[4:8] == "0005"
         return {
-            "outdoor_sensor_state": payload[2:4]
+            "unknown_2": f"0x{payload[2:4]}" # TODO collect more data, create some hex_to_flag8 parser
         }
 
     # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
@@ -1001,7 +1004,8 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     if msg.verb == W_:
         result = {"reset_counter": payload[2:4] == "FF"}
     else:
-        if msg.len == 6:  # ClimaRad VenturaV1x TODO stricter filtering?
+        if msg.len == 6 and payload[2:4] == payload[4:6]:   # ClimaRad VenturaV1x
+            assert payload[2:4] == "FFFF", _INFORM_DEV_MSG  # stricter filtering?
             result = {"days_remaining": int(payload[6:8], 16)}
         else:
             result = {"days_remaining": int(payload[2:4], 16)}
@@ -1157,9 +1161,11 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     if len(payload) == 42:
         # TODO fix typed check error by overriding indoor_humidity? where?
-        # for ClimaRad VenturaV1x:  --- 12A0 021 00 29 081D7FFF0001EF7FFF7FFF0002410505 0294 00
+        # for ClimaRad VenturaV1x:
+        # . I +  12A0 021 00 29 081D 7FFF 0001EF7FFF7FFF000241 0505 0294 00
+        # . I +  12A0 021 00 3B 064B 7FFF 0001EF7FFF7FFF00023F 0657 03A6 00
         # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
-        assert payload[8:12] == "7FFF", _INFORM_DEV_MSG  # V1x: 'dewpoint_temp': None
+        assert payload[8:12] == "7FFF", _INFORM_DEV_MSG  # V1x: 'dewpoint_temp' sent in 31DA
         assert payload[12:14] == "00", _INFORM_DEV_MSG   # _parse_fan_heater ? or flags ?
         assert payload[14:16] == "01", _INFORM_DEV_MSG   # parse_fan_info ?
         assert payload[16:18] == "EF", _INFORM_DEV_MSG   # parse_bypass_position ?
@@ -1172,7 +1178,7 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
                   # only 0x01 (decimal/Celsius?) seen on Ventura
                   **parse_co2_level(payload[28:32]),
                   **parse_supply_temp(payload[32:36]),  # to home
-                  SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40])  # intake? None if fan speed == 0
+                  SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
                   }
         # TODO confirm complete message
         return result
@@ -1431,7 +1437,11 @@ def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x
     ), _INFORM_DEV_MSG
 
-    return {"unknown_hvac": payload[78:]}
+    return {
+            "unknown_78": payload[78:80],
+            "unknown_80": payload[80:82],
+            "unknown_84": payload[84:],
+            }
 
 
 # now_next_setpoint - Programmer/Hometronics
@@ -1756,11 +1766,12 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 2000 0000 2000 000000-000000 (pauze ||)
         from .ramses import _22F1_MODE_CLIMARAD as _22F4_FAN_MODE
         _22f4_scheme = "climarad"
-        rate = "N/A"
+        rate = "0"
         mode = "N/A"
         if payload[2:4] == "40":  # auto mode
             assert payload[4:6] == "30", f"unknown auto mode: 0x40{payload[4:6]}"
             mode = _22F4_FAN_MODE.get("40")
+            rate = "0"
         elif payload[2:4] == "20": # paused mode
             assert payload[4:6] == "00", f"unknown paused mode: 0x20{payload[4:6]}"
             mode = _22F4_FAN_MODE.get("20")
@@ -2080,10 +2091,10 @@ def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
         }
     elif msg.src.type == "37":  # ClimaRad VenturaV1x FAN state set to Auto
         # .I --- 37:153226 --:------ 37:153226 2E10 003 000000
-        # .I --- 37:153226 --:------ 37:153226 2E10 003 000100 seen while on Manual 2**
+        # .I --- 37:153226 --:------ 37:153226 2E10 003 000100 # seen while on Manual 2**
         assert payload in ("000000", "000100"), _INFORM_DEV_MSG
         return {
-            "auto_state": (payload[2:4]),
+            "unknown_2": f"0x{(payload[2:4])}",
         }
     else:
         assert payload in ("0001", "000100"), _INFORM_DEV_MSG
@@ -2191,7 +2202,6 @@ def parser_313f(payload: str, msg: Message) -> PayDictT._313F:  # TODO: look for
     # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4
     # 2022-09-20T20:50:32.800676 065 RP --- 01:182924 18:068640 --:------ 313F 009 00F9203234140907E6
     # 2020-05-31T11:37:50.351511 056  I --- --:------ --:------ 12:207082 313F 009 0038021ECB1F0507E4
-
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
 
@@ -2224,6 +2234,7 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
     # .I --- 04:136513 --:------ 01:158182 3150 002 01CA < often seen CA, artefact?
 
+    # .I --- 37:153226 --:------ 37:153226 3150 006 00 F2 01 F2 02 F2
     def complex_idx(seqx: str, msg: Message) -> dict[str, str]:
         # assert seqx[:2] == FC or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         idx_name = "ufx_idx" if msg.src.type == DEV_TYPE_MAP.UFC else SZ_ZONE_IDX  # DEX
@@ -2244,9 +2255,12 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 # fan state (ventilation status), HVAC
 def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     # NOTE: I have a suspicion that Itho uses 0x00-C8 for %, whilst Nuaire uses 0x00-64
+    #
     # ClimaRad MiniBox fan status report:
     # .I --- 29:099029 --:------ 29:099029 31D9 003 0000C8 (boost)
     # .I --- 29:099029 --:------ 29:099029 31D9 003 000001 (auto)
+    # ClimaRad VenturaV1x provides no info/always the same, perhaps filter + errors?
+    # .I 160 37:153226 --:------ 37:153226 31D9 017 00 0A FF 0020202020202020202020202000
     try:
         assert (
             payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
@@ -2254,13 +2268,16 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
-    if msg.len == 6:  # ClimaRad VenturaV1x
+    if msg.len == 6:  # ClimaRad MiniBox
         if payload[4:6] == "C8":
-            return {"fan mode" : "boost"}  # TODO EBR use dict like Vasco
-        if payload[4:6] == "01":
-            return {"fan mode": "auto"}  # TODO EBR use dict like Vasco
-        else:
+            return {"fan mode" : "boost"}  # TODO use dict like Vasco?
+        elif payload[4:6] == "01":
+            return {"fan mode": "auto"}
+        elif payload[4:6] == "FF":
             return {"fan mode": SZ_UNKNOWN}
+        else:
+            return {"fan mode": payload[4:6]}
+
     bitmap = int(payload[2:4], 16)
 
     # NOTE: 31D9[4:6] is fan_rate (itho?) *or* fan_mode (orcon?)
@@ -2304,28 +2321,27 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
-    if msg.len == 30:  # ClimaRad VenturaV1x 2021 WIP EBR
+    if msg.len == 30 and msg.src.type == "37":  # ClimaRad VenturaV1x 2021
         # .I + 31DA 030   00 EF 00 029C 00 EF 070D 7FFF 0833 07A8 BE09001F 0000 000000008500850000 (auto)
         # .I + 31DA 030   00 EF 00 02C8 00 EF 07AA 7FFF 07CB 05F0 BE09001F 0808 000000008500850000 (speed 1)
         # .I + 31DA 030   00 EF 00 023B 00 EF 0751 7FFF 0732 055A BE09001F 1414 000000008500850000 (speed 2)
         # .I + 31DA 030   00 EF 00 019F 00 EF 067A 7FFF 0807 074E BE09001F 0000 000000008500850000 (auto)
         # .I + 31DA 030   00 EF 00 0195 F7 EF 0621 7FFF 0846 0773 BE09001F 0000 000000008500850000 (wake up button press, no changes)
-        # .I + 31DA 030   00 EF 00 01E5 00 EF 0586 7FFF 079D 06D0 BE09001F 0000 000000008500850000
         # .I + 31DA 030   00 EF 00 01AB 3E EF 0572 7FFF 07BC 06EA BE09001F 0000 000000008500850000
-        assert payload[2:4] == "EF", f"Ventura 31DA s0: {payload[2:4]}"
-        assert payload[4:6] == "00", f"Ventura 31DA s1: {payload[4:6]}"
-        assert payload[12:14] == "EF", f"Ventura 31DA s2: {payload[12:14]}"
-        assert payload[18:22] == "7FFF", f"Ventura 31DA t2: {payload[18:22]}"
-        assert payload[30:38] == "BE09001F", f"Ventura 31DA block: {payload[30:38]}"  # fixed value?
+        assert payload[2:4] == "EF", f"Ventura 31DA 2: {payload[2:4]}"
+        assert payload[4:6] == "00", f"Ventura 31DA 4: {payload[4:6]}"
+        assert payload[12:14] == "EF", f"Ventura 31DA 12: {payload[12:14]}"
+        assert payload[18:22] == "7FFF", f"Ventura 31DA 18: {payload[18:22]}"
+        assert payload[30:38] == "BE09001F", f"Ventura 31DA block: {payload[30:38]}"
         assert payload[38:40] == payload[40:42], f"Ventura 31DA twin {payload[40:42]}"
         assert payload[42:60] == "000000008500850000"
         return {  # type: ignore[typeddict-unknown-key]
             "zone": f"0x{payload[0:2]}",    # zone
-            **parse_exhaust_temp(payload[6:10]),  # range: - name WIP EBR
-            "state1": f"0x{payload[10:12]}",      # a switch? 0x00|08|52|9A|D3
-            **parse_supply_temp(payload[22:26]),  # range: 0x055A-0813 name WIP
-            **parse_outdoor_temp(payload[26:30]),  # range: 0x0502-07F7 name WIP
-            "state2": f"0x{payload[38:40]}",  # a switch? 0x00|08|52|9A|D3 meaning?
+            SZ_DEWPOINT_TEMP: hex_to_temp(payload[6:10]),  # confirmed
+            "_unknown_10": f"0x{payload[10:12]}",  # 0x00|08|3E|52|7F|9A|AF|D3 = ?
+            **parse_indoor_temp(payload[22:26]),
+            **parse_exhaust_temp(payload[26:30]),
+            **parse_bypass_position(payload[38:40]),  # 0x00|14 TODO confirm in summer
         }
     else:
         return {  # type: ignore[typeddict-unknown-key]
