@@ -126,7 +126,7 @@ FaultMapT: TypeAlias = OrderedDict[FaultIdxT, FaultDtmT]
 class FaultLog:  # 0418  # TODO: use a NamedTuple
     """The fault log of an evohome system.
 
-    This code assumes that the `timestamp` attr of each log entry is a unique identifer.
+    This code assumes that the `timestamp` attr of each log entry is a unique identifier.
 
     Null entries do not have a timestamp. All subsequent entries will also be null.
 
@@ -286,7 +286,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
             pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
 
             if pkt.payload == "000000B0000000000000000000007FFFFF7000000000":
-                msg = self._hack_pkt_idx(pkt, cmd)  # RPs for null entrys have idx=="00"
+                msg = self._hack_pkt_idx(pkt, cmd)  # RPs for null entries have idx==00
                 self._process_msg(msg)  # since pkt via dispatcher aint got idx
                 break
             self._process_msg(Message(pkt))  # JIC dispatcher doesn't do this for us
@@ -319,7 +319,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def latest_event(self) -> FaultLogEntry | None:
         """Return the most recently logged event (fault or restore), if any."""
 
-        if not self._log:  # TODO: raise exception or retrive log (make function)?
+        if not self._log:  # TODO: raise exception or retrieve log (make function)?
             return None
 
         return self._log[max(k for k in self._log)]
@@ -328,7 +328,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def latest_fault(self) -> FaultLogEntry | None:
         """Return the most recently logged fault, if any."""
 
-        if not self._log:  # TODO: raise exception or retrive log (make function)?
+        if not self._log:  # TODO: raise exception or retrieve log (make function)?
             return None
 
         faults = [k for k, v in self._log.items() if v.fault_state == FaultState.FAULT]
@@ -342,7 +342,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def active_faults(self) -> tuple[FaultLogEntry, ...] | None:
         """Return a list of all faults outstanding (i.e. no corresponding restore)."""
 
-        if not self._log:  # TODO: raise exception or retrive log (make function)?
+        if not self._log:  # TODO: raise exception or retrieve log (make function)?
             return None
 
         restores = {}

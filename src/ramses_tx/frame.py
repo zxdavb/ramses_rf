@@ -177,7 +177,7 @@ class Frame:
         2309/30C9/000A packets).
         """
 
-        if self._has_array_ is not None:  # HACK: overriden by detect_array(msg, prev)
+        if self._has_array_ is not None:  # HACK: overridden by detect_array(msg, prev)
             return self._has_array_
 
         # False -ves (array length is 1) are an acceptable compromise to extensive checking

@@ -378,7 +378,7 @@ class Fakeable(DeviceBase):
 
         msgs = await self._bind_context.initiate_binding_process(
             codes, confirm_code=confirm_code, ratify_cmd=ratify_cmd
-        )  # TODO: if successul, re-discover schema?
+        )  # TODO: if successful, re-discover schema?
         return msgs
 
     async def initiate_binding_process(self) -> Packet:

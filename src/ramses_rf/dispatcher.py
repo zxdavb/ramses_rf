@@ -71,12 +71,12 @@ def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
     # NB: only addrs processed here, packet metadata is processed elsewhere
 
     # Determinging bindings to a controller:
-    #  - configury; As per any schema
+    #  - configury; As per any schema                                                   # codespell:ignore configury
     #  - discovery: If in 000C pkt, or pkt *to* device where src is a controller
     #  - eavesdrop: If pkt *from* device where dst is a controller
 
     # Determinging location in a schema (domain/DHW/zone):
-    #  - configury; As per any schema
+    #  - configury; As per any schema                                                   # codespell:ignore configury
     #  - discovery: If in 000C pkt - unable for 10: & 00: (TRVs)
     #  - discovery: from packet fingerprint, excl. payloads (only for 10:)
     #  - eavesdrop: from packet fingerprint, incl. payloads

@@ -670,7 +670,7 @@ def parser_01ff(payload: str, msg: Message) -> dict[str, Any]:
 
 # zone_schedule (fragment)
 def parser_0404(payload: str, msg: Message) -> PayDictT._0404:
-    # Retreival of Zone schedule (NB: 200008)
+    # Retrieval of Zone schedule (NB: 200008)
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0100
     # RP --- 01:037519 30:185469 --:------ 0404 048 00-200008-29-0103-6E2...
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0203
@@ -678,7 +678,7 @@ def parser_0404(payload: str, msg: Message) -> PayDictT._0404:
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-200008-00-0303
     # RP --- 01:037519 30:185469 --:------ 0404 038 00-200008-1F-0303-C10...
 
-    # Retreival of DHW schedule (NB: 230008)
+    # Retrieval of DHW schedule (NB: 230008)
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-230008-00-0100
     # RP --- 01:037519 30:185469 --:------ 0404 048 00-230008-29-0103-618...
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00-230008-00-0203
@@ -998,7 +998,7 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
 
 # device_info
 def parser_10e0(payload: str, msg: Message) -> dict[str, Any]:
-    if payload == "00":  # some HVAC devices wil RP|10E0|00
+    if payload == "00":  # some HVAC devices will RP|10E0|00
         return {}
 
     assert msg.len in (19, 28, 29, 30, 36, 38), msg.len  # >= 19, msg.len
@@ -1421,10 +1421,10 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 def parser_22b0(payload: str, msg: Message) -> dict[str, Any]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
-    # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable, calender on
+    # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable, calendar on
     # .I --- 32:155617 37:171871 --:------ 22B0 002 0005
 
-    # .W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable, calender off
+    # .W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable, calendar off
     # .I --- 32:155617 37:171871 --:------ 22B0 002 0006
 
     return {
@@ -2816,7 +2816,7 @@ def parser_4e15(payload: str, msg: Message) -> dict[str, Any]:
 
     assert (
         int(payload[2:], 16) & 0xF8 == 0x00
-    ), _INFORM_DEV_MSG  # check for uknown bit flags
+    ), _INFORM_DEV_MSG  # check for unknown bit flags
     if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
         raise TypeError  # TODO: Use local exception & ?Move to higher layer
     assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # cant heat and DHW

@@ -49,7 +49,7 @@ def deep_merge(src: _SchemaT, dst: _SchemaT, _dc: bool = False) -> _SchemaT:
             deep_merge(value, node, _dc=True)
 
         elif not isinstance(value, list):  # is value
-            new_dst[key] = value  # src takes precidence, assert will fail
+            new_dst[key] = value  # src takes precedence, assert will fail
 
         elif key not in new_dst or not isinstance(new_dst[key], list):  # is list
             new_dst[key] = src[key]  # not expected, but maybe
