@@ -137,7 +137,7 @@ class ZoneBase(Child, Parent, Entity):
 
     @property
     def schema(self) -> dict[str, Any]:
-        """Return the schema (cant be changed without destroying/re-creating entity)."""
+        """Return the schema (can't change without destroying/re-creating entity)."""
         return {}
 
     @property

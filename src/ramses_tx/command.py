@@ -171,7 +171,7 @@ def _normalise_mode(
 
     if mode is None and target is None:
         raise exc.CommandInvalid(
-            "Invalid args: One of mode or setpoint/active cant be None"
+            "Invalid args: One of mode or setpoint/active can't be None"
         )
     if until and duration:
         raise exc.CommandInvalid(
@@ -194,7 +194,7 @@ def _normalise_mode(
 
     if mode != ZON_MODE_MAP.FOLLOW and target is None:
         raise exc.CommandInvalid(
-            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
+            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active can't be None"
         )
 
     return mode
@@ -226,7 +226,7 @@ def _normalise_until(
     elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
             raise exc.CommandInvalid(
-                f"Invalid args: For mode={mode}, duration cant be None"
+                f"Invalid args: For mode={mode}, duration can't be None"
             )
         if until is not None:
             raise exc.CommandInvalid(

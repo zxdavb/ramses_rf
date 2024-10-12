@@ -2819,7 +2819,7 @@ def parser_4e15(payload: str, msg: Message) -> dict[str, Any]:
     ), _INFORM_DEV_MSG  # check for unknown bit flags
     if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
         raise TypeError  # TODO: Use local exception & ?Move to higher layer
-    assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # cant heat and DHW
+    assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # can't heat and DHW
 
     return {
         "_flags": hex_to_flag8(payload[2:]),
