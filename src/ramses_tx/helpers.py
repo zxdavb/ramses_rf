@@ -155,7 +155,7 @@ def dt_now() -> dt:
 
 
 def dt_str() -> str:
-    """Return the current datetime as a isoformat string."""
+    """Return the current datetime as an isoformat string."""
     return dt_now().isoformat(timespec="microseconds")
 
 
@@ -307,7 +307,7 @@ def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tu
 
 
 def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
-    """Convert list of 8 bits, MSB bit 1 by default, to an two-char ASCII hex string.
+    """Convert list of 8 bits, MSB bit 1 by default, to a two-char ASCII hex string.
 
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
     """
@@ -368,7 +368,7 @@ def hex_from_str(value: str) -> str:
 
 
 def hex_to_temp(value: HexStr4) -> bool | float | None:  # TODO: remove bool
-    """Convert a 2's complement 4-byte hex string to an float."""
+    """Convert a 2's complement 4-byte hex string to a float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
     if value == "31FF":  # means: N/A (== 127.99, 2s complement), signed?
@@ -410,7 +410,7 @@ def parse_fault_log_entry(
 
     # NOTE: the log_idx will increment as the entry moves down the log, hence '_log_idx'
 
-    # these are only only useful for I_, and not RP
+    # these are only useful for I_, not RP
     if (timestamp := hex_to_dts(payload[18:30])) is None:
         return {f"_{SZ_LOG_IDX}": payload[4:6]}  # type: ignore[misc,return-value]
 
@@ -506,7 +506,7 @@ def parse_air_quality(value: HexStr4) -> PayDictT.AIR_QUALITY:
     assert value[2:] in ("10", "20", "40"), value[2:]  # TODO: remove assert
     basis = {
         "10": "voc",  # volatile compounds
-        "20": "co2",  # carbdon dioxide
+        "20": "co2",  # carbon dioxide
         "40": "rel_humidity",  # relative humidity
     }.get(value[2:], f"unknown_{value[2:]}")  # TODO: remove get/unknown
 

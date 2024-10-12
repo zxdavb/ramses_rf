@@ -627,7 +627,7 @@ class _DevIsReadyToSendCmd(BindStateBase):
 class _DevSendCmdUntilReply(_DevIsWaitingForMsg, _DevIsReadyToSendCmd):
     """Device sends a Command (Offer, Accept), until it gets the expected reply Packet.
 
-    Failure occurs when the the timer expires (timeout) or the retry limit is exceeded
+    Failure occurs when the timer expires (timeout) or the retry limit is exceeded
     before receiving a reply Packet.
     """
 
