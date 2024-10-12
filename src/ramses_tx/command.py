@@ -687,8 +687,8 @@ class Command(Frame):
 
         zon_idx = _check_idx(zone_idx)
 
-        kwargs.get("unknown_20", None)  # HVAC
-        kwargs.get("unknown_21", None)  # HVAC
+        kwargs.get("unknown_20")  # HVAC
+        kwargs.get("unknown_21")  # HVAC
 
         if not (0 <= max_flow_setpoint <= 99):
             raise exc.CommandInvalid(
