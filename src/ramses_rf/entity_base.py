@@ -432,7 +432,7 @@ class _Discovery(_MessageDB):
         self._supported_cmds_ctx: dict[str, bool | None] = {}
 
         if not gwy.config.disable_discovery:
-            # self._start_discovery_poller()  # Cant use derived classes dont exist yet
+            # self._start_discovery_poller()  # Can't use derived classes dont exist yet
             gwy._loop.call_soon(self._start_discovery_poller)
 
     @property  # TODO: needs tidy up

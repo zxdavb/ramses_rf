@@ -275,7 +275,7 @@ def _str(value: bytes) -> str:
             c for c in value.decode("ascii", errors="strict") if c in printable
         )
     except UnicodeDecodeError:
-        _LOGGER.warning("%s < Cant decode bytestream (ignoring)", value)
+        _LOGGER.warning("%s < Can't decode bytestream (ignoring)", value)
         return ""
     return result
 
@@ -1117,7 +1117,7 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         try:
             payload = json.loads(msg.payload)
         except json.JSONDecodeError:
-            _LOGGER.warning("%s < Cant decode JSON (ignoring)", msg.payload)
+            _LOGGER.warning("%s < Can't decode JSON (ignoring)", msg.payload)
             return
 
         # HACK: hotfix for converting RAMSES_ESP dtm into local/naive dtm
