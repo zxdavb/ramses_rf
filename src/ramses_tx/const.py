@@ -646,7 +646,7 @@ class FaultDeviceClass(StrEnum):
     DHW_ACTUATOR = "dhw_sensor"
     RF_GATEWAY = "rf_gateway"
     BOILER_RELAY = "boiler_relay"
-    UNKNOWN = "uknown"
+    UNKNOWN = "unknown"
 
 
 FAULT_DEVICE_CLASS: Final[dict[str, FaultDeviceClass]] = {

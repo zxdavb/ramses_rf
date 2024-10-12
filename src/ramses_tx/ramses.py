@@ -55,7 +55,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "system_zones",
         # .I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
-        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
+        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome won't respond to 00
         RP: r"^00[01][0-9A-F]{3,5}$",
         SZ_LIFESPAN: False,
     },
@@ -1143,11 +1143,10 @@ CODES_BY_DEV_SLUG: dict[str, dict[Code, dict[VerbT, Any]]] = {
 }
 
 CODES_OF_HEAT_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
-    tuple(set(c for k in _DEV_KLASSES_HEAT.values() for c in k))
-    + (Code._0B04, Code._2389)
+    tuple({c for k in _DEV_KLASSES_HEAT.values() for c in k}) + (Code._0B04, Code._2389)
 )
 CODES_OF_HVAC_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
-    tuple(set(c for k in _DEV_KLASSES_HVAC.values() for c in k))
+    tuple({c for k in _DEV_KLASSES_HVAC.values() for c in k})
     + (Code._22F8, Code._4401, Code._4E01, Code._4E02, Code._4E04)
 )
 CODES_OF_HEAT_DOMAIN_ONLY: tuple[Code, ...] = tuple(

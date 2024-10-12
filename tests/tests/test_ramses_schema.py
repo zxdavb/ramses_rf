@@ -67,7 +67,7 @@ def test_codes_idx_mutex() -> None:
 
 
 def test_codes_idx_complex_mutex() -> None:
-    """The three CODE_IDX_* constants should be mutally exclusive."""
+    """The three CODE_IDX_* constants should be mutually exclusive."""
 
     assert_codes_idx_mutex(
         CODE_IDX_ARE_COMPLEX, CODE_IDX_ARE_NONE | CODE_IDX_ARE_SIMPLE
@@ -75,7 +75,7 @@ def test_codes_idx_complex_mutex() -> None:
 
 
 def test_codes_idx_none_mutex() -> None:
-    """The three CODE_IDX_* constants should be mutally exclusive."""
+    """The three CODE_IDX_* constants should be mutually exclusive."""
 
     assert_codes_idx_mutex(
         CODE_IDX_ARE_NONE, CODE_IDX_ARE_SIMPLE | CODE_IDX_ARE_COMPLEX
@@ -83,7 +83,7 @@ def test_codes_idx_none_mutex() -> None:
 
 
 def test_codes_idx_simple_mutex() -> None:
-    """The three CODE_IDX_* constants should be mutally exclusive."""
+    """The three CODE_IDX_* constants should be mutually exclusive."""
 
     assert_codes_idx_mutex(
         CODE_IDX_ARE_SIMPLE, CODE_IDX_ARE_NONE | CODE_IDX_ARE_COMPLEX

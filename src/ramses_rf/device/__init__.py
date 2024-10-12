@@ -107,7 +107,7 @@ def best_dev_role(
     Heat (CH/DHW) devices can reliably be determined by their address type (e.g. '04:').
     Any device without a known Heat type is considered a HVAC device.
 
-    HVAC devices must be explicity typed, or fingerprinted/eavesdropped.
+    HVAC devices must be explicitly typed, or fingerprinted/eavesdropped.
     The generic HVAC class can be promoted later on, when more information is available.
     """
 
@@ -119,7 +119,7 @@ def best_dev_role(
     except KeyError:
         slug = schema.get(SZ_CLASS)
 
-    # a specified device class always takes precidence (even if it is wrong)...
+    # a specified device class always takes precedence (even if it is wrong)...
     if slug in _CLASS_BY_SLUG:
         cls = _CLASS_BY_SLUG[slug]
         _LOGGER.debug(

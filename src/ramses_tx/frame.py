@@ -177,7 +177,7 @@ class Frame:
         2309/30C9/000A packets).
         """
 
-        if self._has_array_ is not None:  # HACK: overriden by detect_array(msg, prev)
+        if self._has_array_ is not None:  # HACK: overridden by detect_array(msg, prev)
             return self._has_array_
 
         # False -ves (array length is 1) are an acceptable compromise to extensive checking
@@ -528,7 +528,7 @@ def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | HeaderT:
 
     if pkt.code == Code._1FC9:
         # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
-        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
+        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # won't know src until it arrives
         # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
         if not rx_header:
             device_id = ALL_DEV_ADDR.id if pkt.src == pkt.dst else pkt.dst.id

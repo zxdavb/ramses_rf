@@ -171,7 +171,7 @@ def _normalise_mode(
 
     if mode is None and target is None:
         raise exc.CommandInvalid(
-            "Invalid args: One of mode or setpoint/active cant be None"
+            "Invalid args: One of mode or setpoint/active can't be None"
         )
     if until and duration:
         raise exc.CommandInvalid(
@@ -194,7 +194,7 @@ def _normalise_mode(
 
     if mode != ZON_MODE_MAP.FOLLOW and target is None:
         raise exc.CommandInvalid(
-            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
+            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active can't be None"
         )
 
     return mode
@@ -226,7 +226,7 @@ def _normalise_until(
     elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
             raise exc.CommandInvalid(
-                f"Invalid args: For mode={mode}, duration cant be None"
+                f"Invalid args: For mode={mode}, duration can't be None"
             )
         if until is not None:
             raise exc.CommandInvalid(
@@ -687,9 +687,6 @@ class Command(Frame):
 
         zon_idx = _check_idx(zone_idx)
 
-        kwargs.get("unknown_20", None)  # HVAC
-        kwargs.get("unknown_21", None)  # HVAC
-
         if not (0 <= max_flow_setpoint <= 99):
             raise exc.CommandInvalid(
                 f"Out of range, max_flow_setpoint: {max_flow_setpoint}"
@@ -1084,7 +1081,7 @@ class Command(Frame):
 
         if src_id and seqn:
             raise exc.CommandInvalid(
-                "seqn and src_id are mutally exclusive (you can have neither)"
+                "seqn and src_id are mutually exclusive (you can have neither)"
             )
 
         if seqn:
@@ -1215,7 +1212,7 @@ class Command(Frame):
 
         src_id = src_id or fan_id  # TODO: src_id should be an arg?
 
-        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
+        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exclude unknowns?
             raise exc.CommandInvalid(f"Unknown parameter: {param_id}")
 
         payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work

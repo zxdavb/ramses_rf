@@ -1476,10 +1476,10 @@ def parser_2249(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 def parser_22b0(payload: str, msg: Message) -> dict[str, Any]:
     # Seen on Orcon: see 1470, 1F70, 22B0
 
-    # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable, calender on
+    # .W --- 37:171871 32:155617 --:------ 22B0 002 0005  # enable, calendar on
     # .I --- 32:155617 37:171871 --:------ 22B0 002 0005
 
-    # .W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable, calender off
+    # .W --- 37:171871 32:155617 --:------ 22B0 002 0006  # disable, calendar off
     # .I --- 32:155617 37:171871 --:------ 22B0 002 0006
 
     return {
@@ -2984,7 +2984,7 @@ def parser_4e15(payload: str, msg: Message) -> dict[str, Any]:
     ), _INFORM_DEV_MSG  # check for unknown bit flags
     if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
         raise TypeError  # TODO: Use local exception & ?Move to higher layer
-    assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # cant heat and DHW
+    assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # can't heat and DHW
 
     return {
         "_flags": hex_to_flag8(payload[2:]),

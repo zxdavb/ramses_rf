@@ -200,7 +200,7 @@ def extract_serial_port(ser_port_dict: dict[str, Any]) -> tuple[str, PortConfigT
 
 
 #
-# 4/5: Traits (of devices) configuraion (basic)
+# 4/5: Traits (of devices) configuration (basic)
 
 _T = TypeVar("_T")
 
@@ -358,7 +358,7 @@ def select_device_filter_mode(
     if enforce_known_list and not known_list:
         _LOGGER.warning(
             f"Best practice is to enforce a {SZ_KNOWN_LIST} (an allow list), "
-            f"but it is empty, so it cant be used "
+            f"but it is empty, so it can't be used "
         )
         enforce_known_list = False
 

@@ -302,7 +302,7 @@ class Gateway(Engine):
         # We do not always enforce the known_list whilst restoring a cache because
         # if it does not contain a correctly configured HGI, a 'working' address is
         # used (which could be different to the address in the cache) & wanted packets
-        # can be dropped unneccesarily.
+        # can be dropped unnecessarily.
 
         enforce_include_list = bool(
             self._enforce_known_list
@@ -507,7 +507,7 @@ class Gateway(Engine):
         that was loaded during initialisation.
 
         Orphans are devices that 'exist' but don't yet have a place in the schema
-        hierachy (if ever): therefore, they are instantiated when the schema is loaded,
+        hierarchy (if ever): therefore, they are instantiated when the schema is loaded,
         just like the other devices in the schema.
         """
 

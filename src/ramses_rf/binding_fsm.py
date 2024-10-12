@@ -58,7 +58,7 @@ CONFIRM_RETRY_LIMIT: Final[int] = (
     3  # automatically Bound, from Confirming > this # of sends
 )
 SENDING_RETRY_LIMIT: Final[int] = (
-    3  # fail Offering/Accepting if no reponse > this # of sends
+    3  # fail Offering/Accepting if no response > this # of sends
 )
 
 CONFIRM_TIMEOUT_SECS: Final[float] = (
@@ -101,7 +101,7 @@ SZ_CLASS: Final = "class"
 SZ_VENDOR: Final = "vendor"
 SZ_TENDER: Final = "tender"
 SZ_AFFIRM: Final = "affirm"
-SZ_RATIFY: Final = "thumbrint"  # TODO fix spelling "thumbprint" ?
+SZ_RATIFY: Final = "ratify"
 
 # VOL_SUPPLICANT_ID = vol.Match(re.compile(r"^03:[0-9]{6}$"))
 VOL_CODE_REGEX = vol.Match(re.compile(r"^[0-9A-F]{4}$"))
@@ -246,7 +246,7 @@ class BindContextRespondent(BindContextBase):
         """Device starts binding as a Respondent, by listening for an Offer.
 
         Returns the Supplicant's Offer or raise an exception if the binding is
-        unsuccesful (BindError).
+        unsuccessful (BindError).
         """
 
         if self.is_binding:
