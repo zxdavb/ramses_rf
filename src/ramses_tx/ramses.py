@@ -1119,11 +1119,10 @@ CODES_BY_DEV_SLUG: dict[str, dict[Code, dict[VerbT, Any]]] = {
 }
 
 CODES_OF_HEAT_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
-    tuple(set(c for k in _DEV_KLASSES_HEAT.values() for c in k))
-    + (Code._0B04, Code._2389)
+    tuple({c for k in _DEV_KLASSES_HEAT.values() for c in k}) + (Code._0B04, Code._2389)
 )
 CODES_OF_HVAC_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
-    tuple(set(c for k in _DEV_KLASSES_HVAC.values() for c in k))
+    tuple({c for k in _DEV_KLASSES_HVAC.values() for c in k})
     + (Code._22F8, Code._4401, Code._4E01, Code._4E02, Code._4E04)
 )
 CODES_OF_HEAT_DOMAIN_ONLY: tuple[Code, ...] = tuple(
