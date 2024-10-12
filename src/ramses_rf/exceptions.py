@@ -21,7 +21,7 @@ class _RamsesUpperError(RamsesException):
 
 
 class BindingError(_RamsesUpperError):
-    """An error occured when binding."""
+    """An error occurred when binding."""
 
 
 class BindingFsmError(BindingError):
@@ -37,7 +37,7 @@ class BindingFlowFailed(BindingError):
 
 
 class ScheduleError(_RamsesUpperError):
-    """An error occured when getting/setting a schedule."""
+    """An error occurred when getting/setting a schedule."""
 
 
 class ScheduleFsmError(ScheduleError):

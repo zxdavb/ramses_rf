@@ -1254,7 +1254,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Fakeable):  # THM (..):
 class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     """The BDR class, such as a BDR91.
 
-    BDR91s can be used in six disctinct modes, including:
+    BDR91s can be used in six distinct modes, including:
     - x2 boiler controller (FC/TPI): either traditional, or newer heat pump-aware
     - x1 electric heat zones (0x/ELE)
     - x1 zone valve zones (0x/VAL)

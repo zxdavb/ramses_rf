@@ -1084,7 +1084,7 @@ class Command(Frame):
 
         if src_id and seqn:
             raise exc.CommandInvalid(
-                "seqn and src_id are mutally exclusive (you can have neither)"
+                "seqn and src_id are mutually exclusive (you can have neither)"
             )
 
         if seqn:
@@ -1215,7 +1215,7 @@ class Command(Frame):
 
         src_id = src_id or fan_id  # TODO: src_id should be an arg?
 
-        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
+        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exclude unknowns?
             raise exc.CommandInvalid(f"Unknown parameter: {param_id}")
 
         payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work

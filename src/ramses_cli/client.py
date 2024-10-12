@@ -190,7 +190,7 @@ def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs: Any) -> 
     if config_file:  # TODO: validate with voluptuous, use YAML
         lib_kwargs = deep_merge(
             lib_kwargs, json.load(config_file)
-        )  # CLI takes precidence
+        )  # CLI takes precedence
 
     ctx.obj = kwargs, lib_kwargs
 

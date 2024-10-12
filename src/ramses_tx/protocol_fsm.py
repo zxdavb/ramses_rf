@@ -75,7 +75,7 @@ class ProtocolContext:
         self._multiplier = 0
         self._state: _ProtocolStateT = None  # type: ignore[assignment]
 
-        # TODO: pass this over as an instance paramater
+        # TODO: pass this over as an instance parameter
         self._send_fnc: Callable[[Command], Coroutine[Any, Any, None]] = None  # type: ignore[assignment]
 
         self._cmd: Command | None = None

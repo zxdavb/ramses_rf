@@ -636,7 +636,7 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
         self._transmit_times: deque[dt] = deque(maxlen=_MAX_TRACKED_TRANSMITS)
 
     def _dt_now(self) -> dt:
-        """Return a precise datetime, using the curent dtm."""
+        """Return a precise datetime, using the current dtm."""
         # _LOGGER.error("Full._dt_now()")
 
         return dt_now()
@@ -1284,7 +1284,7 @@ async def transport_factory(
             f"{'Windows' if os.name == 'nt' else 'This type of serial interface'} "
             "is not fully supported by this library: "
             "please don't report any Transport/Protocol errors/warnings, "
-            "unless they are reproducable with a standard configuration "
+            "unless they are reproducible with a standard configuration "
             "(e.g. linux with a local serial port)"
         )
 

@@ -200,7 +200,7 @@ def extract_serial_port(ser_port_dict: dict[str, Any]) -> tuple[str, PortConfigT
 
 
 #
-# 4/5: Traits (of devices) configuraion (basic)
+# 4/5: Traits (of devices) configuration (basic)
 
 _T = TypeVar("_T")
 

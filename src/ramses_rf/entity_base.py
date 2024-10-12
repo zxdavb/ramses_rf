@@ -225,7 +225,7 @@ class _MessageDB(_Entity):
 
         The idx is one of:
          - a simple index (e.g. zone_idx, domain_id, aka child_id)
-         - a compund ctx (e.g. 0005/000C/0418)
+         - a compound ctx (e.g. 0005/000C/0418)
          - True (an array of elements, each with its own idx),
          - False (no idx, is usu. 00),
          - None (not deteminable, rare)
@@ -600,7 +600,7 @@ class _Discovery(_MessageDB):
         async def send_disc_cmd(
             hdr: HeaderT, task: dict, timeout: float = 15
         ) -> Packet | None:  # TODO: use constant instead of 15
-            """Send a scheduled command and wait for/return the reponse."""
+            """Send a scheduled command and wait for/return the response."""
 
             try:
                 pkt: Packet | None = await asyncio.wait_for(

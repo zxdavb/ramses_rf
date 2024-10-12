@@ -177,7 +177,7 @@ class TimedRotatingFileHandler(_TimedRotatingFileHandler):
     def getFilesToDelete(self) -> list[str]:  # zxdavb: my version
         """Determine the files to delete when rolling over.
 
-        Overriden as old log files not being deleted.
+        Overridden as old log files not being deleted.
         """
         # See bpo-44753 (this code is as was before that commit), bpo45628, bpo-46063
         dirName, baseName = os.path.split(self.baseFilename)

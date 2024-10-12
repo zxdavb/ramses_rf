@@ -13,7 +13,7 @@ from .helpers import assert_raises
 
 
 def test_merge_dicts() -> None:
-    """Deep merge a src dict (precident) into a dst dict and return the result."""
+    """Deep merge a src dict (precedent) into a dst dict and return the result."""
 
     src: dict[str, Any]
     dst: dict[str, Any]

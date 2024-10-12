@@ -429,7 +429,7 @@ class MockDeviceCtl(MockDeviceBase):
     """A pseudo-mocked controller used for testing.
 
     Will periodically Rx a sync_cycle set that will be available via `read()`.
-    Will use a reponse table to provide a known Rx for a given Tx sent via `write()`.
+    Will use a response table to provide a known Rx for a given Tx sent via `write()`.
     """
 
     _1F09_DURATION = _1F09_CYCLE_DURATION  # varies between controllers
