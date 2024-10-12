@@ -229,7 +229,7 @@ SCH_VCS = vol.All(SCH_VCS_KEYS, SCH_VCS_DATA)
 #
 # 3/5: Global Schema for Heat/HVAC systems
 SCH_GLOBAL_SCHEMAS_DICT = {  # System schemas - can be 0-many Heat/HVAC schemas
-    # orphans are devices to create that wont be in a (cached) schema...
+    # orphans are devices to create that won't be in a (cached) schema...
     vol.Optional(SZ_MAIN_TCS): vol.Any(None, SCH_DEVICE_ID_CTL),
     vol.Optional(vol.Remove("main_controller")): vol.Any(None, SCH_DEVICE_ID_CTL),
     vol.Optional(SCH_DEVICE_ID_CTL): vol.Any(SCH_TCS, SCH_VCS),

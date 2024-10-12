@@ -229,7 +229,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def _hack_pkt_idx(self, pkt: Packet, cmd: Command) -> Message:
         """Modify the Packet so that it has the log index of its corresponding Command.
 
-        If there is no log entry for log_idx=<idx>, then the headers wont match:
+        If there is no log entry for log_idx=<idx>, then the headers won't match:
         - cmd rx_hdr is 0418|RP|<ctl_id>|<idx> (expected)
         - pkt hdr will  0418|RP|<ctl_id>|00    (response from controller)
 

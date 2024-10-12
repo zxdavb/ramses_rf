@@ -200,7 +200,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
 
         # TODO: any use in creating a device only if the payload is valid?
         if gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
-            logger_xxxx(msg)  # return ensures try's else: clause wont be invoked
+            logger_xxxx(msg)  # return ensures try's else: clause won't be invoked
             return
 
         try:
@@ -222,7 +222,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             _check_dst_slug(msg)  # ? raise exc.PacketInvalid
 
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
-            logger_xxxx(msg)  # return ensures try's else: clause wont be invoked
+            logger_xxxx(msg)  # return ensures try's else: clause won't be invoked
             return
 
         # NOTE: here, msgs are routed only to devices: routing to other entities (i.e.
