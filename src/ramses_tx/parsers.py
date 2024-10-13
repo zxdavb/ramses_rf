@@ -1531,26 +1531,6 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 # fan_speed (switch_mode), HVAC
 def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
-    # Orcon wireless remote 15RF
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000007  # Absent mode  // Afwezig (absence mode, aka: weg/away) - low & doesn't respond to sensors
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000107  # Mode 1: Low  // Stand 1 (position low)
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000207  # Mode 2: Med  // Stand 2 (position med)
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000307  # Mode 3: High // Stand 3 (position high)
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000407  # Auto
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000507  # Auto
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000607  # Party/boost
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000707  # Off
-
-    # .I 015 --:------ --:------ 39:159057 22F1 003 000004  # TBA: off/standby?
-    # .I 015 --:------ --:------ 39:159057 22F1 003 000104  # TBA: trickle/min-speed?
-    # .I 015 --:------ --:------ 39:159057 22F1 003 000204  # low
-    # .I 016 --:------ --:------ 39:159057 22F1 003 000304  # medium
-    # .I 017 --:------ --:------ 39:159057 22F1 003 000404  # high (aka boost if timer)
-
-    # Scheme x: 0|x standby/off, 1|x min, 2+|x rate as % of max (Itho?)
-    # Scheme 4: 0|4 standby/off, 1|4 auto, 2|4 low, 3|4 med, 4|4 high/boost
-    # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
-    # Scheme A: only seen 000[239A]0A -- Normal, Boost (purge), HeaterOff & HeaterAuto
 
     try:
         assert payload[0:2] in ("00", "63")
