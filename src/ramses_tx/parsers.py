@@ -750,7 +750,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
         return null_result
 
     # NOTE: such payloads have idx=="00": if verb is I, can safely assume log_idx is 0,
-    # but for RP it is sentinel for null (we can't know the correspondings RQ's log_idx)
+    # but for RP it is sentinel for null (we can't know the corresponding RQ's log_idx)
     elif hex_to_dts(payload[18:30]) is None:
         null_result = {SZ_LOG_ENTRY: None}
         if msg.verb == I_:
