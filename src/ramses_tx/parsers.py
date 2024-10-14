@@ -1531,7 +1531,6 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 # fan_speed (switch_mode), HVAC
 def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
-
     try:
         assert payload[0:2] in ("00", "63")
         assert not payload[4:] or int(payload[2:4], 16) <= int(
