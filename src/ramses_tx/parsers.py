@@ -278,7 +278,7 @@ def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     if msg.src.type == "37":  # FAN/HRU ClimaRad VenturaV1x
         assert payload[4:8] == "0005"
         return {
-            "unknown_2": f"0x{payload[2:4]}" # TODO collect more data, create some hex_to_flag8 parser
+            "unknown_2": f"0x{payload[2:4]}"  # TODO collect more data, create some hex_to_flag8 parser
         }
 
     # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
@@ -1004,7 +1004,7 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     if msg.verb == W_:
         result = {"reset_counter": payload[2:4] == "FF"}
     else:
-        if msg.len == 6 and payload[2:4] == payload[4:6]:   # ClimaRad VenturaV1x
+        if msg.len == 6 and payload[2:4] == payload[4:6]:  # ClimaRad VenturaV1x
             assert payload[2:4] == "FFFF", _INFORM_DEV_MSG  # stricter filtering?
             result = {"days_remaining": int(payload[6:8], 16)}
         else:
@@ -1165,21 +1165,24 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
         # . I +  12A0 021 00 29 081D 7FFF 0001EF7FFF7FFF000241 0505 0294 00
         # . I +  12A0 021 00 3B 064B 7FFF 0001EF7FFF7FFF00023F 0657 03A6 00
         # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
-        assert payload[8:12] == "7FFF", _INFORM_DEV_MSG  # V1x: 'dewpoint_temp' sent in 31DA
-        assert payload[12:14] == "00", _INFORM_DEV_MSG   # _parse_fan_heater ? or flags ?
-        assert payload[14:16] == "01", _INFORM_DEV_MSG   # parse_fan_info ?
-        assert payload[16:18] == "EF", _INFORM_DEV_MSG   # parse_bypass_position ?
+        assert (
+            payload[8:12] == "7FFF"
+        ), _INFORM_DEV_MSG  # V1x: 'dewpoint_temp' sent in 31DA
+        assert payload[12:14] == "00", _INFORM_DEV_MSG  # _parse_fan_heater ? or flags ?
+        assert payload[14:16] == "01", _INFORM_DEV_MSG  # parse_fan_info ?
+        assert payload[16:18] == "EF", _INFORM_DEV_MSG  # parse_bypass_position ?
         assert payload[18:22] == "7FFF", _INFORM_DEV_MSG
         assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
         assert payload[26:28] == "00", _INFORM_DEV_MSG
         assert payload[40:42] == "00", _INFORM_DEV_MSG
-        result = {**parse_indoor_humidity(payload[2:12]),  # type: ignore[typeddict-item]
-                  "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],
-                  # only 0x01 (decimal/Celsius?) seen on Ventura
-                  **parse_co2_level(payload[28:32]),
-                  **parse_supply_temp(payload[32:36]),  # to home
-                  SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
-                  }
+        result = {
+            **parse_indoor_humidity(payload[2:12]),  # type: ignore[typeddict-item]
+            "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],
+            # only 0x01 (decimal/Celsius?) seen on Ventura
+            **parse_co2_level(payload[28:32]),
+            **parse_supply_temp(payload[32:36]),  # to home
+            SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
+        }
         # TODO confirm complete message
         return result
     else:
@@ -1434,14 +1437,16 @@ def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
     assert payload in (
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000800"),
         "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000020800"),
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x
+        "00FF"
+        + "00FFFFFF0000000000FFFFFFFFFF" * 2
+        + ("FFFFFF000000000000000140"),  # ClimaRad VenturaV1x
     ), _INFORM_DEV_MSG
 
     return {
-            "unknown_78": payload[78:80],
-            "unknown_80": payload[80:82],
-            "unknown_84": payload[84:],
-            }
+        "unknown_78": payload[78:80],
+        "unknown_80": payload[80:82],
+        "unknown_84": payload[84:],
+    }
 
 
 # now_next_setpoint - Programmer/Hometronics
@@ -1586,27 +1591,6 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 # fan_speed (switch_mode), HVAC
 def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
-    # Orcon wireless remote 15RF
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000007  # Absent mode  // Afwezig (absence mode, aka: weg/away) - low & doesn't respond to sensors
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000107  # Mode 1: Low  // Stand 1 (position low)
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000207  # Mode 2: Med  // Stand 2 (position med)
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000307  # Mode 3: High // Stand 3 (position high)
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000407  # Auto
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000507  # Auto
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000607  # Party/boost
-    # .I --- 37:171871 32:155617 --:------ 22F1 003 000707  # Off
-
-    # .I 015 --:------ --:------ 39:159057 22F1 003 000004  # TBA: off/standby?
-    # .I 015 --:------ --:------ 39:159057 22F1 003 000104  # TBA: trickle/min-speed?
-    # .I 015 --:------ --:------ 39:159057 22F1 003 000204  # low
-    # .I 016 --:------ --:------ 39:159057 22F1 003 000304  # medium
-    # .I 017 --:------ --:------ 39:159057 22F1 003 000404  # high (aka boost if timer)
-
-    # Scheme x: 0|x standby/off, 1|x min, 2+|x rate as % of max (Itho?)
-    # Scheme 4: 0|4 standby/off, 1|4 auto, 2|4 low, 3|4 med, 4|4 high/boost
-    # Scheme 7: only seen 000[2345]07 -- ? off, auto, rate x/4, +3 others?
-    # Scheme A: only seen 000[239A]0A -- Normal, Boost (purge), HeaterOff & HeaterAuto
-
     # Schema B: Vasco and ClimaRad fan remotes send fixed command 06, not 04, like
     # .I --- 37:117647 32:022222 --:------ 22F1 003 000506 for high
     # ClimaRad VenturaV1x does not send 22F1 for speed, uses 22F4
@@ -1642,7 +1626,11 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
     elif payload[4:6] == "06":
         from .ramses import _22F1_MODE_VASCO as _22F1_FAN_MODE
 
-        _22f1_mode_set = ("", "00", "06")  # "00" seen incidentally on a ClimaRad 4-button remote
+        _22f1_mode_set = (
+            "",
+            "00",
+            "06",
+        )  # "00" seen incidentally on a ClimaRad 4-button remote
         _22f1_scheme = "vasco"
 
     else:
@@ -1737,9 +1725,8 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
             "_fallback_speed_mode": fallback_speed,
         }
 
-    if msg.len >= 5 and payload[6:10] != "0000":  # new speed? also for Vasco
-        rt = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
-        result.update({"rate": rt})
+    if msg.len >= 5 and payload[6:10] != "0000":  # new speed?
+        result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
 
     if msg.len >= 7:  # fallback speed?
         result.update({"_unknown_5": payload[10:]})
@@ -1765,6 +1752,7 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 0000 0000 60CB 000000-000000 (speed 3)
         # .I --- 37:153226 --:------ 37:153226 22F4 013 00 2000 0000 2000 000000-000000 (pauze ||)
         from .ramses import _22F1_MODE_CLIMARAD as _22F4_FAN_MODE
+
         _22f4_scheme = "climarad"
         rate = "0"
         mode = "N/A"
@@ -1772,7 +1760,7 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
             assert payload[4:6] == "30", f"unknown auto mode: 0x40{payload[4:6]}"
             mode = _22F4_FAN_MODE.get("40")
             rate = "0"
-        elif payload[2:4] == "20": # paused mode
+        elif payload[2:4] == "20":  # paused mode
             assert payload[4:6] == "00", f"unknown paused mode: 0x20{payload[4:6]}"
             mode = _22F4_FAN_MODE.get("20")
             rate = "0"
@@ -1780,19 +1768,21 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
         if payload[10:12] in _22f4_mode_set:  # manual mode, with speed rate
             mode = _22F4_FAN_MODE.get("60")
             try:
-                assert payload[12:14] in _22F4_FAN_MODE, f"unknown fan_mode: {payload[12:14]}"
+                assert (
+                    payload[12:14] in _22F4_FAN_MODE
+                ), f"unknown fan_mode: {payload[12:14]}"
             except AssertionError as err:
-                _LOGGER.warning(f"unknown ClimaRad speed rate {msg!r} < {_INFORM_DEV_MSG} ({err})")
+                _LOGGER.warning(
+                    f"unknown ClimaRad speed rate {msg!r} < {_INFORM_DEV_MSG} ({err})"
+                )
 
             rate = _22F4_FAN_MODE.get(payload[12:14], f"unknown_{payload[12:14]}")
 
-        result = {
-            SZ_FAN_MODE: mode,
-            SZ_FAN_RATE: rate,
-            "_scheme": _22f4_scheme
-        }
+        result = {SZ_FAN_MODE: mode, SZ_FAN_RATE: rate, "_scheme": _22f4_scheme}
     else:
-        assert (payload[6:] == "00000000000000200000" or payload[14:] == "000000000000")  # TODO add an error message
+        assert (
+            payload[6:] == "00000000000000200000" or payload[14:] == "000000000000"
+        )  # TODO add an error message
         result = {
             "value_02": payload[2:4],
             "value_04": payload[4:6],
@@ -2083,7 +2073,9 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
 
 # presence_detect, HVAC sensor, or Timed boost for Vasco D60
 def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
-    if payload == "00021E04060000":  # Vasco remote timed boost on, button bottom right pressed
+    if (
+        payload == "00021E04060000"
+    ):  # Vasco remote timed boost on, button bottom right pressed
         return {
             "mode": "boost",
             "duration": (payload[5:6]),
@@ -2099,10 +2091,10 @@ def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
     else:
         assert payload in ("0001", "000100"), _INFORM_DEV_MSG
 
-        return {
-            "presence_detected": bool(payload[2:4]),
-            "_unknown_4": payload[4:],
-        }
+    return {
+        "presence_detected": bool(payload[2:4]),
+        "_unknown_4": payload[4:],
+    }
 
 
 # current temperature (of device, zone/s)
@@ -2270,7 +2262,7 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 
     if msg.len == 6:  # ClimaRad MiniBox
         if payload[4:6] == "C8":
-            return {"fan mode" : "boost"}  # TODO use dict like Vasco?
+            return {"fan mode": "boost"}  # TODO use dict like Vasco?
         elif payload[4:6] == "01":
             return {"fan mode": "auto"}
         elif payload[4:6] == "FF":
@@ -2335,7 +2327,7 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         assert payload[38:40] == payload[40:42], f"Ventura 31DA twin {payload[40:42]}"
         assert payload[42:60] == "000000008500850000"
         return {  # type: ignore[typeddict-unknown-key]
-            "zone": f"0x{payload[0:2]}",    # zone
+            "zone": f"0x{payload[0:2]}",  # zone
             SZ_DEWPOINT_TEMP: hex_to_temp(payload[6:10]),  # confirmed
             "_unknown_10": f"0x{payload[10:12]}",  # 0x00|08|3E|52|7F|9A|AF|D3 = ?
             **parse_indoor_temp(payload[22:26]),
