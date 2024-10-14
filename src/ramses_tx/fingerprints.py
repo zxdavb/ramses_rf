@@ -43,10 +43,10 @@ __DEVICE_INFO_RAW: dict[str, tuple[str, str, str, str]] = {
     "0001001B371B01FEFF": ("FAN", "37", "2019-08-29", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B381B01FEFF": ("FAN", "37", "2020-02-14", "CVE-RF"),  # .                       31D9, 31DA (and I|042F, I|3120)
     "0001001B391B01FEFF": ("FAN", "37", "2021-11-04", "CVE-RF"),
-    "0001C8830C0A65FEFF": ("FAN", "37", "2020-12-17'", "VMD-07RPS13"), # .                   ClimaRad Ventura
-    "0001C81C090466FEFF": ("FAN", "29", "0000-00-00", "VMC-17RP01"),  # .                   appears to be an EXT
+    "0001C8830C0A65FEFF": ("FAN", "37", "2020-12-17", "VMD-07RPS13"), # .                  ClimaRad VenturaV1x
+    "0001C81C090466FEFF": ("FAN", "29", "0000-00-00", "VMC-17RP01"),   # .                  appears to be an EXT
     "0001C8260A0367FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),
-    "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),  # .                   31D9
+    "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),   # .                  31D9
     "0001C83A0F0866FFFF": ("FAN", "32", "0000-00-00", "VMD-17RPS01"),  # .                  31D9, 31DA
     "0001C85F0E0267FFFF": ("FAN", "32", "0000-00-00", "VMC-15RPS34"),  # .                  Orcon MVS-15
     "0001C87D130D67FEFF": ("FAN", "32", "2019-02-28", "VMD-15RMS64"),  # .                  Orcon HRC-300-EcoMax

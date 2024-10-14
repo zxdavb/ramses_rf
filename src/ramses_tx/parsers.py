@@ -139,7 +139,7 @@ from .version import VERSION
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 # - tomkooij: 3110
 # - RemyDeRuysscher: 10E0, 31DA (and related), others
-# - silverailscolo:  12A0, 31DA
+# - silverailscolo:  12A0, 31DA, others
 
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -751,7 +751,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
         return null_result
 
     # NOTE: such payloads have idx=="00": if verb is I, can safely assume log_idx is 0,
-    # but for RP it is sentinel for null (we can't know the corresponding RQ's log_idx)
+    # but for RP it is sentinel for null (we can't know the correspondings RQ's log_idx)
     elif hex_to_dts(payload[18:30]) is None:
         null_result = {SZ_LOG_ENTRY: None}
         if msg.verb == I_:
@@ -1654,7 +1654,6 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     }.get(int(payload[2:4], 0x10) & 0xC0)  # 0b1100-0000
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
-    result = {}
 
     if msg.len >= 3:
         result = {
