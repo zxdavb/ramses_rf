@@ -2445,10 +2445,7 @@ def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # supplied boiler water (flow) temp
 def parser_3200(payload: str, msg: Message) -> PayDictT._3200:
-    if payload[2:] == "7FFF":  # Not implemented
-        return {SZ_TEMPERATURE: None}
-    else:
-        return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
+    return {SZ_TEMPERATURE: hex_to_temp(payload[2:])}
 
 
 # return (boiler) water temp
