@@ -810,7 +810,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
     return full_result
 
 
-# unknown_042f, from STA, VMS
+# unknown_042f, from STA, VMS remotes coupling
 def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
     # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
