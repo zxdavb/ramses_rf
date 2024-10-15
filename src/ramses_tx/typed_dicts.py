@@ -306,6 +306,10 @@ class IndoorHumidity(TypedDict):
     indoor_humidity: _HexToTempT
     temperature: NotRequired[float | None]
     dewpoint_temp: NotRequired[float | None]
+    units: NotRequired[str | None]
+    co2_level: NotRequired[float | None]
+    supply_temp: NotRequired[float | None]
+    outdoor_temperature: NotRequired[float | None]
 
 
 class OutdoorHumidity(TypedDict):

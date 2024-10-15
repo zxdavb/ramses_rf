@@ -1698,9 +1698,8 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
     if msg.len == 7 and payload[9:10] == "06":  # Vasco and ClimaRad REM
-        fallback_speed = {  # after timer expiry
-            0x18: "per_vent_speed"  # set fan as per current fan mode/speed
-        }  # 0b0001-1000
+        fallback_speed = "per_vent_speed"  # after timer expiry
+        # set fan as per current fan mode/speed
     else:
         fallback_speed = {  # after timer expiry
             0x08: "fan_off",  # #      set fan off?
