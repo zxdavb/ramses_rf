@@ -191,7 +191,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         if msg.verb == RP and msg.payload[SZ_LOG_ENTRY] is None:
             # such payloads have idx == "00" (is sentinel for null), so can't know the
-            # correspondings RQ's log_idx, but if verb == I_, safely assume log_idx is 0
+            # corresponding RQ's log_idx, but if verb == I_, safely assume log_idx is 0
             return
 
         self._process_msg(msg)
