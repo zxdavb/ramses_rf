@@ -990,9 +990,19 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
 
     if msg.len >= 3:
         result.update({"days_lifetime": int(payload[4:6], 16)})
+
     if msg.len >= 4:
         result.update({"percent_remaining": hex_to_percent(payload[6:8])})
-
+        if (
+            payload[2:4] == payload[4:6]
+        ):  # seen on ClimaRad VenturaV1x 2021, calculate days_remaining
+            result.update(
+                {
+                    "days_remaining": int(
+                        int(payload[2:4], 16) * (hex_to_percent(payload[6:8]) or 0)
+                    )
+                }
+            )
     return result
 
 
