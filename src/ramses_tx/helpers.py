@@ -314,8 +314,8 @@ def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
     if not isinstance(flags, list) or len(flags) != 8:
         raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
-    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
+        return f"{sum(x << idx for idx, x in enumerate(flags)):02X}"
+    return f"{sum(x << idx for idx, x in enumerate(reversed(flags))):02X}"
 
 
 # TODO: add a wrapper for EF, & 0xF0
