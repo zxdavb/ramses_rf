@@ -1531,9 +1531,7 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 # fan_speed (switch_mode), HVAC
 def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
-    # Schema B: Vasco and ClimaRad fan remotes send fixed command 06, not 04, like
-    # .I --- 37:117647 32:022222 --:------ 22F1 003 000506 for high
-    # ClimaRad VenturaV1x does not send 22F1 for speed, uses 22F4
+    # ClimaRad VenturaV1x HRU does not send 22F1 for speed, uses 22F4
 
     try:
         assert payload[0:2] in ("00", "63")
