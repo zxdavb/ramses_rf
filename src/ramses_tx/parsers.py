@@ -1962,8 +1962,6 @@ def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
             "_unknown_4": payload[7:],
         }
     elif msg.src.type == "37":  # ClimaRad VenturaV1x FAN
-        # .I --- 37:153226 --:------ 37:153226 2E10 003 000000 # just 1 change in 24 h @ 7PM
-        # .I --- 37:153226 --:------ 37:153226 2E10 003 000100 # seen while on Manual 2**
         assert payload in ("000000", "000100"), _INFORM_DEV_MSG
         presence = int(payload[2:4])
     else:
