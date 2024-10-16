@@ -1953,15 +1953,7 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
 # presence_detect, HVAC sensor, or Timed boost for Vasco D60
 def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
     presence: str | int
-    if (
-        payload == "00021E04060000"
-    ):  # Vasco remote timed boost on, button bottom right pressed
-        return {
-            "mode": "boost",
-            "duration": (payload[5:6]),
-            "_unknown_4": payload[7:],
-        }
-    elif msg.src.type == "37":  # ClimaRad VenturaV1x FAN
+    if msg.src.type == "37":  # ClimaRad VenturaV1x FAN
         assert payload in ("000000", "000100"), _INFORM_DEV_MSG
         presence = int(payload[2:4])
     else:
