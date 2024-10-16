@@ -1602,14 +1602,10 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
     # .I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
     # .I 026 --:------ --:------ 39:159057 22F3 003 00001E  # 30 mins
-    # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins (0x3C)
+    # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins
     # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
     # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
 
-    # Vasco REM boost command includes cmd 06:
-    # .I --- 29:123150 29:099029 --:------ 22F3 007 00021E-0406-0000  # 20 mins (0x1E)
-    # ClimaRad 4-button remote
-    # .I --- 29:123150 29:099029 --:------ 22F3 007 00020F-0006-0000  ("unknown fan_mode: 00")
     # NOTE: for boost timer for high
     try:
         # assert payload[2:4] in ("00", "02", "12", "x52"), f"byte 1: {flag8(payload[2:4])}"
@@ -1623,6 +1619,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
         0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
     }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
+    fallback_speed: str | None
     if msg.len == 7 and payload[9:10] == "06":  # Vasco and ClimaRad REM
         fallback_speed = "per_vent_speed"  # after timer expiry
         # set fan as per current fan mode/speed
