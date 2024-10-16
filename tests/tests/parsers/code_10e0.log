@@ -101,6 +101,8 @@
 
 # oem_code '65' - ClimaRad HVAC
 2024-10-09T11:50:24.287879 123  I --- 37:153226 63:262142 --:------ 10E0 038 000001C8830C0A65FEFFFFFFFFFF110C07E4564D442D30375250533133000000000000000000  # {'description': 'VMD-07RPS13',         'manufacturer_sub_id': 'C8', 'product_id': '83', 'date_1': '2020-12-17', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad VenturaV1x
+2024-10-16T18:43:52.761437 087  I --- 29:099029 63:262142 --:------ 10E0 029 000001C81D150765FFFFFFFFFFFFFFFFFFFF564D432D30375250303100                    # {'description': 'VMC-07RP01',          'manufacturer_sub_id': 'C8', 'product_id': '1D', 'date_1': '0000-00-00', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad MiniBox Fan
+2024-10-16T21:32:07.084793 073  I --- 29:123150 63:262142 --:------ 10E0 029 000001C8410D0165FFFFFFFFFFFF0D0407DF564D4E2D30374C4D303100                    # {'description': 'VMN-07LM01',          'manufacturer_sub_id': 'C8', 'product_id': '41', 'date_1': '2015-04-13', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad 4-button remote
 
 # oem_code '66' - Vasco CH/DHW & HVAC
 2023-02-19T11:37:59.549235 072 RP --- 29:079817 30:006056 --:------ 10E0 029 000001C81C090466FEFFFFFFFFFFFFFFFFFF564D432D31375250303100                    # {'description': 'VMC-17RP01',          'manufacturer_sub_id': 'C8', 'product_id': '1C', 'date_2': '0000-00-00', 'date_1': '0000-00-00', 'oem_code': '66'}  # Vasco C400RF extraction unit (EXT, not HRU/PIV)
