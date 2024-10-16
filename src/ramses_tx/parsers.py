@@ -1018,6 +1018,21 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
 
     result["percent_remaining"] = hex_to_percent(payload[6:8])
 
+    result: dict[str, bool | float | None]
+
+    if msg.verb == W_:
+        return {"reset_counter": payload[2:4] != "00"}
+
+    result = {}
+
+    if payload[2:4] not in ("FF", "FE"):
+        result["days_remaining"] = int(payload[2:4], 16)
+
+    if payload[4:6] not in ("FF", "FE"):
+        result["days_lifetime"] = int(payload[4:6], 16)
+
+    result["percent_remaining"] = hex_to_percent(payload[6:8])
+
     return result
 
 
