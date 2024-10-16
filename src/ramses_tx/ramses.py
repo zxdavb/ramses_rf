@@ -418,11 +418,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$",  # VASCO D60 HRU: .I + 22F3 007 00 021E 0406 0000 (a timer)
     },  # minutes only?
-    Code._22F4: {  # unknown_22f4, HVAC
-        # .I + 22F4 013 00 40 30 0000 00 00 000000000000 (ClimaRad Ventura - mode Auto)
-        # .I + 22F4 013 00 00 00 0000 60 C9 000000000000 (ClimaRad Ventura - speed 1)
-        SZ_NAME: "unknown_22f4",  # TODO rename?
-        I_: r"^00[0-9A-F]{4}(0000)[0-9A-F]{4}(00){6}$",
+    Code._22F4: {  # unknown_22f4, HVAC, NB: no I
+        SZ_NAME: "unknown_22f4",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{24}$",
     },
