@@ -984,43 +984,6 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     result: dict[str, bool | float | None]
 
     if msg.verb == W_:
-        result = {"reset_counter": payload[2:4] == "FF"}
-    else:
-        result = {"days_remaining": int(payload[2:4], 16)}
-
-    if msg.len >= 3:
-        result.update({"days_lifetime": int(payload[4:6], 16)})
-
-    if msg.len >= 4:
-        result.update({"percent_remaining": hex_to_percent(payload[6:8])})
-        if (
-            payload[2:4] == payload[4:6]
-        ):  # seen on ClimaRad VenturaV1x 2021, calculate days_remaining
-            result.update(
-                {
-                    "days_remaining": int(
-                        int(payload[2:4], 16) * (hex_to_percent(payload[6:8]) or 0)
-                    )
-                }
-            )
-    result: dict[str, bool | float | None]
-
-    if msg.verb == W_:
-        return {"reset_counter": payload[2:4] != "00"}
-
-    result = {}
-
-    if payload[2:4] not in ("FF", "FE"):
-        result["days_remaining"] = int(payload[2:4], 16)
-
-    if payload[4:6] not in ("FF", "FE"):
-        result["days_lifetime"] = int(payload[4:6], 16)
-
-    result["percent_remaining"] = hex_to_percent(payload[6:8])
-
-    result: dict[str, bool | float | None]
-
-    if msg.verb == W_:
         return {"reset_counter": payload[2:4] != "00"}
 
     result = {}
