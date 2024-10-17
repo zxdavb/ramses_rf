@@ -274,12 +274,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
     },
-    Code._12A0: {  # indoor_humidity
+    Code._12A0: {  # indoor_humidity (optional hvac)
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
         # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
+        # .I --- 37:153226 --:------ 37:153226 12A0 021 003108127FFF00 01EF7FFF7FFF0002 420615 03AC 00 # ClimaRad VenturaV1x
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
+        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?((01EF7FFF7FFF0002)[0-9A-F]{10}(00))?$",
         RP: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
         SZ_LIFESPAN: td(hours=1),
     },

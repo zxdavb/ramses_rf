@@ -7,3 +7,7 @@
 2022-08-17T02:29:36.718767 056  I --- 32:155617 --:------ 32:155617 12A0 007 003C096E7FFF00  # {'indoor_humidity': 0.60, 'temperature': 24.14, 'dewpoint_temp': None}
 
 2019-12-16T05:19:20.630177 072  I --- 32:168090 --:------ 32:168090 12A0 006 003C06DE03E3    # {'indoor_humidity': 0.60, 'temperature': 17.58, 'dewpoint_temp': 9.95}
+
+# ClimaRad VenturaV1x
+2024-10-15T12:33:21.828292 060  I --- 37:153226 --:------ 37:153226 12A0 021 003307DD7FFF0001EF7FFF7FFF00023E056B02A600  # {'indoor_humidity': 0.51, 'temperature': 20.13, 'dewpoint_temp': None, 'units': 'Celsius', 'co2_level': 574, 'supply_temp': 13.87, 'outdoor_temp': 6.78}
+2024-10-15T12:38:22.145126 060  I --- 37:153226 --:------ 37:153226 12A0 021 003207D27FFF0001EF7FFF7FFF00023F057B02D200  # {'indoor_humidity': 0.5, 'temperature': 20.02, 'dewpoint_temp': None, 'units': 'Celsius', 'co2_level': 575, 'supply_temp': 14.03, 'outdoor_temp': 7.22}

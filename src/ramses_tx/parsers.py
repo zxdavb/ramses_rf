@@ -1141,11 +1141,7 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     result: PayDictT._12A0 = {SZ_INDOOR_HUMIDITY: None}
     if len(payload) == 42:
-        # TODO EBR fix typed check error by overriding indoor_humidity in typed_dicts
-        # for ClimaRad VenturaV1x:
-        # . I +  12A0 021 00 29 081D 7FFF 0001EF7FFF7FFF000241 0505 0294 00
-        # . I +  12A0 021 00 3B 064B 7FFF 0001EF7FFF7FFF00023F 0657 03A6 00
-        # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
+        # for ClimaRad VenturaV1x
         assert (
             payload[8:12] == "7FFF"
         ), _INFORM_DEV_MSG  # V1x: 'dewpoint_temp' sent in 31DA
@@ -1164,12 +1160,11 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
             **parse_supply_temp(payload[32:36]),  # type: ignore[typeddict-item]
             SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
         }
-        # TODO confirm complete message
     else:
+        # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
         result = {
             **parse_indoor_humidity(payload[2:]),  # type: ignore[typeddict-item]
         }
-        # .I --- 29:099029 --:------ 29:099029 12A0 002 0042 from a ClimaRad MiniBox FAN (0x42 = 66% = 0.6)
     return result
 
 
