@@ -212,7 +212,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._10D0: {  # filter_change - polling interval should be 1/day
         SZ_NAME: "filter_change",
-        I_: r"^00[0-9A-F]{6}(0000)?$",
+        I_: r"^00[0-9A-F]{6}(0000|FFFF)?$",
         RQ: r"^00(00)?$",
         W_: r"^00FF$",
     },
@@ -1095,6 +1095,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._0001: {RQ: {}},  # from a VMI (only?)
         Code._042F: {I_: {}},  # from a VMI (only?)
         Code._1060: {I_: {}},
+        Code._10D0: {W_: {}},  # reset filter count from REM
         Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
         Code._1470: {RQ: {}},  # from a VMI (only?)
         Code._1FC9: {I_: {}},
