@@ -89,9 +89,11 @@ BINDING_QOS = QosParams(
 
 
 class Vendor(StrEnum):
+    CLIMARAD = "climarad"
     ITHO = "itho"
     NUAIRE = "nuaire"
     ORCON = "orcon"
+    VASCO = "vasco"
     DEFAULT = "default"
 
 
@@ -141,6 +143,8 @@ class BindRole(StrEnum):
 SCHEME_LOOKUP = {
     Vendor.ITHO: {"oem_code": "01"},
     Vendor.NUAIRE: {"oem_code": "6C"},
+    Vendor.CLIMARAD: {"oem_code": "65"},
+    Vendor.VASCO: {"oem_code": "66"},
     Vendor.ORCON: {"oem_code": "67", "offer_to": ALL_DEVICE_ID},
     Vendor.DEFAULT: {"oem_code": None},
 }
