@@ -1,6 +1,5 @@
-
 # Vasco remote (VMN-17LMP01) boost
-2024-10-14T20:51:11.263018 049  I --- 29:091138 32:022222 --:------ 22F3 007 00021E04060000 # {'minutes': 30, 'flags': [0, 0, 0, 0, 0, 0, 1, 0], '_new_speed_mode': 'per_vent_speed', '_fallback_speed_mode': None, 'rate': None, '_unknown_5': '0000'}
+2024-10-14T20:51:11.263018 049  I --- 29:091138 32:022222 --:------ 22F3 007 00021E04060000  # {'minutes': 30, 'flags': [0, 0, 0, 0, 0, 0, 1, 0], '_new_speed_mode': 'per_vent_speed', '_fallback_speed_mode': None, 'rate': None, '_unknown_5': '0000'}
 # repeated 5 times total
 
 # ClimaRad 4-button remote boost, lasts 20 mins
@@ -8,4 +7,4 @@
 # repeated 2 times total but that could be caused by reception/confirm problem. LED is slow to confirm
 
 # curious 22f3 packet: invalid button combi pressed?
-# .I --- 29:123150 29:099029 --:------ 22F3 007 00020F00060000  # {} # ("unknown fan_mode: 00")
+# .I --- 29:123150 29:099029 --:------ 22F3 007 00020F00060000                               # {} # ("unknown fan_mode: 00")
