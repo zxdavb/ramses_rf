@@ -50,6 +50,7 @@ from .const import (
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
+    SZ_INDOOR_HUMIDITY,
     SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_LOCAL_OVERRIDE,
@@ -63,6 +64,7 @@ from .const import (
     SZ_OEM_CODE,
     SZ_OFFER,
     SZ_OPENWINDOW_FUNCTION,
+    SZ_OUTDOOR_TEMP,
     SZ_PAYLOAD,
     SZ_PERCENTAGE,
     SZ_PHASE,
@@ -1130,7 +1132,33 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
-    return parse_indoor_humidity(payload[2:])
+    result: PayDictT._12A0 = {SZ_INDOOR_HUMIDITY: None}
+    if len(payload) == 42:
+        # for ClimaRad VenturaV1x
+        assert (
+            payload[8:12] == "7FFF"
+        ), _INFORM_DEV_MSG  # V1x: 'dewpoint_temp' sent in 31DA
+        assert payload[12:14] == "00", _INFORM_DEV_MSG  # _parse_fan_heater ? or flags ?
+        assert payload[14:16] == "01", _INFORM_DEV_MSG  # parse_fan_info ?
+        assert payload[16:18] == "EF", _INFORM_DEV_MSG  # parse_bypass_position ?
+        assert payload[18:22] == "7FFF", _INFORM_DEV_MSG
+        assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
+        assert payload[26:28] == "00", _INFORM_DEV_MSG
+        assert payload[40:42] == "00", _INFORM_DEV_MSG
+        result = {
+            **parse_indoor_humidity(payload[2:12]),
+            "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],  # type: ignore[typeddict-item]
+            # only 0x01 (decimal/Celsius?) seen on Ventura
+            **parse_co2_level(payload[28:32]),
+            **parse_supply_temp(payload[32:36]),  # type: ignore[typeddict-item]
+            SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
+        }
+    else:
+        # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
+        result = {
+            **parse_indoor_humidity(payload[2:]),  # type: ignore[typeddict-item]
+        }
+    return result
 
 
 # window_state (of a device/zone)
