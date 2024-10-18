@@ -147,9 +147,9 @@ class OutdoorTemp(TypedDict):
 class _12a0(IndoorHumidity, total=False):
     # only add what is not in IndoorHumidity
     units: Literal["Fahrenheit", "Celsius"]
-    SZ_CO2_LEVEL: Co2Level  # Co2Level
-    SZ_SUPPLY_TEMP: SupplyTemp  # SupplyTemp
-    SZ_OUTDOOR_TEMP: OutdoorTemp  # OutdoorTemp
+    SZ_CO2_LEVEL: Co2Level
+    SZ_SUPPLY_TEMP: SupplyTemp
+    SZ_OUTDOOR_TEMP: OutdoorTemp
 
 
 class _12b0(TypedDict):
