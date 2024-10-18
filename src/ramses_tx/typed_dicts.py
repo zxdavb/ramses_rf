@@ -200,6 +200,22 @@ class _313f(TypedDict):
     _unknown_0: str
 
 
+class AirQuality(TypedDict):
+    air_quality: float | None
+    air_quality_basis: NotRequired[str]
+
+
+class _31da_v(TypedDict):  # v for ClimaRad Ventura
+    zone: str | None
+    air_quality: AirQuality
+    air_quality_basis: NotRequired[str]
+    SZ_DEWPOINT_TEMP: float | None
+    _unknown_1: str | None
+    SZ_INDOOR_TEMP: float | None
+    SZ_EXHAUST_TEMP: float | None
+    SZ_BYPASS_POSITION: float | None
+
+
 class _3220(TypedDict):
     msg_id: int  # OtDataId
     msg_type: str  # OtMsgType
@@ -282,9 +298,9 @@ class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
 
 
 # These are from 31DA...
-class AirQuality(TypedDict):
-    air_quality: float | None
-    air_quality_basis: NotRequired[str]
+# class AirQuality(TypedDict): # moved before 31DA
+#    air_quality: float | None
+#    air_quality_basis: NotRequired[str]
 
 
 class Co2Level(TypedDict):
@@ -427,7 +443,7 @@ class PayDictT:
     _2E04: TypeAlias = _2e04
     _3110: TypeAlias = _3110
     _313F: TypeAlias = _313f
-    _31DA: TypeAlias = _VentilationState
+    _31DA: TypeAlias = _VentilationState | _31da_v
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
     _3B00: TypeAlias = _3b00
