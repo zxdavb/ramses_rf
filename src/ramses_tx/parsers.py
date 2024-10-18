@@ -50,7 +50,6 @@ from .const import (
     SZ_FRAG_LENGTH,
     SZ_FRAG_NUMBER,
     SZ_FRAGMENT,
-    SZ_INDOOR_HUMIDITY,
     SZ_IS_DST,
     SZ_LANGUAGE,
     SZ_LOCAL_OVERRIDE,
@@ -1133,7 +1132,6 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     if len(payload) <= 14:
-        assert payload[12:14] == "00", _INFORM_DEV_MSG
         return parse_indoor_humidity(payload[2:12])  # type: ignore[return-value]
 
     # if len(payload) == 42:  # for ClimaRad VenturaV1x
