@@ -75,6 +75,7 @@ from .const import (
     SZ_TIMESTAMP,
     SZ_TOTAL_FRAGS,
     SZ_UFH_IDX,
+    SZ_UNKNOWN,
     SZ_UNTIL,
     SZ_VALUE,
     SZ_WINDOW_OPEN,
@@ -2102,13 +2103,24 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # fan state (ventilation status), HVAC
 def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
-    # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
+    # NOTE: I have a suspicion that Itho uses 0x00-C8 for %, whilst Nuaire uses 0x00-64
+    # ClimaRad uses 1 (= auto) or C8 (= boost) Manual?
     try:
         assert (
             payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
         ), f"byte 2: {payload[4:6]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
+
+    if msg.len == 3 and msg.src.type == "29":  # ClimaRad MiniBox
+        if payload[4:6] == "C8":
+            return {"fan mode": "boost"}  # TODO use dict like Vasco?
+        elif payload[4:6] == "01":
+            return {"fan mode": "auto"}
+        elif payload[4:6] == "FF":
+            return {"fan mode": SZ_UNKNOWN}
+        else:
+            return {"fan mode": payload[4:6]}
 
     bitmap = int(payload[2:4], 16)
 
