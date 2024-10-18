@@ -1645,13 +1645,13 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # WIP: unknown, HVAC
-def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
+def parser_22f4(payload: str, msg: Message) -> PayDictT._22F4:
     # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60-E6-00000000000000-200000
     if payload[20:] == "200000":
         assert (
             payload[6:] == "00000000000000200000" or payload[14:] == "000000000000"
         )  # TODO add an error message
-        result = {
+        return {
             "value_02": payload[2:4],
             "value_04": payload[4:6],
         }
@@ -1661,7 +1661,7 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
 
         _22f4_scheme = "climarad"
         rate = "0"
-        mode = "N/A"
+        mode = None
         if payload[2:4] == "40":  # auto mode
             assert payload[4:6] == "30", f"unknown auto mode: 0x40{payload[4:6]}"
             mode = _22F4_FAN_MODE.get("40")
@@ -1684,8 +1684,11 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
 
             rate = _22F4_FAN_MODE.get(payload[12:14], f"unknown_{payload[12:14]}")
 
-        result = {SZ_FAN_MODE: mode, SZ_FAN_RATE: rate, "_scheme": _22f4_scheme}
-    return result
+        return {
+            SZ_FAN_MODE: mode,
+            SZ_FAN_RATE: rate,
+            "_scheme": _22f4_scheme,
+        }  # type: ignore[return-value]
 
 
 # bypass_mode, HVAC

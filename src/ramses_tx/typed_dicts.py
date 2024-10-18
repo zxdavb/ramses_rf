@@ -159,6 +159,17 @@ class _22b0(TypedDict):
     enabled: bool
 
 
+class _22f4(TypedDict):
+    value_02: str | None
+    value_04: str | None
+
+
+class _22f4_x(TypedDict):
+    SZ_FAN_MODE: str | None
+    SZ_FAN_RATE: str | None
+    _scheme: str | None
+
+
 class _2309(TypedDict):
     zone_idx: NotRequired[str]
     setpoint: float | None
@@ -420,6 +431,7 @@ class PayDictT:
     _1FC9: TypeAlias = _1fc9
     _1FD4: TypeAlias = _1fd4
     _22B0: TypeAlias = _22b0
+    _22F4: TypeAlias = _22f4 | _22f4_x
     _2309: TypeAlias = _2309
     _2349: TypeAlias = _2349
     _22D9: TypeAlias = _Setpoint
