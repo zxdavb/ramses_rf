@@ -812,16 +812,6 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
 
 # unknown_042f, from STA, VMS
 def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0025-0025-F5
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0026-0026-F5
-    # .I --- 34:092243 --:------ 34:092243 042F 008 00-0001-0021-0022-01
-    # .I --- 34:011469 --:------ 34:011469 042F 008 00-0001-0003-0004-BC
-
-    # .I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
-    # .I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
-
     return {
         "counter_1": f"0x{payload[2:6]}",
         "counter_3": f"0x{payload[6:10]}",
@@ -984,14 +974,17 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     result: dict[str, bool | float | None]
 
     if msg.verb == W_:
-        result = {"reset_counter": payload[2:4] == "FF"}
-    else:
-        result = {"days_remaining": int(payload[2:4], 16)}
+        return {"reset_counter": payload[2:4] != "00"}
 
-    if msg.len >= 3:
-        result.update({"days_lifetime": int(payload[4:6], 16)})
-    if msg.len >= 4:
-        result.update({"percent_remaining": hex_to_percent(payload[6:8])})
+    result = {}
+
+    if payload[2:4] not in ("FF", "FE"):
+        result["days_remaining"] = int(payload[2:4], 16)
+
+    if payload[4:6] not in ("FF", "FE"):
+        result["days_lifetime"] = int(payload[4:6], 16)
+
+    result["percent_remaining"] = hex_to_percent(payload[6:8])
 
     return result
 
@@ -2472,9 +2465,7 @@ def parser_3b00(payload: str, msg: Message) -> PayDictT._3B00:
 
 
 # actuator_state
-def parser_3ef0(
-    payload: str, msg: Message
-) -> PayDictT._3EF0_3 | PayDictT._3EF0_6 | PayDictT._3EF0_9 | PayDictT._JASPER:
+def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER:
     result: dict[str, Any]
 
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
