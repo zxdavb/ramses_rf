@@ -45,6 +45,7 @@ from .const import (
     SZ_DOMAIN_IDX,
     SZ_DURATION,
     SZ_FAN_MODE,
+    SZ_FAN_RATE,
     SZ_FAULT_STATE,
     SZ_FAULT_TYPE,
     SZ_FRAG_LENGTH,
@@ -1646,20 +1647,45 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 # WIP: unknown, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60-E6-00000000000000-200000
-    # RP --- 32:153258 18:005904 --:------ 22F4 013 00-60-DD-00000000000000-200000
-    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-40-B0-00000000000000-200000
+    if payload[20:] == "200000":
+        assert (
+            payload[6:] == "00000000000000200000" or payload[14:] == "000000000000"
+        )  # TODO add an error message
+        result = {
+            "value_02": payload[2:4],
+            "value_04": payload[4:6],
+        }
+    else:
+        # heard from ClimaRad Ventura, see _22F4_MODE_CLIMARAD
+        from .ramses import _22F4_MODE_CLIMARAD as _22F4_FAN_MODE
 
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E4-00000000000000-200000
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E5-00000000000000-200000
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E6-00000000000000-200000
+        _22f4_scheme = "climarad"
+        rate = "0"
+        mode = "N/A"
+        if payload[2:4] == "40":  # auto mode
+            assert payload[4:6] == "30", f"unknown auto mode: 0x40{payload[4:6]}"
+            mode = _22F4_FAN_MODE.get("40")
+            rate = "0"
+        elif payload[2:4] == "20":  # paused mode
+            assert payload[4:6] == "00", f"unknown paused mode: 0x20{payload[4:6]}"
+            mode = _22F4_FAN_MODE.get("20")
+            rate = "0"
+        _22f4_mode_set = ("", "60")
+        if payload[10:12] in _22f4_mode_set:  # manual mode, with speed rate
+            mode = _22F4_FAN_MODE.get("60")
+            try:
+                assert (
+                    payload[12:14] in _22F4_FAN_MODE
+                ), f"unknown fan_mode: {payload[12:14]}"
+            except AssertionError as err:
+                _LOGGER.warning(
+                    f"unknown ClimaRad speed rate {msg!r} < {_INFORM_DEV_MSG} ({err})"
+                )
 
-    assert payload[:2] == "00"
-    assert payload[6:] == "00000000000000200000"
+            rate = _22F4_FAN_MODE.get(payload[12:14], f"unknown_{payload[12:14]}")
 
-    return {
-        "value_02": payload[2:4],
-        "value_04": payload[4:6],
-    }
+        result = {SZ_FAN_MODE: mode, SZ_FAN_RATE: rate, "_scheme": _22f4_scheme}
+    return result
 
 
 # bypass_mode, HVAC

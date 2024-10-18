@@ -420,6 +420,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC, NB: no I
         SZ_NAME: "unknown_22f4",
+        I_: r"^00[0-9A-F]{24}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{24}$",
     },
@@ -1062,6 +1063,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1FC9: {W_: {}},
         Code._22F1: {},
         Code._22F3: {},
+        Code._22F4: {I_: {}},
         Code._22F7: {I_: {}, RP: {}},
         Code._2411: {I_: {}, RP: {}},
         Code._3120: {I_: {}},
@@ -1232,6 +1234,22 @@ _22F1_SCHEMES: dict[str, dict[str, str]] = {
     "itho": _22F1_MODE_ITHO,
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
+}
+
+_22F4_MODE_CLIMARAD: dict[str, str] = {
+    # for ClimaRad Ventura fan/remote
+    "C9": "1",  # * low speed rate, operating mode for C9-CD always 60 - manual
+    "CA": "2",  # ** medium-low
+    "CB": "3",  # *** medium
+    "CC": "4",  # **** medium-high
+    "CD": "5",  # |>|> high aka boost
+    "20": "paused",
+    "40": "auto",
+    "60": "manual",
+}
+
+_22F4_SCHEMES: dict[str, dict[str, str]] = {
+    "climarad": _22F4_MODE_CLIMARAD,
 }
 
 # unclear if true for only Orcon/*all* models
