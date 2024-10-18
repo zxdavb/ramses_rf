@@ -1132,7 +1132,7 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     if len(payload) <= 14:
-        return parse_indoor_humidity(payload[2:12])  # type: ignore[return-value]
+        return parse_indoor_humidity(payload[2:12])
 
     # if len(payload) == 42:  # for ClimaRad VenturaV1x
     assert payload[8:12] == "7FFF", _INFORM_DEV_MSG
@@ -1146,11 +1146,11 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
 
     return {
         **parse_indoor_humidity(payload[2:12]),
-        "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],  # type: ignore[typeddict-item]
+        "_unknown_0": payload[14:16],  # perhaps C/F or bypass state
         **parse_co2_level(payload[28:32]),
-        **parse_supply_temp(payload[32:36]),  # type: ignore[typeddict-item]
+        **parse_supply_temp(payload[32:36]),
         SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
-    }
+    }  # type: ignore[return-value]
 
 
 # window_state (of a device/zone)
