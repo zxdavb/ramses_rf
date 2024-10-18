@@ -118,6 +118,40 @@ class _1100_IDX(TypedDict):
     domain_id: str
 
 
+class IndoorHumidity(TypedDict):
+    indoor_humidity: _HexToTempT
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
+class Co2Level(TypedDict):
+    co2_level: float | None
+
+
+class SupplyTemp(TypedDict):
+    supply_temp: _HexToTempT
+
+
+class ExhaustTemp(TypedDict):
+    exhaust_temp: _HexToTempT
+
+
+class IndoorTemp(TypedDict):
+    indoor_temp: _HexToTempT
+
+
+class OutdoorTemp(TypedDict):
+    outdoor_temp: _HexToTempT
+
+
+class _12a0_x(IndoorHumidity):
+    # only add what is not in IndoorHumidity
+    _unknown_0: str
+    SZ_CO2_LEVEL: Co2Level
+    SZ_SUPPLY_TEMP: SupplyTemp
+    SZ_OUTDOOR_TEMP: OutdoorTemp
+
+
 class _12b0(TypedDict):
     window_open: bool | None
 
@@ -287,36 +321,10 @@ class AirQuality(TypedDict):
     air_quality_basis: NotRequired[str]
 
 
-class Co2Level(TypedDict):
-    co2_level: float | None
-
-
-class IndoorHumidity(TypedDict):
-    indoor_humidity: _HexToTempT
-    temperature: NotRequired[float | None]
-    dewpoint_temp: NotRequired[float | None]
-
-
 class OutdoorHumidity(TypedDict):
     outdoor_humidity: _HexToTempT
     temperature: NotRequired[float | None]
     dewpoint_temp: NotRequired[float | None]
-
-
-class ExhaustTemp(TypedDict):
-    exhaust_temp: _HexToTempT
-
-
-class SupplyTemp(TypedDict):
-    supply_temp: _HexToTempT
-
-
-class IndoorTemp(TypedDict):
-    indoor_temp: _HexToTempT
-
-
-class OutdoorTemp(TypedDict):
-    outdoor_temp: _HexToTempT
 
 
 class Capabilities(TypedDict):
@@ -409,7 +417,7 @@ class PayDictT:
     _1280: TypeAlias = OutdoorHumidity
     _1290: TypeAlias = OutdoorTemp
     _1298: TypeAlias = Co2Level
-    _12A0: TypeAlias = IndoorHumidity
+    _12A0: TypeAlias = _12a0_x | IndoorHumidity
     _12B0: TypeAlias = _12b0
     _12C0: TypeAlias = _12c0
     _12C8: TypeAlias = AirQuality

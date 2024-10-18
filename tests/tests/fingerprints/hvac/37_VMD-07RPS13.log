@@ -1,0 +1,1 @@
+2024-10-15T12:33:21.828292 060  I --- 37:153226 --:------ 37:153226 12A0 021 003307DD7FFF0001EF7FFF7FFF00023E056B02A600  # {'indoor_humidity': 0.51, 'temperature': 20.13, 'dewpoint_temp': None, 'units': 'Celsius', 'co2_level': 574, 'supply_temp': 13.87, 'outdoor_temp': 6.78}

@@ -63,6 +63,7 @@ from .const import (
     SZ_OEM_CODE,
     SZ_OFFER,
     SZ_OPENWINDOW_FUNCTION,
+    SZ_OUTDOOR_TEMP,
     SZ_PAYLOAD,
     SZ_PERCENTAGE,
     SZ_PHASE,
@@ -1130,7 +1131,26 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
 
 # HVAC: indoor_humidity
 def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
-    return parse_indoor_humidity(payload[2:])
+    if len(payload) <= 14:
+        return parse_indoor_humidity(payload[2:12])
+
+    # if len(payload) == 42:  # for ClimaRad VenturaV1x
+    assert payload[8:12] == "7FFF", _INFORM_DEV_MSG
+    assert payload[12:14] == "00", _INFORM_DEV_MSG  # parse_fan_heater or flags?
+    assert payload[14:16] == "01", _INFORM_DEV_MSG  # parse_fan_info?
+    assert payload[16:18] == "EF", _INFORM_DEV_MSG  # parse_bypass_position?
+    assert payload[18:22] == "7FFF", _INFORM_DEV_MSG
+    assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
+    assert payload[26:28] == "00", _INFORM_DEV_MSG
+    assert payload[40:] == "00", _INFORM_DEV_MSG
+
+    return {
+        **parse_indoor_humidity(payload[2:12]),
+        "_unknown_0": payload[14:16],  # perhaps C/F or bypass state
+        **parse_co2_level(payload[28:32]),
+        **parse_supply_temp(payload[32:36]),
+        SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
+    }  # type: ignore[return-value]
 
 
 # window_state (of a device/zone)
