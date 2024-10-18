@@ -207,6 +207,12 @@ class _3220(TypedDict):
     description: str
 
 
+class _3222(TypedDict):
+    start: int | None
+    length: int
+    data: NotRequired[str]
+
+
 class _3b00(TypedDict):
     domain_id: NotRequired[Literal["FC"]]
     actuator_sync: bool | None
