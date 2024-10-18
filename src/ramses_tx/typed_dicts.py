@@ -218,14 +218,12 @@ class _3b00(TypedDict):
     actuator_sync: bool | None
 
 
-class _3ef0_3(TypedDict):
+class _3ef0_3(TypedDict):  # payload of 3 bytes
     modulation_level: float | None
     _flags_2: str
 
 
-class _3ef0_6(TypedDict):
-    modulation_level: float | None
-    _flags_2: str
+class _3ef0_6(_3ef0_3):  # payload of 6 bytes
     _flags_3: list[int]
     ch_active: bool
     dhw_active: bool
@@ -235,16 +233,7 @@ class _3ef0_6(TypedDict):
     _unknown_5: str
 
 
-class _3ef0_9(TypedDict):
-    modulation_level: float | None
-    _flags_2: str
-    _flags_3: list[int]
-    ch_active: bool
-    dhw_active: bool
-    cool_active: bool
-    flame_on: bool
-    _unknown_4: str
-    _unknown_5: str
+class _3ef0_9(_3ef0_6):  # payload of 9 bytes
     _flags_6: list[int]
     ch_enabled: bool
     ch_setpoint: int
@@ -448,9 +437,7 @@ class PayDictT:
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
     _3B00: TypeAlias = _3b00
-    _3EF0_3: TypeAlias = _3ef0_3
-    _3EF0_6: TypeAlias = _3ef0_6
-    _3EF0_9: TypeAlias = _3ef0_9
+    _3EF0: TypeAlias = _3ef0_3 | _3ef0_6 | _3ef0_9
     _3EF1: TypeAlias = _3ef1
 
     _JASPER: TypeAlias = _JASPER
