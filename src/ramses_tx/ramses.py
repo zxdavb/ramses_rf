@@ -273,6 +273,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._1298: {  # co2_level
         SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
+        RQ: r"^00$",
     },
     Code._12A0: {  # indoor_humidity (optional hvac)
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
