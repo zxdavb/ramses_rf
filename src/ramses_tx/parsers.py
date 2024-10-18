@@ -2479,9 +2479,7 @@ def parser_3b00(payload: str, msg: Message) -> PayDictT._3B00:
 
 
 # actuator_state
-def parser_3ef0(
-    payload: str, msg: Message
-) -> PayDictT._3EF0_3 | PayDictT._3EF0_6 | PayDictT._3EF0_9 | PayDictT._JASPER:
+def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER:
     result: dict[str, Any]
 
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
