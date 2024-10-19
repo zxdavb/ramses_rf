@@ -2371,21 +2371,19 @@ def parser_3221(payload: str, msg: Message) -> dict[str, Any]:
 def parser_3222(payload: str, msg: Message) -> dict[str, Any]:
     assert payload[:2] == "00"
 
+    # e.g. RP|3222|00FE00 (payload = 3 bytes)
     if msg.len == 3:
-        assert payload[4:] == "00"  # length 0? yes, a sort of mode
-
-        if payload[2:4] == "EF":
-            return {"start": None}
+        assert payload[4:] == "00"  # aka length 0
 
         return {
-            "start": payload[2:4],
-            "length": 0,
+            "_value": f"0x{payload[2:4]}",
         }
 
+    # e.g. RP|3222|000604000F100E (payload > 3 bytes)
     return {
-        "start": payload[2:4],
-        "length": int(payload[4:6], 16),
-        "data": f"{'..' * int(payload[2:4])}{payload[6:]}",
+        "offset": f"0x{payload[2:4]}",  # bytes
+        "length": f"0x{payload[4:6]}",  # bytes
+        "_data": f"{'..' * int(payload[2:4])}{payload[6:]}",
     }
 
 
