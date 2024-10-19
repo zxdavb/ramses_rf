@@ -45,6 +45,7 @@ from .const import (
     SZ_DOMAIN_IDX,
     SZ_DURATION,
     SZ_FAN_MODE,
+    SZ_FAN_RATE,
     SZ_FAULT_STATE,
     SZ_FAULT_TYPE,
     SZ_FRAG_LENGTH,
@@ -1644,20 +1645,32 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
-    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60-E6-00000000000000-200000
-    # RP --- 32:153258 18:005904 --:------ 22F4 013 00-60-DD-00000000000000-200000
-    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-40-B0-00000000000000-200000
+    # HACK: for dev/test: 37:153226 is ClimaRad Ventura fan/remote
+    payload = payload[8:14] if msg.src.id == "37:153226" else payload[:6]
 
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E4-00000000000000-200000
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E5-00000000000000-200000
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E6-00000000000000-200000
+    MODE_LOOKUP = {
+        0x00: "off?",
+        0x20: "paused",
+        0x40: "auto",
+        0x60: "manual",
+    }
+    mode = int(payload[2:4], 16) & 0x60
+    assert mode in MODE_LOOKUP, mode
 
-    assert payload[:2] == "00"
-    assert payload[6:] == "00000000000000200000"
+    RATE_LOOKUP = {
+        0x00: "speed 0",  # "off"?,
+        0x01: "speed 1",  # "low", or trickle?
+        0x02: "speed 2",  # "medium-low", or low?
+        0x03: "speed 3",  # "medium",
+        0x04: "speed 4",  # "medium-high", or high?
+        0x05: "boost",  # "boost", aka purge?
+    }
+    rate = int(payload[4:6], 16) & 0x03
+    assert mode != 0x60 or rate in RATE_LOOKUP, rate
 
     return {
-        "value_02": payload[2:4],
-        "value_04": payload[4:6],
+        SZ_FAN_MODE: MODE_LOOKUP[mode],
+        SZ_FAN_RATE: RATE_LOOKUP.get(rate),
     }
 
 
