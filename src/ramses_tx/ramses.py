@@ -419,11 +419,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes only?
-    Code._22F4: {  # unknown_22f4, HVAC, NB: no I
+    Code._22F4: {  # unknown_22f4, HVAC
         SZ_NAME: "unknown_22f4",
         I_: r"^00[0-9A-F]{24}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{24}$",
     },
     Code._22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
