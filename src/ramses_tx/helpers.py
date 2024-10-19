@@ -839,7 +839,7 @@ def parse_supply_flow(value: HexStr4) -> PayDictT.SUPPLY_FLOW:
 
 # 31DA[54:58]
 def parse_exhaust_flow(value: HexStr4) -> PayDictT.EXHAUST_FLOW:
-    """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
+    """Return the exhaust flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
     return _parse_fan_flow(SZ_EXHAUST_FLOW, value)  # type: ignore[return-value]
 
 
