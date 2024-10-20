@@ -12,6 +12,153 @@ _HexToTempT: TypeAlias = float | None
 __all__ = ["PayDictT"]
 
 
+# fmt: off
+LogIdxT = Literal[
+    '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
+    '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
+    '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
+    '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3A', '3B', '3C', '3D', '3E', '3F',
+]
+# fmt: on
+
+
+class _FlowRate(TypedDict):
+    dhw_flow_rate: _HexToTempT
+
+
+class _Pressure(TypedDict):
+    pressure: _HexToTempT
+
+
+class _Setpoint(TypedDict):
+    setpoint: _HexToTempT
+
+
+class _Temperature(TypedDict):
+    temperature: _HexToTempT
+
+
+class FaultLogEntryNull(TypedDict):  # NOTE: not identical to _0418
+    _log_idx: LogIdxT  # "00" to ?"3F"
+
+
+class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
+    _log_idx: LogIdxT  # "00" to ?"3F"
+
+    timestamp: str
+    fault_state: FaultState
+    fault_type: FaultType
+    domain_idx: str
+    device_class: FaultDeviceClass
+    device_id: DeviceIdT | None
+
+    _unknown_3: str
+    _unknown_7: str
+    _unknown_15: str
+
+
+# These are from 31DA...
+class AirQuality(TypedDict):
+    air_quality: float | None
+    air_quality_basis: NotRequired[str]
+
+
+class Co2Level(TypedDict):
+    co2_level: float | None
+
+
+class IndoorHumidity(TypedDict):
+    indoor_humidity: _HexToTempT
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
+class OutdoorHumidity(TypedDict):
+    outdoor_humidity: _HexToTempT
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
+class ExhaustTemp(TypedDict):
+    exhaust_temp: _HexToTempT
+
+
+class SupplyTemp(TypedDict):
+    supply_temp: _HexToTempT
+
+
+class IndoorTemp(TypedDict):
+    indoor_temp: _HexToTempT
+
+
+class OutdoorTemp(TypedDict):
+    outdoor_temp: _HexToTempT
+
+
+class Capabilities(TypedDict):
+    speed_capabilities: list[str] | None
+
+
+class BypassPosition(TypedDict):
+    bypass_position: float | None
+
+
+class FanInfo(TypedDict):
+    fan_info: str
+    _unknown_fan_info_flags: list[int]
+
+
+class ExhaustFanSpeed(TypedDict):
+    exhaust_fan: float | None
+
+
+class SupplyFanSpeed(TypedDict):
+    supply_fan: float | None
+
+
+class RemainingMins(TypedDict):
+    remaining_mins: int | None
+
+
+class PostHeater(TypedDict):
+    post_heater: float | None
+
+
+class PreHeater(TypedDict):
+    pre_heater: float | None
+
+
+class SupplyFlow(TypedDict):
+    supply_flow: float | None
+
+
+class ExhaustFlow(TypedDict):
+    exhaust_flow: float | None
+
+
+class _VentilationState(
+    AirQuality,
+    Co2Level,
+    ExhaustTemp,
+    SupplyTemp,
+    IndoorTemp,
+    OutdoorTemp,
+    Capabilities,
+    BypassPosition,
+    FanInfo,
+    ExhaustFanSpeed,
+    SupplyFanSpeed,
+    RemainingMins,
+    PostHeater,
+    PreHeater,
+    SupplyFlow,
+    ExhaustFlow,
+):
+    indoor_humidity: _HexToTempT
+    outdoor_humidity: _HexToTempT
+
+
+# These are payload-specific...
 class _empty(TypedDict):
     pass
 
@@ -48,16 +195,6 @@ class _0404(TypedDict):
     total_frags: int | None
     frag_length: NotRequired[int | None]
     fragment: NotRequired[str]
-
-
-# fmt: off
-LogIdxT = Literal[
-    '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0A', '0B', '0C', '0D', '0E', '0F',
-    '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1A', '1B', '1C', '1D', '1E', '1F',
-    '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2A', '2B', '2C', '2D', '2E', '2F',
-    '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3A', '3B', '3C', '3D', '3E', '3F',
-]
-# fmt: on
 
 
 class _0418_NULL(TypedDict):  # only I_/RP with null payload
@@ -159,6 +296,11 @@ class _22b0(TypedDict):
     enabled: bool
 
 
+class _22f4(TypedDict):  # WIP
+    fan_mode: str | None
+    fan_rate: str | None
+
+
 class _2309(TypedDict):
     zone_idx: NotRequired[str]
     setpoint: float | None
@@ -223,6 +365,12 @@ class _3220(TypedDict):
     description: str
 
 
+class _3222(TypedDict):
+    start: int | None
+    length: int
+    data: NotRequired[str]
+
+
 class _3b00(TypedDict):
     domain_id: NotRequired[Literal["FC"]]
     actuator_sync: bool | None
@@ -260,142 +408,6 @@ class _3ef1(TypedDict):
 class _JASPER(TypedDict):
     ordinal: str
     blob: str
-
-
-class _FlowRate(TypedDict):
-    dhw_flow_rate: _HexToTempT
-
-
-class _Pressure(TypedDict):
-    pressure: _HexToTempT
-
-
-class _Setpoint(TypedDict):
-    setpoint: _HexToTempT
-
-
-class _Temperature(TypedDict):
-    temperature: _HexToTempT
-
-
-class FaultLogEntryNull(TypedDict):  # NOTE: not identical to _0418
-    _log_idx: LogIdxT  # "00" to ?"3F"
-
-
-class FaultLogEntry(TypedDict):  # NOTE: not identical to _0418
-    _log_idx: LogIdxT  # "00" to ?"3F"
-
-    timestamp: str
-    fault_state: FaultState
-    fault_type: FaultType
-    domain_idx: str
-    device_class: FaultDeviceClass
-    device_id: DeviceIdT | None
-
-    _unknown_3: str
-    _unknown_7: str
-    _unknown_15: str
-
-
-# These are from 31DA...
-# class AirQuality(TypedDict): # moved before 31DA
-#    air_quality: float | None
-#    air_quality_basis: NotRequired[str]
-
-
-class Co2Level(TypedDict):
-    co2_level: float | None
-
-
-class IndoorHumidity(TypedDict):
-    indoor_humidity: _HexToTempT
-    temperature: NotRequired[float | None]
-    dewpoint_temp: NotRequired[float | None]
-
-
-class OutdoorHumidity(TypedDict):
-    outdoor_humidity: _HexToTempT
-    temperature: NotRequired[float | None]
-    dewpoint_temp: NotRequired[float | None]
-
-
-class ExhaustTemp(TypedDict):
-    exhaust_temp: _HexToTempT
-
-
-class SupplyTemp(TypedDict):
-    supply_temp: _HexToTempT
-
-
-class IndoorTemp(TypedDict):
-    indoor_temp: _HexToTempT
-
-
-class OutdoorTemp(TypedDict):
-    outdoor_temp: _HexToTempT
-
-
-class Capabilities(TypedDict):
-    speed_capabilities: list[str] | None
-
-
-class BypassPosition(TypedDict):
-    bypass_position: float | None
-
-
-class FanInfo(TypedDict):
-    fan_info: str
-    _unknown_fan_info_flags: list[int]
-
-
-class ExhaustFanSpeed(TypedDict):
-    exhaust_fan: float | None
-
-
-class SupplyFanSpeed(TypedDict):
-    supply_fan: float | None
-
-
-class RemainingMins(TypedDict):
-    remaining_mins: int | None
-
-
-class PostHeater(TypedDict):
-    post_heater: float | None
-
-
-class PreHeater(TypedDict):
-    pre_heater: float | None
-
-
-class SupplyFlow(TypedDict):
-    supply_flow: float | None
-
-
-class ExhaustFlow(TypedDict):
-    exhaust_flow: float | None
-
-
-class _VentilationState(
-    AirQuality,
-    Co2Level,
-    ExhaustTemp,
-    SupplyTemp,
-    IndoorTemp,
-    OutdoorTemp,
-    Capabilities,
-    BypassPosition,
-    FanInfo,
-    ExhaustFanSpeed,
-    SupplyFanSpeed,
-    RemainingMins,
-    PostHeater,
-    PreHeater,
-    SupplyFlow,
-    ExhaustFlow,
-):
-    indoor_humidity: _HexToTempT
-    outdoor_humidity: _HexToTempT
 
 
 class PayDictT:
@@ -436,6 +448,7 @@ class PayDictT:
     _1FC9: TypeAlias = _1fc9
     _1FD4: TypeAlias = _1fd4
     _22B0: TypeAlias = _22b0
+    _22F4: TypeAlias = _22f4
     _2309: TypeAlias = _2309
     _2349: TypeAlias = _2349
     _22D9: TypeAlias = _Setpoint
