@@ -1144,13 +1144,13 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     assert payload[26:28] == "00", _INFORM_DEV_MSG
     assert payload[40:] == "00", _INFORM_DEV_MSG
 
-    return {
-        **parse_indoor_humidity(payload[2:12]),
-        "_unknown_0": payload[14:16],  # perhaps C/F or bypass state
-        **parse_co2_level(payload[28:32]),
-        **parse_supply_temp(payload[32:36]),
-        SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
-    }  # type: ignore[return-value]
+    return [
+        {
+            "hvac_idx": payload[i : i + 2],
+            **parse_indoor_humidity(payload[i + 2 : i + 12]),
+        }
+        for i in range(0, len(payload), 14)
+    ]
 
 
 # window_state (of a device/zone)
