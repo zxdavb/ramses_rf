@@ -429,7 +429,7 @@ class PayDictT:
     _1280: TypeAlias = OutdoorHumidity
     _1290: TypeAlias = OutdoorTemp
     _1298: TypeAlias = Co2Level
-    _12A0: TypeAlias = _12a0_x | IndoorHumidity
+    _12A0: TypeAlias = IndoorHumidity | _12a0_x
     _12B0: TypeAlias = _12b0
     _12C0: TypeAlias = _12c0
     _12C8: TypeAlias = AirQuality
