@@ -12,8 +12,6 @@
 # ClimaRad VenturaV1x  array of 3 Indoor_Humidity sets for HRU: Flow In (no dewpoint), Flow Out, Item_3
 
 2024-10-15T12:33:21.828292 060  I --- 37:153226 --:------ 37:153226 12A0 021 003307DD7FFF0001EF7FFF7FFF00023E056B02A600  # [{'hvac_idx': '00', 'indoor_humidity': 0.51, 'temperature': 20.13, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.62, 'temperature': 13.87, 'dewpoint_temp': 6.78}]
-# demo Ventura: # {'indoor_humidity': 0.51, 'temperature': 20.13, 'dewpoint_temp': None, '_unknown_0': '01', 'co2_level': 574, 'supply_temp': 13.87, 'outdoor_temp': 6.78}
-# TODO search for CO2 in other code
 2024-10-15T12:38:22.145126 060  I --- 37:153226 --:------ 37:153226 12A0 021 003207D27FFF0001EF7FFF7FFF00023F057B02D200  # [{'hvac_idx': '00', 'indoor_humidity': 0.5, 'temperature': 20.02, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.63, 'temperature': 14.03, 'dewpoint_temp': 7.22}]
 2024-10-15T12:48:22.825444 060  I --- 37:153226 --:------ 37:153226 12A0 021 003107E47FFF0001EF7FFF7FFF00023E05A802D900  # [{'hvac_idx': '00', 'indoor_humidity': 0.49, 'temperature': 20.2, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.62, 'temperature': 14.48, 'dewpoint_temp': 7.29}]
 2024-10-15T13:25:35.121534 062  I --- 37:153226 --:------ 37:153226 12A0 021 0034080C7FFF0001EF7FFF7FFF00023B05C002AF00  # [{'hvac_idx': '00', 'indoor_humidity': 0.52, 'temperature': 20.6, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.59, 'temperature': 14.72, 'dewpoint_temp': 6.87}]
