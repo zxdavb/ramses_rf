@@ -348,7 +348,6 @@ class AirQuality(TypedDict):
 
 
 class _31da_v(TypedDict):  # v for ClimaRad Ventura
-    zone: str | None
     air_quality: AirQuality
     air_quality_basis: NotRequired[str]
     SZ_DEWPOINT_TEMP: float | None

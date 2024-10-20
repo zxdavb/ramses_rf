@@ -2167,45 +2167,40 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
     if msg.len == 30 and payload[30:38] == "BE09001F":  # ClimaRad VenturaV1x 2021
-        assert payload[12:14] == "EF", f"Ventura 31DA 12: {payload[12:14]}"
-        assert payload[18:22] == "7FFF", f"Ventura 31DA 18: {payload[18:22]}"
-        assert payload[38:40] == payload[40:42], f"Ventura 31DA twin {payload[40:42]}"
-        assert payload[42:60] == "000000008500850000"
         return {
-            "zone": f"0x{payload[0:2]}",  # zone
-            **parse_air_quality(
-                payload[2:6]
-            ),  #  N/A in VenturaV1x (reports CO2 in 12A0) but must include for Mypy??
+            **parse_air_quality(payload[2:6]),
             SZ_DEWPOINT_TEMP: hex_to_temp(payload[6:10]),  # confirmed
             "_unknown_1": f"0x{payload[10:12]}",  # 0x00|08|3E|52|7F|9A|AF|D3 = ?
             **parse_indoor_temp(payload[22:26]),
             **parse_exhaust_temp(payload[26:30]),
-            **parse_bypass_position(payload[38:40]),  # 0x00|14 TODO confirm in summer
-        }  # type: ignore[return-value]
-    else:
-        return {
-            **parse_exhaust_fan_speed(
+            **parse_bypass_position(
                 payload[38:40]
-            ),  # indeed in 31D9[4:6] for some, like Vasco D60
-            **parse_fan_info(payload[36:38]),  # 22F3-ish
-            #
-            **parse_air_quality(payload[2:6]),  # 12C8[2:6]
-            **parse_co2_level(payload[6:10]),  # 1298[2:6]
-            **parse_indoor_humidity(payload[10:12]),  # 12A0?
-            **parse_outdoor_humidity(payload[12:14]),
-            **parse_exhaust_temp(payload[14:18]),  # to outside
-            **parse_supply_temp(payload[18:22]),  # to home
-            **parse_indoor_temp(payload[22:26]),  # in home
-            **parse_outdoor_temp(payload[26:30]),  # 1290?
-            **parse_capabilities(payload[30:34]),
-            **parse_bypass_position(payload[34:36]),  # 22F7-ish
-            **parse_supply_fan_speed(payload[40:42]),
-            **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
-            **parse_post_heater(payload[46:48]),
-            **parse_pre_heater(payload[48:50]),
-            **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
-            **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
+            ),  # 0x00|08|14 TODO confirm in summer
         }  # type: ignore[return-value]
+
+    return {
+        **parse_exhaust_fan_speed(
+            payload[38:40]
+        ),  # indeed in 31D9[4:6] for some, like Vasco D60
+        **parse_fan_info(payload[36:38]),  # 22F3-ish
+        #
+        **parse_air_quality(payload[2:6]),  # 12C8[2:6]
+        **parse_co2_level(payload[6:10]),  # 1298[2:6]
+        **parse_indoor_humidity(payload[10:12]),  # 12A0?
+        **parse_outdoor_humidity(payload[12:14]),
+        **parse_exhaust_temp(payload[14:18]),  # to outside
+        **parse_supply_temp(payload[18:22]),  # to home
+        **parse_indoor_temp(payload[22:26]),  # in home
+        **parse_outdoor_temp(payload[26:30]),  # 1290?
+        **parse_capabilities(payload[30:34]),
+        **parse_bypass_position(payload[34:36]),  # 22F7-ish
+        **parse_supply_fan_speed(payload[40:42]),
+        **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
+        **parse_post_heater(payload[46:48]),
+        **parse_pre_heater(payload[48:50]),
+        **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
+        **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
+    }  # type: ignore[return-value]
 
     # From an Orcon 15RF Display
     #  1 Software version
