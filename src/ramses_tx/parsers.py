@@ -1134,6 +1134,14 @@ def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
     if len(payload) <= 14:
         return parse_indoor_humidity(payload[2:12])
 
+    # return [
+    #     {
+    #         "hvac_idx": payload[i : i + 2],
+    #         **parse_indoor_humidity(payload[i + 2 : i + 12]),
+    #     }
+    #     for i in range(0, len(payload), 14)
+    # ]
+
     return {
         **parse_indoor_humidity(payload[2:12]),
         "_unknown_0": payload[14:16],  # perhaps C/F or bypass state
