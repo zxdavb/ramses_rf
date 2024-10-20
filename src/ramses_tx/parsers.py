@@ -65,7 +65,6 @@ from .const import (
     SZ_OFFER,
     SZ_OPENWINDOW_FUNCTION,
     SZ_PAYLOAD,
-    SZ_PERCENTAGE,
     SZ_PHASE,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
@@ -1645,50 +1644,34 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
 
 # WIP: unknown, HVAC
-def parser_22f4(payload: str, msg: Message) -> PayDictT._22F4:
-    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60-E6-00000000000000-200000
-    if payload[20:] == "200000":
-        assert (
-            payload[6:] == "00000000000000200000" or payload[14:] == "000000000000"
-        )  # TODO add an error message
-        return {
-            "value_02": payload[2:4],
-            "value_04": payload[4:6],
-        }
-    else:
-        # heard from ClimaRad Ventura, see _22F4_MODE_CLIMARAD
-        from .ramses import _22F4_MODE_CLIMARAD as _22F4_FAN_MODE
+def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
+    # HACK: for dev/test: 37:153226 is ClimaRad Ventura fan/remote
+    payload = payload[8:14] if msg.src.id == "37:153226" else payload[:6]
 
-        _22f4_scheme = "climarad"
-        rate = "0"
-        mode = None
-        if payload[2:4] == "40":  # auto mode
-            assert payload[4:6] == "30", f"unknown auto mode: 0x40{payload[4:6]}"
-            mode = _22F4_FAN_MODE.get("40")
-            rate = "0"
-        elif payload[2:4] == "20":  # paused mode
-            assert payload[4:6] == "00", f"unknown paused mode: 0x20{payload[4:6]}"
-            mode = _22F4_FAN_MODE.get("20")
-            rate = "0"
-        _22f4_mode_set = ("", "60")
-        if payload[10:12] in _22f4_mode_set:  # manual mode, with speed rate
-            mode = _22F4_FAN_MODE.get("60")
-            try:
-                assert (
-                    payload[12:14] in _22F4_FAN_MODE
-                ), f"unknown fan_mode: {payload[12:14]}"
-            except AssertionError as err:
-                _LOGGER.warning(
-                    f"unknown ClimaRad speed rate {msg!r} < {_INFORM_DEV_MSG} ({err})"
-                )
+    MODE_LOOKUP = {
+        0x00: "off?",
+        0x20: "paused",
+        0x40: "auto",
+        0x60: "manual",
+    }
+    mode = int(payload[2:4], 16) & 0x60
+    assert mode in MODE_LOOKUP, mode
 
-            rate = _22F4_FAN_MODE.get(payload[12:14], f"unknown_{payload[12:14]}")
+    RATE_LOOKUP = {
+        0x00: "speed 0",  # "off"?,
+        0x01: "speed 1",  # "low", or trickle?
+        0x02: "speed 2",  # "medium-low", or low?
+        0x03: "speed 3",  # "medium",
+        0x04: "speed 4",  # "medium-high", or high?
+        0x05: "boost",  # "boost", aka purge?
+    }
+    rate = int(payload[4:6], 16) & 0x03
+    assert mode != 0x60 or rate in RATE_LOOKUP, rate
 
-        return {
-            SZ_FAN_MODE: mode,
-            SZ_FAN_RATE: rate,
-            "_scheme": _22f4_scheme,
-        }  # type: ignore[return-value]
+    return {
+        SZ_FAN_MODE: MODE_LOOKUP[mode],
+        SZ_FAN_RATE: RATE_LOOKUP.get(rate),
+    }
 
 
 # bypass_mode, HVAC
@@ -2399,28 +2382,21 @@ def parser_3221(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_3222(payload: str, msg: Message) -> dict[str, Any]:
-    # 06:30:14.322 RP --- 32:155617 18:005904 --:------ 3222 004 00-00-01-00                    # start 0, length 1
-    # 00:09:26.263 RP --- 32:155617 18:005904 --:------ 3222 005 00-00-02-0009                  # start 0, length 2
-    # 02:42:27.090 RP --- 32:155617 18:005904 --:------ 3222 007 00-06-04-            000F100E  # start 6, length 4
-    # 22:06:45.771 RP --- 32:155617 18:005904 --:------ 3222 011 00-02-08-    0009000F000F100E  # start 2, length 8
-    # 13:30:26.792 RP --- 32:155617 18:005904 --:------ 3222 012 00-01-09-  090009000F000F100E  # start 1, length 9
-    # 06:29:40.767 RP --- 32:155617 18:005904 --:------ 3222 013 00-00-0A-00090009000F000F100E  # start 0, length 10
-
-    # 14:40:16.038 RP --- 32:137185 18:003599 --:------ 3222 013 00-00-0A-00000000000000000000  # start 0, length 10
-    # 14:44:13.214 RP --- 32:137185 18:003599 --:------ 3222 003 00-60-00                       # {'percentage': 0.48}
-    # 16:37:39.346 RP --- 32:137185 18:003599 --:------ 3222 007 00-06-04-            00000000  # start 6, length 4
-    # 23:08:02.670 RP --- 32:137185 18:003599 --:------ 3222 003 00-EF-00                       # {'percentage': None}
-
     assert payload[:2] == "00"
 
+    # e.g. RP|3222|00FE00 (payload = 3 bytes)
     if msg.len == 3:
-        assert payload[4:] == "00"  # length 0?
-        return {SZ_PERCENTAGE: hex_to_percent(payload[2:4])}
+        assert payload[4:] == "00"  # aka length 0
 
+        return {
+            "_value": f"0x{payload[2:4]}",
+        }
+
+    # e.g. RP|3222|000604000F100E (payload > 3 bytes)
     return {
-        "start": payload[2:4],
-        "length": payload[4:6],
-        "data": f"{'..' * int(payload[2:4])}{payload[6:]}",
+        "offset": f"0x{payload[2:4]}",  # bytes
+        "length": f"0x{payload[4:6]}",  # bytes
+        "_data": f"{'..' * int(payload[2:4])}{payload[6:]}",
     }
 
 
