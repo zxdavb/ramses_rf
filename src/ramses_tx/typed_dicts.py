@@ -342,19 +342,15 @@ class _313f(TypedDict):
     _unknown_0: str
 
 
-class AirQuality(TypedDict):
-    air_quality: float | None
-    air_quality_basis: NotRequired[str]
-
-
 class _31da_v(TypedDict):  # v for ClimaRad Ventura
-    air_quality: AirQuality
-    air_quality_basis: NotRequired[str]
+    co2_level: float | None
     SZ_DEWPOINT_TEMP: float | None
     _unknown_1: str | None
-    SZ_INDOOR_TEMP: float | None
     SZ_EXHAUST_TEMP: float | None
-    SZ_BYPASS_POSITION: float | None
+    SZ_SUPPLY_TEMP: float | None
+    SZ_INDOOR_TEMP: float | None
+    SZ_OUTDOOR_TEMP: float | None
+    _unknown_2: str | None
 
 
 class _3220(TypedDict):

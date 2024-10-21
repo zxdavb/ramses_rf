@@ -40,7 +40,6 @@ from .const import (
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
-    SZ_DEWPOINT_TEMP,
     SZ_DHW_FLOW_RATE,
     SZ_DOMAIN_ID,
     SZ_DOMAIN_IDX,
@@ -2166,22 +2165,22 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
-    if msg.len == 30 and payload[30:38] == "BE09001F":  # ClimaRad VenturaV1x 2021
+    if (
+        msg.len == 30 and msg.src.type == "37" and payload[30:38] == "BE09001F"
+    ):  # ClimaRad VenturaV1x 2021
         return {
-            **parse_air_quality(payload[2:6]),
-            SZ_DEWPOINT_TEMP: hex_to_temp(payload[6:10]),  # confirmed
-            "_unknown_1": f"0x{payload[10:12]}",  # 0x00|08|3E|52|7F|9A|AF|D3 = ?
+            **parse_co2_level(payload[6:10]),  # 1298[2:6]
+            "_unknown_1": payload[10:12],  # 0x00|08|3E|52|7F|9A|AF|D3 = ?
+            **parse_outdoor_temp(payload[14:18]),
+            **parse_supply_temp(payload[18:22]),
             **parse_indoor_temp(payload[22:26]),
             **parse_exhaust_temp(payload[26:30]),
-            **parse_bypass_position(
-                payload[38:40]
-            ),  # 0x00|08|14 TODO confirm in summer
+            # static [30:38] string
+            "_unknown_2": payload[38:40],  # 0x00|08|14 and repeated in [40:42]
         }  # type: ignore[return-value]
 
     return {
-        **parse_exhaust_fan_speed(
-            payload[38:40]
-        ),  # indeed in 31D9[4:6] for some, like Vasco D60
+        **parse_exhaust_fan_speed(payload[38:40]),
         **parse_fan_info(payload[36:38]),  # 22F3-ish
         #
         **parse_air_quality(payload[2:6]),  # 12C8[2:6]
