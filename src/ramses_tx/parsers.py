@@ -2165,22 +2165,8 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 # ventilation state (extended), HVAC
 def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     # see: https://github.com/python/typing/issues/1445
-    if (
-        msg.len == 30 and msg.src.type == "37" and payload[30:38] == "BE09001F"
-    ):  # ClimaRad VenturaV1x 2021
-        return {
-            **parse_co2_level(payload[6:10]),  # 1298[2:6]
-            "_unknown_1": payload[10:12],  # 0x00|08|3E|52|7F|9A|AF|D3 = ?
-            **parse_outdoor_temp(payload[14:18]),
-            **parse_supply_temp(payload[18:22]),
-            **parse_indoor_temp(payload[22:26]),
-            **parse_exhaust_temp(payload[26:30]),
-            # static [30:38] string
-            "_unknown_2": payload[38:40],  # 0x00|08|14 and repeated in [40:42]
-        }  # type: ignore[return-value]
-
-    return {
-        **parse_exhaust_fan_speed(payload[38:40]),
+    return {  # type: ignore[typeddict-unknown-key]
+        **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_fan_info(payload[36:38]),  # 22F3-ish
         #
         **parse_air_quality(payload[2:6]),  # 12C8[2:6]
@@ -2193,13 +2179,15 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         **parse_outdoor_temp(payload[26:30]),  # 1290?
         **parse_capabilities(payload[30:34]),
         **parse_bypass_position(payload[34:36]),  # 22F7-ish
-        **parse_supply_fan_speed(payload[40:42]),
+        **parse_supply_fan_speed(
+            payload[40:42]
+        ),  # VenturaV1x: 0x00|08|14|28|7E repeated in [40:42]
         **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
         **parse_post_heater(payload[46:48]),
         **parse_pre_heater(payload[48:50]),
         **parse_supply_flow(payload[50:54]),  # NOTE: is supply, not exhaust
         **parse_exhaust_flow(payload[54:58]),  # NOTE: order switched from others
-    }  # type: ignore[return-value]
+    }
 
     # From an Orcon 15RF Display
     #  1 Software version

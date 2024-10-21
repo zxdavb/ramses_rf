@@ -342,17 +342,6 @@ class _313f(TypedDict):
     _unknown_0: str
 
 
-class _31da_v(TypedDict):  # v for ClimaRad Ventura
-    co2_level: float | None
-    SZ_DEWPOINT_TEMP: float | None
-    _unknown_1: str | None
-    SZ_EXHAUST_TEMP: float | None
-    SZ_SUPPLY_TEMP: float | None
-    SZ_INDOOR_TEMP: float | None
-    SZ_OUTDOOR_TEMP: float | None
-    _unknown_2: str | None
-
-
 class _3220(TypedDict):
     msg_id: int  # OtDataId
     msg_type: str  # OtMsgType
@@ -451,7 +440,7 @@ class PayDictT:
     _2E04: TypeAlias = _2e04
     _3110: TypeAlias = _3110
     _313F: TypeAlias = _313f
-    _31DA: TypeAlias = _VentilationState | _31da_v
+    _31DA: TypeAlias = _VentilationState
     _3200: TypeAlias = _Temperature
     _3210: TypeAlias = _Temperature
     _3B00: TypeAlias = _3b00
