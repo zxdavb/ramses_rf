@@ -42,5 +42,11 @@
 # ClimaRad MiniBox FAN
 2024-10-15T10:10:35.374076 077  I --- 29:099029 --:------ 29:099029 31D9 003 0000C8  # {'hvac_id': '00', 'fan mode': 'boost'}  # (manual speed 2) TODO what is this?
 2024-10-15T10:10:35.474076 077  I --- 29:099029 --:------ 29:099029 31D9 003 0000C8  # {'hvac_id': '00', 'fan mode': 'boost'}  # (Fan State = boost)
-2024-10-18T19:29:33.175843 091  I --- 29:099029 --:------ 29:099029 31D9 003 000050  # {'hvac_id': '00', 'fan mode': '50'}  # speed 1 on manual
-2024-10-15T10:10:35.574076 077  I --- 29:099029 --:------ 29:099029 31D9 003 000001  # {'hvac_id': '00', 'fan mode': 'auto'}  # (Fan mode = auto)
+2024-10-18T19:29:33.175843 091  I --- 29:099029 --:------ 29:099029 31D9 003 000050  # {'hvac_id': '00', 'fan mode': '50'}     # speed 1 on manual
+2024-10-15T10:10:35.574076 077  I --- 29:099029 --:------ 29:099029 31D9 003 000001  # {'hvac_id': '00', 'fan mode': 'auto'}   # (Fan mode = auto)
+
+# ClimaRad VenturaV1x
+2024-10-20T21:23:28.345240 067  I 008 37:153226 --:------ 37:153226 31D9 017 000AFF0020202020202020202020202000  # {'hvac_id': '00', 'exhaust_fan_speed': None, 'fan_mode': 'FF', 'passive': True, 'damper_only': False, 'filter_dirty': False, 'frost_cycle': False, 'has_fault': False, '_flags': [0, 0, 0, 0, 1, 0, 1, 0], '_unknown_3': '00', '_unknown_4': '202020202020202020202020', 'unknown_16': '00', 'seqx_num': '008'}
+
+# unknown HVAC picked up
+2024-10-20T21:11:08.162460 081  I 086 37:125482 --:------ 37:125482 31D9 017 00063C0020202020202020202020202000  # {'hvac_id': '00', 'exhaust_fan_speed': 0.3, 'fan_mode': '3C', 'passive': True, 'damper_only': True, 'filter_dirty': False, 'frost_cycle': False, 'has_fault': False, '_flags': [0, 0, 0, 0, 0, 1, 1, 0], '_unknown_3': '00', '_unknown_4': '202020202020202020202020', 'unknown_16': '00', 'seqx_num': '086'}
