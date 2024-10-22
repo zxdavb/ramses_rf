@@ -264,10 +264,14 @@ def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
         assert payload == "03020105"
         return {"_unknown": payload}
 
-    # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
+    if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
+        return {
+            SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
+            "_unknown": payload[6:],
+        }
     return {
-        SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
-        "_unknown": payload[6:],
+        "_unknown_2": payload[2:4],
+        "_unknown_6": payload[6:],
     }
 
 
