@@ -256,22 +256,13 @@ def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
 
 # outdoor_sensor (outdoor_weather / outdoor_temperature)
 def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
-    # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
-    # .I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
+    if payload[6:] == "02":  # or: msg.src.type == DEV_TYPE_MAP.OUT:
+        return {
+            SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
+            "_unknown": payload[6:],
+        }
 
-    # is it CODE_IDX_COMPLEX:
-    #  - 02...... for outside temp?
-    #  - 03...... for other stuff?
-
-    if msg.src.type == DEV_TYPE_MAP.HCW:  # payload[2:] == DEV_TYPE_MAP.HCW, DEX
-        assert payload == "03020105"
-        return {"_unknown": payload}
-
-    # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
-    return {
-        SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
-        "_unknown": payload[6:],
-    }
+    return {"_payload": payload}
 
 
 # zone_name
