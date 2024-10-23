@@ -2115,7 +2115,7 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 
     bitmap = int(payload[2:4], 16)
 
-    # NOTE: 31D9[4:6] is fan_rate (minibox!, itho?) *or* fan_mode (orcon?)
+    # NOTE: 31D9[4:6] is fan_rate (minibox, itho) *or* fan_mode (orcon?)
     result = {
         **parse_exhaust_fan_speed(payload[4:6]),  # itho
         SZ_FAN_MODE: payload[4:6],  # orcon
@@ -2128,6 +2128,18 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
+        if msg.src.type == "32" and payload[:4] == "0000":  # Vasco D60 HRU
+            # can't access 'vasco' scheme as this PR is separate from _22f1
+            from .ramses import _22F1_MODE_ITHO as _33D9_FAN_MODE
+
+            try:
+                assert (
+                    payload[4:6] in _33D9_FAN_MODE
+                ), f"unknown fan_mode: {payload[2:4]}"
+            except AssertionError as err:
+                _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
+            fan_mode = _33D9_FAN_MODE.get(payload[4:6], f"unknown_{payload[4:6]}")
+            result[SZ_FAN_MODE] = fan_mode  # replace
         return result
 
     try:
