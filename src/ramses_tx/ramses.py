@@ -568,6 +568,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._3200: {  # boiler output temp
         SZ_NAME: "boiler_output",
+        I_: r"^00[0-9A-F]{4}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
@@ -1074,6 +1075,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
         # Code._31E0: {I_: {}},
+        Code._3200: {I_: {}},
     },
     DevType.CO2: {
         Code._042F: {I_: {}},
