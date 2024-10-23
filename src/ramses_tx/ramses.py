@@ -40,6 +40,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     Code._0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
+        # is it CODE_IDX_COMPLEX:
+        #  - 02...... for outside temp?
+        #  - 03...... for other stuff?
         SZ_NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
