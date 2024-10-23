@@ -40,6 +40,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     Code._0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
+        # is it CODE_IDX_COMPLEX:
+        #  - 02...... for outside temp?
+        #  - 03...... for other stuff?
         SZ_NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
@@ -212,7 +215,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._10D0: {  # filter_change - polling interval should be 1/day
         SZ_NAME: "filter_change",
-        I_: r"^00[0-9A-F]{6}(0000)?$",
+        I_: r"^00[0-9A-F]{6}(0000|FFFF)?$",
         RQ: r"^00(00)?$",
         W_: r"^00FF$",
     },
@@ -273,6 +276,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._1298: {  # co2_level
         SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
+        RQ: r"^00$",
     },
     Code._12A0: {  # indoor_humidity
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
@@ -418,10 +422,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes only?
-    Code._22F4: {  # unknown_22f4, HVAC, NB: no I
+    Code._22F4: {  # unknown_22f4, HVAC
         SZ_NAME: "unknown_22f4",
+        I_: r"^00[0-9A-F]{24}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{24}$",
     },
     Code._22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
@@ -1062,6 +1066,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1FC9: {W_: {}},
         Code._22F1: {},
         Code._22F3: {},
+        Code._22F4: {I_: {}},
         Code._22F7: {I_: {}, RP: {}},
         Code._2411: {I_: {}, RP: {}},
         Code._3120: {I_: {}},
@@ -1094,6 +1099,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._0001: {RQ: {}},  # from a VMI (only?)
         Code._042F: {I_: {}},  # from a VMI (only?)
         Code._1060: {I_: {}},
+        Code._10D0: {W_: {}},  # reset filter count from REM
         Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
         Code._1470: {RQ: {}},  # from a VMI (only?)
         Code._1FC9: {I_: {}},

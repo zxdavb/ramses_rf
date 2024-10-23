@@ -643,30 +643,6 @@ def _parse_hvac_temp(param_name: str, value: HexStr4) -> Mapping[str, float | No
 
 
 # 31DA[30:34]
-def parse_bypass_position(value: HexStr2) -> PayDictT.BYPASS_POSITION:
-    """Return the bypass position (%), usually fully open or closed (0%, no bypass).
-
-    The sensor value is None if there is no sensor present (is not an error).
-    The dict does not include the key if there is a sensor fault.
-    """
-
-    # TODO: remove this...
-    if not isinstance(value, str) or len(value) != 2:
-        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
-
-    if value == "EF":  # Not implemented
-        return {SZ_BYPASS_POSITION: None}
-
-    if int(value[:2], 16) & 0xF0 == 0xF0:
-        return _faulted_device(SZ_BYPASS_POSITION, value)  # type: ignore[return-value]
-
-    bypass_pos = int(value, 16) / 200  # was: hex_to_percent(value)
-    assert bypass_pos <= 1.0, value
-
-    return {SZ_BYPASS_POSITION: bypass_pos}
-
-
-# 31DA[34:36]
 def parse_capabilities(value: HexStr4) -> PayDictT.CAPABILITIES:
     """Return the speed capabilities (a bitmask).
 
@@ -709,6 +685,30 @@ def parse_capabilities(value: HexStr4) -> PayDictT.CAPABILITIES:
     }
 
 
+# 31DA[34:36]
+def parse_bypass_position(value: HexStr2) -> PayDictT.BYPASS_POSITION:
+    """Return the bypass position (%), usually fully open or closed (0%, no bypass).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
+    if value == "EF":  # Not implemented
+        return {SZ_BYPASS_POSITION: None}
+
+    if int(value[:2], 16) & 0xF0 == 0xF0:
+        return _faulted_device(SZ_BYPASS_POSITION, value)  # type: ignore[return-value]
+
+    bypass_pos = int(value, 16) / 200  # was: hex_to_percent(value)
+    assert bypass_pos <= 1.0, value
+
+    return {SZ_BYPASS_POSITION: bypass_pos}
+
+
 # 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
 def parse_fan_info(value: HexStr2) -> PayDictT.FAN_INFO:
     """Return the fan info (current speed, and...).
@@ -724,7 +724,6 @@ def parse_fan_info(value: HexStr2) -> PayDictT.FAN_INFO:
     # if value == "EF":  # TODO: Not implemented???
     #     return {SZ_FAN_INFO: None}
 
-    assert int(value, 16) & 0x1F <= 0x19, f"invalid fan_info: {int(value, 16) & 0x1F}"
     assert int(value, 16) & 0xE0 in (
         0x00,
         0x20,
@@ -840,7 +839,7 @@ def parse_supply_flow(value: HexStr4) -> PayDictT.SUPPLY_FLOW:
 
 # 31DA[54:58]
 def parse_exhaust_flow(value: HexStr4) -> PayDictT.EXHAUST_FLOW:
-    """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
+    """Return the exhaust flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
     return _parse_fan_flow(SZ_EXHAUST_FLOW, value)  # type: ignore[return-value]
 
 

@@ -45,6 +45,7 @@ from .const import (
     SZ_DOMAIN_IDX,
     SZ_DURATION,
     SZ_FAN_MODE,
+    SZ_FAN_RATE,
     SZ_FAULT_STATE,
     SZ_FAULT_TYPE,
     SZ_FRAG_LENGTH,
@@ -64,7 +65,6 @@ from .const import (
     SZ_OFFER,
     SZ_OPENWINDOW_FUNCTION,
     SZ_PAYLOAD,
-    SZ_PERCENTAGE,
     SZ_PHASE,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
@@ -256,22 +256,13 @@ def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
 
 # outdoor_sensor (outdoor_weather / outdoor_temperature)
 def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
-    # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
-    # .I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
+    if payload[6:] == "02":  # or: msg.src.type == DEV_TYPE_MAP.OUT:
+        return {
+            SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
+            "_unknown": payload[6:],
+        }
 
-    # is it CODE_IDX_COMPLEX:
-    #  - 02...... for outside temp?
-    #  - 03...... for other stuff?
-
-    if msg.src.type == DEV_TYPE_MAP.HCW:  # payload[2:] == DEV_TYPE_MAP.HCW, DEX
-        assert payload == "03020105"
-        return {"_unknown": payload}
-
-    # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
-    return {
-        SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
-        "_unknown": payload[6:],
-    }
+    return {"_payload": payload}
 
 
 # zone_name
@@ -812,16 +803,6 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
 
 # unknown_042f, from STA, VMS
 def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0025-0025-F5
-    # .I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0026-0026-F5
-    # .I --- 34:092243 --:------ 34:092243 042F 008 00-0001-0021-0022-01
-    # .I --- 34:011469 --:------ 34:011469 042F 008 00-0001-0003-0004-BC
-
-    # .I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
-    # .I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
-
     return {
         "counter_1": f"0x{payload[2:6]}",
         "counter_3": f"0x{payload[6:10]}",
@@ -984,14 +965,17 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     result: dict[str, bool | float | None]
 
     if msg.verb == W_:
-        result = {"reset_counter": payload[2:4] == "FF"}
-    else:
-        result = {"days_remaining": int(payload[2:4], 16)}
+        return {"reset_counter": payload[2:4] != "00"}
 
-    if msg.len >= 3:
-        result.update({"days_lifetime": int(payload[4:6], 16)})
-    if msg.len >= 4:
-        result.update({"percent_remaining": hex_to_percent(payload[6:8])})
+    result = {}
+
+    if payload[2:4] not in ("FF", "FE"):
+        result["days_remaining"] = int(payload[2:4], 16)
+
+    if payload[4:6] not in ("FF", "FE"):
+        result["days_lifetime"] = int(payload[4:6], 16)
+
+    result["percent_remaining"] = hex_to_percent(payload[6:8])
 
     return result
 
@@ -1652,20 +1636,32 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
-    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-60-E6-00000000000000-200000
-    # RP --- 32:153258 18:005904 --:------ 22F4 013 00-60-DD-00000000000000-200000
-    # RP --- 32:155617 18:005904 --:------ 22F4 013 00-40-B0-00000000000000-200000
+    # HACK: for dev/test: 37:153226 is ClimaRad Ventura fan/remote
+    payload = payload[8:14] if msg.src.id == "37:153226" else payload[:6]
 
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E4-00000000000000-200000
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E5-00000000000000-200000
-    # RP --- 32:137185 18:003599 --:------ 22F4 013 00-60-E6-00000000000000-200000
+    MODE_LOOKUP = {
+        0x00: "off?",
+        0x20: "paused",
+        0x40: "auto",
+        0x60: "manual",
+    }
+    mode = int(payload[2:4], 16) & 0x60
+    assert mode in MODE_LOOKUP, mode
 
-    assert payload[:2] == "00"
-    assert payload[6:] == "00000000000000200000"
+    RATE_LOOKUP = {
+        0x00: "speed 0",  # "off"?,
+        0x01: "speed 1",  # "low", or trickle?
+        0x02: "speed 2",  # "medium-low", or low?
+        0x03: "speed 3",  # "medium",
+        0x04: "speed 4",  # "medium-high", or high?
+        0x05: "boost",  # "boost", aka purge?
+    }
+    rate = int(payload[4:6], 16) & 0x03
+    assert mode != 0x60 or rate in RATE_LOOKUP, rate
 
     return {
-        "value_02": payload[2:4],
-        "value_04": payload[4:6],
+        SZ_FAN_MODE: MODE_LOOKUP[mode],
+        SZ_FAN_RATE: RATE_LOOKUP.get(rate),
     }
 
 
@@ -2382,28 +2378,21 @@ def parser_3221(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_3222(payload: str, msg: Message) -> dict[str, Any]:
-    # 06:30:14.322 RP --- 32:155617 18:005904 --:------ 3222 004 00-00-01-00                    # start 0, length 1
-    # 00:09:26.263 RP --- 32:155617 18:005904 --:------ 3222 005 00-00-02-0009                  # start 0, length 2
-    # 02:42:27.090 RP --- 32:155617 18:005904 --:------ 3222 007 00-06-04-            000F100E  # start 6, length 4
-    # 22:06:45.771 RP --- 32:155617 18:005904 --:------ 3222 011 00-02-08-    0009000F000F100E  # start 2, length 8
-    # 13:30:26.792 RP --- 32:155617 18:005904 --:------ 3222 012 00-01-09-  090009000F000F100E  # start 1, length 9
-    # 06:29:40.767 RP --- 32:155617 18:005904 --:------ 3222 013 00-00-0A-00090009000F000F100E  # start 0, length 10
-
-    # 14:40:16.038 RP --- 32:137185 18:003599 --:------ 3222 013 00-00-0A-00000000000000000000  # start 0, length 10
-    # 14:44:13.214 RP --- 32:137185 18:003599 --:------ 3222 003 00-60-00                       # {'percentage': 0.48}
-    # 16:37:39.346 RP --- 32:137185 18:003599 --:------ 3222 007 00-06-04-            00000000  # start 6, length 4
-    # 23:08:02.670 RP --- 32:137185 18:003599 --:------ 3222 003 00-EF-00                       # {'percentage': None}
-
     assert payload[:2] == "00"
 
+    # e.g. RP|3222|00FE00 (payload = 3 bytes)
     if msg.len == 3:
-        assert payload[4:] == "00"  # length 0?
-        return {SZ_PERCENTAGE: hex_to_percent(payload[2:4])}
+        assert payload[4:] == "00"  # aka length 0
 
+        return {
+            "_value": f"0x{payload[2:4]}",
+        }
+
+    # e.g. RP|3222|000604000F100E (payload > 3 bytes)
     return {
-        "start": payload[2:4],
-        "length": payload[4:6],
-        "data": f"{'..' * int(payload[2:4])}{payload[6:]}",
+        "offset": f"0x{payload[2:4]}",  # bytes
+        "length": f"0x{payload[4:6]}",  # bytes
+        "_data": f"{'..' * int(payload[2:4])}{payload[6:]}",
     }
 
 
@@ -2465,9 +2454,7 @@ def parser_3b00(payload: str, msg: Message) -> PayDictT._3B00:
 
 
 # actuator_state
-def parser_3ef0(
-    payload: str, msg: Message
-) -> PayDictT._3EF0_3 | PayDictT._3EF0_6 | PayDictT._3EF0_9 | PayDictT._JASPER:
+def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER:
     result: dict[str, Any]
 
     if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper
