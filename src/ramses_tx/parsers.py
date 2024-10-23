@@ -257,10 +257,10 @@ def parser_0001(payload: str, msg: Message) -> Mapping[str, bool | str | None]:
 # outdoor_sensor (outdoor_weather / outdoor_temperature)
 def parser_0002(payload: str, msg: Message) -> dict[str, Any]:
     if payload[6:] == "02":  # or: msg.src.type == DEV_TYPE_MAP.OUT:
-    return {
-        SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
-        "_unknown": payload[6:],
-    }
+        return {
+            SZ_TEMPERATURE: hex_to_temp(payload[2:6]),
+            "_unknown": payload[6:],
+        }
 
     return {"_payload": payload}
 
