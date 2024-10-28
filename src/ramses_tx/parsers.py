@@ -2170,9 +2170,7 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         **parse_outdoor_temp(payload[26:30]),  # 1290?
         **parse_capabilities(payload[30:34]),
         **parse_bypass_position(payload[34:36]),  # 22F7-ish
-        **parse_supply_fan_speed(
-            payload[40:42]
-        ),  # VenturaV1x: 0x00|08|14|28|7E repeated in [40:42]
+        **parse_supply_fan_speed(payload[40:42]),
         **parse_remaining_mins(payload[42:46]),  # mins, ~22F3[2:6]
         **parse_post_heater(payload[46:48]),
         **parse_pre_heater(payload[48:50]),

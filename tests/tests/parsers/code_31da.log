@@ -320,13 +320,13 @@
 # .I + 31DA 030   00 EF 00 019F 00 EF 067A 7FFF 0807 074E BE09001F 0000 000000008500850000 (auto)
 # .I + 31DA 030   00 EF 00 0195 F7 EF 0621 7FFF 0846 0773 BE09001F 0000 000000008500850000 (wake up button press, no changes)
 # .I + 31DA 030   00 EF 00 01AB 3E EF 0572 7FFF 07BC 06EA BE09001F 0000 000000008500850000
-#                   airQ?   |    |      |         |    |  no ascii  |_|___(00|08|14){2}
+#                   airQ?   |    |      |         |    |  no ascii  |_|___0x00|08|14|28|7E repeated in [40:42]
 # Deduction:                |    |      |         |    |___0502-07F7 << 0-255 = speed% ?
 #         CO2?___hexStr4 ___|    |      |         |___055A-0813=hexStr4
 #        not RH 00|08|52|9A|D3___|      |___0300-D7CA_ << 0-255 = ?
 #                                       |         |    |
 #                                     temp2    temp3 temp4 -- assigned based on value lo>hi for a HRU
-# 12ao_v parser reports:
+# 12A0 reports:
 2024-10-18T00:03:42.690880 065  I --- 37:153226 --:------ 37:153226 31DA 030 00EF00024300EF06E77FFF08190775BE09001F0000000000008500850000  # {'hvac_id': '00', 'exhaust_fan_speed': 0.0, 'fan_info': '-unknown 0x1F-', '_unknown_fan_info_flags': [0, 0, 0], 'air_quality': None, 'co2_level': 579, 'indoor_humidity': 0.0, 'outdoor_humidity': None, 'exhaust_temp': 17.67, 'supply_temp': None, 'indoor_temp': 20.73, 'outdoor_temp': 19.09, 'speed_capabilities': ['off', 'timer', 'boost', 'auto', 'speed_4', 'speed_5', 'auto_night', 'pre_heater'], 'bypass_position': 0.0, 'supply_fan_speed': 0.0, 'remaining_mins': 0, 'post_heat': 0.0, 'pre_heat': 0.0, 'supply_flow_fault': 'unreliable', 'exhaust_flow_fault': 'unreliable'}
 2024-10-18T00:03:42.690881 065  I --- 37:153226 --:------ 37:153226 31DA 030 00EF00029C00EF070D7FFF083307A8BE09001F0000000000008500850000  # {'hvac_id': '00', 'exhaust_fan_speed': 0.0, 'fan_info': '-unknown 0x1F-', '_unknown_fan_info_flags': [0, 0, 0], 'air_quality': None, 'co2_level': 668, 'indoor_humidity': 0.0, 'outdoor_humidity': None, 'exhaust_temp': 18.05, 'supply_temp': None, 'indoor_temp': 20.99, 'outdoor_temp': 19.6, 'speed_capabilities': ['off', 'timer', 'boost', 'auto', 'speed_4', 'speed_5', 'auto_night', 'pre_heater'], 'bypass_position': 0.0, 'supply_fan_speed': 0.0, 'remaining_mins': 0, 'post_heat': 0.0, 'pre_heat': 0.0, 'supply_flow_fault': 'unreliable', 'exhaust_flow_fault': 'unreliable'}  # auto
 2024-10-18T00:03:42.690882 065  I --- 37:153226 --:------ 37:153226 31DA 030 00EF0002C800EF07AA7FFF07CB05F0BE09001F0808000000008500850000  # {'hvac_id': '00', 'exhaust_fan_speed': 0.04, 'fan_info': '-unknown 0x1F-', '_unknown_fan_info_flags': [0, 0, 0], 'air_quality': None, 'co2_level': 712, 'indoor_humidity': 0.0, 'outdoor_humidity': None, 'exhaust_temp': 19.62, 'supply_temp': None, 'indoor_temp': 19.95, 'outdoor_temp': 15.2, 'speed_capabilities': ['off', 'timer', 'boost', 'auto', 'speed_4', 'speed_5', 'auto_night', 'pre_heater'], 'bypass_position': 0.0, 'supply_fan_speed': 0.04, 'remaining_mins': 0, 'post_heat': 0.0, 'pre_heat': 0.0, 'supply_flow_fault': 'unreliable', 'exhaust_flow_fault': 'unreliable'}  # speed 1
