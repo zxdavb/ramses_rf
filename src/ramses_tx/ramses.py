@@ -566,13 +566,12 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_demand",
         I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
-    Code._3200: {  # boiler output temp
+    Code._3200: {  # boiler (or CV?) output temp
         SZ_NAME: "boiler_output",
         I_: r"^00[0-9A-F]{4}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{4}$",
     },
-    Code._3210: {  # boiler return temp
+    Code._3210: {  # boiler (or CV?) return temp
         SZ_NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
@@ -662,7 +661,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
 CODE_NAME_LOOKUP = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 
-for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
+for code in CODES_SCHEMA.values():  # map any (missing) RPs to I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 #
