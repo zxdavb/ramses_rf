@@ -1240,22 +1240,6 @@ _22F1_SCHEMES: dict[str, dict[str, str]] = {
     "orcon": _22F1_MODE_ORCON,
 }
 
-_22F4_MODE_CLIMARAD: dict[str, str] = {
-    # for ClimaRad Ventura fan/remote
-    "C9": "1",  # * low speed rate, operating mode for C9-CD always 60 - manual
-    "CA": "2",  # ** medium-low
-    "CB": "3",  # *** medium
-    "CC": "4",  # **** medium-high
-    "CD": "5",  # |>|> high aka boost
-    "20": "paused",
-    "40": "auto",
-    "60": "manual",
-}
-
-_22F4_SCHEMES: dict[str, dict[str, str]] = {
-    "climarad": _22F4_MODE_CLIMARAD,
-}
-
 # unclear if true for only Orcon/*all* models
 _2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
     "31": {  # slot 09
