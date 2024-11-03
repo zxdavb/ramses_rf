@@ -1585,7 +1585,6 @@ def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
 def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     # NOTE: for boost timer for high
     try:
-        # assert payload[2:4] in ("00", "02", "12", "x52"), f"byte 1: {flag8(payload[2:4])}"
         assert msg.len <= 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
