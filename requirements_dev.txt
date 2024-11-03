@@ -10,8 +10,8 @@
 # - pip list | grep -E 'pre-commit|ruff|mypy|types-|voluptuous|pytest|hatch'
 
 # used for development (linting)
-  pre-commit >= 3.8.0
-  ruff >= 0.6.4                                  # also: check-lint.yml, pre-commit-config.yaml
+  pre-commit >= 4.0.1
+  ruff >= 0.7.0                                  # also: pre-commit-config.yaml
 
 # used for development (typing)
   mypy >= 1.11.2
