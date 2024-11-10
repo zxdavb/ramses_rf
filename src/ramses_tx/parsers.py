@@ -1288,12 +1288,12 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
     def _parser(seqx: str) -> list[str]:
         if seqx[:2] not in ("90",):
             assert (
-                seqx[6:] == payload[6:12]
+                seqx[6:] == payload[6:12]  # [6:12] is repeated
             ), f"{seqx[6:]} != {payload[6:12]}"  # all with same controller
         if seqx[:2] not in (
             "21",  # HVAC, Nuaire
             "63",  # HVAC
-            "66",  # HVAC, Vasco?
+            "66",  # HVAC, Vasco
             "67",  # HVAC
             "6C",  # HVAC
             "90",  # HEAT
