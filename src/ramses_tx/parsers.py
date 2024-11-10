@@ -139,6 +139,7 @@ from .version import VERSION
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 # - tomkooij: 3110
 # - RemyDeRuysscher: 10E0, 31DA (and related), others
+# - silverailscolo:  12A0, 31DA, others
 
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
