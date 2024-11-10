@@ -1293,10 +1293,11 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
         if seqx[:2] not in (
             "21",  # HVAC, Nuaire
             "63",  # HVAC
+            "65",  # HVAC, ClimaRad
             "66",  # HVAC, Vasco
             "67",  # HVAC
             "6C",  # HVAC
-            "90",  # HEAT
+            "90",  # HEAT 1FC9 018 0022F175E10E 6510E075E10E 001FC975E10E
             F6,
             F9,
             FA,
