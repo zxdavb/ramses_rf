@@ -139,6 +139,7 @@ from .version import VERSION
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 # - tomkooij: 3110
 # - RemyDeRuysscher: 10E0, 31DA (and related), others
+# - silverailscolo:  12A0, 31DA, others
 
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -1297,7 +1298,7 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
             "66",  # HVAC, Vasco
             "67",  # HVAC
             "6C",  # HVAC
-            "90",  # HEAT 1FC9 018 0022F175E10E 6510E075E10E 001FC975E10E
+            "90",  # HEAT
             F6,
             F9,
             FA,
