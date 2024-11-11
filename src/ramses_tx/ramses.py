@@ -344,9 +344,6 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{30}$",
     },
     Code._1FC9: {  # rf_bind
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
-        # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
@@ -567,12 +564,12 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_demand",
         I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
-    Code._3200: {  # boiler output temp
+    Code._3200: {  # boiler (or CV?) output temp
         SZ_NAME: "boiler_output",
+        I_: r"^00[0-9A-F]{4}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{4}$",
     },
-    Code._3210: {  # boiler return temp
+    Code._3210: {  # boiler (or CV?) return temp
         SZ_NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
@@ -662,7 +659,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
 CODE_NAME_LOOKUP = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 
-for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
+for code in CODES_SCHEMA.values():  # map any (missing) RPs to I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 #
@@ -1075,6 +1072,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
         # Code._31E0: {I_: {}},
+        Code._3200: {I_: {}},
     },
     DevType.CO2: {
         Code._042F: {I_: {}},
