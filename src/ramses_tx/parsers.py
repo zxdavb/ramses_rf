@@ -139,6 +139,7 @@ from .version import VERSION
 # - janvken: 10D0, 1470, 1F70, 22B0, 2411, several others
 # - tomkooij: 3110
 # - RemyDeRuysscher: 10E0, 31DA (and related), others
+# - silverailscolo:  12A0, 31DA, others
 
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -1288,12 +1289,12 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
     def _parser(seqx: str) -> list[str]:
         if seqx[:2] not in ("90",):
             assert (
-                seqx[6:] == payload[6:12]
+                seqx[6:] == payload[6:12]  # [6:12] is repeated
             ), f"{seqx[6:]} != {payload[6:12]}"  # all with same controller
         if seqx[:2] not in (
             "21",  # HVAC, Nuaire
             "63",  # HVAC
-            "66",  # HVAC, Vasco?
+            "66",  # HVAC, Vasco
             "67",  # HVAC
             "6C",  # HVAC
             "90",  # HEAT
