@@ -344,9 +344,6 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{30}$",
     },
     Code._1FC9: {  # rf_bind
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
-        # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
