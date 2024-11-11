@@ -1363,15 +1363,11 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 
 # WIP: unknown, HVAC
 def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000020800
-
-    assert payload in (
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + "FFFFFF000000000000000800",
-    ), _INFORM_DEV_MSG
-
-    return {}
+    return {
+        "unknown_78": payload[78:80],
+        "unknown_80": payload[80:82],
+        "unknown_82": payload[82:],
+    }
 
 
 # now_next_setpoint - Programmer/Hometronics
