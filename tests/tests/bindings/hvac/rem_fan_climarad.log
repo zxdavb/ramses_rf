@@ -1,0 +1,32 @@
+####################################################################################################
+# Climarad Remote binding to a PIV
+#  - Supplicant, REM: Climarad 4-button remote (VMN-07LM01)
+#  - Respondent, FAN: Climarad MiniBox FAN     (VMC-07RP01)
+
+
+
+####################################################################################################
+# 1. For reference, 10E0s (if any), oem_code='65' (Note: REM/FAN won't RP|10E0):
+2024-10-16T21:32:07.084793 073  I --- 29:123150 63:262142 --:------ 10E0 029 000001C8410D0165FFFFFFFFFFFF0D0407DF564D4E2D30374C4D303100   # {'description': 'VMN-07LM01', 'manufacturer_sub_id': 'C8', 'product_id': '41', 'date_1': '2015-04-13', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad 4-button remote
+2024-10-16T18:43:52.761437 087  I --- 29:099029 63:262142 --:------ 10E0 029 000001C81D150765FFFFFFFFFFFFFFFFFFFF564D432D30375250303100   # {'description': 'VMC-07RP01',          'manufacturer_sub_id': 'C8', 'product_id': '1D', 'date_1': '0000-00-00', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad MiniBox Fan
+
+
+
+####################################################################################################
+# 2. The handshake (NB: FAN|W|1FC9|00):
+2024-11-09T09:56:31.417079 064  I --- 29:123150 63:262142 --:------ 1FC9 018 0022F175E10E6510E075E10E001FC975E10E  # {'phase': 'offer', 'bindings': [['00', '22F1', '29:123150'], ['65', '10E0', '29:123150'], ['00', '1FC9', '29:123150']]}
+2024-11-07T13:01:37.338144 090  W --- 29:099029 29:123150 --:------ 1FC9 006 0031D97582D5                          # {'phase': 'accept', 'bindings': [['00', '31D9', '29:099029']]}
+2024-11-07T13:01:37.355235 092  I --- 29:123150 29:099029 --:------ 1FC9 001 00                                    # {'phase': 'confirm', 'bindings': [['00']]}
+
+# It appears the subsequent/spontaneous REM|I|10E0 *is required* for a successful bind (otherwise the FAN will RQ|10E0, see below):
+2024-10-16T21:32:07.084793 073  I --- 29:123150 63:262142 --:------ 10E0 029 000001C8410D0165FFFFFFFFFFFF0D0407DF564D4E2D30374C4D303100   # {'description': 'VMN-07LM01', 'manufacturer_sub_id': 'C8', 'product_id': '41', 'date_1': '2015-04-13', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad 4-button remote
+
+
+
+####################################################################################################
+# 3. Other notes:
+#  - domain IS appears to be 00:
+# 31DA not seen
+
+# 3. Other notes:
+#  - it is unclear if these spontaneous I|1060s are needed too (unlikely):
