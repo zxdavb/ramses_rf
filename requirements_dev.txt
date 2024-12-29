@@ -11,7 +11,7 @@
 
 # used for development (linting)
   pre-commit >= 4.0.1
-  ruff >= 0.7.0                                  # also: pre-commit-config.yaml
+  ruff >= 0.8.1                                  # also: pre-commit-config.yaml
 
 # used for development (typing)
   mypy >= 1.11.2
