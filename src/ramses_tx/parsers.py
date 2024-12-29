@@ -2476,12 +2476,15 @@ def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER
     assert msg.len in (3, 6, 9), f"Invalid payload length: {msg.len}"
     # assert payload[:2] == "00", f"Invalid payload context: {payload[:2]}"
 
+    # NOTE: some [2:4] appear to intend 0x00-0x64 (high_res=False), instead of 0x00-0xC8
+    # NOTE: for best compatibility, all will be switched to 0x00-0xC8 (high_res=True)
+
     if msg.len == 3:  # I|BDR|003 (the following are the only two payloads ever seen)
         # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
         # .I --- 13:023770 --:------ 13:023770 3EF0 003 00C8FF
         assert payload[2:4] in ("00", "C8"), f"byte 1: {payload[2:4]} (not 00/C8)"
         assert payload[4:6] == "FF", f"byte 2: {payload[4:6]} (not FF)"
-        mod_level = hex_to_percent(payload[2:4])  # , high_res=True)
+        mod_level = hex_to_percent(payload[2:4], high_res=True)
 
     else:  # msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
         # RP --- 10:004598 34:003611 --:------ 3EF0 006 0000100000FF
@@ -2489,7 +2492,7 @@ def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100C00FF
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 0064100200FF
         assert payload[4:6] in ("00", "10", "11"), f"byte 2: {payload[4:6]}"
-        mod_level = hex_to_percent(payload[2:4], high_res=False)  # 00-64 (or FF)
+        mod_level = hex_to_percent(payload[2:4], high_res=True)  # 00-64/C8 (or FF)
 
     result = {
         "modulation_level": mod_level,  # 0008[2:4], 3EF1[10:12]
@@ -2524,7 +2527,7 @@ def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER
                 "_flags_6": hex_to_flag8(payload[12:14]),
                 "ch_enabled": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
-                "max_rel_modulation": hex_to_percent(payload[16:18], high_res=False),
+                "max_rel_modulation": hex_to_percent(payload[16:18], high_res=True),
             }
         )
 
