@@ -1,0 +1,52 @@
+####################################################################################################
+# ClimaRad Remote binding to a PIV
+#  - Supplicant, REM: ClimaRad 4-button remote faked (VMN-07LM01)
+#  - Respondent, FAN: ClimaRad VenturaV1x HRU (VMD-07RPS13)
+
+
+
+####################################################################################################
+# 1. For reference, 10E0s (if any), oem_code='65' (Note: REM/FAN won't RP|10E0):
+2024-10-16T21:32:07.084793 073  I --- 29:123150 63:262142 --:------ 10E0 029 000001C8410D0165FFFFFFFFFFFF0D0407DF564D4E2D30374C4D303100                    # {'description': 'VMN-07LM01', 'manufacturer_sub_id': 'C8', 'product_id': '41', 'date_1': '2015-04-13', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad 4-button remote
+2024-10-09T11:50:24.287879 123  I --- 37:153226 63:262142 --:------ 10E0 038 000001C8830C0A65FEFFFFFFFFFF110C07E4564D442D30375250533133000000000000000000  # {'description': 'VMD-07RPS13', 'manufacturer_sub_id': 'C8', 'product_id': '83', 'date_1': '2020-12-17', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad VenturaV1x
+
+
+
+####################################################################################################
+# 2. The handshake - faked in ramses_rf (NB: FAN|W|1FC9|00):
+# actual remote 1FC9 packet gets no response. Ventura is known to only bind to a CO2 sensor
+2024-11-09T18:33:29.744238 ...  I --- 29:123160 --:------ 29:123160 1FC9 018 0022F175E1180010E075E118001FC975E118
+# extended 1FC9. Added 1298 and 22F4, got response from HRU
+2024-11-09T18:32:41.837359 000  I --- 29:123160 --:------ 29:123160 1FC9 024 00129875E1180022F175E1180022F475E118001FC975E118  # {}
+2024-11-09T18:32:43.058046 075  W --- 37:153226 29:123160 --:------ 1FC9 012 0031D996568A00230996568A                          # {'phase': 'accept', 'bindings': [['00', '31D9', '37:153226'], ['00', '2309', '37:153226']]}  # 2309 reports a constant , set?
+2024-11-09T18:32:47.032998 000  I --- 29:123160 37:153226 --:------ 1FC9 001 00                                                # {'phase': 'confirm', 'bindings': [['00']]}
+
+2024-11-09T18:33:29.744238 000  I --- 29:123160 --:------ 29:123160 1FC9 024 00129875E1180022F175E1180022F475E118001FC975E118  # {'phase': 'offer', 'bindings': [['00', '22F1', '29:123160'], ['00', '10E0', '29:123160'], ['00', '1FC9', '29:123160']]}
+2024-11-09T18:33:29.759645 ...  W --- 37:153226 29:123160 --:------ 1FC9 012 0031D996568A00230996568A                          # {'phase': 'accept', 'bindings': [['00', '31D9', '37:153226'], ['00', '2309', '37:153226']]}  # 2309 reports a constant , set?
+2024-11-09T18:33:29.763814 ...  I --- 29:123160 37:153226 --:------ 1FC9 001 00                                                # {'phase': 'confirm', 'bindings': [['00']]}
+
+# no errors in ramses_cc
+2024-11-11T14:36:41.725043 000  I --- 29:123160 --:------ 29:123160 1FC9 024 00129875E1180022F175E1180022F475E118001FC975E118  # {'phase': 'offer', 'bindings': [['00', '22F1', '29:123160'], ['00', '10E0', '29:123160'], ['00', '1FC9', '29:123160']]}
+2024-11-11T14:36:41.741511 075  W --- 37:153226 29:123160 --:------ 1FC9 012 0031D996568A00230996568A                          # {'phase': 'accept', 'bindings': [['00', '31D9', '37:153226'], ['00', '2309', '37:153226']]}  # 2309 reports a constant , set?
+2024-11-11T14:36:41.745628 ...  I --- 29:123160 37:153226 --:------ 1FC9 006 001FC975E118                                      # {'phase': 'confirm', 'bindings': [['00', '1FC9', '29:123160']]} # made up by ramses_rf, config was "21"
+
+# A subsequent/spontaneous REM|I|10E0 *is required* for a successful bind???:
+2024-10-16T21:32:07.084793 073  I --- 29:123150 63:262142 --:------ 10E0 029 000001C8410D0165FFFFFFFFFFFF0D0407DF564D4E2D30374C4D303100  # {'description': 'VMN-07LM01', 'manufacturer_sub_id': 'C8', 'product_id': '41', 'date_1': '2015-04-13', 'date_2': '0000-00-00', 'oem_code': '65'}  # ClimaRad 4-button remote
+
+
+
+####################################################################################################
+# 3. Other notes:
+#  - domain IS appears to be EF:
+066  I --- 37:153226 --:------ 37:153226 31DA 030 00 EF0001F600EF064C7FFF07F5073EBE09001F0000000000008500850000
+# 4. ramses_cc.bind_device action
+data:
+  device_id: "29:123160"
+  offer:
+    "10E0": "65"
+    1FC9: "00" # or "21" as in orcon?
+    22F1: "00"
+  # confirm: reports an error in ramses_cc
+  #  1FC9: "00"
+  device_info:
+    " I --- 29:123160 63:262142 --:------ 10E0 029 000001C8410D0165FFFFFFFFFFFF0D0407DF564D4E2D30374C4D303100"
