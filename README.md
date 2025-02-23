@@ -5,7 +5,7 @@
 # New code owner wanted
 I no longer am able to work on this project and active development has ceased.
 
-Please reach out to me if you feel able to take over. I will hand over the entire repo to teh right person.
+Please reach out to me if you feel able to take over. I will hand over the entire repo to the right person, and would be prepared to provide help during a transition period.
 
 ## Overview
 **ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as:
