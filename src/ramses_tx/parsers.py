@@ -1947,12 +1947,17 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
     return result  # TODO: double-check the final "00"
 
 
-# presence_detect, HVAC sensor
+# presence_detect, HVAC sensor, or Timed boost for Vasco D60
 def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
-    assert payload in ("0001", "000100"), _INFORM_DEV_MSG
-
+    presence: str | int
+    if msg.src.type == "37":  # ClimaRad VenturaV1x FAN
+        assert payload in ("000000", "000100"), _INFORM_DEV_MSG
+        presence = int(payload[2:4])
+    else:
+        assert payload in ("0001", "000100"), _INFORM_DEV_MSG
+        presence = payload[2:4]
     return {
-        "presence_detected": bool(payload[2:4]),
+        "presence_detected": bool(presence),
         "_unknown_4": payload[4:],
     }
 
