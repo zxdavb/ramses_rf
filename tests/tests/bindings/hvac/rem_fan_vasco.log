@@ -1,0 +1,32 @@
+####################################################################################################
+# Vasco Remote binding to a PIV
+#  - Supplicant, REM: Vasco 4-button remote (VMN-17LMP01)
+#  - Respondent, FAN: Vasco D60 HRU         (VMD-17RPS01)
+
+
+
+####################################################################################################
+# 1. For reference, 10E0s (if any), oem_code='66' (Note: REM/FAN won't RP|10E0):
+2024-10-04 22:24:58.581000 ...  I --- 29:091138 63:262142 --:------ 10E0 038 000001C8400F0166FFFFFFFFFFFF0E0207E3564D4E2D31374C4D503031000000000000000000  # {'description': 'VMN-17LMP01', 'manufacturer_sub_id': 'C8', 'product_id': '40', 'date_1': '2019-02-14', 'date_2': '0000-00-00', 'oem_code': '66'}  # Vasco 4-button remote
+2024-10-15T21:01:19.293000 083  I --- 32:022222 63:262142 --:------ 10E0 030 000001C83A190F66FFFFFFFFFFFFFFFFFFFF564D442D3137525053303100                  # {'description': 'VMD-17RPS01', 'manufacturer_sub_id': 'C8', 'product_id': '3A', 'date_1': '0000-00-00', 'date_2': '0000-00-00', 'oem_code': '66'}  # Vasco D60 HRU
+
+
+
+####################################################################################################
+# 2. The handshake (NB: FAN|W|1FC9|00):
+2024-11-07T14:39:29.639500 072  I --- 29:091138 --:------ 29:091138 1FC9 024 0022F17564020022F37564026610E0756402001FC9756402  # {'phase': 'offer', 'bindings': [['00', '22F1', '29:091138'], ['00', '22F3', '29:091138'], ['66', '10E0', '29:091138'], ['00', '1FC9', '29:091138']]}
+2024-11-07T14:39:29.687203 083  W --- 32:022222 29:091138 --:------ 1FC9 012 0031D98056CE0031DA8056CE                          # {'phase': 'accept', 'bindings': [['00', '31D9', '32:022222'], ['00', '31DA', '32:022222']]}
+2024-11-07T14:39:29.693284 071  I --- 29:091138 32:022222 --:------ 1FC9 001 00                                                # {'phase': 'confirm', 'bindings': [['00']]}
+
+# It appears the subsequent/spontaneous REM|I|10E0 *is required* for a successful bind (otherwise the FAN will RQ|10E0, see below):
+2024-10-04 22:24:58.581000 ...  I --- 29:091138 63:262142 --:------ 10E0 038 000001C8400F0166FFFFFFFFFFFF0E0207E3564D4E2D31374C4D503031000000000000000000  # {'description': 'VMN-17LMP01', 'manufacturer_sub_id': 'C8', 'product_id': '40', 'date_1': '2019-02-14', 'date_2': '0000-00-00', 'oem_code': '66'}  # Vasco 4-button remote
+
+
+
+####################################################################################################
+# 3. Other notes:
+#  - domain IS appears to be 00:
+# 2024-10-15T12:46:03.623447 082  I --- 32:022222 --:------ 32:022222 31DA 030 00EF007FFFEFEF058506EE0773051FA800EF0232320000EF00051902EE00
+
+# 3. Other notes:
+#  - it is unclear if these spontaneous I|1060s are needed too (unlikely):
