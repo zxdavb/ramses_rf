@@ -1634,7 +1634,13 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 # WIP: unknown, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # HACK: for dev/test: 37:153226 is ClimaRad Ventura fan/remote
-    payload = payload[8:14] if msg.src.id == "37:153226" else payload[:6]
+    if msg.src.id == "37:153226":
+        if payload[10:12] == "60":
+            payload = payload[8:14]
+        else:
+            payload = payload[:4] + payload[12:14]
+    else:
+        payload = payload[:6]
 
     MODE_LOOKUP = {
         0x00: "off?",
