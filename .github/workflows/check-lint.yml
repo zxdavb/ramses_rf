@@ -43,7 +43,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff  # pip install -r requirements_dev.txt
 
-      - name: Check with ruff
+      - name: Check with ruff (lint)
         run: ruff check --output-format=github .
 
       - name: Check with ruff (format)
