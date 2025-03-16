@@ -2528,7 +2528,7 @@ def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER
 
         assert "_flags_3" not in result or (
             payload[6:8] == "FF" or int(payload[6:8], 0x10) & 0b10100000 == 0
-        ), f'byte 3: {result["_flags_3"]}'
+        ), f"byte 3: {result['_flags_3']}"
         # only 10:040239 does 0b01000000, only Itho Autotemp does 0b00010000
 
         assert "_unknown_4" not in result or (
@@ -2542,7 +2542,7 @@ def parser_3ef0(payload: str, msg: Message) -> PayDictT._3EF0 | PayDictT._JASPER
 
         assert "_flags_6" not in result or (
             int(payload[12:14], 0x10) & 0b11111100 == 0
-        ), f'byte 6: {result["_flags_6"]}'
+        ), f"byte 6: {result['_flags_6']}"
 
     except AssertionError as err:
         _LOGGER.warning(

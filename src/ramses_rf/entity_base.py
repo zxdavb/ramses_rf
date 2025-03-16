@@ -807,8 +807,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif is_sensor:
             raise TypeError(
-                f"not a valid combination for {self}: "
-                f"{child}|{child_id}|{is_sensor}"
+                f"not a valid combination for {self}: {child}|{child_id}|{is_sensor}"
             )
 
         elif hasattr(self, SZ_CIRCUITS):  # UFH circuit
@@ -857,8 +856,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         else:
             raise TypeError(
-                f"not a valid combination for {self}: "
-                f"{child}|{child_id}|{is_sensor}"
+                f"not a valid combination for {self}: {child}|{child_id}|{is_sensor}"
             )
 
         self.childs.append(child)
