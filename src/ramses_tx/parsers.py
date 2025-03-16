@@ -1503,10 +1503,12 @@ def parser_22e5(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 
 # WIP: unknown, HVAC
-def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
-    # RP --- 32:153258 18:005904 --:------ 22E9 004 00C8C814
-    # RP --- 32:155617 18:005904 --:------ 22E9 004 008CC814
-
+def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | str | None]:
+    if payload[2:4] == "01":
+        return {
+            "unknown_4": payload[4:6],
+            "unknown_6": payload[6:8],
+        }
     return parser_22e0(payload, msg)
 
 
