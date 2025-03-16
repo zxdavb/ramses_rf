@@ -1582,16 +1582,8 @@ def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
 
 # fan_boost, HVAC
 def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
-    # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
-    # .I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
-    # .I 026 --:------ --:------ 39:159057 22F3 003 00001E  # 30 mins
-    # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins
-    # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
-    # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
-
     # NOTE: for boost timer for high
     try:
-        # assert payload[2:4] in ("00", "02", "12", "x52"), f"byte 1: {flag8(payload[2:4])}"
         assert msg.len <= 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
@@ -1602,11 +1594,16 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
         0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
     }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
-    fallback_speed = {  # after timer expiry
-        0x08: "fan_off",  # #      set fan off?
-        0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
-        0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
+    fallback_speed: str | None
+    if msg.len == 7 and payload[9:10] == "06":  # Vasco and ClimaRad REM
+        fallback_speed = "per_vent_speed"  # after timer expiry
+        # set fan as per current fan mode/speed
+    else:
+        fallback_speed = {  # after timer expiry
+            0x08: "fan_off",  # #      set fan off?
+            0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
+            0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
+        }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
 
     units = {
         0x00: "minutes",
@@ -1615,6 +1612,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     }.get(int(payload[2:4], 0x10) & 0xC0)  # 0b1100-0000
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
+    result = {}
 
     if msg.len >= 3:
         result = {

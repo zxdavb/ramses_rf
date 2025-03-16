@@ -417,7 +417,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
-        I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
+        I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC
         SZ_NAME: "unknown_22f4",
