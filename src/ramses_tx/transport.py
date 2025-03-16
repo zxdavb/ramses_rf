@@ -1124,6 +1124,10 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         dtm = dt.fromisoformat(payload["ts"])
         if dtm.tzinfo is not None:
             dtm = dtm.astimezone().replace(tzinfo=None)
+        if dtm < dt.now() - td(days=90):
+            _LOGGER.warning(
+                f"{self}: Have you configured the SNTP settings on the ESP?"
+            )
         # FIXME: convert all dt early, and convert to aware, i.e. dt.now().astimezone()
 
         self._frame_read(dtm.isoformat(), _normalise(payload["msg"]))

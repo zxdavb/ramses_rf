@@ -1,5 +1,5 @@
 # Requirements to use the library via its CLI
-# - last checked/updated: 2024-09-10
+# - last checked/updated: 2025-02-18 (c.f. HA 2025.2.2)
 #
 
 # library requirements (dependencies) are in pyproject.toml
@@ -11,6 +11,6 @@
 # also required if using the the library via the CLI, client.py
 # - pip list | grep -E 'click|colorama|debugpy'
 
-  click >= 8.1.7                                 # NOTE: non-async version
+  click >= 8.1.8                                 # NOTE: non-async version
   colorama >= 0.4.6
-  debugpy >= 1.8.5                               # can invoke via CLI
+  debugpy >= 1.8.11                              # can invoke via CLI
