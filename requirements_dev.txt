@@ -1,5 +1,5 @@
 # Requirements to dev/test the source code
-# - last checked/updated: 2024-09-10
+# - last checked/updated: 2025-02-18 (c.f. HA 2025.2.2)
 #
 
 # for using the the library with CLI
@@ -11,17 +11,17 @@
 
 # used for development (linting)
   pre-commit >= 4.0.1
-  ruff >= 0.8.1                                  # also: pre-commit-config.yaml
+  ruff >= 0.9.1                                  # also: pre-commit-config.yaml
 
 # used for development (typing)
-  mypy >= 1.11.2
+  mypy >= 1.15.0
   types-colorama >= 0.4.15
   types-paho-mqtt >= 1.6.0
   types-PyYAML >= 6.0.12
   voluptuous >= 0.15.2
 
 # used for testing
-  pytest >= 8.3.3
+  pytest >= 8.3.4
   pytest-asyncio >= 0.24.0
 # pytest-cov
   pytest-sugar >= 1.0.0
@@ -29,5 +29,5 @@
 # syrupy >= 4.6.1
 
 # used for build/deploy
-  hatch >= 1.12.0
-  hatchling >= 1.25
+  hatch >= 1.14.0
+  hatchling >= 1.27
