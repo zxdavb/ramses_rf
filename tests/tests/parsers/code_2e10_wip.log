@@ -8,7 +8,3 @@
 2023-11-04T17:38:34.781338 067  I 024 21:052764 --:------ 21:052764 2E10 002 0001  # {'presence_detected': True, '_unknown_4': '', 'seqx_num': '024'}
 2023-11-04T17:38:34.867259 067  I 024 21:052764 --:------ 21:052764 2E10 002 0001  # {'presence_detected': True, '_unknown_4': '', 'seqx_num': '024'}
 2023-11-04T17:38:34.942291 068  I 024 21:052764 --:------ 21:052764 2E10 002 0001  # {'presence_detected': True, '_unknown_4': '', 'seqx_num': '024'}
-
-# ClimaRad VenturaV1x reporting, no option for presence detection, eg. just 1 change in 24 h @ 7PM
-2024-10-14T19:59:07.786056 070  I --- 37:153226 --:------ 37:153226 2E10 003 000000 # {'_unknown_4': '00', 'presence_detected': False}
-2024-10-10T17:57:21.140055 068  I --- 37:153226 --:------ 37:153226 2E10 003 000100 # {'_unknown_4': '00', 'presence_detected': True}
