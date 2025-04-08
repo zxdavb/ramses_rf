@@ -11,13 +11,13 @@ EXCLUDED_APIS += ()  # APIs not added to the CODE_API_MAP, should be an empty tu
 def test_command_apis_via_map() -> None:
     """Check that all Command constructors are in CODE_API_MAP."""
 
-    cls_apis = set(
+    cls_apis = {
         v.__name__
         for k, v in Command.__dict__.items()
         if isinstance(v, classmethod) and k[:1] != "_" and k not in EXCLUDED_APIS
-    )
+    }
 
-    map_apis = set(v.__name__ for v in CODE_API_MAP.values())
+    map_apis = {v.__name__ for v in CODE_API_MAP.values()}
 
     assert not map_apis.symmetric_difference(cls_apis)
 

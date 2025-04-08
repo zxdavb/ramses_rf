@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """RAMSES RF - Test the Schema processor."""
 
+from typing import Any
+
 import voluptuous as vol
 
 from ramses_rf.schemas import (
@@ -50,6 +52,8 @@ def test_zone_schema() -> None:
         - 04:111111
         - 04:222222
     """
+
+    dict_: dict[str, Any]
 
     for dict_ in (
         SCH_TCS_ZONES_ZON({}),

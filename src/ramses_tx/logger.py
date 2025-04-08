@@ -177,7 +177,7 @@ class TimedRotatingFileHandler(_TimedRotatingFileHandler):
     def getFilesToDelete(self) -> list[str]:  # zxdavb: my version
         """Determine the files to delete when rolling over.
 
-        Overriden as old log files not being deleted.
+        Overridden as old log files not being deleted.
         """
         # See bpo-44753 (this code is as was before that commit), bpo45628, bpo-46063
         dirName, baseName = os.path.split(self.baseFilename)
@@ -209,14 +209,22 @@ def getLogger(  # permits a bespoke Logger class
         return logging.getLogger(name)
 
     # Acquire lock, so no-one else uses our Logger class
-    logging._acquireLock()  # type: ignore[attr-defined]
+    try:  # TODO: remove this ASAP
+        logging._acquireLock()  # type: ignore[attr-defined]
+    except AttributeError:  # Python 3.13+
+        logging._lock.acquire()  # type: ignore[attr-defined]
+
     klass = logging.getLoggerClass()
     logging.setLoggerClass(_Logger)
 
     logger = logging.getLogger(name)
 
     logging.setLoggerClass(klass)
-    logging._releaseLock()  # type: ignore[attr-defined]
+
+    try:  # TODO: remove this ASAP
+        logging._releaseLock()  # type: ignore[attr-defined]
+    except AttributeError:  # Python 3.13+
+        logging._lock.release()  # type: ignore[attr-defined]
 
     return logger
 

@@ -190,7 +190,7 @@ def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs: Any) -> 
     if config_file:  # TODO: validate with voluptuous, use YAML
         lib_kwargs = deep_merge(
             lib_kwargs, json.load(config_file)
-        )  # CLI takes precidence
+        )  # CLI takes precedence
 
     ctx.obj = kwargs, lib_kwargs
 
@@ -463,7 +463,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
 
         if kwargs["long_format"]:  # HACK for test/dev
             print(
-                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
+                f"{msg.dtm.isoformat(timespec='microseconds')} ... {msg!r}"
                 f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
             return

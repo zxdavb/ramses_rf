@@ -413,7 +413,7 @@ _FAULT_FLAGS: Final[_FlagsSchemaT] = {
     },
     0x0400: {
         EN: "Low water pressure",
-        NL: "Waterdruk te laag",
+        NL: "Waterdruk te laag",  # codespell:ignore te
         VAR: "FaultLowWaterPressure",
     },
     0x0800: {
@@ -428,7 +428,7 @@ _FAULT_FLAGS: Final[_FlagsSchemaT] = {
     },
     0x2000: {
         EN: "Water over-temperature",
-        NL: "Water te heet",
+        NL: "Water te heet",  # codespell:ignore te
         VAR: "FaultOverTemperature",
     },
 }
@@ -1253,8 +1253,8 @@ def decode_frame(
     connected SCU prints, correct response is (Write-Ack 255 1).
 
     Other Remeha info:
-        ID   5: correponds with the Remeha E:xx fault codes
-        ID  11: correponds with the Remeha Pxx parameter codes
+        ID   5: corresponds with the Remeha E:xx fault codes
+        ID  11: corresponds with the Remeha Pxx parameter codes
         ID  35: reported value is fan speed in rpm/60
-        ID 115: correponds with Remeha Status & Sub-status numbers, {u8 u8} data-type
+        ID 115: corresponds with Remeha Status & Sub-status numbers, {u8 u8} data-type
 """

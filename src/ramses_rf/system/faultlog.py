@@ -126,7 +126,7 @@ FaultMapT: TypeAlias = OrderedDict[FaultIdxT, FaultDtmT]
 class FaultLog:  # 0418  # TODO: use a NamedTuple
     """The fault log of an evohome system.
 
-    This code assumes that the `timestamp` attr of each log entry is a unique identifer.
+    This code assumes that the `timestamp` attr of each log entry is a unique identifier.
 
     Null entries do not have a timestamp. All subsequent entries will also be null.
 
@@ -134,10 +134,10 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     in the system log.
 
     New entries are added to the top of the log (log_idx=0), and the log_idx is
-    incremented for all exisiting log enties.
+    incremented for all existing log enties.
     """
 
-    _MAX_LOG_IDX = 0x3E
+    _MAX_LOG_IDX = 0x3F  # evohome controller only keeps most recent 64 entries
 
     def __init__(self, tcs: _LogbookT) -> None:
         self._tcs: _LogbookT = tcs
@@ -191,7 +191,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         if msg.verb == RP and msg.payload[SZ_LOG_ENTRY] is None:
             # such payloads have idx == "00" (is sentinel for null), so can't know the
-            # correspondings RQ's log_idx, but if verb == I_, safely assume log_idx is 0
+            # corresponding RQ's log_idx, but if verb == I_, safely assume log_idx is 0
             return
 
         self._process_msg(msg)
@@ -229,7 +229,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def _hack_pkt_idx(self, pkt: Packet, cmd: Command) -> Message:
         """Modify the Packet so that it has the log index of its corresponding Command.
 
-        If there is no log entry for log_idx=<idx>, then the headers wont match:
+        If there is no log entry for log_idx=<idx>, then the headers won't match:
         - cmd rx_hdr is 0418|RP|<ctl_id>|<idx> (expected)
         - pkt hdr will  0418|RP|<ctl_id>|00    (response from controller)
 
@@ -256,9 +256,9 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         pkt._frame = pkt._frame[:50] + idx + pkt._frame[52:]
 
         assert pkt._hdr == cmd.rx_header, f"{self}: Coding error"
-        assert (
-            str(pkt) == pkt._frame[:50] + idx + pkt._frame[52:]
-        ), f"{self}: Coding error"
+        assert str(pkt) == pkt._frame[:50] + idx + pkt._frame[52:], (
+            f"{self}: Coding error"
+        )
 
         msg = Message(pkt)
         msg._payload = {SZ_LOG_IDX: idx, SZ_LOG_ENTRY: None}  # PayDictT._0418_NULL
@@ -278,20 +278,21 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
         if limit is None:
             limit = DEFAULT_GET_LIMIT
 
-        self._is_getting = True
+        self._is_getting = True  # TODO: semaphore?
 
-        for idx in range(start, min(start + limit, 64)):
+        # TODO: handle exc.RamsesException (RQ retries exceeded)
+        for idx in range(start, min(start + limit, self._MAX_LOG_IDX + 1)):
             cmd = Command.get_system_log_entry(self.id, idx)
             pkt = await self._gwy.async_send_cmd(cmd, wait_for_reply=True)
 
             if pkt.payload == "000000B0000000000000000000007FFFFF7000000000":
-                msg = self._hack_pkt_idx(pkt, cmd)  # RPs for null entrys have idx=="00"
+                msg = self._hack_pkt_idx(pkt, cmd)  # RPs for null entries have idx==00
                 self._process_msg(msg)  # since pkt via dispatcher aint got idx
                 break
             self._process_msg(Message(pkt))  # JIC dispatcher doesn't do this for us
 
-        self._is_current = False
         self._is_getting = False
+        self._is_current = True
 
         return self.faultlog
 
@@ -304,22 +305,21 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
 
         return {idx: self._log[dtm] for idx, dtm in self._map.items()}
 
-    def is_current(self, force_io: bool | None = None) -> bool:
+    async def is_current(self, force_io: bool = False) -> bool:
         """Return True if the local fault log is identical to the controllers.
 
         If force_io, retrieve the 0th log entry and check it is identical to the local
         copy.
         """
 
-        if not self._is_current:
-            return False
-        return True
+        # if not self._is_current or not force_io:  # TODO
+        return self._is_current
 
     @property
     def latest_event(self) -> FaultLogEntry | None:
         """Return the most recently logged event (fault or restore), if any."""
 
-        if not self._log:  # TODO: raise exception or retrive log (make function)?
+        if not self._log:  # TODO: raise exception or retrieve log (make function)?
             return None
 
         return self._log[max(k for k in self._log)]
@@ -328,7 +328,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def latest_fault(self) -> FaultLogEntry | None:
         """Return the most recently logged fault, if any."""
 
-        if not self._log:  # TODO: raise exception or retrive log (make function)?
+        if not self._log:  # TODO: raise exception or retrieve log (make function)?
             return None
 
         faults = [k for k, v in self._log.items() if v.fault_state == FaultState.FAULT]
@@ -342,7 +342,7 @@ class FaultLog:  # 0418  # TODO: use a NamedTuple
     def active_faults(self) -> tuple[FaultLogEntry, ...] | None:
         """Return a list of all faults outstanding (i.e. no corresponding restore)."""
 
-        if not self._log:  # TODO: raise exception or retrive log (make function)?
+        if not self._log:  # TODO: raise exception or retrieve log (make function)?
             return None
 
         restores = {}

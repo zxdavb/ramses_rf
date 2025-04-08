@@ -116,7 +116,7 @@ class ZoneBase(Child, Parent, Entity):
         Can be a heating zone (of a klass), or the DHW subsystem (idx must be 'HW').
         """
 
-        zon = cls(tcs, zone_idx)
+        zon = cls(tcs, zone_idx)  # type: ignore[arg-type]
         zon._update_schema(**schema)
         return zon
 
@@ -137,12 +137,12 @@ class ZoneBase(Child, Parent, Entity):
 
     @property
     def schema(self) -> dict[str, Any]:
-        """Return the schema (cant be changed without destroying/re-creating entity)."""
+        """Return the schema (can't change without destroying/re-creating entity)."""
         return {}
 
     @property
     def params(self) -> dict[str, Any]:
-        """Return confiuration (can be changed by user)."""
+        """Return configuration (can be changed by user)."""
         return {}
 
     @property
@@ -237,8 +237,8 @@ class DhwZone(ZoneSchedule):  # CS92A
         # 1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
         # 2. Use sensor temp matching - non-deterministic
 
-        # Data from the CTL is considered more authorative. The RQ is initiated by the
-        # DHW, so is not authorative. The I/1260 is not to/from a controller, so is
+        # Data from the CTL is considered more authoritative. The RQ is initiated by the
+        # DHW, so is not authoritative. The I/1260 is not to/from a controller, so is
         # not useful.
         # """
 
@@ -310,7 +310,7 @@ class DhwZone(ZoneSchedule):  # CS92A
         There is only 1 way to eavesdrop a controller's DHW sensor:
         1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
 
-        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
+        The RQ is initiated by the DHW, so is not authoritative (the CTL will RP any RQ).
         The I/1260 is not to/from a controller, so is not useful.
         """
 
@@ -862,7 +862,7 @@ class EleZone(Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         return 0
 
     @property
-    def relay_demand(self) -> float | None:  # 0008 (NOTE: CTLs wont RP|0008)
+    def relay_demand(self) -> float | None:  # 0008 (NOTE: CTLs won't RP|0008)
         return self._msg_value(Code._0008, key=SZ_RELAY_DEMAND)  # type: ignore[no-any-return]
 
     @property
@@ -982,7 +982,7 @@ def zone_factory(
 
         # NOTE: for now, zones are always promoted after instantiation
 
-        # # a specified zone class always takes precidence (even if it is wrong)...
+        # # a specified zone class always takes precedence (even if it is wrong)...
         # if cls := ZONE_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
         #     _LOGGER.debug(
         #         f"Using an explicitly-defined zone class for: {ctl_addr}_{idx} ({cls})"

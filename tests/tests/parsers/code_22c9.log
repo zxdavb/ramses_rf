@@ -43,9 +43,9 @@
 # 22-10-05T20:35:51.000000 ...  I --- 02:001786 --:------ 02:001786 22C9 006 0005DC0A2801                                      # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": False}
 # 22-10-05T20:35:51.698288 ...  I --- 02:001786 --:------ 02:001786 22C9 012 0005DC0A28010105DC0A2801                          # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": False}
 # 23-02-26T16:54:31.000000 ...  I --- 02:123456 --:------ 02:123456 22C9 018 0001F40A28010101F40A28010201F40A2801              # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": False}
-2023-02-26T16:54:31.886896 ...  I --- 02:123456 --:------ 02:123456 22C9 024 0001F40A28010101F40A28010201F40A28010301F40A2801  # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }  # Assumed true, as cant tell until next packet
+2023-02-26T16:54:31.886896 ...  I --- 02:123456 --:------ 02:123456 22C9 024 0001F40A28010101F40A28010201F40A28010301F40A2801  # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }  # Assumed true, as can't tell until next packet
 
-2023-02-26T16:54:31.886896 053  I --- 02:019383 --:------ 02:019383 22C9 024 0001F40A28010101F40A28010201F40A28010301F40A2801  # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }  # Assumed true, as cant tell until next packet
+2023-02-26T16:54:31.886896 053  I --- 02:019383 --:------ 02:019383 22C9 024 0001F40A28010101F40A28010201F40A28010301F40A2801  # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }  # Assumed true, as can't tell until next packet
 2023-02-26T16:54:32.832199 053  I --- 02:019383 --:------ 02:019383 22C9 006 0401F40A2801                                      # {"has_array": True  , "has_idx": True , "has_payload": True , "is_fragment": True }  # Proven true, by previous packet
 
 2022-10-05T20:35:51.000000 ...  I --- 02:001786 --:------ 02:001786 22C9 006 0005DC0A2801                                      # [{'ufh_idx': '00', 'mode': 'heat', 'setpoint_bounds': (15.0, 26.0)}]

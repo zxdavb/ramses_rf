@@ -86,7 +86,7 @@ def class_by_attr(name: str, attr: str) -> dict[str, Any]:  # TODO: change to __
     """Return a mapping of a (unique) attr of classes in a module to that class."""
 
     def predicate(m: ModuleType) -> bool:
-        return isclass(m) and m.__module__ == name and getattr(m, attr, None)  # type: ignore[return-value]
+        return isclass(m) and m.__module__ == name and getattr(m, attr, None)
 
     return {getattr(c[1], attr): c[1] for c in getmembers(modules[name], predicate)}
 
@@ -225,7 +225,7 @@ class _MessageDB(_Entity):
 
         The idx is one of:
          - a simple index (e.g. zone_idx, domain_id, aka child_id)
-         - a compund ctx (e.g. 0005/000C/0418)
+         - a compound ctx (e.g. 0005/000C/0418)
          - True (an array of elements, each with its own idx),
          - False (no idx, is usu. 00),
          - None (not deteminable, rare)
@@ -309,9 +309,9 @@ class _MessageDB(_Entity):
         key: str | None = None,
         **kwargs: Any,
     ) -> dict | list | None:
-        assert (
-            not isinstance(code, tuple) or verb is None
-        ), f"Unsupported: using a tuple ({code}) with a verb ({verb})"
+        assert not isinstance(code, tuple) or verb is None, (
+            f"Unsupported: using a tuple ({code}) with a verb ({verb})"
+        )
 
         if verb:
             try:
@@ -363,9 +363,9 @@ class _MessageDB(_Entity):
             # .I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
             msg_dict = msg.payload[0]
 
-        assert (not domain_id and not zone_idx) or (
-            msg_dict.get(idx) == val
-        ), f"{msg_dict} < Coding error: key={idx}, val={val}"
+        assert (not domain_id and not zone_idx) or (msg_dict.get(idx) == val), (
+            f"{msg_dict} < Coding error: key={idx}, val={val}"
+        )
 
         if key:
             return msg_dict.get(key)
@@ -432,7 +432,7 @@ class _Discovery(_MessageDB):
         self._supported_cmds_ctx: dict[str, bool | None] = {}
 
         if not gwy.config.disable_discovery:
-            # self._start_discovery_poller()  # Cant use derived classes dont exist yet
+            # self._start_discovery_poller()  # Can't use derived classes dont exist yet
             gwy._loop.call_soon(self._start_discovery_poller)
 
     @property  # TODO: needs tidy up
@@ -600,7 +600,7 @@ class _Discovery(_MessageDB):
         async def send_disc_cmd(
             hdr: HeaderT, task: dict, timeout: float = 15
         ) -> Packet | None:  # TODO: use constant instead of 15
-            """Send a scheduled command and wait for/return the reponse."""
+            """Send a scheduled command and wait for/return the response."""
 
             try:
                 pkt: Packet | None = await asyncio.wait_for(
@@ -807,8 +807,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif is_sensor:
             raise TypeError(
-                f"not a valid combination for {self}: "
-                f"{child}|{child_id}|{is_sensor}"
+                f"not a valid combination for {self}: {child}|{child_id}|{is_sensor}"
             )
 
         elif hasattr(self, SZ_CIRCUITS):  # UFH circuit
@@ -857,8 +856,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         else:
             raise TypeError(
-                f"not a valid combination for {self}: "
-                f"{child}|{child_id}|{is_sensor}"
+                f"not a valid combination for {self}: {child}|{child_id}|{is_sensor}"
             )
 
         self.childs.append(child)
@@ -943,7 +941,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         if isinstance(self, UfhController):
             child_id = FF
 
-        if isinstance(parent, Controller):  # A controller cant be a Parent
+        if isinstance(parent, Controller):  # A controller can't be a Parent
             parent = parent.tcs
 
         if isinstance(parent, Evohome) and child_id:
@@ -962,7 +960,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         elif isinstance(parent, UfhController) and not child_id:
             raise TypeError(
-                f"{self}: cant set child_id to: {child_id} "
+                f"{self}: can't set child_id to: {child_id} "
                 f"(for Circuits, it must be a circuit_idx)"
             )
 
@@ -971,13 +969,13 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
 
         if self._parent and self._parent != parent:
             raise exc.SystemSchemaInconsistent(
-                f"{self} cant change parent "
+                f"{self} can't change parent "
                 f"({self._parent}_{self._child_id} to {parent}_{child_id})"
             )
 
         # if self._child_id is not None and self._child_id != child_id:
         #     raise CorruptStateError(
-        #         f"{self} cant set domain to: {child_id}, "
+        #         f"{self} can't set domain to: {child_id}, "
         #         f"({self._parent}_{self._child_id} to {parent}_{child_id})"
         #     )
 
@@ -1022,27 +1020,27 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         if isinstance(parent, Zone):
             if child_id != parent.idx:
                 raise TypeError(
-                    f"{self}: cant set child_id to: {child_id} "
+                    f"{self}: can't set child_id to: {child_id} "
                     f"(it must match its parent's zone idx, {parent.idx})"
                 )
 
         elif isinstance(parent, DhwZone):  # usu. FA (HW), could be F9
             if child_id not in (F9, FA):  # may not be known if eavesdrop'd
                 raise TypeError(
-                    f"{self}: cant set child_id to: {child_id} "
+                    f"{self}: can't set child_id to: {child_id} "
                     f"(for DHW, it must be F9 or FA)"
                 )
 
         elif isinstance(parent, System):  # usu. FC
             if child_id not in (FC, FF):  # was: not in (F9, FA, FC, "HW"):
                 raise TypeError(
-                    f"{self}: cant set child_id to: {child_id} "
+                    f"{self}: can't set child_id to: {child_id} "
                     f"(for TCS, it must be FC)"
                 )
 
         elif not isinstance(parent, UfhController):  # is like CTL/TCS combined
             raise TypeError(
-                f"{self}: cant set Parent to: {parent} "
+                f"{self}: can't set Parent to: {parent} "
                 f"(it must be System, DHW, Zone, or UfhController)"
             )
 
@@ -1077,7 +1075,7 @@ class Child(Entity):  # A Zone, Device or a UfhCircuit
         if self.ctl and self.ctl is not ctl:
             # NOTE: assume a device is bound to only one CTL (usu. best practice)
             raise exc.SystemSchemaInconsistent(
-                f"{self} cant change controller: {self.ctl} to {ctl} "
+                f"{self} can't change controller: {self.ctl} to {ctl} "
                 "(or perhaps the device has multiple controllers?"
             )
 

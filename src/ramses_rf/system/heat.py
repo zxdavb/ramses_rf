@@ -10,7 +10,6 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, NoReturn, TypeVar
 
-from ramses_rf import exceptions as exc
 from ramses_rf.const import (
     SYS_MODE_MAP,
     SZ_ACTUATORS,
@@ -169,7 +168,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
             3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
 
-            Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
+            Data from the CTL is considered 'authoritative'. The 1FC9 RQ/RP exchange
             to/from a CTL is too rare to be useful.
             """
 
@@ -717,13 +716,9 @@ class Logbook(SystemBase):  # 0418
         limit: int | None = None,
         force_refresh: bool = False,
     ) -> dict[FaultIdxT, FaultLogEntry] | None:
-        try:
-            return await self._faultlog.get_faultlog(
-                start=start, limit=limit, force_refresh=force_refresh
-            )
-        except exc.RamsesException as err:
-            _LOGGER.error("%s: Failed to get faultlog: %s", self, err)
-            return None
+        return await self._faultlog.get_faultlog(
+            start=start, limit=limit, force_refresh=force_refresh
+        )
 
     @property
     def active_faults(self) -> tuple[str, ...] | None:
@@ -1077,7 +1072,7 @@ class Hometronics(System):
     # .I --- 01:023389 --:------ 01:023389 2D49 003 880000
     # .I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
 
-    # Hometronic does not react to W/2349 but rather requies W/2309
+    # Hometronic does not react to W/2349 but rather requires W/2309
 
     #
     # def _setup_discovery_cmds(self) -> None:
@@ -1118,7 +1113,7 @@ def system_factory(
 
         klass: str = schema.get(SZ_CLASS)  # type: ignore[assignment]
 
-        # a specified system class always takes precidence (even if it is wrong)...
+        # a specified system class always takes precedence (even if it is wrong)...
         if klass and (cls := SYS_CLASS_BY_SLUG.get(klass)):
             _LOGGER.debug(
                 f"Using an explicitly-defined system class for: {ctl_addr} ({cls._SLUG})"

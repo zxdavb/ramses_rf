@@ -71,12 +71,12 @@ def _create_devices_from_addrs(gwy: Gateway, this: Message) -> None:
     # NB: only addrs processed here, packet metadata is processed elsewhere
 
     # Determinging bindings to a controller:
-    #  - configury; As per any schema
+    #  - configury; As per any schema                                                   # codespell:ignore configury
     #  - discovery: If in 000C pkt, or pkt *to* device where src is a controller
     #  - eavesdrop: If pkt *from* device where dst is a controller
 
     # Determinging location in a schema (domain/DHW/zone):
-    #  - configury; As per any schema
+    #  - configury; As per any schema                                                   # codespell:ignore configury
     #  - discovery: If in 000C pkt - unable for 10: & 00: (TRVs)
     #  - discovery: from packet fingerprint, excl. payloads (only for 10:)
     #  - eavesdrop: from packet fingerprint, incl. payloads
@@ -200,7 +200,7 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
 
         # TODO: any use in creating a device only if the payload is valid?
         if gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
-            logger_xxxx(msg)  # return ensures try's else: clause wont be invoked
+            logger_xxxx(msg)  # return ensures try's else: clause won't be invoked
             return
 
         try:
@@ -218,11 +218,11 @@ def process_msg(gwy: Gateway, msg: Message) -> None:
             and msg.dst is not msg.src
         ):
             # HGI80 can do what it likes
-            # receiving an I isn't currently in the schema & so cant yet be tested
+            # receiving an I isn't currently in the schema & so can't yet be tested
             _check_dst_slug(msg)  # ? raise exc.PacketInvalid
 
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
-            logger_xxxx(msg)  # return ensures try's else: clause wont be invoked
+            logger_xxxx(msg)  # return ensures try's else: clause won't be invoked
             return
 
         # NOTE: here, msgs are routed only to devices: routing to other entities (i.e.

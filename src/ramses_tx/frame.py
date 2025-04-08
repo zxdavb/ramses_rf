@@ -127,9 +127,9 @@ class Frame:
             if addrs[0] == NON_DEV_ADDR:
                 assert self.verb == I_, "wrong verb or dst addr should be present"
             elif addrs[2] == NON_DEV_ADDR:
-                assert (
-                    self.verb == I_ or src is not dst
-                ), "wrong verb or dst addr should not be src"
+                assert self.verb == I_ or src is not dst, (
+                    "wrong verb or dst addr should not be src"
+                )
             elif addrs[0] is addrs[2]:
                 assert self.verb == I_, "wrong verb or dst addr should not be src"
             else:
@@ -177,7 +177,7 @@ class Frame:
         2309/30C9/000A packets).
         """
 
-        if self._has_array_ is not None:  # HACK: overriden by detect_array(msg, prev)
+        if self._has_array_ is not None:  # HACK: overridden by detect_array(msg, prev)
             return self._has_array_
 
         # False -ves (array length is 1) are an acceptable compromise to extensive checking
@@ -214,9 +214,9 @@ class Frame:
         if self._has_array_:
             len_ = CODES_WITH_ARRAYS[self.code][0]
 
-            assert (
-                self._len % len_ == 0
-            ), f"{self} < array has length ({self._len}) that is not multiple of {len_}"
+            assert self._len % len_ == 0, (
+                f"{self} < array has length ({self._len}) that is not multiple of {len_}"
+            )
             assert (
                 self.src.type in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2)
                 or self.src == self.dst  # DEX
@@ -528,7 +528,7 @@ def pkt_header(pkt: Frame, /, rx_header: bool = False) -> None | HeaderT:
 
     if pkt.code == Code._1FC9:
         # .I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
-        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
+        # .W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # won't know src until it arrives
         # .I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
         if not rx_header:
             device_id = ALL_DEV_ADDR.id if pkt.src == pkt.dst else pkt.dst.id

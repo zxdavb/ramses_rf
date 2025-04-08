@@ -1,6 +1,6 @@
 #
 ### project ##########################################################################
-# ramses_rf, updated: 2023-12-17
+# last checked/updated: 2024-09-10
 #
 
 [project]
@@ -12,9 +12,9 @@
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
     "colorlog>=6.8.2",
-    "paho-mqtt>=1.6.1,<2.0.0",
-    "pyserial-asyncio>=0.6",
-    "voluptuous>=0.13.1",
+    "paho-mqtt>=1.6.1",
+    "pyserial-asyncio-fast>=0.14",
+    "voluptuous>=0.15.2",
   ]
   requires-python = ">=3.11"  # e.g. @enum.verify(enum.EnumCheck)
   license = "MIT"
@@ -69,6 +69,7 @@
 ### pytest ###########################################################################
 
 [tool.pytest.ini_options]
+  asyncio_default_fixture_loop_scope = "function"
   asyncio_mode = "auto"
 
   norecursedirs = "deprecated/*"
@@ -228,19 +229,20 @@
 [tool.ruff]
   exclude = ["tests/deprecated/*.py"]
   src = ["src", "tests"]
-  target-version = "py312"  # Assume Python 3.12
+  target-version = "py312"
 
 
 [tool.ruff.lint]
   select = [
-    "B",  #   flake8-bugbear
-    "E",  #   pycodestyle
-    "F",  #   Pyflakes
-    "I",  #   isort
-    "SIM",  # flake8-simplify
-    "UP",  #  pyupgrade
+    "ASYNC",  # flake8-async
+    "B",  #     flake8-bugbear
+    "E",  #     pycodestyle
+    "F",  #     Pyflakes
+    "I",  #     isort
+    "SIM",  #   flake8-simplify
+    "UP",  #    pyupgrade
   ]
-  ignore = ["B011", "E501", "SIM102", "SIM114", "UP040"]
+  ignore = ["ASYNC109", "ASYNC110", "B011", "E501", "SIM102", "SIM114", "UP040"]
 
   # B011   - Do not call assert False since python -O removes these calls
   # E501   - Line too long
@@ -257,3 +259,7 @@
   combine-as-imports = true
   force-sort-within-sections = false
   split-on-trailing-comma = false
+
+
+[tool.ruff.lint.per-file-ignores]
+  "tests/*" = ["ASYNC"]
