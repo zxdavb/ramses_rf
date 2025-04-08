@@ -125,13 +125,6 @@ class Gateway(Engine):
         self.config = SimpleNamespace(**SCH_GATEWAY_CONFIG(config))
         self._schema: dict[str, Any] = SCH_GLOBAL_SCHEMAS(kwargs)
 
-        set_pkt_logging_config(  # type: ignore[arg-type]
-            cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
-            **self._packet_log,
-        )
-
-        # if self.config.reduce_processing < DONT_CREATE_MESSAGES:
-        # if self.config.reduce_processing > 0:
         self._tcs: Evohome | None = None
 
         self.devices: list[Device] = []
@@ -175,6 +168,11 @@ class Gateway(Engine):
                     zone._start_discovery_poller()
                 if system.dhw:
                     system.dhw._start_discovery_poller()
+
+        set_pkt_logging_config(  # type: ignore[arg-type]
+            cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
+            **self._packet_log,
+        )
 
         self.config.disable_discovery, disable_discovery = (
             True,
@@ -295,7 +293,7 @@ class Gateway(Engine):
 
         tmp_transport: RamsesTransportT  # mypy hint
 
-        _LOGGER.warning("GATEWAY: Restoring a cached packet log...")
+        _LOGGER.debug("GATEWAY: Restoring a cached packet log...")
         self._pause()
 
         if _clear_state:  # only intended for test suite use
@@ -304,7 +302,7 @@ class Gateway(Engine):
         # We do not always enforce the known_list whilst restoring a cache because
         # if it does not contain a correctly configured HGI, a 'working' address is
         # used (which could be different to the address in the cache) & wanted packets
-        # can be dropped unneccesarily.
+        # can be dropped unnecessarily.
 
         enforce_include_list = bool(
             self._enforce_known_list
@@ -331,7 +329,7 @@ class Gateway(Engine):
 
         await tmp_transport.get_extra_info(SZ_READER_TASK)
 
-        _LOGGER.warning("GATEWAY: Restored, resuming")
+        _LOGGER.debug("GATEWAY: Restored, resuming")
         self._resume()
 
     def _add_device(self, dev: Device) -> None:  # TODO: also: _add_system()
@@ -393,9 +391,13 @@ class Gateway(Engine):
         dev = self.device_by_id.get(device_id)
 
         if not dev:
+            # voluptuous bug workaround: https://github.com/alecthomas/voluptuous/pull/524
+            _traits: dict[str, Any] = self._include.get(device_id, {})  # type: ignore[assignment]
+            _traits.pop("commands", None)
+
             traits: dict[str, Any] = SCH_TRAITS(self._include.get(device_id, {}))
 
-            dev = device_factory(self, Address(device_id), msg=msg, **traits)
+            dev = device_factory(self, Address(device_id), msg=msg, **_traits)
 
             if traits.get(SZ_FAKED):
                 if isinstance(dev, Fakeable):
@@ -505,7 +507,7 @@ class Gateway(Engine):
         that was loaded during initialisation.
 
         Orphans are devices that 'exist' but don't yet have a place in the schema
-        hierachy (if ever): therefore, they are instantiated when the schema is loaded,
+        hierarchy (if ever): therefore, they are instantiated when the schema is loaded,
         just like the other devices in the schema.
         """
 

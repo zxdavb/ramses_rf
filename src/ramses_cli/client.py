@@ -190,7 +190,7 @@ def cli(ctx, config_file=None, eavesdrop: None | bool = None, **kwargs: Any) -> 
     if config_file:  # TODO: validate with voluptuous, use YAML
         lib_kwargs = deep_merge(
             lib_kwargs, json.load(config_file)
-        )  # CLI takes precidence
+        )  # CLI takes precedence
 
     ctx.obj = kwargs, lib_kwargs
 
@@ -463,7 +463,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
 
         if kwargs["long_format"]:  # HACK for test/dev
             print(
-                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
+                f"{msg.dtm.isoformat(timespec='microseconds')} ... {msg!r}"
                 f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
             return
@@ -522,7 +522,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
             _ = spawn_scripts(gwy, **kwargs)
             await gwy._protocol._wait_connection_lost
 
-        elif command == LISTEN:
+        elif command in (LISTEN, PARSE):
             await gwy._protocol._wait_connection_lost
 
     except asyncio.CancelledError:
@@ -536,7 +536,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
     else:  # if no Exceptions raised, e.g. EOF when parsing, or Ctrl-C?
         msg = "ended without error (e.g. EOF)"
     finally:
-        await gwy.stop()
+        await gwy.stop()  # what happens if we have an exception here?
 
     print(f"\r\nclient.py: Engine stopped: {msg}")
 

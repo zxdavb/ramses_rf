@@ -171,7 +171,7 @@ def _normalise_mode(
 
     if mode is None and target is None:
         raise exc.CommandInvalid(
-            "Invalid args: One of mode or setpoint/active cant be None"
+            "Invalid args: One of mode or setpoint/active can't be None"
         )
     if until and duration:
         raise exc.CommandInvalid(
@@ -194,7 +194,7 @@ def _normalise_mode(
 
     if mode != ZON_MODE_MAP.FOLLOW and target is None:
         raise exc.CommandInvalid(
-            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
+            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active can't be None"
         )
 
     return mode
@@ -226,7 +226,7 @@ def _normalise_until(
     elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
             raise exc.CommandInvalid(
-                f"Invalid args: For mode={mode}, duration cant be None"
+                f"Invalid args: For mode={mode}, duration can't be None"
             )
         if until is not None:
             raise exc.CommandInvalid(
@@ -393,11 +393,11 @@ class Command(Frame):
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
         # e.g.: RQ --- 18:000730 01:145038 --:------ 000A 002 0800  # 000A|RQ|01:145038|08
-        comment = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
+        comment = f" # {self._hdr}{f' ({self._ctx})' if self._ctx else ''}"
         return f"... {self}{comment}"
 
     def __str__(self) -> str:
-        """Return an brief readable string representation of this object."""
+        """Return a brief readable string representation of this object."""
         # e.g.: 000A|RQ|01:145038|08
         return super().__repr__()  # TODO: self._hdr
 
@@ -632,7 +632,7 @@ class Command(Frame):
             _log_idx = 0
         if not isinstance(_log_idx, str):
             _log_idx = f"{_log_idx:02X}"
-        assert 0 <= int(_log_idx, 16) <= 0x3E
+        assert 0 <= int(_log_idx, 16) <= 0x3F  # TODO: is it 0x3E or 0x3F?
 
         if timestamp is None:
             timestamp = dt.now()  #
@@ -686,9 +686,6 @@ class Command(Frame):
         assert not kwargs, kwargs
 
         zon_idx = _check_idx(zone_idx)
-
-        kwargs.get("unknown_20", None)  # HVAC
-        kwargs.get("unknown_21", None)  # HVAC
 
         if not (0 <= max_flow_setpoint <= 99):
             raise exc.CommandInvalid(
@@ -1084,7 +1081,7 @@ class Command(Frame):
 
         if src_id and seqn:
             raise exc.CommandInvalid(
-                "seqn and src_id are mutally exclusive (you can have neither)"
+                "seqn and src_id are mutually exclusive (you can have neither)"
             )
 
         if seqn:
@@ -1108,7 +1105,7 @@ class Command(Frame):
         bypass_mode: is a proxy for bypass_position (they should be mutex)
         """
 
-        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # offically: 00C8EF
+        # RQ --- 37:155617 32:155617 --:------ 22F7 002 0064  # officially: 00C8EF
         # RP --- 32:155617 37:155617 --:------ 22F7 003 00C8C8
 
         bypass_mode = kwargs.pop("bypass_mode", None)
@@ -1118,7 +1115,7 @@ class Command(Frame):
 
         if bypass_mode and bypass_position is not None:
             raise exc.CommandInvalid(
-                "bypass_mode and bypass_position are mutally exclusive, "
+                "bypass_mode and bypass_position are mutually exclusive, "
                 "both cannot be provided, and neither is OK"
             )
         elif bypass_position is not None:
@@ -1215,7 +1212,7 @@ class Command(Frame):
 
         src_id = src_id or fan_id  # TODO: src_id should be an arg?
 
-        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exlude unknowns?
+        if not _2411_PARAMS_SCHEMA.get(param_id):  # TODO: not exclude unknowns?
             raise exc.CommandInvalid(f"Unknown parameter: {param_id}")
 
         payload = f"0000{param_id}0000{value:08X}"  # TODO: needs work

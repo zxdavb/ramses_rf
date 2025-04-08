@@ -155,7 +155,7 @@ def dt_now() -> dt:
 
 
 def dt_str() -> str:
-    """Return the current datetime as a isoformat string."""
+    """Return the current datetime as an isoformat string."""
     return dt_now().isoformat(timespec="microseconds")
 
 
@@ -307,15 +307,15 @@ def hex_to_flag8(byte: HexByte, lsb: bool = False) -> list[int]:  # TODO: use tu
 
 
 def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
-    """Convert list of 8 bits, MSB bit 1 by default, to an two-char ASCII hex string.
+    """Convert list of 8 bits, MSB bit 1 by default, to a two-char ASCII hex string.
 
     The `lsb` boolean is used so that flag[0] is `zone_idx["00"]`, etc.
     """
     if not isinstance(flags, list) or len(flags) != 8:
         raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
-    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
+        return f"{sum(x << idx for idx, x in enumerate(flags)):02X}"
+    return f"{sum(x << idx for idx, x in enumerate(reversed(flags))):02X}"
 
 
 # TODO: add a wrapper for EF, & 0xF0
@@ -368,7 +368,7 @@ def hex_from_str(value: str) -> str:
 
 
 def hex_to_temp(value: HexStr4) -> bool | float | None:  # TODO: remove bool
-    """Convert a 2's complement 4-byte hex string to an float."""
+    """Convert a 2's complement 4-byte hex string to a float."""
     if not isinstance(value, str) or len(value) != 4:
         raise ValueError(f"Invalid value: {value}, is not a 4-char hex string")
     if value == "31FF":  # means: N/A (== 127.99, 2s complement), signed?
@@ -395,7 +395,7 @@ def hex_from_temp(value: bool | float | None) -> HexStr4:
     # if not -(2**7) <= value < 2**7:  # TODO: tighten range
     #     raise ValueError(f"Invalid temp: {value} is out of range")
     temp = int(value * 100)
-    return f"{temp if temp >= 0 else temp + 2 ** 16:04X}"
+    return f"{temp if temp >= 0 else temp + 2**16:04X}"
 
 
 ########################################################################################
@@ -410,7 +410,7 @@ def parse_fault_log_entry(
 
     # NOTE: the log_idx will increment as the entry moves down the log, hence '_log_idx'
 
-    # these are only only useful for I_, and not RP
+    # these are only useful for I_, not RP
     if (timestamp := hex_to_dts(payload[18:30])) is None:
         return {f"_{SZ_LOG_IDX}": payload[4:6]}  # type: ignore[misc,return-value]
 
@@ -506,7 +506,7 @@ def parse_air_quality(value: HexStr4) -> PayDictT.AIR_QUALITY:
     assert value[2:] in ("10", "20", "40"), value[2:]  # TODO: remove assert
     basis = {
         "10": "voc",  # volatile compounds
-        "20": "co2",  # carbdon dioxide
+        "20": "co2",  # carbon dioxide
         "40": "rel_humidity",  # relative humidity
     }.get(value[2:], f"unknown_{value[2:]}")  # TODO: remove get/unknown
 
@@ -643,30 +643,6 @@ def _parse_hvac_temp(param_name: str, value: HexStr4) -> Mapping[str, float | No
 
 
 # 31DA[30:34]
-def parse_bypass_position(value: HexStr2) -> PayDictT.BYPASS_POSITION:
-    """Return the bypass position (%), usually fully open or closed (0%, no bypass).
-
-    The sensor value is None if there is no sensor present (is not an error).
-    The dict does not include the key if there is a sensor fault.
-    """
-
-    # TODO: remove this...
-    if not isinstance(value, str) or len(value) != 2:
-        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
-
-    if value == "EF":  # Not implemented
-        return {SZ_BYPASS_POSITION: None}
-
-    if int(value[:2], 16) & 0xF0 == 0xF0:
-        return _faulted_device(SZ_BYPASS_POSITION, value)  # type: ignore[return-value]
-
-    bypass_pos = int(value, 16) / 200  # was: hex_to_percent(value)
-    assert bypass_pos <= 1.0, value
-
-    return {SZ_BYPASS_POSITION: bypass_pos}
-
-
-# 31DA[34:36]
 def parse_capabilities(value: HexStr4) -> PayDictT.CAPABILITIES:
     """Return the speed capabilities (a bitmask).
 
@@ -709,6 +685,30 @@ def parse_capabilities(value: HexStr4) -> PayDictT.CAPABILITIES:
     }
 
 
+# 31DA[34:36]
+def parse_bypass_position(value: HexStr2) -> PayDictT.BYPASS_POSITION:
+    """Return the bypass position (%), usually fully open or closed (0%, no bypass).
+
+    The sensor value is None if there is no sensor present (is not an error).
+    The dict does not include the key if there is a sensor fault.
+    """
+
+    # TODO: remove this...
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+
+    if value == "EF":  # Not implemented
+        return {SZ_BYPASS_POSITION: None}
+
+    if int(value[:2], 16) & 0xF0 == 0xF0:
+        return _faulted_device(SZ_BYPASS_POSITION, value)  # type: ignore[return-value]
+
+    bypass_pos = int(value, 16) / 200  # was: hex_to_percent(value)
+    assert bypass_pos <= 1.0, value
+
+    return {SZ_BYPASS_POSITION: bypass_pos}
+
+
 # 31DA[36:38]  # TODO: WIP (3 more bits), also 22F3?
 def parse_fan_info(value: HexStr2) -> PayDictT.FAN_INFO:
     """Return the fan info (current speed, and...).
@@ -724,7 +724,6 @@ def parse_fan_info(value: HexStr2) -> PayDictT.FAN_INFO:
     # if value == "EF":  # TODO: Not implemented???
     #     return {SZ_FAN_INFO: None}
 
-    assert int(value, 16) & 0x1F <= 0x19, f"invalid fan_info: {int(value, 16) & 0x1F}"
     assert int(value, 16) & 0xE0 in (
         0x00,
         0x20,
@@ -826,7 +825,7 @@ def _parse_fan_heater(param_name: str, value: HexStr2) -> Mapping[str, float | N
     if int(value, 16) & 0xF0 == 0xF0:
         return _faulted_sensor(param_name, value)  # type: ignore[return-value]
 
-    percentage = int(value, 16) / 100
+    percentage = int(value, 16) / 200  # Siber DF EVO 2 is /200, not /100 (?Others)
     assert percentage <= 1.0, value  # TODO: raise exception if > 1.0?
 
     return {param_name: percentage}  # was: percent_from_hex(value, high_res=False)
@@ -840,7 +839,7 @@ def parse_supply_flow(value: HexStr4) -> PayDictT.SUPPLY_FLOW:
 
 # 31DA[54:58]
 def parse_exhaust_flow(value: HexStr4) -> PayDictT.EXHAUST_FLOW:
-    """Return the exhuast flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
+    """Return the exhaust flow rate in m^3/hr (Orcon) ?or L/sec (?Itho)"""
     return _parse_fan_flow(SZ_EXHAUST_FLOW, value)  # type: ignore[return-value]
 
 

@@ -1,7 +1,7 @@
 
 2023-11-07T20:00:00.000000 095 RQ --- 18:002563 01:078710 --:------ 0418 003 000003                                        # {'log_idx': '03'}
 2023-11-07T20:25:44.383743 038 RP --- 01:026398 18:204301 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # {'log_entry': None}  # log_idx always '00' when log_entry is None
-# NOTE: the protcol FSM has a HACK to insert a log_idx into the payload, iff it is waiting for a reply to an RQ
+# NOTE: the protocol FSM has a HACK to insert a log_idx into the payload, iff it is waiting for a reply to an RQ
 2023-11-07T20:25:44.383743 038 RP --- 01:026398 18:204301 --:------ 0418 022 000003B0000000000000000000007FFFFF7000000000  # {'log_entry': None}  # log_idx always '00' when log_entry is None
 
 2021-12-23T16:23:56.716205 ... RQ --- 18:012667 01:085674 --:------ 0418 003 000000                                        # {'log_idx': '00'}

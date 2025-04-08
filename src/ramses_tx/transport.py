@@ -113,13 +113,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 try:
-    import serial_asyncio_fast as serial_asyncio  # type: ignore[import-not-found]
+    import serial_asyncio_fast as serial_asyncio  # type: ignore[import-not-found, import-untyped, unused-ignore]
 
-    _LOGGER.warning(
-        "EXPERIMENTAL: Using pyserial-asyncio-fast in place of pyserial-asyncio"
-    )
+    _LOGGER.debug("Using pyserial-asyncio-fast in place of pyserial-asyncio")
 except ImportError:
-    import serial_asyncio  # type: ignore[import-untyped]
+    import serial_asyncio  # type: ignore[import-not-found, import-untyped, unused-ignore]
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
@@ -277,7 +275,7 @@ def _str(value: bytes) -> str:
             c for c in value.decode("ascii", errors="strict") if c in printable
         )
     except UnicodeDecodeError:
-        _LOGGER.warning("%s < Cant decode bytestream (ignoring)", value)
+        _LOGGER.warning("%s < Can't decode bytestream (ignoring)", value)
         return ""
     return result
 
@@ -355,6 +353,7 @@ _MAX_TRACKED_SYNCS = 3
 _global_sync_cycles: deque[Packet] = deque(maxlen=_MAX_TRACKED_SYNCS)
 
 
+# TODO: doesn't look right at all...
 def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any]:
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
@@ -366,8 +365,6 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
     SYNC_WAIT_SHORT = DURATION_SYNC_PKT
     SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
     SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
-
-    times_0 = []  # TODO: remove
 
     @wraps(fnc)
     async def wrapper(*args: Any, **kwargs: Any) -> None:
@@ -388,17 +385,8 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
             await asyncio.sleep(SYNC_WAIT_SHORT)
 
         # wait for the remainder of sync cycle (I|2309/30C9) to complete
-        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
+        if perf_counter() - start > SYNC_WAIT_SHORT:
             await asyncio.sleep(SYNC_WAIT_LONG)
-            # FIXME: remove this block, and merge both ifs
-            times_0.append(x)
-            _LOGGER.warning(
-                f"*** sync cycle stats: {x:.3f}, "
-                f"avg: {sum(times_0) / len(times_0):.3f}, "
-                f"lower: {min(times_0):.3f}, "
-                f"upper: {max(times_0):.3f}, "
-                f"times: {[f'{t:.3f}' for t in times_0]}"
-            )  # TODO: wrap with if effectiveloglevel
 
         await fnc(*args, **kwargs)
         return None
@@ -564,7 +552,7 @@ class _ReadTransport(_BaseTransport):
         self._closing = True
 
         self.loop.call_soon_threadsafe(
-            functools.partial(self._protocol.connection_lost, exc)
+            functools.partial(self._protocol.connection_lost, exc)  # type: ignore[arg-type]
         )
 
     def close(self) -> None:
@@ -587,7 +575,7 @@ class _ReadTransport(_BaseTransport):
         self._extra[SZ_ACTIVE_HGI] = gwy_id  # or HGI_DEV_ADDR.id
 
         self.loop.call_soon_threadsafe(  # shouldn't call this until we have HGI-ID
-            functools.partial(self._protocol.connection_made, self, ramses=True)
+            functools.partial(self._protocol.connection_made, self, ramses=True)  # type: ignore[arg-type]
         )
 
     # NOTE: all transport should call this method when they receive data
@@ -648,7 +636,7 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
         self._transmit_times: deque[dt] = deque(maxlen=_MAX_TRACKED_TRANSMITS)
 
     def _dt_now(self) -> dt:
-        """Return a precise datetime, using the curent dtm."""
+        """Return a precise datetime, using the current dtm."""
         # _LOGGER.error("Full._dt_now()")
 
         return dt_now()
@@ -679,7 +667,7 @@ class _FullTransport(_ReadTransport):  # asyncio.Transport
 
         self._transmit_times.append(dt.now())
 
-        _LOGGER.error(f"Current Tx rate: {self._report_transmit_rate():.2f} pkts/min")
+        _LOGGER.debug(f"Current Tx rate: {self._report_transmit_rate():.2f} pkts/min")
 
     # NOTE: Protocols call write_frame(), not write()
     def write(self, data: bytes) -> None:
@@ -772,7 +760,7 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
             await self._reader()
         except Exception as err:
             self.loop.call_soon_threadsafe(
-                functools.partial(self._protocol.connection_lost, err)
+                functools.partial(self._protocol.connection_lost, err)  # type: ignore[arg-type]
             )
         else:
             self.loop.call_soon_threadsafe(
@@ -1056,6 +1044,14 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
 
         self.client.subscribe(self._topic_base)  # hope for 'online' message
 
+    def _on_connect_fail(
+        self, client: mqtt.Client, userdata: Any | None, rc: int
+    ) -> None:
+        _LOGGER.error(f"Disconnected with result code {rc}")
+
+        # self._closing = False  # FIXME
+        # self._connection_lost(rc)
+
     def _on_disconnect(
         self, client: mqtt.Client, userdata: Any | None, rc: int
     ) -> None:
@@ -1121,13 +1117,17 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         try:
             payload = json.loads(msg.payload)
         except json.JSONDecodeError:
-            _LOGGER.warning("%s < Cant decode JSON (ignoring)", msg.payload)
+            _LOGGER.warning("%s < Can't decode JSON (ignoring)", msg.payload)
             return
 
         # HACK: hotfix for converting RAMSES_ESP dtm into local/naive dtm
         dtm = dt.fromisoformat(payload["ts"])
         if dtm.tzinfo is not None:
             dtm = dtm.astimezone().replace(tzinfo=None)
+        if dtm < dt.now() - td(days=90):
+            _LOGGER.warning(
+                f"{self}: Have you configured the SNTP settings on the ESP?"
+            )
         # FIXME: convert all dt early, and convert to aware, i.e. dt.now().astimezone()
 
         self._frame_read(dtm.isoformat(), _normalise(payload["msg"]))
@@ -1288,7 +1288,7 @@ async def transport_factory(
             f"{'Windows' if os.name == 'nt' else 'This type of serial interface'} "
             "is not fully supported by this library: "
             "please don't report any Transport/Protocol errors/warnings, "
-            "unless they are reproducable with a standard configuration "
+            "unless they are reproducible with a standard configuration "
             "(e.g. linux with a local serial port)"
         )
 

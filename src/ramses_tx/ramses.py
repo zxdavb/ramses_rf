@@ -40,6 +40,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     Code._0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
+        # is it CODE_IDX_COMPLEX:
+        #  - 02...... for outside temp?
+        #  - 03...... for other stuff?
         SZ_NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
@@ -55,7 +58,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "system_zones",
         # .I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
-        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
+        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome won't respond to 00
         RP: r"^00[01][0-9A-F]{3,5}$",
         SZ_LIFESPAN: False,
     },
@@ -212,7 +215,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._10D0: {  # filter_change - polling interval should be 1/day
         SZ_NAME: "filter_change",
-        I_: r"^00[0-9A-F]{6}(0000)?$",
+        I_: r"^00[0-9A-F]{6}(0000|FFFF)?$",
         RQ: r"^00(00)?$",
         W_: r"^00FF$",
     },
@@ -273,6 +276,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._1298: {  # co2_level
         SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
+        RQ: r"^00$",
     },
     Code._12A0: {  # indoor_humidity
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
@@ -340,9 +344,6 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{30}$",
     },
     Code._1FC9: {  # rf_bind
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
-        # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
@@ -418,10 +419,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_boost",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes only?
-    Code._22F4: {  # unknown_22f4, HVAC, NB: no I
+    Code._22F4: {  # unknown_22f4, HVAC
         SZ_NAME: "unknown_22f4",
+        I_: r"^00[0-9A-F]{24}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{24}$",
     },
     Code._22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
@@ -562,12 +563,12 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_demand",
         I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
-    Code._3200: {  # boiler output temp
+    Code._3200: {  # boiler (or CV?) output temp
         SZ_NAME: "boiler_output",
+        I_: r"^00[0-9A-F]{4}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{4}$",
     },
-    Code._3210: {  # boiler return temp
+    Code._3210: {  # boiler (or CV?) return temp
         SZ_NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
@@ -585,7 +586,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._3222: {  # unknown_3222, HVAC, NB: no I
         SZ_NAME: "unknown_3222",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{4,20}$",
+        RP: r"^00[0-9A-F]{4,24}$",
     },
     Code._3223: {  # unknown_3223, from OTB
         SZ_NAME: "message_3223",
@@ -657,7 +658,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
 CODE_NAME_LOOKUP = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 
-for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
+for code in CODES_SCHEMA.values():  # map any (missing) RPs to I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 #
@@ -1062,6 +1063,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1FC9: {W_: {}},
         Code._22F1: {},
         Code._22F3: {},
+        Code._22F4: {I_: {}},
         Code._22F7: {I_: {}, RP: {}},
         Code._2411: {I_: {}, RP: {}},
         Code._3120: {I_: {}},
@@ -1069,6 +1071,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
         # Code._31E0: {I_: {}},
+        Code._3200: {I_: {}},
     },
     DevType.CO2: {
         Code._042F: {I_: {}},
@@ -1094,6 +1097,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._0001: {RQ: {}},  # from a VMI (only?)
         Code._042F: {I_: {}},  # from a VMI (only?)
         Code._1060: {I_: {}},
+        Code._10D0: {W_: {}},  # reset filter count from REM
         Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
         Code._1470: {RQ: {}},  # from a VMI (only?)
         Code._1FC9: {I_: {}},
@@ -1119,11 +1123,10 @@ CODES_BY_DEV_SLUG: dict[str, dict[Code, dict[VerbT, Any]]] = {
 }
 
 CODES_OF_HEAT_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
-    tuple(set(c for k in _DEV_KLASSES_HEAT.values() for c in k))
-    + (Code._0B04, Code._2389)
+    tuple({c for k in _DEV_KLASSES_HEAT.values() for c in k}) + (Code._0B04, Code._2389)
 )
 CODES_OF_HVAC_DOMAIN: tuple[Code] = sorted(  # type: ignore[assignment]
-    tuple(set(c for k in _DEV_KLASSES_HVAC.values() for c in k))
+    tuple({c for k in _DEV_KLASSES_HVAC.values() for c in k})
     + (Code._22F8, Code._4401, Code._4E01, Code._4E02, Code._4E04)
 )
 CODES_OF_HEAT_DOMAIN_ONLY: tuple[Code, ...] = tuple(

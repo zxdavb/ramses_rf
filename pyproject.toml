@@ -1,6 +1,6 @@
 #
 ### project ##########################################################################
-# ramses_rf, updated: 2023-12-17
+# last checked/updated: 2024-09-10
 #
 
 [project]
@@ -12,9 +12,9 @@
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
     "colorlog>=6.8.2",
-    "paho-mqtt>=1.6.1,<3.0.0",
-    "pyserial-asyncio>=0.6",
-    "voluptuous>=0.13.1",
+    "paho-mqtt>=1.6.1",
+    "pyserial-asyncio-fast>=0.14",
+    "voluptuous>=0.15.2",
   ]
   requires-python = ">=3.11"  # e.g. @enum.verify(enum.EnumCheck)
   license = "MIT"
@@ -69,6 +69,7 @@
 ### pytest ###########################################################################
 
 [tool.pytest.ini_options]
+  asyncio_default_fixture_loop_scope = "function"
   asyncio_mode = "auto"
 
   norecursedirs = "deprecated/*"
@@ -96,8 +97,6 @@
   # ignore_missing_imports = true  # only used per-module
   # follow_imports = normal  # avoid skip/silent, prefer normal (default) over error
 
-  no_implicit_reexport = true  # added by zxdavb
-
   # ### Strict typing (--strict) if all following are set to true (excl. zxdavb)
   #  - https://mypy.readthedocs.io/en/stable/existing_code.html#introduce-stricter-options
 
@@ -119,8 +118,8 @@
   # Strongly recommend enabling this one as soon as you can
   check_untyped_defs = true
 
-  # allow-redefinition = false  # added by zxdavb
-  # no-implicit-reexport = true  # added by zxdavb
+  # allow_redefinition = false  # default is false
+  no_implicit_reexport = true  # added by zxdavb
 
   # # Disallow dynamic typing...
   #  - https://mypy.readthedocs.io/en/stable/command_line.html#disallow-dynamic-typing
@@ -131,7 +130,7 @@
   disallow_untyped_decorators = true  # from: Untyped definitions and calls
   disallow_any_generics = true
 
-  # disallow-any-explicit = true  # added by zxdavb
+  # disallow_any_explicit = true  # TODO: added by zxdavb
 
   # # Untyped definitions and calls
   #  - https://mypy.readthedocs.io/en/stable/command_line.html#untyped-definitions-and-calls
@@ -213,25 +212,37 @@
     "type-arg",  #     11
   ]
 
+[[tool.mypy.overrides]]
+  module = [
+    "ramses_cli.*",
+    "ramses_rf.*",
+    "ramses_tx.parsers",
+    "tests",
+  ]
+
+  disallow_any_explicit = false
+
+
 #
 ## ruff ##############################################################################
 
 [tool.ruff]
   exclude = ["tests/deprecated/*.py"]
   src = ["src", "tests"]
-  target-version = "py312"  # Assume Python 3.12
+  target-version = "py312"
 
 
 [tool.ruff.lint]
   select = [
-    "B",  #   flake8-bugbear
-    "E",  #   pycodestyle
-    "F",  #   Pyflakes
-    "I",  #   isort
-    "SIM",  # flake8-simplify
-    "UP",  #  pyupgrade
+    "ASYNC",  # flake8-async
+    "B",  #     flake8-bugbear
+    "E",  #     pycodestyle
+    "F",  #     Pyflakes
+    "I",  #     isort
+    "SIM",  #   flake8-simplify
+    "UP",  #    pyupgrade
   ]
-  ignore = ["B011", "E501", "SIM102", "SIM114", "UP040"]
+  ignore = ["ASYNC109", "ASYNC110", "B011", "E501", "SIM102", "SIM114", "UP040"]
 
   # B011   - Do not call assert False since python -O removes these calls
   # E501   - Line too long
@@ -248,3 +259,7 @@
   combine-as-imports = true
   force-sort-within-sections = false
   split-on-trailing-comma = false
+
+
+[tool.ruff.lint.per-file-ignores]
+  "tests/*" = ["ASYNC"]

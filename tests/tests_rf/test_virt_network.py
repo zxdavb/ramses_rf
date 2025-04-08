@@ -138,7 +138,7 @@ async def _test_virtual_rf_pkt_flow(
     # TEST 1:
     await assert_code_in_device_msgz(
         gwy_0, "01:022222", Code._1F09, max_sleep=0, test_not=True
-    )  # device wont exist
+    )  # device won't exist
 
     cmd = Command(" I --- 01:022222 --:------ 01:022222 1F09 003 0004B5")
     gwy_0.send_cmd(cmd, num_repeats=1)

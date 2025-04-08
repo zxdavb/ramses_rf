@@ -394,7 +394,7 @@ async def test_flow_100(test_set: dict[str, dict]) -> None:
         for x in test_set.get(PKT_FLOW, [])
     ]
 
-    # cant use fixture for this, as new schema required for every test
+    # can't use fixture for this, as new schema required for every test
     rf, gwys = await rf_factory([config[SZ_RESPONDENT], config[SZ_SUPPLICANT]])
 
     try:
@@ -423,7 +423,7 @@ async def test_flow_200(test_set: dict[str, dict]) -> None:
         for x in test_set.get(PKT_FLOW, [])
     ]
 
-    # cant use fixture for this, as new schema required for every test
+    # can't use fixture for this, as new schema required for every test
     rf, gwys = await rf_factory(
         [config[SZ_RESPONDENT], config[SZ_SUPPLICANT]]
     )  # can pop orphans_hvac

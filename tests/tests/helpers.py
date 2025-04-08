@@ -98,6 +98,8 @@ async def load_test_gwy(dir_name: Path, **kwargs: Any) -> Gateway:
         gwy = Gateway(None, input_file=f, **kwargs)
         await gwy.start()
 
+        await gwy._protocol.wait_for_connection_lost()  # until packet log is EOF
+
     # if hasattr(
     #     gwy.pkt_transport.serial, "mock_devices"
     # ):  # needs ser instance, so after gwy.start()

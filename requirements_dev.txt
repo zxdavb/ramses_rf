@@ -1,35 +1,33 @@
-# Setup venv for ramses_rf dev/test
-
-# last checked/updated: 2024/05/02 (c.f. HA 2023.5.x)
-#  - also update pyproject.toml, github workflows
-#
-#  check: pip list | grep -E 'cpre-commit|ruff|mypy|voluptuous|types-|pytest|hatch'
+# Requirements to dev/test the source code
+# - last checked/updated: 2025-02-18 (c.f. HA 2025.2.2)
 #
 
-# for development of the library, incl using the CLI
-  -r requirements_cli.txt
+# for using the the library with CLI
+  -r requirements.txt
 
-# used for development (linting)...
-#  - pip install --upgrade pre-commit ruff
-  pre-commit>=3.7.0
-  ruff>=0.4.2
 
-# used for development (typing)...
-# pip install --upgrade mypy voluptuous
-  mypy>=1.10.0
-  voluptuous>=0.14.2
+# libraries required for development (lint/type/test)...
+# - pip list | grep -E 'pre-commit|ruff|mypy|types-|voluptuous|pytest|hatch'
 
-#  - pip install --upgrade types-colorama types-paho-mqtt types-PyYAML
-  types-colorama>=0.4.15
-  types-paho-mqtt>=1.6.0.20240321
-  types-PyYAML>=6.0.12.20240311
+# used for development (linting)
+  pre-commit >= 4.0.1
+  ruff >= 0.9.1                                  # also: pre-commit-config.yaml
 
-# used for testing...
-#  - pip install --upgrade pytest pytest-asyncio pytest-xdist
-  pytest>=8.2.0
-  pytest-asyncio>=0.23.6
-  pytest-xdist>=3.6.1
+# used for development (typing)
+  mypy >= 1.15.0
+  types-colorama >= 0.4.15
+  types-paho-mqtt >= 1.6.0
+  types-PyYAML >= 6.0.12
+  voluptuous >= 0.15.2
+
+# used for testing
+  pytest >= 8.3.4
+  pytest-asyncio >= 0.24.0
+# pytest-cov
+  pytest-sugar >= 1.0.0
+  pytest-xdist >= 3.6.1
+# syrupy >= 4.6.1
 
 # used for build/deploy
-  hatch>=1.9.7       # is not in core HA
-  hatchling<1.22     # is not in core HA
+  hatch >= 1.14.0
+  hatchling >= 1.27
