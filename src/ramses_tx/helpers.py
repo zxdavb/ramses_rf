@@ -314,8 +314,8 @@ def hex_from_flag8(flags: Iterable[int], lsb: bool = False) -> HexByte:
     if not isinstance(flags, list) or len(flags) != 8:
         raise ValueError(f"Invalid value: '{flags}', is not a list of 8 bits")
     if lsb:  # LSB is first bit
-        return f"{sum(x<<idx for idx, x in enumerate(flags)):02X}"
-    return f"{sum(x<<idx for idx, x in enumerate(reversed(flags))):02X}"
+        return f"{sum(x << idx for idx, x in enumerate(flags)):02X}"
+    return f"{sum(x << idx for idx, x in enumerate(reversed(flags))):02X}"
 
 
 # TODO: add a wrapper for EF, & 0xF0
@@ -395,7 +395,7 @@ def hex_from_temp(value: bool | float | None) -> HexStr4:
     # if not -(2**7) <= value < 2**7:  # TODO: tighten range
     #     raise ValueError(f"Invalid temp: {value} is out of range")
     temp = int(value * 100)
-    return f"{temp if temp >= 0 else temp + 2 ** 16:04X}"
+    return f"{temp if temp >= 0 else temp + 2**16:04X}"
 
 
 ########################################################################################
