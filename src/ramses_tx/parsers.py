@@ -1130,7 +1130,7 @@ def parser_12a0(
 
     return [
         {
-            "hvac_idx": payload[i : i + 2],
+            "hvac_idx": payload[i : i + 2],  # used as index
             **parse_humidity_element(payload[i + 2 : i + 12], payload[i : i + 2]),
         }
         for i in range(0, len(payload), 14)

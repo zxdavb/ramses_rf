@@ -1,6 +1,9 @@
 
 2021-02-12T20:59:47.225210 066 RP --- 20:008749 18:142609 --:------ 12A0 002 00EF            # {'indoor_humidity': None}
+
+# ClimaRad minibox
 2024-10-15T12:41:34.415872 075  I --- 29:099029 --:------ 29:099029 12A0 002 0031            # {'indoor_humidity': 0.49}
+2024-11-07T13:07:27.036890 082  I --- 29:099029 --:------ 29:099029 12A0 002 0037            # {'indoor_humidity': 0.55}
 
 2022-03-08T11:24:21.138647 076  I --- 29:146052 --:------ 29:146052 12A0 006 00220685004C    # {'indoor_humidity': 0.34, 'temperature': 16.69, 'dewpoint_temp': 0.76}
 
@@ -10,7 +13,6 @@
 2019-12-16T05:19:20.630177 072  I --- 32:168090 --:------ 32:168090 12A0 006 003C06DE03E3    # {'indoor_humidity': 0.60, 'temperature': 17.58, 'dewpoint_temp': 9.95}
 
 # ClimaRad VenturaV1x  array of 3 Indoor_Humidity sets for HRU: Flow In (no dewpoint), Flow Out, Item_3
-
 2024-10-15T12:33:21.828292 060  I --- 37:153226 --:------ 37:153226 12A0 021 003307DD7FFF0001EF7FFF7FFF00023E056B02A600  # [{'hvac_idx': '00', 'indoor_humidity': 0.51, 'temperature': 20.13, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.62, 'temperature': 13.87, 'dewpoint_temp': 6.78}]
 2024-10-15T12:38:22.145126 060  I --- 37:153226 --:------ 37:153226 12A0 021 003207D27FFF0001EF7FFF7FFF00023F057B02D200  # [{'hvac_idx': '00', 'indoor_humidity': 0.5, 'temperature': 20.02, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.63, 'temperature': 14.03, 'dewpoint_temp': 7.22}]
 2024-10-15T12:48:22.825444 060  I --- 37:153226 --:------ 37:153226 12A0 021 003107E47FFF0001EF7FFF7FFF00023E05A802D900  # [{'hvac_idx': '00', 'indoor_humidity': 0.49, 'temperature': 20.2, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.62, 'temperature': 14.48, 'dewpoint_temp': 7.29}]
