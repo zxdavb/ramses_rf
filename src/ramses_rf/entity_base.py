@@ -309,9 +309,9 @@ class _MessageDB(_Entity):
         key: str | None = None,
         **kwargs: Any,
     ) -> dict | list | None:
-        assert (
-            not isinstance(code, tuple) or verb is None
-        ), f"Unsupported: using a tuple ({code}) with a verb ({verb})"
+        assert not isinstance(code, tuple) or verb is None, (
+            f"Unsupported: using a tuple ({code}) with a verb ({verb})"
+        )
 
         if verb:
             try:
@@ -363,9 +363,9 @@ class _MessageDB(_Entity):
             # .I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
             msg_dict = msg.payload[0]
 
-        assert (not domain_id and not zone_idx) or (
-            msg_dict.get(idx) == val
-        ), f"{msg_dict} < Coding error: key={idx}, val={val}"
+        assert (not domain_id and not zone_idx) or (msg_dict.get(idx) == val), (
+            f"{msg_dict} < Coding error: key={idx}, val={val}"
+        )
 
         if key:
             return msg_dict.get(key)
@@ -807,8 +807,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         elif is_sensor:
             raise TypeError(
-                f"not a valid combination for {self}: "
-                f"{child}|{child_id}|{is_sensor}"
+                f"not a valid combination for {self}: {child}|{child_id}|{is_sensor}"
             )
 
         elif hasattr(self, SZ_CIRCUITS):  # UFH circuit
@@ -857,8 +856,7 @@ class Parent(Entity):  # A System, Zone, DhwZone or a UfhController
 
         else:
             raise TypeError(
-                f"not a valid combination for {self}: "
-                f"{child}|{child_id}|{is_sensor}"
+                f"not a valid combination for {self}: {child}|{child_id}|{is_sensor}"
             )
 
         self.childs.append(child)
