@@ -538,7 +538,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{16}$",
         SZ_LIFESPAN: td(seconds=3),
     },
-    Code._3150: {  # heat_demand
+    Code._3150: {  # heat_demand, also fans with preheat
         SZ_NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
         SZ_LIFESPAN: td(minutes=20),
