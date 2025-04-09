@@ -2119,7 +2119,7 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     # NOTE: 31D9[4:6] is fan_rate (minibox, itho) *or* fan_mode (orcon?)
     result = {
         **parse_exhaust_fan_speed(payload[4:6]),  # itho
-        SZ_FAN_MODE: payload[4:6],  # orcon
+        SZ_FAN_MODE: payload[4:6],  # orcon, vasco/climarad
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),  # i.e. valve only
         "filter_dirty": bool(bitmap & 0x20),
@@ -2129,17 +2129,23 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
-        if msg.src.type == "32" and payload[:4] == "0000":  # Vasco D60 HRU
-            # can't access 'vasco' scheme as this PR is separate from _22f1
-            from .ramses import _22F1_MODE_ITHO as _33D9_FAN_MODE
+        if (
+            payload[:4] == "0000"
+            and msg._addrs[0] == msg._addrs[2]
+            and msg._addrs[1] == NON_DEV_ADDR
+        ):
+            # Vasco D60 HRU and ClimaRad minibox REM
+            from .ramses import _31D9_FAN_INFO
 
             try:
-                assert (
-                    payload[4:6] in _33D9_FAN_MODE
-                ), f"unknown fan_mode: {payload[2:4]}"
+                assert int(payload[4:6], 16) & 0xFF in _31D9_FAN_INFO, (
+                    f"unknown 31D9 fan_mode: {payload[2:4]}"
+                )
             except AssertionError as err:
                 _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
-            fan_mode = _33D9_FAN_MODE.get(payload[4:6], f"unknown_{payload[4:6]}")
+            fan_mode = _31D9_FAN_INFO.get(
+                int(payload[4:6], 16) & 0xFF, f"unknown_{payload[4:6]}"
+            )
             result[SZ_FAN_MODE] = fan_mode  # replace
         return result
 
