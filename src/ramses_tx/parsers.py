@@ -2160,7 +2160,6 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     return {  # type: ignore[typeddict-unknown-key]
         **parse_exhaust_fan_speed(payload[38:40]),  # maybe 31D9[4:6] for some?
         **parse_fan_info(payload[36:38]),  # 22F3-ish
-        #
         **parse_air_quality(payload[2:6]),  # 12C8[2:6]
         **parse_co2_level(payload[6:10]),  # 1298[2:6]
         **parse_indoor_humidity(payload[10:12]),  # 12A0?
@@ -2168,7 +2167,9 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         **parse_exhaust_temp(payload[14:18]),  # to outside
         **parse_supply_temp(payload[18:22]),  # to home
         **parse_indoor_temp(payload[22:26]),  # in home
-        **parse_outdoor_temp(payload[26:30]),  # 1290?
+        **parse_outdoor_temp(
+            payload[26:30]
+        ),  # 1290? is supply_temp in ClimaRad Ventura
         **parse_capabilities(payload[30:34]),
         **parse_bypass_position(payload[34:36]),  # 22F7-ish
         **parse_supply_fan_speed(payload[40:42]),

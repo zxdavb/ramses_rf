@@ -1339,29 +1339,29 @@ _2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
     },
 }
 
-# ventilation speed
+# ventilation speed description
 _31DA_FAN_INFO: dict[int, str] = {
-    0x00: "off",
-    0x01: "speed 1, low",  # aka low
-    0x02: "speed 2, medium",  # aka medium
-    0x03: "speed 3, high",  # aka high
-    0x04: "speed 4",
-    0x05: "speed 5",
-    0x06: "speed 6",
-    0x07: "speed 7",
-    0x08: "speed 8",
-    0x09: "speed 9",
-    0x0A: "speed 10",
-    0x0B: "speed 1 temporary override",  # timer
-    0x0C: "speed 2 temporary override",  # timer
-    0x0D: "speed 3 temporary override",  # timer/boost? (timer 1, 2, 3)
-    0x0E: "speed 4 temporary override",
-    0x0F: "speed 5 temporary override",
-    0x10: "speed 6 temporary override",
-    0x11: "speed 7 temporary override",
-    0x12: "speed 8 temporary override",
-    0x13: "speed 9 temporary override",
-    0x14: "speed 10 temporary override",
+    0x00: "0 (off)",
+    0x01: "1 (low)",
+    0x02: "2 (medium)",
+    0x03: "3 (high)",
+    0x04: "4",
+    0x05: "5",
+    0x06: "6",
+    0x07: "7",
+    0x08: "8",
+    0x09: "9",
+    0x0A: "10",
+    0x0B: "1 temporary override",  # timer
+    0x0C: "2 temporary override",  # timer
+    0x0D: "3 temporary override",  # timer/boost? (timer 1, 2, 3)
+    0x0E: "4 temporary override",
+    0x0F: "5 temporary override",
+    0x10: "6 temporary override",
+    0x11: "7 temporary override",
+    0x12: "8 temporary override",
+    0x13: "9 temporary override",
+    0x14: "10 temporary override",
     0x15: "away",  # absolute minimum speed
     0x16: "absolute minimum",  # trickle?
     0x17: "boost",  # absolute maximum",  # boost?
@@ -1372,7 +1372,7 @@ _31DA_FAN_INFO: dict[int, str] = {
     0x1C: "-unknown 0x1C-",
     0x1D: "-unknown 0x1D-",
     0x1E: "-unknown 0x1E-",
-    0x1F: "-unknown 0x1F-",
+    0x1F: "-unknown 0x1F-",  # unused field
 }
 
 
