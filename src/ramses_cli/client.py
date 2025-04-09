@@ -463,7 +463,7 @@ async def async_main(command: str, lib_kwargs: dict, **kwargs: Any) -> None:
 
         if kwargs["long_format"]:  # HACK for test/dev
             print(
-                f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg!r}'
+                f"{msg.dtm.isoformat(timespec='microseconds')} ... {msg!r}"
                 f"  # {msg.payload}"  # or f'  # ("{msg.src!r}", "{msg.dst!r}")'
             )
             return
