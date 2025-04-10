@@ -1233,13 +1233,13 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
-_22F1_MODE_VASCO: dict[str, str] = {  # for VASCO D60 AND ClimaRad Minibox fanS/remotes
+_22F1_MODE_VASCO: dict[str, str] = {  # for VASCO D60 and ClimaRad Minibox remotes
     "00": "off",
     "01": "away",  # 000106 minimum
     "02": "low",  # 000206
     "03": "medium",  # 000306
     "04": "high",  # 000406, aka boost with 22F3
-    "05": "auto",  #
+    "05": "auto",
 }
 
 _22F1_SCHEMES: dict[str, dict[str, str]] = {
