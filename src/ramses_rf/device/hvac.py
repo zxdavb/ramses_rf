@@ -379,6 +379,21 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def indoor_humidity(self) -> float | None:
+        """
+        Extract humidity value from _12A0 or _31DA JSON message payload
+
+        :return: percentage <= 1.0
+        """
+        if Code._12A0 in self._msgs:
+            if isinstance(
+                self._msgs[Code._12A0].payload, list
+            ):  # FAN Ventura sends a list, use element [0]
+                for k, v in self._msgs[Code._12A0].payload[0].items():
+                    if k == SZ_INDOOR_HUMIDITY:
+                        return float(v)
+            for k, v in self._msgs[Code._12A0].payload.items():
+                if k == SZ_INDOOR_HUMIDITY:  # ClimaRad minibox FAN sends hum in 12A0
+                    return float(v)
         return self._msg_value(Code._31DA, key=SZ_INDOOR_HUMIDITY)
 
     @property
