@@ -8,7 +8,7 @@
 # -e .
 
 
-# also required if using the the library via the CLI, client.py
+# also required if using the library via the CLI, client.py
 # - pip list | grep -E 'click|colorama|debugpy'
 
   click >= 8.1.8                                 # NOTE: non-async version
