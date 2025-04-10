@@ -289,16 +289,18 @@ class HvacDisplayRemote(HvacRemote):  # DIS
     #     )
 
 
-class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
+class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A], I/12A0
     """The FAN (ventilation) class.
 
-    The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
+    The cardinal codes are 31D9, 31DA, 12A0.  Signature is RP/31DA.
     """
 
     # Itho Daalderop (NL)
     # Heatrae Sadia (UK)
     # Nuaire (UK), e.g. DRI-ECO-PIV
     # Orcon/Ventiline
+    # ClimaRad (NL)
+    # Vasco (B)
 
     _SLUG: str = DevType.FAN
 
