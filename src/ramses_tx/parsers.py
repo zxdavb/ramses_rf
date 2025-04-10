@@ -106,6 +106,7 @@ from .helpers import (
     parse_exhaust_temp,
     parse_fan_info,
     parse_fault_log_entry,
+    parse_humidity_element,
     parse_indoor_humidity,
     parse_indoor_temp,
     parse_outdoor_humidity,
@@ -1120,9 +1121,20 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
     return parse_co2_level(payload[2:6])
 
 
-# HVAC: indoor_humidity
-def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
-    return parse_indoor_humidity(payload[2:])
+# HVAC: indoor_humidity, array of 3 sets for HRU
+def parser_12a0(
+    payload: str, msg: Message
+) -> PayDictT.INDOOR_HUMIDITY | list[PayDictT._12A0]:
+    if len(payload) <= 14:
+        return parse_indoor_humidity(payload[2:12])
+
+    return [
+        {
+            "hvac_idx": payload[i : i + 2],  # used as index
+            **parse_humidity_element(payload[i + 2 : i + 12], payload[i : i + 2]),
+        }
+        for i in range(0, len(payload), 14)
+    ]
 
 
 # window_state (of a device/zone)

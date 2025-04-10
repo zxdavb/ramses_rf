@@ -279,12 +279,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         RQ: r"^00$",
     },
     Code._12A0: {  # indoor_humidity
-        # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
-        # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
-        # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
-        RP: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
+        I_: r"^(0[0-9A-F]{3}([0-9A-F]{8}(00)?)?)+$",
+        RP: r"^0[0-9A-F]{3}([0-9A-F]{8}(00)?)?$",
         SZ_LIFESPAN: td(hours=1),
     },
     Code._12B0: {  # window_state  (HVAC % window open)
