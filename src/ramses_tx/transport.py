@@ -51,6 +51,8 @@ from typing import TYPE_CHECKING, Any, Final, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 from paho.mqtt import MQTTException, client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
+from paho.mqtt.reasoncodes import ReasonCode
 from serial import (  # type: ignore[import-untyped]
     Serial,
     SerialException,
@@ -117,7 +119,7 @@ try:
 
     _LOGGER.debug("Using pyserial-asyncio-fast in place of pyserial-asyncio")
 except ImportError:
-    import serial_asyncio  # type: ignore[import-not-found, import-untyped, unused-ignore]
+    import serial_asyncio  # type: ignore[import-not-found, import-untyped, unused-ignore, no-redef]
 
 
 # For linux, use a modified version of comports() to include /dev/serial/by-id/* links
@@ -395,7 +397,7 @@ def avoid_system_syncs(fnc: Callable[..., Awaitable[None]]) -> Callable[..., Any
 
 
 def track_system_syncs(fnc: Callable[..., None]) -> Callable[..., Any]:
-    """Track/remember the any new/outstanding TCS sync cycle."""
+    """Track/remember any new/outstanding TCS sync cycle."""
 
     @wraps(fnc)
     def wrapper(self: PortTransport, pkt: Packet) -> None:
@@ -450,7 +452,7 @@ class _FileTransportAbstractor:
         self._loop = loop or asyncio.get_event_loop()
 
 
-class _PortTransportAbstractor(serial_asyncio.SerialTransport):  # type: ignore[misc, no-any-unimported]
+class _PortTransportAbstractor(serial_asyncio.SerialTransport):
     """Do the bare minimum to abstract a transport from its underlying class."""
 
     serial: Serial  # type: ignore[no-any-unimported]
@@ -801,7 +803,7 @@ class FileTransport(_ReadTransport, _FileTransportAbstractor):
             self._reader_task.cancel()
 
 
-class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
+class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):  # type: ignore[misc]
     """Send/receive packets async to/from evofw3/HGI80 via a serial port.
 
     See: https://github.com/ghoti57/evofw3
@@ -970,15 +972,15 @@ class PortTransport(_RegHackMixin, _FullTransport, _PortTransportAbstractor):
     def _write(self, data: bytes) -> None:
         self.serial.write(data)
 
-    def _abort(self, exc: ExceptionT) -> None:  # used by serial_asyncio.SerialTransport
-        super()._abort(exc)
+    def _abort(self, exc: ExceptionT) -> None:  # type: ignore[override]  # used by serial_asyncio.SerialTransport
+        super()._abort(exc)  # type: ignore[arg-type]
 
         if self._init_task:
             self._init_task.cancel()
         if self._leaker_task:
             self._leaker_task.cancel()
 
-    def _close(self, exc: exc.RamsesException | None = None) -> None:
+    def _close(self, exc: exc.RamsesException | None = None) -> None:  # type: ignore[override]
         """Close the transport (cancel any outstanding tasks)."""
 
         super()._close(exc)
@@ -1023,13 +1025,14 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         self._max_tokens: float = self._MAX_TOKENS * 2  # allow for the initial burst
         self._num_tokens: float = self._MAX_TOKENS * 2
 
-        self.client = mqtt.Client()
-
+        # instantiate a paho mqtt client
+        self.client = mqtt.Client(CallbackAPIVersion.VERSION2)
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
 
         self.client.username_pw_set(self._username, self._password)
+        # connect to the mqtt server
         self.client.connect_async(
             self._broker_url.hostname,  # type: ignore[arg-type]
             self._broker_url.port or 1883,
@@ -1038,27 +1041,41 @@ class MqttTransport(_FullTransport, _MqttTransportAbstractor):
         self.client.loop_start()
 
     def _on_connect(
-        self, client: mqtt.Client, userdata: Any | None, flags: dict[str, Any], rc: int
+        self,
+        client: mqtt.Client,
+        userdata: Any | None,
+        flags: dict[str, Any],
+        reason_code: ReasonCode,
+        properties: Any | None,
     ) -> None:
-        # _LOGGER.error("Mqtt._on_connect(%s, %s, %s, %s)", client, userdata, flags, rc)
+        # _LOGGER.error("Mqtt._on_connect(%s, %s, %s, %s)", client, userdata, flags, reason_code.getName())
 
-        self.client.subscribe(self._topic_base)  # hope for 'online' message
+        self.client.subscribe(self._topic_base)  # hope to see 'online' message
 
     def _on_connect_fail(
-        self, client: mqtt.Client, userdata: Any | None, rc: int
+        self,
+        client: mqtt.Client,
+        userdata: Any | None,
+        reason_code: ReasonCode,
+        properties: Any | None,
     ) -> None:
-        _LOGGER.error(f"Disconnected with result code {rc}")
+        _LOGGER.error(f"Disconnected with result code {reason_code.getName()}")  # type: ignore[no-untyped-call]
 
         # self._closing = False  # FIXME
-        # self._connection_lost(rc)
+        # self._connection_lost(reason_code)
 
     def _on_disconnect(
-        self, client: mqtt.Client, userdata: Any | None, rc: int
+        self,
+        client: mqtt.Client,
+        userdata: Any | None,
+        disconnectFlags: Any | None,
+        reason_code: ReasonCode,
+        properties: Any | None,
     ) -> None:
-        _LOGGER.error(f"Disconnected with result code {rc}")
+        _LOGGER.error(f"Disconnected with result code {reason_code.getName()}")  # type: ignore[no-untyped-call]
 
         # self._closing = False  # FIXME
-        # self._connection_lost(rc)
+        # self._connection_lost(reason_code)
 
     def _create_connection(self, msg: mqtt.MQTTMessage) -> None:
         """Invoke the Protocols's connection_made() callback MQTT is established."""
@@ -1315,7 +1332,7 @@ async def transport_factory(
     if os.name == "nt" or ser_instance.portstr[:7] in ("rfc2217", "socket:"):
         issue_warning()  # TODO: add tests for these...
 
-    transport = PortTransport(
+    transport = PortTransport(  # type: ignore[assignment]
         ser_instance,
         protocol,
         disable_sending=bool(disable_sending),
