@@ -383,6 +383,19 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def indoor_temp(self) -> float | None:
+        if Code._12A0 in self._msgs:
+            if isinstance(
+                self._msgs[Code._12A0].payload, list
+            ):  # FAN Ventura sends RH/temps as a list, use element [0] for indoor_temp
+                for k, v in self._msgs[Code._12A0].payload[0].items():
+                    if k == SZ_TEMPERATURE:
+                        return float(v)
+            for k, v in self._msgs[Code._12A0].payload.items():
+                if (
+                    k == SZ_TEMPERATURE
+                ):  # ClimaRad minibox FAN sends (indoor) temp in 12A0
+                    return float(v)
+
         return self._msg_value(Code._31DA, key=SZ_INDOOR_TEMP)
 
     @property
