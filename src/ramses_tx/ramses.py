@@ -405,6 +405,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._22F1: {  # fan_mode, HVAC
         SZ_NAME: "fan_mode",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
         I_: r"^(00|63)(0[0-9A-F]){1,2}$",
     },
     Code._22F2: {  # unknown_22f2, HVAC, NB: no I
@@ -535,7 +536,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{16}$",
         SZ_LIFESPAN: td(seconds=3),
     },
-    Code._3150: {  # heat_demand
+    Code._3150: {  # heat_demand, also fans with preheat
         SZ_NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
         SZ_LIFESPAN: td(minutes=20),
@@ -1049,6 +1050,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
     },
     DevType.FAN: {
         Code._0001: {RP: {}},
+        Code._0002: {I_: {}},
         Code._042F: {I_: {}},
         Code._10D0: {I_: {}, RP: {}},
         Code._10E0: {I_: {}, RP: {}},
@@ -1058,13 +1060,15 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1470: {RP: {}},
         Code._1F09: {I_: {}, RP: {}},
         Code._1FC9: {W_: {}},
-        Code._22F1: {},
+        Code._22F1: {RP: {}},
+        Code._22F2: {I_: {}, RP: {}},
         Code._22F3: {},
         Code._22F4: {I_: {}},
         Code._22F7: {I_: {}, RP: {}},
         Code._2411: {I_: {}, RP: {}},
         Code._2E10: {I_: {}},
         Code._3120: {I_: {}},
+        Code._3150: {I_: {}},
         Code._313F: {I_: {}, RP: {}},
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
@@ -1076,6 +1080,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._10E0: {I_: {}, RP: {}},
         Code._1298: {I_: {}},
         Code._1FC9: {I_: {}},
+        Code._22F1: {RQ: {}},
         Code._2411: {RQ: {}},
         Code._2E10: {I_: {}},
         Code._3120: {I_: {}},
@@ -1229,10 +1234,20 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
+_22F1_MODE_VASCO: dict[str, str] = {  # for VASCO D60 and ClimaRad Minibox remotes
+    "00": "off",
+    "01": "away",  # 000106 minimum
+    "02": "low",  # 000206
+    "03": "medium",  # 000306
+    "04": "high",  # 000406, aka boost with 22F3
+    "05": "auto",
+}
+
 _22F1_SCHEMES: dict[str, dict[str, str]] = {
     "itho": _22F1_MODE_ITHO,
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
+    "vasco": _22F1_MODE_VASCO,
 }
 
 # unclear if true for only Orcon/*all* models
