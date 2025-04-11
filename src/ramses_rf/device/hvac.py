@@ -390,6 +390,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
                     k == SZ_FAN_MODE and v != "FF"
                 ):  # Prevent ClimaRad Ventura constant "FF" to pass
                     return str(v)
+            # no guard clause, just ignore
         if Code._22F4 in self._msgs:  # ClimaRad Ventura sends mode/speed in _22F4
             mode: str = ""
             for k, v in self._msgs[Code._22F4].payload.items():
