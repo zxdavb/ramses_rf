@@ -1050,6 +1050,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
     },
     DevType.FAN: {
         Code._0001: {RP: {}},
+        Code._0002: {I_: {}},
         Code._042F: {I_: {}},
         Code._10D0: {I_: {}, RP: {}},
         Code._10E0: {I_: {}, RP: {}},
