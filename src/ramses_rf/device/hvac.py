@@ -391,9 +391,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
                 for k, v in self._msgs[Code._12A0].payload[0].items():
                     if k == SZ_INDOOR_HUMIDITY:
                         return float(v)
+                return None  # guard clause
             for k, v in self._msgs[Code._12A0].payload.items():
                 if k == SZ_INDOOR_HUMIDITY:  # ClimaRad minibox FAN sends hum in 12A0
                     return float(v)
+            return None  # guard clause
         return self._msg_value(Code._31DA, key=SZ_INDOOR_HUMIDITY)
 
     @property
