@@ -1,9 +1,27 @@
 
 2021-02-12T20:59:47.225210 066 RP --- 20:008749 18:142609 --:------ 12A0 002 00EF            # {'indoor_humidity': None}
 
+# ClimaRad minibox
+2024-10-15T12:41:34.415872 075  I --- 29:099029 --:------ 29:099029 12A0 002 0031            # {'indoor_humidity': 0.49}
+2024-11-07T13:07:27.036890 082  I --- 29:099029 --:------ 29:099029 12A0 002 0037            # {'indoor_humidity': 0.55}
+
 2022-03-08T11:24:21.138647 076  I --- 29:146052 --:------ 29:146052 12A0 006 00220685004C    # {'indoor_humidity': 0.34, 'temperature': 16.69, 'dewpoint_temp': 0.76}
 
 2022-07-03T10:04:21.953850 061 RP --- 32:155617 18:005904 --:------ 12A0 007 003908A57FFF00  # {'indoor_humidity': 0.57, 'temperature': 22.13, 'dewpoint_temp': None}
 2022-08-17T02:29:36.718767 056  I --- 32:155617 --:------ 32:155617 12A0 007 003C096E7FFF00  # {'indoor_humidity': 0.60, 'temperature': 24.14, 'dewpoint_temp': None}
 
 2019-12-16T05:19:20.630177 072  I --- 32:168090 --:------ 32:168090 12A0 006 003C06DE03E3    # {'indoor_humidity': 0.60, 'temperature': 17.58, 'dewpoint_temp': 9.95}
+
+# ClimaRad VenturaV1x  array of 3 Indoor_Humidity sets for HRU: Flow In (no dewpoint), Flow Out, Item_3
+2024-10-15T12:33:21.828292 060  I --- 37:153226 --:------ 37:153226 12A0 021 003307DD7FFF0001EF7FFF7FFF00023E056B02A600  # [{'hvac_idx': '00', 'indoor_humidity': 0.51, 'temperature': 20.13, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.62, 'temperature': 13.87, 'dewpoint_temp': 6.78}]
+2024-10-15T12:38:22.145126 060  I --- 37:153226 --:------ 37:153226 12A0 021 003207D27FFF0001EF7FFF7FFF00023F057B02D200  # [{'hvac_idx': '00', 'indoor_humidity': 0.5, 'temperature': 20.02, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.63, 'temperature': 14.03, 'dewpoint_temp': 7.22}]
+2024-10-15T12:48:22.825444 060  I --- 37:153226 --:------ 37:153226 12A0 021 003107E47FFF0001EF7FFF7FFF00023E05A802D900  # [{'hvac_idx': '00', 'indoor_humidity': 0.49, 'temperature': 20.2, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.62, 'temperature': 14.48, 'dewpoint_temp': 7.29}]
+2024-10-15T13:25:35.121534 062  I --- 37:153226 --:------ 37:153226 12A0 021 0034080C7FFF0001EF7FFF7FFF00023B05C002AF00  # [{'hvac_idx': '00', 'indoor_humidity': 0.52, 'temperature': 20.6, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.59, 'temperature': 14.72, 'dewpoint_temp': 6.87}]
+2024-10-15T15:59:04.943042 061  I --- 37:153226 --:------ 37:153226 12A0 021 0033088F7FFF0001EF7FFF7FFF000237065C02D900  # [{'hvac_idx': '00', 'indoor_humidity': 0.51, 'temperature': 21.91, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.55, 'temperature': 16.28, 'dewpoint_temp': 7.29}]
+2024-10-15T23:50:36.119335 074  I --- 37:153226 --:------ 37:153226 12A0 021 002B08137FFF0001EF7FFF7FFF00023D05A102CE00  # [{'hvac_idx': '00', 'indoor_humidity': 0.43, 'temperature': 20.67, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.61, 'temperature': 14.41, 'dewpoint_temp': 7.18}]
+2024-10-18T13:40:19.208645 067  I --- 37:153226 --:------ 37:153226 12A0 021 0042081D7FFF0001EF7FFF7FFF00024D079205FF00  # [{'hvac_idx': '00', 'indoor_humidity': 0.66, 'temperature': 20.77, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.77, 'temperature': 19.38, 'dewpoint_temp': 15.35}]
+2024-10-18T15:45:27.762626 067  I --- 37:153226 --:------ 37:153226 12A0 021 004408327FFF0001EF7FFF7FFF00024707EF05DE00  # [{'hvac_idx': '00', 'indoor_humidity': 0.68, 'temperature': 20.98, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.71, 'temperature': 20.31, 'dewpoint_temp': 15.02}]
+2024-10-18T15:50:28.112562 067  I --- 37:153226 --:------ 37:153226 12A0 021 004408377FFF0001EF7FFF7FFF00024707F705E000  # [{'hvac_idx': '00', 'indoor_humidity': 0.68, 'temperature': 21.03, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.71, 'temperature': 20.39, 'dewpoint_temp': 15.04}]
+2024-10-18T01:13:47.417683 064  I --- 37:153226 --:------ 37:153226 12A0 021 003F08077FFF0001EF7FFF7FFF00024E06D6055D00  # [{'hvac_idx': '00', 'indoor_humidity': 0.63, 'temperature': 20.55, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.78, 'temperature': 17.5, 'dewpoint_temp': 13.73}]
+2024-10-20T15:01:12.576913 072  I --- 37:153226 --:------ 37:153226 12A0 021 0041078D7FFF0001EF7FFF7FFF0002470751054000  # [{'hvac_idx': '00', 'indoor_humidity': 0.65, 'temperature': 19.33, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.71, 'temperature': 18.73, 'dewpoint_temp': 13.44}]
+2024-10-21T13:49:35.480133 060  I --- 37:153226 --:------ 37:153226 12A0 021 004108027FFF0001EF7FFF7FFF00024E06E1056500  # [{'hvac_idx': '00', 'indoor_humidity': 0.65, 'temperature': 20.5, 'dewpoint_temp': None}, {'hvac_idx': '01', 'rel_humidity': None}, {'hvac_idx': '02', 'outdoor_humidity': 0.78, 'temperature': 17.61, 'dewpoint_temp': 13.81}]
