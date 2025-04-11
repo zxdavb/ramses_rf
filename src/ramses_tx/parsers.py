@@ -1594,9 +1594,7 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC (flow rate?)
 def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
-    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-019B 01-0201
-    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-0174 01-0208
-    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-01E5 01-0201
+    # ClimeRad minibox uses 22F2 for speed feedback
 
     def _parser(seqx: str) -> dict:
         assert seqx[:2] in ("00", "01"), f"is {seqx[:2]}, expecting 00/01"
