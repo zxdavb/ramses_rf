@@ -1531,8 +1531,6 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | str | None]:
 
 # fan_speed (switch_mode), HVAC
 def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
-    # ClimaRad VenturaV1x HRU does not send 22F1 for speed, uses 22F4 for mode + step
-
     try:
         assert payload[0:2] in ("00", "63")
         assert not payload[4:] or int(payload[2:4], 16) <= int(payload[4:], 16), (
@@ -1660,11 +1658,17 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
-    # HACK: for dev/test: 37:153226 is ClimaRad Ventura fan/remote
-    payload = payload[8:14] if msg.src.id == "37:153226" else payload[:6]
+    # ClimaRad Ventura fan/remote
+    if msg.len == 13 and payload[14:] == "000000000000":
+        if payload[10:12] == "00":
+            payload = payload[:4] + payload[12:14]
+        else:
+            payload = payload[8:14]
+    else:
+        payload = payload[:6]
 
     MODE_LOOKUP = {
-        0x00: "off?",
+        0x00: "off",
         0x20: "paused",
         0x40: "auto",
         0x60: "manual",
@@ -1672,12 +1676,12 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     mode = int(payload[2:4], 16) & 0x60
     assert mode in MODE_LOOKUP, mode
 
-    RATE_LOOKUP = {
-        0x00: "speed 0",  # "off"?,
-        0x01: "speed 1",  # "low", or trickle?
-        0x02: "speed 2",  # "medium-low", or low?
-        0x03: "speed 3",  # "medium",
-        0x04: "speed 4",  # "medium-high", or high?
+    RATE_LOOKUP = {  # note no i18n, passed to UI as is
+        0x00: "0",  # "off"?,
+        0x01: "1",  # "low", or trickle?
+        0x02: "2",  # "medium-low", or low?
+        0x03: "3",  # "medium",
+        0x04: "4",  # "medium-high", or high?
         0x05: "boost",  # "boost", aka purge?
     }
     rate = int(payload[4:6], 16) & 0x03
