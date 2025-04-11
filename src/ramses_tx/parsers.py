@@ -2186,16 +2186,22 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
     }
 
     if (
-        result[SZ_FAN_INFO] == ""
-        and result["_unknown_fan_info_flags"] == []
+        result[SZ_FAN_INFO]
+        == "-unknown 0x1F-"  # 1F constant in Ventura HRU which has actual fan_info in 31D9
+        and result["_unknown_fan_info_flags"]
+        == [0, 0, 0]  # use a second check, should imply:
         and result[SZ_SUPPLY_TEMP] is None
-        and result[SZ_OUTDOOR_TEMP] is not None
+        and result[SZ_OUTDOOR_TEMP]
+        is not None  # make sure we have a substitute value from device
     ):
         # [26:30] = is supply_temp in ClimaRad Ventura, not outdoor_temp
         result[SZ_SUPPLY_TEMP] = result[SZ_OUTDOOR_TEMP]  # replace
         # [14:18] = is outdoor_temp in ClimaRad Ventura, not exhaust (too low)
         # further confirmation: this is same value as 12A0[2], but less frequent
         result[SZ_OUTDOOR_TEMP] = None
+        result[SZ_FAN_INFO] = (
+            ""  # clear useless lookup to prevent showing in Climate UI
+        )
 
     return result  # type: ignore[return-value]
 
