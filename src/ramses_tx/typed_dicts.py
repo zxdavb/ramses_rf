@@ -67,6 +67,12 @@ class Co2Level(TypedDict):
     co2_level: float | None
 
 
+class RelativeHumidity(TypedDict):
+    relative_humidity: _HexToTempT
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
 class IndoorHumidity(TypedDict):
     indoor_humidity: _HexToTempT
     temperature: NotRequired[float | None]
@@ -255,6 +261,15 @@ class _1100_IDX(TypedDict):
     domain_id: str
 
 
+class _12a0(TypedDict):
+    hvac_idx: str
+    indoor_humidity: NotRequired[_HexToTempT | None]
+    outdoor_humidity: NotRequired[_HexToTempT | None]
+    relative_humidity: NotRequired[_HexToTempT | None]
+    temperature: NotRequired[float | None]
+    dewpoint_temp: NotRequired[float | None]
+
+
 class _12b0(TypedDict):
     window_open: bool | None
 
@@ -421,7 +436,7 @@ class PayDictT:
     _1280: TypeAlias = OutdoorHumidity
     _1290: TypeAlias = OutdoorTemp
     _1298: TypeAlias = Co2Level
-    _12A0: TypeAlias = IndoorHumidity
+    _12A0: TypeAlias = _12a0
     _12B0: TypeAlias = _12b0
     _12C0: TypeAlias = _12c0
     _12C8: TypeAlias = AirQuality
@@ -452,6 +467,9 @@ class PayDictT:
     FAULT_LOG_ENTRY: TypeAlias = FaultLogEntry
     FAULT_LOG_ENTRY_NULL: TypeAlias = FaultLogEntryNull
     TEMPERATURE: TypeAlias = _Temperature
+
+    # 12A0 primitive
+    RELATIVE_HUMIDITY: TypeAlias = RelativeHumidity
 
     # 31DA primitives
     AIR_QUALITY: TypeAlias = AirQuality
