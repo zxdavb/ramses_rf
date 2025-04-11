@@ -52,7 +52,7 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 # TODO: Switch this module to utilise the (run-time) decorator design pattern...
 # - https://refactoring.guru/design-patterns/decorator/python/example
 # - will probably need setattr()?
-# BaseCompnents: FAN (HRU, PIV, EXT), SENsor (CO2, HUM, TEMp), SWItch (RF gateway?)
+# BaseComponents: FAN (HRU, PIV, EXT), SENsor (CO2, HUM, TEMp), SWItch (RF gateway?)
 # - a device could be a combination of above (e.g. Spider Gateway)
 # Track binding for SWI (HA service call) & SEN (HA trigger) to FAN/other
 
