@@ -400,7 +400,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             return mode
         return str(
             self._msg_value(Code._31DA, key=SZ_FAN_INFO)
-        )  # a description to display in climate, e.g. "2, medium", note i18n
+        )  # a description to display in climate, e.g. "2 (medium)", note i18n, add 'speed' in UI Label if desired
 
     @property
     def indoor_humidity(self) -> float | None:
