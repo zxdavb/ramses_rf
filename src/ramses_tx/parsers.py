@@ -2200,7 +2200,7 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
         # further confirmation: this is same value as 12A0[2], but less frequent
         result[SZ_OUTDOOR_TEMP] = None
         result[SZ_FAN_INFO] = (
-            ""  # clear useless lookup to prevent showing in Climate UI
+            None  # clear useless lookup to prevent showing in Climate UI
         )
 
     return result  # type: ignore[return-value]
