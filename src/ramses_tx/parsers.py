@@ -106,6 +106,7 @@ from .helpers import (
     parse_exhaust_temp,
     parse_fan_info,
     parse_fault_log_entry,
+    parse_humidity_element,
     parse_indoor_humidity,
     parse_indoor_temp,
     parse_outdoor_humidity,
@@ -1120,9 +1121,20 @@ def parser_1298(payload: str, msg: Message) -> PayDictT._1298:
     return parse_co2_level(payload[2:6])
 
 
-# HVAC: indoor_humidity
-def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
-    return parse_indoor_humidity(payload[2:])
+# HVAC: indoor_humidity, array of 3 sets for HRU
+def parser_12a0(
+    payload: str, msg: Message
+) -> PayDictT.INDOOR_HUMIDITY | list[PayDictT._12A0]:
+    if len(payload) <= 14:
+        return parse_indoor_humidity(payload[2:12])
+
+    return [
+        {
+            "hvac_idx": payload[i : i + 2],  # used as index
+            **parse_humidity_element(payload[i + 2 : i + 12], payload[i : i + 2]),
+        }
+        for i in range(0, len(payload), 14)
+    ]
 
 
 # window_state (of a device/zone)
@@ -1294,6 +1306,7 @@ def parser_1fc9(payload: str, msg: Message) -> PayDictT._1FC9:
         if seqx[:2] not in (
             "21",  # HVAC, Nuaire
             "63",  # HVAC
+            "65",  # HVAC, ClimaRad
             "66",  # HVAC, Vasco
             "67",  # HVAC
             "6C",  # HVAC
@@ -1507,10 +1520,12 @@ def parser_22e5(payload: str, msg: Message) -> Mapping[str, float | None]:
 
 
 # WIP: unknown, HVAC
-def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | None]:
-    # RP --- 32:153258 18:005904 --:------ 22E9 004 00C8C814
-    # RP --- 32:155617 18:005904 --:------ 22E9 004 008CC814
-
+def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | str | None]:
+    if payload[2:4] == "01":
+        return {
+            "unknown_4": payload[4:6],
+            "unknown_6": payload[6:8],
+        }
     return parser_22e0(payload, msg)
 
 
@@ -1582,16 +1597,8 @@ def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
 
 # fan_boost, HVAC
 def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
-    # .I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
-    # .I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
-    # .I 026 --:------ --:------ 39:159057 22F3 003 00001E  # 30 mins
-    # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins
-    # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
-    # .I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
-
     # NOTE: for boost timer for high
     try:
-        # assert payload[2:4] in ("00", "02", "12", "x52"), f"byte 1: {flag8(payload[2:4])}"
         assert msg.len <= 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
@@ -1602,11 +1609,16 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
         0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
     }.get(int(payload[2:4], 0x10) & 0x07)  # 0b0000-0111
 
-    fallback_speed = {  # after timer expiry
-        0x08: "fan_off",  # #      set fan off?
-        0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
-        0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
-    }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
+    fallback_speed: str | None
+    if msg.len == 7 and payload[9:10] == "06":  # Vasco and ClimaRad REM
+        fallback_speed = "per_vent_speed"  # after timer expiry
+        # set fan as per current fan mode/speed
+    else:
+        fallback_speed = {  # after timer expiry
+            0x08: "fan_off",  # #      set fan off?
+            0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
+            0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
+        }.get(int(payload[2:4], 0x10) & 0x38)  # 0b0011-1000
 
     units = {
         0x00: "minutes",
@@ -1615,6 +1627,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     }.get(int(payload[2:4], 0x10) & 0xC0)  # 0b1100-0000
 
     duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
+    result = {}
 
     if msg.len >= 3:
         result = {
@@ -1945,12 +1958,12 @@ def parser_2e04(payload: str, msg: Message) -> PayDictT._2E04:
     return result  # TODO: double-check the final "00"
 
 
-# presence_detect, HVAC sensor
+# presence_detect, HVAC sensor, or Timed boost for Vasco D60
 def parser_2e10(payload: str, msg: Message) -> dict[str, Any]:
-    assert payload in ("0001", "000100"), _INFORM_DEV_MSG
-
+    assert payload in ("0001", "000000", "000100"), _INFORM_DEV_MSG
+    presence: int = int(payload[2:4])
     return {
-        "presence_detected": bool(payload[2:4]),
+        "presence_detected": bool(presence),
         "_unknown_4": payload[4:],
     }
 
