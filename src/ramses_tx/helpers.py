@@ -37,6 +37,7 @@ from .const import (
     SZ_OUTDOOR_TEMP,
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
+    SZ_REL_HUMIDITY,
     SZ_REMAINING_MINS,
     SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
@@ -535,6 +536,20 @@ def parse_co2_level(value: HexStr4) -> PayDictT.CO2_LEVEL:
 
     # assert int(value[:2], 16) <= 0x8000, value
     return {SZ_CO2_LEVEL: level}
+
+
+def parse_humidity_element(value: str, index: str) -> PayDictT._12A0:
+    """Return the relative humidity (%) and 2 temperatures
+
+    The result may include current temperature ('C) and include dewpoint temperature ('C).
+    """
+    if index == "01":
+        return _parse_hvac_humidity(SZ_REL_HUMIDITY, value[:2], value[2:6], value[6:10])  # type: ignore[return-value]
+    if index == "02":
+        return _parse_hvac_humidity(
+            SZ_OUTDOOR_HUMIDITY, value[:2], value[2:6], value[6:10]
+        )  # type: ignore[return-value]
+    return _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])  # type: ignore[return-value]
 
 
 # 31DA[10:12] and 12A0[2:12]
