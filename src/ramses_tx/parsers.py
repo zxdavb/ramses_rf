@@ -1527,6 +1527,8 @@ def parser_22e9(payload: str, msg: Message) -> Mapping[str, float | str | None]:
 
 # fan_speed (switch_mode), HVAC
 def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
+    # ClimaRad VenturaV1x HRU does not send 22F1 for speed, uses 22F4 for mode + step
+
     try:
         assert payload[0:2] in ("00", "63")
         assert not payload[4:] or int(payload[2:4], 16) <= int(payload[4:], 16), (
@@ -1555,6 +1557,16 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
         _22f1_mode_set = ("", "0A")
         _22f1_scheme = "nuaire"
 
+    elif payload[4:6] == "06":
+        from .ramses import _22F1_MODE_VASCO as _22F1_FAN_MODE
+
+        _22f1_mode_set = (
+            "",
+            "00",
+            "06",
+        )  # "00" seen incidentally on a ClimaRad 4-button remote: OFF?
+        _22f1_scheme = "vasco"
+
     else:
         from .ramses import _22F1_MODE_ORCON as _22F1_FAN_MODE
 
@@ -1578,9 +1590,7 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC (flow rate?)
 def parser_22f2(payload: str, msg: Message) -> list:  # TODO: only dict
-    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-019B 01-0201
-    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-0174 01-0208
-    # RP --- 32:155617 18:005904 --:------ 22F2 006 00-01E5 01-0201
+    # ClimeRad minibox uses 22F2 for speed feedback
 
     def _parser(seqx: str) -> dict:
         assert seqx[:2] in ("00", "01"), f"is {seqx[:2]}, expecting 00/01"
