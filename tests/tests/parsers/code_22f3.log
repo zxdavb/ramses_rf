@@ -1,0 +1,17 @@
+2024-01-01T01:00:00.000000 ...  I 019 --:------ --:------ 39:159057 22F3 003 00000A          # 10 mins
+2024-01-01T01:00:00.000000 ...  I 022 --:------ --:------ 39:159057 22F3 003 000014          # 20 mins
+2024-01-01T01:00:00.000000 ...  I 026 --:------ --:------ 39:159057 22F3 003 00001E          # 30 mins
+2024-01-01T01:00:00.000000 ...  I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000  # 60 mins
+2024-01-01T01:00:00.000000 ...  I --- 29:162374 29:237552 --:------ 22F3 007 00020F03040000  # 15 mins
+2024-01-01T01:00:00.000000 ...  I --- 29:162374 29:237552 --:------ 22F3 007 00020F03040000  # 15 mins
+
+# Vasco remote (VMN-17LMP01) boost
+2024-10-14T20:51:11.263018 049  I --- 29:091138 32:022222 --:------ 22F3 007 00021E04060000  # {'minutes': 30, 'flags': [0, 0, 0, 0, 0, 0, 1, 0], '_new_speed_mode': 'per_vent_speed', '_fallback_speed_mode': None, 'rate': None, '_unknown_5': '0000'}
+# repeated 5 times total
+
+# ClimaRad 4-button remote boost, lasts 20 mins
+2024-10-14T08:50:34.322538 072  I --- 29:123150 29:099029 --:------ 22F3 007 00021E04060000  # {'minutes': 30, 'flags': [0, 0, 0, 0, 0, 0, 1, 0], '_new_speed_mode': 'per_vent_speed', '_fallback_speed_mode': None, 'rate': None, '_unknown_5': '0000'}
+# repeated 2 times total but that could be caused by reception/confirm problem. LED is slow to confirm
+
+# curious 22f3 packet: invalid button combi pressed?
+2024-01-01T01:00:00.000000 123  I --- 29:123150 29:099029 --:------ 22F3 007 00020F00060000  # {'minutes': 15, 'flags': [0, 0, 0, 0, 0, 0, 1, 0], '_new_speed_mode': 'per_vent_speed', '_fallback_speed_mode': None, 'rate': None, '_unknown_5': '0000'}
