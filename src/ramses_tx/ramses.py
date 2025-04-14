@@ -1353,7 +1353,7 @@ _2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
 }
 
 # ventilation speed description
-_31D9_FAN_INFO: dict[int, str] = {
+_31D9_FAN_INFO_VASCO: dict[int, str] = {
     0x00: "off",
     0x01: "1 (trickle)",  # aka low
     0x02: "2 (low)",  # aka medium

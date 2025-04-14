@@ -128,7 +128,7 @@ from .opentherm import (
     OtMsgType,
     decode_frame,
 )
-from .ramses import _31D9_FAN_INFO, _2411_PARAMS_SCHEMA
+from .ramses import _31D9_FAN_INFO_VASCO, _2411_PARAMS_SCHEMA
 from .typed_dicts import PayDictT
 from .version import VERSION
 
@@ -2159,12 +2159,12 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
         ):
             # _31D9_FAN_INFO for Vasco D60 HRU and ClimaRad minibox REM
             try:
-                assert int(payload[4:6], 16) & 0xFF in _31D9_FAN_INFO, (
+                assert int(payload[4:6], 16) & 0xFF in _31D9_FAN_INFO_VASCO, (
                     f"unknown 31D9 fan_mode: {payload[2:4]}"
                 )
             except AssertionError as err:
                 _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
-            fan_mode = _31D9_FAN_INFO.get(
+            fan_mode = _31D9_FAN_INFO_VASCO.get(
                 int(payload[4:6], 16) & 0xFF, f"unknown_{payload[4:6]}"
             )
             result[SZ_FAN_MODE] = fan_mode  # replace
