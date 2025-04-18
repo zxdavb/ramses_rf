@@ -363,10 +363,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
-    Code._2210: {  # unknown_2210, HVAC, NB: no I
+    Code._2210: {  # unknown_2210, HVAC,
         SZ_NAME: "unknown_2210",
+        I_: r"^00[0-9A-F]{82}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{82}$",
     },
     Code._2249: {  # setpoint_now?
         SZ_NAME: "setpoint_now",  # setpt_now_next
@@ -1060,6 +1060,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1470: {RP: {}},
         Code._1F09: {I_: {}, RP: {}},
         Code._1FC9: {W_: {}},
+        Code._2210: {I_: {}, RP: {}},
         Code._22E5: {RP: {}},
         Code._22E9: {RP: {}},
         Code._22F1: {RP: {}},
