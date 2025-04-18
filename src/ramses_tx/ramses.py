@@ -1355,7 +1355,7 @@ _2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
     },
 }
 
-# ventilation speed
+# ventilation speed description from API (localized only in application)
 _31DA_FAN_INFO: dict[int, str] = {
     0x00: "off",
     0x01: "speed 1, low",  # aka low
@@ -1388,7 +1388,7 @@ _31DA_FAN_INFO: dict[int, str] = {
     0x1C: "-unknown 0x1C-",
     0x1D: "-unknown 0x1D-",
     0x1E: "-unknown 0x1E-",
-    0x1F: "-unknown 0x1F-",
+    0x1F: "-unknown 0x1F-",  # static field, used as filter in parser_31da so keep same
 }
 
 
