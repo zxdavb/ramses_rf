@@ -25,7 +25,7 @@ For CH/DHW, the simplest way to know if it will work with your system is to iden
  - **BDR91A**: Wireless Relay (also BDR91T)
  - **HC60NG**: Wireless Relay (older hardware)
 
-Other systems may well work, such as some Itho Dallderop HVAC systems, use this protocol, YMMV.
+Other systems may well work, such as some Itho Daalderop HVAC systems, use this protocol, YMMV.
 
 It includes a CLI and can be used as a standalone tool, but also is used as a client library by:
  - [ramses_cc](https://github.com/zxdavb/ramses_cc), a Home Assistant integration
@@ -39,7 +39,13 @@ cd ramses_rf
 pip install -r requirements.txt
 ```
 
-The CLI is called client.py:
+The CLI is called `client.py`.
+
+For example, to monitor ramses_rf messages picked up by a dongle connected to port USB0, and log them in `packet.log`:
 ```
 python client.py monitor /dev/ttyUSB0 -o packet.log
+```
+To view the `client.py` help:
+```
+python client.py --help
 ```
