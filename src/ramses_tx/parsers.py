@@ -1377,7 +1377,7 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 # WIP: unknown, HVAC
 def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
     try:
-        assert msg.verb == RP or payload == "00"
+        assert msg.verb in (RP, I_) or payload == "00"
         assert payload[10:12] == payload[38:40] and payload[10:12] in (
             "58",
             "96",
