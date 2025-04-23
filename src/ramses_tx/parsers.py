@@ -1376,15 +1376,31 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 
 # WIP: unknown, HVAC
 def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000020800
+    try:
+        assert msg.verb in (RP, I_) or payload == "00"
+        assert payload[10:12] == payload[38:40] and payload[10:12] in (
+            "58",
+            "96",
+            "FF",
+        ), f"expected (58|96|FF), not {payload[10:12]}"
+        assert payload[20:22] == payload[48:50] and payload[20:22] in (
+            "00",
+            "03",
+        ), f"expected (00|03), not {payload[10:12]}"
+        assert payload[78:80] in ("00", "02"), f"expected (00|02), not {payload[78:80]}"
+        assert payload[80:82] in ("01", "08"), f"expected (01|08), not {payload[80:82]}"
+        assert payload[82:] in ("00", "40"), f"expected (00|40), not {payload[82:]}"
 
-    assert payload in (
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + "FFFFFF000000000000000800",
-    ), _INFORM_DEV_MSG
+    except AssertionError as err:
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
-    return {}
+    return {
+        "unknown_10": payload[10:12],
+        "unknown_20": payload[20:22],
+        "unknown_78": payload[78:80],
+        "unknown_80": payload[80:82],
+        "unknown_82": payload[82:],
+    }
 
 
 # now_next_setpoint - Programmer/Hometronics
