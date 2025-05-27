@@ -204,7 +204,9 @@ class ProtocolContext:
                 f"{self}: Coding error"
             )  # mypy hint
 
-        elif self._fut.cancelled():  # by send_cmd(qos.timeout)
+        elif self._fut.cancelled() and not isinstance(self._state, IsInIdle):
+            # cancelled by wait_for(timeout), cancel("buffer overflow"), or other?
+            # was for previous send_cmd if currently IsInIdle (+/- Inactive?)
             _LOGGER.debug("BEFORE = %s: expired=%s (global)", self, expired)
             assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
             assert isinstance(self._state, WantEcho | WantRply), (
