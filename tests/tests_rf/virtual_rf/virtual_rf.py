@@ -322,7 +322,7 @@ class VirtualRfBase:
             signal.raise_signal(sig)
 
         _LOGGER.debug("Creating exception handler...")
-        self._loop.set_exception_handler(handle_exception)  # type: ignore[arg-type]
+        self._loop.set_exception_handler(handle_exception)
 
         _LOGGER.debug("Creating signal handlers...")
         if os.name == "posix":  # signal.SIGKILL people?
