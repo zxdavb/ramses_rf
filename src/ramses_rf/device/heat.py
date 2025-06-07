@@ -421,7 +421,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             cmd = Command.get_zone_setpoint(self.id, ufc_idx)
             self._add_discovery_cmd(cmd, 60 * 60 * 6)
 
-        for ufc_idx in range(8):  # type: ignore[assignment]
+        for ufc_idx in range(8):
             payload = f"{ufc_idx:02X}{DEV_ROLE_MAP.UFH}"
             cmd = Command.from_attrs(RQ, self.id, Code._000C, payload)
             self._add_discovery_cmd(cmd, 60 * 60 * 24)
@@ -1396,7 +1396,7 @@ class UfhCircuit(Child, Entity):  # FIXME
      - `self.tcs.ctl`: the Evohome controller
     """
 
-    _SLUG: str = None  # type: ignore[assignment]
+    _SLUG: str = None
     _STATE_ATTR = None
 
     def __init__(self, ufc: UfhController, ufh_idx: str) -> None:
@@ -1412,7 +1412,7 @@ class UfhCircuit(Child, Entity):  # FIXME
         self._child_id = ufh_idx
 
         # TODO: _ctl should be: .ufc? .ctl?
-        self._ctl: Controller = None  # type: ignore[assignment]
+        self._ctl: Controller = None
         self._zone: Zone | None = None
 
     # def __str__(self) -> str:
