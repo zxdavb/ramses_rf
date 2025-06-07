@@ -188,13 +188,13 @@ class ProtocolContext:
                 self._expiry_timer = self._loop.create_task(expire_state_on_timeout())
 
         if self._expiry_timer is not None:
-            self._expiry_timer.cancel()
+            self._expiry_timer.cancel("Changing state")
             self._expiry_timer = None
 
         # when _fut.done(), three possibilities:
         #  _fut.set_result()
         #  _fut.set_exception()
-        #  _fut.cancel() (via a wait_for())
+        #  _fut.cancel() (incl. via a send_cmd(qos.timeout) -> wait_for(timeout))
 
         # Changing the order of the following is fraught with danger
         if self._fut is None:  # logging only - IsInIdle, Inactive
@@ -204,7 +204,9 @@ class ProtocolContext:
                 f"{self}: Coding error"
             )  # mypy hint
 
-        elif self._fut.cancelled():  # by send_cmd(qos.timeout)
+        elif self._fut.cancelled() and not isinstance(self._state, IsInIdle):
+            # cancelled by wait_for(timeout), cancel("buffer overflow"), or other?
+            # was for previous send_cmd if currently IsInIdle (+/- Inactive?)
             _LOGGER.debug("BEFORE = %s: expired=%s (global)", self, expired)
             assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
             assert isinstance(self._state, WantEcho | WantRply), (
@@ -320,7 +322,7 @@ class ProtocolContext:
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
         except Full as err:
-            fut.cancel()
+            fut.cancel("Send buffer overflow")
             raise exc.ProtocolSendFailed(f"{self}: Send buffer overflow") from err
 
         if isinstance(self._state, IsInIdle):

@@ -129,10 +129,8 @@ def fake_ti3410_port(request: pytest.FixtureRequest, rf: VirtualRf) -> PortStrT 
 async def mqtt_evofw3_port() -> PortStrT:
     """Utilize an actual evofw3-compatible gateway."""
 
-    if IN_GITHUB_ACTIONS:  # replace with your condition
-        pytest.skip("This test fixture requires physical hardware")
-
-    # TODO: add a test & pytest.skip() if no MQTT broker is available
+    # We could mock the MQTT client at: patch("ramses_tx.transport.MqttTransport"
+    pytest.skip("This test fixture requires an MQTT broker")
 
     return "mqtt://mqtt_username:mqtt_passw0rd@127.0.0.1"
 
@@ -271,12 +269,12 @@ async def mqtt_evofw3(
 ) -> AsyncGenerator[Gateway, None]:
     """Utilize an actual evofw3-compatible gateway (discovered by mqtt_evofw3_port).
 
-    Requires test to supply correspondinggwy_config fixture.
+    Requires test to supply corresponding gwy_config fixture.
     """
 
+    # TODO: pytest.skip() if the MQTT broker is available
     gwy_config: _GwyConfigDictT = request.getfixturevalue(SZ_GWY_CONFIG)
-
-    gwy = await _real_gateway(mqtt_evofw3_port, gwy_config)
+    gwy = await _gateway(mqtt_evofw3_port, gwy_config)
 
     gwy.get_device(gwy._protocol.hgi_id)  # HACK: not instantiated: no puzzle pkts sent
 
