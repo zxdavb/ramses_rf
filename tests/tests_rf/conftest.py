@@ -132,7 +132,7 @@ async def mqtt_evofw3_port() -> PortStrT:
     # We could mock the MQTT client at: patch("ramses_tx.transport.MqttTransport"
     pytest.skip("This test fixture requires an MQTT broker")
 
-    return "mqtt://mqtt_username:mqtt_passw0rd@127.0.0.1"
+    return "mqtt://mqtt_username:mqtt_passw0rd@127.0.0.1"  # type: ignore[unreachable]
 
 
 @pytest.fixture()  # TODO: remove HACK, below
