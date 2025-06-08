@@ -77,7 +77,7 @@ class MessageIndex:
         return self._msgs
 
     def _setup_db_adapters(self) -> None:
-        """Setup the database adapters and converters."""
+        """Set up the database adapters and converters."""
 
         def adapt_datetime_iso(val: dt) -> str:
             """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
@@ -92,7 +92,7 @@ class MessageIndex:
         sqlite3.register_converter("dtm", convert_datetime)
 
     def _setup_db_schema(self) -> None:
-        """Setup the dayabase schema."""
+        """Set up the message database schema."""
 
         self._cu.execute(
             """
@@ -120,14 +120,14 @@ class MessageIndex:
     async def _housekeeping_loop(self) -> None:
         """Periodically remove stale messages from the index."""
 
-        def housekeeping(dt_now: dt, _cutoff: td = td(days=1)) -> None:
+        async def housekeeping(dt_now: dt, _cutoff: td = td(days=1)) -> None:
             dtm = (dt_now - _cutoff).isoformat(timespec="microseconds")
 
             self._cu.execute("SELECT dtm FROM messages WHERE dtm => ?", (dtm,))
             rows = self._cu.fetchall()
 
             try:  # make this operation atomic, i.e. update self._msgs only on success
-                # await self._lock.acquire()
+                await self._lock.acquire()
                 self._cu.execute("DELETE FROM messages WHERE dtm < ?", (dtm,))
                 msgs = OrderedDict({row[0]: self._msgs[row[0]] for row in rows})
                 self._cx.commit()
@@ -137,12 +137,12 @@ class MessageIndex:
             else:
                 self._msgs = msgs
             finally:
-                pass  # self._lock.release()
+                self._lock.release()
 
         while True:
             self._last_housekeeping = dt.now()
             await asyncio.sleep(3600)
-            housekeeping(self._last_housekeeping)
+            await housekeeping(self._last_housekeeping)
 
     def add(self, msg: Message) -> Message | None:
         """Add a single message to the index.
@@ -204,7 +204,9 @@ class MessageIndex:
 
         return msgs[0] if msgs else None
 
-    def rem(self, msg: Message | None = None, **kwargs: str) -> tuple[Message, ...]:
+    def rem(
+        self, msg: Message | None = None, **kwargs: str
+    ) -> tuple[Message, ...] | None:
         """Remove a set of message(s) from the index.
 
         Returns any messages that were removed.
@@ -215,6 +217,7 @@ class MessageIndex:
         if msg:
             kwargs["dtm"] = msg.dtm.isoformat(timespec="microseconds")
 
+        msgs = None
         try:  # make this operation atomic, i.e. update self._msgs only on success
             # await self._lock.acquire()
             msgs = self._delete_from(**kwargs)
@@ -277,12 +280,8 @@ class MessageIndex:
     def all(self, include_expired: bool = False) -> tuple[Message, ...]:
         """Return all messages from the index."""
 
-        # self.cursor.execute("SELECT * FROM messages")
-        # return [self._megs[row[0]] for row in self.cursor.fetchall()]
-
-        return tuple(
-            m for m in self._msgs.values() if include_expired or not m._expired
-        )
+        self._cu.execute("SELECT * FROM messages")
+        return tuple(self._msgs[row[0]] for row in self._cu.fetchall())
 
     def clr(self) -> None:
         """Clear the message index (remove all messages)."""
