@@ -29,6 +29,22 @@ class Params(TypedDict):
 _LOGGER = logging.getLogger(__name__)
 
 
+def _setup_db_adapters() -> None:
+    """Set up the database adapters and converters."""
+
+    def adapt_datetime_iso(val: dt) -> str:
+        """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
+        return val.isoformat(timespec="microseconds")
+
+    sqlite3.register_adapter(dt, adapt_datetime_iso)
+
+    def convert_datetime(val: bytes) -> dt:
+        """Convert ISO 8601 datetime to datetime.datetime object."""
+        return dt.fromisoformat(val.decode())
+
+    sqlite3.register_converter("dtm", convert_datetime)
+
+
 class MessageIndex:
     """A simple in-memory SQLite3 database for indexing messages."""
 
@@ -40,7 +56,7 @@ class MessageIndex:
         self._cx = sqlite3.connect(":memory:")  # Connect to a SQLite DB in memory
         self._cu = self._cx.cursor()  # Create a cursor
 
-        self._setup_db_adapters()  # dtm adapter/converter
+        _setup_db_adapters()  # dtm adapter/converter
         self._setup_db_schema()
 
         self._lock = asyncio.Lock()
@@ -75,21 +91,6 @@ class MessageIndex:
     def msgs(self) -> MsgDdT:
         """Return the messages in the index in a threadsafe way."""
         return self._msgs
-
-    def _setup_db_adapters(self) -> None:
-        """Set up the database adapters and converters."""
-
-        def adapt_datetime_iso(val: dt) -> str:
-            """Adapt datetime.datetime to timezone-naive ISO 8601 datetime."""
-            return val.isoformat(timespec="microseconds")
-
-        sqlite3.register_adapter(dt, adapt_datetime_iso)
-
-        def convert_datetime(val: bytes) -> dt:
-            """Convert ISO 8601 datetime to datetime.datetime object."""
-            return dt.fromisoformat(val.decode())
-
-        sqlite3.register_converter("dtm", convert_datetime)
 
     def _setup_db_schema(self) -> None:
         """Set up the message database schema."""
@@ -149,7 +150,7 @@ class MessageIndex:
 
         Returns any message that was removed because it had the same header.
 
-        Throws a warning is there is a duplicate dtm.
+        Throws a warning if there is a duplicate dtm.
         """  # TODO: eventually, may be better to use SqlAlchemy
 
         dup: tuple[Message, ...] = tuple()  # avoid UnboundLocalError
