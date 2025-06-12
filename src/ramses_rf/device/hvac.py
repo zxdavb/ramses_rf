@@ -18,6 +18,8 @@ from ramses_rf.const import (
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
     SZ_FAN_INFO,
+    SZ_FAN_MODE,
+    SZ_FAN_RATE,
     SZ_INDOOR_HUMIDITY,
     SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
@@ -375,7 +377,44 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def fan_info(self) -> str | None:
-        return self._msg_value(Code._31DA, key=SZ_FAN_INFO)
+        """
+        Extract fan info from MessageIndex.
+
+        :return: string describing mode, speed
+        """
+        # Uses SQLite query WHERE _22F4, _31D9 or _31DA on MessageIndex
+
+        sql = """
+            SELECT dtm from messages WHERE verb in (' I', 'RP')
+            AND (src = ? OR dst = ?)
+            AND (code = _Code._22F4 OR code = Code._31D9 OR code = Code._31DA)
+        """
+        resMode = self._msg_qry(sql, SZ_FAN_MODE)  # SQLite query on MessageIndex
+        _LOGGER.info(f"{resMode} # FAN_MODE FETCHED from MessageIndex")  # DEBUG
+
+        resRate = self._msg_qry(sql, SZ_FAN_RATE)  # SQLite query on MessageIndex
+        _LOGGER.info(f"{resRate} # FAN_RATE FETCHED from MessageIndex")  # DEBUG
+
+        # if (
+        #     Code._31D9 in self._msgs # was a dict by Code
+        # ):  # Vasco D60 and ClimaRad minibox send mode/speed in _31D9
+        #     for k, v in self._msgs[Code._31D9].payload.items():
+        #         if (
+        #             k == SZ_FAN_MODE and v != "FF"
+        #         ):  # Prevent ClimaRad Ventura constant "FF" to pass
+        #             return str(v)
+        #     # no guard clause, just ignore
+        # if Code._22F4 in self._msgs:  # ClimaRad Ventura sends mode/speed in _22F4
+        #     mode: str = ""
+        #     for k, v in self._msgs[Code._22F4].payload.items():
+        #         if k == SZ_FAN_MODE:
+        #             mode = v
+        #         if k == SZ_FAN_RATE:
+        #             mode = mode + ", " + v
+        #     return mode
+        return str(
+            self._msg_value(Code._31DA, key=SZ_FAN_INFO)
+        )  # a description to display in climate, e.g. "speed 2, medium", localize in UI
 
     @property
     def indoor_humidity(self) -> float | None:

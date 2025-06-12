@@ -93,7 +93,18 @@ class MessageIndex:
         return self._msgs
 
     def _setup_db_schema(self) -> None:
-        """Set up the message database schema."""
+        """Set up the message database schema.
+
+        Fields:
+
+        - dtm  message timestamp
+        - verb _I, RQ etc.
+        - src  message origin address
+        - dst  message destination address
+        - code packet code aka command class e.g. _0005, _31DA
+        - ctx  message context, created from payload as index + extra markers (Heat)
+        - hdr  packet header e.g. 000C|RP|01:223036|0208 (see: src/ramses_tx/frame.py)
+        """
 
         self._cu.execute(
             """

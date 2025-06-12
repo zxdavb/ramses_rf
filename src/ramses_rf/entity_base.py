@@ -214,16 +214,16 @@ class _MessageDB(_Entity):
         ):
             return  # ZZZ: don't store these
 
-        if self._gwy.msg_db:
+        if self._gwy.msg_db:  # central SQLite MessageIndex
             self._gwy.msg_db.add(msg)
             # ignore any replaced message that might be returned
 
-        # Store msg by code in _msgs_ Dict (deprecated)
+        # Store msg by code in flat self._msgs_ Dict (deprecated since 0.50.3)
         if msg.verb in (I_, RP):
             self._msgs_[msg.code] = msg
 
         if msg.code not in self._msgz_:
-            # Store msg verb + ctx by code in _msgz_ Dict (deprecated)
+            # Store msg verb + ctx by code in nested self._msgz_ Dict (deprecated)
             self._msgz_[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
         elif msg.verb not in self._msgz_[msg.code]:
             # Same, 1 level deeper
@@ -252,7 +252,7 @@ class _MessageDB(_Entity):
 
         obj: _MessageDB
 
-        if self._gwy.msg_db:
+        if self._gwy.msg_db:  # central SQLite MessageIndex
             self._gwy.msg_db.rem(msg)
 
         entities: list[_MessageDB] = []
@@ -274,7 +274,7 @@ class _MessageDB(_Entity):
     def _get_msg_by_hdr(self, hdr: HeaderT) -> Message | None:
         """Return a msg, if any, that matches a header."""
 
-        if self._gwy.msg_db:
+        if self._gwy.msg_db:  # central SQLite MessageIndex
             msgs = self._gwy.msg_db.get(hdr=hdr)
             return msgs[0] if msgs else None
 
@@ -310,6 +310,7 @@ class _MessageDB(_Entity):
     def _msg_value(
         self, code: Code | Iterable[Code], *args: Any, **kwargs: Any
     ) -> dict | list | None:
+        """Deprecated since 0.50.3. Use SQLite query on MessageIndex instead"""
         if isinstance(code, str | tuple):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         # raise RuntimeError
@@ -388,6 +389,28 @@ class _MessageDB(_Entity):
             if k not in ("dhw_idx", SZ_DOMAIN_ID, SZ_ZONE_IDX) and k[:1] != "_"
         }
 
+    def _msg_qry(self, sql: str, key: str) -> str | None:
+        """
+        SQLite query on full MessageIndex.
+
+        :param sql: SQLite query on MessageIndex
+        :param key: key for which to return the (first/latest) value
+        :return: the value stored for the supplied key in the parsed Message
+        """
+        if sql and self._gwy.msg_db:
+            # SELECT dtm from messages WHERE verb in (' I', 'RP') AND (src = ? OR dst = ?) AND (code = CODE)
+            for m in self._gwy.msg_db.qry(sql, (self.id[:9], self.id[:9])):
+                # fetch only the first message row
+                res = m.payload()
+                if isinstance(res, list):
+                    return str(res[0][key].value)
+                elif res[key]:
+                    return str(res[key].value)
+                else:
+                    return None
+        else:
+            return None
+
     @property
     def traits(self) -> dict:
         """Return the codes seen by the entity."""
@@ -402,19 +425,33 @@ class _MessageDB(_Entity):
 
     @property
     def _msgs(self) -> dict[Code, Message]:
-        if not self._gwy.msg_db:
+        """
+        Get a flat Dict af all I/RP messages logged with this device as src or dst.
+
+        :return: nested Dict of messages by Code
+        """
+        if (
+            not self._gwy.msg_db
+        ):  # no central SQLite MessageIndex, deprecated since 0.50.3
             return self._msgs_
 
         sql = """
             SELECT dtm from messages WHERE verb in (' I', 'RP') AND (src = ? OR dst = ?)
         """
-        return {  # ? use context instead?
+        return {  # ? use ctx (context) instead of just the address?
             m.code: m for m in self._gwy.msg_db.qry(sql, (self.id[:9], self.id[:9]))
         }  # e.g. 01:123456_HW
 
     @property
     def _msgz(self) -> dict[Code, dict[VerbT, dict[bool | str | None, Message]]]:
-        if not self._gwy.msg_db:
+        """
+        Get a nested Dict of all I/RP messages logged with this device as src or dst.
+
+        :return: Dict of messages, nested by Code, Verb, Context
+        """
+        if (
+            not self._gwy.msg_db
+        ):  # no central SQLite MessageIndex, deprecated since 0.50.3
             return self._msgz_
 
         msgs_1: dict[Code, dict[VerbT, dict[bool | str | None, Message]]] = {}
