@@ -1219,6 +1219,35 @@ class Command(Frame):
 
         return cls._from_attrs(W_, Code._2411, payload, addr0=src_id, addr1=fan_id)
 
+    @classmethod  # constructor for RQ|2411
+    def get_fan_param(
+        cls,
+        fan_id: DeviceIdT | str,
+        param_id: str,
+        *,
+        src_id: DeviceIdT | str,
+    ) -> Command:
+        """Constructor to get a configurable fan parameter (c.f. parser_2411).
+        
+        Args:
+            fan_id: The device ID of the fan
+            param_id: The parameter ID to read (hex string, e.g. '4E' for moisture scenario)
+            src_id: The source device ID (e.g., a remote or DIS device ID)
+            
+        Returns:
+            A Command object for the RQ|2411 message
+            
+        Raises:
+            CommandInvalid: If the parameter ID is unknown
+        """
+        if not _2411_PARAMS_SCHEMA.get(param_id):
+            raise exc.CommandInvalid(f"Unknown parameter: {param_id}")
+            
+        # For RQ, the payload is just the parameter ID with 0000 prefix
+        payload = f"0000{param_id}"
+        
+        return cls._from_attrs(RQ, Code._2411, payload, addr0=src_id, addr1=fan_id)
+
     @classmethod  # constructor for RQ|2E04
     def get_system_mode(cls, ctl_id: DeviceIdT | str) -> Command:
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
