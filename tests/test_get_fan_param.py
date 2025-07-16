@@ -7,25 +7,25 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from typing import Any, Callable, Dict, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import pytest
+
 from ramses_rf import Gateway
 from ramses_tx.command import Command
 from ramses_tx.exceptions import CommandInvalid
 from ramses_tx.message import Message
 
-# Type alias for device IDs since we can't import DeviceIdT directly
+# Type aliases
 DeviceIdT = str
-
-# Use Dict[str, Any] for DeviceTraitsT to match Gateway expectations
-DeviceTraitsT = Dict[str, Any]
+DeviceTraitsT = dict[str, Any]
 
 # Message handler type that can be either sync or async
 MsgHandlerT = Callable[[Message], Any]  # Can return None or Coroutine
 
 # Type definitions
-_T = TypeVar('_T')
+_T = TypeVar("_T")
 
 # Configuration
 MQTT_URL = "mqtt://esp1:j%40diebla@192.168.0.84:1883"
@@ -35,22 +35,23 @@ FAN_DEVICE_ID: str = "32:153289"  # FAN device
 # Use a parameter ID that exists in _2411_PARAMS_SCHEMA (from ramses_tx.ramses)
 # 31 = Time to change filter (days)
 PARAMETER_ID = "31"
-REQUEST_TIMEOUT = 10           # Seconds to wait for a response
+REQUEST_TIMEOUT = 10  # Seconds to wait for a response
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 _LOGGER = logging.getLogger(__name__)
 
 # Known devices - include the HGI device
-KNOWN_DEVICES: Dict[str, Dict[str, Any]] = {
+KNOWN_DEVICES: dict[str, dict[str, Any]] = {
     HGI_ID: {"class": "HGI"},  # Gateway
     SOURCE_DEVICE_ID: {"class": "DIS", "faked": True},
-    FAN_DEVICE_ID: {"class": "FAN"}
+    FAN_DEVICE_ID: {"class": "FAN"},
 }
+
 
 class FanParamTest:
     """Test class for fan parameter functionality.
@@ -69,9 +70,9 @@ class FanParamTest:
             loop: The asyncio event loop
             task: Background task for running the test
         """
-        self.gwy: Optional[Gateway] = None
+        self.gwy: Gateway | None = None
         self.response_event: asyncio.Event = asyncio.Event()
-        self.response: Optional[Dict[str, Any]] = None
+        self.response: dict[str, Any] | None = None
 
     async def setup(self) -> None:
         """Set up the test environment.
@@ -91,7 +92,7 @@ class FanParamTest:
                 port_name=MQTT_URL,
                 known_list=KNOWN_DEVICES,  # type: ignore[arg-type]
                 config={"enforce_known_list": True},
-                loop=asyncio.get_event_loop()
+                loop=asyncio.get_event_loop(),
             )
 
             # Start the gateway
@@ -130,7 +131,7 @@ class FanParamTest:
         _LOGGER.info("Cleaning up test resources...")
 
         # Clean up the gateway if it exists
-        if hasattr(self, 'gwy') and self.gwy is not None:
+        if hasattr(self, "gwy") and self.gwy is not None:
             _LOGGER.debug("Stopping gateway...")
             try:
                 await self.gwy.stop()
@@ -150,10 +151,10 @@ class FanParamTest:
                 _LOGGER.warning(
                     "Unexpected error during gateway cleanup (continuing anyway): %s",
                     err,
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Re-raise only critical errors that should not be ignored
-                if isinstance(err, (MemoryError, SystemError, KeyboardInterrupt)):
+                if isinstance(err, MemoryError | SystemError | KeyboardInterrupt):
                     raise
 
         _LOGGER.info("Cleanup complete")
@@ -169,7 +170,7 @@ class FanParamTest:
         """
         try:
             # Skip if we've already processed this message
-            if not hasattr(msg, 'code') or msg.code != "2411":
+            if not hasattr(msg, "code") or msg.code != "2411":
                 return
 
             # Log the message details
@@ -178,15 +179,15 @@ class FanParamTest:
                 "Message details: code=%s, payload=%s, src=%s, dst=%s",
                 msg.code,
                 msg.payload,
-                getattr(msg.src, 'id', 'unknown'),
-                getattr(msg.dst, 'id', 'unknown')
+                getattr(msg.src, "id", "unknown"),
+                getattr(msg.dst, "id", "unknown"),
             )
 
             # Check if this is a response to our request
             is_response = (
-                msg.code == "2411" and
-                getattr(msg.src, 'id', None) == FAN_DEVICE_ID and
-                getattr(msg.dst, 'id', None) == SOURCE_DEVICE_ID
+                msg.code == "2411"
+                and getattr(msg.src, "id", None) == FAN_DEVICE_ID
+                and getattr(msg.dst, "id", None) == SOURCE_DEVICE_ID
             )
 
             if is_response:
@@ -196,8 +197,8 @@ class FanParamTest:
                 self.response = {
                     "code": msg.code,
                     "payload": msg.payload,
-                    "src": getattr(msg.src, 'id', 'unknown'),
-                    "dst": getattr(msg.dst, 'id', 'unknown')
+                    "src": getattr(msg.src, "id", "unknown"),
+                    "dst": getattr(msg.dst, "id", "unknown"),
                 }
                 self.response_event.set()
 
@@ -206,7 +207,7 @@ class FanParamTest:
             self.response = {"error": f"Message processing error: {str(err)}"}
             self.response_event.set()
 
-    async def _check_gateway_availability(self) -> Optional[Dict[str, str]]:
+    async def _check_gateway_availability(self) -> dict[str, str] | None:
         """Check if gateway and protocol are available.
 
         Returns:
@@ -217,7 +218,7 @@ class FanParamTest:
             _LOGGER.error(error_msg)
             return {"error": error_msg}
 
-        protocol = getattr(self.gwy, '_protocol', None)
+        protocol = getattr(self.gwy, "_protocol", None)
         if protocol is None:  # pylint: disable=protected-access
             error_msg = "Protocol not available"
             _LOGGER.error(error_msg)
@@ -225,7 +226,9 @@ class FanParamTest:
 
         return None
 
-    async def _send_fan_param_command(self, fan_id: str, param_id: str) -> Optional[Dict[str, Any]]:
+    async def _send_fan_param_command(
+        self, fan_id: str, param_id: str
+    ) -> dict[str, Any] | None:
         """Send a fan parameter command and wait for response.
 
         Args:
@@ -237,42 +240,32 @@ class FanParamTest:
         """
         try:
             _LOGGER.info(
-                "Creating command with params: fan_id=%s, "
-                "param_id=%s, src_id=%s",
-                fan_id, param_id, SOURCE_DEVICE_ID
+                "Creating command with params: fan_id=%s, " "param_id=%s, src_id=%s",
+                fan_id,
+                param_id,
+                SOURCE_DEVICE_ID,
             )
 
             cmd = Command.get_fan_param(
-                fan_id=fan_id,
-                param_id=param_id,
-                src_id=SOURCE_DEVICE_ID
+                fan_id=fan_id, param_id=param_id, src_id=SOURCE_DEVICE_ID
             )
             _LOGGER.info("Command created: %s", cmd)
 
             # Log command attributes for debugging
-            cmd_attrs = [a for a in dir(cmd) if not a.startswith('_')]
+            cmd_attrs = [a for a in dir(cmd) if not a.startswith("_")]
             _LOGGER.debug("Command attributes: %s", cmd_attrs)
 
             # Log protocol details for debugging
-            protocol = getattr(self.gwy, '_protocol', None)
+            protocol = getattr(self.gwy, "_protocol", None)
             if protocol is not None:
                 _LOGGER.info("Protocol details:")
-                _LOGGER.info(
-                    "  Protocol class: %s",
-                    protocol.__class__.__name__
-                )
-                protocol_attrs = [
-                    a for a in dir(protocol)
-                    if not a.startswith('_')
-                ]
-                _LOGGER.info(
-                    "  Protocol attributes: %s",
-                    protocol_attrs
-                )
+                _LOGGER.info("  Protocol class: %s", protocol.__class__.__name__)
+                protocol_attrs = [a for a in dir(protocol) if not a.startswith("_")]
+                _LOGGER.info("  Protocol attributes: %s", protocol_attrs)
 
             # Send the command
             _LOGGER.info("Sending command...")
-            protocol = getattr(self.gwy, '_protocol', None)
+            protocol = getattr(self.gwy, "_protocol", None)
             if protocol is None:
                 error_msg = "Cannot send command: protocol not available"
                 _LOGGER.error(error_msg)
@@ -287,7 +280,7 @@ class FanParamTest:
             _LOGGER.error(error_msg, exc_info=True)
             return {"error": error_msg}
 
-    async def _wait_for_fan_response(self) -> Dict[str, Any]:
+    async def _wait_for_fan_response(self) -> dict[str, Any]:
         """Wait for and process the fan parameter response.
 
         Returns:
@@ -303,12 +296,12 @@ class FanParamTest:
             _LOGGER.info("Response received: %s", self.response)
             return dict(self.response)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_msg = "Timeout waiting for response (10s elapsed)"
             _LOGGER.error(error_msg)
             return {"error": error_msg}
 
-    async def get_fan_parameter(self, fan_id: str, param_id: str) -> Dict[str, Any]:
+    async def get_fan_parameter(self, fan_id: str, param_id: str) -> dict[str, Any]:
         """Get a fan parameter value.
 
         Args:
@@ -338,7 +331,7 @@ class FanParamTest:
             # Wait for and process the response
             return await self._wait_for_fan_response()
 
-        except (asyncio.TimeoutError, ConnectionError) as err:
+        except (TimeoutError, ConnectionError) as err:
             error_msg = f"Communication error: {str(err)}"
             _LOGGER.error(error_msg)
             return {"error": error_msg}
@@ -352,6 +345,7 @@ class FanParamTest:
             self.response_event.clear()
             self.response = None
 
+
 def setup_logging() -> tuple[logging.Handler, logging.Logger]:
     """Set up logging configuration.
 
@@ -361,8 +355,7 @@ def setup_logging() -> tuple[logging.Handler, logging.Logger]:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
     )
     console_handler.setFormatter(formatter)
 
@@ -390,7 +383,11 @@ async def log_connected_devices(test: FanParamTest) -> None:
     Args:
         test: The test instance containing the gateway.
     """
-    if test.gwy is None or not hasattr(test.gwy, 'device_by_id') or not test.gwy.device_by_id:
+    if (
+        test.gwy is None
+        or not hasattr(test.gwy, "device_by_id")
+        or not test.gwy.device_by_id
+    ):
         _LOGGER.warning(
             "Could not list connected devices: "
             "Gateway not available or no devices found"
@@ -412,7 +409,7 @@ def _log_device_attributes(device: Any) -> None:
     """
     _LOGGER.info("    FAN device attributes:")
     for attr in dir(device):
-        if not attr.startswith('_'):
+        if not attr.startswith("_"):
             try:
                 value = getattr(device, attr)
                 if not callable(value):
@@ -421,7 +418,7 @@ def _log_device_attributes(device: Any) -> None:
                 _LOGGER.debug("      Could not access %s: %s", attr, err)
 
 
-def process_test_results(response: Optional[Dict[str, Any]]) -> int:
+def process_test_results(response: dict[str, Any] | None) -> int:
     """Process and log test results.
 
     Args:
@@ -430,7 +427,7 @@ def process_test_results(response: Optional[Dict[str, Any]]) -> int:
     Returns:
         int: 0 for success, 1 for failure.
     """
-    if response and 'error' not in response:
+    if response and "error" not in response:
         _log_successful_response(response)
         return 0
 
@@ -438,7 +435,7 @@ def process_test_results(response: Optional[Dict[str, Any]]) -> int:
     return 1
 
 
-def _log_successful_response(response: Dict[str, Any]) -> None:
+def _log_successful_response(response: dict[str, Any]) -> None:
     """Log details of a successful response.
 
     Args:
@@ -446,13 +443,13 @@ def _log_successful_response(response: Dict[str, Any]) -> None:
     """
     _LOGGER.info(
         "SUCCESS: Retrieved parameter %s = %s",
-        response.get('parameter', 'unknown'),
-        response.get('value', 'unknown')
+        response.get("parameter", "unknown"),
+        response.get("value", "unknown"),
     )
 
-    if 'payload' in response and isinstance(response['payload'], dict):
+    if "payload" in response and isinstance(response["payload"], dict):
         _LOGGER.info("Payload details:")
-        for k, v in sorted(response['payload'].items()):
+        for k, v in sorted(response["payload"].items()):
             _LOGGER.info("  %s: %s", k, v)
 
 
@@ -463,16 +460,18 @@ def _log_failed_response(response: Any) -> None:
         response: The failed response or None.
     """
     error_msg = (
-        response.get('error', 'Unknown error')
+        response.get("error", "Unknown error")
         if isinstance(response, dict)
-        else 'No response received'
+        else "No response received"
     )
     _LOGGER.error("FAILED: %s", error_msg)
 
 
-async def cleanup_test(test: Optional[FanParamTest],
-                     console_handler: logging.Handler,
-                     root_logger: logging.Logger) -> None:
+async def cleanup_test(
+    test: FanParamTest | None,
+    console_handler: logging.Handler,
+    root_logger: logging.Logger,
+) -> None:
     """Clean up test resources.
 
     Args:
@@ -488,7 +487,7 @@ async def cleanup_test(test: Optional[FanParamTest],
     except (asyncio.CancelledError, RuntimeError) as err:
         _LOGGER.warning("Cleanup interrupted: %s", str(err))
         raise
-    except (asyncio.TimeoutError, ConnectionError) as err:
+    except TimeoutError as err:
         _LOGGER.warning("Cleanup timed out or connection error: %s", str(err))
     except (AttributeError, TypeError, ValueError) as err:
         _LOGGER.warning("Error accessing test cleanup attributes: %s", str(err))
@@ -501,10 +500,10 @@ async def cleanup_test(test: Optional[FanParamTest],
         _LOGGER.error(
             "Unexpected error during test cleanup (continuing anyway): %s",
             cleanup_error,
-            exc_info=True
+            exc_info=True,
         )
         # Re-raise only critical errors that should not be ignored
-        if isinstance(cleanup_error, (MemoryError, SystemError, KeyboardInterrupt)):
+        if isinstance(cleanup_error, MemoryError | SystemError | KeyboardInterrupt):
             raise
     finally:
         root_logger.removeHandler(console_handler)
@@ -521,7 +520,7 @@ async def main() -> int:
     console_handler, root_logger = setup_logging()
     log_test_configuration()
 
-    test: Optional[FanParamTest] = None
+    test: FanParamTest | None = None
     exit_code = 1  # Default to error
 
     try:
@@ -542,7 +541,7 @@ async def main() -> int:
         _LOGGER.info("\n=== TEST RESULTS ===")
         exit_code = process_test_results(response)
 
-    except asyncio.TimeoutError as err:
+    except TimeoutError as err:
         _LOGGER.error("Test timed out: %s", str(err))
         exit_code = 1
     except asyncio.CancelledError as err:
@@ -564,22 +563,21 @@ async def main() -> int:
         # 2. We log the full exception details for debugging
         # 3. We still re-raise critical errors that shouldn't be caught
         _LOGGER.exception(
-            "Unexpected error during test execution (test will fail): %s",
-            str(err)
+            "Unexpected error during test execution (test will fail): %s", str(err)
         )
         # Only exit with error code if it's a critical error
-        if isinstance(err, (MemoryError, SystemError, KeyboardInterrupt)):
+        if isinstance(err, MemoryError | SystemError | KeyboardInterrupt):
             _LOGGER.critical("Critical error detected, re-raising")
             raise
         exit_code = 1
     finally:
         await cleanup_test(test, console_handler, root_logger)
         _LOGGER.info(
-            "=== TEST COMPLETED WITH %s ===",
-            "SUCCESS" if exit_code == 0 else "FAILURE"
+            "=== TEST COMPLETED WITH %s ===", "SUCCESS" if exit_code == 0 else "FAILURE"
         )
 
     return exit_code
+
 
 class TestFanParamValidation:
     """Test validation of fan parameter IDs."""
@@ -597,26 +595,25 @@ class TestFanParamValidation:
             assert cmd.dst.id == "12:345678"
             assert cmd.payload == f"0000{param_id.upper()}"
 
-    @pytest.mark.parametrize("invalid_id", [
-        ("",),          # empty string
-        ("1",),         # too short
-        ("123",),       # too long
-        ("GH",),        # invalid hex
-        (" 12",),       # leading whitespace
-        ("12 ",),       # trailing whitespace
-        ("0x12",),      # hex prefix
-        ("1G",),        # invalid hex
-        ("-1",),        # negative
-        ("1.0",),       # decimal
-    ])
+    @pytest.mark.parametrize(
+        "invalid_id",
+        [
+            ("",),  # empty string
+            ("1",),  # too short
+            ("123",),  # too long
+            ("GH",),  # invalid hex
+            (" 12",),  # leading whitespace
+            ("12 ",),  # trailing whitespace
+            ("0x12",),  # hex prefix
+            ("1G",),  # invalid hex
+            ("-1",),  # negative
+            ("1.0",),  # decimal
+        ],
+    )
     def test_invalid_parameter_ids(self, invalid_id: str) -> None:
         """Test that invalid parameter IDs raise CommandInvalid."""
         with pytest.raises(CommandInvalid):
-            Command.get_fan_param(
-                "12:345678",
-                invalid_id,
-                src_id="22:222222"
-            )
+            Command.get_fan_param("12:345678", invalid_id, src_id="22:222222")
 
 
 if __name__ == "__main__":

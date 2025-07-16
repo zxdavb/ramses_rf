@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """RAMSES RF - Test the fan parameter commands."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, TypeVar
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from ramses_rf import Gateway
 from ramses_tx import Code, Command, exceptions as exc
 from ramses_tx.schemas import DeviceIdT
@@ -19,7 +22,8 @@ HGI_DEVICE_ID: str = "18:000730"  # Standard HGI device ID for testing
 SOURCE_DEVICE_ID: str = HGI_DEVICE_ID  # Use HGI as source for testing
 
 # Type variable for test parameter classes
-T = TypeVar('T', bound='FanParamTest')
+T = TypeVar("T", bound="FanParamTest")
+
 
 # Test parameters and their expected responses
 @dataclass
@@ -29,6 +33,7 @@ class FanParamTest:  # pylint: disable=too-many-instance-attributes
     Note: This class has 8 attributes (one more than the default pylint limit of 7).
     The attributes are all necessary for testing different aspects of fan parameters.
     """
+
     param_id: str
     description: str
     response_payload: str
@@ -39,7 +44,7 @@ class FanParamTest:  # pylint: disable=too-many-instance-attributes
     unit: str = ""
 
     @classmethod
-    def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
         """Create a FanParamTest instance from a dictionary.
 
         Args:
@@ -48,16 +53,8 @@ class FanParamTest:  # pylint: disable=too-many-instance-attributes
         Returns:
             A new FanParamTest instance
         """
-        return cls(
-            param_id=str(data.get("param_id", "")),
-            description=str(data.get("description", "")),
-            response_payload=str(data.get("response_payload", "")),
-            expected_value=data.get("expected_value"),
-            min_value=data.get("min_value"),
-            max_value=data.get("max_value"),
-            precision=data.get("precision"),
-            unit=str(data.get("unit", ""))
-        )
+        return cls(**data)
+
 
 # Test cases for invalid parameter IDs
 INVALID_PARAM_IDS = [
@@ -91,20 +88,22 @@ INVALID_PARAM_IDS = [
     "参数",
 ]
 
+
 # Test cases for response parsing
 @dataclass
 class ResponseTest:
     """Test case for fan parameter response parsing."""
+
     param_id: str
     response_payload: str
     expected_value: Any
     expected_unit: str = ""
-    expected_min: Optional[Any] = None
-    expected_max: Optional[Any] = None
-    expected_precision: Optional[Any] = None
+    expected_min: Any | None = None
+    expected_max: Any | None = None
+    expected_precision: Any | None = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ResponseTest':
+    def from_dict(cls, data: dict[str, Any]) -> ResponseTest:
         """Create a ResponseTest instance from a dictionary.
 
         Args:
@@ -113,15 +112,8 @@ class ResponseTest:
         Returns:
             A new ResponseTest instance
         """
-        return cls(
-            param_id=str(data.get("param_id", "")),
-            response_payload=str(data.get("response_payload", "")),
-            expected_value=data.get("expected_value"),
-            expected_unit=str(data.get("expected_unit", "")),
-            expected_min=data.get("expected_min"),
-            expected_max=data.get("expected_max"),
-            expected_precision=data.get("expected_precision")
-        )
+        return cls(**data)
+
 
 # Test cases for response parsing
 RESPONSE_TESTS = [
@@ -133,7 +125,7 @@ RESPONSE_TESTS = [
         expected_unit="°C",
         expected_min=0.0,
         expected_max=30.0,
-        expected_precision=0.01
+        expected_precision=0.01,
     ),
     # Time to change filter (0-1800 days, 30 day precision)
     ResponseTest(
@@ -143,7 +135,7 @@ RESPONSE_TESTS = [
         expected_unit="days",
         expected_min=0,
         expected_max=1800,
-        expected_precision=30
+        expected_precision=30,
     ),
     # Moisture scenario position (0=medium, 1=high)
     ResponseTest(
@@ -153,67 +145,8 @@ RESPONSE_TESTS = [
         expected_unit="",
         expected_min=0,
         expected_max=1,
-        expected_precision=1
+        expected_precision=1,
     ),
-]
-
-# Test cases for boundary values and edge cases using valid parameter IDs from _2411_PARAMS_SCHEMA
-BOUNDARY_TESTS = [
-    # Time to change filter (days) - Parameter ID 31
-    FanParamTest(
-        param_id="31",
-        description="Time to change filter (days)",
-        response_payload="0000310000000000000000000000000000000000010000",
-        expected_value=0,
-        min_value=0,
-        max_value=1800,
-        precision=30,
-        unit="days"
-    ),
-    # Moisture scenario position - Parameter ID 4E
-    FanParamTest(
-        param_id="4E",
-        description="Moisture scenario position (0=medium, 1=high)",
-        response_payload="00004E0000000000000000000000000000000000010000",
-        expected_value=0,
-        min_value=0,
-        max_value=1,
-        precision=1,
-        unit=""
-    ),
-    # Comfort temperature - Parameter ID 75
-    FanParamTest(
-        param_id="75",
-        description="Comfort temperature (°C)",
-        response_payload="0000750000000000000000000000000000000000010000",
-        expected_value=0.0,
-        min_value=0.0,
-        max_value=30.0,
-        precision=0.01,
-        unit="°C"
-    ),
-    # Fan speed - Parameter ID 3D (0-100%)
-    FanParamTest(
-        param_id="3D",
-        description="Fan speed (%)",
-        response_payload="00003D0000000000000000000000000000000000010000",
-        expected_value=0,
-        min_value=0,
-        max_value=100,
-        precision=1,
-        unit="%"
-    ),
-    # Temperature offset - Parameter ID 40 (-5.0 to +5.0°C)
-    FanParamTest(
-        param_id="40",
-        description="Temperature offset (°C)",
-        response_payload="0000400000000000000000000000000000000000010000",
-        expected_value=0.0,
-        min_value=-5.0,
-        max_value=5.0,
-        precision=0.1,
-        unit="°C"
-    )
 ]
 
 # Malformed responses to test
@@ -236,7 +169,7 @@ MALFORMED_RESPONSES = [
     "3e1",  # Scientific notation
     "3E1",  # Scientific notation uppercase
     "3.1e1",  # Scientific with decimal
-    "3.1E1"  # Scientific with decimal uppercase
+    "3.1E1",  # Scientific with decimal uppercase
 ]
 
 # Test parameters
@@ -249,7 +182,7 @@ TEST_PARAMETERS = [
         min_value=0,
         max_value=100,
         precision=1,
-        unit="%"
+        unit="%",
     ),
     FanParamTest(
         param_id="76",
@@ -259,7 +192,7 @@ TEST_PARAMETERS = [
         min_value=0,
         max_value=60,
         precision=1,
-        unit="min"
+        unit="min",
     ),
     FanParamTest(
         param_id="77",
@@ -269,8 +202,8 @@ TEST_PARAMETERS = [
         min_value=0,
         max_value=100,
         precision=1,
-        unit="%"
-    )
+        unit="%",
+    ),
 ]
 
 # Create a lookup for test parameters
@@ -285,7 +218,7 @@ RESPONSE_TESTS = [
         expected_unit="%",
         expected_min=0,
         expected_max=100,
-        expected_precision=1
+        expected_precision=1,
     ),
     ResponseTest(
         param_id="76",
@@ -294,14 +227,15 @@ RESPONSE_TESTS = [
         expected_unit="min",
         expected_min=0,
         expected_max=60,
-        expected_precision=1
-    )
+        expected_precision=1,
+    ),
 ]
 
 RESPONSE_TESTS_BY_ID = {p.param_id: p for p in RESPONSE_TESTS}
 
+
 @pytest.fixture(params=TEST_PARAMETERS)
-def fan_param_test(request: pytest.FixtureRequest) -> Optional[FanParamTest]:
+def fan_param_test(request: pytest.FixtureRequest) -> FanParamTest | None:
     """Fixture that provides test parameters for each test case.
 
     Args:
@@ -310,12 +244,13 @@ def fan_param_test(request: pytest.FixtureRequest) -> Optional[FanParamTest]:
     Returns:
         A FanParamTest instance for the current test case, or None if no parameter
     """
-    if not hasattr(request, 'param'):
+    if not hasattr(request, "param"):
         return None
     return FanParamTest.from_dict(request.param)
 
+
 @pytest.fixture(params=RESPONSE_TESTS)
-def response_test(request: pytest.FixtureRequest) -> Optional[ResponseTest]:
+def response_test(request: pytest.FixtureRequest) -> ResponseTest | None:
     """Fixture that provides response test cases.
 
     Args:
@@ -324,9 +259,10 @@ def response_test(request: pytest.FixtureRequest) -> Optional[ResponseTest]:
     Returns:
         A ResponseTest instance for the current test case, or None if no parameter
     """
-    if not hasattr(request, 'param'):
+    if not hasattr(request, "param"):
         return None
     return ResponseTest.from_dict(request.param)
+
 
 def create_mock_response(test_case: ResponseTest) -> MagicMock:
     """Create a mock response command from a test case.
@@ -353,22 +289,23 @@ def create_mock_response(test_case: ResponseTest) -> MagicMock:
 
     return mock_cmd
 
+
 @pytest.fixture
-def gwy_config() -> Dict[str, Any]:
+def gwy_config() -> dict[str, Any]:
     """Return a test gateway configuration.
 
     Returns:
         A dictionary containing the gateway configuration for testing.
     """
     # Create device info dictionaries with proper typing
-    known_list: Dict[DeviceIdT, Dict[str, Any]] = {
+    known_list: dict[DeviceIdT, dict[str, Any]] = {
         DeviceIdT(FAN_DEVICE_ID): {"is_fan": True},
         # Use 'class' as the key to match the expected schema
         DeviceIdT("18:000730"): {"class": "HGI"},  # HGI device
     }
 
     # Create the configuration with proper typing
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "config": {
             "enforce_known_list": False,
             "enforce_schema": True,
@@ -389,11 +326,15 @@ def gwy_dev_id() -> str:
     return HGI_DEVICE_ID  # Already a string
 
 
-@pytest.mark.parametrize("test_param", TEST_PARAMETERS, ids=[p.param_id for p in TEST_PARAMETERS])
+@pytest.mark.parametrize(
+    "test_param", TEST_PARAMETERS, ids=[p.param_id for p in TEST_PARAMETERS]
+)
 async def test_get_fan_param_command_construction(test_param: FanParamTest) -> None:
     """Test the construction of the get_fan_param command for different parameters."""
     # Test with minimal required parameters
-    cmd = Command.get_fan_param(FAN_DEVICE_ID, test_param.param_id, src_id=SOURCE_DEVICE_ID)
+    cmd = Command.get_fan_param(
+        FAN_DEVICE_ID, test_param.param_id, src_id=SOURCE_DEVICE_ID
+    )
     assert cmd.code == FAN_PARAM_CODE
     assert cmd.verb == "RQ"
     assert cmd.src.id == SOURCE_DEVICE_ID
@@ -407,27 +348,29 @@ async def test_get_fan_param_command_construction(test_param: FanParamTest) -> N
 @pytest.mark.parametrize("param_id", INVALID_PARAM_IDS)
 def test_get_fan_param_invalid_param_id(param_id: Any) -> None:
     """Test that invalid parameter IDs raise the expected exception.
-    
+
     Args:
         param_id: The invalid parameter ID to test
     """
     with pytest.raises(exc.CommandInvalid):
         # Try to create a command with an invalid parameter ID
         Command.get_fan_param(
-            fan_id=FAN_DEVICE_ID,
-            param_id=param_id,
-            src_id=SOURCE_DEVICE_ID
+            fan_id=FAN_DEVICE_ID, param_id=param_id, src_id=SOURCE_DEVICE_ID
         )
 
 
-@pytest.mark.parametrize("test_param", TEST_PARAMETERS, ids=[p.param_id for p in TEST_PARAMETERS])
+@pytest.mark.parametrize(
+    "test_param", TEST_PARAMETERS, ids=[p.param_id for p in TEST_PARAMETERS]
+)
 @pytest.mark.asyncio
-async def test_get_fan_param_integration(fake_evofw3: Gateway, test_param: FanParamTest) -> None:
+async def test_get_fan_param_integration(
+    fake_evofw3: Gateway, test_param: FanParamTest
+) -> None:
     """Test the full get_fan_param flow with a fake gateway for different parameters.
-    
+
     This test verifies that the command is constructed correctly, can be sent through
     the gateway, and that the response is handled properly.
-    
+
     Args:
         fake_evofw3: Pytest fixture providing a fake gateway for testing
         test_param: The test case containing the parameter to test
@@ -478,13 +421,13 @@ async def test_get_fan_param_integration(fake_evofw3: Gateway, test_param: FanPa
 
     # Patch the protocol's send_cmd method with our mock
     # Using protected access to test internal behavior
-    with patch.object(fake_evofw3._protocol, 'send_cmd', new=mock_send_cmd):  # pylint: disable=protected-access
+    with patch.object(fake_evofw3._protocol, "send_cmd", new=mock_send_cmd):  # pylint: disable=protected-access
         try:
             # Get the fan parameter
             cmd = Command.get_fan_param(
                 fan_id=FAN_DEVICE_ID,
                 param_id=test_param.param_id,
-                src_id=SOURCE_DEVICE_ID
+                src_id=SOURCE_DEVICE_ID,
             )
 
             # Send the command and get the response
@@ -495,14 +438,16 @@ async def test_get_fan_param_integration(fake_evofw3: Gateway, test_param: FanPa
             assert response is not None, "No response received"
 
             # Verify the response properties
-            assert response.code == FAN_PARAM_CODE, \
-                f"Expected code {FAN_PARAM_CODE}, got {response.code}"
-            assert response.verb == "RP", \
-                f"Expected verb 'RP', got '{response.verb}'"
-            assert response.src.id == FAN_DEVICE_ID, \
-                f"Expected source ID '{FAN_DEVICE_ID}', got '{response.src.id}'"
-            assert response.dst.id == SOURCE_DEVICE_ID, \
-                f"Expected destination ID '{SOURCE_DEVICE_ID}', got '{response.dst.id}'"
+            assert (
+                response.code == FAN_PARAM_CODE
+            ), f"Expected code {FAN_PARAM_CODE}, got {response.code}"
+            assert response.verb == "RP", f"Expected verb 'RP', got '{response.verb}'"
+            assert (
+                response.src.id == FAN_DEVICE_ID
+            ), f"Expected source ID '{FAN_DEVICE_ID}', got '{response.src.id}'"
+            assert (
+                response.dst.id == SOURCE_DEVICE_ID
+            ), f"Expected destination ID '{SOURCE_DEVICE_ID}', got '{response.dst.id}'"
 
             # Verify the payload matches our test case
             assert response.payload == test_param.response_payload, (
@@ -518,7 +463,11 @@ async def test_get_fan_param_integration(fake_evofw3: Gateway, test_param: FanPa
             )
 
             # Verify the test data is consistent
-            assert test_param.min_value <= test_param.expected_value <= test_param.max_value, (
+            assert (
+                test_param.min_value
+                <= test_param.expected_value
+                <= test_param.max_value
+            ), (
                 f"Expected value {test_param.expected_value} is outside range "
                 f"[{test_param.min_value}, {test_param.max_value}]"
             )
