@@ -11,7 +11,7 @@ from ramses_tx.packet import Packet
 
 
 def _test_api(api: Callable, packets: dict[str]) -> None:  # NOTE: incl. addr_set check
-    """Test a verb|code pair that has a Command constructor, src and dst.."""
+    """Test a verb|code pair that has a Command constructor, src and dst."""
 
     for pkt_line, kwargs in packets.items():
         pkt = _create_pkt_from_frame(pkt_line)
@@ -347,3 +347,10 @@ GET_31DA_KWARGS = {
         "pre_heat": None,
     },
 }
+
+# TODO Add tests to get states from 31DA
+# (verifies SQLite refactoring)
+# set up HVAC system first from messages
+#
+# Example: current_temperature(self) in ramses_cc.climate.py
+# simulates requesting Climate self._device.indoor_temp from a system
