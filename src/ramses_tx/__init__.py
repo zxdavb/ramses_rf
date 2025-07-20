@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from functools import partial
+
 from typing import TYPE_CHECKING, Any
 
 from .address import (
@@ -133,8 +136,13 @@ if TYPE_CHECKING:
     from logging import Logger
 
 
-def set_pkt_logging_config(**config: Any) -> Logger:
-    set_pkt_logging(PKT_LOGGER, **config)
+# HA issue: method causes blocking call to open with args ('/config/ramses_esp/packetlog', 'a')
+# Fix here <<< issue #200 (= ramses_cc issue 217) >> from .logger import set_pkt_logging
+async def set_pkt_logging_config(**config: Any) -> Logger:
+    # fix? Calling a blocking function
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, partial(set_pkt_logging, PKT_LOGGER, **config))
+    # set_pkt_logging(PKT_LOGGER, **config)
     return PKT_LOGGER
 
 
