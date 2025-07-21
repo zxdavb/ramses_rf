@@ -259,9 +259,11 @@ def set_pkt_logging(
     """Create/configure handlers, formatters, etc.
 
     Parameters:
-    - backup_count: keep this many copies, and rotate at midnight unless:
-    - max_bytes:    rotate log files when log > rotate_size
+    - file_name:      base of file to store packet logs in, from root
+    - rotate_backups: keep this many copies, and rotate at midnight unless:
+    - rotate_bytes:   rotate log files when log > rotate_size
     """
+
     logger.propagate = False  # log file is distinct from any app/debug logging
     logger.setLevel(logging.DEBUG)  # must be at least .INFO
 
@@ -269,9 +271,7 @@ def set_pkt_logging(
     for handler in logger.handlers:  # dont use logger.hasHandlers() as not propagating
         logger.removeHandler(handler)
 
-    if file_name:
-        # HA issue: this method causes blocking call to open with args ('/config/ramses_esp/packetlog', 'a')
-        # Fix here if not working in gateway <<< issue #200 (= ramses_cc issue 217) >> python.logging.FileHandler
+    if file_name:  # note: this opens the packet_log file IO and may block
         if rotate_bytes:
             rotate_backups = rotate_backups or 2
             handler = logging.handlers.RotatingFileHandler(

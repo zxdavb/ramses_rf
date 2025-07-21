@@ -169,8 +169,6 @@ class Gateway(Engine):
                 if system.dhw:
                     system.dhw._start_discovery_poller()
 
-        # HA issue: next method causes blocking call to open with args ('/config/ramses_esp/packetlog', 'a')
-        # Fix here <<< issue #200 (= ramses_cc issue 217)
         await set_pkt_logging_config(  # type: ignore[arg-type]
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self._packet_log,
@@ -184,7 +182,6 @@ class Gateway(Engine):
         load_schema(self, known_list=self._include, **self._schema)  # create faked too
 
         await super().start()  # TODO: do this *after* restore cache
-        # Fix here <<< issue #200 (= ramses_cc issue 217)
         if cached_packets:
             await self._restore_cached_packets(cached_packets)
 
