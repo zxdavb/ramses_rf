@@ -58,7 +58,7 @@ To send a command to a device, type:
 python client.py execute /dev/ttyUSB0 -x "_verb [seqn] addr0 [addr1 [addr2]] code payload"
 ```
 Notes:
-- Before the I verb, add a whitespace inside the opening double quote: [RP]|[RQ]|[ I]
+- Before the `I` verb, add a whitespace inside the opening double quote: [RP]|[RQ]|[ I]
 - Skip empty device addresses;
 - Don't enter the packet length.
 
@@ -66,3 +66,4 @@ Send command example:
 ```
 python3 client.py execute /dev/cu.usbmodemFD131 -x " I 29:091138 32:022222 22F1 000406"
 ```
+See the [client.py Configuration wiki page](https://github.com/zxdavb/ramses_rf/wiki/client.py-configuration-file) for more.
