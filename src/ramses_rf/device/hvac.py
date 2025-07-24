@@ -415,16 +415,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             if isinstance(
                 self._msgs[Code._12A0].payload, list
             ):  # FAN Ventura sends RH/temps as a list, use element [0] for indoor_temp
-                for k, v in self._msgs[Code._12A0].payload[0].items():
-                    if k == SZ_TEMPERATURE:
-                        return float(v)
+                if v := self._msgs[Code._12A0].payload[0].get(SZ_TEMPERATURE):
+                    return v
                 return None  # guard clause
-            for k, v in self._msgs[Code._12A0].payload.items():
-                if (
-                    k == SZ_TEMPERATURE
-                ):  # ClimaRad minibox FAN sends (indoor) temp in 12A0
-                    return float(v)
-            return None  # guard clause
+            if v := self._msgs[Code._12A0].payload.get(SZ_TEMPERATURE):
+                return v  # ClimaRad minibox FAN sends (indoor) temp in 12A0
         return self._msg_value(Code._31DA, key=SZ_INDOOR_TEMP)
 
     @property
