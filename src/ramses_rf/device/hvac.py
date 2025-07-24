@@ -416,11 +416,11 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             self._msgs[Code._12A0].payload, list
         ):  # FAN Ventura sends a list, use element [0]
             if v := self._msgs[Code._12A0].payload[0].get(SZ_INDOOR_HUMIDITY):
-                return float(v)
+                return v
             return None  # prevent AttributeError: 'list' object has no attribute 'get'
         for c in (Code._12A0, Code._31DA):
             if v := self._msgs[c].payload.get(SZ_INDOOR_HUMIDITY):
-                return float(v)  # pick either code
+                return v  # pick either code
         return None
 
     @property
