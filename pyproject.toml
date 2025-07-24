@@ -11,9 +11,9 @@
   authors = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
-    "colorlog>=6.8.2",
+    "colorlog>=6.9.0",
     "paho-mqtt>=2.1.0",
-    "pyserial-asyncio-fast>=0.14",
+    "pyserial-asyncio-fast>=0.16",
     "voluptuous>=0.15.2",
   ]
   requires-python = ">=3.11"
