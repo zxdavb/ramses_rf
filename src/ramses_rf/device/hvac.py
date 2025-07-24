@@ -38,7 +38,6 @@ from ramses_rf.const import (
 from ramses_rf.entity_base import class_by_attr
 from ramses_rf.helpers import shrink
 from ramses_rf.schemas import SCH_VCS, SZ_REMOTES, SZ_SENSORS
-from ramses_tx.helpers import hex_to_temp
 from ramses_tx import Address, Command, Message, Packet, Priority
 from ramses_tx.ramses import CODES_OF_HVAC_DOMAIN_ONLY, HVAC_KLASS_BY_VC_PAIR
 
@@ -382,7 +381,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
             ):  # FAN Ventura sends RH/temps as a list, use element [2] for exhaust temp
                 for k, v in self._msgs[Code._12A0].payload[2].items():
                     if k == SZ_TEMPERATURE:
-                        return hex_to_temp(v)
+                        return float(v)  # type casting only
         return self._msg_value(Code._31DA, key=SZ_EXHAUST_TEMP)
 
     @property
