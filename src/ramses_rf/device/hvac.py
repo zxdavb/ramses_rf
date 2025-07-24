@@ -27,7 +27,9 @@ from ramses_rf.const import (
     SZ_POST_HEAT,
     SZ_PRE_HEAT,
     SZ_PRESENCE_DETECTED,
+    SZ_REMAINING_DAYS,
     SZ_REMAINING_MINS,
+    SZ_REMAINING_PERCENT,
     SZ_SPEED_CAPABILITIES,
     SZ_SUPPLY_FAN_SPEED,
     SZ_SUPPLY_FLOW,
@@ -170,11 +172,11 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
     @property
     def filter_remaining(self) -> int | None:
         if (
-            self._msg_value(Code._10D0, key="days_remaining") is None
-            and self._msg_value(Code._10D0, key="percent_remaining") is not None
+            self._msg_value(Code._10D0, key=SZ_REMAINING_DAYS) is None
+            and self._msg_value(Code._10D0, key=SZ_REMAINING_PERCENT) is not None
         ):
-            return self._msg_value(Code._10D0, key="percent_remaining")
-        return self._msg_value(Code._10D0, key="days_remaining")
+            return self._msg_value(Code._10D0, key=SZ_REMAINING_PERCENT)
+        return self._msg_value(Code._10D0, key=SZ_REMAINING_DAYS)
 
 
 class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
