@@ -18,6 +18,8 @@ from ramses_rf.const import (
     SZ_EXHAUST_FLOW,
     SZ_EXHAUST_TEMP,
     SZ_FAN_INFO,
+    SZ_FAN_MODE,
+    SZ_FAN_RATE,
     SZ_INDOOR_HUMIDITY,
     SZ_INDOOR_TEMP,
     SZ_OUTDOOR_HUMIDITY,
@@ -292,13 +294,15 @@ class HvacDisplayRemote(HvacRemote):  # DIS
 class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     """The FAN (ventilation) class.
 
-    The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
+    The cardinal codes are 31D9, 31DA.  Signature is RP/31DA.
     """
 
     # Itho Daalderop (NL)
     # Heatrae Sadia (UK)
     # Nuaire (UK), e.g. DRI-ECO-PIV
     # Orcon/Ventiline
+    # ClimaRad (NL)
+    # Vasco (B)
 
     _SLUG: str = DevType.FAN
 
@@ -382,7 +386,26 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
         :return: string describing fan mode, speed
         """
-
+        # if (
+        #     Code._31D9 in self._msgs
+        # ):  # Vasco D60 and ClimaRad minibox send mode/speed in _31D9
+        #     for k, v in self._msgs[Code._31D9].payload.items():
+        #         if (
+        #             k == SZ_FAN_MODE and v != "FF"
+        #         ):  # Prevent ClimaRad Ventura constant "FF" to pass
+        #             return str(v)
+        #     # no guard clause, just ignore
+        # if Code._22F4 in self._msgs:  # ClimaRad Ventura sends mode/speed in _22F4
+        #     mode: str = ""
+        #     for k, v in self._msgs[Code._22F4].payload.items():
+        #         if k == SZ_FAN_MODE:
+        #             mode = v
+        #         if k == SZ_FAN_RATE:
+        #             mode = mode + ", " + v
+        #     return mode
+        # return str(
+        #     self._msg_value(Code._31DA, key=SZ_FAN_INFO)
+        # )  # a description to display in climate, e.g. "speed 2, medium", note localize in UI
         # Use SQLite query on MessageIndex
         sql = """
             SELECT pl from messages WHERE verb in (' I', 'RP')
