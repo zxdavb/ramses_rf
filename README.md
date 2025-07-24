@@ -1,18 +1,14 @@
-![ruff](https://github.com/zxdavb/ramses_rf/actions/workflows/check-lint.yml/badge.svg)
-![mypy](https://github.com/zxdavb/ramses_rf/actions/workflows/check-type.yml/badge.svg)
-![pytest](https://github.com/zxdavb/ramses_rf/actions/workflows/check-test.yml/badge.svg)
-
-# New code owner wanted
-I no longer am able to work on this project and active development has ceased.
-
-Please reach out to me if you feel able to take over. I will hand over the entire repo to the right person, and would be prepared to provide help during a transition period.
+![Linting](https://github.com/zxdavb/ramses_rf/actions/workflows/check-lint.yml/badge.svg)
+![Typing](https://github.com/zxdavb/ramses_rf/actions/workflows/check-type.yml/badge.svg)
+![Testing](https://github.com/zxdavb/ramses_rf/actions/workflows/check-test.yml/badge.svg)
 
 ## Overview
+
 **ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as:
  - (Heat) **evohome**, **Sundial**, **Hometronic**, **Chronotherm**
- - (HVAC) **Itho**, **Orcon**, **Nuaire**
+ - (HVAC) **Itho**, **Orcon**, **Nuaire**, **Vasco**, **ClimaRad**
 
-It requires a USB-to-RF device, either a Honeywell HGI80 (somewhat rare, expensive) or something running the [evofw3](https://github.com/ghoti57/evofw3) firmware, such as the one from [here](https://indalo-tech.onlineweb.shop/).
+It requires a USB-to-RF device, either a Honeywell HGI80 (somewhat rare, expensive) or something running the [evofw3](https://github.com/ghoti57/evofw3) firmware, such as the one from [here](https://indalo-tech.onlineweb.shop/) or your own ESP32-S3-WROOM-1 N16R8 with a CC1100 transponder.
 
 It does three things:
  - decodes RAMSES II-compatible packets and converts them into useful JSON
@@ -33,13 +29,20 @@ It includes a CLI and can be used as a standalone tool, but also is used as a cl
 
 ## Installation
 
+To use the `ramses_rf` Integration in Home Assistant, just install `Ramses RF` from HACS. It will take care of installating this library. See the [`Ramses_cc wiki`](https://github.com/zxdavb/ramses_cc/wiki/1.-Installation) for details.
+
+To run the `ramses_rf` client or study the code:
 ```
 git clone https://github.com/zxdavb/ramses_rf
 cd ramses_rf
 pip install -r requirements.txt
 ```
 
-The CLI is called `client.py`.
+For development, see our [Developer's Resource](README-developers.md)
+
+## Ramses_rf CLI
+
+The CLI is called ``client.py`` and is included in the code root.
 
 For example, to monitor ramses_rf messages picked up by a dongle connected to port USB0, and log them in `packet.log`:
 ```
@@ -49,3 +52,18 @@ To view the `client.py` help:
 ```
 python client.py --help
 ```
+
+To send a command to a device, type:
+```
+python client.py execute /dev/ttyUSB0 -x "_verb [seqn] addr0 [addr1 [addr2]] code payload"
+```
+Notes:
+- Before the `I` verb, add a whitespace inside the opening double quote: [RP]|[RQ]|[ I]
+- Skip empty device addresses;
+- Don't enter the packet length.
+
+Send command example:
+```
+python3 client.py execute /dev/cu.usbmodemFD131 -x " I 29:091138 32:022222 22F1 000406"
+```
+See the [client.py Configuration wiki page](https://github.com/zxdavb/ramses_rf/wiki/client.py-configuration-file) for more.
