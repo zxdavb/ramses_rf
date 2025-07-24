@@ -370,10 +370,9 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
         self,
     ) -> float | None:  # some fans use Code._31D9 for speed + mode
         for c in (Code._31DA, Code._31D9):
-            if c in self._msgs:
-                for k, v in self._msgs[c].payload.items():
-                    if k == SZ_EXHAUST_FAN_SPEED:
-                        return float(v)  # pick either code
+            if v := self._msgs[c].payload.get(SZ_EXHAUST_FAN_SPEED):
+                return float(v)
+                # if both packets exist and both have the key, return the most recent
         return None
 
     @property
