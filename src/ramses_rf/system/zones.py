@@ -85,10 +85,10 @@ _LOGGER = logging.getLogger(__name__)
 class ZoneBase(Child, Parent, Entity):
     """The Zone/DHW base class."""
 
-    _SLUG: str = None  # type: ignore[assignment]
+    _SLUG: str = None
 
-    _ROLE_ACTUATORS: str = None  # type: ignore[assignment]
-    _ROLE_SENSORS: str = None  # type: ignore[assignment]
+    _ROLE_ACTUATORS: str = None
+    _ROLE_SENSORS: str = None
 
     def __init__(self, tcs: _MultiZoneT | _StoredHwT, zone_idx: str) -> None:
         super().__init__(tcs._gwy)
@@ -97,7 +97,7 @@ class ZoneBase(Child, Parent, Entity):
         self._z_id = tcs.id  # the responsible device is the controller
         self._z_idx: DevIndexT = zone_idx  # the zone idx (ctx), 00-0B (or 0F), HW (FA)
 
-        self.id: str = f"{tcs.id}_{zone_idx}"  # type: ignore[assignment]
+        self.id: str = f"{tcs.id}_{zone_idx}"
 
         self.tcs: Evohome = tcs
         self.ctl: Controller = tcs.ctl
@@ -457,7 +457,7 @@ class DhwZone(ZoneSchedule):  # CS92A
 class Zone(ZoneSchedule):
     """The Zone class for all zone types (but not DHW)."""
 
-    _SLUG: str = None  # type: ignore[assignment]
+    _SLUG: str = None
     _ROLE_ACTUATORS: str = DEV_ROLE_MAP.ACT
 
     def __init__(self, tcs: _MultiZoneT, zone_idx: str) -> None:

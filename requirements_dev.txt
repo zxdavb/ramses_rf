@@ -10,23 +10,23 @@
 # - pip list | grep -E 'pre-commit|ruff|mypy|types-|voluptuous|pytest|hatch'
 
 # used for development (linting)
-  pre-commit >= 4.0.1
-  ruff >= 0.9.1                                  # also: pre-commit-config.yaml
+  pre-commit >= 4.2.0                            # HA uses 4.0.0
+  ruff >= 0.11.0                                 # also: pre-commit-config.yaml
 
 # used for development (typing)
-  mypy >= 1.15.0
+  mypy-dev >= 1.16.0a8
   types-colorama >= 0.4.15
   types-PyYAML >= 6.0.12
   voluptuous >= 0.15.2
 
 # used for testing
-  pytest >= 8.3.4
-  pytest-asyncio >= 0.24.0
-# pytest-cov
+  pytest >= 8.3.5
+  pytest-asyncio >= 0.26.0
+  pytest-cov >= 6.0.0
   pytest-sugar >= 1.0.0
   pytest-xdist >= 3.6.1
-# syrupy >= 4.6.1
+# syrupy >= 4.8.1
 
 # used for build/deploy
-  hatch >= 1.14.0
-  hatchling >= 1.27
+  hatch >= 1.14.1
+  hatchling >= 1.27.0
