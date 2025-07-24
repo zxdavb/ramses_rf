@@ -158,10 +158,10 @@ class AttrDict(dict):  # type: ignore[type-arg]
     __delitem__ = __readonly
     __setitem__ = __readonly
     clear = __readonly
-    pop = __readonly  # type: ignore[assignment]
+    pop = __readonly
     popitem = __readonly
-    setdefault = __readonly  # type: ignore[assignment]
-    update = __readonly  # type: ignore[assignment]
+    setdefault = __readonly
+    update = __readonly
 
     del __readonly
 

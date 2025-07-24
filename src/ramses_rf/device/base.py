@@ -53,7 +53,7 @@ class DeviceBase(Entity):
     """The Device base class - can also be used for unknown device types."""
 
     _SLUG: str = DevType.DEV
-    _STATE_ATTR: str = None  # type: ignore[assignment]
+    _STATE_ATTR: str = None
 
     _bind_context: BindContext | None = None
 
@@ -73,7 +73,7 @@ class DeviceBase(Entity):
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._scheme: Vendor = None  # type: ignore[assignment]
+        self._scheme: Vendor = None
 
     def __str__(self) -> str:
         if self._STATE_ATTR:
@@ -411,7 +411,7 @@ class HgiGateway(Device):  # HGI (18:)
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self.ctl = None  # type: ignore[assignment]  # FIXME: a mess
+        self.ctl = None  # FIXME: a mess
         self._child_id = "gw"  # TODO
         self.tcs = None
 
@@ -431,7 +431,7 @@ class DeviceHeat(Device):  # Heat domain: Honeywell CH/DHW or compatible
     def __init__(self, gwy: Gateway, dev_addr: Address, **kwargs: Any) -> None:
         super().__init__(gwy, dev_addr, **kwargs)
 
-        self.ctl = None  # type: ignore[assignment]
+        self.ctl = None
         self.tcs = None
         self._child_id = None  # domain_id, or zone_idx
 
