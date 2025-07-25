@@ -1660,10 +1660,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     if msg.len == 13 and payload[14:] == "000000000000":
         # ClimaRad Ventura fan/remote
-        if payload[10:12] == "00":
-            _pl = payload[:4] + payload[12:14]
-        else:
-            _pl = payload[8:14]
+        _pl = payload[:4] + payload[12:14] if payload[10:12] == "00" else payload[8:14]
     else:
         _pl = payload[:6]
 
