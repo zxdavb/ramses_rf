@@ -371,6 +371,7 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     ) -> float | None:  # some fans use Code._31D9 for speed + mode
         for c in (Code._31DA, Code._31D9):
             if v := self._msgs[c].payload.get(SZ_EXHAUST_FAN_SPEED):
+                assert isinstance(v, (float | type(None)))
                 return v
                 # if both packets exist and both have the key, return the most recent
         return None
