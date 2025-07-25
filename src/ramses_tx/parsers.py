@@ -131,7 +131,7 @@ from .opentherm import (
     OtMsgType,
     decode_frame,
 )
-from .ramses import _2411_PARAMS_SCHEMA
+from .ramses import _31D9_FAN_INFO_VASCO, _2411_PARAMS_SCHEMA
 from .typed_dicts import PayDictT
 from .version import VERSION
 
@@ -1379,15 +1379,31 @@ def parser_1fd4(payload: str, msg: Message) -> PayDictT._1FD4:
 
 # WIP: unknown, HVAC
 def parser_2210(payload: str, msg: Message) -> dict[str, Any]:
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:153258 18:005904 --:------ 2210 042 00FF 00FFFF960000000003FFFFFFFFFF 00FFFF960000000003FFFFFFFFFF FFFFFF000000000000000800
-    # RP --- 32:139773 18:072982 --:------ 2210 042 00FF 00FFFFFF0000000000FFFFFFFFFF 00FFFFFF0000000000FFFFFFFFFF FFFFFF000000000000020800
+    try:
+        assert msg.verb in (RP, I_) or payload == "00"
+        assert payload[10:12] == payload[38:40] and payload[10:12] in (
+            "58",
+            "96",
+            "FF",
+        ), f"expected (58|96|FF), not {payload[10:12]}"
+        assert payload[20:22] == payload[48:50] and payload[20:22] in (
+            "00",
+            "03",
+        ), f"expected (00|03), not {payload[10:12]}"
+        assert payload[78:80] in ("00", "02"), f"expected (00|02), not {payload[78:80]}"
+        assert payload[80:82] in ("01", "08"), f"expected (01|08), not {payload[80:82]}"
+        assert payload[82:] in ("00", "40"), f"expected (00|40), not {payload[82:]}"
 
-    assert payload in (
-        "00FF" + "00FFFFFF0000000000FFFFFFFFFF" * 2 + "FFFFFF000000000000000800",
-    ), _INFORM_DEV_MSG
+    except AssertionError as err:
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
-    return {}
+    return {
+        "unknown_10": payload[10:12],
+        "unknown_20": payload[20:22],
+        "unknown_78": payload[78:80],
+        "unknown_80": payload[80:82],
+        "unknown_82": payload[82:],
+    }
 
 
 # now_next_setpoint - Programmer/Hometronics
@@ -2128,7 +2144,7 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 
 # fan state (ventilation status), HVAC
 def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
-    # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
+    # NOTE: Itho and ClimaRad use 0x00-C8 for %, whilst Nuaire uses 0x00-64
     try:
         assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, (
             f"byte 2: {payload[4:6]}"
@@ -2138,10 +2154,10 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
 
     bitmap = int(payload[2:4], 16)
 
-    # NOTE: 31D9[4:6] is fan_rate (itho?) *or* fan_mode (orcon?)
+    # NOTE: 31D9[4:6] is fan_rate (minibox, itho) *or* fan_mode (orcon?)
     result = {
         **parse_exhaust_fan_speed(payload[4:6]),  # itho
-        SZ_FAN_MODE: payload[4:6],  # orcon
+        SZ_FAN_MODE: payload[4:6],  # orcon, vasco/climarad
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),  # i.e. valve only
         "filter_dirty": bool(bitmap & 0x20),
@@ -2151,6 +2167,22 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
+        if (
+            payload[:4] == "0000"
+            and msg._addrs[0] == msg._addrs[2]
+            and msg._addrs[1] == NON_DEV_ADDR
+        ):
+            # _31D9_FAN_INFO for Vasco D60 HRU and ClimaRad minibox REM
+            try:
+                assert int(payload[4:6], 16) & 0xFF in _31D9_FAN_INFO_VASCO, (
+                    f"unknown 31D9 fan_mode: {payload[2:4]}"
+                )
+            except AssertionError as err:
+                _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
+            fan_mode = _31D9_FAN_INFO_VASCO.get(
+                int(payload[4:6], 16) & 0xFF, f"unknown_{payload[4:6]}"
+            )
+            result[SZ_FAN_MODE] = fan_mode  # replace
         return result
 
     try:

@@ -363,10 +363,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
-    Code._2210: {  # unknown_2210, HVAC, NB: no I
+    Code._2210: {  # unknown_2210, HVAC,
         SZ_NAME: "unknown_2210",
+        I_: r"^00[0-9A-F]{82}$",
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{82}$",
     },
     Code._2249: {  # setpoint_now?
         SZ_NAME: "setpoint_now",  # setpt_now_next
@@ -1060,7 +1060,9 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1470: {RP: {}},
         Code._1F09: {I_: {}, RP: {}},
         Code._1FC9: {W_: {}},
+        Code._2210: {I_: {}, RP: {}},
         Code._22E5: {RP: {}},
+        Code._22E9: {RP: {}},
         Code._22F1: {RP: {}},
         Code._22F2: {I_: {}, RP: {}},
         Code._22F3: {},
@@ -1352,6 +1354,19 @@ _2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
         SZ_PRECISION: 0.005,
         SZ_DATA_TYPE: "0F",
     },
+}
+
+# ventilation speed description
+_31D9_FAN_INFO_VASCO: dict[int, str] = {
+    0x00: "off",
+    0x01: "1 (trickle)",  # aka low
+    0x02: "2 (low)",  # aka medium
+    0x03: "3 (medium)",  # aka high
+    0x04: "4 (boost)",
+    0x05: "auto",
+    0xC8: "III (boost)",  # same code sent for speed II and III, mode manual
+    0x50: "I (low)",
+    0x1E: "0 (very low)",
 }
 
 # ventilation speed description from API (localized only in application)
