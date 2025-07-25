@@ -1658,14 +1658,14 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
 
 # WIP: unknown, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
-    # ClimaRad Ventura fan/remote
     if msg.len == 13 and payload[14:] == "000000000000":
+        # ClimaRad Ventura fan/remote
         if payload[10:12] == "00":
-            payload = payload[:4] + payload[12:14]
+            _pl = payload[:4] + payload[12:14]
         else:
-            payload = payload[8:14]
+            _pl = payload[8:14]
     else:
-        payload = payload[:6]
+        _pl = payload[:6]
 
     MODE_LOOKUP = {
         0x00: "off",
@@ -1673,10 +1673,10 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
         0x40: "auto",
         0x60: "manual",
     }
-    mode = int(payload[2:4], 16) & 0x60
+    mode = int(_pl[2:4], 16) & 0x60
     assert mode in MODE_LOOKUP, mode
 
-    RATE_LOOKUP = {  # note: no i18n here, localize in application
+    RATE_LOOKUP = {
         0x00: "speed 0",  # "off"?,
         0x01: "speed 1",  # "low", or trickle?
         0x02: "speed 2",  # "medium-low", or low?
@@ -1684,7 +1684,7 @@ def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
         0x04: "speed 4",  # "medium-high", or high?
         0x05: "boost",  # "boost", aka purge?
     }
-    rate = int(payload[4:6], 16) & 0x03
+    rate = int(_pl[4:6], 16) & 0x03
     assert mode != 0x60 or rate in RATE_LOOKUP, rate
 
     return {
