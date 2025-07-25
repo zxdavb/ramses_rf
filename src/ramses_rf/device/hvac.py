@@ -171,12 +171,15 @@ class FilterChange(DeviceHvac):  # FAN: 10D0
 
     @property
     def filter_remaining(self) -> int | None:
-        if (
-            self._msg_value(Code._10D0, key=SZ_REMAINING_DAYS) is None
-            and self._msg_value(Code._10D0, key=SZ_REMAINING_PERCENT) is not None
-        ):
-            return self._msg_value(Code._10D0, key=SZ_REMAINING_PERCENT)
-        return self._msg_value(Code._10D0, key=SZ_REMAINING_DAYS)
+        v = self._msg_value(Code._10D0, key=SZ_REMAINING_DAYS)
+        assert isinstance(v, (int | type(None)))
+        return v
+
+    @property
+    def filter_remaining_percent(self) -> float | None:
+        v = self._msg_value(Code._10D0, key=SZ_REMAINING_PERCENT)
+        assert isinstance(v, (float | type(None)))
+        return v
 
 
 class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
