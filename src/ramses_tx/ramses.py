@@ -344,7 +344,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
-        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00|21$",  # NOTE: payload can be 00
+        I_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+|00|21$",
+        # NOTE: payload can be 00. No filter effect from or1|or2
         W_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
     },
     Code._1FCA: {  # unknown_1fca
@@ -352,7 +353,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
-        W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+        W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+(FFFFFF)*$",
     },
     Code._1FD0: {  # unknown_1fd0
         SZ_NAME: "message_1fd0",
@@ -366,7 +367,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._2210: {  # unknown_2210, HVAC,
         SZ_NAME: "unknown_2210",
         I_: r"^00[0-9A-F]{82}$",
+        I_: r"^(00)(FF)(00)(FF){3}(00){5}(FF){5}(00)(FF){3}(00){5}(FF){8}(00){7}(0140)$",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{82}$",
     },
     Code._2249: {  # setpoint_now?
         SZ_NAME: "setpoint_now",  # setpt_now_next
@@ -419,8 +422,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC
         SZ_NAME: "unknown_22f4",
-        I_: r"^00[0-9A-F]{24}$",
+        I_: r"^00[0-9A-F]{4}(0000)[0-9A-F]{4}(00){6}$",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{24}$",
     },
     Code._22F7: {  # fan_bypass_mode (% open), HVAC
         SZ_NAME: "fan_bypass_mode",
@@ -545,7 +549,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_state",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         # I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
-        I_: r"^(00|01|15|16|17|21)[0-9A-F]{4}(([0-9A-F]{2})(00|20){0,12}(00|01|04|08)?)?$",  # 00-0004-FE
+        I_: r"^(00|01|15|16|17|21)[0-9A-F]{2}([0-9A-F]{2})?(([0-9A-F]{2})(00|20){0,12}(00|01|04|08)?)?$",
+        # 00-0004-FE and 0000-C8
         RQ: r"^(00|01|15|16|17|21)$",
     },
     Code._31DA: {  # hvac_state (fan_state_extended)
@@ -565,6 +570,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "boiler_output",
         I_: r"^00[0-9A-F]{4}$",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
     },
     Code._3210: {  # boiler (or CV?) return temp
         SZ_NAME: "boiler_return",
@@ -1071,8 +1077,8 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._2411: {I_: {}, RP: {}},
         Code._2E10: {I_: {}},
         Code._3120: {I_: {}},
-        Code._3150: {I_: {}},
         Code._313F: {I_: {}, RP: {}},
+        Code._3150: {I_: {}},
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
         # Code._31E0: {I_: {}},
@@ -1106,6 +1112,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1060: {I_: {}},
         Code._10D0: {W_: {}},  # reset filter count from REM
         Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
+        Code._1298: {I_: {}},  # CO2 sensor report from wired Vasco CO2/remote
         Code._1470: {RQ: {}},  # from a VMI (only?)
         Code._1FC9: {I_: {}},
         Code._22F1: {I_: {}},

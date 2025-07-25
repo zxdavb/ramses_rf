@@ -40,6 +40,7 @@ from .const import (
     SZ_DEVICE_ID,
     SZ_DEVICE_ROLE,
     SZ_DEVICES,
+    SZ_DEWPOINT_TEMP,
     SZ_DHW_FLOW_RATE,
     SZ_DOMAIN_ID,
     SZ_DOMAIN_IDX,
@@ -64,7 +65,9 @@ from .const import (
     SZ_OEM_CODE,
     SZ_OFFER,
     SZ_OPENWINDOW_FUNCTION,
+    SZ_OUTDOOR_TEMP,
     SZ_PAYLOAD,
+    SZ_PERCENTAGE,
     SZ_PHASE,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
@@ -75,6 +78,7 @@ from .const import (
     SZ_TIMESTAMP,
     SZ_TOTAL_FRAGS,
     SZ_UFH_IDX,
+    SZ_UNKNOWN,
     SZ_UNTIL,
     SZ_VALUE,
     SZ_WINDOW_OPEN,
@@ -300,9 +304,9 @@ def parser_0005(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
         return {SZ_ZONE_TYPE: payload[2:4], SZ_ZONE_CLASS: DEV_ROLE_MAP[payload[2:4]]}
 
     if msg._has_array:
-        assert msg.verb == I_ and msg.src.type == DEV_TYPE_MAP.RND, (
-            f"{msg!r} # expecting I/{DEV_TYPE_MAP.RND}:"
-        )  # DEX
+        assert (
+            msg.verb == I_ and msg.src.type == DEV_TYPE_MAP.RND
+        ), f"{msg!r} # expecting I/{DEV_TYPE_MAP.RND}:"  # DEX
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
     return _parser(payload)
@@ -432,9 +436,9 @@ def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
             }
 
         if payload[2:4] in (DEV_ROLE_MAP.DHW, DEV_ROLE_MAP.HTG):
-            assert int(seqx, 16) < 1 if payload[2:4] == DEV_ROLE_MAP.DHW else 2, (
-                f"invalid _idx: '{seqx}' (0x01)"
-            )
+            assert (
+                int(seqx, 16) < 1 if payload[2:4] == DEV_ROLE_MAP.DHW else 2
+            ), f"invalid _idx: '{seqx}' (0x01)"
             return {SZ_DOMAIN_ID: FA if payload[:2] == "00" else F9}
 
         if payload[2:4] == DEV_ROLE_MAP.APP:
@@ -447,9 +451,9 @@ def parser_000c(payload: str, msg: Message) -> dict[str, Any]:
     def _parser(
         seqx: str,
     ) -> dict:  # TODO: assumption that all id/idx are same is wrong!
-        assert seqx[:2] == payload[:2], (
-            f"idx != {payload[:2]} (seqx = {seqx}), short={is_short_000C(payload)}"
-        )
+        assert (
+            seqx[:2] == payload[:2]
+        ), f"idx != {payload[:2]} (seqx = {seqx}), short={is_short_000C(payload)}"
         assert int(seqx[:2], 16) < 16
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6, f"Bad device_id: {seqx[6:]}"
         return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
@@ -580,7 +584,7 @@ def parser_01e9(payload: str, msg: Message) -> dict[str, Any]:
     }
 
 
-# unknown_01ff, to/from a Itho Spider/Thermostat
+# unknown_01ff, to/from an Itho Spider/Thermostat
 def parser_01ff(payload: str, msg: Message) -> dict[str, Any]:
     # see: https://github.com/zxdavb/ramses_rf/issues/73 & 101
 
@@ -803,7 +807,7 @@ def parser_0418(payload: str, msg: Message) -> PayDictT._0418 | PayDictT._0418_N
     return full_result
 
 
-# unknown_042f, from STA, VMS
+# unknown_042f, from STA, VMS remotes coupling
 def parser_042f(payload: str, msg: Message) -> dict[str, Any]:
     return {
         "counter_1": f"0x{payload[2:6]}",
@@ -969,7 +973,12 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     if msg.verb == W_:
         return {"reset_counter": payload[2:4] != "00"}
 
-    result = {}
+    else:
+        if msg.len == 6 and payload[2:4] == payload[4:6]:  # ClimaRad VenturaV1x
+            assert payload[2:4] == "FFFF", _INFORM_DEV_MSG  # stricter filtering?
+            result = {"days_remaining": int(payload[6:8], 16)}
+        else:
+            result = {"days_remaining": int(payload[2:4], 16)}
 
     if payload[2:4] not in ("FF", "FE"):
         result["days_remaining"] = int(payload[2:4], 16)
@@ -978,6 +987,10 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
         result["days_lifetime"] = int(payload[4:6], 16)
 
     result["percent_remaining"] = hex_to_percent(payload[6:8])
+    if 3 <= msg.len < 6:
+        result.update({"days_lifetime": int(payload[4:6], 16)})
+    if 4 <= msg.len < 6:
+        result.update({"percent_remaining": hex_to_percent(payload[6:8])})
 
     return result
 
@@ -1077,9 +1090,9 @@ def parser_1100(
     if msg.len > 5:
         pbw = hex_to_temp(payload[10:14])
 
-        assert pbw is None or 1.5 <= pbw <= 3.0, (
-            f"unexpected value for PBW: {payload[10:14]}"
-        )
+        assert (
+            pbw is None or 1.5 <= pbw <= 3.0
+        ), f"unexpected value for PBW: {payload[10:14]}"
 
         result.update(
             {
@@ -1135,6 +1148,39 @@ def parser_12a0(
         }
         for i in range(0, len(payload), 14)
     ]
+
+
+# HVAC: indoor_humidity
+def parser_12a0(payload: str, msg: Message) -> PayDictT._12A0:
+    if len(payload) == 42:
+        # TODO fix typed check error by overriding indoor_humidity? where?
+        # for ClimaRad VenturaV1x:
+        # . I +  12A0 021 00 29 081D 7FFF 0001EF7FFF7FFF000241 0505 0294 00
+        # . I +  12A0 021 00 3B 064B 7FFF 0001EF7FFF7FFF00023F 0657 03A6 00
+        # normal: _parse_hvac_humidity(SZ_INDOOR_HUMIDITY, value[:2], value[2:6], value[6:10])
+        assert (
+            payload[8:12] == "7FFF"
+        ), _INFORM_DEV_MSG  # V1x: 'dewpoint_temp' sent in 31DA
+        assert payload[12:14] == "00", _INFORM_DEV_MSG  # _parse_fan_heater ? or flags ?
+        assert payload[14:16] == "01", _INFORM_DEV_MSG  # parse_fan_info ?
+        assert payload[16:18] == "EF", _INFORM_DEV_MSG  # parse_bypass_position ?
+        assert payload[18:22] == "7FFF", _INFORM_DEV_MSG
+        assert payload[22:26] == "7FFF", _INFORM_DEV_MSG
+        assert payload[26:28] == "00", _INFORM_DEV_MSG
+        assert payload[40:42] == "00", _INFORM_DEV_MSG
+        result = {
+            **parse_indoor_humidity(payload[2:12]),  # type: ignore[typeddict-item]
+            "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[14:16]],
+            # only 0x01 (decimal/Celsius?) seen on Ventura
+            **parse_co2_level(payload[28:32]),
+            **parse_supply_temp(payload[32:36]),  # to home
+            SZ_OUTDOOR_TEMP: hex_to_temp(payload[36:40]),
+        }
+        # TODO confirm complete message
+        return result
+    else:
+        return parse_indoor_humidity(payload[2:])
+        # .I --- 29:099029 --:------ 29:099029 12A0 002 0042 from a ClimaRad MiniBox FAN (0x42 = 66% = 0.6)
 
 
 # window_state (of a device/zone)
@@ -1239,15 +1285,15 @@ def parser_1f41(payload: str, msg: Message) -> PayDictT._1F41:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
 
     assert payload[4:6] in ZON_MODE_MAP, f"{payload[4:6]} (0xjj)"
-    assert payload[4:6] == ZON_MODE_MAP.TEMPORARY or msg.len == 6, (
-        f"{msg!r}: expected length 6"
-    )
-    assert payload[4:6] != ZON_MODE_MAP.TEMPORARY or msg.len == 12, (
-        f"{msg!r}: expected length 12"
-    )
-    assert payload[6:12] == "FFFFFF", (
-        f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
-    )
+    assert (
+        payload[4:6] == ZON_MODE_MAP.TEMPORARY or msg.len == 6
+    ), f"{msg!r}: expected length 6"
+    assert (
+        payload[4:6] != ZON_MODE_MAP.TEMPORARY or msg.len == 12
+    ), f"{msg!r}: expected length 12"
+    assert (
+        payload[6:12] == "FFFFFF"
+    ), f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
 
     result: PayDictT._1F41 = {SZ_MODE: ZON_MODE_MAP.get(payload[4:6])}  # type: ignore[typeddict-item]
     if payload[2:4] != "FF":
@@ -1551,9 +1597,9 @@ def parser_22f1(payload: str, msg: Message) -> dict[str, Any]:
 
     try:
         assert payload[0:2] in ("00", "63")
-        assert not payload[4:] or int(payload[2:4], 16) <= int(payload[4:], 16), (
-            "mode_idx > mode_max"
-        )
+        assert not payload[4:] or int(payload[2:4], 16) <= int(
+            payload[4:], 16
+        ), "mode_idx > mode_max"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
@@ -1674,7 +1720,7 @@ def parser_22f3(payload: str, msg: Message) -> dict[str, Any]:
     return result
 
 
-# WIP: unknown, HVAC
+# WIP: unknown/fan speed mode, HVAC
 def parser_22f4(payload: str, msg: Message) -> dict[str, Any]:
     # HACK: for dev/test: 37:153226 is ClimaRad Ventura fan/remote
     payload = payload[8:14] if msg.src.id == "37:153226" else payload[:6]
@@ -1825,9 +1871,9 @@ def parser_2400(payload: str, msg: Message) -> dict[str, Any]:
 def parser_2401(payload: str, msg: Message) -> dict[str, Any]:
     try:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
-        assert int(payload[4:6], 16) & 0b11110000 == 0, (
-            f"byte 2: {hex_to_flag8(payload[4:6])}"
-        )
+        assert (
+            int(payload[4:6], 16) & 0b11110000 == 0
+        ), f"byte 2: {hex_to_flag8(payload[4:6])}"
         assert int(payload[6:], 0x10) <= 200, f"byte 3: {payload[6:]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
@@ -1897,9 +1943,9 @@ def parser_2411(payload: str, msg: Message) -> dict[str, Any]:
         "92": (4, hex_to_temp),  # 75 (0-30) (C)
     }  # TODO: _2411_TYPES.get(payload[8:10], (8, no_op))
 
-    assert payload[4:6] in _2411_TABLE, (
-        f"param {payload[4:6]} is unknown"
-    )  # _INFORM_DEV_MSG
+    assert (
+        payload[4:6] in _2411_TABLE
+    ), f"param {payload[4:6]} is unknown"  # _INFORM_DEV_MSG
     description = _2411_TABLE.get(payload[4:6], "Unknown")
 
     result = {
@@ -1910,9 +1956,9 @@ def parser_2411(payload: str, msg: Message) -> dict[str, Any]:
     if msg.verb == RQ:
         return result
 
-    assert payload[8:10] in _2411_DATA_TYPES, (
-        f"param {payload[4:6]} has unknown data_type: {payload[8:10]}"
-    )  # _INFORM_DEV_MSG
+    assert (
+        payload[8:10] in _2411_DATA_TYPES
+    ), f"param {payload[4:6]} has unknown data_type: {payload[8:10]}"  # _INFORM_DEV_MSG
     length, parser = _2411_DATA_TYPES.get(payload[8:10], (8, lambda x: x))
 
     result |= {
@@ -2024,9 +2070,9 @@ def parser_3110(payload: str, msg: Message) -> PayDictT._3110:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"  # ?circuit_idx?
         assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
         assert payload[6:] in ("00", "10", "20"), f"byte 3: {payload[6:]}"
-        assert payload[6:] in ("10", "20") or payload[4:6] == "00", (
-            f"byte 3: {payload[6:]}"
-        )
+        assert (
+            payload[6:] in ("10", "20") or payload[4:6] == "00"
+        ), f"byte 3: {payload[6:]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
@@ -2104,9 +2150,9 @@ def parser_313f(payload: str, msg: Message) -> PayDictT._313F:  # TODO: look for
     # assert (
     #     msg.src.type != DEV_TYPE_MAP.FAN or payload[2:4] == "7C"
     # ), f"{payload[2:4]} unexpected for FAN"  # DEX
-    assert msg.src.type != DEV_TYPE_MAP.RFG or payload[2:4] == "60", (
-        "{payload[2:4]} unexpected for RFG"
-    )  # DEX
+    assert (
+        msg.src.type != DEV_TYPE_MAP.RFG or payload[2:4] == "60"
+    ), "{payload[2:4]} unexpected for RFG"  # DEX
 
     return {
         SZ_DATETIME: hex_to_dtm(payload[4:18]),
@@ -2143,9 +2189,9 @@ def parser_3150(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only 
 def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
     # NOTE: Itho and ClimaRad use 0x00-C8 for %, whilst Nuaire uses 0x00-64
     try:
-        assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, (
-            f"byte 2: {payload[4:6]}"
-        )
+        assert (
+            payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
+        ), f"byte 2: {payload[4:6]}"
     except AssertionError as err:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
 
@@ -2171,9 +2217,9 @@ def parser_31d9(payload: str, msg: Message) -> dict[str, Any]:
         ):
             # _31D9_FAN_INFO for Vasco D60 HRU and ClimaRad minibox REM
             try:
-                assert int(payload[4:6], 16) & 0xFF in _31D9_FAN_INFO_VASCO, (
-                    f"unknown 31D9 fan_mode: {payload[2:4]}"
-                )
+                assert (
+                    int(payload[4:6], 16) & 0xFF in _31D9_FAN_INFO_VASCO
+                ), f"unknown 31D9 fan_mode: {payload[2:4]}"
             except AssertionError as err:
                 _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({err})")
             fan_mode = _31D9_FAN_INFO_VASCO.get(
@@ -2251,7 +2297,7 @@ def parser_31da(payload: str, msg: Message) -> PayDictT._31DA:
 def parser_31e0(payload: str, msg: Message) -> dict | list[dict]:  # TODO: only dict
     """Notes are.
 
-    van means “of”.
+    'van' in docs. means 'of'.
     - 0 = min. van min. potm would be:
     - 0 = minimum of minimum potentiometer
 
@@ -2722,7 +2768,9 @@ def parser_4e01(payload: str, msg: Message) -> dict[str, Any]:
     # .I --- 02:250984 02:250704 --:------ 4E01 018 00-7FFF7FFF7FFF7FFF08387FFF7FFF7FFF-00  # 21.04
 
     num_groups = int((msg.len - 2) / 2)  # e.g. (18 - 2) / 2
-    assert num_groups * 2 == msg.len - 2, (
+    assert (
+        num_groups * 2 == msg.len - 2
+    ), (
         _INFORM_DEV_MSG
     )  # num_groups: len 018 (8-group, 2+8*4), or 026 (12-group, 2+12*4)
 
@@ -2744,7 +2792,9 @@ def parser_4e02(
     # .I --- 02:250984 02:250704 --:------ 4E02 034 00-7FFF7FFF7FFF076C7FFF7FFF7FFF7FFF-02-7FFF7FFF7FFF07D07FFF7FFF7FFF7FFF  #
 
     num_groups = int((msg.len - 2) / 4)  # e.g. (34 - 2) / 4
-    assert num_groups * 4 == msg.len - 2, (
+    assert (
+        num_groups * 4 == msg.len - 2
+    ), (
         _INFORM_DEV_MSG
     )  # num_groups: len 034 (8-group, 2+8*4), or 050 (12-group, 2+12*4)
 
@@ -2831,9 +2881,9 @@ def parser_4e15(payload: str, msg: Message) -> dict[str, Any]:
     SZ_HEATING = "is_heating"
     # SZ_PUMPING = "is_pumping"
 
-    assert int(payload[2:], 16) & 0xF8 == 0x00, (
-        _INFORM_DEV_MSG
-    )  # check for unknown bit flags
+    assert (
+        int(payload[2:], 16) & 0xF8 == 0x00
+    ), _INFORM_DEV_MSG  # check for unknown bit flags
     if int(payload[2:], 16) & 0x03 == 0x03:  # is_cooling *and* is_heating (+/- DHW)
         raise TypeError  # TODO: Use local exception & ?Move to higher layer
     assert int(payload[2:], 16) & 0x07 != 0x06, _INFORM_DEV_MSG  # can't heat and DHW

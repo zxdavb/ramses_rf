@@ -54,6 +54,8 @@ GWY_CONFIG = {
 ITHO__ = "itho"
 NUAIRE = "nuaire"
 ORCON_ = "orcon"
+VASCO_ = "vasco"
+CLIMARAD = "climarad"
 
 TEST_SUITE_300 = [
     # {  # THM to CTL: FIXME: affirm is I|1FC9|07, not I|1FC9|00
