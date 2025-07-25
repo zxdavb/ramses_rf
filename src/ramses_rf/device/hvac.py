@@ -380,33 +380,56 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
     @property
     def fan_info(self) -> str | None:
         """
-        Extract fan info description from _22F4, _31D9 or _31DA message payload
+        Extract fan info from MessageIndex.
+        Just a demo for SQLite query at the moment.
+        For a single key search, use _msg_qry_by_code_key helper
 
-        :return: string describing mode, speed
+        :return: string describing fan mode, speed
         """
-        if (
-            Code._31D9 in self._msgs
-        ):  # Vasco D60 and ClimaRad minibox send mode/speed in _31D9
-            for k, v in self._msgs[Code._31D9].payload.items():
-                if (
-                    k == SZ_FAN_MODE and v != "FF"
-                ):  # Prevent ClimaRad Ventura constant "FF" to pass
-                    return str(v)
-            # no guard clause, just ignore
-        if Code._22F4 in self._msgs:  # ClimaRad Ventura sends mode/speed in _22F4
-            mode: str = ""
-            for k, v in self._msgs[Code._22F4].payload.items():
-                if k == SZ_FAN_MODE:
-                    mode = v
-                if k == SZ_FAN_RATE:
-                    mode = mode + ", " + v
-            return mode
-        return str(
-            self._msg_value(Code._31DA, key=SZ_FAN_INFO)
-        )  # a description to display in climate, e.g. "speed 2, medium", note localize in UI
+        # if (
+        #     Code._31D9 in self._msgs
+        # ):  # Vasco D60 and ClimaRad minibox send mode/speed in _31D9
+        #     for k, v in self._msgs[Code._31D9].payload.items():
+        #         if (
+        #             k == SZ_FAN_MODE and v != "FF"
+        #         ):  # Prevent ClimaRad Ventura constant "FF" to pass
+        #             return str(v)
+        #     # no guard clause, just ignore
+        # if Code._22F4 in self._msgs:  # ClimaRad Ventura sends mode/speed in _22F4
+        #     mode: str = ""
+        #     for k, v in self._msgs[Code._22F4].payload.items():
+        #         if k == SZ_FAN_MODE:
+        #             mode = v
+        #         if k == SZ_FAN_RATE:
+        #             mode = mode + ", " + v
+        #     return mode
+        # return str(
+        #     self._msg_value(Code._31DA, key=SZ_FAN_INFO)
+        # )  # a description to display in climate, e.g. "speed 2, medium", note localize in UI
+        # Use SQLite query on MessageIndex
+        sql = """
+            SELECT pl from messages WHERE verb in (' I', 'RP')
+            AND (src = ? OR dst = ?)
+            AND (code = Code._31DA)
+            AND (plk like %SZ_FAN_INFO%)
+        """
+        for item in self._msg_qry(sql):
+            for k, v in item:
+                if k == SZ_FAN_INFO:
+                    return str(
+                        v
+                    )  # display description on climate entity, e.g. "speed 2, medium", localize in UI
+        return None
 
     @property
     def indoor_humidity(self) -> float | None:
+        """
+        Extract indoor_humidity from MessageIndex.
+        Just a demo for SQLite query helper at the moment.
+
+        :return: float RH value from 0.0 to 1.0 = 100%
+        """
+        # return self._msg_qry_by_code_key(Code._31DA, key=SZ_INDOOR_HUMIDITY)
         return self._msg_value(Code._31DA, key=SZ_INDOOR_HUMIDITY)
 
     @property
