@@ -24,3 +24,6 @@
 2021-11-28T14:54:25.139800 ...  I --- 02:123456 --:------ 02:123456 3150 002 00A2                  # {"has_array": True,  "has_idx": True , "has_payload": True , "is_fragment": False}
 2021-05-23T04:43:12.702136 ...  I --- 02:123456 --:------ 01:555555 3150 002 002C                  # {"has_array": False, "has_idx": '00' , "has_payload": True , "is_fragment": False}
 2021-01-29T20:51:48.968664 075  I --- 02:000921 --:------ 01:191718 3150 002 06C4                  # {"has_array": False, "has_idx": '06' , "has_payload": True , "is_fragment": False}
+
+# VenturaV1x (VMD-07RPS13, no heater, only HRU)
+2024-10-14T20:59:09.716874 060  I --- 37:153226 --:------ 37:153226 3150 006 00F201F202F2          # [{'zone_idx': '00', 'heat_demand_fault': 'unavailable'}, {'zone_idx': '01', 'heat_demand_fault': 'unavailable'}, {'zone_idx': '02', 'heat_demand_fault': 'unavailable'}]

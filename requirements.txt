@@ -1,16 +1,16 @@
 # Requirements to use the library via its CLI
-# - last checked/updated: 2024-09-10
+# - last checked/updated: 2025-05-07 (c.f. HA 2025.5.3)
 #
 
 # library requirements (dependencies) are in pyproject.toml
-# - pip list | grep -E 'ramses|colorlog|paho-mqtt|pyserial|voluptuous'
+# - pip list | grep -E 'ramses|color|paho-mqtt|pyserial|voluptuous'
 
 # -e .
 
 
-# also required if using the the library via the CLI, client.py
+# also required if using the library via the CLI, client.py
 # - pip list | grep -E 'click|colorama|debugpy'
 
-  click >= 8.1.7                                 # NOTE: non-async version
-  colorama >= 0.4.6
-  debugpy >= 1.8.5                               # can invoke via CLI
+  click >= 8.2.1                                 # NOTE: non-async version
+  colorama >= 0.4.6                              # on Windows, colorlog uses the latest colorama
+  debugpy >= 1.8.13                              # can invoke via CLI

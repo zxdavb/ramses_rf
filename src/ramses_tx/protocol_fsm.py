@@ -107,9 +107,9 @@ class ProtocolContext:
 
         assert self._cmd is None, f"{self}: Coding error"  # mypy hint
         assert self._qos is None, f"{self}: Coding error"  # mypy hint
-        assert (
-            self._fut is None or self._fut.done()
-        ), f"{self}: Coding error"  # mypy hint
+        assert self._fut is None or self._fut.done(), (
+            f"{self}: Coding error"
+        )  # mypy hint
         return False
 
     def set_state(
@@ -125,9 +125,9 @@ class ProtocolContext:
 
             assert self._cmd is not None  # mypy
 
-            assert isinstance(
-                self.is_sending, bool
-            ), f"{self}: Coding error"  # TODO: remove
+            assert isinstance(self.is_sending, bool), (
+                f"{self}: Coding error"
+            )  # TODO: remove
             assert self._cmd_tx_count > 0, f"{self}: Coding error"  # TODO: remove
 
             if isinstance(self._state, WantEcho):  # otherwise is WantRply
@@ -150,9 +150,9 @@ class ProtocolContext:
             else:  # isinstance(self._state, WantRply):
                 _LOGGER.warning("TOUT.. = %s: rply_timeout=%s", self, delay)
 
-            assert isinstance(
-                self.is_sending, bool
-            ), f"{self}: Coding error"  # TODO: remove
+            assert isinstance(self.is_sending, bool), (
+                f"{self}: Coding error"
+            )  # TODO: remove
 
             # Timer has expired, can we retry or are we done?
             assert isinstance(self._cmd_tx_count, int)
@@ -162,17 +162,17 @@ class ProtocolContext:
             else:
                 self.set_state(IsInIdle, expired=True)
 
-            assert isinstance(
-                self.is_sending, bool
-            ), f"{self}: Coding error"  # TODO: remove
+            assert isinstance(self.is_sending, bool), (
+                f"{self}: Coding error"
+            )  # TODO: remove
 
         def effect_state(timed_out: bool) -> None:
             """Take any actions indicated by state, and optionally set expiry timer."""
             # a separate function, so can be spawned off with call_soon()
 
-            assert isinstance(
-                self.is_sending, bool
-            ), f"{self}: Coding error"  # TODO: remove
+            assert isinstance(self.is_sending, bool), (
+                f"{self}: Coding error"
+            )  # TODO: remove
 
             if timed_out:
                 assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
@@ -188,66 +188,68 @@ class ProtocolContext:
                 self._expiry_timer = self._loop.create_task(expire_state_on_timeout())
 
         if self._expiry_timer is not None:
-            self._expiry_timer.cancel()
+            self._expiry_timer.cancel("Changing state")
             self._expiry_timer = None
 
         # when _fut.done(), three possibilities:
         #  _fut.set_result()
         #  _fut.set_exception()
-        #  _fut.cancel() (via a wait_for())
+        #  _fut.cancel() (incl. via a send_cmd(qos.timeout) -> wait_for(timeout))
 
         # Changing the order of the following is fraught with danger
         if self._fut is None:  # logging only - IsInIdle, Inactive
             _LOGGER.debug("BEFORE = %s", self)
             assert self._cmd is None, f"{self}: Coding error"  # mypy hint
-            assert isinstance(
-                self._state, IsInIdle | Inactive | None
-            ), f"{self}: Coding error"  # mypy hint
+            assert isinstance(self._state, IsInIdle | Inactive | None), (
+                f"{self}: Coding error"
+            )  # mypy hint
 
-        elif self._fut.cancelled():  # by send_cmd(qos.timeout)
+        elif self._fut.cancelled() and not isinstance(self._state, IsInIdle):
+            # cancelled by wait_for(timeout), cancel("buffer overflow"), or other?
+            # was for previous send_cmd if currently IsInIdle (+/- Inactive?)
             _LOGGER.debug("BEFORE = %s: expired=%s (global)", self, expired)
             assert self._cmd is not None, f"{self}: Coding error"  # mypy hint
-            assert isinstance(
-                self._state, WantEcho | WantRply
-            ), f"{self}: Coding error"  # mypy hint
+            assert isinstance(self._state, WantEcho | WantRply), (
+                f"{self}: Coding error"
+            )  # mypy hint
 
         elif exception:
             _LOGGER.debug("BEFORE = %s: exception=%s", self, exception)
-            assert (
-                not self._fut.done()
-            ), f"{self}: Coding error ({self._fut})"  # mypy hint
-            assert isinstance(
-                self._state, WantEcho | WantRply
-            ), f"{self}: Coding error"  # mypy hint
+            assert not self._fut.done(), (
+                f"{self}: Coding error ({self._fut})"
+            )  # mypy hint
+            assert isinstance(self._state, WantEcho | WantRply), (
+                f"{self}: Coding error"
+            )  # mypy hint
             self._fut.set_exception(exception)  # apologise to the sender
 
         elif result:
             _LOGGER.debug("BEFORE = %s: result=%s", self, result._hdr)
-            assert (
-                not self._fut.done()
-            ), f"{self}: Coding error ({self._fut})"  # mypy hint
-            assert isinstance(
-                self._state, WantEcho | WantRply
-            ), f"{self}: Coding error"  # mypy hint
+            assert not self._fut.done(), (
+                f"{self}: Coding error ({self._fut})"
+            )  # mypy hint
+            assert isinstance(self._state, WantEcho | WantRply), (
+                f"{self}: Coding error"
+            )  # mypy hint
             self._fut.set_result(result)
 
         elif expired:  # by expire_state_on_timeout(echo_timeout/reply_timeout)
             _LOGGER.debug("BEFORE = %s: expired=%s", self, expired)
-            assert (
-                not self._fut.done()
-            ), f"{self}: Coding error ({self._fut})"  # mypy hint
-            assert isinstance(
-                self._state, WantEcho | WantRply
-            ), f"{self}: Coding error"  # mypy hint
+            assert not self._fut.done(), (
+                f"{self}: Coding error ({self._fut})"
+            )  # mypy hint
+            assert isinstance(self._state, WantEcho | WantRply), (
+                f"{self}: Coding error"
+            )  # mypy hint
             self._fut.set_exception(
                 exc.ProtocolSendFailed(f"{self}: Exceeded maximum retries")
             )
 
         else:  # logging only - WantEcho, WantRply
             _LOGGER.debug("BEFORE = %s", self)
-            assert (
-                self._fut is None or self._fut.cancelled() or not self._fut.done()
-            ), f"{self}: Coding error ({self._fut})"  # mypy hint
+            assert self._fut is None or self._fut.cancelled() or not self._fut.done(), (
+                f"{self}: Coding error ({self._fut})"
+            )  # mypy hint
             # sert isinstance(self._state, WantEcho | WantRply), f"{self}: Coding error"  # mypy hint
 
         prev_state = self._state  # for _DBG_MAINTAIN_STATE_CHAIN
@@ -259,9 +261,9 @@ class ProtocolContext:
             setattr(self._state, "_prev_state", prev_state)  # noqa: B010
 
         if timed_out:  # isinstance(self._state, WantEcho):
-            assert isinstance(
-                self._cmd_tx_count, int
-            ), f"{self}: Coding error"  # mypy hint
+            assert isinstance(self._cmd_tx_count, int), (
+                f"{self}: Coding error"
+            )  # mypy hint
             self._cmd_tx_count += 1
 
         elif isinstance(self._state, WantEcho):
@@ -320,7 +322,7 @@ class ProtocolContext:
         try:
             self._que.put_nowait((priority, dt.now(), cmd, qos, fut))
         except Full as err:
-            fut.cancel()
+            fut.cancel("Send buffer overflow")
             raise exc.ProtocolSendFailed(f"{self}: Send buffer overflow") from err
 
         if isinstance(self._state, IsInIdle):

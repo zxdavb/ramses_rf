@@ -40,6 +40,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     Code._0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
+        # is it CODE_IDX_COMPLEX:
+        #  - 02...... for outside temp?
+        #  - 03...... for other stuff?
         SZ_NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
@@ -212,7 +215,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._10D0: {  # filter_change - polling interval should be 1/day
         SZ_NAME: "filter_change",
-        I_: r"^00[0-9A-F]{6}(0000)?$",
+        I_: r"^00[0-9A-F]{6}(0000|FFFF)?$",
         RQ: r"^00(00)?$",
         W_: r"^00FF$",
     },
@@ -273,18 +276,12 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._1298: {  # co2_level
         SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
+        RQ: r"^00$",
     },
     Code._12A0: {  # indoor_humidity
-        # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
-        # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 003108127FFF00 01EF7FFF7FFF0002 420615 03AC 00 # ClimaRad Ventura
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 003508717FFF00 01EF7FFF7FFF0002 380683 031A 00 # same ClimaRad, later
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 002F08677FFF00 01EF7FFF7FFF0002 39068F 0344 00 # same ClimaRad, later
-        # .I --- 37:153226 --:------ 37:153226 12A0 021 003408917FFF00 01EF7FFF7FFF0002 3706B7 0327 00 # etc.
-        # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
         SZ_NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?((01EF7FFF7FFF0002)[0-9A-F]{10}(00))?$",
-        RP: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
+        I_: r"^(0[0-9A-F]{3}([0-9A-F]{8}(00)?)?)+$",
+        RP: r"^0[0-9A-F]{3}([0-9A-F]{8}(00)?)?$",
         SZ_LIFESPAN: td(hours=1),
     },
     Code._12B0: {  # window_state  (HVAC % window open)
@@ -344,11 +341,6 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{30}$",
     },
     Code._1FC9: {  # rf_bind
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
-        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
-        # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
-        #  I --- 29:123150 63:262142 --:------ 1FC9 018 00-22F1-75E10E 65-10E0-75E10E 00-1FC9-75E10E  # ClimaRad/Airios
-        #  I --- 37:117647 63:262142 --:------ 1FC9 030 00-31E0-95CB8F 00-1298-95CB8F 00-22F1-95CB8F 66-10E0-95CB8F 00-1FC9-95CB8F # Vasco CO RF
         SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
@@ -357,7 +349,6 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^((0[0-9A-F]|F[69ABCF]|[0-9A-F]{2})([0-9A-F]{10}))+$",
     },
     Code._1FCA: {  # unknown_1fca
-        # .W --- 37:117647 32:022222 --:------ 1FCA 009 00-01FF95CB8FFFFFFF # Vasco RF
         SZ_NAME: "message_1fca",
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
@@ -373,9 +364,9 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
-    Code._2210: {  # unknown_2210, HVAC, _I verb only seen on ClimaRad HRU
-        # .I --- 37:153226 --:------ 37:153226 2210 042 00FF00FFFFFF0000000000FFFFFFFFFF00FFFFFF0000000000FFFFFFFFFFFFFFFF000000000000000140
+    Code._2210: {  # unknown_2210, HVAC,
         SZ_NAME: "unknown_2210",
+        I_: r"^00[0-9A-F]{82}$",
         I_: r"^(00)(FF)(00)(FF){3}(00){5}(FF){5}(00)(FF){3}(00){5}(FF){8}(00){7}(0140)$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{82}$",
@@ -401,8 +392,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._22E0: {  # unknown_22e0, HVAC, NB: no I
         SZ_NAME: "unknown_22e0",
-        RQ: r"^00$",  # seen in RQ to ClimaRad VenturaV1x FAN
-        RP: r"^00[0-9A-F]{6}$",  # seen in RP from ClimaRad VenturaV1x FAN
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{6}$",
     },
     Code._22E5: {  # unknown_22e5, HVAC, NB: no I
         SZ_NAME: "unknown_22e5",
@@ -417,7 +408,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     Code._22F1: {  # fan_mode, HVAC
         SZ_NAME: "fan_mode",
         RQ: r"^00$",
-        I_: r"^(00|63)(0[0-9A-F]){1,2}$",  # VASCO HD60 HRU: 22F1 003 000206, 22F1 003 000306, 22F1 003 000406
+        RP: r"^00[0-9A-F]{4}$",
+        I_: r"^(00|63)(0[0-9A-F]){1,2}$",
     },
     Code._22F2: {  # unknown_22f2, HVAC, NB: no I
         SZ_NAME: "unknown_22f2",
@@ -426,12 +418,10 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
     },
     Code._22F3: {  # fan_boost, HVAC
         SZ_NAME: "fan_boost",
-        I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$",  # VASCO D60 HRU: .I + 22F3 007 00 021E 0406 0000 (a timer)
+        I_: r"^(00|63)(021E)?[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes only?
     Code._22F4: {  # unknown_22f4, HVAC
-        # .I + 22F4 013 00 40 30 0000 00 00 000000000000 (ClimaRad Ventura - mode Auto)
-        # .I + 22F4 013 00 00 00 0000 60 C9 000000000000 (ClimaRad Ventura - speed 1)
-        SZ_NAME: "unknown_22f4",  # TODO rename?
+        SZ_NAME: "unknown_22f4",
         I_: r"^00[0-9A-F]{4}(0000)[0-9A-F]{4}(00){6}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{24}$",
@@ -550,7 +540,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         W_: r"^00[0-9A-F]{16}$",
         SZ_LIFESPAN: td(seconds=3),
     },
-    Code._3150: {  # heat_demand
+    Code._3150: {  # heat_demand, also fans with preheat
         SZ_NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
         SZ_LIFESPAN: td(minutes=20),
@@ -564,11 +554,8 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         RQ: r"^(00|01|15|16|17|21)$",
     },
     Code._31DA: {  # hvac_state (fan_state_extended)
-        # Seen on ClimaRad VenturaV1x 2021:
-        # .I --- 37:153226 --:------ 37:153226 31DA 030 00EF00029C00EF070D7FFF083307A8BE09001F0000000000008500850000
-        # .I --- 37:153226 --:------ 37:153226 31DA 030 00 EF 00 02 C8 00 EF 07 AA 7FFF 07 CB 05 F0 BE09001F0808000000008500850000
         SZ_NAME: "hvac_state",
-        I_: r"^(00|01|15|16|17|21)[0-9A-F]{56}(00|20)?$",  # not changed for ClimaRad Ventura, but not very strict
+        I_: r"^(00|01|15|16|17|21)[0-9A-F]{56}(00|20)?$",
         RQ: r"^(00|01|15|16|17|21)$",
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
@@ -579,13 +566,13 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
         SZ_NAME: "fan_demand",
         I_: r"^00([0-9A-F]{4}){1,3}(00|FF)?$",
     },
-    Code._3200: {  # boiler output temp, I was seen on ClimaRadx HRU (FAN) without heater, payload const 007FFF
+    Code._3200: {  # boiler (or CV?) output temp
         SZ_NAME: "boiler_output",
-        I_: r"^00(7F)(FF)?$",  # I --- 37:153226 --:------ 37:153226 3200 003 00 7F FF (ClimaRad HRU)
+        I_: r"^00[0-9A-F]{4}$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    Code._3210: {  # boiler return temp
+    Code._3210: {  # boiler (or CV?) return temp
         SZ_NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
@@ -675,7 +662,7 @@ CODES_SCHEMA: dict[Code, dict[str, Any]] = {  # rf_unknown
 CODE_NAME_LOOKUP = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 
-for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
+for code in CODES_SCHEMA.values():  # map any (missing) RPs to I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 #
@@ -709,7 +696,7 @@ RQ_NO_PAYLOAD: list[Code] = [
     k
     for k, v in CODES_SCHEMA.items()
     if v.get(RQ)
-       in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F](00)?$", r"^0[0-9A-F]00$")
+    in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F](00)?$", r"^0[0-9A-F]00$")
 ]
 RQ_NO_PAYLOAD.extend((Code._0418,))
 
@@ -754,7 +741,7 @@ CODE_IDX_ARE_NONE: set[Code] = {
     k
     for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_ARE_COMPLEX | CODE_IDX_ARE_SIMPLE
-       and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
+    and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 }
 CODE_IDX_ARE_NONE |= {Code._22F3, Code._2389, Code._2E04, Code._4401}
 
@@ -1079,25 +1066,31 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._1470: {RP: {}},
         Code._1F09: {I_: {}, RP: {}},
         Code._1FC9: {W_: {}},
-        Code._2210: {I_: {}},
-        Code._22F1: {},
+        Code._2210: {I_: {}, RP: {}},
+        Code._22E5: {RP: {}},
+        Code._22E9: {RP: {}},
+        Code._22F1: {RP: {}},
+        Code._22F2: {I_: {}, RP: {}},
         Code._22F3: {},
         Code._22F4: {I_: {}},
         Code._22F7: {I_: {}, RP: {}},
         Code._2411: {I_: {}, RP: {}},
+        Code._2E10: {I_: {}},
         Code._3120: {I_: {}},
         Code._313F: {I_: {}, RP: {}},
         Code._3150: {I_: {}},
         Code._31D9: {I_: {}, RP: {}},
         Code._31DA: {I_: {}, RP: {}},
-        Code._3200: {I_: {}},
         # Code._31E0: {I_: {}},
+        Code._3200: {I_: {}},
+        Code._3222: {RP: {}},
     },
     DevType.CO2: {
         Code._042F: {I_: {}},
         Code._10E0: {I_: {}, RP: {}},
         Code._1298: {I_: {}},
         Code._1FC9: {I_: {}},
+        Code._22F1: {RQ: {}},
         Code._2411: {RQ: {}},
         Code._2E10: {I_: {}},
         Code._3120: {I_: {}},
@@ -1117,6 +1110,7 @@ _DEV_KLASSES_HVAC: dict[str, dict[Code, dict[VerbT, Any]]] = {
         Code._0001: {RQ: {}},  # from a VMI (only?)
         Code._042F: {I_: {}},  # from a VMI (only?)
         Code._1060: {I_: {}},
+        Code._10D0: {W_: {}},  # reset filter count from REM
         Code._10E0: {I_: {}, RQ: {}},  # RQ from a VMI (only?)
         Code._1298: {I_: {}},  # CO2 sensor report from wired Vasco CO2/remote
         Code._1470: {RQ: {}},  # from a VMI (only?)
@@ -1251,23 +1245,13 @@ _22F1_MODE_ORCON: dict[str, str] = {
     "07": "off",
 }
 
-_22F1_MODE_VASCO: dict[str, str] = {  # for VASCO D60 AND ClimaRad Minibox fanS/remoteS
-    "02": "low",  # low:    000206
-    "03": "medium",  # medium: 000306
-    "04": "high",  # high:   000406, aka boost with 22F3
+_22F1_MODE_VASCO: dict[str, str] = {  # for VASCO D60 and ClimaRad Minibox remotes
+    "00": "off",
+    "01": "away",  # 000106 minimum
+    "02": "low",  # 000206
+    "03": "medium",  # 000306
+    "04": "high",  # 000406, aka boost with 22F3
     "05": "auto",
-}
-
-_22F1_MODE_CLIMARAD: dict[str, str] = {
-    # for ClimaRad Ventura fan/remote, actually for 22F4 but stored here for easier comparison
-    "C9": "1",  # * low speed rate, operating mode for C9-CD always 60 - manual
-    "CA": "2",  # ** medium-low
-    "CB": "3",  # *** medium
-    "CC": "4",  # **** medium-high
-    "CD": "5",  # |>|> high aka boost
-    "20": "paused",
-    "40": "auto",
-    "60": "manual",
 }
 
 _22F1_SCHEMES: dict[str, dict[str, str]] = {
@@ -1275,7 +1259,6 @@ _22F1_SCHEMES: dict[str, dict[str, str]] = {
     "nuaire": _22F1_MODE_NUAIRE,
     "orcon": _22F1_MODE_ORCON,
     "vasco": _22F1_MODE_VASCO,
-    "climarad": _22F1_MODE_CLIMARAD,  # used in 22F4
 }
 
 # unclear if true for only Orcon/*all* models
@@ -1378,6 +1361,19 @@ _2411_PARAMS_SCHEMA: dict[str, dict[str, Any]] = {
         SZ_PRECISION: 0.005,
         SZ_DATA_TYPE: "0F",
     },
+}
+
+# ventilation speed description
+_31D9_FAN_INFO_VASCO: dict[int, str] = {
+    0x00: "off",
+    0x01: "1 (trickle)",  # aka low
+    0x02: "2 (low)",  # aka medium
+    0x03: "3 (medium)",  # aka high
+    0x04: "4 (boost)",
+    0x05: "auto",
+    0xC8: "III (boost)",  # same code sent for speed II and III, mode manual
+    0x50: "I (low)",
+    0x1E: "0 (very low)",
 }
 
 # ventilation speed

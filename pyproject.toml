@@ -11,12 +11,12 @@
   authors = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   maintainers = [{name = "David Bonnes", email = "zxdavb@bonnes.me"}]
   dependencies = [
-    "colorlog>=6.8.2",
-    "paho-mqtt>=1.6.1,<2.0.0",
-    "pyserial-asyncio-fast>=0.13",
+    "colorlog>=6.9.0",
+    "paho-mqtt>=2.1.0",
+    "pyserial-asyncio-fast>=0.16",
     "voluptuous>=0.15.2",
   ]
-  requires-python = ">=3.11"  # e.g. @enum.verify(enum.EnumCheck)
+  requires-python = ">=3.11"
   license = "MIT"
 
   keywords = [
