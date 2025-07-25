@@ -375,6 +375,13 @@ class HvacVentilator(FilterChange):  # FAN: RP/31DA, I/31D[9A]
 
     @property
     def exhaust_temp(self) -> float | None:
+        if Code._12A0 in self._msgs and isinstance(
+            self._msgs[Code._12A0].payload, list
+        ):  # FAN Ventura sends RH/temps as a list, use element [2] for exhaust temp
+            if v := self._msgs[Code._12A0].payload[2].get(SZ_TEMPERATURE):
+                assert isinstance(v, (float | type(None)))
+                return v
+            return None
         return self._msg_value(Code._31DA, key=SZ_EXHAUST_TEMP)
 
     @property
