@@ -68,6 +68,8 @@ from .const import (
     SZ_PHASE,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
+    SZ_REMAINING_DAYS,
+    SZ_REMAINING_PERCENT,
     SZ_SETPOINT,
     SZ_SETPOINT_BOUNDS,
     SZ_SYSTEM_MODE,
@@ -972,12 +974,12 @@ def parser_10d0(payload: str, msg: Message) -> dict[str, Any]:
     result = {}
 
     if payload[2:4] not in ("FF", "FE"):
-        result["days_remaining"] = int(payload[2:4], 16)
+        result[SZ_REMAINING_DAYS] = int(payload[2:4], 16)
 
     if payload[4:6] not in ("FF", "FE"):
         result["days_lifetime"] = int(payload[4:6], 16)
 
-    result["percent_remaining"] = hex_to_percent(payload[6:8])
+    result[SZ_REMAINING_PERCENT] = hex_to_percent(payload[6:8])
 
     return result
 
